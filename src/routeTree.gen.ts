@@ -23,6 +23,7 @@ import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
+import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authenticated/billing.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_authenticated/portals.$portalId'
@@ -105,6 +106,12 @@ const AuthenticatedGuestsIndexRoute =
     path: '/guests/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedBillingIndexRoute =
+  AuthenticatedBillingIndexRouteImport.update({
+    id: '/billing/',
+    path: '/billing/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAnalyticsIndexRoute =
   AuthenticatedAnalyticsIndexRouteImport.update({
     id: '/analytics/',
@@ -156,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
+  '/billing/': typeof AuthenticatedBillingIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
@@ -177,6 +185,7 @@ export interface FileRoutesByTo {
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
+  '/billing': typeof AuthenticatedBillingIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
@@ -200,6 +209,7 @@ export interface FileRoutesById {
   '/_authenticated/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
+  '/_authenticated/billing/': typeof AuthenticatedBillingIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/portals/$portalId'
     | '/routers/$routerId'
     | '/analytics/'
+    | '/billing/'
     | '/guests/'
     | '/locations/'
     | '/monitoring/'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/portals/$portalId'
     | '/routers/$routerId'
     | '/analytics'
+    | '/billing'
     | '/guests'
     | '/locations'
     | '/monitoring'
@@ -266,6 +278,7 @@ export interface FileRouteTypes {
     | '/_authenticated/portals/$portalId'
     | '/_authenticated/routers/$routerId'
     | '/_authenticated/analytics/'
+    | '/_authenticated/billing/'
     | '/_authenticated/guests/'
     | '/_authenticated/locations/'
     | '/_authenticated/monitoring/'
@@ -384,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGuestsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/billing/': {
+      id: '/_authenticated/billing/'
+      path: '/billing'
+      fullPath: '/billing/'
+      preLoaderRoute: typeof AuthenticatedBillingIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/analytics/': {
       id: '/_authenticated/analytics/'
       path: '/analytics'
@@ -437,6 +457,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPortalsPortalIdRoute: typeof AuthenticatedPortalsPortalIdRoute
   AuthenticatedRoutersRouterIdRoute: typeof AuthenticatedRoutersRouterIdRoute
   AuthenticatedAnalyticsIndexRoute: typeof AuthenticatedAnalyticsIndexRoute
+  AuthenticatedBillingIndexRoute: typeof AuthenticatedBillingIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
@@ -453,6 +474,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPortalsPortalIdRoute: AuthenticatedPortalsPortalIdRoute,
   AuthenticatedRoutersRouterIdRoute: AuthenticatedRoutersRouterIdRoute,
   AuthenticatedAnalyticsIndexRoute: AuthenticatedAnalyticsIndexRoute,
+  AuthenticatedBillingIndexRoute: AuthenticatedBillingIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
