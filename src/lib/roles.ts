@@ -12,6 +12,7 @@ import {
   LifeBuoy,
   Settings,
   Receipt,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -91,6 +92,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Billing",
     to: "/billing",
     icon: Receipt,
+    roles: ["super_admin", "org_admin"],
+  },
+  {
+    label: "White label",
+    to: "/branding",
+    icon: Palette,
     roles: ["super_admin", "org_admin"],
   },
   {
