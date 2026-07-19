@@ -107,15 +107,6 @@ export function UserMenu() {
         <DropdownMenuItem onClick={() => go("history")}>
           <Clock className="mr-2 h-4 w-4" /> Login history
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => go("password")}>
-          <KeyRound className="mr-2 h-4 w-4" /> Change password
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => go("two-factor")}>
-          <ShieldCheck className="mr-2 h-4 w-4" /> Two-factor auth
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => go("sessions")}>
-          <Monitor className="mr-2 h-4 w-4" /> Active sessions
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => go("notifications")}>
           <Bell className="mr-2 h-4 w-4" /> Notifications
         </DropdownMenuItem>
