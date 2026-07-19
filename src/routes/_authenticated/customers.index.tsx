@@ -1,10 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2, MapPin, Search, UserPlus } from "lucide-react";
+import { Building2, FilterX, MapPin, Search, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,21 +27,64 @@ export const Route = createFileRoute("/_authenticated/customers/")({
   component: CustomersListPage,
 });
 
+type LocBucket = "any" | "1" | "2-5" | "6-10" | "10+";
+
+function inBucket(count: number, bucket: LocBucket) {
+  switch (bucket) {
+    case "1":
+      return count === 1;
+    case "2-5":
+      return count >= 2 && count <= 5;
+    case "6-10":
+      return count >= 6 && count <= 10;
+    case "10+":
+      return count > 10;
+    default:
+      return true;
+  }
+}
+
 function CustomersListPage() {
   const { data, isLoading } = useCustomers();
   const [q, setQ] = useState("");
+  const [owner, setOwner] = useState<string>("any");
+  const [plan, setPlan] = useState<string>("any");
+  const [status, setStatus] = useState<string>("any");
+  const [locBucket, setLocBucket] = useState<LocBucket>("any");
+
+  const owners = useMemo(() => {
+    const set = new Map<string, string>();
+    (data ?? []).forEach((c) => set.set(c.owner.email, c.owner.name));
+    return Array.from(set.entries()).map(([email, name]) => ({ email, name }));
+  }, [data]);
+
+  const plans = useMemo(
+    () => Array.from(new Set((data ?? []).map((c) => c.subscription.plan))),
+    [data],
+  );
+  const statuses = useMemo(
+    () => Array.from(new Set((data ?? []).map((c) => c.status))),
+    [data],
+  );
 
   const filtered = useMemo(() => {
     const src = data ?? [];
-    if (!q.trim()) return src;
-    const needle = q.toLowerCase();
-    return src.filter(
-      (c) =>
-        c.name.toLowerCase().includes(needle) ||
-        c.owner.email.toLowerCase().includes(needle) ||
-        c.owner.name.toLowerCase().includes(needle),
-    );
-  }, [data, q]);
+    const needle = q.trim().toLowerCase();
+    return src.filter((c) => {
+      if (
+        needle &&
+        !c.name.toLowerCase().includes(needle) &&
+        !c.owner.email.toLowerCase().includes(needle) &&
+        !c.owner.name.toLowerCase().includes(needle)
+      )
+        return false;
+      if (owner !== "any" && c.owner.email !== owner) return false;
+      if (plan !== "any" && c.subscription.plan !== plan) return false;
+      if (status !== "any" && c.status !== status) return false;
+      if (!inBucket(c.locations.length, locBucket)) return false;
+      return true;
+    });
+  }, [data, q, owner, plan, status, locBucket]);
 
   const totals = useMemo(() => {
     const src = data ?? [];
@@ -45,6 +95,20 @@ function CustomersListPage() {
       trial: src.filter((c) => c.status === "trial").length,
     };
   }, [data]);
+
+  const activeFilters =
+    (owner !== "any" ? 1 : 0) +
+    (plan !== "any" ? 1 : 0) +
+    (status !== "any" ? 1 : 0) +
+    (locBucket !== "any" ? 1 : 0);
+
+  const resetFilters = () => {
+    setOwner("any");
+    setPlan("any");
+    setStatus("any");
+    setLocBucket("any");
+  };
+
 
   if (isLoading) return <PageSkeleton />;
 
