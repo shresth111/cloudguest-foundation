@@ -103,8 +103,8 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["super_admin", "org_admin"],
   },
   {
-    label: "Security",
-    to: "/dashboard",
+    label: "Users & Roles",
+    to: "/rbac",
     icon: ShieldCheck,
     roles: ["super_admin", "org_admin"],
   },

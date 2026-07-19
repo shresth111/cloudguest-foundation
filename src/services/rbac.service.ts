@@ -71,7 +71,7 @@ function readOnly(): RbacPermissions {
 }
 function subset(view: Partial<Record<PermissionAction, boolean>>, modules: string[]): RbacPermissions {
   const out: RbacPermissions = {};
-  for (const k of modules) out[k as never] = { ...view };
+  for (const k of modules) (out as Record<string, typeof view>)[k] = { ...view };
   return out;
 }
 
