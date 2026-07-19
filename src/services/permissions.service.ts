@@ -501,20 +501,36 @@ function buildNode(id: ModuleId, order: number, locked: boolean): SidebarNode {
 }
 
 function buildConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
-  const byGroup = new Map<GroupId, SidebarNode[]>();
-  MODULE_ORDER.forEach((id, i) => {
+  // Primary IA — the flat 10-item CloudGuest spine (FE-024).
+  const primaryItems: SidebarNode[] = [];
+  PRIMARY_IA.forEach((id, i) => {
     const m = modules[id];
     if (!m) return;
-    const visible = m.view || m.locked;
-    if (!visible) return;
+    if (!(m.view || m.locked)) return;
+    primaryItems.push(buildNode(id, i, !!m.locked && !m.view));
+  });
+  const primaryGroup: SidebarGroupDef | null = primaryItems.length
+    ? { id: "platform", label: GROUP_META.platform.label, order: GROUP_META.platform.order, items: primaryItems }
+    : null;
+
+  // Secondary groups — everything else bucketed by domain, hidden from the
+  // primary IA to keep the sidebar clean while preserving deep-links.
+  const byGroup = new Map<GroupId, SidebarNode[]>();
+  MODULE_ORDER.forEach((id, i) => {
+    if (PRIMARY_IA.includes(id)) return;
+    const m = modules[id];
+    if (!m) return;
+    if (!(m.view || m.locked)) return;
     const groupId = MODULE_GROUP[id] ?? "operations";
     const arr = byGroup.get(groupId) ?? [];
     arr.push(buildNode(id, i, !!m.locked && !m.view));
     byGroup.set(groupId, arr);
   });
-  return Array.from(byGroup.entries())
+  const secondary = Array.from(byGroup.entries())
     .map(([id, items]) => ({ id, label: GROUP_META[id].label, order: GROUP_META[id].order, items }))
     .sort((a, b) => a.order - b.order);
+
+  return primaryGroup ? [primaryGroup, ...secondary] : secondary;
 }
 
 function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {
