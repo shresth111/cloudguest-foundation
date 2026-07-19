@@ -48,7 +48,9 @@ const NEW_IA_MODULES: ModuleId[] = [
 
 const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
-    "dashboard", "customers", "organizations", "locations", "subscription",
+    "dashboard", "customers", "location-master", "infrastructure",
+    "voucher-master",
+    "organizations", "locations", "subscription",
     "plans", "feature-management", "audit", "system", "settings",
     "routers", "guests", "portals", "monitoring", "analytics",
     "billing", "branding", "marketplace", "rbac",
@@ -64,7 +66,8 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     ...NEW_IA_MODULES,
   ],
   org_admin: [
-    "dashboard", "locations", "subscription", "audit", "settings",
+    "dashboard", "customers", "location-master", "infrastructure", "voucher-master",
+    "locations", "subscription", "audit", "settings",
     "routers", "guests", "portals", "monitoring", "analytics",
     "billing", "branding", "marketplace", "rbac",
     "integrations", "api-keys", "notifications", "exports", "help",
@@ -77,7 +80,8 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     ...NEW_IA_MODULES,
   ],
   location_manager: [
-    "dashboard", "locations", "routers", "guests", "portals",
+    "dashboard", "location-master", "voucher-master",
+    "locations", "routers", "guests", "portals",
     "monitoring", "notifications", "help", "vouchers", "devices",
     "vlan", "guests-live", "guests-sessions", "guests-blocklist",
     "policy-location", "policy-user",
@@ -151,6 +155,9 @@ const ROUTER_ACTIONS_BY_ROLE: Record<UserRole, Partial<Record<RouterAction, bool
 
 const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "LayoutDashboard",
+  "location-master": "MapPinned",
+  infrastructure: "ServerCog",
+  "voucher-master": "Ticket",
   // Network
   routers: "Router",
   "network-aps": "Wifi",
@@ -230,6 +237,9 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
 
 const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "Dashboard",
+  "location-master": "Location Master",
+  infrastructure: "Infrastructure",
+  "voucher-master": "Voucher Master",
   routers: "Routers",
   "network-aps": "Access Points",
   vlan: "VLAN",
@@ -300,6 +310,9 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
 
 const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "/dashboard",
+  "location-master": "/locations",
+  infrastructure: "/routers",
+  "voucher-master": "/vouchers",
   routers: "/routers",
   "network-aps": "/network/access-points",
   vlan: "/network/vlan",
@@ -369,6 +382,7 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
 };
 
 type GroupId =
+  | "platform"
   | "dashboard"
   | "network"
   | "guests"
@@ -381,6 +395,7 @@ type GroupId =
   | "workspace";
 
 const GROUP_META: Record<GroupId, { label: string; order: number }> = {
+  platform:       { label: "CloudGuest",     order: 1 },
   dashboard:      { label: "Dashboard",      order: 10 },
   network:        { label: "Network",        order: 20 },
   guests:         { label: "Guest Management", order: 30 },
@@ -393,6 +408,23 @@ const GROUP_META: Record<GroupId, { label: string; order: number }> = {
   workspace:      { label: "Customer workspace", order: 5 },
 };
 
+/**
+ * FE-024 Primary IA — a flat 10-item list surfaced at the top of the sidebar.
+ * Everything else remains available in secondary groups below for power users.
+ */
+const PRIMARY_IA: ModuleId[] = [
+  "dashboard",
+  "customers",
+  "location-master",
+  "infrastructure",
+  "voucher-master",
+  "policy-location",
+  "analytics",
+  "billing",
+  "audit",
+  "settings",
+];
+
 const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   dashboard: "dashboard",
   // Network
@@ -403,50 +435,50 @@ const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   "guests-live": "guests", "guests-sessions": "guests", "smart-id": "guests",
   vouchers: "guests", whitelist: "guests", "guests-blocklist": "guests",
   // Policies
-  "policy-location": "policies", "policy-user": "policies", "policy-group": "policies",
+  "policy-user": "policies", "policy-group": "policies",
   "policy-auth": "policies", "policy-bandwidth": "policies", "policy-network": "policies",
   // Analytics
   "analytics-executive": "analytics", "analytics-network": "analytics",
   "analytics-guest": "analytics", "analytics-device": "analytics", "analytics-isp": "analytics",
   // Operations
-  monitoring: "operations", alerts: "operations", audit: "operations", "admin-logs": "operations",
+  monitoring: "operations", alerts: "operations", "admin-logs": "operations",
   // Administration
   organizations: "administration", "business-units": "administration", locations: "administration",
-  customers: "administration", rbac: "administration", "feature-management": "administration",
-  billing: "administration", subscription: "administration", plans: "administration",
+  rbac: "administration", "feature-management": "administration",
+  subscription: "administration", plans: "administration",
   // Support
   help: "support", documentation: "support", "support-contact": "support",
-  // System (kept out of primary IA — for super admin only, at bottom)
-  system: "system", settings: "system", integrations: "system",
+  // System
+  system: "system", integrations: "system",
   "api-keys": "system", notifications: "system", exports: "system",
-  branding: "system", marketplace: "system", portals: "system", analytics: "analytics",
+  branding: "system", marketplace: "system", portals: "system",
   guests: "guests",
 };
 
 const MODULE_ORDER: ModuleId[] = [
-  "dashboard",
   // Network
   "routers", "network-aps", "vlan", "isp-routing", "network-wan", "network-lan",
   "dscp", "firewall", "network-dhcp", "network-dns",
   // Guests
   "guests-live", "guests-sessions", "smart-id", "vouchers", "whitelist", "guests-blocklist",
   // Policies
-  "policy-location", "policy-user", "policy-group",
+  "policy-user", "policy-group",
   "policy-auth", "policy-bandwidth", "policy-network",
   // Analytics
   "analytics-executive", "analytics-network", "analytics-guest",
   "analytics-device", "analytics-isp",
   // Operations
-  "monitoring", "alerts", "audit", "admin-logs",
+  "monitoring", "alerts", "admin-logs",
   // Administration
-  "organizations", "business-units", "locations", "customers",
-  "rbac", "feature-management", "billing", "subscription", "plans",
+  "organizations", "business-units", "locations",
+  "rbac", "feature-management", "subscription", "plans",
   // Support
   "help", "documentation", "support-contact",
   // System
-  "settings", "system", "integrations", "api-keys", "notifications",
+  "system", "integrations", "api-keys", "notifications",
   "exports", "branding", "marketplace", "portals",
 ];
+
 
 
 const WORKSPACE_ORDER: ModuleId[] = [
@@ -469,20 +501,36 @@ function buildNode(id: ModuleId, order: number, locked: boolean): SidebarNode {
 }
 
 function buildConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
-  const byGroup = new Map<GroupId, SidebarNode[]>();
-  MODULE_ORDER.forEach((id, i) => {
+  // Primary IA — the flat 10-item CloudGuest spine (FE-024).
+  const primaryItems: SidebarNode[] = [];
+  PRIMARY_IA.forEach((id, i) => {
     const m = modules[id];
     if (!m) return;
-    const visible = m.view || m.locked;
-    if (!visible) return;
+    if (!(m.view || m.locked)) return;
+    primaryItems.push(buildNode(id, i, !!m.locked && !m.view));
+  });
+  const primaryGroup: SidebarGroupDef | null = primaryItems.length
+    ? { id: "platform", label: GROUP_META.platform.label, order: GROUP_META.platform.order, items: primaryItems }
+    : null;
+
+  // Secondary groups — everything else bucketed by domain, hidden from the
+  // primary IA to keep the sidebar clean while preserving deep-links.
+  const byGroup = new Map<GroupId, SidebarNode[]>();
+  MODULE_ORDER.forEach((id, i) => {
+    if (PRIMARY_IA.includes(id)) return;
+    const m = modules[id];
+    if (!m) return;
+    if (!(m.view || m.locked)) return;
     const groupId = MODULE_GROUP[id] ?? "operations";
     const arr = byGroup.get(groupId) ?? [];
     arr.push(buildNode(id, i, !!m.locked && !m.view));
     byGroup.set(groupId, arr);
   });
-  return Array.from(byGroup.entries())
+  const secondary = Array.from(byGroup.entries())
     .map(([id, items]) => ({ id, label: GROUP_META[id].label, order: GROUP_META[id].order, items }))
     .sort((a, b) => a.order - b.order);
+
+  return primaryGroup ? [primaryGroup, ...secondary] : secondary;
 }
 
 function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {

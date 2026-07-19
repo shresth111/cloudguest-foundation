@@ -85,7 +85,11 @@ export type ModuleId =
   | "business-units"
   // Support group
   | "documentation"
-  | "support-contact";
+  | "support-contact"
+  // FE-024 IA
+  | "location-master"
+  | "infrastructure"
+  | "voucher-master";
 
 /** Standard per-module actions supported by the permission engine. */
 export type PermissionAction =

@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
+import { NasDevicesPanel } from "./NasDevicesPanel";
 import type { Location } from "@/types/location";
 import { InternetStatusBadge, LocationStatusBadge, SiteTypeBadge, SubscriptionBadge } from "./LocationStatusBadge";
 import { cn } from "@/lib/utils";
@@ -58,10 +59,12 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
         <TabsList className="h-auto flex-wrap gap-1 bg-muted/40 p-1">
           {[
             ["overview", "Overview"],
+            ["nas", "NAS Devices"],
             ["routers", "Routers"],
-            ["wifi", "WiFi Networks"],
-            ["guests", "Guests"],
+            ["wifi", "Guest WiFi"],
             ["portal", "Captive Portal"],
+            ["voucher", "Voucher"],
+            ["guests", "Guests"],
             ["monitoring", "Monitoring"],
             ["analytics", "Analytics"],
             ["bandwidth", "Bandwidth"],
@@ -154,8 +157,14 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
         </Card>
       </TabsContent>
 
+      <TabsContent value="nas">
+        <NasDevicesPanel locationId={location.id} />
+      </TabsContent>
       <TabsContent value="routers">
         <RouterListTab location={location} />
+      </TabsContent>
+      <TabsContent value="voucher">
+        <EmptyState icon={Wifi} title="Voucher batches" description="Prepaid access codes for this location will render here — scoped per NAS." />
       </TabsContent>
       <TabsContent value="wifi">
         <EmptyState icon={Wifi} title="No WiFi networks configured" description="SSIDs, VLANs and bandwidth policies will show up here." />
