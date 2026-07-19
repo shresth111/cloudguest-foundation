@@ -34,6 +34,7 @@ import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
+import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
 import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system.index'
 import { Route as AuthenticatedSubscriptionIndexRouteImport } from './routes/_authenticated/subscription.index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
@@ -236,6 +237,12 @@ const AuthenticatedWorkspaceIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedVouchersIndexRoute =
+  AuthenticatedVouchersIndexRouteImport.update({
+    id: '/vouchers/',
+    path: '/vouchers/',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSystemIndexRoute =
   AuthenticatedSystemIndexRouteImport.update({
@@ -781,6 +788,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/subscription/': typeof AuthenticatedSubscriptionIndexRoute
   '/system/': typeof AuthenticatedSystemIndexRoute
+  '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
@@ -881,6 +889,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/subscription': typeof AuthenticatedSubscriptionIndexRoute
   '/system': typeof AuthenticatedSystemIndexRoute
+  '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
@@ -985,6 +994,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/subscription/': typeof AuthenticatedSubscriptionIndexRoute
   '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
+  '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/_authenticated/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/_authenticated/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
@@ -1089,6 +1099,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/subscription/'
     | '/system/'
+    | '/vouchers/'
     | '/workspace/'
     | '/customers/$customerId/onboarding'
     | '/customers/$customerId/tenant'
@@ -1189,6 +1200,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/subscription'
     | '/system'
+    | '/vouchers'
     | '/workspace'
     | '/customers/$customerId/onboarding'
     | '/customers/$customerId/tenant'
@@ -1292,6 +1304,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/subscription/'
     | '/_authenticated/system/'
+    | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/_authenticated/customers/$customerId/onboarding'
     | '/_authenticated/customers/$customerId/tenant'
@@ -1486,6 +1499,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspace/'
       preLoaderRoute: typeof AuthenticatedWorkspaceIndexRouteImport
       parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/vouchers/': {
+      id: '/_authenticated/vouchers/'
+      path: '/vouchers'
+      fullPath: '/vouchers/'
+      preLoaderRoute: typeof AuthenticatedVouchersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/system/': {
       id: '/_authenticated/system/'
@@ -2173,6 +2193,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSubscriptionIndexRoute: typeof AuthenticatedSubscriptionIndexRoute
   AuthenticatedSystemIndexRoute: typeof AuthenticatedSystemIndexRoute
+  AuthenticatedVouchersIndexRoute: typeof AuthenticatedVouchersIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2246,6 +2267,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedSubscriptionIndexRoute: AuthenticatedSubscriptionIndexRoute,
   AuthenticatedSystemIndexRoute: AuthenticatedSystemIndexRoute,
+  AuthenticatedVouchersIndexRoute: AuthenticatedVouchersIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
