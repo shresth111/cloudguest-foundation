@@ -17,6 +17,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
@@ -61,6 +62,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedRoutersIndexRoute =
+  AuthenticatedRoutersIndexRouteImport.update({
+    id: '/routers/',
+    path: '/routers/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedOrganizationsIndexRoute =
   AuthenticatedOrganizationsIndexRouteImport.update({
     id: '/organizations/',
@@ -98,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
+  '/routers/': typeof AuthenticatedRoutersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -111,6 +119,7 @@ export interface FileRoutesByTo {
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
+  '/routers': typeof AuthenticatedRoutersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -126,6 +135,7 @@ export interface FileRoutesById {
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
+  '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/organizations/$orgId'
     | '/locations/'
     | '/organizations/'
+    | '/routers/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/organizations/$orgId'
     | '/locations'
     | '/organizations'
+    | '/routers'
   id:
     | '__root__'
     | '/'
@@ -168,6 +180,7 @@ export interface FileRouteTypes {
     | '/_authenticated/organizations/$orgId'
     | '/_authenticated/locations/'
     | '/_authenticated/organizations/'
+    | '/_authenticated/routers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -238,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/routers/': {
+      id: '/_authenticated/routers/'
+      path: '/routers'
+      fullPath: '/routers/'
+      preLoaderRoute: typeof AuthenticatedRoutersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/organizations/': {
       id: '/_authenticated/organizations/'
       path: '/organizations'
@@ -275,6 +295,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
+  AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -283,6 +304,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
+  AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
