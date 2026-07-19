@@ -133,11 +133,9 @@ function CustomersListPage() {
     (locBucket !== "any" ? 1 : 0);
 
   const resetFilters = () => {
-    setOwner("any");
-    setPlan("any");
-    setStatus("any");
-    setLocBucket("any");
+    navigate({ search: {} as never, replace: true });
   };
+
 
 
   if (isLoading) return <PageSkeleton />;
