@@ -45,6 +45,7 @@ import { Route as AuthenticatedPlansIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated/onboarding.index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications.index'
+import { Route as AuthenticatedNasIndexRouteImport } from './routes/_authenticated/nas.index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring.index'
 import { Route as AuthenticatedMarketplaceIndexRouteImport } from './routes/_authenticated/marketplace.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
@@ -302,6 +303,11 @@ const AuthenticatedNotificationsIndexRoute =
     path: '/notifications/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedNasIndexRoute = AuthenticatedNasIndexRouteImport.update({
+  id: '/nas/',
+  path: '/nas/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedMonitoringIndexRoute =
   AuthenticatedMonitoringIndexRouteImport.update({
     id: '/monitoring/',
@@ -778,6 +784,7 @@ export interface FileRoutesByFullPath {
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/nas/': typeof AuthenticatedNasIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
@@ -879,6 +886,7 @@ export interface FileRoutesByTo {
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/marketplace': typeof AuthenticatedMarketplaceIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
+  '/nas': typeof AuthenticatedNasIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
@@ -984,6 +992,7 @@ export interface FileRoutesById {
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/_authenticated/nas/': typeof AuthenticatedNasIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
@@ -1089,6 +1098,7 @@ export interface FileRouteTypes {
     | '/locations/'
     | '/marketplace/'
     | '/monitoring/'
+    | '/nas/'
     | '/notifications/'
     | '/onboarding/'
     | '/organizations/'
@@ -1190,6 +1200,7 @@ export interface FileRouteTypes {
     | '/locations'
     | '/marketplace'
     | '/monitoring'
+    | '/nas'
     | '/notifications'
     | '/onboarding'
     | '/organizations'
@@ -1294,6 +1305,7 @@ export interface FileRouteTypes {
     | '/_authenticated/locations/'
     | '/_authenticated/marketplace/'
     | '/_authenticated/monitoring/'
+    | '/_authenticated/nas/'
     | '/_authenticated/notifications/'
     | '/_authenticated/onboarding/'
     | '/_authenticated/organizations/'
@@ -1575,6 +1587,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications/'
       preLoaderRoute: typeof AuthenticatedNotificationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/nas/': {
+      id: '/_authenticated/nas/'
+      path: '/nas'
+      fullPath: '/nas/'
+      preLoaderRoute: typeof AuthenticatedNasIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/monitoring/': {
@@ -2183,6 +2202,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedMarketplaceIndexRoute: typeof AuthenticatedMarketplaceIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
+  AuthenticatedNasIndexRoute: typeof AuthenticatedNasIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedOnboardingIndexRoute: typeof AuthenticatedOnboardingIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
@@ -2257,6 +2277,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedMarketplaceIndexRoute: AuthenticatedMarketplaceIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
+  AuthenticatedNasIndexRoute: AuthenticatedNasIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedOnboardingIndexRoute: AuthenticatedOnboardingIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
