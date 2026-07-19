@@ -105,16 +105,16 @@ function toCsv(rows: Location[]) {
 type ViewMode = "table" | "cards" | "map";
 
 export function LocationTable() {
-  const [view, setView] = useState<ViewMode>("table");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<LocationStatus | "all">("all");
-  const [siteType, setSiteType] = useState<SiteType | "all">("all");
-  const [organizationId, setOrganizationId] = useState<string | "all">("all");
-  const [country, setCountry] = useState<string | "all">("all");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [sortBy, setSortBy] = useState<keyof Location>("createdAt");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [view, setView] = usePersistentState<ViewMode>("loc-master:view", "table");
+  const [search, setSearch] = usePersistentState<string>("loc-master:search", "");
+  const [status, setStatus] = usePersistentState<LocationStatus | "all">("loc-master:status", "all");
+  const [siteType, setSiteType] = usePersistentState<SiteType | "all">("loc-master:siteType", "all");
+  const [organizationId, setOrganizationId] = usePersistentState<string | "all">("loc-master:org", "all");
+  const [country, setCountry] = usePersistentState<string | "all">("loc-master:country", "all");
+  const [page, setPage] = usePersistentState<number>("loc-master:page", 1);
+  const [pageSize, setPageSize] = usePersistentState<number>("loc-master:pageSize", 10);
+  const [sortBy, setSortBy] = usePersistentState<keyof Location>("loc-master:sortBy", "createdAt");
+  const [sortDir, setSortDir] = usePersistentState<"asc" | "desc">("loc-master:sortDir", "desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | {
