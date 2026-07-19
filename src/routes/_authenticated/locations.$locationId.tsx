@@ -101,86 +101,106 @@ function LocationDetailPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant={disabled ? "default" : "outline"}
-            onClick={() =>
-              setConfirm({
-                title: disabled ? `Enable ${location.name}?` : `Disable ${location.name}?`,
-                description: disabled
-                  ? "Guest WiFi and services will resume immediately."
-                  : "Guest access at this site will stop until re-enabled.",
-                destructive: !disabled,
-                onConfirm: async () => {
-                  await updateStatus.mutateAsync({
-                    ids: [location.id],
-                    status: disabled ? "active" : "inactive",
-                  });
-                  toast.success(disabled ? "Location enabled" : "Location disabled");
-                },
-              })
-            }
-          >
-            {disabled ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
-            <span className="ml-2">{disabled ? "Enable" : "Disable"}</span>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() =>
-                  clone.mutate(location.id, {
-                    onSuccess: (loc) => {
-                      if (loc) {
-                        toast.success(`Cloned as ${loc.name}`);
-                        navigate({ to: "/locations/$locationId", params: { locationId: loc.id } });
+          {canEdit ? (
+            <Button
+              variant={disabled ? "default" : "outline"}
+              onClick={() =>
+                setConfirm({
+                  title: disabled ? `Enable ${location.name}?` : `Disable ${location.name}?`,
+                  description: disabled
+                    ? "Guest WiFi and services will resume immediately."
+                    : "Guest access at this site will stop until re-enabled.",
+                  destructive: !disabled,
+                  onConfirm: async () => {
+                    await updateStatus.mutateAsync({
+                      ids: [location.id],
+                      status: disabled ? "active" : "inactive",
+                    });
+                    toast.success(disabled ? "Location enabled" : "Location disabled");
+                  },
+                })
+              }
+            >
+              {disabled ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
+              <span className="ml-2">{disabled ? "Enable" : "Disable"}</span>
+            </Button>
+          ) : (
+            <Button variant="outline" disabled title="Access restricted. Contact your Administrator.">
+              <Lock className="h-4 w-4" />
+              <span className="ml-2">{disabled ? "Enable" : "Disable"}</span>
+            </Button>
+          )}
+          {anyMenu && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                {canCreate && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      clone.mutate(location.id, {
+                        onSuccess: (loc) => {
+                          if (loc) {
+                            toast.success(`Cloned as ${loc.name}`);
+                            navigate({ to: "/locations/$locationId", params: { locationId: loc.id } });
+                          }
+                        },
+                      })
+                    }
+                  >
+                    <Copy className="h-4 w-4" />
+                    <span className="ml-2">Clone location</span>
+                  </DropdownMenuItem>
+                )}
+                {canRestart && (
+                  <DropdownMenuItem onClick={() => toast.success("Restart command sent (placeholder)")}>
+                    <Wrench className="h-4 w-4" />
+                    <span className="ml-2">Restart services</span>
+                  </DropdownMenuItem>
+                )}
+                {canExport && (
+                  <DropdownMenuItem onClick={() => toast.success("Configuration download queued (placeholder)")}>
+                    <Download className="h-4 w-4" />
+                    <span className="ml-2">Download configuration</span>
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() =>
+                        setConfirm({
+                          title: `Delete ${location.name}?`,
+                          description: "This permanently removes the location and all associated data.",
+                          destructive: true,
+                          onConfirm: async () => {
+                            await remove.mutateAsync([location.id]);
+                            toast.success("Location deleted");
+                            navigate({ to: "/locations" });
+                          },
+                        })
                       }
-                    },
-                  })
-                }
-              >
-                <Copy className="h-4 w-4" />
-                <span className="ml-2">Clone location</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Restart command sent (placeholder)")}>
-                <Wrench className="h-4 w-4" />
-                <span className="ml-2">Restart services</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Configuration download queued (placeholder)")}>
-                <Download className="h-4 w-4" />
-                <span className="ml-2">Download configuration</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() =>
-                  setConfirm({
-                    title: `Delete ${location.name}?`,
-                    description: "This permanently removes the location and all associated data.",
-                    destructive: true,
-                    onConfirm: async () => {
-                      await remove.mutateAsync([location.id]);
-                      toast.success("Location deleted");
-                      navigate({ to: "/locations" });
-                    },
-                  })
-                }
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="ml-2">Delete location</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="ml-2">Delete location</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
       <LocationDetailTabs location={location} initialTab={tab ?? "overview"} />
 
       <ConfirmDialog
+
         open={!!confirm}
         onOpenChange={(o) => !o && setConfirm(null)}
         title={confirm?.title ?? ""}
