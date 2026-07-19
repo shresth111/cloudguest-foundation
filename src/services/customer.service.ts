@@ -360,6 +360,37 @@ export const customerService = {
   },
 
   seededExistingEmail: "owner@existing.com",
+
+  async updateCustomer(
+    id: string,
+    patch: { name?: string; ownerName?: string; ownerEmail?: string; ownerMobile?: string },
+  ): Promise<ExistingCustomer | undefined> {
+    const c = SEEDED_EXISTING.find((x) => x.id === id);
+    if (!c) return delay(undefined, 200);
+    if (patch.name) {
+      c.name = patch.name;
+      c.organizationName = patch.name;
+    }
+    if (patch.ownerName) c.owner.name = patch.ownerName;
+    if (patch.ownerEmail) c.owner.email = patch.ownerEmail;
+    if (patch.ownerMobile) c.owner.mobile = patch.ownerMobile;
+    return delay(c, 300);
+  },
+
+  async setStatus(id: string, status: ExistingCustomer["status"]): Promise<ExistingCustomer | undefined> {
+    const c = SEEDED_EXISTING.find((x) => x.id === id);
+    if (!c) return delay(undefined, 200);
+    c.status = status;
+    if (status === "active") c.subscription.status = "active";
+    if (status === "suspended") c.subscription.status = "expired";
+    return delay(c, 300);
+  },
+
+  async deleteCustomer(id: string): Promise<{ ok: true }> {
+    const i = SEEDED_EXISTING.findIndex((x) => x.id === id);
+    if (i >= 0) SEEDED_EXISTING.splice(i, 1);
+    return delay({ ok: true as const }, 300);
+  },
 };
 
 export function generateUsername(name: string, email: string): string {
