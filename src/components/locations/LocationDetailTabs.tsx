@@ -23,11 +23,32 @@ import { NasDevicesPanel } from "./NasDevicesPanel";
 import type { Location } from "@/types/location";
 import { InternetStatusBadge, LocationStatusBadge, SiteTypeBadge, SubscriptionBadge } from "./LocationStatusBadge";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { ModuleId } from "@/types/permissions";
+import { Lock } from "lucide-react";
 
 interface Props {
   location: Location;
   initialTab?: string;
 }
+
+type TabDef = { key: string; label: string; module?: ModuleId };
+
+const TABS: TabDef[] = [
+  { key: "overview", label: "Overview" },
+  { key: "nas", label: "NAS Devices", module: "nas-management" },
+  { key: "routers", label: "Routers", module: "routers" },
+  { key: "wifi", label: "Guest WiFi", module: "guests" },
+  { key: "portal", label: "Captive Portal", module: "captive-portal" },
+  { key: "voucher", label: "Voucher", module: "voucher-master" },
+  { key: "guests", label: "Guests", module: "guests-live" },
+  { key: "monitoring", label: "Monitoring", module: "monitoring" },
+  { key: "analytics", label: "Analytics", module: "analytics" },
+  { key: "bandwidth", label: "Bandwidth", module: "policy-bandwidth" },
+  { key: "billing", label: "Billing", module: "billing" },
+  { key: "audit", label: "Audit Logs", module: "audit" },
+];
+
 
 const KPIS = (l: Location) => [
   {
