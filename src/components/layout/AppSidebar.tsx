@@ -12,64 +12,21 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import {
-  groupedNavForRole,
-  ROLE_LABELS,
-  workspaceNavForRole,
-  type NavItem,
-} from "@/lib/roles";
+import { resolveIcon } from "@/lib/icons";
+import { ROLE_LABELS } from "@/lib/roles";
+import type { SidebarGroupDef, SidebarNode } from "@/types/permissions";
 
 export function AppSidebar() {
   const { user } = useAuth();
-  const { can, isLocked, isVisible } = usePermissions();
+  const { sidebar, isLoading } = usePermissions();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
 
-  const rawWorkspace = user ? workspaceNavForRole(user.role) : [];
-  const rawGroups = user && !inWorkspace ? groupedNavForRole(user.role) : [];
-
-  const filterVisible = (items: NavItem[]) => items.filter((i) => isVisible(i.moduleId));
-  const workspaceItems = filterVisible(rawWorkspace);
-  const groups = rawGroups
-    .map((g) => ({ ...g, items: filterVisible(g.items) }))
-    .filter((g) => g.items.length > 0);
-
-  const renderItem = (item: NavItem, key: string) => {
-    const active =
-      item.to === "/workspace"
-        ? pathname === "/workspace"
-        : pathname === item.to || pathname.startsWith(item.to + "/");
-    const locked = isLocked(item.moduleId) && !can(item.moduleId);
-
-    if (locked) {
-      return (
-        <SidebarMenuItem key={key}>
-          <SidebarMenuButton
-            disabled
-            tooltip={`${item.label} — upgrade required`}
-            className="opacity-60"
-          >
-            <item.icon className="h-4 w-4" />
-            <span className="flex-1 truncate">{item.label}</span>
-            <Lock className="h-3.5 w-3.5 opacity-70" />
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      );
-    }
-
-    return (
-      <SidebarMenuItem key={key}>
-        <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-          <Link to={item.to} className="flex items-center gap-2">
-            <item.icon className="h-4 w-4" />
-            <span>{item.label}</span>
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    );
-  };
+  const groups: SidebarGroupDef[] = inWorkspace ? sidebar.workspace : sidebar.console;
 
   return (
     <Sidebar collapsible="icon">
@@ -84,23 +41,25 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
-        {inWorkspace ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Customer workspace</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {workspaceItems.map((item, idx) => renderItem(item, `${item.label}-${idx}`))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {isLoading && groups.length === 0 ? (
+          <div className="space-y-2 p-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full rounded-md" />
+            ))}
+          </div>
         ) : (
           groups.map((g) => (
-            <SidebarGroup key={g.group}>
+            <SidebarGroup key={g.id}>
               <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {g.items.map((item, idx) => renderItem(item, `${item.label}-${idx}`))}
+                  {[...g.items]
+                    .sort((a, b) => a.order - b.order)
+                    .map((item) => (
+                      <SidebarNodeRow key={item.id} item={item} pathname={pathname} />
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -116,5 +75,57 @@ export function AppSidebar() {
         )}
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: string }) {
+  const Icon = resolveIcon(item.icon);
+  const to = item.to ?? "#";
+  const active =
+    to === "/workspace"
+      ? pathname === "/workspace"
+      : pathname === to || pathname.startsWith(to + "/");
+
+  if (item.locked) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          disabled
+          tooltip={`${item.label} — Access restricted. Contact your Administrator.`}
+          className="opacity-60"
+        >
+          <Icon className="h-4 w-4" />
+          <span className="flex-1 truncate">{item.label}</span>
+          <Lock className="h-3.5 w-3.5 opacity-70" />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  const badgeTone =
+    item.badge?.tone === "primary" ? "default" :
+    item.badge?.tone === "success" ? "default" :
+    item.badge?.tone === "warning" ? "secondary" :
+    item.badge?.tone === "danger" ? "destructive" : "outline";
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+        <Link to={to} className="flex items-center gap-2">
+          <Icon className="h-4 w-4" />
+          <span className="flex-1 truncate">{item.label}</span>
+          {typeof item.counter === "number" && item.counter > 0 && (
+            <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
+              {item.counter > 99 ? "99+" : item.counter}
+            </span>
+          )}
+          {item.badge && (
+            <Badge variant={badgeTone} className="ml-auto h-4 px-1.5 text-[10px]">
+              {item.badge.text}
+            </Badge>
+          )}
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }

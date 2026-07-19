@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customerService, type ExistingCustomer } from "@/services/customer.service";
 import { useAuth } from "@/context/AuthContext";
 import { customerKeys } from "@/hooks/useCustomer";
+
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
 
@@ -53,6 +54,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!belongs) setActiveLocationIdState("all");
   }, [customer, activeLocationId]);
 
+  const queryClient = useQueryClient();
+
   const setActiveLocationId = (id: string) => {
     setActiveLocationIdState(id);
     try {
@@ -60,7 +63,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+    // Switching location must refresh every scoped surface: permissions
+    // (dynamic sidebar / feature flags), dashboards, routers, guests, analytics,
+    // billing, monitoring, portals, audit, notifications. Invalidating rather
+    // than resetting keeps loading UI stable while data refetches in place.
+    queryClient.invalidateQueries({ queryKey: ["permissions"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["routers"] });
+    queryClient.invalidateQueries({ queryKey: ["guests"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["billing"] });
+    queryClient.invalidateQueries({ queryKey: ["monitoring"] });
+    queryClient.invalidateQueries({ queryKey: ["portals"] });
+    queryClient.invalidateQueries({ queryKey: ["audit"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    queryClient.invalidateQueries({ queryKey: ["locations"] });
+    queryClient.invalidateQueries({ queryKey: ["settings"] });
   };
+
 
   const value: WorkspaceContextValue = useMemo(() => {
     const locs = customer?.locations ?? [];
