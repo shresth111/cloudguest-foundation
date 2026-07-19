@@ -12,10 +12,23 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PortalRouteImport } from './routes/portal'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
+import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
+import { Route as PortalTermsRouteImport } from './routes/portal.terms'
+import { Route as PortalSuccessRouteImport } from './routes/portal.success'
+import { Route as PortalSessionRouteImport } from './routes/portal.session'
+import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
+import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
+import { Route as PortalFailureRouteImport } from './routes/portal.failure'
+import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
+import { Route as PortalAuthRouteImport } from './routes/portal.auth'
+import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
@@ -28,6 +41,7 @@ import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authenticated/billing.index'
 import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authenticated/audit.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
+import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_authenticated/portals.$portalId'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
@@ -49,6 +63,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -67,6 +86,66 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalWelcomeRoute = PortalWelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalVerifyRoute = PortalVerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalTermsRoute = PortalTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalSuccessRoute = PortalSuccessRouteImport.update({
+  id: '/success',
+  path: '/success',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalSessionRoute = PortalSessionRouteImport.update({
+  id: '/session',
+  path: '/session',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalRedirectRoute = PortalRedirectRouteImport.update({
+  id: '/redirect',
+  path: '/redirect',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalOfflineRoute = PortalOfflineRouteImport.update({
+  id: '/offline',
+  path: '/offline',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalFailureRoute = PortalFailureRouteImport.update({
+  id: '/failure',
+  path: '/failure',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalExpiredRoute = PortalExpiredRouteImport.update({
+  id: '/expired',
+  path: '/expired',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalAuthRoute = PortalAuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalAdRoute = PortalAdRouteImport.update({
+  id: '/ad',
+  path: '/ad',
+  getParentRoute: () => PortalRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
@@ -138,6 +217,11 @@ const AuthenticatedAnalyticsIndexRoute =
     path: '/analytics/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
+  id: '/$method',
+  path: '/$method',
+  getParentRoute: () => PortalAuthRoute,
+} as any)
 const AuthenticatedRoutersRouterIdRoute =
   AuthenticatedRoutersRouterIdRouteImport.update({
     id: '/routers/$routerId',
@@ -173,15 +257,29 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/portal/ad': typeof PortalAdRoute
+  '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/expired': typeof PortalExpiredRoute
+  '/portal/failure': typeof PortalFailureRoute
+  '/portal/offline': typeof PortalOfflineRoute
+  '/portal/redirect': typeof PortalRedirectRoute
+  '/portal/session': typeof PortalSessionRoute
+  '/portal/success': typeof PortalSuccessRoute
+  '/portal/terms': typeof PortalTermsRoute
+  '/portal/verify': typeof PortalVerifyRoute
+  '/portal/welcome': typeof PortalWelcomeRoute
+  '/portal/': typeof PortalIndexRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/audit/': typeof AuthenticatedAuditIndexRoute
   '/billing/': typeof AuthenticatedBillingIndexRoute
@@ -202,11 +300,24 @@ export interface FileRoutesByTo {
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/portal/ad': typeof PortalAdRoute
+  '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/expired': typeof PortalExpiredRoute
+  '/portal/failure': typeof PortalFailureRoute
+  '/portal/offline': typeof PortalOfflineRoute
+  '/portal/redirect': typeof PortalRedirectRoute
+  '/portal/session': typeof PortalSessionRoute
+  '/portal/success': typeof PortalSuccessRoute
+  '/portal/terms': typeof PortalTermsRoute
+  '/portal/verify': typeof PortalVerifyRoute
+  '/portal/welcome': typeof PortalWelcomeRoute
+  '/portal': typeof PortalIndexRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/audit': typeof AuthenticatedAuditIndexRoute
   '/billing': typeof AuthenticatedBillingIndexRoute
@@ -225,15 +336,29 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/portal/ad': typeof PortalAdRoute
+  '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/expired': typeof PortalExpiredRoute
+  '/portal/failure': typeof PortalFailureRoute
+  '/portal/offline': typeof PortalOfflineRoute
+  '/portal/redirect': typeof PortalRedirectRoute
+  '/portal/session': typeof PortalSessionRoute
+  '/portal/success': typeof PortalSuccessRoute
+  '/portal/terms': typeof PortalTermsRoute
+  '/portal/verify': typeof PortalVerifyRoute
+  '/portal/welcome': typeof PortalWelcomeRoute
+  '/portal/': typeof PortalIndexRoute
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/_authenticated/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/audit/': typeof AuthenticatedAuditIndexRoute
   '/_authenticated/billing/': typeof AuthenticatedBillingIndexRoute
@@ -252,15 +377,29 @@ export interface FileRouteTypes {
     | '/'
     | '/forgot-password'
     | '/login'
+    | '/portal'
     | '/reset-password'
     | '/session-expired'
     | '/verify-otp'
     | '/dashboard'
+    | '/portal/ad'
+    | '/portal/auth'
+    | '/portal/expired'
+    | '/portal/failure'
+    | '/portal/offline'
+    | '/portal/redirect'
+    | '/portal/session'
+    | '/portal/success'
+    | '/portal/terms'
+    | '/portal/verify'
+    | '/portal/welcome'
+    | '/portal/'
     | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
     | '/portals/$portalId'
     | '/routers/$routerId'
+    | '/portal/auth/$method'
     | '/analytics/'
     | '/audit/'
     | '/billing/'
@@ -281,11 +420,24 @@ export interface FileRouteTypes {
     | '/session-expired'
     | '/verify-otp'
     | '/dashboard'
+    | '/portal/ad'
+    | '/portal/auth'
+    | '/portal/expired'
+    | '/portal/failure'
+    | '/portal/offline'
+    | '/portal/redirect'
+    | '/portal/session'
+    | '/portal/success'
+    | '/portal/terms'
+    | '/portal/verify'
+    | '/portal/welcome'
+    | '/portal'
     | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
     | '/portals/$portalId'
     | '/routers/$routerId'
+    | '/portal/auth/$method'
     | '/analytics'
     | '/audit'
     | '/billing'
@@ -303,15 +455,29 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/forgot-password'
     | '/login'
+    | '/portal'
     | '/reset-password'
     | '/session-expired'
     | '/verify-otp'
     | '/_authenticated/dashboard'
+    | '/portal/ad'
+    | '/portal/auth'
+    | '/portal/expired'
+    | '/portal/failure'
+    | '/portal/offline'
+    | '/portal/redirect'
+    | '/portal/session'
+    | '/portal/success'
+    | '/portal/terms'
+    | '/portal/verify'
+    | '/portal/welcome'
+    | '/portal/'
     | '/_authenticated/guests/$guestId'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/organizations/$orgId'
     | '/_authenticated/portals/$portalId'
     | '/_authenticated/routers/$routerId'
+    | '/portal/auth/$method'
     | '/_authenticated/analytics/'
     | '/_authenticated/audit/'
     | '/_authenticated/billing/'
@@ -330,6 +496,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
+  PortalRoute: typeof PortalRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
@@ -356,6 +523,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -385,6 +559,90 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/portal/': {
+      id: '/portal/'
+      path: '/'
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/welcome': {
+      id: '/portal/welcome'
+      path: '/welcome'
+      fullPath: '/portal/welcome'
+      preLoaderRoute: typeof PortalWelcomeRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/verify': {
+      id: '/portal/verify'
+      path: '/verify'
+      fullPath: '/portal/verify'
+      preLoaderRoute: typeof PortalVerifyRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/terms': {
+      id: '/portal/terms'
+      path: '/terms'
+      fullPath: '/portal/terms'
+      preLoaderRoute: typeof PortalTermsRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/success': {
+      id: '/portal/success'
+      path: '/success'
+      fullPath: '/portal/success'
+      preLoaderRoute: typeof PortalSuccessRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/session': {
+      id: '/portal/session'
+      path: '/session'
+      fullPath: '/portal/session'
+      preLoaderRoute: typeof PortalSessionRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/redirect': {
+      id: '/portal/redirect'
+      path: '/redirect'
+      fullPath: '/portal/redirect'
+      preLoaderRoute: typeof PortalRedirectRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/offline': {
+      id: '/portal/offline'
+      path: '/offline'
+      fullPath: '/portal/offline'
+      preLoaderRoute: typeof PortalOfflineRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/failure': {
+      id: '/portal/failure'
+      path: '/failure'
+      fullPath: '/portal/failure'
+      preLoaderRoute: typeof PortalFailureRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/expired': {
+      id: '/portal/expired'
+      path: '/expired'
+      fullPath: '/portal/expired'
+      preLoaderRoute: typeof PortalExpiredRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/auth': {
+      id: '/portal/auth'
+      path: '/auth'
+      fullPath: '/portal/auth'
+      preLoaderRoute: typeof PortalAuthRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/ad': {
+      id: '/portal/ad'
+      path: '/ad'
+      fullPath: '/portal/ad'
+      preLoaderRoute: typeof PortalAdRouteImport
+      parentRoute: typeof PortalRoute
     }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
@@ -470,6 +728,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/portal/auth/$method': {
+      id: '/portal/auth/$method'
+      path: '/$method'
+      fullPath: '/portal/auth/$method'
+      preLoaderRoute: typeof PortalAuthMethodRouteImport
+      parentRoute: typeof PortalAuthRoute
+    }
     '/_authenticated/routers/$routerId': {
       id: '/_authenticated/routers/$routerId'
       path: '/routers/$routerId'
@@ -552,11 +817,57 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface PortalAuthRouteChildren {
+  PortalAuthMethodRoute: typeof PortalAuthMethodRoute
+}
+
+const PortalAuthRouteChildren: PortalAuthRouteChildren = {
+  PortalAuthMethodRoute: PortalAuthMethodRoute,
+}
+
+const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(
+  PortalAuthRouteChildren,
+)
+
+interface PortalRouteChildren {
+  PortalAdRoute: typeof PortalAdRoute
+  PortalAuthRoute: typeof PortalAuthRouteWithChildren
+  PortalExpiredRoute: typeof PortalExpiredRoute
+  PortalFailureRoute: typeof PortalFailureRoute
+  PortalOfflineRoute: typeof PortalOfflineRoute
+  PortalRedirectRoute: typeof PortalRedirectRoute
+  PortalSessionRoute: typeof PortalSessionRoute
+  PortalSuccessRoute: typeof PortalSuccessRoute
+  PortalTermsRoute: typeof PortalTermsRoute
+  PortalVerifyRoute: typeof PortalVerifyRoute
+  PortalWelcomeRoute: typeof PortalWelcomeRoute
+  PortalIndexRoute: typeof PortalIndexRoute
+}
+
+const PortalRouteChildren: PortalRouteChildren = {
+  PortalAdRoute: PortalAdRoute,
+  PortalAuthRoute: PortalAuthRouteWithChildren,
+  PortalExpiredRoute: PortalExpiredRoute,
+  PortalFailureRoute: PortalFailureRoute,
+  PortalOfflineRoute: PortalOfflineRoute,
+  PortalRedirectRoute: PortalRedirectRoute,
+  PortalSessionRoute: PortalSessionRoute,
+  PortalSuccessRoute: PortalSuccessRoute,
+  PortalTermsRoute: PortalTermsRoute,
+  PortalVerifyRoute: PortalVerifyRoute,
+  PortalWelcomeRoute: PortalWelcomeRoute,
+  PortalIndexRoute: PortalIndexRoute,
+}
+
+const PortalRouteWithChildren =
+  PortalRoute._addFileChildren(PortalRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
+  PortalRoute: PortalRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,
   VerifyOtpRoute: VerifyOtpRoute,
