@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useLocationNas } from "@/hooks/useNas";
-import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/context/AuthContext";
 
 interface Props {
   locationId: string;
