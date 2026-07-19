@@ -131,10 +131,52 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   {
-    label: "Support",
-    to: "/dashboard",
-    icon: LifeBuoy,
+    label: "Marketplace",
+    to: "/marketplace",
+    icon: Store,
+    roles: ["super_admin", "org_admin"],
+  },
+  {
+    label: "Subscription",
+    to: "/subscription",
+    icon: Receipt,
+    roles: ["super_admin", "org_admin"],
+  },
+  {
+    label: "Integrations",
+    to: "/integrations",
+    icon: Plug,
+    roles: ["super_admin", "org_admin"],
+  },
+  {
+    label: "API keys",
+    to: "/api-keys",
+    icon: KeyRound,
+    roles: ["super_admin", "org_admin"],
+  },
+  {
+    label: "System health",
+    to: "/system",
+    icon: HeartPulse,
     roles: ["super_admin", "support_engineer"],
+  },
+  {
+    label: "Notifications",
+    to: "/notifications",
+    icon: Bell,
+    roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"],
+  },
+  {
+    label: "Exports",
+    to: "/exports",
+    icon: Download,
+    roles: ["super_admin", "org_admin"],
+  },
+  {
+    label: "Help center",
+    to: "/help",
+    icon: LifeBuoy,
+    roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"],
   },
   {
     label: "Settings",
@@ -143,6 +185,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["super_admin", "org_admin"],
   },
 ];
+
 
 export function navForRole(role: UserRole): NavItem[] {
   return NAV_ITEMS.filter((i) => i.roles.includes(role));
