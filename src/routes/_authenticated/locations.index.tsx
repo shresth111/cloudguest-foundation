@@ -15,6 +15,9 @@ export const Route = createFileRoute("/_authenticated/locations/")({
 
 function LocationMasterPage() {
   const { can, isLocked, isVisible } = usePermissions();
+  const qc = useQueryClient();
+  const [wizardOpen, setWizardOpen] = useState(false);
+
   const locked = isLocked("location-master") || isLocked("locations");
   const hidden = !isVisible("location-master") && !isVisible("locations");
 
