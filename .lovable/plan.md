@@ -1,67 +1,95 @@
-# CloudGuest V2.1 — Enterprise Redesign & New Modules
+# FE-024 — Location Master & NAS-Driven Workspace
 
-Scope: redesign the existing shell, reorganize navigation into the new IA, and ship four new module groups (VLAN, Location/User/Group Policies, RBAC enhancements, Profile). No existing functionality removed — new routes are added and the sidebar is regrouped to point at them.
+Refactor the existing frontend so **Location Master** becomes the single entry point and every operational module (Voucher, Guest WiFi, Captive Portal, Analytics, Monitoring, Reports, Audit) is scoped to a **Location → NAS**. No new project, no duplicate pages — reuse existing components, services, RBAC, and design tokens.
 
-## 1. Design system polish (no rebuild)
+## 1. Information architecture (sidebar rewrite)
 
-Edits to `src/styles.css` and shared primitives in `src/components/ui-ext/`:
-- Tighten spacing scale, upgrade elevation ramp, add `--surface-1/2/3`, refine border tokens, subtle grid/dot background utility for empty states.
-- Sidebar: denser vertical rhythm, group label uppercase tracking, active-row left accent bar, section dividers.
-- New primitives: `DataToolbar`, `SmartTable` (wraps existing table with search/filter/export slots), `EmptyState` variant, `SkeletonBlock`, `PageHeader` (title + description + actions + breadcrumbs slot).
-- Cards: rounded-2xl, hairline border + soft shadow, hover lift.
-- Charts: consistent axis/tooltip theming via a `chartTheme.ts` helper.
-
-## 2. Information architecture
-
-Rewrite `permissions.service.ts` sidebar generator to emit these groups (console context):
+Rewrite `src/services/permissions.service.ts` sidebar builders to the 10-item spec:
 
 ```text
-Dashboard
-Network        → Routers, Access Points, VLAN, ISP, WAN, LAN, DSCP, Firewall, DHCP, DNS
-Guest Mgmt     → Live Guests, Sessions, Smart ID, Voucher, Whitelist, Blocklist
-Policies       → Location, User, Group, Authentication, Bandwidth, Network
-Analytics      → Executive, Network, Guest, Device, ISP
-Operations     → Device Monitoring, Alerts, Audit Logs, Admin Logs
-Administration → Organizations, Business Units, Locations, Users, Roles, Feature Assignment, Billing, Subscription
-Support        → Help Center, Documentation, Contact Support
+Dashboard · Customers · Location Master · Infrastructure ·
+Voucher Master · Policies · Analytics · Billing · Audit · Settings
 ```
 
-Existing routes are reused where they exist; new routes are added as thin pages that render new or existing panels.
+- Collapse today's Network / Guest Mgmt / Operations groups into **Location Master** (primary) + **Infrastructure** (NAS fleet, firmware, backups).
+- Existing routes are preserved but re-linked under the new groups; role-based `LOCKED_BY_ROLE` keeps Customer Admin / Location Admin restricted to their assigned Locations and NAS.
+- Platform Admin sees everything; Customer Admin sees only Location Master + module tabs on assigned Locations; Location Admin sees only the single-Location workspace.
 
-## 3. VLAN module (new)
+## 2. Location Master (`/locations`)
 
-- `src/types/vlan.ts`, `src/services/vlan.service.ts` (mock), `src/hooks/useVlan.ts`.
-- Route `/_authenticated/network/vlan.index.tsx`: SmartTable with search, filters (status/location/ISP), bulk actions, CSV export, history drawer, audit trail tab.
-- `VlanWizard` (create/edit/clone) with fields: name, id, description, subnet, gateway, DNS, DHCP range, ISP mapping, status, notes.
-- Assignment drawer: assign to Location / Router / SSID / User Group / Guest Policy / Business Unit (multi-select).
+Upgrade the existing `LocationTable` into the "heart of CloudGuest":
 
-## 4. Policy modules (new)
+- Columns: Customer · Organization · Location · Status · Subscription · **NAS Count** · Router Count · Guests · Bandwidth.
+- Filters: Customer, Org, Country, Status, Subscription, Feature Policy.
+- Row action → opens Location Details.
+- "Create Location" CTA visible **only** to Platform Admin (gated via `usePermissions`).
 
-Shared `src/services/policy.service.ts` + `src/types/policy.ts` covering Location, User, Group policies.
+### 10-step Create Location wizard
+Extend existing `LocationWizard.tsx` to the new flow:
+1. Select / create Customer
+2. Select / create Organization
+3. Location basics (name, property type, country, state, city, address, timezone, coordinates)
+4. **Register NAS** (NAS Identifier, Router Identity, Serial, Model, RouterOS, Public IP, Private IP) — supports adding multiple NAS in one shot
+5. Assign Plan
+6. Assign Feature Policy
+7. Assign White Label
+8. Assign Customer Admin
+9. Review
+10. Provision (progress screen, mock)
 
-- **Location Policy** `/policies/location`: table + wizard (Bandwidth, Session/Idle Timeout, Device/Guest limits, Auth Method, Captive Portal, Voucher, Smart ID, Landing Page, Redirect URL, Up/Down limits, QoS, Network Access), clone/archive, multi-location assign drawer.
-- **User Policy** `/policies/user`: table + wizard, user-type presets (Guest/Staff/VIP/Temporary/Employee/Student/Resident), daily/weekly/monthly quotas, auth (Smart ID / Voucher), restrictions.
-- **Group Policy** `/policies/group`: 6-step wizard (Create Group → Configure Policy → Assign VLAN → Assign Locations → Assign Users → Review), clone/archive, bulk assignment, policy comparison view.
-- **Authentication / Bandwidth / Network Policy** pages: use the same shared table primitive with policy-type filter.
+## 3. Location Details (`/locations/$locationId`)
 
-## 5. RBAC enhancement
+Replace current tab set with 11 tabs, all reusing existing panels where possible:
 
-- Extend `RBAC_MODULES` in `src/types/rbac.ts` with: Campaigns, ISP, VLAN, DSCP, Firewall, Location Policies, User Policies, Group Policies, Whitelist, Voucher, Smart ID, Radius, Device Monitoring, Notifications.
-- Add `restart` to `PERMISSION_ACTIONS` (already has view/create/edit/delete/approve/export/publish/configure — swap `publish` label unchanged, add `execute` + `restart`).
-- Redesign `RoleFormDialog` permission matrix: grouped accordions per domain, "All view / All manage" quick-toggles, plain-language descriptions per module (non-technical), search box, "copy from role" shortcut.
+```text
+Overview · NAS Devices · Guest WiFi · Captive Portal · Voucher ·
+Users · Analytics · Monitoring · Reports · Audit · Settings
+```
 
-## 6. Profile & Settings
+Each operational tab is **scoped to this Location** and shows a NAS picker at the top (defaults to "All NAS"). Selecting a NAS re-scopes the panel content.
 
-Refresh `/account` sections to a consistent card grid: Profile, Company, Security, 2FA, Password, Sessions, API Tokens, Notification Settings, Theme, Language, Timezone. Reuse existing panels where they exist; add missing Theme/Language/Timezone panels wired to `ThemeContext` and mock user prefs.
+## 4. NAS Management & NAS Details
 
-## 7. Guardrails
+- **NAS Devices tab** on a Location: grid of NAS cards (Identifier, Router Identity, Model, Version, Status, Traffic, Guests, CPU, RAM) + "Register NAS" for Platform Admin.
+- New route `/locations/$locationId/nas/$nasId` with 13 tabs:
+  `Overview · Interfaces · Hotspot · FreeRADIUS · WireGuard · Queues · Firewall · DHCP · Traffic · Logs · Backup · Terminal · Monitoring`.
+- Router operations panel (Restart, Backup, Restore, Export/Push Config, Terminal, Upgrade RouterOS, Factory Reset, Delete) gated by `routerActions` from the permission envelope.
 
-- All new pages permission-gated with `<Can>` and appear in sidebar only via the permissions service.
-- Mock data only; services expose CRUD signatures ready for API swap.
-- No removal of existing routes — the current `/rbac`, `/locations`, `/routers`, `/monitoring`, `/analytics`, `/audit`, `/billing`, `/subscription`, `/help`, `/notifications`, `/organizations` pages remain and are linked from the new groups.
+## 5. Module re-scoping
+
+Every top-level operational route becomes a **selector shell** that forces the Customer → Location → NAS chain before rendering the module UI:
+
+- `/vouchers` (Voucher Master), `/guests`, `/portals`, `/analytics`, `/monitoring`, `/reports`, `/audit`
+- Header exposes Customer / Location / NAS filters (multi-select where relevant); body reuses the existing table/chart components with a `scope` prop.
+- Direct deep-links (`/locations/$id/...`) skip the selector and pin the scope automatically.
+
+## 6. Feature Policies & assignment
+
+Reuse `tenant.service.ts` policy model. Add an **Assignment drawer** with scope `Customer | Location | NAS Group | Individual NAS` and a matrix of the 15 modules (Guest WiFi, Captive Portal, Voucher, QR, OTP, Social, Analytics, Reports, WireGuard, FreeRADIUS, Monitoring, Billing, White Label, API, Notifications). Assignment is surfaced from Location Master and from `/policies`.
+
+## 7. Access model surfaces
+
+- **User form**: add Location tree + NAS tree (checkbox multi-select) — reuse `LocationAccessTree`, add `NasAccessTree` sibling.
+- Sidebar / route guards honor the assigned scope; Customer Admin & Location Admin never see the "Create Location" or "Register NAS" affordances.
+
+## 8. Design & UX
+
+Keep the existing enterprise design system (StatCard, PageShell, SectionHeader, RightDrawer, ComingSoonPanel). No color / token changes. All new screens use those primitives so the visual language stays consistent, responsive across desktop / tablet / mobile.
 
 ## Technical notes
 
-- Sidebar reorg is entirely data-driven from `permissions.service.ts::buildSidebar`; no `AppSidebar.tsx` changes needed beyond styling.
-- Where a new group item points at an unimplemented deep page (e.g. Access Points, WAN, LAN, DHCP, DNS, Business Units, Feature Assignment, Documentation), add a lightweight route that renders a `ComingSoonPanel` primitive (real header, description, permission-aware CTA) — not a dead link.
-- Estimated ~40 new files, ~15 edits. Delivered in one pass with parallel writes.
+- Types: extend `src/types/location.ts` with `nasDevices: NasDevice[]`, `assignedPolicyId`, `assignedPlanId`, `assignedBrandingId`, `customerAdminIds`; extend `src/types/tenant.ts::NasDevice` with `cpuPct`, `ramPct`, `trafficMbps`, `guestsOnline`, `uptimePct`.
+- Services (mock): extend `location.service.ts` with `registerNas`, `listNasByLocation`, `getNas`, `runRouterOp`; extend `tenant.service.ts` with `assignPolicy(scope, targetId, policyId)`.
+- Hooks: `useNasByLocation`, `useNas`, `useRouterOp` in `src/hooks/useLocations.ts` / new `useNas.ts`.
+- Routing (TanStack flat filenames):
+  - `_authenticated/locations.$locationId.nas.$nasId.tsx` (new)
+  - `_authenticated/vouchers.index.tsx` promoted to Voucher Master shell (existing voucher route re-pointed)
+  - Selector shells wrap existing `/guests`, `/portals`, `/analytics`, `/monitoring`, `/audit` bodies with a `<ScopePicker />`.
+- Permissions envelope: sidebar rebuilt to the 10-item list; `LOCKED_BY_ROLE` unchanged in intent, remapped to new module IDs. Add `module: "location-master"`, `"infrastructure"`, `"voucher-master"` to `ModuleId`.
+- No backend work — everything runs off the existing mock services and TanStack Query cache.
+
+## Out of scope
+
+- Real MikroTik integration, real RADIUS, real payments.
+- Redesign of design tokens or auth flows.
+- New dashboards beyond the Location-scoped Overview.
