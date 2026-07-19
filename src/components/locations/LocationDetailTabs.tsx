@@ -23,11 +23,32 @@ import { NasDevicesPanel } from "./NasDevicesPanel";
 import type { Location } from "@/types/location";
 import { InternetStatusBadge, LocationStatusBadge, SiteTypeBadge, SubscriptionBadge } from "./LocationStatusBadge";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { ModuleId } from "@/types/permissions";
+import { Lock } from "lucide-react";
 
 interface Props {
   location: Location;
   initialTab?: string;
 }
+
+type TabDef = { key: string; label: string; module?: ModuleId };
+
+const TABS: TabDef[] = [
+  { key: "overview", label: "Overview" },
+  { key: "nas", label: "NAS Devices", module: "nas-management" },
+  { key: "routers", label: "Routers", module: "routers" },
+  { key: "wifi", label: "Guest WiFi", module: "guests" },
+  { key: "portal", label: "Captive Portal", module: "captive-portal" },
+  { key: "voucher", label: "Voucher", module: "voucher-master" },
+  { key: "guests", label: "Guests", module: "guests-live" },
+  { key: "monitoring", label: "Monitoring", module: "monitoring" },
+  { key: "analytics", label: "Analytics", module: "analytics" },
+  { key: "bandwidth", label: "Bandwidth", module: "policy-bandwidth" },
+  { key: "billing", label: "Billing", module: "billing" },
+  { key: "audit", label: "Audit Logs", module: "audit" },
+];
+
 
 const KPIS = (l: Location) => [
   {
@@ -51,36 +72,34 @@ const KPIS = (l: Location) => [
 ];
 
 export function LocationDetailTabs({ location, initialTab = "overview" }: Props) {
-  const [tab, setTab] = useState(initialTab);
+  const { can, isLocked } = usePermissions();
+  const visibleTabs = TABS.filter((t) => !t.module || can(t.module, "view") || isLocked(t.module));
+  const allowedKeys = new Set(visibleTabs.map((t) => t.key));
+  const activeTab = allowedKeys.has(initialTab) ? initialTab : "overview";
+  const [tab, setTab] = useState(activeTab);
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
       <div className="overflow-x-auto">
         <TabsList className="h-auto flex-wrap gap-1 bg-muted/40 p-1">
-          {[
-            ["overview", "Overview"],
-            ["nas", "NAS Devices"],
-            ["routers", "Routers"],
-            ["wifi", "Guest WiFi"],
-            ["portal", "Captive Portal"],
-            ["voucher", "Voucher"],
-            ["guests", "Guests"],
-            ["monitoring", "Monitoring"],
-            ["analytics", "Analytics"],
-            ["bandwidth", "Bandwidth"],
-            ["billing", "Billing"],
-            ["audit", "Audit Logs"],
-          ].map(([k, l]) => (
-            <TabsTrigger
-              key={k}
-              value={k}
-              className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            >
-              {l}
-            </TabsTrigger>
-          ))}
+          {visibleTabs.map((t) => {
+            const locked = t.module ? isLocked(t.module) && !can(t.module, "view") : false;
+            return (
+              <TabsTrigger
+                key={t.key}
+                value={t.key}
+                disabled={locked}
+                title={locked ? "Access restricted. Contact your Administrator." : undefined}
+                className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                {locked && <Lock className="mr-1.5 h-3 w-3" />}
+                {t.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
       </div>
+
 
       <TabsContent value="overview" className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
