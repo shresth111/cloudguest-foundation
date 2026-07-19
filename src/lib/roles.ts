@@ -13,8 +13,10 @@ import {
   Settings,
   Receipt,
   Palette,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
+
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
