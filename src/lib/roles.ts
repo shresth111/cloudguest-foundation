@@ -5,6 +5,7 @@ import {
   MapPin,
   Router as RouterIcon,
   Users,
+  UserSquare2,
   LayoutTemplate,
   ShieldCheck,
   Activity,
@@ -16,6 +17,7 @@ import {
   ScrollText,
   type LucideIcon,
 } from "lucide-react";
+
 
 
 export const ROLE_LABELS: Record<UserRole, string> = {

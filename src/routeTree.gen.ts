@@ -49,6 +49,7 @@ import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
+import { Route as AuthenticatedCustomersCustomerIdRouteImport } from './routes/_authenticated/customers.$customerId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -265,6 +266,12 @@ const AuthenticatedGuestsGuestIdRoute =
     path: '/guests/$guestId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCustomersCustomerIdRoute =
+  AuthenticatedCustomersCustomerIdRouteImport.update({
+    id: '/customers/$customerId',
+    path: '/customers/$customerId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -287,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal/': typeof PortalIndexRoute
+  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -327,6 +335,7 @@ export interface FileRoutesByTo {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal': typeof PortalIndexRoute
+  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -370,6 +379,7 @@ export interface FileRoutesById {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal/': typeof PortalIndexRoute
+  '/_authenticated/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -413,6 +423,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/portal/'
+    | '/customers/$customerId'
     | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/portal'
+    | '/customers/$customerId'
     | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
@@ -495,6 +507,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/portal/'
+    | '/_authenticated/customers/$customerId'
     | '/_authenticated/guests/$guestId'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/organizations/$orgId'
@@ -809,11 +822,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGuestsGuestIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/customers/$customerId': {
+      id: '/_authenticated/customers/$customerId'
+      path: '/customers/$customerId'
+      fullPath: '/customers/$customerId'
+      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRoute
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
@@ -836,6 +857,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedCustomersCustomerIdRoute: AuthenticatedCustomersCustomerIdRoute,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
   AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
