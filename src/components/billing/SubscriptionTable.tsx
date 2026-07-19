@@ -248,8 +248,7 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
         title="Cancel subscription?"
         description="The organization will lose access at the end of the current cycle. This action can be reversed."
         confirmLabel="Cancel subscription"
-        variant="destructive"
-        icon={Trash2}
+        destructive
         onConfirm={() => {
           if (!pending) return;
           cancel.mutate(pending.id, { onSuccess: () => toast.success("Subscription canceled") });
