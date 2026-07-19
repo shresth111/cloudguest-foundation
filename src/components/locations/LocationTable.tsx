@@ -208,6 +208,10 @@ export function LocationTable() {
       });
       return;
     }
+    if (!canEdit) {
+      toast.error("Edit restricted. Contact your Administrator.");
+      return;
+    }
     const newStatus: LocationStatus = action === "enable" ? "active" : "inactive";
     setConfirm({
       title: `${action === "enable" ? "Enable" : "Disable"} ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
