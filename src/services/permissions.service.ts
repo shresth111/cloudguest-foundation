@@ -382,6 +382,7 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
 };
 
 type GroupId =
+  | "platform"
   | "dashboard"
   | "network"
   | "guests"
@@ -394,6 +395,7 @@ type GroupId =
   | "workspace";
 
 const GROUP_META: Record<GroupId, { label: string; order: number }> = {
+  platform:       { label: "CloudGuest",     order: 1 },
   dashboard:      { label: "Dashboard",      order: 10 },
   network:        { label: "Network",        order: 20 },
   guests:         { label: "Guest Management", order: 30 },
@@ -406,6 +408,23 @@ const GROUP_META: Record<GroupId, { label: string; order: number }> = {
   workspace:      { label: "Customer workspace", order: 5 },
 };
 
+/**
+ * FE-024 Primary IA — a flat 10-item list surfaced at the top of the sidebar.
+ * Everything else remains available in secondary groups below for power users.
+ */
+const PRIMARY_IA: ModuleId[] = [
+  "dashboard",
+  "customers",
+  "location-master",
+  "infrastructure",
+  "voucher-master",
+  "policy-location",
+  "analytics",
+  "billing",
+  "audit",
+  "settings",
+];
+
 const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   dashboard: "dashboard",
   // Network
@@ -416,50 +435,50 @@ const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   "guests-live": "guests", "guests-sessions": "guests", "smart-id": "guests",
   vouchers: "guests", whitelist: "guests", "guests-blocklist": "guests",
   // Policies
-  "policy-location": "policies", "policy-user": "policies", "policy-group": "policies",
+  "policy-user": "policies", "policy-group": "policies",
   "policy-auth": "policies", "policy-bandwidth": "policies", "policy-network": "policies",
   // Analytics
   "analytics-executive": "analytics", "analytics-network": "analytics",
   "analytics-guest": "analytics", "analytics-device": "analytics", "analytics-isp": "analytics",
   // Operations
-  monitoring: "operations", alerts: "operations", audit: "operations", "admin-logs": "operations",
+  monitoring: "operations", alerts: "operations", "admin-logs": "operations",
   // Administration
   organizations: "administration", "business-units": "administration", locations: "administration",
-  customers: "administration", rbac: "administration", "feature-management": "administration",
-  billing: "administration", subscription: "administration", plans: "administration",
+  rbac: "administration", "feature-management": "administration",
+  subscription: "administration", plans: "administration",
   // Support
   help: "support", documentation: "support", "support-contact": "support",
-  // System (kept out of primary IA — for super admin only, at bottom)
-  system: "system", settings: "system", integrations: "system",
+  // System
+  system: "system", integrations: "system",
   "api-keys": "system", notifications: "system", exports: "system",
-  branding: "system", marketplace: "system", portals: "system", analytics: "analytics",
+  branding: "system", marketplace: "system", portals: "system",
   guests: "guests",
 };
 
 const MODULE_ORDER: ModuleId[] = [
-  "dashboard",
   // Network
   "routers", "network-aps", "vlan", "isp-routing", "network-wan", "network-lan",
   "dscp", "firewall", "network-dhcp", "network-dns",
   // Guests
   "guests-live", "guests-sessions", "smart-id", "vouchers", "whitelist", "guests-blocklist",
   // Policies
-  "policy-location", "policy-user", "policy-group",
+  "policy-user", "policy-group",
   "policy-auth", "policy-bandwidth", "policy-network",
   // Analytics
   "analytics-executive", "analytics-network", "analytics-guest",
   "analytics-device", "analytics-isp",
   // Operations
-  "monitoring", "alerts", "audit", "admin-logs",
+  "monitoring", "alerts", "admin-logs",
   // Administration
-  "organizations", "business-units", "locations", "customers",
-  "rbac", "feature-management", "billing", "subscription", "plans",
+  "organizations", "business-units", "locations",
+  "rbac", "feature-management", "subscription", "plans",
   // Support
   "help", "documentation", "support-contact",
   // System
-  "settings", "system", "integrations", "api-keys", "notifications",
+  "system", "integrations", "api-keys", "notifications",
   "exports", "branding", "marketplace", "portals",
 ];
+
 
 
 const WORKSPACE_ORDER: ModuleId[] = [
