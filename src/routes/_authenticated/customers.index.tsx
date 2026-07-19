@@ -36,6 +36,23 @@ const customersSearchSchema = z.object({
   loc: fallback(z.string(), "any").default("any"),
 });
 
+type CustomersSearch = z.infer<typeof customersSearchSchema>;
+
+function inBucket(count: number, bucket: LocBucket) {
+  switch (bucket) {
+    case "1":
+      return count === 1;
+    case "2-5":
+      return count >= 2 && count <= 5;
+    case "6-10":
+      return count >= 6 && count <= 10;
+    case "10+":
+      return count > 10;
+    default:
+      return true;
+  }
+}
+
 export const Route = createFileRoute("/_authenticated/customers/")({
   validateSearch: zodValidator(customersSearchSchema),
   search: {
