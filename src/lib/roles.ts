@@ -109,6 +109,13 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["super_admin", "org_admin"],
   },
   {
+    label: "Audit logs",
+    to: "/audit",
+    icon: ScrollText,
+    roles: ["super_admin", "org_admin", "support_engineer"],
+  },
+
+  {
     label: "Support",
     to: "/dashboard",
     icon: LifeBuoy,
