@@ -1,70 +1,133 @@
-## Goal
 
-Evolve the existing frontend into a fully backend-driven multi-tenant permission engine. No rebuild — extend the current permissions layer, workspace context, sidebar, topbar, profile menu, dashboards, and action buttons so every visible element is resolved from API responses (permissions, feature flags, tenant hierarchy, router capabilities). Adds the missing hierarchy layer (Business Unit), the post-login space selection chain, and reactive location-context invalidation across every module.
+# CloudGuest V2.0 — Enterprise UX & Design Refactor
 
-## What already exists (keep and extend)
+This is a **surgical refactor** of the existing frontend. No rebuild, no route churn, no API changes. Everything already in place (permission engine, routes, services, mock data) stays. We upgrade the visual language, add missing shell primitives, and layer new executive/NOC/security/guest dashboards on top of the existing widget registry.
 
-- `src/types/permissions.ts` — module actions, feature flags, router actions.
-- `src/services/permissions.service.ts` + `usePermissions` — returns `SidebarNode` tree, `can()`, `hasFeature()`, `canRouterAction()`.
-- `src/components/permissions/Can.tsx` — `<Can />`, `<LockedBadge />`.
-- `AppSidebar.tsx` — renders API tree via `resolveIcon`.
-- `WorkspaceContext.tsx` — invalidates query caches on location change.
-- `/select-space`, `/account` (8 tabs), `TopNavbar`, `SpaceContextChip`, `QuickActionsFab`.
+---
 
-Nothing above is replaced. All work is additive or in-place refactors.
+## 1. Design System Upgrade (`src/styles.css` + tokens)
 
-## Plan
+Refresh the token layer so every existing component inherits the new look:
 
-### 1. Hierarchy + Space Selection (Org → BU → Location)
+- Tighten the neutral scale (cooler grays, deeper contrast in dark mode).
+- Introduce accent tokens: `--success`, `--warning`, `--info`, `--danger` + `-soft` variants for KPI states.
+- New elevation ramp: `--shadow-xs / sm / md / lg / xl` (soft, layered, low-blur enterprise shadows).
+- Radius tokens standardized to `12–16px` (`--radius: 0.875rem`).
+- Motion tokens (`--ease-out-enterprise`, durations 120/180/240ms).
+- New utilities: `.surface`, `.surface-elevated`, `.surface-muted`, `.hairline`, `.kpi-card`, `.data-grid`, `.shimmer`, `.count-up` (framer-motion-driven).
+- Refined `glass-panel` (only used in Portal + top overlays).
 
-- Extend `src/types/tenant.ts` with `BusinessUnit { id, orgId, name, region }` and add `businessUnitId` to `Location`.
-- Extend `permissions.service.ts` mock to return `assignedOrganizations`, `businessUnits[]` per org, and `locations[]` per BU (respecting scope: Regional/Area/IT managers see only their subset).
-- Refactor `/select-space` into a 3-step chooser (Org → BU (skipped if 0/1) → Location) with searchable cards, favorites, recents — reuse existing card UI.
-- `WorkspaceContext` gains `organizationId`, `businessUnitId`, `locationId`; setting any upper level clears lower ones and re-fetches the permission tree.
+New shared primitives under `src/components/ui-ext/`:
+- `StatCard` (icon slot, animated counter, delta, sparkline).
+- `SectionHeader` (eyebrow, title, description, actions).
+- `PageShell` (consistent max-width, spacing, sticky title bar).
+- `RightDrawer` (built on shadcn Sheet, standardized widths + header/footer slots).
+- `EmptyState` (upgrade existing with illustration slot + primary action).
+- `LockedOverlay` (reusable lock badge + tooltip wrapper).
+- `DataTable` wrapper adding column visibility, pinning, resize, export menu on top of existing tanstack-table usage.
 
-### 2. Permission tree is the single source of truth
+---
 
-- Every fetch of the sidebar, dashboard layout, quick actions, topbar chips, and router controls keys on `[permissions, orgId, buId, locationId]`.
-- On location change, `WorkspaceContext` invalidates the added keys (`dashboard-layout`, `quick-actions`, `topbar-config`, `router-capabilities`, plus existing modules).
-- Add `permissions.service.getDashboardLayout(locationId)` returning ordered widget descriptors `{ id, type, module, size, permissionRequired }`; `SuperAdminDashboard` and `CustomerDashboard` iterate this list instead of rendering hardcoded widget arrays. Existing widget components are reused as a registry (`dashboardWidgetRegistry`).
-- Add `permissions.service.getTopbarConfig()` — profile/notifications/search/quick-actions/theme/language/support each gated by a flag.
+## 2. Global Shell Enhancements
 
-### 3. Router-level dynamic actions
+- **Command Palette (⌘K)**: extend existing `GlobalSearch` into a full command palette (`cmdk`) — modules, actions, recents, pinned, saved views. Keyboard-driven.
+- **TopNavbar**: keep permission gating via `useTopbarConfig`; visually redesign with hairline border, denser spacing, keyboard hint chips.
+- **AppSidebar**: keep the backend-driven tree. Add:
+  - Refined collapsed (icon-only) state with tooltips.
+  - Pinned/favorite items section (localStorage + future API).
+  - Section dividers and counter/badge polish.
+- **NotificationBell**: convert to right-side drawer with grouped feed + "mark all read".
+- **QuickActionsFab**: keep, restyle for consistency.
+- **Global Date Picker + Saved Views**: shared context (`src/context/GlobalFiltersContext.tsx`) exposing date range + saved-view state consumed by dashboards/analytics.
 
-- Router detail pages read `permissions.service.getRouterCapabilities(routerId)` returning allowed actions from the existing `RouterAction` union.
-- Each action button wraps in `<Can routerAction="reboot">…</Can>`; disallowed ones render `<LockedBadge>` with the standard "Access restricted. Contact your Administrator." tooltip.
+---
 
-### 4. Custom Role Engine (Customer Admin)
+## 3. Executive Dashboard (replaces current `/dashboard` body)
 
-- New panel under existing `/rbac` (not a new route): `CustomRoleManager` supporting Create / Rename / Duplicate / Clone permissions from / Archive / Disable / Delete on top of existing `rbac.service.ts`.
-- Uses the current `PermissionMatrix` component; adds row/column bulk toggle and per-module action grid (View/Create/Edit/Delete/Export/Import/Approve/Execute/Restart/Configure) to match the expanded action set.
+Keep `dashboardWidgetRegistry` — extend it. Add new widget kinds and register in `permissions.service.ts` mock layouts:
 
-### 5. Feature Flags reactivity
+- `exec-overview`, `business-overview`, `network-overview`, `guest-overview`, `revenue-overview`, `security-overview`, `infrastructure-overview`, `subscription-overview`, `device-overview`, `isp-overview`
+- `live-alerts`, `recent-activity-rich`, `top-locations-rich`, `critical-devices`, `system-health-rich`, `customer-growth`, `usage-analytics`, `login-analytics`, `session-analytics`
 
-- `usePermissions` already returns `featureFlags`. Add a lightweight pub/sub (`permissionsBus`) so a mock "flag change" (dev toggle + future websocket) triggers `queryClient.invalidateQueries(['permissions'])` — sidebar/widgets/actions re-render without reload.
-- Add dev-only Feature Flag inspector inside `/system` (existing route) to simulate backend toggles.
+Each renders via `StatCard` + Recharts (animated on mount). Widgets remain permission/feature-flag gated and locked cleanly via `LockedOverlay`.
 
-### 6. Locked-feature UX
+`SuperAdminDashboard` is refactored to consume the same registry (removing its hardcoded layout) so both admin + role dashboards share one code path.
 
-- Standardize `<LockedBadge />` tooltip copy and apply it to sidebar nodes flagged `locked: true`, dashboard widgets, and router actions. Never hide unless backend sets `hidden: true`.
+---
 
-### 7. Profile Menu completion
+## 4. Specialized Dashboards (new routes, reuse widgets)
 
-- Extend existing `UserMenu` to expose all 11 entries (Profile, Company, Security, Change Password, 2FA, Login History, API Tokens, Sessions, Preferences, Notification Settings, Logout), each linking to the existing `/account/*` tabs; add missing `Company` and `Preferences` tabs to the account module using the existing panel layout.
+- `/_authenticated/noc.tsx` — Network Operations Center: health tiles, live router table, heatmap, top/critical routers, offline devices. Reuses existing `monitoring` components + new widgets.
+- `/_authenticated/guest-experience.tsx` — Guest journey funnel, auth success/failure, voucher/SmartID usage, peak hours, device types.
+- `/_authenticated/security.tsx` — Blocked users, failed logins, OTP failures, suspicious activity timeline, audit summary.
 
-### 8. Polish
+Each is registered in `permissions.service.ts` sidebar tree under existing groups so nav stays backend-driven.
 
-- Framer Motion fade/slide on sidebar tree diff, widget grid reflow, and topbar chip swap when location changes.
-- Skeletons already exist — wire `PageSkeleton` into the permission-loading state so no flicker during location switch.
+---
 
-## Technical notes
+## 5. Location Workspace (existing) — polish only
 
-- All new data lives behind `permissions.service.ts`, `tenant.service.ts`, `rbac.service.ts` mocks — no new context providers beyond extending `WorkspaceContext`.
-- Query keys namespaced `['perm', orgId, buId, locationId, …]` to guarantee scoped invalidation.
-- Strict TS; new descriptors typed in `src/types/permissions.ts` and `src/types/tenant.ts`.
-- No route deletions; new panels mount inside existing routes (`/rbac`, `/account`, `/system`, `/select-space`).
+`/workspace/locations/$locationId` already has 12 tabs. Apply:
+- New `PageShell` + `SectionHeader`.
+- Router actions inside the Routers tab wired to `useRouterCapabilities` — buttons only render if backend permits. Router management is removed from the master console sidebar (already gated; we ensure `routers` sidebar entry is Super-Admin-only in the mock permissions).
 
-## Out of scope
+---
 
-- Real backend, websockets, actual auth provider — mocks only, shaped for drop-in API replacement.
-- No visual redesign of existing modules beyond the motion/skeleton polish above.
+## 6. Router Details
+
+Refactor `routers.$routerId.tsx` (kept for super admin) and the location-scoped router view to share one `RouterDetailTabs` layout with sections: Overview, Realtime, CPU/RAM/Temp, Interfaces, Traffic, Firewall, DHCP, DNS, ARP, MAC, ISP, WAN/LAN, Logs, Diagnostics. Action bar rendered from `useRouterCapabilities(routerId)`.
+
+---
+
+## 7. Smart Tables & Drawers
+
+- New `DataTable` wrapper — column visibility menu, pinning, resize, CSV/PDF export, bulk actions slot, sticky header. Adopt in the highest-traffic tables first: `OrganizationTable`, `LocationTable`, `RouterTable`, `LiveSessionsTable`, `AuditTable`. Other tables continue to work unchanged and can be migrated later.
+- Convert detail popups to `RightDrawer` for: Guest, Router, Location, Policy, Whitelist, Voucher.
+
+---
+
+## 8. Profile / Account
+
+`/account` already has 11 sections. Redesign visuals with `PageShell` + `SectionHeader`, add missing **Devices** and **Activity** panels, ensure every action wires to existing `rbac.service` / mock endpoints.
+
+---
+
+## 9. Empty States, Loading, Micro-interactions
+
+- Replace bare `EmptyState` usages with the upgraded component (illustration + CTA).
+- Upgrade `LoadingSkeleton` variants: `KpiSkeleton`, `TableSkeleton`, `ChartSkeleton`, `DrawerSkeleton`.
+- Framer-motion: animated counters on KPI cards, chart mount transitions, list stagger, drawer slide, sidebar collapse.
+- Button/card hover elevation via new shadow tokens.
+
+---
+
+## 10. Custom Role Manager (RBAC polish)
+
+Inside `/rbac`, ensure the existing role manager exposes: create, rename, duplicate, clone permissions, archive, disable, delete — all backed by existing `rbac.service` mocks (extend service where a method is missing). Permission matrix keeps 16 modules × 10 actions; visual pass only.
+
+---
+
+## Technical Notes
+
+- **No route deletions.** New routes are additive; existing routes stay functional.
+- **Backend-driven contract preserved.** All new widgets flow through `dashboardWidgetRegistry` + `permissions.service.ts` mock. No hardcoded sidebar items in components.
+- **Feature gating.** Every new action/widget wraps in `<Can>` / `LockedOverlay`. Feature flag changes propagate via existing `permissionsBus`.
+- **Type safety.** Extend `WidgetKind` union in `src/types/dashboard-layout.ts` with the new kinds; registry becomes exhaustive again.
+- **Deps to add:** `cmdk` (command palette). Existing `framer-motion`, `recharts`, `@tanstack/react-table`, `sonner` cover the rest.
+- **Scope discipline.** Frontend/presentation only. Services stay mock. No auth or routing rewrites.
+
+---
+
+## Rollout Order
+
+1. Design tokens + shared primitives (`ui-ext/`).
+2. Shell: TopNavbar, AppSidebar, Command Palette, NotificationBell drawer.
+3. Executive Dashboard widgets + registry expansion + `SuperAdminDashboard` refactor.
+4. NOC / Guest Experience / Security dashboards + sidebar registration.
+5. `DataTable` wrapper + migrate top 5 tables.
+6. `RightDrawer` migration for detail views.
+7. Router Details unification + capability-driven actions.
+8. Profile redesign + Devices/Activity panels.
+9. Empty states, skeletons, motion polish pass.
+
+Each step ships independently and leaves the app in a working state.
