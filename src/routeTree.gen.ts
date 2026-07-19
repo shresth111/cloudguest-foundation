@@ -78,6 +78,7 @@ import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_a
 import { Route as AuthenticatedOperationsAlertsRouteImport } from './routes/_authenticated/operations.alerts'
 import { Route as AuthenticatedOperationsAdminLogsRouteImport } from './routes/_authenticated/operations.admin-logs'
 import { Route as AuthenticatedNetworkWanRouteImport } from './routes/_authenticated/network.wan'
+import { Route as AuthenticatedNetworkVlanRouteImport } from './routes/_authenticated/network.vlan'
 import { Route as AuthenticatedNetworkLanRouteImport } from './routes/_authenticated/network.lan'
 import { Route as AuthenticatedNetworkIspRouteImport } from './routes/_authenticated/network.isp'
 import { Route as AuthenticatedNetworkFirewallRouteImport } from './routes/_authenticated/network.firewall'
@@ -487,6 +488,12 @@ const AuthenticatedNetworkWanRoute = AuthenticatedNetworkWanRouteImport.update({
   path: '/network/wan',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNetworkVlanRoute =
+  AuthenticatedNetworkVlanRouteImport.update({
+    id: '/network/vlan',
+    path: '/network/vlan',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedNetworkLanRoute = AuthenticatedNetworkLanRouteImport.update({
   id: '/network/lan',
   path: '/network/lan',
@@ -674,6 +681,7 @@ export interface FileRoutesByFullPath {
   '/network/firewall': typeof AuthenticatedNetworkFirewallRoute
   '/network/isp': typeof AuthenticatedNetworkIspRoute
   '/network/lan': typeof AuthenticatedNetworkLanRoute
+  '/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/network/wan': typeof AuthenticatedNetworkWanRoute
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
@@ -766,6 +774,7 @@ export interface FileRoutesByTo {
   '/network/firewall': typeof AuthenticatedNetworkFirewallRoute
   '/network/isp': typeof AuthenticatedNetworkIspRoute
   '/network/lan': typeof AuthenticatedNetworkLanRoute
+  '/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/network/wan': typeof AuthenticatedNetworkWanRoute
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
@@ -862,6 +871,7 @@ export interface FileRoutesById {
   '/_authenticated/network/firewall': typeof AuthenticatedNetworkFirewallRoute
   '/_authenticated/network/isp': typeof AuthenticatedNetworkIspRoute
   '/_authenticated/network/lan': typeof AuthenticatedNetworkLanRoute
+  '/_authenticated/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/_authenticated/network/wan': typeof AuthenticatedNetworkWanRoute
   '/_authenticated/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/_authenticated/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
@@ -958,6 +968,7 @@ export interface FileRouteTypes {
     | '/network/firewall'
     | '/network/isp'
     | '/network/lan'
+    | '/network/vlan'
     | '/network/wan'
     | '/operations/admin-logs'
     | '/operations/alerts'
@@ -1050,6 +1061,7 @@ export interface FileRouteTypes {
     | '/network/firewall'
     | '/network/isp'
     | '/network/lan'
+    | '/network/vlan'
     | '/network/wan'
     | '/operations/admin-logs'
     | '/operations/alerts'
@@ -1145,6 +1157,7 @@ export interface FileRouteTypes {
     | '/_authenticated/network/firewall'
     | '/_authenticated/network/isp'
     | '/_authenticated/network/lan'
+    | '/_authenticated/network/vlan'
     | '/_authenticated/network/wan'
     | '/_authenticated/operations/admin-logs'
     | '/_authenticated/operations/alerts'
@@ -1691,6 +1704,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNetworkWanRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/network/vlan': {
+      id: '/_authenticated/network/vlan'
+      path: '/network/vlan'
+      fullPath: '/network/vlan'
+      preLoaderRoute: typeof AuthenticatedNetworkVlanRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/network/lan': {
       id: '/_authenticated/network/lan'
       path: '/network/lan'
@@ -1959,6 +1979,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNetworkFirewallRoute: typeof AuthenticatedNetworkFirewallRoute
   AuthenticatedNetworkIspRoute: typeof AuthenticatedNetworkIspRoute
   AuthenticatedNetworkLanRoute: typeof AuthenticatedNetworkLanRoute
+  AuthenticatedNetworkVlanRoute: typeof AuthenticatedNetworkVlanRoute
   AuthenticatedNetworkWanRoute: typeof AuthenticatedNetworkWanRoute
   AuthenticatedOperationsAdminLogsRoute: typeof AuthenticatedOperationsAdminLogsRoute
   AuthenticatedOperationsAlertsRoute: typeof AuthenticatedOperationsAlertsRoute
@@ -2021,6 +2042,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNetworkFirewallRoute: AuthenticatedNetworkFirewallRoute,
   AuthenticatedNetworkIspRoute: AuthenticatedNetworkIspRoute,
   AuthenticatedNetworkLanRoute: AuthenticatedNetworkLanRoute,
+  AuthenticatedNetworkVlanRoute: AuthenticatedNetworkVlanRoute,
   AuthenticatedNetworkWanRoute: AuthenticatedNetworkWanRoute,
   AuthenticatedOperationsAdminLogsRoute: AuthenticatedOperationsAdminLogsRoute,
   AuthenticatedOperationsAlertsRoute: AuthenticatedOperationsAlertsRoute,
