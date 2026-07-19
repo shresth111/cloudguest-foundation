@@ -68,6 +68,7 @@ function usePermissionBusInvalidation() {
           break;
       }
     });
+    return () => { unsub(); };
   }, [queryClient]);
 }
 
