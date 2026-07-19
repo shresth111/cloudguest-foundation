@@ -2,8 +2,10 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
+import { QuickActionsFab } from "@/components/system/QuickActionsFab";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
+
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -38,7 +40,9 @@ function AuthenticatedLayout() {
             <Outlet />
           </main>
         </SidebarInset>
+        <QuickActionsFab />
       </div>
     </SidebarProvider>
+
   );
 }
