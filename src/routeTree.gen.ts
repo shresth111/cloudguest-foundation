@@ -32,6 +32,7 @@ import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
+import { Route as AuthenticatedRbacIndexRouteImport } from './routes/_authenticated/rbac.index'
 import { Route as AuthenticatedPortalsIndexRouteImport } from './routes/_authenticated/portals.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring.index'
@@ -164,6 +165,11 @@ const AuthenticatedRoutersIndexRoute =
     path: '/routers/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedRbacIndexRoute = AuthenticatedRbacIndexRouteImport.update({
+  id: '/rbac/',
+  path: '/rbac/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPortalsIndexRoute =
   AuthenticatedPortalsIndexRouteImport.update({
     id: '/portals/',
@@ -289,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/portals/': typeof AuthenticatedPortalsIndexRoute
+  '/rbac/': typeof AuthenticatedRbacIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
 }
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
   '/portals': typeof AuthenticatedPortalsIndexRoute
+  '/rbac': typeof AuthenticatedRbacIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
 }
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/_authenticated/portals/': typeof AuthenticatedPortalsIndexRoute
+  '/_authenticated/rbac/': typeof AuthenticatedRbacIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
 }
@@ -409,6 +418,7 @@ export interface FileRouteTypes {
     | '/monitoring/'
     | '/organizations/'
     | '/portals/'
+    | '/rbac/'
     | '/routers/'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/organizations'
     | '/portals'
+    | '/rbac'
     | '/routers'
     | '/settings'
   id:
@@ -487,6 +498,7 @@ export interface FileRouteTypes {
     | '/_authenticated/monitoring/'
     | '/_authenticated/organizations/'
     | '/_authenticated/portals/'
+    | '/_authenticated/rbac/'
     | '/_authenticated/routers/'
     | '/_authenticated/settings/'
   fileRoutesById: FileRoutesById
@@ -665,6 +677,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoutersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/rbac/': {
+      id: '/_authenticated/rbac/'
+      path: '/rbac'
+      fullPath: '/rbac/'
+      preLoaderRoute: typeof AuthenticatedRbacIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/portals/': {
       id: '/_authenticated/portals/'
       path: '/portals'
@@ -789,6 +808,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
+  AuthenticatedRbacIndexRoute: typeof AuthenticatedRbacIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
@@ -809,6 +829,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
   AuthenticatedPortalsIndexRoute: AuthenticatedPortalsIndexRoute,
+  AuthenticatedRbacIndexRoute: AuthenticatedRbacIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
 }
