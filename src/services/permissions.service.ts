@@ -48,7 +48,9 @@ const NEW_IA_MODULES: ModuleId[] = [
 
 const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
-    "dashboard", "customers", "organizations", "locations", "subscription",
+    "dashboard", "customers", "location-master", "infrastructure",
+    "voucher-master",
+    "organizations", "locations", "subscription",
     "plans", "feature-management", "audit", "system", "settings",
     "routers", "guests", "portals", "monitoring", "analytics",
     "billing", "branding", "marketplace", "rbac",
