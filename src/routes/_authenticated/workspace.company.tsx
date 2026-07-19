@@ -27,13 +27,16 @@ function CompanyPage() {
     <div>
       <h1 className="mb-4 text-2xl font-semibold tracking-tight">Company settings</h1>
       <Tabs defaultValue="Overview">
-        <TabsList className="flex-wrap">
-          {TABS.map((t) => (
-            <TabsTrigger key={t} value={t}>
-              {t}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-max min-w-full flex-nowrap">
+            {TABS.map((t) => (
+              <TabsTrigger key={t} value={t} className="whitespace-nowrap">
+                {t}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+
         <TabsContent value="Overview">
           <Card>
             <CardHeader>
