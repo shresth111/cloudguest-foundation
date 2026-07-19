@@ -322,8 +322,12 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
 const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "/dashboard",
   "location-master": "/locations",
-  infrastructure: "/routers",
+  infrastructure: "/infrastructure",
   "voucher-master": "/vouchers",
+  "nas-management": "/nas",
+  "nas-id-generator": "/nas/id-generator",
+  "feature-catalog": "/feature-catalog",
+  "plans-billing": "/plans",
   routers: "/routers",
   "network-aps": "/network/access-points",
   vlan: "/network/vlan",
