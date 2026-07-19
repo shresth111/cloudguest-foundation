@@ -5,6 +5,7 @@ import {
   MapPin,
   Router as RouterIcon,
   Users,
+  LayoutTemplate,
   ShieldCheck,
   BarChart3,
   LifeBuoy,
@@ -65,6 +66,12 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/guests",
     icon: Users,
     roles: ["super_admin", "org_admin", "location_manager", "read_only"],
+  },
+  {
+    label: "Portals",
+    to: "/portals",
+    icon: LayoutTemplate,
+    roles: ["super_admin", "org_admin", "location_manager"],
   },
   {
     label: "Analytics",
