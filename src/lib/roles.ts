@@ -114,7 +114,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Settings",
-    to: "/dashboard",
+    to: "/settings",
     icon: Settings,
     roles: ["super_admin", "org_admin"],
   },
