@@ -54,7 +54,38 @@ export type ModuleId =
   | "workspace-notifications"
   | "workspace-audit"
   | "workspace-company"
-  | "workspace-help";
+  | "workspace-help"
+  // Network group
+  | "network-aps"
+  | "network-wan"
+  | "network-lan"
+  | "network-dhcp"
+  | "network-dns"
+  // Guest management group
+  | "guests-live"
+  | "guests-sessions"
+  | "guests-blocklist"
+  // Policy group
+  | "policy-location"
+  | "policy-user"
+  | "policy-group"
+  | "policy-auth"
+  | "policy-bandwidth"
+  | "policy-network"
+  // Analytics group
+  | "analytics-executive"
+  | "analytics-network"
+  | "analytics-guest"
+  | "analytics-device"
+  | "analytics-isp"
+  // Operations group
+  | "alerts"
+  | "admin-logs"
+  // Administration group
+  | "business-units"
+  // Support group
+  | "documentation"
+  | "support-contact";
 
 /** Standard per-module actions supported by the permission engine. */
 export type PermissionAction =
