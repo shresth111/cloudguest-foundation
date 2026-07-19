@@ -69,6 +69,27 @@ function delay<T>(v: T, ms = 200): Promise<T> {
   return new Promise((r) => setTimeout(() => r(v), ms));
 }
 
+export interface NasReservation {
+  id: string;
+  reservedAt: string;
+  status: "reserved" | "assigned" | "released";
+  assignedLocationId?: string;
+  note?: string;
+}
+
+const RESERVATIONS: NasReservation[] = [
+  { id: "NAS-DEL-0001", reservedAt: new Date(Date.now() - 3 * 86400000).toISOString(), status: "assigned", assignedLocationId: "LOC-02001", note: "Delhi Airport T3" },
+  { id: "NAS-MUM-0001", reservedAt: new Date(Date.now() - 2 * 86400000).toISOString(), status: "assigned", assignedLocationId: "LOC-02002", note: "Mumbai HQ" },
+  { id: "NAS-BLR-0001", reservedAt: new Date(Date.now() - 1 * 86400000).toISOString(), status: "reserved", note: "Bengaluru pipeline" },
+  { id: "NAS-DEL-0002", reservedAt: new Date().toISOString(), status: "reserved" },
+];
+
+const CITY_SEQ: Record<string, number> = { DEL: 2, MUM: 1, BLR: 1, HYD: 0, PUN: 0, CHN: 0 };
+
+function padId(city: string, n: number) {
+  return `NAS-${city.toUpperCase()}-${String(n).padStart(4, "0")}`;
+}
+
 export const nasService = {
   async listByLocation(locationId: string): Promise<NasRuntime[]> {
     return delay(ensure(locationId));
@@ -80,8 +101,49 @@ export const nasService = {
     return delay(ensure(locationId).length, 50);
   },
   async runOperation(locationId: string, nasId: string, op: string): Promise<{ ok: true; op: string }> {
-    // Placeholder: real backend will queue and stream progress.
     void ensure(locationId);
     return delay({ ok: true as const, op: `${nasId}:${op}` }, 400);
+  },
+
+  /** Flatten every NAS across every seeded location for the NAS Management inventory. */
+  async listAllNas(seedLocations: string[]): Promise<NasRuntime[]> {
+    const out: NasRuntime[] = [];
+    for (const loc of seedLocations) out.push(...ensure(loc));
+    return delay(out, 250);
+  },
+
+  /* ---------------- NAS ID Generator ---------------- */
+
+  async listReservations(): Promise<NasReservation[]> {
+    return delay([...RESERVATIONS].sort((a, b) => (a.reservedAt < b.reservedAt ? 1 : -1)), 150);
+  },
+
+  async isNasIdAvailable(id: string): Promise<boolean> {
+    return delay(!RESERVATIONS.find((r) => r.id === id && r.status !== "released"), 80);
+  },
+
+  async generateNasId(cityCode: string): Promise<string> {
+    const code = cityCode.toUpperCase();
+    const next = (CITY_SEQ[code] ?? 0) + 1;
+    CITY_SEQ[code] = next;
+    const id = padId(code, next);
+    RESERVATIONS.unshift({ id, reservedAt: new Date().toISOString(), status: "reserved" });
+    return delay(id, 200);
+  },
+
+  async reserveNasId(id: string, note?: string): Promise<NasReservation> {
+    const upper = id.toUpperCase().trim();
+    if (RESERVATIONS.find((r) => r.id === upper && r.status !== "released")) {
+      throw new Error(`NAS ID ${upper} already exists`);
+    }
+    const row: NasReservation = { id: upper, reservedAt: new Date().toISOString(), status: "reserved", note };
+    RESERVATIONS.unshift(row);
+    return delay(row, 200);
+  },
+
+  async releaseNasId(id: string): Promise<void> {
+    const idx = RESERVATIONS.findIndex((r) => r.id === id);
+    if (idx >= 0) RESERVATIONS[idx] = { ...RESERVATIONS[idx], status: "released" };
+    return delay(undefined, 150);
   },
 };
