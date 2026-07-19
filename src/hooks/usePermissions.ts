@@ -51,7 +51,7 @@ const EMPTY_SIDEBAR: { console: SidebarGroupDef[]; workspace: SidebarGroupDef[] 
 function usePermissionBusInvalidation() {
   const queryClient = useQueryClient();
   useEffect(() => {
-    return permissionsBus.subscribe((event) => {
+    const unsub = permissionsBus.subscribe((event) => {
       switch (event.type) {
         case "permissions:changed":
         case "feature-flags:changed":
