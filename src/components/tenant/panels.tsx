@@ -1351,7 +1351,7 @@ export function AuditPanel({ customerId }: PanelProps) {
                 <div className="text-xs text-muted-foreground">{new Date(r.at).toLocaleString()}</div>
               </div>
             ))}
-            {filtered.length === 0 && <EmptyState title="No entries" description="Nothing matches your search." icon={<ScrollText />} />}
+            {filtered.length === 0 && <EmptyState title="No entries" description="Nothing matches your search." icon={ScrollText} />}
           </div>
         </CardContent>
       </Card>
