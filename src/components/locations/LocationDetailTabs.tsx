@@ -59,10 +59,12 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
         <TabsList className="h-auto flex-wrap gap-1 bg-muted/40 p-1">
           {[
             ["overview", "Overview"],
+            ["nas", "NAS Devices"],
             ["routers", "Routers"],
-            ["wifi", "WiFi Networks"],
-            ["guests", "Guests"],
+            ["wifi", "Guest WiFi"],
             ["portal", "Captive Portal"],
+            ["voucher", "Voucher"],
+            ["guests", "Guests"],
             ["monitoring", "Monitoring"],
             ["analytics", "Analytics"],
             ["bandwidth", "Bandwidth"],
