@@ -128,7 +128,7 @@ function buildCards(
       id: `customer:${c.id}`,
       tier: "customer",
       title: c.name,
-      subtitle: c.industry ?? "Customer workspace",
+      subtitle: c.organizationName ?? "Customer workspace",
       subscription: c.subscription,
       customerId: c.id,
       members: c.locations.length,
