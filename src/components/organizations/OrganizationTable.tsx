@@ -85,7 +85,7 @@ export function OrganizationTable() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [confirm, setConfirm] = useState<null | { title: string; description: string; onConfirm: () => void; tone?: "destructive" | "default" }>(null);
+  const [confirm, setConfirm] = useState<null | { title: string; description: string; onConfirm: () => void; destructive?: boolean }>(null);
 
   const query: OrgListQuery = useMemo(
     () => ({ search, status, plan, page, pageSize, sortBy, sortDir }),
@@ -142,7 +142,7 @@ export function OrganizationTable() {
       setConfirm({
         title: `Delete ${ids.length} organization${ids.length > 1 ? "s" : ""}?`,
         description: "This permanently removes the selected organizations and their data.",
-        tone: "destructive",
+        destructive: true,
         onConfirm: async () => {
           await remove.mutateAsync(ids);
           toast.success("Organizations deleted");
@@ -292,7 +292,7 @@ export function OrganizationTable() {
                           });
                         } else if (a === "delete") {
                           setConfirm({
-                            title: `Delete ${r.name}?`, description: "This action cannot be undone.", tone: "destructive",
+                            title: `Delete ${r.name}?`, description: "This action cannot be undone.", destructive: true,
                             onConfirm: async () => { await remove.mutateAsync([r.id]); toast.success("Deleted"); },
                           });
                         } else if (a === "reset") {
