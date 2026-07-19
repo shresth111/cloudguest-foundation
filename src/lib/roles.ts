@@ -55,9 +55,9 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["super_admin", "org_admin", "location_manager"],
   },
   {
-    label: "Networks",
-    to: "/dashboard",
-    icon: Wifi,
+    label: "Routers",
+    to: "/routers",
+    icon: RouterIcon,
     roles: ["super_admin", "org_admin", "location_manager", "support_engineer"],
   },
   {
