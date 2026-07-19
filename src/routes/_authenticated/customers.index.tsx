@@ -136,18 +136,87 @@ function CustomersListPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base">All customers</CardTitle>
-          <div className="relative w-72 max-w-full">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name, owner, email"
-              className="pl-8"
-            />
+        <CardHeader className="space-y-3">
+          <div className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="text-base">
+              All customers
+              {activeFilters > 0 && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {filtered.length} of {data?.length ?? 0} · {activeFilters} filter
+                  {activeFilters > 1 ? "s" : ""}
+                </span>
+              )}
+            </CardTitle>
+            <div className="relative w-72 max-w-full">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name, owner, email"
+                className="pl-8"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={owner} onValueChange={setOwner}>
+              <SelectTrigger className="h-9 w-[200px]">
+                <SelectValue placeholder="Owner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">All owners</SelectItem>
+                {owners.map((o) => (
+                  <SelectItem key={o.email} value={o.email}>
+                    {o.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={plan} onValueChange={setPlan}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Plan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">All plans</SelectItem>
+                {plans.map((p) => (
+                  <SelectItem key={p} value={p} className="capitalize">
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">All statuses</SelectItem>
+                {statuses.map((s) => (
+                  <SelectItem key={s} value={s} className="capitalize">
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={locBucket} onValueChange={(v) => setLocBucket(v as LocBucket)}>
+              <SelectTrigger className="h-9 w-[180px]">
+                <SelectValue placeholder="Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any # of locations</SelectItem>
+                <SelectItem value="1">1 location</SelectItem>
+                <SelectItem value="2-5">2 – 5 locations</SelectItem>
+                <SelectItem value="6-10">6 – 10 locations</SelectItem>
+                <SelectItem value="10+">10+ locations</SelectItem>
+              </SelectContent>
+            </Select>
+            {activeFilters > 0 && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <FilterX className="mr-1.5 h-4 w-4" /> Clear
+              </Button>
+            )}
           </div>
         </CardHeader>
+
         <CardContent className="p-0">
           <Table>
             <TableHeader>
