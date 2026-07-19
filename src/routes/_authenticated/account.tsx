@@ -3,13 +3,16 @@ import { useState } from "react";
 import { z } from "zod";
 import {
   Bell,
+  Building2,
   Check,
+  Clock,
   Copy,
   KeyRound,
   KeySquare,
   Loader2,
   Monitor,
   Plus,
+  Settings2,
   ShieldCheck,
   Trash2,
   UserCog,
@@ -36,11 +39,14 @@ import { cn } from "@/lib/utils";
 
 const SECTION_KEYS = [
   "profile",
+  "company",
   "account",
+  "preferences",
   "security",
   "password",
   "two-factor",
   "sessions",
+  "history",
   "notifications",
   "api-tokens",
 ] as const;
@@ -57,11 +63,14 @@ export const Route = createFileRoute("/_authenticated/account")({
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof UserIcon; description: string }[] = [
   { key: "profile", label: "Profile", icon: UserIcon, description: "Public info" },
-  { key: "account", label: "Account", icon: UserCog, description: "Preferences" },
+  { key: "company", label: "Company", icon: Building2, description: "Organization details" },
+  { key: "account", label: "Account", icon: UserCog, description: "Localization" },
+  { key: "preferences", label: "Preferences", icon: Settings2, description: "Display & density" },
   { key: "security", label: "Security", icon: ShieldCheck, description: "Overview" },
   { key: "password", label: "Password", icon: KeyRound, description: "Change password" },
   { key: "two-factor", label: "Two-factor", icon: ShieldCheck, description: "Authenticator" },
   { key: "sessions", label: "Sessions", icon: Monitor, description: "Signed-in devices" },
+  { key: "history", label: "Login history", icon: Clock, description: "Recent sign-ins" },
   { key: "notifications", label: "Notifications", icon: Bell, description: "Delivery preferences" },
   { key: "api-tokens", label: "API tokens", icon: KeySquare, description: "Personal access" },
 ];
@@ -112,11 +121,14 @@ function AccountPage() {
 
         <div className="min-w-0">
           {active === "profile" && <ProfileSection />}
+          {active === "company" && <CompanySection />}
           {active === "account" && <AccountSection />}
+          {active === "preferences" && <PreferencesSection />}
           {active === "security" && <SecuritySection />}
           {active === "password" && <PasswordSection />}
           {active === "two-factor" && <TwoFactorSection />}
           {active === "sessions" && <SessionsSection />}
+          {active === "history" && <LoginHistorySection />}
           {active === "notifications" && <NotificationsSection />}
           {active === "api-tokens" && <ApiTokensSection />}
         </div>
@@ -558,3 +570,94 @@ function ApiTokensSection() {
     </SectionCard>
   );
 }
+
+function CompanySection() {
+  const [name, setName] = useState("Nimbus Hospitality");
+  const [domain, setDomain] = useState("nimbus.example.com");
+  const [industry, setIndustry] = useState("Hospitality");
+  const [size, setSize] = useState("501-1000");
+  return (
+    <SectionCard
+      title="Company"
+      description="Details visible to teammates and shared across the workspace."
+      footer={<Button onClick={() => toast.success("Company details saved")}>Save changes</Button>}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Company name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Primary domain</Label>
+          <Input value={domain} onChange={(e) => setDomain(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Industry</Label>
+          <Input value={industry} onChange={(e) => setIndustry(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Company size</Label>
+          <Input value={size} onChange={(e) => setSize(e.target.value)} />
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+function PreferencesSection() {
+  const [density, setDensity] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
+  const rows: { key: string; label: string; hint: string; value: boolean; onChange: (v: boolean) => void }[] = [
+    { key: "density", label: "Compact density", hint: "Reduce padding across tables and cards.", value: density, onChange: setDensity },
+    { key: "motion", label: "Reduce motion", hint: "Minimize animations and transitions.", value: reduceMotion, onChange: setReduceMotion },
+    { key: "contrast", label: "High contrast", hint: "Boost contrast for improved legibility.", value: highContrast, onChange: setHighContrast },
+  ];
+  return (
+    <SectionCard
+      title="Display preferences"
+      description="Personalize how CloudGuest looks and feels for your account."
+      footer={<Button onClick={() => toast.success("Preferences saved")}>Save</Button>}
+    >
+      {rows.map((r) => (
+        <div key={r.key} className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">{r.label}</div>
+            <div className="text-xs text-muted-foreground">{r.hint}</div>
+          </div>
+          <Switch checked={r.value} onCheckedChange={r.onChange} />
+        </div>
+      ))}
+    </SectionCard>
+  );
+}
+
+function LoginHistorySection() {
+  const events = [
+    { when: "Just now", device: "MacBook Pro · Chrome", ip: "203.0.113.24", city: "Bengaluru", outcome: "success" },
+    { when: "2h ago", device: "iPhone 15 · Safari", ip: "203.0.113.88", city: "Bengaluru", outcome: "success" },
+    { when: "Yesterday, 09:12", device: "Windows · Firefox", ip: "198.51.100.14", city: "Delhi", outcome: "success" },
+    { when: "Jul 12, 22:41", device: "Unknown · curl", ip: "45.9.13.71", city: "Amsterdam", outcome: "failed" },
+    { when: "Jul 09, 18:07", device: "iPad · Safari", ip: "203.0.113.90", city: "Bengaluru", outcome: "success" },
+  ];
+  return (
+    <SectionCard title="Login history" description="Recent sign-in attempts on your account.">
+      <ul className="divide-y">
+        {events.map((e, i) => (
+          <li key={i} className="flex items-center justify-between gap-3 py-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">{e.device}</div>
+              <div className="text-xs text-muted-foreground">
+                {e.city} · {e.ip} · {e.when}
+              </div>
+            </div>
+            <Badge variant={e.outcome === "success" ? "secondary" : "destructive"}>
+              {e.outcome === "success" ? "Success" : "Failed"}
+            </Badge>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  );
+}
+

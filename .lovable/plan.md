@@ -1,89 +1,70 @@
-## Customer Workspace (FE-020)
+## Goal
 
-Goal: give Org-Admin / Location-Manager roles a unified workspace scoped to a single customer, without duplicating existing modules. Super-Admin keeps today's cross-tenant view; the new shell is a sibling that reuses the same services, queries, forms, and shadcn components.
+Evolve the existing frontend into a fully backend-driven multi-tenant permission engine. No rebuild — extend the current permissions layer, workspace context, sidebar, topbar, profile menu, dashboards, and action buttons so every visible element is resolved from API responses (permissions, feature flags, tenant hierarchy, router capabilities). Adds the missing hierarchy layer (Business Unit), the post-login space selection chain, and reactive location-context invalidation across every module.
 
-### Scope boundaries (what this task does NOT touch)
+## What already exists (keep and extend)
 
-- No new routing framework, auth, RBAC, theme, or API layer.
-- No changes to existing pages (`/dashboard`, `/locations`, `/routers`, `/guests`, `/audit`, `/billing`, `/analytics`, `/settings`, `/customers`, etc.) — they stay as-is for Super-Admin.
-- No new backend. Everything runs off the existing mock services (`customer.service`, `location.service`, `router.service`, `guest.service`, `billing.service`, `audit.service`, `superadmin.service`, `rbac.service`).
+- `src/types/permissions.ts` — module actions, feature flags, router actions.
+- `src/services/permissions.service.ts` + `usePermissions` — returns `SidebarNode` tree, `can()`, `hasFeature()`, `canRouterAction()`.
+- `src/components/permissions/Can.tsx` — `<Can />`, `<LockedBadge />`.
+- `AppSidebar.tsx` — renders API tree via `resolveIcon`.
+- `WorkspaceContext.tsx` — invalidates query caches on location change.
+- `/select-space`, `/account` (8 tabs), `TopNavbar`, `SpaceContextChip`, `QuickActionsFab`.
 
-### Architecture
+Nothing above is replaced. All work is additive or in-place refactors.
 
-New pathless layout `src/routes/_authenticated/_workspace.tsx`:
-- `beforeLoad` gate: only `org_admin`, `location_manager`, `read_only` land here (Super-Admin is redirected to `/customers`).
-- Provides `WorkspaceContext` with the resolved customer + active location scope.
-- Renders a workspace-specific sidebar and header while keeping the app's existing outer chrome (`SidebarProvider`, theme, notifications).
+## Plan
 
-Active-location state is a URL search param (`?loc=<id>` or `all`) on every workspace route — persistable, shareable, matches the pattern we already use for Customers filters. A `useActiveLocation()` hook reads/writes it and derives filtered query keys.
+### 1. Hierarchy + Space Selection (Org → BU → Location)
 
-### New files (all under `src/…/workspace/`)
+- Extend `src/types/tenant.ts` with `BusinessUnit { id, orgId, name, region }` and add `businessUnitId` to `Location`.
+- Extend `permissions.service.ts` mock to return `assignedOrganizations`, `businessUnits[]` per org, and `locations[]` per BU (respecting scope: Regional/Area/IT managers see only their subset).
+- Refactor `/select-space` into a 3-step chooser (Org → BU (skipped if 0/1) → Location) with searchable cards, favorites, recents — reuse existing card UI.
+- `WorkspaceContext` gains `organizationId`, `businessUnitId`, `locationId`; setting any upper level clears lower ones and re-fetches the permission tree.
 
-Routes (`src/routes/_authenticated/_workspace/`):
-- `route.tsx` — layout + gate + context.
-- `index.tsx` → `/workspace` — Customer Dashboard.
-- `locations.tsx` — grid + tree of the customer's properties.
-- `routers.tsx` — routers overview scoped to active location.
-- `guests.tsx` — guests overview scoped to active location.
-- `staff.tsx` — staff rollup by role.
-- `analytics.tsx` — customer analytics.
-- `reports.tsx` — report generator + export.
-- `billing.tsx` — plan / invoices / usage.
-- `notifications.tsx` — notification center.
-- `audit.tsx` — timeline + filters.
-- `company.tsx` — Customer Profile (10 tabs: Overview, Company, Business, Locations, Subscription, Billing, Feature Access, API Keys, Branding, Audit).
-- `help.tsx` — help center.
+### 2. Permission tree is the single source of truth
 
-Components (`src/components/workspace/`):
-- `WorkspaceSidebar.tsx`, `WorkspaceHeader.tsx`, `LocationSwitcher.tsx`, `WorkspaceCommandPalette.tsx` (⌘K).
-- `dashboard/SummaryCards.tsx`, `DashboardCharts.tsx`, `RecentActivity.tsx`, `QuickActions.tsx`.
-- `locations/LocationGrid.tsx`, `LocationCard.tsx`, `LocationTree.tsx`.
-- `staff/StaffOverview.tsx`, `guests/GuestOverview.tsx`, `routers/RoutersOverview.tsx`.
-- `company/CompanyTabs.tsx` + tab panels.
-- `common/WorkspaceEmpty.tsx`, `WorkspaceError.tsx`, skeletons.
+- Every fetch of the sidebar, dashboard layout, quick actions, topbar chips, and router controls keys on `[permissions, orgId, buId, locationId]`.
+- On location change, `WorkspaceContext` invalidates the added keys (`dashboard-layout`, `quick-actions`, `topbar-config`, `router-capabilities`, plus existing modules).
+- Add `permissions.service.getDashboardLayout(locationId)` returning ordered widget descriptors `{ id, type, module, size, permissionRequired }`; `SuperAdminDashboard` and `CustomerDashboard` iterate this list instead of rendering hardcoded widget arrays. Existing widget components are reused as a registry (`dashboardWidgetRegistry`).
+- Add `permissions.service.getTopbarConfig()` — profile/notifications/search/quick-actions/theme/language/support each gated by a flag.
 
-Hooks: `src/hooks/useWorkspace.ts` — `useActiveCustomer`, `useActiveLocation`, `useWorkspaceScope`. Wraps existing query hooks and injects the active-location filter.
+### 3. Router-level dynamic actions
 
-### Reuse map (no duplication)
+- Router detail pages read `permissions.service.getRouterCapabilities(routerId)` returning allowed actions from the existing `RouterAction` union.
+- Each action button wraps in `<Can routerAction="reboot">…</Can>`; disallowed ones render `<LockedBadge>` with the standard "Access restricted. Contact your Administrator." tooltip.
 
-- Location grid / tree → uses `useCustomer(customerId)` + existing `location.service`.
-- Routers overview → wraps `useRouters` filtered by scope; drills into existing `/routers/$routerId`.
-- Guests overview → wraps `useGuests` + existing session components.
-- Analytics → embeds existing `AnalyticsKpiGrid`, chart panels from `analytics/`.
-- Reports → embeds existing `ReportCenter`, `CustomReportBuilder`.
-- Billing → embeds existing `SubscriptionTable`, `RevenueAnalyticsPanel`.
-- Audit → embeds `AuditTable`, `ActivityTimeline`, `AuditDetailsDrawer`.
-- Company Profile → embeds branding editor, feature-access grid, and existing customer detail panels.
-- Command palette → same `GlobalSearch` primitive, filtered to customer scope.
+### 4. Custom Role Engine (Customer Admin)
 
-### Sidebar / nav
+- New panel under existing `/rbac` (not a new route): `CustomRoleManager` supporting Create / Rename / Duplicate / Clone permissions from / Archive / Disable / Delete on top of existing `rbac.service.ts`.
+- Uses the current `PermissionMatrix` component; adds row/column bulk toggle and per-module action grid (View/Create/Edit/Delete/Export/Import/Approve/Execute/Restart/Configure) to match the expanded action set.
 
-`src/lib/roles.ts` gets a new `WORKSPACE_NAV_ITEMS` list (Dashboard, Locations, Routers, Guests, Staff, Analytics, Reports, Billing, Notifications, Audit, Company Settings, Help). Existing `NAV_ITEMS` is untouched. Post-login redirect (`src/lib/roles.ts` role→home map) sends non-Super-Admin roles to `/workspace`; Super-Admin still lands on `/dashboard`.
+### 5. Feature Flags reactivity
 
-### RBAC
+- `usePermissions` already returns `featureFlags`. Add a lightweight pub/sub (`permissionsBus`) so a mock "flag change" (dev toggle + future websocket) triggers `queryClient.invalidateQueries(['permissions'])` — sidebar/widgets/actions re-render without reload.
+- Add dev-only Feature Flag inspector inside `/system` (existing route) to simulate backend toggles.
 
-Sidebar items filtered via existing `hasRole` helpers on `AuthContext`. Buttons like "Register Router", "Invite Staff", "Upgrade Plan" gated by role. Read-only role hides mutating actions.
+### 6. Locked-feature UX
 
-### States
+- Standardize `<LockedBadge />` tooltip copy and apply it to sidebar nodes flagged `locked: true`, dashboard widgets, and router actions. Never hide unless backend sets `hidden: true`.
 
-Every route ships skeleton, empty (`Welcome to CloudGuest → Create Location`), and error (retry via `router.invalidate()`) variants using the existing `LoadingSkeleton` / `WorkspaceEmpty` / toast primitives.
+### 7. Profile Menu completion
 
-### Responsiveness
+- Extend existing `UserMenu` to expose all 11 entries (Profile, Company, Security, Change Password, 2FA, Login History, API Tokens, Sessions, Preferences, Notification Settings, Logout), each linking to the existing `/account/*` tabs; add missing `Company` and `Preferences` tabs to the account module using the existing panel layout.
 
-Reuses existing `SidebarProvider` collapse behaviour. Grid → 1/2/3 col at sm/md/xl. Data tables use existing horizontal-scroll wrappers. Charts use `ResponsiveContainer` as elsewhere.
+### 8. Polish
 
-### Out of scope (explicit)
+- Framer Motion fade/slide on sidebar tree diff, widget grid reflow, and topbar chip swap when location changes.
+- Skeletons already exist — wire `PageSkeleton` into the permission-loading state so no flicker during location switch.
 
-- No new mock data seeds beyond thin selectors over existing customer/location/router/guest data.
-- No new payment/webhook plumbing.
-- No changes to Super-Admin routes or the Customers 360 page.
+## Technical notes
 
-### Delivery order
+- All new data lives behind `permissions.service.ts`, `tenant.service.ts`, `rbac.service.ts` mocks — no new context providers beyond extending `WorkspaceContext`.
+- Query keys namespaced `['perm', orgId, buId, locationId, …]` to guarantee scoped invalidation.
+- Strict TS; new descriptors typed in `src/types/permissions.ts` and `src/types/tenant.ts`.
+- No route deletions; new panels mount inside existing routes (`/rbac`, `/account`, `/system`, `/select-space`).
 
-1. Layout, context, sidebar, header, location switcher, role gating, post-login redirect.
-2. Dashboard (summary cards, charts, recent activity, quick actions, command palette).
-3. Locations grid + tree, Routers/Guests/Staff overviews.
-4. Analytics, Reports, Billing, Notifications, Audit (embedding existing modules).
-5. Company Profile tabs + Help Center + empty/error polish.
+## Out of scope
 
-Approve and I'll implement in that order in a single pass.
+- Real backend, websockets, actual auth provider — mocks only, shaped for drop-in API replacement.
+- No visual redesign of existing modules beyond the motion/skeleton polish above.

@@ -1,14 +1,17 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  KeyRound,
-  LogOut,
-  Settings,
-  User as UserIcon,
-  ShieldCheck,
   Bell,
-  Monitor,
+  Building2,
+  Clock,
+  KeyRound,
   KeySquare,
+  LogOut,
+  Monitor,
+  Settings,
+  Settings2,
+  ShieldCheck,
   UserCog,
+  User as UserIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +42,18 @@ export function UserMenu() {
 
   if (!user) return null;
 
-  type Section = "profile" | "account" | "security" | "password" | "two-factor" | "sessions" | "notifications" | "api-tokens";
+  type Section =
+    | "profile"
+    | "company"
+    | "account"
+    | "preferences"
+    | "security"
+    | "password"
+    | "two-factor"
+    | "sessions"
+    | "history"
+    | "notifications"
+    | "api-tokens";
   const go = (section: Section) => navigate({ to: "/account", search: { section } });
 
   return (
@@ -68,9 +82,16 @@ export function UserMenu() {
         <DropdownMenuItem onClick={() => go("profile")}>
           <UserIcon className="mr-2 h-4 w-4" /> Profile
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("company")}>
+          <Building2 className="mr-2 h-4 w-4" /> Company
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => go("account")}>
           <UserCog className="mr-2 h-4 w-4" /> Account
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("preferences")}>
+          <Settings2 className="mr-2 h-4 w-4" /> Preferences
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => go("security")}>
           <ShieldCheck className="mr-2 h-4 w-4" /> Security
         </DropdownMenuItem>
@@ -82,6 +103,9 @@ export function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => go("sessions")}>
           <Monitor className="mr-2 h-4 w-4" /> Active sessions
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("history")}>
+          <Clock className="mr-2 h-4 w-4" /> Login history
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => go("notifications")}>
           <Bell className="mr-2 h-4 w-4" /> Notifications
