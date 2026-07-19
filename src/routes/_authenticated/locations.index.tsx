@@ -1,13 +1,17 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { MapPinned, Plus, Upload } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Can } from "@/components/permissions/Can";
 import { LocationTable } from "@/components/locations/LocationTable";
+import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
 import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/locations/")({
   component: LocationMasterPage,
 });
+
 
 function LocationMasterPage() {
   const { can, isLocked, isVisible } = usePermissions();
