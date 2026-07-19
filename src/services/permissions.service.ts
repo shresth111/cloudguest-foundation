@@ -331,13 +331,139 @@ function delay<T>(v: T, ms = 200): Promise<T> {
   return new Promise((r) => setTimeout(() => r(v), ms));
 }
 
+/* ---------------- Overrides for live feature-flag toggling ---------------- */
+
+const featureOverrides: Partial<Record<FeatureFlag, boolean>> = {};
+
+/* ---------------- Assignments (Org → BU → Location) ---------------- */
+
+const ASSIGNMENTS_BY_ROLE: Record<UserRole, AssignedOrganization[]> = {
+  super_admin: [
+    {
+      id: "ORG-01000",
+      name: "Nimbus Hospitality",
+      businessUnits: [
+        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL", "LOC-JAI"] },
+        { id: "BU-NIM-W", organizationId: "ORG-01000", name: "West India", region: "IN-W", locationIds: ["LOC-BOM", "LOC-GOA"] },
+      ],
+    },
+    {
+      id: "ORG-01001",
+      name: "Vertex Retail",
+      businessUnits: [
+        { id: "BU-VER-US", organizationId: "ORG-01001", name: "US East", region: "US-E", locationIds: ["LOC-NYC", "LOC-CHI"] },
+      ],
+    },
+  ],
+  org_admin: [
+    {
+      id: "ORG-01000",
+      name: "Nimbus Hospitality",
+      businessUnits: [
+        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL", "LOC-JAI"] },
+        { id: "BU-NIM-W", organizationId: "ORG-01000", name: "West India", region: "IN-W", locationIds: ["LOC-BOM", "LOC-GOA"] },
+      ],
+    },
+  ],
+  location_manager: [
+    {
+      id: "ORG-01000",
+      name: "Nimbus Hospitality",
+      businessUnits: [
+        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL"] },
+      ],
+    },
+  ],
+  support_engineer: [
+    {
+      id: "ORG-01000",
+      name: "Nimbus Hospitality",
+      businessUnits: [
+        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL", "LOC-JAI"] },
+        { id: "BU-NIM-W", organizationId: "ORG-01000", name: "West India", region: "IN-W", locationIds: ["LOC-BOM", "LOC-GOA"] },
+      ],
+    },
+  ],
+  read_only: [
+    {
+      id: "ORG-01000",
+      name: "Nimbus Hospitality",
+      businessUnits: [
+        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL"] },
+      ],
+    },
+  ],
+};
+
+/* ---------------- Dashboard layouts (backend-driven) ---------------- */
+
+function widgetsForRole(role: UserRole): DashboardWidget[] {
+  const base: DashboardWidget[] = [
+    { id: "welcome", kind: "welcome", size: "xl", order: 0 },
+    { id: "kpis", kind: "kpi-grid", size: "xl", order: 10, requires: { module: "dashboard" } },
+  ];
+  if (role === "super_admin") {
+    return [
+      ...base,
+      { id: "trend", kind: "trend-chart", title: "Growth trends", size: "lg", order: 20, requires: { module: "analytics" } },
+      { id: "health", kind: "health-chart", title: "Platform health", size: "md", order: 30, requires: { module: "system" } },
+      { id: "usage", kind: "usage-chart", title: "Bandwidth usage", size: "md", order: 40, requires: { module: "monitoring" } },
+      { id: "top-locs", kind: "top-locations", title: "Top locations", size: "md", order: 50, requires: { module: "locations" } },
+      { id: "activity", kind: "recent-activity", title: "Recent activity", size: "lg", order: 60, requires: { module: "audit" } },
+      { id: "notifs", kind: "notifications-preview", title: "Notifications", size: "md", order: 70, requires: { module: "notifications" } },
+    ];
+  }
+  if (role === "org_admin" || role === "location_manager") {
+    return [
+      ...base,
+      { id: "usage", kind: "usage-chart", title: "Live usage", size: "lg", order: 20, requires: { module: "monitoring" } },
+      { id: "activity", kind: "recent-activity", title: "Recent activity", size: "lg", order: 30 },
+      { id: "notifs", kind: "notifications-preview", title: "Notifications", size: "md", order: 40 },
+      { id: "quick", kind: "quick-actions", title: "Quick actions", size: "md", order: 50 },
+    ];
+  }
+  if (role === "support_engineer") {
+    return [
+      ...base,
+      { id: "health", kind: "health-chart", title: "Router health", size: "lg", order: 20, requires: { module: "monitoring" } },
+      { id: "activity", kind: "recent-activity", title: "Recent tickets", size: "lg", order: 30, requires: { module: "audit" } },
+    ];
+  }
+  return [
+    ...base,
+    { id: "activity", kind: "recent-activity", title: "Recent activity", size: "xl", order: 20 },
+  ];
+}
+
+/* ---------------- Topbar (backend-driven) ---------------- */
+
+function topbarForRole(role: UserRole, features: Partial<Record<FeatureFlag, boolean>>): TopbarConfig {
+  return {
+    showGlobalSearch: true,
+    showQuickActions: role !== "read_only",
+    showNotifications: true,
+    showThemeToggle: true,
+    showLanguage: role === "super_admin" || role === "org_admin",
+    showSupport: true,
+    showSpaceChip: true,
+    showProfileMenu: true,
+    // features param preserved so real backend can flip based on flags
+    ...(features ? {} : {}),
+  };
+}
+
+function applyFeatureOverrides(
+  base: Partial<Record<FeatureFlag, boolean>>,
+): Partial<Record<FeatureFlag, boolean>> {
+  return { ...base, ...featureOverrides };
+}
+
 export const permissionsService = {
   async getPermissions(role: UserRole, _locationId?: string): Promise<PermissionEnvelope> {
     const allowed = new Set(BASE_BY_ROLE[role] ?? []);
     const locked = new Set(LOCKED_BY_ROLE[role] ?? []);
     const modules: PermissionMap = {};
     for (const id of allowed) {
-      // Super admin gets every action; other roles inherit read + role-tuned writes.
       modules[id] = role === "super_admin" || role === "org_admin"
         ? { ...FULL_ACTIONS }
         : role === "location_manager"
@@ -350,7 +476,7 @@ export const permissionsService = {
 
     return delay({
       modules,
-      features: FEATURES_BY_ROLE[role],
+      features: applyFeatureOverrides(FEATURES_BY_ROLE[role]),
       routerActions: ROUTER_ACTIONS_BY_ROLE[role],
       locationScope: [],
       sidebar: {
@@ -359,4 +485,46 @@ export const permissionsService = {
       },
     });
   },
+
+  async getAssignments(role: UserRole): Promise<AssignmentEnvelope> {
+    const orgs = ASSIGNMENTS_BY_ROLE[role] ?? [];
+    const totalBus = orgs.reduce((n, o) => n + o.businessUnits.length, 0);
+    return delay({
+      organizations: orgs,
+      skipBusinessUnitStep: totalBus <= 1,
+    });
+  },
+
+  async getDashboardLayout(role: UserRole, _locationId?: string): Promise<DashboardLayout> {
+    const variant: DashboardLayout["variant"] =
+      role === "super_admin" ? "super-admin"
+        : role === "support_engineer" ? "support"
+          : role === "read_only" ? "read-only"
+            : "customer";
+    return delay({ variant, widgets: widgetsForRole(role) });
+  },
+
+  async getTopbarConfig(role: UserRole): Promise<TopbarConfig> {
+    return delay(topbarForRole(role, applyFeatureOverrides(FEATURES_BY_ROLE[role])));
+  },
+
+  async getRouterCapabilities(role: UserRole, routerId: string): Promise<RouterCapabilities> {
+    return delay({ routerId, actions: ROUTER_ACTIONS_BY_ROLE[role] });
+  },
+
+  /** Dev / admin: instantly flip a feature flag and notify subscribers. */
+  async updateFeatureFlag(flag: FeatureFlag, enabled: boolean): Promise<void> {
+    featureOverrides[flag] = enabled;
+    permissionsBus.emit({ type: "feature-flags:changed" });
+    permissionsBus.emit({ type: "permissions:changed" });
+  },
+
+  /** Read the current in-memory override state (dev inspector). */
+  getFeatureOverrides(): Partial<Record<FeatureFlag, boolean>> {
+    return { ...featureOverrides };
+  },
 };
+
+// Convenience export so business units are easily discoverable at module scope.
+export type { BusinessUnit, AssignedOrganization, AssignmentEnvelope, TopbarConfig, RouterCapabilities };
+export type { DashboardLayout, DashboardWidget };
