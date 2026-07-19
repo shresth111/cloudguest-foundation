@@ -46,12 +46,24 @@ export const ROLE_BADGE_VARIANT: Record<UserRole, "default" | "secondary" | "out
   read_only: "outline",
 };
 
+export type NavGroup = "platform" | "operations" | "growth" | "system" | "support";
+
 export interface NavItem {
   label: string;
   to: string;
   icon: LucideIcon;
   roles: UserRole[];
+  group?: NavGroup;
 }
+
+export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
+  platform: "Platform administration",
+  operations: "Operations",
+  growth: "Growth",
+  system: "System",
+  support: "Support",
+};
+
 
 export const NAV_ITEMS: NavItem[] = [
   {
