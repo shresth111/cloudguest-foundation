@@ -109,6 +109,7 @@ import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
 import { Route as AuthenticatedCustomersCustomerIdTenantRouteImport } from './routes/_authenticated/customers.$customerId.tenant'
 import { Route as AuthenticatedCustomersCustomerIdOnboardingRouteImport } from './routes/_authenticated/customers.$customerId.onboarding'
+import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -677,6 +678,12 @@ const AuthenticatedCustomersCustomerIdOnboardingRoute =
     path: '/onboarding',
     getParentRoute: () => AuthenticatedCustomersCustomerIdRoute,
   } as any)
+const AuthenticatedLocationsLocationIdNasNasIdRoute =
+  AuthenticatedLocationsLocationIdNasNasIdRouteImport.update({
+    id: '/nas/$nasId',
+    path: '/nas/$nasId',
+    getParentRoute: () => AuthenticatedLocationsLocationIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -715,7 +722,7 @@ export interface FileRoutesByFullPath {
   '/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
   '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
-  '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
+  '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -778,6 +785,7 @@ export interface FileRoutesByFullPath {
   '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -814,7 +822,7 @@ export interface FileRoutesByTo {
   '/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
   '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
-  '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
+  '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -877,6 +885,7 @@ export interface FileRoutesByTo {
   '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -917,7 +926,7 @@ export interface FileRoutesById {
   '/_authenticated/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
   '/_authenticated/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/_authenticated/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
-  '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
+  '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/_authenticated/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/_authenticated/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/_authenticated/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -980,6 +989,7 @@ export interface FileRoutesById {
   '/_authenticated/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/_authenticated/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1083,6 +1093,7 @@ export interface FileRouteTypes {
     | '/customers/$customerId/onboarding'
     | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
+    | '/locations/$locationId/nas/$nasId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1182,6 +1193,7 @@ export interface FileRouteTypes {
     | '/customers/$customerId/onboarding'
     | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
+    | '/locations/$locationId/nas/$nasId'
   id:
     | '__root__'
     | '/'
@@ -1284,6 +1296,7 @@ export interface FileRouteTypes {
     | '/_authenticated/customers/$customerId/onboarding'
     | '/_authenticated/customers/$customerId/tenant'
     | '/_authenticated/workspace/locations/$locationId'
+    | '/_authenticated/locations/$locationId/nas/$nasId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1999,6 +2012,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCustomersCustomerIdOnboardingRouteImport
       parentRoute: typeof AuthenticatedCustomersCustomerIdRoute
     }
+    '/_authenticated/locations/$locationId/nas/$nasId': {
+      id: '/_authenticated/locations/$locationId/nas/$nasId'
+      path: '/nas/$nasId'
+      fullPath: '/locations/$locationId/nas/$nasId'
+      preLoaderRoute: typeof AuthenticatedLocationsLocationIdNasNasIdRouteImport
+      parentRoute: typeof AuthenticatedLocationsLocationIdRoute
+    }
   }
 }
 
@@ -2073,6 +2093,21 @@ const AuthenticatedCustomersCustomerIdRouteWithChildren =
     AuthenticatedCustomersCustomerIdRouteChildren,
   )
 
+interface AuthenticatedLocationsLocationIdRouteChildren {
+  AuthenticatedLocationsLocationIdNasNasIdRoute: typeof AuthenticatedLocationsLocationIdNasNasIdRoute
+}
+
+const AuthenticatedLocationsLocationIdRouteChildren: AuthenticatedLocationsLocationIdRouteChildren =
+  {
+    AuthenticatedLocationsLocationIdNasNasIdRoute:
+      AuthenticatedLocationsLocationIdNasNasIdRoute,
+  }
+
+const AuthenticatedLocationsLocationIdRouteWithChildren =
+  AuthenticatedLocationsLocationIdRoute._addFileChildren(
+    AuthenticatedLocationsLocationIdRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -2091,7 +2126,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGuestsSmartIdRoute: typeof AuthenticatedGuestsSmartIdRoute
   AuthenticatedGuestsVoucherRoute: typeof AuthenticatedGuestsVoucherRoute
   AuthenticatedGuestsWhitelistRoute: typeof AuthenticatedGuestsWhitelistRoute
-  AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
+  AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRouteWithChildren
   AuthenticatedNetworkAccessPointsRoute: typeof AuthenticatedNetworkAccessPointsRoute
   AuthenticatedNetworkDhcpRoute: typeof AuthenticatedNetworkDhcpRoute
   AuthenticatedNetworkDnsRoute: typeof AuthenticatedNetworkDnsRoute
@@ -2160,7 +2195,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGuestsSmartIdRoute: AuthenticatedGuestsSmartIdRoute,
   AuthenticatedGuestsVoucherRoute: AuthenticatedGuestsVoucherRoute,
   AuthenticatedGuestsWhitelistRoute: AuthenticatedGuestsWhitelistRoute,
-  AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,
+  AuthenticatedLocationsLocationIdRoute:
+    AuthenticatedLocationsLocationIdRouteWithChildren,
   AuthenticatedNetworkAccessPointsRoute: AuthenticatedNetworkAccessPointsRoute,
   AuthenticatedNetworkDhcpRoute: AuthenticatedNetworkDhcpRoute,
   AuthenticatedNetworkDnsRoute: AuthenticatedNetworkDnsRoute,
