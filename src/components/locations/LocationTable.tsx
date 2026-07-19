@@ -409,6 +409,7 @@ export function LocationTable() {
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" />
                     </TableHead>
                     <SortableHead label="Location" k="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                    <TableHead>Owner / Customer</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Site type</TableHead>
                     <TableHead>City / Country</TableHead>
@@ -441,6 +442,12 @@ export function LocationTable() {
                           <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
                           <span className="text-xs text-muted-foreground">{r.id}</span>
                         </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{r.ownerName ?? "—"}</span>
+                          <span className="text-xs text-muted-foreground">{r.ownerEmail ?? r.organizationName}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm">{r.organizationName}</TableCell>
                       <TableCell>

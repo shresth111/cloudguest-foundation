@@ -54,6 +54,8 @@ function generate(count: number): Location[] {
       name: `${orgName.split(" ")[0]} ${city} ${["Downtown", "Airport", "Central", "Riverside", "North", "South", "Plaza"][i % 7]}`,
       organizationId: orgId,
       organizationName: orgName,
+      ownerName: ["Priya Shah", "John Meyers", "Aisha Rahman", "Diego Alvarez", "Mika Tanaka", "Liam O'Connor"][i % 6],
+      ownerEmail: `owner${i % 6}@${orgName.split(" ")[0].toLowerCase()}.com`,
       siteType,
       country,
       state,

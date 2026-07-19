@@ -25,6 +25,8 @@ export interface Location {
   name: string;
   organizationId: string;
   organizationName: string;
+  ownerName?: string;
+  ownerEmail?: string;
   siteType: SiteType;
   country: string;
   state: string;
