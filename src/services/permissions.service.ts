@@ -35,6 +35,17 @@ const FULL_ACTIONS: Required<Omit<ModulePermission, "locked">> = {
 
 const READ_ONLY: ModulePermission = { view: true, export: true };
 
+const NEW_IA_MODULES: ModuleId[] = [
+  "network-aps", "network-wan", "network-lan", "network-dhcp", "network-dns",
+  "guests-live", "guests-sessions", "guests-blocklist",
+  "policy-location", "policy-user", "policy-group",
+  "policy-auth", "policy-bandwidth", "policy-network",
+  "analytics-executive", "analytics-network", "analytics-guest",
+  "analytics-device", "analytics-isp",
+  "alerts", "admin-logs", "business-units",
+  "documentation", "support-contact",
+];
+
 const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
     "dashboard", "customers", "organizations", "locations", "subscription",
@@ -50,6 +61,7 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "workspace-staff", "workspace-analytics", "workspace-reports",
     "workspace-billing", "workspace-notifications", "workspace-audit",
     "workspace-company", "workspace-help",
+    ...NEW_IA_MODULES,
   ],
   org_admin: [
     "dashboard", "locations", "subscription", "audit", "settings",
@@ -57,24 +69,35 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "billing", "branding", "marketplace", "rbac",
     "integrations", "api-keys", "notifications", "exports", "help",
     "vouchers", "campaigns", "devices", "whitelist", "captive-portal",
+    "vlan", "dscp", "firewall", "isp-routing",
     "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
     "workspace-staff", "workspace-analytics", "workspace-reports",
     "workspace-billing", "workspace-notifications", "workspace-audit",
     "workspace-company", "workspace-help",
+    ...NEW_IA_MODULES,
   ],
   location_manager: [
     "dashboard", "locations", "routers", "guests", "portals",
     "monitoring", "notifications", "help", "vouchers", "devices",
+    "vlan", "guests-live", "guests-sessions", "guests-blocklist",
+    "policy-location", "policy-user",
+    "analytics-executive", "analytics-guest",
+    "alerts", "documentation", "support-contact",
     "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
     "workspace-staff", "workspace-notifications", "workspace-help",
   ],
   support_engineer: [
     "dashboard", "audit", "system", "routers", "monitoring",
     "network-monitoring", "isp-monitoring", "devices",
-    "notifications", "help", "workspace-audit", "workspace-help",
+    "notifications", "help",
+    "alerts", "admin-logs", "documentation", "support-contact",
+    "analytics-network", "analytics-device", "analytics-isp",
+    "workspace-audit", "workspace-help",
   ],
   read_only: [
     "dashboard", "guests", "analytics", "notifications", "help",
+    "analytics-executive", "analytics-guest",
+    "guests-live", "documentation",
     "workspace", "workspace-locations", "workspace-guests",
     "workspace-analytics", "workspace-notifications", "workspace-help",
   ],
@@ -83,9 +106,9 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
 /** Modules that stay visible-but-locked instead of hidden for a given role. */
 const LOCKED_BY_ROLE: Partial<Record<UserRole, ModuleId[]>> = {
   org_admin: ["plans", "feature-management", "system"],
-  location_manager: ["analytics", "billing", "branding", "rbac"],
-  read_only: ["portals", "monitoring", "billing", "branding", "settings"],
-  support_engineer: ["billing", "branding", "analytics"],
+  location_manager: ["billing", "branding", "rbac", "policy-group", "policy-bandwidth"],
+  read_only: ["portals", "monitoring", "billing", "branding", "settings", "policy-location", "policy-user"],
+  support_engineer: ["billing", "branding"],
 };
 
 const FEATURES_BY_ROLE: Record<UserRole, Partial<Record<FeatureFlag, boolean>>> = {
