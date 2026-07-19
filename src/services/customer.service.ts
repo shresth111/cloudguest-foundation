@@ -186,6 +186,16 @@ export const customerService = {
     return delay(SEEDED_EXISTING, 200);
   },
 
+  async getCustomer(id: string): Promise<ExistingCustomer | undefined> {
+    return delay(SEEDED_EXISTING.find((c) => c.id === id), 200);
+  },
+
+  async getLocationResources(locationId: string): Promise<LocationResources> {
+    const seed = LOCATION_RESOURCES[locationId] ?? buildResources(locationId);
+    return delay(seed, 200);
+  },
+
+
   async provision(payload: ProvisioningPayload): Promise<ProvisioningResult> {
     // Add the location into the location service so it appears in tables.
     try {
