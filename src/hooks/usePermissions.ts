@@ -1,20 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { permissionsService } from "@/services/permissions.service";
 import { useAuth } from "@/context/AuthContext";
+import { permissionsBus } from "@/lib/permissionsBus";
 import type {
+  AssignmentEnvelope,
   FeatureFlag,
   ModuleId,
   PermissionAction,
   PermissionEnvelope,
   PermissionMap,
   RouterAction,
+  RouterCapabilities,
   SidebarGroupDef,
+  TopbarConfig,
 } from "@/types/permissions";
+import type { DashboardLayout } from "@/types/dashboard-layout";
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
 
 export const permissionKeys = {
   me: (role: string, locationId: string) => ["permissions", role, locationId] as const,
+  assignments: (role: string) => ["permissions", "assignments", role] as const,
+  dashboardLayout: (role: string, locationId: string) =>
+    ["permissions", "dashboard-layout", role, locationId] as const,
+  topbar: (role: string) => ["permissions", "topbar", role] as const,
+  router: (role: string, routerId: string) =>
+    ["permissions", "router-caps", role, routerId] as const,
 };
 
 function readActiveLocation(): string {
@@ -30,7 +42,37 @@ const EMPTY_SIDEBAR: { console: SidebarGroupDef[]; workspace: SidebarGroupDef[] 
   workspace: [],
 };
 
+/**
+ * Wire the pub/sub so any `permissionsBus.emit(...)` — a mock
+ * feature-flag toggle today, a websocket push tomorrow — invalidates
+ * the permission query. Every consumer subscribed via TanStack Query
+ * re-renders automatically.
+ */
+function usePermissionBusInvalidation() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    return permissionsBus.subscribe((event) => {
+      switch (event.type) {
+        case "permissions:changed":
+        case "feature-flags:changed":
+          queryClient.invalidateQueries({ queryKey: ["permissions"] });
+          break;
+        case "dashboard-layout:changed":
+          queryClient.invalidateQueries({ queryKey: ["permissions", "dashboard-layout"] });
+          break;
+        case "topbar:changed":
+          queryClient.invalidateQueries({ queryKey: ["permissions", "topbar"] });
+          break;
+        case "router-capabilities:changed":
+          queryClient.invalidateQueries({ queryKey: ["permissions", "router-caps"] });
+          break;
+      }
+    });
+  }, [queryClient]);
+}
+
 export function usePermissions() {
+  usePermissionBusInvalidation();
   const { user } = useAuth();
   const locationId = readActiveLocation();
   const q = useQuery({
@@ -68,4 +110,45 @@ export function usePermissions() {
     isLoading: q.isLoading,
     refetch: q.refetch,
   };
+}
+
+export function useAssignments() {
+  const { user } = useAuth();
+  return useQuery<AssignmentEnvelope>({
+    queryKey: permissionKeys.assignments(user?.role ?? "anon"),
+    queryFn: () => permissionsService.getAssignments(user!.role),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useDashboardLayout() {
+  const { user } = useAuth();
+  const locationId = readActiveLocation();
+  return useQuery<DashboardLayout>({
+    queryKey: permissionKeys.dashboardLayout(user?.role ?? "anon", locationId),
+    queryFn: () => permissionsService.getDashboardLayout(user!.role, locationId),
+    enabled: !!user,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useTopbarConfig() {
+  const { user } = useAuth();
+  return useQuery<TopbarConfig>({
+    queryKey: permissionKeys.topbar(user?.role ?? "anon"),
+    queryFn: () => permissionsService.getTopbarConfig(user!.role),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useRouterCapabilities(routerId: string | undefined) {
+  const { user } = useAuth();
+  return useQuery<RouterCapabilities>({
+    queryKey: permissionKeys.router(user?.role ?? "anon", routerId ?? "none"),
+    queryFn: () => permissionsService.getRouterCapabilities(user!.role, routerId!),
+    enabled: !!user && !!routerId,
+    staleTime: 60 * 1000,
+  });
 }
