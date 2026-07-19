@@ -11,6 +11,7 @@ import {
   BarChart3,
   LifeBuoy,
   Settings,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 
@@ -85,6 +86,12 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/analytics",
     icon: BarChart3,
     roles: ["super_admin", "org_admin", "read_only"],
+  },
+  {
+    label: "Billing",
+    to: "/billing",
+    icon: Receipt,
+    roles: ["super_admin", "org_admin"],
   },
   {
     label: "Security",
