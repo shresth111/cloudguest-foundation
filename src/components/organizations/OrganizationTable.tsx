@@ -340,7 +340,7 @@ export function OrganizationTable() {
         title={confirm?.title ?? ""}
         description={confirm?.description ?? ""}
         confirmLabel="Confirm"
-        tone={confirm?.tone}
+        destructive={confirm?.destructive}
         onConfirm={() => { confirm?.onConfirm(); setConfirm(null); }}
       />
     </div>
