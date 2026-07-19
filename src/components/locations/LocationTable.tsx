@@ -73,6 +73,8 @@ import { LocationWizard } from "./LocationWizard";
 import { LocationCardView } from "./LocationCardView";
 import { LocationMapView } from "./LocationMapView";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Lock } from "lucide-react";
 
 const PAGE_SIZES = [10, 20, 50];
 
