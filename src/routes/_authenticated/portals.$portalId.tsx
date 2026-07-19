@@ -43,7 +43,6 @@ import {
   useUpdatePortal,
 } from "@/hooks/usePortals";
 import type { Portal } from "@/types/portal";
-import { portalService } from "@/services/portal.service";
 
 export const Route = createFileRoute("/_authenticated/portals/$portalId")({
   component: PortalDetailPage,
@@ -75,8 +74,6 @@ function PortalDetailPage() {
   };
 
   const resetDesign = () => {
-    const themes = portalService["organizations" as never]; // no-op reference
-    void themes;
     patch({
       components: [
         { id: Math.random().toString(36).slice(2, 10), type: "logo", props: { align: "center", size: 96 } },
