@@ -712,15 +712,20 @@ export const permissionsService = {
     }
     for (const id of locked) modules[id] = { view: false, locked: true };
 
+    // FE-025: Super Admin gets the Platform Console sidebar only.
+    const consoleSidebar: SidebarGroupDef[] =
+      role === "super_admin"
+        ? buildPlatformConsoleSidebar(modules)
+        : buildConsoleSidebar(modules);
+    const workspaceSidebar: SidebarGroupDef[] =
+      role === "super_admin" ? [] : buildWorkspaceSidebar(modules);
+
     return delay({
       modules,
       features: applyFeatureOverrides(FEATURES_BY_ROLE[role]),
       routerActions: ROUTER_ACTIONS_BY_ROLE[role],
       locationScope: [],
-      sidebar: {
-        console: buildConsoleSidebar(modules),
-        workspace: buildWorkspaceSidebar(modules),
-      },
+      sidebar: { console: consoleSidebar, workspace: workspaceSidebar },
     });
   },
 
