@@ -409,6 +409,7 @@ export function LocationTable() {
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" />
                     </TableHead>
                     <SortableHead label="Location" k="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                    <TableHead>Owner / Customer</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Site type</TableHead>
                     <TableHead>City / Country</TableHead>
