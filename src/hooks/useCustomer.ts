@@ -54,3 +54,36 @@ export function useProvisionCustomer() {
     },
   });
 }
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: Parameters<typeof customerService.updateCustomer>) =>
+      customerService.updateCustomer(...args),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: customerKeys.list });
+    },
+  });
+}
+
+export function useSetCustomerStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: string; status: "active" | "trial" | "suspended" }) =>
+      customerService.setStatus(args.id, args.status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: customerKeys.list });
+    },
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => customerService.deleteCustomer(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: customerKeys.list });
+    },
+  });
+}
+
