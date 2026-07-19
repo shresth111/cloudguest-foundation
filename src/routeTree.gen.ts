@@ -38,6 +38,7 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedRbacIndexRouteImport } from './routes/_authenticated/rbac.index'
 import { Route as AuthenticatedPortalsIndexRouteImport } from './routes/_authenticated/portals.index'
+import { Route as AuthenticatedPlansIndexRouteImport } from './routes/_authenticated/plans.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated/onboarding.index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications.index'
@@ -224,6 +225,11 @@ const AuthenticatedPortalsIndexRoute =
     path: '/portals/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedPlansIndexRoute = AuthenticatedPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedOrganizationsIndexRoute =
   AuthenticatedOrganizationsIndexRouteImport.update({
     id: '/organizations/',
@@ -488,6 +494,7 @@ export interface FileRoutesByFullPath {
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
+  '/plans/': typeof AuthenticatedPlansIndexRoute
   '/portals/': typeof AuthenticatedPortalsIndexRoute
   '/rbac/': typeof AuthenticatedRbacIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -551,6 +558,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
+  '/plans': typeof AuthenticatedPlansIndexRoute
   '/portals': typeof AuthenticatedPortalsIndexRoute
   '/rbac': typeof AuthenticatedRbacIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
@@ -618,6 +626,7 @@ export interface FileRoutesById {
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
+  '/_authenticated/plans/': typeof AuthenticatedPlansIndexRoute
   '/_authenticated/portals/': typeof AuthenticatedPortalsIndexRoute
   '/_authenticated/rbac/': typeof AuthenticatedRbacIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -685,6 +694,7 @@ export interface FileRouteTypes {
     | '/notifications/'
     | '/onboarding/'
     | '/organizations/'
+    | '/plans/'
     | '/portals/'
     | '/rbac/'
     | '/routers/'
@@ -748,6 +758,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/onboarding'
     | '/organizations'
+    | '/plans'
     | '/portals'
     | '/rbac'
     | '/routers'
@@ -814,6 +825,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications/'
     | '/_authenticated/onboarding/'
     | '/_authenticated/organizations/'
+    | '/_authenticated/plans/'
     | '/_authenticated/portals/'
     | '/_authenticated/rbac/'
     | '/_authenticated/routers/'
@@ -1038,6 +1050,13 @@ declare module '@tanstack/react-router' {
       path: '/portals'
       fullPath: '/portals/'
       preLoaderRoute: typeof AuthenticatedPortalsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/plans/': {
+      id: '/_authenticated/plans/'
+      path: '/plans'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof AuthenticatedPlansIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/organizations/': {
@@ -1366,6 +1385,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedOnboardingIndexRoute: typeof AuthenticatedOnboardingIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
+  AuthenticatedPlansIndexRoute: typeof AuthenticatedPlansIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
   AuthenticatedRbacIndexRoute: typeof AuthenticatedRbacIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
@@ -1399,6 +1419,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedOnboardingIndexRoute: AuthenticatedOnboardingIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
+  AuthenticatedPlansIndexRoute: AuthenticatedPlansIndexRoute,
   AuthenticatedPortalsIndexRoute: AuthenticatedPortalsIndexRoute,
   AuthenticatedRbacIndexRoute: AuthenticatedRbacIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
