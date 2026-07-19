@@ -216,7 +216,7 @@ function CustomersListPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={plan} onValueChange={setPlan}>
+            <Select value={plan} onValueChange={(v) => setParam({ plan: v })}>
               <SelectTrigger className="h-9 w-[160px]">
                 <SelectValue placeholder="Plan" />
               </SelectTrigger>
