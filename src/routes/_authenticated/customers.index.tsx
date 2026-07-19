@@ -229,7 +229,7 @@ function CustomersListPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={(v) => setParam({ status: v })}>
               <SelectTrigger className="h-9 w-[160px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
