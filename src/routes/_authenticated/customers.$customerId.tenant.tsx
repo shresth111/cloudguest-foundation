@@ -120,7 +120,7 @@ function TenantConfigPage() {
         <aside className="space-y-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={q} onChange={(e) => navigate({ search: (prev) => ({ ...prev, q: e.target.value }), replace: true })}
+            <Input value={q} onChange={(e) => navigate({ search: (prev: TenantSearch) => ({ ...prev, q: e.target.value }), replace: true })}
               placeholder="Search customer, location, router, NAS…" className="pl-8" />
           </div>
           <Card className="p-2">
@@ -139,7 +139,7 @@ function TenantConfigPage() {
                               navigate({ to: "/customers/$customerId/onboarding", params: { customerId } });
                               return;
                             }
-                            navigate({ search: (prev) => ({ ...prev, section: s.key }), replace: true });
+                            navigate({ search: (prev: TenantSearch) => ({ ...prev, section: s.key }), replace: true });
                           }}
                           className={
                             "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition " +
