@@ -7,6 +7,7 @@ import {
   Users,
   LayoutTemplate,
   ShieldCheck,
+  Activity,
   BarChart3,
   LifeBuoy,
   Settings,
@@ -72,6 +73,12 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/portals",
     icon: LayoutTemplate,
     roles: ["super_admin", "org_admin", "location_manager"],
+  },
+  {
+    label: "Monitoring",
+    to: "/monitoring",
+    icon: Activity,
+    roles: ["super_admin", "org_admin", "location_manager", "support_engineer"],
   },
   {
     label: "Analytics",
