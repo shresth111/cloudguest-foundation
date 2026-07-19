@@ -132,7 +132,7 @@ function CustomersListPage() {
 
   const setParam = (patch: Partial<CustomersSearch>) => {
     navigate({
-      search: (prev) => {
+      search: (prev: CustomersSearch) => {
         const next = { ...prev, ...patch } as CustomersSearch;
         if (
           patch.q !== undefined ||
