@@ -1,5 +1,15 @@
-import { KeyRound, LogOut, Settings, User as UserIcon } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  KeyRound,
+  LogOut,
+  Settings,
+  User as UserIcon,
+  ShieldCheck,
+  Bell,
+  Monitor,
+  KeySquare,
+  UserCog,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +39,9 @@ export function UserMenu() {
 
   if (!user) return null;
 
+  type Section = "profile" | "account" | "security" | "password" | "two-factor" | "sessions" | "notifications" | "api-tokens";
+  const go = (section: Section) => navigate({ to: "/account", search: { section } });
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -52,16 +65,36 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("profile")}>
           <UserIcon className="mr-2 h-4 w-4" /> Profile
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" /> Settings
+        <DropdownMenuItem onClick={() => go("account")}>
+          <UserCog className="mr-2 h-4 w-4" /> Account
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate({ to: "/reset-password" })}>
+        <DropdownMenuItem onClick={() => go("security")}>
+          <ShieldCheck className="mr-2 h-4 w-4" /> Security
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("password")}>
           <KeyRound className="mr-2 h-4 w-4" /> Change password
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("two-factor")}>
+          <ShieldCheck className="mr-2 h-4 w-4" /> Two-factor auth
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("sessions")}>
+          <Monitor className="mr-2 h-4 w-4" /> Active sessions
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("notifications")}>
+          <Bell className="mr-2 h-4 w-4" /> Notifications
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go("api-tokens")}>
+          <KeySquare className="mr-2 h-4 w-4" /> API tokens
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/select-space">
+            <Settings className="mr-2 h-4 w-4" /> Switch space
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             logout();

@@ -30,7 +30,9 @@ import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system.index'
 import { Route as AuthenticatedSubscriptionIndexRouteImport } from './routes/_authenticated/subscription.index'
@@ -182,9 +184,20 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSelectSpaceRoute =
+  AuthenticatedSelectSpaceRouteImport.update({
+    id: '/select-space',
+    path: '/select-space',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedWorkspaceIndexRoute =
@@ -467,7 +480,9 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -535,7 +550,9 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/expired': typeof PortalExpiredRoute
@@ -605,7 +622,9 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/select-space': typeof AuthenticatedSelectSpaceRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -676,7 +695,9 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/session-expired'
     | '/verify-otp'
+    | '/account'
     | '/dashboard'
+    | '/select-space'
     | '/workspace'
     | '/portal/ad'
     | '/portal/auth'
@@ -744,7 +765,9 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/session-expired'
     | '/verify-otp'
+    | '/account'
     | '/dashboard'
+    | '/select-space'
     | '/portal/ad'
     | '/portal/auth'
     | '/portal/expired'
@@ -813,7 +836,9 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/session-expired'
     | '/verify-otp'
+    | '/_authenticated/account'
     | '/_authenticated/dashboard'
+    | '/_authenticated/select-space'
     | '/_authenticated/workspace'
     | '/portal/ad'
     | '/portal/auth'
@@ -1035,11 +1060,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/select-space': {
+      id: '/_authenticated/select-space'
+      path: '/select-space'
+      fullPath: '/select-space'
+      preLoaderRoute: typeof AuthenticatedSelectSpaceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/account': {
+      id: '/_authenticated/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedAccountRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/workspace/': {
@@ -1439,7 +1478,9 @@ const AuthenticatedCustomersCustomerIdRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedSelectSpaceRoute: typeof AuthenticatedSelectSpaceRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRouteWithChildren
   AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
@@ -1474,7 +1515,9 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedSelectSpaceRoute: AuthenticatedSelectSpaceRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRouteWithChildren,
   AuthenticatedCustomersCustomerIdRoute:
     AuthenticatedCustomersCustomerIdRouteWithChildren,
