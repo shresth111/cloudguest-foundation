@@ -1,4 +1,4 @@
-import { LogOut, Settings, User as UserIcon } from "lucide-react";
+import { KeyRound, LogOut, Settings, User as UserIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,9 @@ export function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuItem>
           <Settings className="mr-2 h-4 w-4" /> Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate({ to: "/reset-password" })}>
+          <KeyRound className="mr-2 h-4 w-4" /> Change password
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

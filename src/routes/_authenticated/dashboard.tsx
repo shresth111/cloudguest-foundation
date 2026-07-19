@@ -3,6 +3,7 @@ import { Activity, Building2, MapPin, Users, Wifi } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/EmptyState";
+import { SuperAdminDashboard } from "@/components/dashboard/SuperAdminDashboard";
 import { useAuth } from "@/context/AuthContext";
 import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/roles";
 import type { UserRole } from "@/types/auth";
@@ -18,13 +19,7 @@ interface StatCard {
   icon: typeof Wifi;
 }
 
-const STATS_BY_ROLE: Record<UserRole, StatCard[]> = {
-  super_admin: [
-    { label: "Organizations", value: "128", hint: "+4 this month", icon: Building2 },
-    { label: "Active locations", value: "1,204", hint: "98.6% online", icon: MapPin },
-    { label: "Concurrent guests", value: "42,918", hint: "Live", icon: Users },
-    { label: "Platform uptime", value: "99.99%", hint: "Last 30 days", icon: Activity },
-  ],
+const STATS_BY_ROLE: Record<Exclude<UserRole, "super_admin">, StatCard[]> = {
   org_admin: [
     { label: "Locations", value: "36", hint: "All regions", icon: MapPin },
     { label: "Networks", value: "72", hint: "12 SSIDs", icon: Wifi },
@@ -54,6 +49,9 @@ const STATS_BY_ROLE: Record<UserRole, StatCard[]> = {
 function DashboardPage() {
   const { user } = useAuth();
   if (!user) return null;
+
+  if (user.role === "super_admin") return <SuperAdminDashboard />;
+
   const stats = STATS_BY_ROLE[user.role];
 
   return (
@@ -91,34 +89,18 @@ function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="rounded-2xl border-border/70 shadow-sm lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
-            <CardDescription>Live events from your CloudGuest deployments.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EmptyState
-              title="No modules connected yet"
-              description="Business modules will appear here once they're enabled for your workspace."
-            />
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle>Getting started</CardTitle>
-            <CardDescription>Foundation is ready for module development.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>✓ Authentication &amp; role-based access</li>
-              <li>✓ Sidebar, top navbar, theming</li>
-              <li>✓ Reusable UI + API layer</li>
-              <li className="text-foreground">→ Build business modules next</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="rounded-2xl border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle>Recent activity</CardTitle>
+          <CardDescription>Live events from your CloudGuest deployments.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EmptyState
+            title="No modules connected yet"
+            description="Business modules will appear here once they're enabled for your workspace."
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
