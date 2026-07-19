@@ -84,7 +84,7 @@ function CustomersListPage() {
     patch: Partial<{ q: string; owner: string; plan: string; status: string; loc: string }>,
   ) => {
     navigate({
-      search: (prev) => {
+      search: (prev: CustomersSearch) => {
         const nextSearch = { ...prev, ...patch };
         // Strip defaults from the URL for shareable, clean links
         const cleaned: Record<string, string> = {};
