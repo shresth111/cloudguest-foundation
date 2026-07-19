@@ -63,6 +63,7 @@ import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_a
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
 import { Route as AuthenticatedCustomersCustomerIdRouteImport } from './routes/_authenticated/customers.$customerId'
+import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -362,6 +363,12 @@ const AuthenticatedCustomersCustomerIdRoute =
     path: '/customers/$customerId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedWorkspaceLocationsLocationIdRoute =
+  AuthenticatedWorkspaceLocationsLocationIdRouteImport.update({
+    id: '/$locationId',
+    path: '/$locationId',
+    getParentRoute: () => AuthenticatedWorkspaceLocationsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -397,7 +404,7 @@ export interface FileRoutesByFullPath {
   '/workspace/company': typeof AuthenticatedWorkspaceCompanyRoute
   '/workspace/guests': typeof AuthenticatedWorkspaceGuestsRoute
   '/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
-  '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRoute
+  '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   '/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
@@ -417,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/routers/': typeof AuthenticatedRoutersIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -450,7 +458,7 @@ export interface FileRoutesByTo {
   '/workspace/company': typeof AuthenticatedWorkspaceCompanyRoute
   '/workspace/guests': typeof AuthenticatedWorkspaceGuestsRoute
   '/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
-  '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRoute
+  '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   '/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
@@ -470,6 +478,7 @@ export interface FileRoutesByTo {
   '/routers': typeof AuthenticatedRoutersIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
+  '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -507,7 +516,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace/company': typeof AuthenticatedWorkspaceCompanyRoute
   '/_authenticated/workspace/guests': typeof AuthenticatedWorkspaceGuestsRoute
   '/_authenticated/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
-  '/_authenticated/workspace/locations': typeof AuthenticatedWorkspaceLocationsRoute
+  '/_authenticated/workspace/locations': typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   '/_authenticated/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
   '/_authenticated/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/_authenticated/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
@@ -527,6 +536,7 @@ export interface FileRoutesById {
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -584,6 +594,7 @@ export interface FileRouteTypes {
     | '/routers/'
     | '/settings/'
     | '/workspace/'
+    | '/workspace/locations/$locationId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -637,6 +648,7 @@ export interface FileRouteTypes {
     | '/routers'
     | '/settings'
     | '/workspace'
+    | '/workspace/locations/$locationId'
   id:
     | '__root__'
     | '/'
@@ -693,6 +705,7 @@ export interface FileRouteTypes {
     | '/_authenticated/routers/'
     | '/_authenticated/settings/'
     | '/_authenticated/workspace/'
+    | '/_authenticated/workspace/locations/$locationId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1086,8 +1099,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCustomersCustomerIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/workspace/locations/$locationId': {
+      id: '/_authenticated/workspace/locations/$locationId'
+      path: '/$locationId'
+      fullPath: '/workspace/locations/$locationId'
+      preLoaderRoute: typeof AuthenticatedWorkspaceLocationsLocationIdRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceLocationsRoute
+    }
   }
 }
+
+interface AuthenticatedWorkspaceLocationsRouteChildren {
+  AuthenticatedWorkspaceLocationsLocationIdRoute: typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+}
+
+const AuthenticatedWorkspaceLocationsRouteChildren: AuthenticatedWorkspaceLocationsRouteChildren =
+  {
+    AuthenticatedWorkspaceLocationsLocationIdRoute:
+      AuthenticatedWorkspaceLocationsLocationIdRoute,
+  }
+
+const AuthenticatedWorkspaceLocationsRouteWithChildren =
+  AuthenticatedWorkspaceLocationsRoute._addFileChildren(
+    AuthenticatedWorkspaceLocationsRouteChildren,
+  )
 
 interface AuthenticatedWorkspaceRouteChildren {
   AuthenticatedWorkspaceAnalyticsRoute: typeof AuthenticatedWorkspaceAnalyticsRoute
@@ -1096,7 +1131,7 @@ interface AuthenticatedWorkspaceRouteChildren {
   AuthenticatedWorkspaceCompanyRoute: typeof AuthenticatedWorkspaceCompanyRoute
   AuthenticatedWorkspaceGuestsRoute: typeof AuthenticatedWorkspaceGuestsRoute
   AuthenticatedWorkspaceHelpRoute: typeof AuthenticatedWorkspaceHelpRoute
-  AuthenticatedWorkspaceLocationsRoute: typeof AuthenticatedWorkspaceLocationsRoute
+  AuthenticatedWorkspaceLocationsRoute: typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   AuthenticatedWorkspaceNotificationsRoute: typeof AuthenticatedWorkspaceNotificationsRoute
   AuthenticatedWorkspaceReportsRoute: typeof AuthenticatedWorkspaceReportsRoute
   AuthenticatedWorkspaceRoutersRoute: typeof AuthenticatedWorkspaceRoutersRoute
@@ -1112,7 +1147,8 @@ const AuthenticatedWorkspaceRouteChildren: AuthenticatedWorkspaceRouteChildren =
     AuthenticatedWorkspaceCompanyRoute: AuthenticatedWorkspaceCompanyRoute,
     AuthenticatedWorkspaceGuestsRoute: AuthenticatedWorkspaceGuestsRoute,
     AuthenticatedWorkspaceHelpRoute: AuthenticatedWorkspaceHelpRoute,
-    AuthenticatedWorkspaceLocationsRoute: AuthenticatedWorkspaceLocationsRoute,
+    AuthenticatedWorkspaceLocationsRoute:
+      AuthenticatedWorkspaceLocationsRouteWithChildren,
     AuthenticatedWorkspaceNotificationsRoute:
       AuthenticatedWorkspaceNotificationsRoute,
     AuthenticatedWorkspaceReportsRoute: AuthenticatedWorkspaceReportsRoute,

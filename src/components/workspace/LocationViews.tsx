@@ -65,14 +65,15 @@ export function LocationGrid() {
                 >
                   Focus location
                 </Button>
-                <Button asChild size="sm" variant="ghost">
+                <Button asChild size="sm">
                   <Link
-                    to="/locations/$locationId"
+                    to="/workspace/locations/$locationId"
                     params={{ locationId: l.id }}
                   >
-                    Open details
+                    Open workspace
                   </Link>
                 </Button>
+
               </div>
             </CardContent>
           </Card>
