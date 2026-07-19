@@ -38,6 +38,7 @@ import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
+import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
 import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authenticated/billing.index'
 import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authenticated/audit.index'
@@ -48,6 +49,7 @@ import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
+import { Route as AuthenticatedCustomersCustomerIdRouteImport } from './routes/_authenticated/customers.$customerId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -200,6 +202,12 @@ const AuthenticatedGuestsIndexRoute =
     path: '/guests/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCustomersIndexRoute =
+  AuthenticatedCustomersIndexRouteImport.update({
+    id: '/customers/',
+    path: '/customers/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedBrandingIndexRoute =
   AuthenticatedBrandingIndexRouteImport.update({
     id: '/branding/',
@@ -258,6 +266,12 @@ const AuthenticatedGuestsGuestIdRoute =
     path: '/guests/$guestId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCustomersCustomerIdRoute =
+  AuthenticatedCustomersCustomerIdRouteImport.update({
+    id: '/customers/$customerId',
+    path: '/customers/$customerId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -280,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal/': typeof PortalIndexRoute
+  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -290,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/audit/': typeof AuthenticatedAuditIndexRoute
   '/billing/': typeof AuthenticatedBillingIndexRoute
   '/branding/': typeof AuthenticatedBrandingIndexRoute
+  '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
@@ -319,6 +335,7 @@ export interface FileRoutesByTo {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal': typeof PortalIndexRoute
+  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -329,6 +346,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AuthenticatedAuditIndexRoute
   '/billing': typeof AuthenticatedBillingIndexRoute
   '/branding': typeof AuthenticatedBrandingIndexRoute
+  '/customers': typeof AuthenticatedCustomersIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
@@ -361,6 +379,7 @@ export interface FileRoutesById {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal/': typeof PortalIndexRoute
+  '/_authenticated/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -371,6 +390,7 @@ export interface FileRoutesById {
   '/_authenticated/audit/': typeof AuthenticatedAuditIndexRoute
   '/_authenticated/billing/': typeof AuthenticatedBillingIndexRoute
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
+  '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
@@ -403,6 +423,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/portal/'
+    | '/customers/$customerId'
     | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
@@ -413,6 +434,7 @@ export interface FileRouteTypes {
     | '/audit/'
     | '/billing/'
     | '/branding/'
+    | '/customers/'
     | '/guests/'
     | '/locations/'
     | '/monitoring/'
@@ -442,6 +464,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/portal'
+    | '/customers/$customerId'
     | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
@@ -452,6 +475,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/billing'
     | '/branding'
+    | '/customers'
     | '/guests'
     | '/locations'
     | '/monitoring'
@@ -483,6 +507,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/portal/'
+    | '/_authenticated/customers/$customerId'
     | '/_authenticated/guests/$guestId'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/organizations/$orgId'
@@ -493,6 +518,7 @@ export interface FileRouteTypes {
     | '/_authenticated/audit/'
     | '/_authenticated/billing/'
     | '/_authenticated/branding/'
+    | '/_authenticated/customers/'
     | '/_authenticated/guests/'
     | '/_authenticated/locations/'
     | '/_authenticated/monitoring/'
@@ -719,6 +745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGuestsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/customers/': {
+      id: '/_authenticated/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof AuthenticatedCustomersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/branding/': {
       id: '/_authenticated/branding/'
       path: '/branding'
@@ -789,11 +822,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGuestsGuestIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/customers/$customerId': {
+      id: '/_authenticated/customers/$customerId'
+      path: '/customers/$customerId'
+      fullPath: '/customers/$customerId'
+      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRoute
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
@@ -803,6 +844,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAuditIndexRoute: typeof AuthenticatedAuditIndexRoute
   AuthenticatedBillingIndexRoute: typeof AuthenticatedBillingIndexRoute
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
+  AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
@@ -815,6 +857,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedCustomersCustomerIdRoute: AuthenticatedCustomersCustomerIdRoute,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
   AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
@@ -824,6 +867,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditIndexRoute: AuthenticatedAuditIndexRoute,
   AuthenticatedBillingIndexRoute: AuthenticatedBillingIndexRoute,
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
+  AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,

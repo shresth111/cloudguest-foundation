@@ -5,6 +5,7 @@ import {
   MapPin,
   Router as RouterIcon,
   Users,
+  UserSquare2,
   LayoutTemplate,
   ShieldCheck,
   Activity,
@@ -16,6 +17,7 @@ import {
   ScrollText,
   type LucideIcon,
 } from "lucide-react";
+
 
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -52,6 +54,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Organizations",
     to: "/organizations",
     icon: Building2,
+    roles: ["super_admin"],
+  },
+  {
+    label: "Customers",
+    to: "/customers",
+    icon: UserSquare2,
     roles: ["super_admin"],
   },
   {

@@ -6,7 +6,26 @@ import { orgKeys } from "./useOrganizations";
 export const customerKeys = {
   ownerCheck: (email: string) => ["customers", "ownerCheck", email.toLowerCase()] as const,
   list: ["customers", "list"] as const,
+  detail: (id: string) => ["customers", "detail", id] as const,
+  locationResources: (id: string) => ["customers", "locationResources", id] as const,
 };
+
+export function useCustomer(id: string) {
+  return useQuery({
+    queryKey: customerKeys.detail(id),
+    queryFn: () => customerService.getCustomer(id),
+    enabled: !!id,
+  });
+}
+
+export function useLocationResources(locationId: string) {
+  return useQuery({
+    queryKey: customerKeys.locationResources(locationId),
+    queryFn: () => customerService.getLocationResources(locationId),
+    enabled: !!locationId,
+  });
+}
+
 
 export function useCheckOwner(email: string, enabled: boolean) {
   return useQuery({
