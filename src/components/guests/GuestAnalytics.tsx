@@ -22,7 +22,7 @@ import { useGuestAnalytics } from "@/hooks/useGuests";
 
 const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#f43f5e", "#06b6d4", "#8b5cf6", "#84cc16"];
 
-function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <Card className="rounded-2xl border-border/70 shadow-sm">
       <CardHeader className="pb-2">

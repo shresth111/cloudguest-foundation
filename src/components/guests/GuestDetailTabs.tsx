@@ -228,7 +228,7 @@ export function GuestDetailTabs({ guest, initialTab }: { guest: Guest; initialTa
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-border/40 py-2 last:border-none">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>

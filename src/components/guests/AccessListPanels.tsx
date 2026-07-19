@@ -304,7 +304,7 @@ function FormField({
 }: {
   label: string;
   error?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
