@@ -310,6 +310,9 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
 
 const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "/dashboard",
+  "location-master": "/locations",
+  infrastructure: "/routers",
+  "voucher-master": "/vouchers",
   routers: "/routers",
   "network-aps": "/network/access-points",
   vlan: "/network/vlan",
