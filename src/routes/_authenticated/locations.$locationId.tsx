@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Copy,
   Download,
+  Lock,
   MoreHorizontal,
   PauseCircle,
   PlayCircle,
@@ -32,6 +33,8 @@ import {
   useLocation,
   useUpdateLocationStatus,
 } from "@/hooks/useLocations";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const searchSchema = z.object({ tab: z.string().optional() });
 
@@ -45,6 +48,8 @@ function LocationDetailPage() {
   const { tab } = Route.useSearch();
   const navigate = useNavigate();
   const { data: location, isLoading, isError, refetch } = useLocation(locationId);
+  const { setActiveLocationId } = useWorkspace();
+  const { can } = usePermissions();
   const updateStatus = useUpdateLocationStatus();
   const remove = useDeleteLocations();
   const clone = useCloneLocation();
@@ -54,6 +59,12 @@ function LocationDetailPage() {
     onConfirm: () => void;
     destructive?: boolean;
   }>(null);
+
+  // Scope everything (sidebar, dashboard, analytics, policies) to this location.
+  useEffect(() => {
+    setActiveLocationId(locationId);
+  }, [locationId, setActiveLocationId]);
+
 
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
