@@ -32,18 +32,27 @@ import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
+import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system.index'
+import { Route as AuthenticatedSubscriptionIndexRouteImport } from './routes/_authenticated/subscription.index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedRbacIndexRouteImport } from './routes/_authenticated/rbac.index'
 import { Route as AuthenticatedPortalsIndexRouteImport } from './routes/_authenticated/portals.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
+import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated/onboarding.index'
+import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications.index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring.index'
+import { Route as AuthenticatedMarketplaceIndexRouteImport } from './routes/_authenticated/marketplace.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
+import { Route as AuthenticatedIntegrationsIndexRouteImport } from './routes/_authenticated/integrations.index'
+import { Route as AuthenticatedHelpIndexRouteImport } from './routes/_authenticated/help.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
+import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports.index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
 import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authenticated/billing.index'
 import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authenticated/audit.index'
+import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as AuthenticatedWorkspaceStaffRouteImport } from './routes/_authenticated/workspace.staff'
@@ -180,6 +189,18 @@ const AuthenticatedWorkspaceIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedWorkspaceRoute,
   } as any)
+const AuthenticatedSystemIndexRoute =
+  AuthenticatedSystemIndexRouteImport.update({
+    id: '/system/',
+    path: '/system/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSubscriptionIndexRoute =
+  AuthenticatedSubscriptionIndexRouteImport.update({
+    id: '/subscription/',
+    path: '/subscription/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/settings/',
@@ -209,10 +230,28 @@ const AuthenticatedOrganizationsIndexRoute =
     path: '/organizations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedOnboardingIndexRoute =
+  AuthenticatedOnboardingIndexRouteImport.update({
+    id: '/onboarding/',
+    path: '/onboarding/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNotificationsIndexRoute =
+  AuthenticatedNotificationsIndexRouteImport.update({
+    id: '/notifications/',
+    path: '/notifications/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedMonitoringIndexRoute =
   AuthenticatedMonitoringIndexRouteImport.update({
     id: '/monitoring/',
     path: '/monitoring/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedMarketplaceIndexRoute =
+  AuthenticatedMarketplaceIndexRouteImport.update({
+    id: '/marketplace/',
+    path: '/marketplace/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedLocationsIndexRoute =
@@ -221,10 +260,27 @@ const AuthenticatedLocationsIndexRoute =
     path: '/locations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedIntegrationsIndexRoute =
+  AuthenticatedIntegrationsIndexRouteImport.update({
+    id: '/integrations/',
+    path: '/integrations/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedHelpIndexRoute = AuthenticatedHelpIndexRouteImport.update({
+  id: '/help/',
+  path: '/help/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedGuestsIndexRoute =
   AuthenticatedGuestsIndexRouteImport.update({
     id: '/guests/',
     path: '/guests/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedExportsIndexRoute =
+  AuthenticatedExportsIndexRouteImport.update({
+    id: '/exports/',
+    path: '/exports/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCustomersIndexRoute =
@@ -250,6 +306,12 @@ const AuthenticatedAuditIndexRoute = AuthenticatedAuditIndexRouteImport.update({
   path: '/audit/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedApiKeysIndexRoute =
+  AuthenticatedApiKeysIndexRouteImport.update({
+    id: '/api-keys/',
+    path: '/api-keys/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAnalyticsIndexRoute =
   AuthenticatedAnalyticsIndexRouteImport.update({
     id: '/analytics/',
@@ -411,18 +473,27 @@ export interface FileRoutesByFullPath {
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
+  '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/audit/': typeof AuthenticatedAuditIndexRoute
   '/billing/': typeof AuthenticatedBillingIndexRoute
   '/branding/': typeof AuthenticatedBrandingIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
+  '/exports/': typeof AuthenticatedExportsIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
+  '/help/': typeof AuthenticatedHelpIndexRoute
+  '/integrations/': typeof AuthenticatedIntegrationsIndexRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
+  '/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/notifications/': typeof AuthenticatedNotificationsIndexRoute
+  '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/portals/': typeof AuthenticatedPortalsIndexRoute
   '/rbac/': typeof AuthenticatedRbacIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/subscription/': typeof AuthenticatedSubscriptionIndexRoute
+  '/system/': typeof AuthenticatedSystemIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
@@ -465,18 +536,27 @@ export interface FileRoutesByTo {
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
+  '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/audit': typeof AuthenticatedAuditIndexRoute
   '/billing': typeof AuthenticatedBillingIndexRoute
   '/branding': typeof AuthenticatedBrandingIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
+  '/exports': typeof AuthenticatedExportsIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
+  '/help': typeof AuthenticatedHelpIndexRoute
+  '/integrations': typeof AuthenticatedIntegrationsIndexRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
+  '/marketplace': typeof AuthenticatedMarketplaceIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
+  '/notifications': typeof AuthenticatedNotificationsIndexRoute
+  '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
   '/portals': typeof AuthenticatedPortalsIndexRoute
   '/rbac': typeof AuthenticatedRbacIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/subscription': typeof AuthenticatedSubscriptionIndexRoute
+  '/system': typeof AuthenticatedSystemIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
@@ -523,18 +603,27 @@ export interface FileRoutesById {
   '/_authenticated/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
+  '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/audit/': typeof AuthenticatedAuditIndexRoute
   '/_authenticated/billing/': typeof AuthenticatedBillingIndexRoute
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
+  '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
+  '/_authenticated/help/': typeof AuthenticatedHelpIndexRoute
+  '/_authenticated/integrations/': typeof AuthenticatedIntegrationsIndexRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
+  '/_authenticated/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
+  '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/_authenticated/portals/': typeof AuthenticatedPortalsIndexRoute
   '/_authenticated/rbac/': typeof AuthenticatedRbacIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/subscription/': typeof AuthenticatedSubscriptionIndexRoute
+  '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
@@ -581,18 +670,27 @@ export interface FileRouteTypes {
     | '/workspace/staff'
     | '/portal/auth/$method'
     | '/analytics/'
+    | '/api-keys/'
     | '/audit/'
     | '/billing/'
     | '/branding/'
     | '/customers/'
+    | '/exports/'
     | '/guests/'
+    | '/help/'
+    | '/integrations/'
     | '/locations/'
+    | '/marketplace/'
     | '/monitoring/'
+    | '/notifications/'
+    | '/onboarding/'
     | '/organizations/'
     | '/portals/'
     | '/rbac/'
     | '/routers/'
     | '/settings/'
+    | '/subscription/'
+    | '/system/'
     | '/workspace/'
     | '/workspace/locations/$locationId'
   fileRoutesByTo: FileRoutesByTo
@@ -635,18 +733,27 @@ export interface FileRouteTypes {
     | '/workspace/staff'
     | '/portal/auth/$method'
     | '/analytics'
+    | '/api-keys'
     | '/audit'
     | '/billing'
     | '/branding'
     | '/customers'
+    | '/exports'
     | '/guests'
+    | '/help'
+    | '/integrations'
     | '/locations'
+    | '/marketplace'
     | '/monitoring'
+    | '/notifications'
+    | '/onboarding'
     | '/organizations'
     | '/portals'
     | '/rbac'
     | '/routers'
     | '/settings'
+    | '/subscription'
+    | '/system'
     | '/workspace'
     | '/workspace/locations/$locationId'
   id:
@@ -692,18 +799,27 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/staff'
     | '/portal/auth/$method'
     | '/_authenticated/analytics/'
+    | '/_authenticated/api-keys/'
     | '/_authenticated/audit/'
     | '/_authenticated/billing/'
     | '/_authenticated/branding/'
     | '/_authenticated/customers/'
+    | '/_authenticated/exports/'
     | '/_authenticated/guests/'
+    | '/_authenticated/help/'
+    | '/_authenticated/integrations/'
     | '/_authenticated/locations/'
+    | '/_authenticated/marketplace/'
     | '/_authenticated/monitoring/'
+    | '/_authenticated/notifications/'
+    | '/_authenticated/onboarding/'
     | '/_authenticated/organizations/'
     | '/_authenticated/portals/'
     | '/_authenticated/rbac/'
     | '/_authenticated/routers/'
     | '/_authenticated/settings/'
+    | '/_authenticated/subscription/'
+    | '/_authenticated/system/'
     | '/_authenticated/workspace/'
     | '/_authenticated/workspace/locations/$locationId'
   fileRoutesById: FileRoutesById
@@ -882,6 +998,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceIndexRouteImport
       parentRoute: typeof AuthenticatedWorkspaceRoute
     }
+    '/_authenticated/system/': {
+      id: '/_authenticated/system/'
+      path: '/system'
+      fullPath: '/system/'
+      preLoaderRoute: typeof AuthenticatedSystemIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/subscription/': {
+      id: '/_authenticated/subscription/'
+      path: '/subscription'
+      fullPath: '/subscription/'
+      preLoaderRoute: typeof AuthenticatedSubscriptionIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/': {
       id: '/_authenticated/settings/'
       path: '/settings'
@@ -917,11 +1047,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/onboarding/': {
+      id: '/_authenticated/onboarding/'
+      path: '/onboarding'
+      fullPath: '/onboarding/'
+      preLoaderRoute: typeof AuthenticatedOnboardingIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications/': {
+      id: '/_authenticated/notifications/'
+      path: '/notifications'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof AuthenticatedNotificationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/monitoring/': {
       id: '/_authenticated/monitoring/'
       path: '/monitoring'
       fullPath: '/monitoring/'
       preLoaderRoute: typeof AuthenticatedMonitoringIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/marketplace/': {
+      id: '/_authenticated/marketplace/'
+      path: '/marketplace'
+      fullPath: '/marketplace/'
+      preLoaderRoute: typeof AuthenticatedMarketplaceIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/locations/': {
@@ -931,11 +1082,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/integrations/': {
+      id: '/_authenticated/integrations/'
+      path: '/integrations'
+      fullPath: '/integrations/'
+      preLoaderRoute: typeof AuthenticatedIntegrationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/help/': {
+      id: '/_authenticated/help/'
+      path: '/help'
+      fullPath: '/help/'
+      preLoaderRoute: typeof AuthenticatedHelpIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/guests/': {
       id: '/_authenticated/guests/'
       path: '/guests'
       fullPath: '/guests/'
       preLoaderRoute: typeof AuthenticatedGuestsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/exports/': {
+      id: '/_authenticated/exports/'
+      path: '/exports'
+      fullPath: '/exports/'
+      preLoaderRoute: typeof AuthenticatedExportsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/customers/': {
@@ -964,6 +1136,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit/'
       preLoaderRoute: typeof AuthenticatedAuditIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/api-keys/': {
+      id: '/_authenticated/api-keys/'
+      path: '/api-keys'
+      fullPath: '/api-keys/'
+      preLoaderRoute: typeof AuthenticatedApiKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/analytics/': {
@@ -1172,18 +1351,27 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPortalsPortalIdRoute: typeof AuthenticatedPortalsPortalIdRoute
   AuthenticatedRoutersRouterIdRoute: typeof AuthenticatedRoutersRouterIdRoute
   AuthenticatedAnalyticsIndexRoute: typeof AuthenticatedAnalyticsIndexRoute
+  AuthenticatedApiKeysIndexRoute: typeof AuthenticatedApiKeysIndexRoute
   AuthenticatedAuditIndexRoute: typeof AuthenticatedAuditIndexRoute
   AuthenticatedBillingIndexRoute: typeof AuthenticatedBillingIndexRoute
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
+  AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
+  AuthenticatedHelpIndexRoute: typeof AuthenticatedHelpIndexRoute
+  AuthenticatedIntegrationsIndexRoute: typeof AuthenticatedIntegrationsIndexRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
+  AuthenticatedMarketplaceIndexRoute: typeof AuthenticatedMarketplaceIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
+  AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
+  AuthenticatedOnboardingIndexRoute: typeof AuthenticatedOnboardingIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
   AuthenticatedRbacIndexRoute: typeof AuthenticatedRbacIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+  AuthenticatedSubscriptionIndexRoute: typeof AuthenticatedSubscriptionIndexRoute
+  AuthenticatedSystemIndexRoute: typeof AuthenticatedSystemIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1196,18 +1384,27 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPortalsPortalIdRoute: AuthenticatedPortalsPortalIdRoute,
   AuthenticatedRoutersRouterIdRoute: AuthenticatedRoutersRouterIdRoute,
   AuthenticatedAnalyticsIndexRoute: AuthenticatedAnalyticsIndexRoute,
+  AuthenticatedApiKeysIndexRoute: AuthenticatedApiKeysIndexRoute,
   AuthenticatedAuditIndexRoute: AuthenticatedAuditIndexRoute,
   AuthenticatedBillingIndexRoute: AuthenticatedBillingIndexRoute,
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
+  AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
+  AuthenticatedHelpIndexRoute: AuthenticatedHelpIndexRoute,
+  AuthenticatedIntegrationsIndexRoute: AuthenticatedIntegrationsIndexRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
+  AuthenticatedMarketplaceIndexRoute: AuthenticatedMarketplaceIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
+  AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
+  AuthenticatedOnboardingIndexRoute: AuthenticatedOnboardingIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
   AuthenticatedPortalsIndexRoute: AuthenticatedPortalsIndexRoute,
   AuthenticatedRbacIndexRoute: AuthenticatedRbacIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  AuthenticatedSubscriptionIndexRoute: AuthenticatedSubscriptionIndexRoute,
+  AuthenticatedSystemIndexRoute: AuthenticatedSystemIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
