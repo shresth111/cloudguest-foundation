@@ -80,7 +80,8 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     ...NEW_IA_MODULES,
   ],
   location_manager: [
-    "dashboard", "locations", "routers", "guests", "portals",
+    "dashboard", "location-master", "voucher-master",
+    "locations", "routers", "guests", "portals",
     "monitoring", "notifications", "help", "vouchers", "devices",
     "vlan", "guests-live", "guests-sessions", "guests-blocklist",
     "policy-location", "policy-user",
