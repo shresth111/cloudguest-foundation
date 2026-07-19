@@ -48,6 +48,7 @@ import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedIntegrationsIndexRouteImport } from './routes/_authenticated/integrations.index'
 import { Route as AuthenticatedHelpIndexRouteImport } from './routes/_authenticated/help.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
+import { Route as AuthenticatedFeatureManagementIndexRouteImport } from './routes/_authenticated/feature-management.index'
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports.index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
@@ -283,6 +284,12 @@ const AuthenticatedGuestsIndexRoute =
     path: '/guests/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedFeatureManagementIndexRoute =
+  AuthenticatedFeatureManagementIndexRouteImport.update({
+    id: '/feature-management/',
+    path: '/feature-management/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedExportsIndexRoute =
   AuthenticatedExportsIndexRouteImport.update({
     id: '/exports/',
@@ -485,6 +492,7 @@ export interface FileRoutesByFullPath {
   '/branding/': typeof AuthenticatedBrandingIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
+  '/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/help/': typeof AuthenticatedHelpIndexRoute
   '/integrations/': typeof AuthenticatedIntegrationsIndexRoute
@@ -549,6 +557,7 @@ export interface FileRoutesByTo {
   '/branding': typeof AuthenticatedBrandingIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
+  '/feature-management': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/help': typeof AuthenticatedHelpIndexRoute
   '/integrations': typeof AuthenticatedIntegrationsIndexRoute
@@ -617,6 +626,7 @@ export interface FileRoutesById {
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
+  '/_authenticated/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/help/': typeof AuthenticatedHelpIndexRoute
   '/_authenticated/integrations/': typeof AuthenticatedIntegrationsIndexRoute
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/branding/'
     | '/customers/'
     | '/exports/'
+    | '/feature-management/'
     | '/guests/'
     | '/help/'
     | '/integrations/'
@@ -749,6 +760,7 @@ export interface FileRouteTypes {
     | '/branding'
     | '/customers'
     | '/exports'
+    | '/feature-management'
     | '/guests'
     | '/help'
     | '/integrations'
@@ -816,6 +828,7 @@ export interface FileRouteTypes {
     | '/_authenticated/branding/'
     | '/_authenticated/customers/'
     | '/_authenticated/exports/'
+    | '/_authenticated/feature-management/'
     | '/_authenticated/guests/'
     | '/_authenticated/help/'
     | '/_authenticated/integrations/'
@@ -1122,6 +1135,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGuestsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/feature-management/': {
+      id: '/_authenticated/feature-management/'
+      path: '/feature-management'
+      fullPath: '/feature-management/'
+      preLoaderRoute: typeof AuthenticatedFeatureManagementIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/exports/': {
       id: '/_authenticated/exports/'
       path: '/exports'
@@ -1376,6 +1396,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
+  AuthenticatedFeatureManagementIndexRoute: typeof AuthenticatedFeatureManagementIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedHelpIndexRoute: typeof AuthenticatedHelpIndexRoute
   AuthenticatedIntegrationsIndexRoute: typeof AuthenticatedIntegrationsIndexRoute
@@ -1410,6 +1431,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
+  AuthenticatedFeatureManagementIndexRoute:
+    AuthenticatedFeatureManagementIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedHelpIndexRoute: AuthenticatedHelpIndexRoute,
   AuthenticatedIntegrationsIndexRoute: AuthenticatedIntegrationsIndexRoute,
