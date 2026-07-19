@@ -52,7 +52,9 @@ function UsageRowItem({ label, used, limit, suffix = "" }: { label: string; used
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium">{used}{suffix} / {limit}{suffix}</span>
       </div>
-      <Progress value={pct} className="mt-1 h-1.5" indicatorClassName={tone} />
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className={`h-full ${tone} transition-all`} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
