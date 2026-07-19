@@ -192,6 +192,10 @@ export function LocationTable() {
     const ids = Array.from(selected);
     if (!ids.length) return;
     if (action === "delete") {
+      if (!canDelete) {
+        toast.error("Delete restricted. Contact your Administrator.");
+        return;
+      }
       setConfirm({
         title: `Delete ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
         description: "This permanently removes the selected locations and their data.",
