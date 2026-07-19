@@ -42,7 +42,18 @@ export function UserMenu() {
 
   if (!user) return null;
 
-  type Section = "profile" | "account" | "security" | "password" | "two-factor" | "sessions" | "notifications" | "api-tokens";
+  type Section =
+    | "profile"
+    | "company"
+    | "account"
+    | "preferences"
+    | "security"
+    | "password"
+    | "two-factor"
+    | "sessions"
+    | "history"
+    | "notifications"
+    | "api-tokens";
   const go = (section: Section) => navigate({ to: "/account", search: { section } });
 
   return (
