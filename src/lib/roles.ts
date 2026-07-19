@@ -15,8 +15,15 @@ import {
   Receipt,
   Palette,
   ScrollText,
+  Store,
+  KeyRound,
+  Plug,
+  HeartPulse,
+  Bell,
+  Download,
   type LucideIcon,
 } from "lucide-react";
+
 
 
 
