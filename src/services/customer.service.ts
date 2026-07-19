@@ -40,16 +40,66 @@ const SEEDED_EXISTING: ExistingCustomer[] = [
       email: "owner@existing.com",
       mobile: "+91 98200 11223",
       role: "Organization Admin",
-      assignedLocations: 3,
+      assignedLocations: 5,
     },
     locations: [
       { id: "LOC-90001", name: "Hotel Delhi", siteType: "hotel", city: "Delhi" },
       { id: "LOC-90002", name: "Hotel Mumbai", siteType: "hotel", city: "Mumbai" },
-      { id: "LOC-90003", name: "Hotel Goa", siteType: "hotel", city: "Goa" },
+      { id: "LOC-90003", name: "Cafe Jaipur", siteType: "cafe", city: "Jaipur" },
+      { id: "LOC-90004", name: "Hospital Noida", siteType: "hospital", city: "Noida" },
+      { id: "LOC-90005", name: "Warehouse Pune", siteType: "other", city: "Pune" },
     ],
     status: "active",
   },
+  {
+    id: "CUST-1002",
+    name: "Aurora Retail Group",
+    organizationId: "ORG-01001",
+    organizationName: "Aurora Retail Group",
+    subscription: {
+      plan: "enterprise",
+      billingCycle: "yearly",
+      status: "active",
+      expiryDate: new Date(Date.now() + 90 * 86400000).toISOString(),
+    },
+    owner: {
+      name: "Priya Sharma",
+      email: "priya@aurora.io",
+      mobile: "+91 99010 44521",
+      role: "Organization Admin",
+      assignedLocations: 2,
+    },
+    locations: [
+      { id: "LOC-90101", name: "Aurora Mall Bengaluru", siteType: "mall", city: "Bengaluru" },
+      { id: "LOC-90102", name: "Aurora HQ Office", siteType: "office", city: "Bengaluru" },
+    ],
+    status: "active",
+  },
+  {
+    id: "CUST-1003",
+    name: "Blue Cedar Cafes",
+    organizationId: "ORG-01002",
+    organizationName: "Blue Cedar Cafes",
+    subscription: {
+      plan: "starter",
+      billingCycle: "monthly",
+      status: "trial",
+      expiryDate: new Date(Date.now() + 12 * 86400000).toISOString(),
+    },
+    owner: {
+      name: "Rahul Verma",
+      email: "rahul@bluecedar.co",
+      mobile: "+91 98111 22111",
+      role: "Organization Admin",
+      assignedLocations: 1,
+    },
+    locations: [
+      { id: "LOC-90201", name: "Blue Cedar Cafe HSR", siteType: "cafe", city: "Bengaluru" },
+    ],
+    status: "trial",
+  },
 ];
+
 
 function delay<T>(v: T, ms = 500): Promise<T> {
   return new Promise((r) => setTimeout(() => r(v), ms));
