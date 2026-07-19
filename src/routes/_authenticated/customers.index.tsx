@@ -242,7 +242,7 @@ function CustomersListPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={locBucket} onValueChange={(v) => setLocBucket(v as LocBucket)}>
+            <Select value={locBucket} onValueChange={(v) => setParam({ loc: v })}>
               <SelectTrigger className="h-9 w-[180px]">
                 <SelectValue placeholder="Locations" />
               </SelectTrigger>
