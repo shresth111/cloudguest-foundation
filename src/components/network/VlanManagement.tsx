@@ -90,16 +90,14 @@ export function VlanManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total VLANs" value={kpis?.total ?? 0} icon={Network} tone="primary" animated />
-        <StatCard label="Active" value={kpis?.active ?? 0} icon={Activity} tone="success" animated />
-        <StatCard label="Clients" value={kpis?.clients ?? 0} icon={Users} tone="info" animated />
+        <StatCard label="Total VLANs" value={kpis?.total ?? 0} icon={Network} tone="primary" />
+        <StatCard label="Active" value={kpis?.active ?? 0} icon={Activity} tone="success" />
+        <StatCard label="Clients" value={kpis?.clients ?? 0} icon={Users} tone="info" />
         <StatCard
           label="Throughput"
-          value={kpis?.totalThroughputMbps ?? 0}
-          suffix=" Mbps"
+          value={`${kpis?.totalThroughputMbps ?? 0} Mbps`}
           icon={Ban}
           tone="warning"
-          animated
         />
       </div>
 
