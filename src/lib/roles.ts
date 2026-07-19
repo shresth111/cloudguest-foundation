@@ -66,145 +66,49 @@ export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
 
 
 export const NAV_ITEMS: NavItem[] = [
-  {
-    label: "Dashboard",
-    to: "/dashboard",
-    icon: LayoutDashboard,
-    roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"],
-  },
-  {
-    label: "Organizations",
-    to: "/organizations",
-    icon: Building2,
-    roles: ["super_admin"],
-  },
-  {
-    label: "Customers",
-    to: "/customers",
-    icon: UserSquare2,
-    roles: ["super_admin"],
-  },
-  {
-    label: "Locations",
-    to: "/locations",
-    icon: MapPin,
-    roles: ["super_admin", "org_admin", "location_manager"],
-  },
-  {
-    label: "Routers",
-    to: "/routers",
-    icon: RouterIcon,
-    roles: ["super_admin", "org_admin", "location_manager", "support_engineer"],
-  },
-  {
-    label: "Guests",
-    to: "/guests",
-    icon: Users,
-    roles: ["super_admin", "org_admin", "location_manager", "read_only"],
-  },
-  {
-    label: "Portals",
-    to: "/portals",
-    icon: LayoutTemplate,
-    roles: ["super_admin", "org_admin", "location_manager"],
-  },
-  {
-    label: "Monitoring",
-    to: "/monitoring",
-    icon: Activity,
-    roles: ["super_admin", "org_admin", "location_manager", "support_engineer"],
-  },
-  {
-    label: "Analytics",
-    to: "/analytics",
-    icon: BarChart3,
-    roles: ["super_admin", "org_admin", "read_only"],
-  },
-  {
-    label: "Billing",
-    to: "/billing",
-    icon: Receipt,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "White label",
-    to: "/branding",
-    icon: Palette,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "Users & Roles",
-    to: "/rbac",
-    icon: ShieldCheck,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "Audit logs",
-    to: "/audit",
-    icon: ScrollText,
-    roles: ["super_admin", "org_admin", "support_engineer"],
-  },
+  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, group: "platform", roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"] },
+  { label: "Customers", to: "/customers", icon: UserSquare2, group: "platform", roles: ["super_admin"] },
+  { label: "Organizations", to: "/organizations", icon: Building2, group: "platform", roles: ["super_admin"] },
+  { label: "Locations", to: "/locations", icon: MapPin, group: "platform", roles: ["super_admin", "org_admin", "location_manager"] },
+  { label: "Subscriptions", to: "/subscription", icon: Receipt, group: "platform", roles: ["super_admin", "org_admin"] },
+  { label: "Plans", to: "/plans", icon: ClipboardList, group: "platform", roles: ["super_admin"] },
+  { label: "Feature management", to: "/feature-management", icon: ToggleRight, group: "platform", roles: ["super_admin"] },
+  { label: "Audit logs", to: "/audit", icon: ScrollText, group: "platform", roles: ["super_admin", "org_admin", "support_engineer"] },
+  { label: "System health", to: "/system", icon: HeartPulse, group: "platform", roles: ["super_admin", "support_engineer"] },
+  { label: "Platform settings", to: "/settings", icon: Settings, group: "platform", roles: ["super_admin", "org_admin"] },
 
-  {
-    label: "Marketplace",
-    to: "/marketplace",
-    icon: Store,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "Subscription",
-    to: "/subscription",
-    icon: Receipt,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "Integrations",
-    to: "/integrations",
-    icon: Plug,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "API keys",
-    to: "/api-keys",
-    icon: KeyRound,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "System health",
-    to: "/system",
-    icon: HeartPulse,
-    roles: ["super_admin", "support_engineer"],
-  },
-  {
-    label: "Notifications",
-    to: "/notifications",
-    icon: Bell,
-    roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"],
-  },
-  {
-    label: "Exports",
-    to: "/exports",
-    icon: Download,
-    roles: ["super_admin", "org_admin"],
-  },
-  {
-    label: "Help center",
-    to: "/help",
-    icon: LifeBuoy,
-    roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"],
-  },
-  {
-    label: "Settings",
-    to: "/settings",
-    icon: Settings,
-    roles: ["super_admin", "org_admin"],
-  },
+  { label: "Routers", to: "/routers", icon: RouterIcon, group: "operations", roles: ["super_admin", "org_admin", "location_manager", "support_engineer"] },
+  { label: "Guests", to: "/guests", icon: Users, group: "operations", roles: ["super_admin", "org_admin", "location_manager", "read_only"] },
+  { label: "Portals", to: "/portals", icon: LayoutTemplate, group: "operations", roles: ["super_admin", "org_admin", "location_manager"] },
+  { label: "Monitoring", to: "/monitoring", icon: Activity, group: "operations", roles: ["super_admin", "org_admin", "location_manager", "support_engineer"] },
+  { label: "Analytics", to: "/analytics", icon: BarChart3, group: "operations", roles: ["super_admin", "org_admin", "read_only"] },
+
+  { label: "Billing", to: "/billing", icon: Receipt, group: "growth", roles: ["super_admin", "org_admin"] },
+  { label: "White label", to: "/branding", icon: Palette, group: "growth", roles: ["super_admin", "org_admin"] },
+  { label: "Marketplace", to: "/marketplace", icon: Store, group: "growth", roles: ["super_admin", "org_admin"] },
+  { label: "Users & Roles", to: "/rbac", icon: ShieldCheck, group: "growth", roles: ["super_admin", "org_admin"] },
+
+  { label: "Integrations", to: "/integrations", icon: Plug, group: "system", roles: ["super_admin", "org_admin"] },
+  { label: "API keys", to: "/api-keys", icon: KeyRound, group: "system", roles: ["super_admin", "org_admin"] },
+  { label: "Notifications", to: "/notifications", icon: Bell, group: "system", roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"] },
+  { label: "Exports", to: "/exports", icon: Download, group: "system", roles: ["super_admin", "org_admin"] },
+
+  { label: "Help center", to: "/help", icon: LifeBuoy, group: "support", roles: ["super_admin", "org_admin", "location_manager", "support_engineer", "read_only"] },
 ];
 
 
 export function navForRole(role: UserRole): NavItem[] {
   return NAV_ITEMS.filter((i) => i.roles.includes(role));
 }
+
+export function groupedNavForRole(role: UserRole): Array<{ group: NavGroup; label: string; items: NavItem[] }> {
+  const order: NavGroup[] = ["platform", "operations", "growth", "system", "support"];
+  const items = navForRole(role);
+  return order
+    .map((group) => ({ group, label: NAV_GROUP_LABELS[group], items: items.filter((i) => (i.group ?? "operations") === group) }))
+    .filter((g) => g.items.length > 0);
+}
+
 
 export const WORKSPACE_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", to: "/workspace", icon: LayoutDashboard, roles: ["super_admin", "org_admin", "location_manager", "read_only"] },
