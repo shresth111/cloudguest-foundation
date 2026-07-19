@@ -82,7 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Analytics",
-    to: "/dashboard",
+    to: "/analytics",
     icon: BarChart3,
     roles: ["super_admin", "org_admin", "read_only"],
   },
