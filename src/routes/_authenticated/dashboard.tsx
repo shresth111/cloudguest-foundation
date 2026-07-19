@@ -1,106 +1,88 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Activity, Building2, MapPin, Users, Wifi } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/common/EmptyState";
+import { AnimatePresence, motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SuperAdminDashboard } from "@/components/dashboard/SuperAdminDashboard";
+import { LockedBadge } from "@/components/permissions/Can";
+import {
+  EmptyDashboard,
+  dashboardWidgetRegistry,
+  widgetSizeClass,
+} from "@/components/dashboard/widgetRegistry";
 import { useAuth } from "@/context/AuthContext";
-import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/roles";
-import type { UserRole } from "@/types/auth";
+import { useDashboardLayout, usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-interface StatCard {
-  label: string;
-  value: string;
-  hint: string;
-  icon: typeof Wifi;
-}
-
-const STATS_BY_ROLE: Record<Exclude<UserRole, "super_admin">, StatCard[]> = {
-  org_admin: [
-    { label: "Locations", value: "36", hint: "All regions", icon: MapPin },
-    { label: "Networks", value: "72", hint: "12 SSIDs", icon: Wifi },
-    { label: "Guests today", value: "5,412", hint: "+8% WoW", icon: Users },
-    { label: "Avg. session", value: "42m", hint: "Steady", icon: Activity },
-  ],
-  location_manager: [
-    { label: "Access points", value: "18", hint: "17 online", icon: Wifi },
-    { label: "Guests today", value: "324", hint: "+12% WoW", icon: Users },
-    { label: "Peak clients", value: "196", hint: "at 13:20", icon: Activity },
-    { label: "Bandwidth", value: "1.2 Gbps", hint: "Peak today", icon: Activity },
-  ],
-  support_engineer: [
-    { label: "Open tickets", value: "17", hint: "3 high priority", icon: Activity },
-    { label: "Devices offline", value: "6", hint: "Across 4 sites", icon: Wifi },
-    { label: "MTTR", value: "1h 12m", hint: "Last 7 days", icon: Activity },
-    { label: "SLA compliance", value: "98.4%", hint: "This month", icon: Activity },
-  ],
-  read_only: [
-    { label: "Locations", value: "36", hint: "View only", icon: MapPin },
-    { label: "Guests this week", value: "38,204", hint: "+6% WoW", icon: Users },
-    { label: "Reports", value: "12", hint: "Available", icon: Activity },
-    { label: "Networks", value: "72", hint: "Monitored", icon: Wifi },
-  ],
-};
-
 function DashboardPage() {
   const { user } = useAuth();
-  if (!user) return null;
+  const { data: layout, isLoading } = useDashboardLayout();
+  const { can, hasFeature, isLocked } = usePermissions();
 
+  if (!user) return null;
   if (user.role === "super_admin") return <SuperAdminDashboard />;
 
-  const stats = STATS_BY_ROLE[user.role];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Welcome back, {user.name.split(" ")[0]}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Here's a snapshot of your CloudGuest workspace.
-          </p>
-        </div>
-        <Badge variant={ROLE_BADGE_VARIANT[user.role]} className="h-6">
-          {ROLE_LABELS[user.role]}
-        </Badge>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="rounded-2xl border-border/70 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription className="text-xs font-medium uppercase tracking-wide">
-                {s.label}
-              </CardDescription>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <s.icon className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-semibold text-foreground">{s.value}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{s.hint}</div>
-            </CardContent>
-          </Card>
+  if (isLoading || !layout) {
+    return (
+      <div className="grid grid-cols-12 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="col-span-12 h-40 rounded-2xl md:col-span-6 xl:col-span-4" />
         ))}
       </div>
+    );
+  }
 
-      <Card className="rounded-2xl border-border/70 shadow-sm">
-        <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
-          <CardDescription>Live events from your CloudGuest deployments.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EmptyState
-            title="No modules connected yet"
-            description="Business modules will appear here once they're enabled for your workspace."
-          />
-        </CardContent>
-      </Card>
-    </div>
+  const widgets = [...layout.widgets].sort((a, b) => a.order - b.order);
+
+  if (widgets.length === 0) return <EmptyDashboard />;
+
+  return (
+    <AnimatePresence mode="popLayout">
+      <motion.div
+        key={layout.variant}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="grid grid-cols-12 gap-4"
+      >
+        {widgets.map((w) => {
+          const render = dashboardWidgetRegistry[w.kind];
+          if (!render) return null;
+
+          if (w.featureFlag && !hasFeature(w.featureFlag)) return null;
+
+          if (w.requires) {
+            const { module, action = "view" } = w.requires;
+            const allowed = can(module, action);
+            if (!allowed && isLocked(module)) {
+              return (
+                <div key={w.id} className={widgetSizeClass(w.size)}>
+                  <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-card/60 p-6 text-center">
+                    <div className="text-sm font-medium">{w.title ?? module}</div>
+                    <LockedBadge />
+                  </div>
+                </div>
+              );
+            }
+            if (!allowed) return null;
+          }
+
+          return (
+            <motion.div
+              key={w.id}
+              layout
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, delay: (w.order % 6) * 0.02 }}
+              className={widgetSizeClass(w.size)}
+            >
+              {render(w)}
+            </motion.div>
+          );
+        })}
+      </motion.div>
+    </AnimatePresence>
   );
 }
