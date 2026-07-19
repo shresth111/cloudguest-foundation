@@ -50,7 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Locations",
-    to: "/dashboard",
+    to: "/locations",
     icon: MapPin,
     roles: ["super_admin", "org_admin", "location_manager"],
   },

@@ -1,0 +1,177 @@
+import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  Copy,
+  Download,
+  MoreHorizontal,
+  PauseCircle,
+  PlayCircle,
+  Trash2,
+  Wrench,
+} from "lucide-react";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { ErrorState } from "@/components/common/ErrorState";
+import { PageSkeleton } from "@/components/common/LoadingSkeleton";
+import { LocationDetailTabs } from "@/components/locations/LocationDetailTabs";
+import { LocationStatusBadge } from "@/components/locations/LocationStatusBadge";
+import {
+  useCloneLocation,
+  useDeleteLocations,
+  useLocation,
+  useUpdateLocationStatus,
+} from "@/hooks/useLocations";
+
+const searchSchema = z.object({ tab: z.string().optional() });
+
+export const Route = createFileRoute("/_authenticated/locations/$locationId")({
+  validateSearch: searchSchema,
+  component: LocationDetailPage,
+});
+
+function LocationDetailPage() {
+  const { locationId } = Route.useParams();
+  const { tab } = Route.useSearch();
+  const navigate = useNavigate();
+  const { data: location, isLoading, isError, refetch } = useLocation(locationId);
+  const updateStatus = useUpdateLocationStatus();
+  const remove = useDeleteLocations();
+  const clone = useCloneLocation();
+  const [confirm, setConfirm] = useState<null | {
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    destructive?: boolean;
+  }>(null);
+
+  if (isLoading) return <PageSkeleton />;
+  if (isError) return <ErrorState onRetry={() => refetch()} />;
+  if (!location)
+    return <ErrorState title="Location not found" description="This location may have been deleted." />;
+
+  const disabled =
+    location.status === "inactive" || location.status === "suspended" || location.status === "offline";
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Link
+            to="/locations"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back to locations
+          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{location.name}</h1>
+            <LocationStatusBadge status={location.status} />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {location.id} · {location.organizationName} · {location.city}, {location.country}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant={disabled ? "default" : "outline"}
+            onClick={() =>
+              setConfirm({
+                title: disabled ? `Enable ${location.name}?` : `Disable ${location.name}?`,
+                description: disabled
+                  ? "Guest WiFi and services will resume immediately."
+                  : "Guest access at this site will stop until re-enabled.",
+                destructive: !disabled,
+                onConfirm: async () => {
+                  await updateStatus.mutateAsync({
+                    ids: [location.id],
+                    status: disabled ? "active" : "inactive",
+                  });
+                  toast.success(disabled ? "Location enabled" : "Location disabled");
+                },
+              })
+            }
+          >
+            {disabled ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
+            <span className="ml-2">{disabled ? "Enable" : "Disable"}</span>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() =>
+                  clone.mutate(location.id, {
+                    onSuccess: (loc) => {
+                      if (loc) {
+                        toast.success(`Cloned as ${loc.name}`);
+                        navigate({ to: "/locations/$locationId", params: { locationId: loc.id } });
+                      }
+                    },
+                  })
+                }
+              >
+                <Copy className="h-4 w-4" />
+                <span className="ml-2">Clone location</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Restart command sent (placeholder)")}>
+                <Wrench className="h-4 w-4" />
+                <span className="ml-2">Restart services</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Configuration download queued (placeholder)")}>
+                <Download className="h-4 w-4" />
+                <span className="ml-2">Download configuration</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() =>
+                  setConfirm({
+                    title: `Delete ${location.name}?`,
+                    description: "This permanently removes the location and all associated data.",
+                    destructive: true,
+                    onConfirm: async () => {
+                      await remove.mutateAsync([location.id]);
+                      toast.success("Location deleted");
+                      navigate({ to: "/locations" });
+                    },
+                  })
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="ml-2">Delete location</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <LocationDetailTabs location={location} initialTab={tab ?? "overview"} />
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm?.title ?? ""}
+        description={confirm?.description ?? ""}
+        destructive={confirm?.destructive}
+        onConfirm={() => {
+          confirm?.onConfirm();
+          setConfirm(null);
+        }}
+      />
+    </div>
+  );
+}
