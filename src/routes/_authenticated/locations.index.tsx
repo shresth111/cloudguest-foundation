@@ -1,16 +1,23 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { MapPinned, Plus, Upload } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Can } from "@/components/permissions/Can";
 import { LocationTable } from "@/components/locations/LocationTable";
+import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
 import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/locations/")({
   component: LocationMasterPage,
 });
 
+
 function LocationMasterPage() {
   const { can, isLocked, isVisible } = usePermissions();
+  const qc = useQueryClient();
+  const [wizardOpen, setWizardOpen] = useState(false);
+
   const locked = isLocked("location-master") || isLocked("locations");
   const hidden = !isVisible("location-master") && !isVisible("locations");
 
@@ -58,12 +65,11 @@ function LocationMasterPage() {
               </Button>
             }
           >
-            <Button asChild size="sm">
-              <Link to="/locations">
-                <Plus className="h-4 w-4" />
-                <span className="ml-2">Create location</span>
-              </Link>
+            <Button size="sm" onClick={() => setWizardOpen(true)}>
+              <Plus className="h-4 w-4" />
+              <span className="ml-2">Create location</span>
             </Button>
+
           </Can>
         </div>
       </div>
@@ -75,6 +81,13 @@ function LocationMasterPage() {
       ) : (
         <LocationTable />
       )}
+
+      <PlatformLocationWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onProvisioned={() => qc.invalidateQueries({ queryKey: ["locations"] })}
+      />
     </div>
   );
 }
+
