@@ -21,14 +21,14 @@ export function WorkspaceHeader() {
     activeLocationId === "all" ? "All locations" : activeLocation?.name ?? "All locations";
 
   return (
-    <div className="mb-4 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4 md:flex md:flex-wrap md:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Building2 className="h-5 w-5" />
         </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-base font-semibold">{customer.name}</span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-semibold sm:text-base">{customer.name}</span>
             <Badge variant="secondary" className="capitalize">
               {customer.subscription.plan}
             </Badge>
@@ -45,7 +45,7 @@ export function WorkspaceHeader() {
               {customer.status}
             </Badge>
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="truncate text-xs text-muted-foreground">
             {customer.organizationName} · {locations.length} location
             {locations.length === 1 ? "" : "s"}
           </div>
@@ -54,14 +54,15 @@ export function WorkspaceHeader() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="justify-between md:w-72">
+          <Button variant="outline" size="sm" className="col-span-2 justify-between md:col-span-1 md:size-default md:w-72">
             <span className="flex items-center gap-2 truncate">
-              <MapPin className="h-4 w-4" />
+              <MapPin className="h-4 w-4 shrink-0" />
               <span className="truncate">{activeLabel}</span>
             </span>
-            <ChevronDown className="ml-2 h-4 w-4 opacity-60" />
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
           </Button>
         </DropdownMenuTrigger>
+
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel>Switch location</DropdownMenuLabel>
           <DropdownMenuSeparator />

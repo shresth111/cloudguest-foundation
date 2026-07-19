@@ -16,9 +16,12 @@ function WorkspaceLocationsPage() {
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <LocationTree />
-        <LocationGrid />
+        <div className="min-w-0">
+          <LocationGrid />
+        </div>
+
       </div>
     </div>
   );
