@@ -217,6 +217,8 @@ function CustomersListPage() {
               new Date(b.subscription.expiryDate).getTime()) *
             mult
           );
+        default:
+          return 0;
       }
     });
     return list;
