@@ -157,8 +157,14 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
         </Card>
       </TabsContent>
 
+      <TabsContent value="nas">
+        <NasDevicesPanel locationId={location.id} />
+      </TabsContent>
       <TabsContent value="routers">
         <RouterListTab location={location} />
+      </TabsContent>
+      <TabsContent value="voucher">
+        <EmptyState icon={Wifi} title="Voucher batches" description="Prepaid access codes for this location will render here — scoped per NAS." />
       </TabsContent>
       <TabsContent value="wifi">
         <EmptyState icon={Wifi} title="No WiFi networks configured" description="SSIDs, VLANs and bandwidth policies will show up here." />
