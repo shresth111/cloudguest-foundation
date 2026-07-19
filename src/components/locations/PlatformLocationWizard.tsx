@@ -502,7 +502,7 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
                     setState={(v) => set("admin", v)}
                     users={(rbacUsers.data ?? []).map((u) => ({
                       id: u.id,
-                      name: u.name,
+                      name: `${u.firstName} ${u.lastName}`,
                       email: u.email,
                     }))}
                     errors={errors}
@@ -517,7 +517,7 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
                     brands={(brands.data?.brands ?? []).map((b) => ({ id: b.id, name: b.name }))}
                     users={(rbacUsers.data ?? []).map((u) => ({
                       id: u.id,
-                      name: u.name,
+                      name: `${u.firstName} ${u.lastName}`,
                       email: u.email,
                     }))}
                   />
