@@ -13,12 +13,15 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
-import { navForRole, ROLE_LABELS } from "@/lib/roles";
+import { navForRole, ROLE_LABELS, workspaceNavForRole } from "@/lib/roles";
 
 export function AppSidebar() {
   const { user } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const items = user ? navForRole(user.role) : [];
+  const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
+  const items = user ? (inWorkspace ? workspaceNavForRole(user.role) : navForRole(user.role)) : [];
+  const groupLabel = inWorkspace ? "Customer workspace" : "Console";
+
 
   return (
     <Sidebar collapsible="icon">
