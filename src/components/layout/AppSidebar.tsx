@@ -38,11 +38,15 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item, idx) => {
-                const active = pathname === item.to && idx === 0;
+                const active =
+                  item.to === "/workspace"
+                    ? pathname === "/workspace"
+                    : pathname === item.to || pathname.startsWith(item.to + "/");
+
                 return (
                   <SidebarMenuItem key={`${item.label}-${idx}`}>
                     <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
