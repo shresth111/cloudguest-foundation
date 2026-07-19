@@ -24,7 +24,7 @@ export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
     defaultValues: portal.login,
   });
   const v = watch();
-  const submit = handleSubmit((values) => update.mutate({ login: values }));
+  const submit = handleSubmit((values) => update.mutate({ login: { ...values, redirectUrl: values.redirectUrl ?? "", successPage: values.successPage ?? "", failurePage: values.failurePage ?? "" } }));
 
   return (
     <Card>
