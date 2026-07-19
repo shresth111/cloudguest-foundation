@@ -241,7 +241,7 @@ export function OrganizationTable() {
             icon={Building2}
             title="No organizations found"
             description="Try clearing filters or create your first organization."
-            action={<Button onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /><span className="ml-2">New organization</span></Button>}
+            action={{ label: "New organization", onClick: () => setWizardOpen(true) }}
           />
         ) : (
           <div className="overflow-x-auto">
