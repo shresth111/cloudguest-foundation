@@ -202,3 +202,41 @@
   }
 }
 
+
+@utility mesh-bg {
+  background-image: var(--gradient-mesh);
+}
+
+@utility surface-elevated {
+  background: var(--color-card);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, transparent);
+  box-shadow: var(--shadow-elevated);
+  border-radius: calc(var(--radius) + 4px);
+}
+
+@utility gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility hairline {
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+}
+
+@keyframes shimmer-slide {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@utility shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--color-muted) 60%, transparent) 0%,
+    color-mix(in oklab, var(--color-muted) 95%, transparent) 50%,
+    color-mix(in oklab, var(--color-muted) 60%, transparent) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer-slide 1.6s linear infinite;
+}
