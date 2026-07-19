@@ -66,7 +66,8 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     ...NEW_IA_MODULES,
   ],
   org_admin: [
-    "dashboard", "locations", "subscription", "audit", "settings",
+    "dashboard", "customers", "location-master", "infrastructure", "voucher-master",
+    "locations", "subscription", "audit", "settings",
     "routers", "guests", "portals", "monitoring", "analytics",
     "billing", "branding", "marketplace", "rbac",
     "integrations", "api-keys", "notifications", "exports", "help",
