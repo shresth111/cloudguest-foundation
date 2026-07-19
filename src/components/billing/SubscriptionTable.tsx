@@ -7,7 +7,6 @@ import {
   MoreHorizontal,
   RefreshCcw,
   Search,
-  Trash2,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
