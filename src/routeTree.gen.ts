@@ -50,6 +50,7 @@ import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedMarketplaceIndexRouteImport } from './routes/_authenticated/marketplace.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
 import { Route as AuthenticatedIntegrationsIndexRouteImport } from './routes/_authenticated/integrations.index'
+import { Route as AuthenticatedInfrastructureIndexRouteImport } from './routes/_authenticated/infrastructure.index'
 import { Route as AuthenticatedHelpIndexRouteImport } from './routes/_authenticated/help.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
 import { Route as AuthenticatedFeatureManagementIndexRouteImport } from './routes/_authenticated/feature-management.index'
@@ -332,6 +333,12 @@ const AuthenticatedIntegrationsIndexRoute =
   AuthenticatedIntegrationsIndexRouteImport.update({
     id: '/integrations/',
     path: '/integrations/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedInfrastructureIndexRoute =
+  AuthenticatedInfrastructureIndexRouteImport.update({
+    id: '/infrastructure/',
+    path: '/infrastructure/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedHelpIndexRoute = AuthenticatedHelpIndexRouteImport.update({
@@ -796,6 +803,7 @@ export interface FileRoutesByFullPath {
   '/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/help/': typeof AuthenticatedHelpIndexRoute
+  '/infrastructure/': typeof AuthenticatedInfrastructureIndexRoute
   '/integrations/': typeof AuthenticatedIntegrationsIndexRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
@@ -900,6 +908,7 @@ export interface FileRoutesByTo {
   '/feature-management': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/help': typeof AuthenticatedHelpIndexRoute
+  '/infrastructure': typeof AuthenticatedInfrastructureIndexRoute
   '/integrations': typeof AuthenticatedIntegrationsIndexRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/marketplace': typeof AuthenticatedMarketplaceIndexRoute
@@ -1008,6 +1017,7 @@ export interface FileRoutesById {
   '/_authenticated/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/help/': typeof AuthenticatedHelpIndexRoute
+  '/_authenticated/infrastructure/': typeof AuthenticatedInfrastructureIndexRoute
   '/_authenticated/integrations/': typeof AuthenticatedIntegrationsIndexRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
@@ -1116,6 +1126,7 @@ export interface FileRouteTypes {
     | '/feature-management/'
     | '/guests/'
     | '/help/'
+    | '/infrastructure/'
     | '/integrations/'
     | '/locations/'
     | '/marketplace/'
@@ -1220,6 +1231,7 @@ export interface FileRouteTypes {
     | '/feature-management'
     | '/guests'
     | '/help'
+    | '/infrastructure'
     | '/integrations'
     | '/locations'
     | '/marketplace'
@@ -1327,6 +1339,7 @@ export interface FileRouteTypes {
     | '/_authenticated/feature-management/'
     | '/_authenticated/guests/'
     | '/_authenticated/help/'
+    | '/_authenticated/infrastructure/'
     | '/_authenticated/integrations/'
     | '/_authenticated/locations/'
     | '/_authenticated/marketplace/'
@@ -1648,6 +1661,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/integrations/'
       preLoaderRoute: typeof AuthenticatedIntegrationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/infrastructure/': {
+      id: '/_authenticated/infrastructure/'
+      path: '/infrastructure'
+      fullPath: '/infrastructure/'
+      preLoaderRoute: typeof AuthenticatedInfrastructureIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/help/': {
@@ -2240,6 +2260,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFeatureManagementIndexRoute: typeof AuthenticatedFeatureManagementIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedHelpIndexRoute: typeof AuthenticatedHelpIndexRoute
+  AuthenticatedInfrastructureIndexRoute: typeof AuthenticatedInfrastructureIndexRoute
   AuthenticatedIntegrationsIndexRoute: typeof AuthenticatedIntegrationsIndexRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedMarketplaceIndexRoute: typeof AuthenticatedMarketplaceIndexRoute
@@ -2317,6 +2338,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedFeatureManagementIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedHelpIndexRoute: AuthenticatedHelpIndexRoute,
+  AuthenticatedInfrastructureIndexRoute: AuthenticatedInfrastructureIndexRoute,
   AuthenticatedIntegrationsIndexRoute: AuthenticatedIntegrationsIndexRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedMarketplaceIndexRoute: AuthenticatedMarketplaceIndexRoute,
