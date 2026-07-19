@@ -121,11 +121,14 @@ function AccountPage() {
 
         <div className="min-w-0">
           {active === "profile" && <ProfileSection />}
+          {active === "company" && <CompanySection />}
           {active === "account" && <AccountSection />}
+          {active === "preferences" && <PreferencesSection />}
           {active === "security" && <SecuritySection />}
           {active === "password" && <PasswordSection />}
           {active === "two-factor" && <TwoFactorSection />}
           {active === "sessions" && <SessionsSection />}
+          {active === "history" && <LoginHistorySection />}
           {active === "notifications" && <NotificationsSection />}
           {active === "api-tokens" && <ApiTokensSection />}
         </div>
