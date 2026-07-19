@@ -161,6 +161,10 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "location-master": "MapPinned",
   infrastructure: "ServerCog",
   "voucher-master": "Ticket",
+  "nas-management": "Router",
+  "nas-id-generator": "QrCode",
+  "feature-catalog": "ToggleRight",
+  "plans-billing": "CreditCard",
   // Network
   routers: "Router",
   "network-aps": "Wifi",
