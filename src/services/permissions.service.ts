@@ -548,6 +548,23 @@ function buildConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
   return primaryGroup ? [primaryGroup, ...secondary] : secondary;
 }
 
+function buildPlatformConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
+  const items: SidebarNode[] = [];
+  PLATFORM_CONSOLE.forEach((id, i) => {
+    const m = modules[id];
+    if (!m) return;
+    if (!(m.view || m.locked)) return;
+    items.push(buildNode(id, i, !!m.locked && !m.view));
+  });
+  if (items.length === 0) return [];
+  return [{
+    id: "platform",
+    label: "Platform Console",
+    order: 1,
+    items,
+  }];
+}
+
 function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {
   const items: SidebarNode[] = [];
   WORKSPACE_ORDER.forEach((id, i) => {
