@@ -46,24 +46,27 @@ const NEW_IA_MODULES: ModuleId[] = [
   "documentation", "support-contact",
 ];
 
+const PLATFORM_CONSOLE: ModuleId[] = [
+  "dashboard",
+  "customers",
+  "location-master",
+  "nas-management",
+  "nas-id-generator",
+  "policy-location",
+  "plans-billing",
+  "feature-catalog",
+  "branding",
+  "infrastructure",
+  "audit",
+  "settings",
+];
+
 const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
-    "dashboard", "customers", "location-master", "infrastructure",
-    "voucher-master",
-    "organizations", "locations", "subscription",
-    "plans", "feature-management", "audit", "system", "settings",
-    "routers", "guests", "portals", "monitoring", "analytics",
-    "billing", "branding", "marketplace", "rbac",
-    "integrations", "api-keys", "notifications", "exports", "help",
-    "vouchers", "smart-id", "whitelist", "campaigns", "devices",
-    "network-monitoring", "isp-monitoring", "dscp", "vlan", "isp-routing",
-    "firewall", "mac-auth", "mac-bypass", "web-filter", "captive-portal",
-    "guest-login", "otp", "survey", "premium-wifi", "radius",
-    "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
-    "workspace-staff", "workspace-analytics", "workspace-reports",
-    "workspace-billing", "workspace-notifications", "workspace-audit",
-    "workspace-company", "workspace-help",
-    ...NEW_IA_MODULES,
+    // FE-025: Platform Console is Super-Admin ONLY. No operational modules.
+    ...PLATFORM_CONSOLE,
+    // Extras kept accessible via deep-link for platform admin work
+    "organizations", "locations", "vouchers",
   ],
   org_admin: [
     "dashboard", "customers", "location-master", "infrastructure", "voucher-master",
