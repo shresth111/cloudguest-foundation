@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
+import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 
@@ -80,6 +81,12 @@ const AuthenticatedLocationsIndexRoute =
     path: '/locations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedRoutersRouterIdRoute =
+  AuthenticatedRoutersRouterIdRouteImport.update({
+    id: '/routers/$routerId',
+    path: '/routers/$routerId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedOrganizationsOrgIdRoute =
   AuthenticatedOrganizationsOrgIdRouteImport.update({
     id: '/organizations/$orgId',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -117,6 +125,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
@@ -133,6 +142,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/locations/$locationId'
     | '/organizations/$orgId'
+    | '/routers/$routerId'
     | '/locations/'
     | '/organizations/'
     | '/routers/'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/locations/$locationId'
     | '/organizations/$orgId'
+    | '/routers/$routerId'
     | '/locations'
     | '/organizations'
     | '/routers'
@@ -178,6 +190,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/organizations/$orgId'
+    | '/_authenticated/routers/$routerId'
     | '/_authenticated/locations/'
     | '/_authenticated/organizations/'
     | '/_authenticated/routers/'
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/routers/$routerId': {
+      id: '/_authenticated/routers/$routerId'
+      path: '/routers/$routerId'
+      fullPath: '/routers/$routerId'
+      preLoaderRoute: typeof AuthenticatedRoutersRouterIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/organizations/$orgId': {
       id: '/_authenticated/organizations/$orgId'
       path: '/organizations/$orgId'
@@ -293,6 +313,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
+  AuthenticatedRoutersRouterIdRoute: typeof AuthenticatedRoutersRouterIdRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
@@ -302,6 +323,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
+  AuthenticatedRoutersRouterIdRoute: AuthenticatedRoutersRouterIdRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,

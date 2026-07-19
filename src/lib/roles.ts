@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   Building2,
   MapPin,
-  Wifi,
+  Router as RouterIcon,
   Users,
   ShieldCheck,
   BarChart3,
