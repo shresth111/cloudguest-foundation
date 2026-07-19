@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/auth.service";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, homeRouteForRole } from "@/lib/roles";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
