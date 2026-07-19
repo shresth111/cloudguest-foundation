@@ -158,3 +158,47 @@ export interface PermissionEnvelope {
     workspace: SidebarGroupDef[];
   };
 }
+
+/**
+ * Business Unit lives between Organization and Location in the
+ * multi-tenant hierarchy. Regional / Area managers are scoped to
+ * one or more Business Units.
+ */
+export interface BusinessUnit {
+  id: string;
+  organizationId: string;
+  name: string;
+  region?: string;
+  locationIds: string[];
+}
+
+export interface AssignedOrganization {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  businessUnits: BusinessUnit[];
+}
+
+export interface AssignmentEnvelope {
+  organizations: AssignedOrganization[];
+  /** When true, the "Business Unit" step is skipped in the space-selection chain. */
+  skipBusinessUnitStep: boolean;
+}
+
+/** Config for optional top-navbar controls; each entry is permission-driven. */
+export interface TopbarConfig {
+  showGlobalSearch: boolean;
+  showQuickActions: boolean;
+  showNotifications: boolean;
+  showThemeToggle: boolean;
+  showLanguage: boolean;
+  showSupport: boolean;
+  showSpaceChip: boolean;
+  showProfileMenu: boolean;
+}
+
+/** Router-level capability envelope for a specific router. */
+export interface RouterCapabilities {
+  routerId: string;
+  actions: Partial<Record<RouterAction, boolean>>;
+}
