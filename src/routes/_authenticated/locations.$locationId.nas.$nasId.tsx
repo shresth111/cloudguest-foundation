@@ -57,16 +57,24 @@ function NasDetailPage() {
   const { data: nas, isLoading, isError, refetch } = useNas(locationId, nasId);
   const runOp = useRunNasOperation(locationId);
   const { role } = useAuth();
-  const { routerActions } = usePermissions();
+  const { canRouterAction } = usePermissions();
   const canWrite = role === "super_admin" || role === "org_admin";
 
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (!nas) return <ErrorState title="NAS not found" description="This device may have been removed." />;
 
-  const opEnabled = (id: string) =>
-    canWrite &&
-    (routerActions?.[id as keyof typeof routerActions] ?? true);
+  const OP_TO_ACTION: Record<string, string> = {
+    restart: "restart",
+    backup: "backup",
+    restore: "restore",
+    upgrade: "upgrade_firmware",
+  };
+  const opEnabled = (id: string) => {
+    if (!canWrite) return false;
+    const action = OP_TO_ACTION[id];
+    return action ? canRouterAction(action as never) : true;
+  };
 
   return (
     <div className="space-y-6">
