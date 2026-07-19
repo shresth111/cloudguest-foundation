@@ -44,7 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Organizations",
-    to: "/dashboard",
+    to: "/organizations",
     icon: Building2,
     roles: ["super_admin"],
   },
