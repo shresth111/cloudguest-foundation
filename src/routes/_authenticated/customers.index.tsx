@@ -622,7 +622,22 @@ function RowActions({
         >
           <PlusCircle className="mr-2 h-4 w-4" /> Provision location
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() =>
+            navigate({ to: "/customers/$customerId/tenant", params: { customerId: customer.id } })
+          }
+        >
+          <Pencil className="mr-2 h-4 w-4" /> Configure tenant
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() =>
+            navigate({ to: "/customers/$customerId/onboarding", params: { customerId: customer.id } })
+          }
+        >
+          <PlusCircle className="mr-2 h-4 w-4" /> Run onboarding
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
+
         {customer.status === "suspended" ? (
           <DropdownMenuItem onClick={onActivate}>
             <Power className="mr-2 h-4 w-4" /> Activate
