@@ -39,9 +39,10 @@ function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      await login(values);
+      const session = await login(values);
       toast.success("Welcome back");
-      navigate({ to: "/dashboard", replace: true });
+      navigate({ to: homeRouteForRole(session.user.role), replace: true });
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {
