@@ -73,6 +73,8 @@ import { LocationWizard } from "./LocationWizard";
 import { LocationCardView } from "./LocationCardView";
 import { LocationMapView } from "./LocationMapView";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Lock } from "lucide-react";
 
 const PAGE_SIZES = [10, 20, 50];
 
@@ -105,6 +107,11 @@ function toCsv(rows: Location[]) {
 type ViewMode = "table" | "cards" | "map";
 
 export function LocationTable() {
+  const { can } = usePermissions();
+  const canDelete = can("location-master", "delete");
+  const canExport = can("location-master", "export");
+  const canEdit = can("location-master", "edit");
+  const canCreate = can("location-master", "create");
   const [view, setView] = usePersistentState<ViewMode>("loc-master:view", "table");
   const [search, setSearch] = usePersistentState<string>("loc-master:search", "");
   const [status, setStatus] = usePersistentState<LocationStatus | "all">("loc-master:status", "all");
@@ -185,6 +192,10 @@ export function LocationTable() {
     const ids = Array.from(selected);
     if (!ids.length) return;
     if (action === "delete") {
+      if (!canDelete) {
+        toast.error("Delete restricted. Contact your Administrator.");
+        return;
+      }
       setConfirm({
         title: `Delete ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
         description: "This permanently removes the selected locations and their data.",
@@ -195,6 +206,10 @@ export function LocationTable() {
           setSelected(new Set());
         },
       });
+      return;
+    }
+    if (!canEdit) {
+      toast.error("Edit restricted. Contact your Administrator.");
       return;
     }
     const newStatus: LocationStatus = action === "enable" ? "active" : "inactive";
@@ -314,12 +329,23 @@ export function LocationTable() {
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               <span className="ml-2 hidden sm:inline">Refresh</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length}>
-              <Download className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCsv}
+              disabled={!rows.length || !canExport}
+              title={canExport ? undefined : "Export restricted. Contact your Administrator."}
+            >
+              {canExport ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               <span className="ml-2 hidden sm:inline">Export</span>
             </Button>
-            <Button size="sm" onClick={() => setWizardOpen(true)}>
-              <Plus className="h-4 w-4" />
+            <Button
+              size="sm"
+              onClick={() => setWizardOpen(true)}
+              disabled={!canCreate}
+              title={canCreate ? undefined : "Access restricted. Contact your Administrator."}
+            >
+              {canCreate ? <Plus className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               <span className="ml-2">New location</span>
             </Button>
           </div>
@@ -328,18 +354,49 @@ export function LocationTable() {
         {selectedCount > 0 && view === "table" && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
             <span className="font-medium">{selectedCount} selected</span>
-            <div className="ml-auto flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => bulk("enable")}>
-                <PlayCircle className="h-4 w-4" />
+            <div className="ml-auto flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportCsv}
+                disabled={!canExport}
+                title={canExport ? "Export selected rows" : "Export restricted. Contact your Administrator."}
+              >
+                {canExport ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                <span className="ml-2">Export</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => bulk("enable")}
+                disabled={!canEdit}
+                title={canEdit ? undefined : "Edit restricted. Contact your Administrator."}
+              >
+                {canEdit ? <PlayCircle className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                 <span className="ml-2">Enable</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => bulk("disable")}>
-                <PauseCircle className="h-4 w-4" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => bulk("disable")}
+                disabled={!canEdit}
+                title={canEdit ? undefined : "Edit restricted. Contact your Administrator."}
+              >
+                {canEdit ? <PauseCircle className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                 <span className="ml-2">Disable</span>
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => bulk("delete")}>
-                <Trash2 className="h-4 w-4" />
+              <Button
+                variant={canDelete ? "destructive" : "outline"}
+                size="sm"
+                onClick={() => bulk("delete")}
+                disabled={!canDelete}
+                title={canDelete ? undefined : "Delete restricted. Contact your Administrator."}
+              >
+                {canDelete ? <Trash2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                 <span className="ml-2">Delete</span>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+                Clear
               </Button>
             </div>
           </div>
