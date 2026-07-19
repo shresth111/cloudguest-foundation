@@ -1,14 +1,21 @@
 import type { UserRole } from "@/types/auth";
 import type {
+  AssignedOrganization,
+  AssignmentEnvelope,
+  BusinessUnit,
   FeatureFlag,
   ModuleId,
   ModulePermission,
   PermissionEnvelope,
   PermissionMap,
   RouterAction,
+  RouterCapabilities,
   SidebarGroupDef,
   SidebarNode,
+  TopbarConfig,
 } from "@/types/permissions";
+import type { DashboardLayout, DashboardWidget } from "@/types/dashboard-layout";
+import { permissionsBus } from "@/lib/permissionsBus";
 
 /**
  * Mock permissions endpoint. Shape mirrors what the real backend
