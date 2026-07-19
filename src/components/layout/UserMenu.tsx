@@ -39,7 +39,8 @@ export function UserMenu() {
 
   if (!user) return null;
 
-  const go = (section: string) => navigate({ to: "/account", search: { section } });
+  type Section = "profile" | "account" | "security" | "password" | "two-factor" | "sessions" | "notifications" | "api-tokens";
+  const go = (section: Section) => navigate({ to: "/account", search: { section } });
 
   return (
     <DropdownMenu>
