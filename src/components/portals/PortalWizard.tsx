@@ -123,7 +123,7 @@ export function PortalWizard({
         cardStyle: "elevated",
         animations: true,
       },
-      consent: v.consent,
+      consent: { ...v.consent, termsUrl: v.consent.termsUrl ?? "", privacyUrl: v.consent.privacyUrl ?? "" },
     });
     reset(DEFAULTS);
     setStep(0);
