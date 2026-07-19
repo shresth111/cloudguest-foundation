@@ -13,15 +13,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
-import { navForRole, ROLE_LABELS, workspaceNavForRole } from "@/lib/roles";
+import { groupedNavForRole, ROLE_LABELS, workspaceNavForRole } from "@/lib/roles";
 
 export function AppSidebar() {
   const { user } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
-  const items = user ? (inWorkspace ? workspaceNavForRole(user.role) : navForRole(user.role)) : [];
-  const groupLabel = inWorkspace ? "Customer workspace" : "Console";
-
+  const workspaceItems = user ? workspaceNavForRole(user.role) : [];
+  const groups = user && !inWorkspace ? groupedNavForRole(user.role) : [];
 
   return (
     <Sidebar collapsible="icon">
@@ -37,31 +36,56 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item, idx) => {
-                const active =
-                  item.to === "/workspace"
-                    ? pathname === "/workspace"
-                    : pathname === item.to || pathname.startsWith(item.to + "/");
-
-                return (
-                  <SidebarMenuItem key={`${item.label}-${idx}`}>
-                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-                      <Link to={item.to} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {inWorkspace ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Customer workspace</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {workspaceItems.map((item, idx) => {
+                  const active =
+                    item.to === "/workspace"
+                      ? pathname === "/workspace"
+                      : pathname === item.to || pathname.startsWith(item.to + "/");
+                  return (
+                    <SidebarMenuItem key={`${item.label}-${idx}`}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <Link to={item.to} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : (
+          groups.map((g) => (
+            <SidebarGroup key={g.group}>
+              <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {g.items.map((item, idx) => {
+                    const active = pathname === item.to || pathname.startsWith(item.to + "/");
+                    return (
+                      <SidebarMenuItem key={`${item.label}-${idx}`}>
+                        <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                          <Link to={item.to} className="flex items-center gap-2">
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))
+        )}
       </SidebarContent>
+
       <SidebarFooter className="border-t border-sidebar-border">
         {user && (
           <div className="px-2 py-2 text-xs text-muted-foreground">

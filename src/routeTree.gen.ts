@@ -38,6 +38,7 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedRbacIndexRouteImport } from './routes/_authenticated/rbac.index'
 import { Route as AuthenticatedPortalsIndexRouteImport } from './routes/_authenticated/portals.index'
+import { Route as AuthenticatedPlansIndexRouteImport } from './routes/_authenticated/plans.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated/onboarding.index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications.index'
@@ -47,6 +48,7 @@ import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedIntegrationsIndexRouteImport } from './routes/_authenticated/integrations.index'
 import { Route as AuthenticatedHelpIndexRouteImport } from './routes/_authenticated/help.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
+import { Route as AuthenticatedFeatureManagementIndexRouteImport } from './routes/_authenticated/feature-management.index'
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports.index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
@@ -224,6 +226,11 @@ const AuthenticatedPortalsIndexRoute =
     path: '/portals/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedPlansIndexRoute = AuthenticatedPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedOrganizationsIndexRoute =
   AuthenticatedOrganizationsIndexRouteImport.update({
     id: '/organizations/',
@@ -275,6 +282,12 @@ const AuthenticatedGuestsIndexRoute =
   AuthenticatedGuestsIndexRouteImport.update({
     id: '/guests/',
     path: '/guests/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedFeatureManagementIndexRoute =
+  AuthenticatedFeatureManagementIndexRouteImport.update({
+    id: '/feature-management/',
+    path: '/feature-management/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedExportsIndexRoute =
@@ -479,6 +492,7 @@ export interface FileRoutesByFullPath {
   '/branding/': typeof AuthenticatedBrandingIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
+  '/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/help/': typeof AuthenticatedHelpIndexRoute
   '/integrations/': typeof AuthenticatedIntegrationsIndexRoute
@@ -488,6 +502,7 @@ export interface FileRoutesByFullPath {
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
+  '/plans/': typeof AuthenticatedPlansIndexRoute
   '/portals/': typeof AuthenticatedPortalsIndexRoute
   '/rbac/': typeof AuthenticatedRbacIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -542,6 +557,7 @@ export interface FileRoutesByTo {
   '/branding': typeof AuthenticatedBrandingIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
+  '/feature-management': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/help': typeof AuthenticatedHelpIndexRoute
   '/integrations': typeof AuthenticatedIntegrationsIndexRoute
@@ -551,6 +567,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
+  '/plans': typeof AuthenticatedPlansIndexRoute
   '/portals': typeof AuthenticatedPortalsIndexRoute
   '/rbac': typeof AuthenticatedRbacIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
@@ -609,6 +626,7 @@ export interface FileRoutesById {
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
+  '/_authenticated/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/help/': typeof AuthenticatedHelpIndexRoute
   '/_authenticated/integrations/': typeof AuthenticatedIntegrationsIndexRoute
@@ -618,6 +636,7 @@ export interface FileRoutesById {
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
+  '/_authenticated/plans/': typeof AuthenticatedPlansIndexRoute
   '/_authenticated/portals/': typeof AuthenticatedPortalsIndexRoute
   '/_authenticated/rbac/': typeof AuthenticatedRbacIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -676,6 +695,7 @@ export interface FileRouteTypes {
     | '/branding/'
     | '/customers/'
     | '/exports/'
+    | '/feature-management/'
     | '/guests/'
     | '/help/'
     | '/integrations/'
@@ -685,6 +705,7 @@ export interface FileRouteTypes {
     | '/notifications/'
     | '/onboarding/'
     | '/organizations/'
+    | '/plans/'
     | '/portals/'
     | '/rbac/'
     | '/routers/'
@@ -739,6 +760,7 @@ export interface FileRouteTypes {
     | '/branding'
     | '/customers'
     | '/exports'
+    | '/feature-management'
     | '/guests'
     | '/help'
     | '/integrations'
@@ -748,6 +770,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/onboarding'
     | '/organizations'
+    | '/plans'
     | '/portals'
     | '/rbac'
     | '/routers'
@@ -805,6 +828,7 @@ export interface FileRouteTypes {
     | '/_authenticated/branding/'
     | '/_authenticated/customers/'
     | '/_authenticated/exports/'
+    | '/_authenticated/feature-management/'
     | '/_authenticated/guests/'
     | '/_authenticated/help/'
     | '/_authenticated/integrations/'
@@ -814,6 +838,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications/'
     | '/_authenticated/onboarding/'
     | '/_authenticated/organizations/'
+    | '/_authenticated/plans/'
     | '/_authenticated/portals/'
     | '/_authenticated/rbac/'
     | '/_authenticated/routers/'
@@ -1040,6 +1065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPortalsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/plans/': {
+      id: '/_authenticated/plans/'
+      path: '/plans'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof AuthenticatedPlansIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/organizations/': {
       id: '/_authenticated/organizations/'
       path: '/organizations'
@@ -1101,6 +1133,13 @@ declare module '@tanstack/react-router' {
       path: '/guests'
       fullPath: '/guests/'
       preLoaderRoute: typeof AuthenticatedGuestsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/feature-management/': {
+      id: '/_authenticated/feature-management/'
+      path: '/feature-management'
+      fullPath: '/feature-management/'
+      preLoaderRoute: typeof AuthenticatedFeatureManagementIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/exports/': {
@@ -1357,6 +1396,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
+  AuthenticatedFeatureManagementIndexRoute: typeof AuthenticatedFeatureManagementIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedHelpIndexRoute: typeof AuthenticatedHelpIndexRoute
   AuthenticatedIntegrationsIndexRoute: typeof AuthenticatedIntegrationsIndexRoute
@@ -1366,6 +1406,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedOnboardingIndexRoute: typeof AuthenticatedOnboardingIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
+  AuthenticatedPlansIndexRoute: typeof AuthenticatedPlansIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
   AuthenticatedRbacIndexRoute: typeof AuthenticatedRbacIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
@@ -1390,6 +1431,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
+  AuthenticatedFeatureManagementIndexRoute:
+    AuthenticatedFeatureManagementIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedHelpIndexRoute: AuthenticatedHelpIndexRoute,
   AuthenticatedIntegrationsIndexRoute: AuthenticatedIntegrationsIndexRoute,
@@ -1399,6 +1442,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedOnboardingIndexRoute: AuthenticatedOnboardingIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
+  AuthenticatedPlansIndexRoute: AuthenticatedPlansIndexRoute,
   AuthenticatedPortalsIndexRoute: AuthenticatedPortalsIndexRoute,
   AuthenticatedRbacIndexRoute: AuthenticatedRbacIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
