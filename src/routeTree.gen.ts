@@ -75,6 +75,7 @@ import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
 import { Route as AuthenticatedCustomersCustomerIdRouteImport } from './routes/_authenticated/customers.$customerId'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
+import { Route as AuthenticatedCustomersCustomerIdTenantRouteImport } from './routes/_authenticated/customers.$customerId.tenant'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -444,6 +445,12 @@ const AuthenticatedWorkspaceLocationsLocationIdRoute =
     path: '/$locationId',
     getParentRoute: () => AuthenticatedWorkspaceLocationsRoute,
   } as any)
+const AuthenticatedCustomersCustomerIdTenantRoute =
+  AuthenticatedCustomersCustomerIdTenantRouteImport.update({
+    id: '/tenant',
+    path: '/tenant',
+    getParentRoute: () => AuthenticatedCustomersCustomerIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -467,7 +474,7 @@ export interface FileRoutesByFullPath {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal/': typeof PortalIndexRoute
-  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
+  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -510,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/subscription/': typeof AuthenticatedSubscriptionIndexRoute
   '/system/': typeof AuthenticatedSystemIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
 export interface FileRoutesByTo {
@@ -532,7 +540,7 @@ export interface FileRoutesByTo {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal': typeof PortalIndexRoute
-  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
+  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -575,6 +583,7 @@ export interface FileRoutesByTo {
   '/subscription': typeof AuthenticatedSubscriptionIndexRoute
   '/system': typeof AuthenticatedSystemIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
+  '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
 export interface FileRoutesById {
@@ -601,7 +610,7 @@ export interface FileRoutesById {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/portal/': typeof PortalIndexRoute
-  '/_authenticated/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRoute
+  '/_authenticated/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
@@ -644,6 +653,7 @@ export interface FileRoutesById {
   '/_authenticated/subscription/': typeof AuthenticatedSubscriptionIndexRoute
   '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/_authenticated/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
 export interface FileRouteTypes {
@@ -713,6 +723,7 @@ export interface FileRouteTypes {
     | '/subscription/'
     | '/system/'
     | '/workspace/'
+    | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -778,6 +789,7 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/system'
     | '/workspace'
+    | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
   id:
     | '__root__'
@@ -846,6 +858,7 @@ export interface FileRouteTypes {
     | '/_authenticated/subscription/'
     | '/_authenticated/system/'
     | '/_authenticated/workspace/'
+    | '/_authenticated/customers/$customerId/tenant'
     | '/_authenticated/workspace/locations/$locationId'
   fileRoutesById: FileRoutesById
 }
@@ -1324,6 +1337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceLocationsLocationIdRouteImport
       parentRoute: typeof AuthenticatedWorkspaceLocationsRoute
     }
+    '/_authenticated/customers/$customerId/tenant': {
+      id: '/_authenticated/customers/$customerId/tenant'
+      path: '/tenant'
+      fullPath: '/customers/$customerId/tenant'
+      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdTenantRouteImport
+      parentRoute: typeof AuthenticatedCustomersCustomerIdRoute
+    }
   }
 }
 
@@ -1380,10 +1400,25 @@ const AuthenticatedWorkspaceRouteWithChildren =
     AuthenticatedWorkspaceRouteChildren,
   )
 
+interface AuthenticatedCustomersCustomerIdRouteChildren {
+  AuthenticatedCustomersCustomerIdTenantRoute: typeof AuthenticatedCustomersCustomerIdTenantRoute
+}
+
+const AuthenticatedCustomersCustomerIdRouteChildren: AuthenticatedCustomersCustomerIdRouteChildren =
+  {
+    AuthenticatedCustomersCustomerIdTenantRoute:
+      AuthenticatedCustomersCustomerIdTenantRoute,
+  }
+
+const AuthenticatedCustomersCustomerIdRouteWithChildren =
+  AuthenticatedCustomersCustomerIdRoute._addFileChildren(
+    AuthenticatedCustomersCustomerIdRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRouteWithChildren
-  AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRoute
+  AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
@@ -1418,7 +1453,8 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRouteWithChildren,
-  AuthenticatedCustomersCustomerIdRoute: AuthenticatedCustomersCustomerIdRoute,
+  AuthenticatedCustomersCustomerIdRoute:
+    AuthenticatedCustomersCustomerIdRouteWithChildren,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
   AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,

@@ -77,6 +77,8 @@ const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
 });
 
+type TenantSearch = z.infer<typeof searchSchema>;
+
 export const Route = createFileRoute("/_authenticated/customers/$customerId/tenant")({
   validateSearch: zodValidator(searchSchema),
   component: TenantConfigPage,
