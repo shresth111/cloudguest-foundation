@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
+import { NasDevicesPanel } from "./NasDevicesPanel";
 import type { Location } from "@/types/location";
 import { InternetStatusBadge, LocationStatusBadge, SiteTypeBadge, SubscriptionBadge } from "./LocationStatusBadge";
 import { cn } from "@/lib/utils";
