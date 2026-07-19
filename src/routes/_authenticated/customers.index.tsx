@@ -1,12 +1,46 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { Building2, FilterX, MapPin, Search, UserPlus } from "lucide-react";
-import { useMemo } from "react";
+import {
+  ArrowUpDown,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FilterX,
+  MapPin,
+  MoreHorizontal,
+  Pencil,
+  PlusCircle,
+  Power,
+  PowerOff,
+  Search,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -22,11 +56,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
-import { useCustomers } from "@/hooks/useCustomer";
+import {
+  useCustomers,
+  useDeleteCustomer,
+  useSetCustomerStatus,
+  useUpdateCustomer,
+} from "@/hooks/useCustomer";
+import type { ExistingCustomer } from "@/services/customer.service";
 
 const LOC_BUCKETS = ["any", "1", "2-5", "6-10", "10+"] as const;
 type LocBucket = (typeof LOC_BUCKETS)[number];
+
+const SORT_KEYS = ["name", "owner", "locations", "plan", "status", "expiry"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
+const PAGE_SIZES = [10, 25, 50] as const;
 
 const customersSearchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -34,6 +80,10 @@ const customersSearchSchema = z.object({
   plan: fallback(z.string(), "any").default("any"),
   status: fallback(z.string(), "any").default("any"),
   loc: fallback(z.string(), "any").default("any"),
+  sort: fallback(z.enum(SORT_KEYS), "name").default("name"),
+  dir: fallback(z.enum(["asc", "desc"]), "asc").default("asc"),
+  page: fallback(z.coerce.number().int().min(1), 1).default(1),
+  size: fallback(z.coerce.number().int(), 10).default(10),
 });
 
 type CustomersSearch = z.infer<typeof customersSearchSchema>;
@@ -55,15 +105,6 @@ function inBucket(count: number, bucket: LocBucket) {
 
 export const Route = createFileRoute("/_authenticated/customers/")({
   validateSearch: zodValidator(customersSearchSchema),
-  search: {
-    middlewares: [
-      // Keep URLs clean by stripping defaults
-      ({ next, search }) => {
-        const result = next(search);
-        return result;
-      },
-    ],
-  },
   component: CustomersListPage,
 });
 
@@ -72,32 +113,53 @@ function CustomersListPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
-  const q = search.q;
-  const owner = search.owner;
-  const plan = search.plan;
-  const status = search.status;
+  const updateMut = useUpdateCustomer();
+  const statusMut = useSetCustomerStatus();
+  const deleteMut = useDeleteCustomer();
+
+  const [editing, setEditing] = useState<ExistingCustomer | null>(null);
+  const [confirm, setConfirm] = useState<
+    | { kind: "suspend" | "activate" | "delete"; customer: ExistingCustomer }
+    | null
+  >(null);
+
+  const { q, owner, plan, status, sort, dir } = search;
   const locBucket: LocBucket = (LOC_BUCKETS as readonly string[]).includes(search.loc)
     ? (search.loc as LocBucket)
     : "any";
+  const page = Math.max(1, search.page);
+  const size = (PAGE_SIZES as readonly number[]).includes(search.size) ? search.size : 10;
 
-  const setParam = (
-    patch: Partial<{ q: string; owner: string; plan: string; status: string; loc: string }>,
-  ) => {
+  const setParam = (patch: Partial<CustomersSearch>) => {
     navigate({
-      search: (prev: CustomersSearch) => {
-        const nextSearch = { ...prev, ...patch };
-        // Strip defaults from the URL for shareable, clean links
-        const cleaned: Record<string, string> = {};
-        for (const [k, v] of Object.entries(nextSearch)) {
-          const isDefault = k === "q" ? v === "" : v === "any";
-          if (!isDefault && typeof v === "string") cleaned[k] = v;
+      search: (prev) => {
+        const next = { ...prev, ...patch } as CustomersSearch;
+        if (
+          patch.q !== undefined ||
+          patch.owner !== undefined ||
+          patch.plan !== undefined ||
+          patch.status !== undefined ||
+          patch.loc !== undefined
+        ) {
+          next.page = 1;
         }
-        return cleaned as typeof prev;
+        const cleaned: Record<string, string | number> = {};
+        for (const [k, v] of Object.entries(next)) {
+          if (v === undefined || v === null) continue;
+          const isDefault =
+            (k === "q" && v === "") ||
+            ((k === "owner" || k === "plan" || k === "status" || k === "loc") && v === "any") ||
+            (k === "sort" && v === "name") ||
+            (k === "dir" && v === "asc") ||
+            (k === "page" && v === 1) ||
+            (k === "size" && v === 10);
+          if (!isDefault) cleaned[k] = v as string | number;
+        }
+        return cleaned as unknown as typeof prev;
       },
       replace: true,
     });
   };
-
 
   const owners = useMemo(() => {
     const set = new Map<string, string>();
@@ -122,7 +184,8 @@ function CustomersListPage() {
         needle &&
         !c.name.toLowerCase().includes(needle) &&
         !c.owner.email.toLowerCase().includes(needle) &&
-        !c.owner.name.toLowerCase().includes(needle)
+        !c.owner.name.toLowerCase().includes(needle) &&
+        !c.id.toLowerCase().includes(needle)
       )
         return false;
       if (owner !== "any" && c.owner.email !== owner) return false;
@@ -132,6 +195,36 @@ function CustomersListPage() {
       return true;
     });
   }, [data, q, owner, plan, status, locBucket]);
+
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    const mult = dir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      switch (sort) {
+        case "name":
+          return a.name.localeCompare(b.name) * mult;
+        case "owner":
+          return a.owner.name.localeCompare(b.owner.name) * mult;
+        case "locations":
+          return (a.locations.length - b.locations.length) * mult;
+        case "plan":
+          return a.subscription.plan.localeCompare(b.subscription.plan) * mult;
+        case "status":
+          return a.status.localeCompare(b.status) * mult;
+        case "expiry":
+          return (
+            (new Date(a.subscription.expiryDate).getTime() -
+              new Date(b.subscription.expiryDate).getTime()) *
+            mult
+          );
+      }
+    });
+    return list;
+  }, [filtered, sort, dir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / size));
+  const currentPage = Math.min(page, totalPages);
+  const paged = sorted.slice((currentPage - 1) * size, currentPage * size);
 
   const totals = useMemo(() => {
     const src = data ?? [];
@@ -149,11 +242,31 @@ function CustomersListPage() {
     (status !== "any" ? 1 : 0) +
     (locBucket !== "any" ? 1 : 0);
 
-  const resetFilters = () => {
-    navigate({ search: {} as never, replace: true });
+  const resetFilters = () => navigate({ search: {} as never, replace: true });
+
+  const toggleSort = (key: SortKey) => {
+    if (sort === key) setParam({ dir: dir === "asc" ? "desc" : "asc" });
+    else setParam({ sort: key, dir: "asc" });
   };
 
-
+  const handleAction = async () => {
+    if (!confirm) return;
+    const { kind, customer } = confirm;
+    try {
+      if (kind === "delete") {
+        await deleteMut.mutateAsync(customer.id);
+        toast.success(`Customer ${customer.name} deleted`);
+      } else {
+        const nextStatus = kind === "suspend" ? "suspended" : "active";
+        await statusMut.mutateAsync({ id: customer.id, status: nextStatus });
+        toast.success(`${customer.name} ${kind === "suspend" ? "suspended" : "activated"}`);
+      }
+    } catch {
+      toast.error("Action failed");
+    } finally {
+      setConfirm(null);
+    }
+  };
 
   if (isLoading) return <PageSkeleton />;
 
@@ -182,22 +295,20 @@ function CustomersListPage() {
 
       <Card>
         <CardHeader className="space-y-3">
-          <div className="flex flex-row items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">
               All customers
-              {activeFilters > 0 && (
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {filtered.length} of {data?.length ?? 0} · {activeFilters} filter
-                  {activeFilters > 1 ? "s" : ""}
-                </span>
-              )}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {sorted.length} result{sorted.length === 1 ? "" : "s"}
+                {activeFilters > 0 && ` · ${activeFilters} filter${activeFilters > 1 ? "s" : ""}`}
+              </span>
             </CardTitle>
             <div className="relative w-72 max-w-full">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={q}
                 onChange={(e) => setParam({ q: e.target.value })}
-                placeholder="Search name, owner, email"
+                placeholder="Search name, ID, owner, email"
                 className="pl-8"
               />
             </div>
@@ -266,16 +377,22 @@ function CustomersListPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Locations</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
+                <SortableHead label="Customer" active={sort === "name"} dir={dir} onClick={() => toggleSort("name")} />
+                <SortableHead label="Owner" active={sort === "owner"} dir={dir} onClick={() => toggleSort("owner")} />
+                <SortableHead
+                  label="Locations"
+                  active={sort === "locations"}
+                  dir={dir}
+                  onClick={() => toggleSort("locations")}
+                />
+                <SortableHead label="Plan" active={sort === "plan"} dir={dir} onClick={() => toggleSort("plan")} />
+                <SortableHead label="Status" active={sort === "status"} dir={dir} onClick={() => toggleSort("status")} />
+                <SortableHead label="Expiry" active={sort === "expiry"} dir={dir} onClick={() => toggleSort("expiry")} />
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((c) => (
+              {paged.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -283,7 +400,13 @@ function CustomersListPage() {
                         <Building2 className="h-4 w-4" />
                       </div>
                       <div>
-                        <div className="font-medium">{c.name}</div>
+                        <Link
+                          to="/customers/$customerId"
+                          params={{ customerId: c.id }}
+                          className="font-medium hover:underline"
+                        >
+                          {c.name}
+                        </Link>
                         <div className="text-xs text-muted-foreground">{c.id}</div>
                       </div>
                     </div>
@@ -308,28 +431,310 @@ function CustomersListPage() {
                       {c.status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(c.subscription.expiryDate).toLocaleDateString()}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to="/customers/$customerId" params={{ customerId: c.id }}>
-                        Open
-                      </Link>
-                    </Button>
+                    <RowActions
+                      customer={c}
+                      onEdit={() => setEditing(c)}
+                      onSuspend={() => setConfirm({ kind: "suspend", customer: c })}
+                      onActivate={() => setConfirm({ kind: "activate", customer: c })}
+                      onDelete={() => setConfirm({ kind: "delete", customer: c })}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
+              {paged.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     No customers match your filters.
                   </TableCell>
-
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Rows per page</span>
+            <Select value={String(size)} onValueChange={(v) => setParam({ size: Number(v), page: 1 })}>
+              <SelectTrigger className="h-8 w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((s) => (
+                  <SelectItem key={s} value={String(s)}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={currentPage <= 1}
+                onClick={() => setParam({ page: currentPage - 1 })}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={currentPage >= totalPages}
+                onClick={() => setParam({ page: currentPage + 1 })}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
       </Card>
+
+      <EditCustomerDialog
+        customer={editing}
+        onClose={() => setEditing(null)}
+        onSave={async (patch) => {
+          if (!editing) return;
+          try {
+            await updateMut.mutateAsync([editing.id, patch]);
+            toast.success("Customer updated");
+            setEditing(null);
+          } catch {
+            toast.error("Update failed");
+          }
+        }}
+        saving={updateMut.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={
+          confirm?.kind === "delete"
+            ? `Delete ${confirm.customer.name}?`
+            : confirm?.kind === "suspend"
+              ? `Suspend ${confirm.customer.name}?`
+              : `Activate ${confirm?.customer.name ?? ""}?`
+        }
+        description={
+          confirm?.kind === "delete"
+            ? "This will permanently remove the customer record from the mock catalog."
+            : confirm?.kind === "suspend"
+              ? "The tenant will lose access to their captive portal and dashboards until reactivated."
+              : "The tenant will regain access with their current subscription."
+        }
+        confirmLabel={
+          confirm?.kind === "delete" ? "Delete" : confirm?.kind === "suspend" ? "Suspend" : "Activate"
+        }
+        destructive={confirm?.kind === "delete" || confirm?.kind === "suspend"}
+        onConfirm={handleAction}
+      />
     </div>
+  );
+}
+
+function SortableHead({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide hover:text-foreground"
+      >
+        {label}
+        <ArrowUpDown
+          className={
+            "h-3.5 w-3.5 transition " +
+            (active ? "text-foreground " : "text-muted-foreground/50 ") +
+            (active && dir === "desc" ? "rotate-180" : "")
+          }
+        />
+      </button>
+    </TableHead>
+  );
+}
+
+function RowActions({
+  customer,
+  onEdit,
+  onSuspend,
+  onActivate,
+  onDelete,
+}: {
+  customer: ExistingCustomer;
+  onEdit: () => void;
+  onSuspend: () => void;
+  onActivate: () => void;
+  onDelete: () => void;
+}) {
+  const navigate = useNavigate();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Actions</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>{customer.name}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            navigate({ to: "/customers/$customerId", params: { customerId: customer.id } })
+          }
+        >
+          <Eye className="mr-2 h-4 w-4" /> View details
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onEdit}>
+          <Pencil className="mr-2 h-4 w-4" /> Edit customer
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() =>
+            navigate({
+              to: "/customers/$customerId",
+              params: { customerId: customer.id },
+              search: { section: "locations" },
+            })
+          }
+        >
+          <PlusCircle className="mr-2 h-4 w-4" /> Provision location
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {customer.status === "suspended" ? (
+          <DropdownMenuItem onClick={onActivate}>
+            <Power className="mr-2 h-4 w-4" /> Activate
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={onSuspend}>
+            <PowerOff className="mr-2 h-4 w-4" /> Suspend
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="mr-2 h-4 w-4" /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function EditCustomerDialog({
+  customer,
+  onClose,
+  onSave,
+  saving,
+}: {
+  customer: ExistingCustomer | null;
+  onClose: () => void;
+  onSave: (patch: {
+    name?: string;
+    ownerName?: string;
+    ownerEmail?: string;
+    ownerMobile?: string;
+  }) => void;
+  saving: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerMobile, setOwnerMobile] = useState("");
+
+  const open = !!customer;
+
+  const handleOpenChange = (o: boolean) => {
+    if (!o) onClose();
+    if (o && customer) {
+      setName(customer.name);
+      setOwnerName(customer.owner.name);
+      setOwnerEmail(customer.owner.email);
+      setOwnerMobile(customer.owner.mobile);
+    }
+  };
+
+  // Populate on open
+  useMemo(() => {
+    if (customer) {
+      setName(customer.name);
+      setOwnerName(customer.owner.name);
+      setOwnerEmail(customer.owner.email);
+      setOwnerMobile(customer.owner.mobile);
+    }
+  }, [customer]);
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit customer</DialogTitle>
+          <DialogDescription>
+            Update tenant profile and primary contact details.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="cust-name">Company name</Label>
+            <Input id="cust-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="own-name">Owner name</Label>
+            <Input id="own-name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="own-email">Owner email</Label>
+              <Input
+                id="own-email"
+                type="email"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="own-mobile">Owner mobile</Label>
+              <Input
+                id="own-mobile"
+                value={ownerMobile}
+                onChange={(e) => setOwnerMobile(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onSave({ name, ownerName, ownerEmail, ownerMobile })}
+            disabled={saving || !name.trim() || !ownerEmail.trim()}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
