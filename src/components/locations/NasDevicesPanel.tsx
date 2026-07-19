@@ -21,7 +21,7 @@ const STATUS_TONE: Record<string, string> = {
 
 export function NasDevicesPanel({ locationId }: Props) {
   const { data, isLoading } = useLocationNas(locationId);
-  const { role } = usePermissions();
+  const { role } = useAuth();
   const canRegister = role === "super_admin";
 
   if (isLoading) return <LoadingSkeleton rows={3} />;
