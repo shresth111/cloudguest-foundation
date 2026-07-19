@@ -26,7 +26,7 @@ import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/roles";
  * `permissionsService.getDashboardLayout()` and looks each one up
  * by `kind`. No route may hardcode a widget list.
  */
-export const dashboardWidgetRegistry: Record<WidgetKind, (w: DashboardWidget) => JSX.Element> = {
+export const dashboardWidgetRegistry: Record<WidgetKind, (w: DashboardWidget) => ReactElement> = {
   welcome: () => <WelcomeWidget />,
   "kpi-grid": () => <KpiGrid />,
   "trend-chart": () => <MonthlyGrowthChart />,
