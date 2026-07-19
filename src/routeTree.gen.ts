@@ -75,8 +75,11 @@ import { Route as AuthenticatedSupportContactRouteImport } from './routes/_authe
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_authenticated/portals.$portalId'
 import { Route as AuthenticatedPoliciesUserRouteImport } from './routes/_authenticated/policies.user'
+import { Route as AuthenticatedPoliciesNetworkRouteImport } from './routes/_authenticated/policies.network'
 import { Route as AuthenticatedPoliciesLocationRouteImport } from './routes/_authenticated/policies.location'
 import { Route as AuthenticatedPoliciesGroupRouteImport } from './routes/_authenticated/policies.group'
+import { Route as AuthenticatedPoliciesBandwidthRouteImport } from './routes/_authenticated/policies.bandwidth'
+import { Route as AuthenticatedPoliciesAuthenticationRouteImport } from './routes/_authenticated/policies.authentication'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
 import { Route as AuthenticatedOperationsAlertsRouteImport } from './routes/_authenticated/operations.alerts'
 import { Route as AuthenticatedOperationsAdminLogsRouteImport } from './routes/_authenticated/operations.admin-logs'
@@ -474,6 +477,12 @@ const AuthenticatedPoliciesUserRoute =
     path: '/policies/user',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedPoliciesNetworkRoute =
+  AuthenticatedPoliciesNetworkRouteImport.update({
+    id: '/policies/network',
+    path: '/policies/network',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPoliciesLocationRoute =
   AuthenticatedPoliciesLocationRouteImport.update({
     id: '/policies/location',
@@ -484,6 +493,18 @@ const AuthenticatedPoliciesGroupRoute =
   AuthenticatedPoliciesGroupRouteImport.update({
     id: '/policies/group',
     path: '/policies/group',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPoliciesBandwidthRoute =
+  AuthenticatedPoliciesBandwidthRouteImport.update({
+    id: '/policies/bandwidth',
+    path: '/policies/bandwidth',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPoliciesAuthenticationRoute =
+  AuthenticatedPoliciesAuthenticationRouteImport.update({
+    id: '/policies/authentication',
+    path: '/policies/authentication',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedOrganizationsOrgIdRoute =
@@ -707,8 +728,11 @@ export interface FileRoutesByFullPath {
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/policies/authentication': typeof AuthenticatedPoliciesAuthenticationRoute
+  '/policies/bandwidth': typeof AuthenticatedPoliciesBandwidthRoute
   '/policies/group': typeof AuthenticatedPoliciesGroupRoute
   '/policies/location': typeof AuthenticatedPoliciesLocationRoute
+  '/policies/network': typeof AuthenticatedPoliciesNetworkRoute
   '/policies/user': typeof AuthenticatedPoliciesUserRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
@@ -803,8 +827,11 @@ export interface FileRoutesByTo {
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/policies/authentication': typeof AuthenticatedPoliciesAuthenticationRoute
+  '/policies/bandwidth': typeof AuthenticatedPoliciesBandwidthRoute
   '/policies/group': typeof AuthenticatedPoliciesGroupRoute
   '/policies/location': typeof AuthenticatedPoliciesLocationRoute
+  '/policies/network': typeof AuthenticatedPoliciesNetworkRoute
   '/policies/user': typeof AuthenticatedPoliciesUserRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
@@ -903,8 +930,11 @@ export interface FileRoutesById {
   '/_authenticated/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/_authenticated/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/_authenticated/policies/authentication': typeof AuthenticatedPoliciesAuthenticationRoute
+  '/_authenticated/policies/bandwidth': typeof AuthenticatedPoliciesBandwidthRoute
   '/_authenticated/policies/group': typeof AuthenticatedPoliciesGroupRoute
   '/_authenticated/policies/location': typeof AuthenticatedPoliciesLocationRoute
+  '/_authenticated/policies/network': typeof AuthenticatedPoliciesNetworkRoute
   '/_authenticated/policies/user': typeof AuthenticatedPoliciesUserRoute
   '/_authenticated/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
@@ -1003,8 +1033,11 @@ export interface FileRouteTypes {
     | '/operations/admin-logs'
     | '/operations/alerts'
     | '/organizations/$orgId'
+    | '/policies/authentication'
+    | '/policies/bandwidth'
     | '/policies/group'
     | '/policies/location'
+    | '/policies/network'
     | '/policies/user'
     | '/portals/$portalId'
     | '/routers/$routerId'
@@ -1099,8 +1132,11 @@ export interface FileRouteTypes {
     | '/operations/admin-logs'
     | '/operations/alerts'
     | '/organizations/$orgId'
+    | '/policies/authentication'
+    | '/policies/bandwidth'
     | '/policies/group'
     | '/policies/location'
+    | '/policies/network'
     | '/policies/user'
     | '/portals/$portalId'
     | '/routers/$routerId'
@@ -1198,8 +1234,11 @@ export interface FileRouteTypes {
     | '/_authenticated/operations/admin-logs'
     | '/_authenticated/operations/alerts'
     | '/_authenticated/organizations/$orgId'
+    | '/_authenticated/policies/authentication'
+    | '/_authenticated/policies/bandwidth'
     | '/_authenticated/policies/group'
     | '/_authenticated/policies/location'
+    | '/_authenticated/policies/network'
     | '/_authenticated/policies/user'
     | '/_authenticated/portals/$portalId'
     | '/_authenticated/routers/$routerId'
@@ -1722,6 +1761,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPoliciesUserRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/policies/network': {
+      id: '/_authenticated/policies/network'
+      path: '/policies/network'
+      fullPath: '/policies/network'
+      preLoaderRoute: typeof AuthenticatedPoliciesNetworkRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/policies/location': {
       id: '/_authenticated/policies/location'
       path: '/policies/location'
@@ -1734,6 +1780,20 @@ declare module '@tanstack/react-router' {
       path: '/policies/group'
       fullPath: '/policies/group'
       preLoaderRoute: typeof AuthenticatedPoliciesGroupRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/policies/bandwidth': {
+      id: '/_authenticated/policies/bandwidth'
+      path: '/policies/bandwidth'
+      fullPath: '/policies/bandwidth'
+      preLoaderRoute: typeof AuthenticatedPoliciesBandwidthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/policies/authentication': {
+      id: '/_authenticated/policies/authentication'
+      path: '/policies/authentication'
+      fullPath: '/policies/authentication'
+      preLoaderRoute: typeof AuthenticatedPoliciesAuthenticationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/organizations/$orgId': {
@@ -2044,8 +2104,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOperationsAdminLogsRoute: typeof AuthenticatedOperationsAdminLogsRoute
   AuthenticatedOperationsAlertsRoute: typeof AuthenticatedOperationsAlertsRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
+  AuthenticatedPoliciesAuthenticationRoute: typeof AuthenticatedPoliciesAuthenticationRoute
+  AuthenticatedPoliciesBandwidthRoute: typeof AuthenticatedPoliciesBandwidthRoute
   AuthenticatedPoliciesGroupRoute: typeof AuthenticatedPoliciesGroupRoute
   AuthenticatedPoliciesLocationRoute: typeof AuthenticatedPoliciesLocationRoute
+  AuthenticatedPoliciesNetworkRoute: typeof AuthenticatedPoliciesNetworkRoute
   AuthenticatedPoliciesUserRoute: typeof AuthenticatedPoliciesUserRoute
   AuthenticatedPortalsPortalIdRoute: typeof AuthenticatedPortalsPortalIdRoute
   AuthenticatedRoutersRouterIdRoute: typeof AuthenticatedRoutersRouterIdRoute
@@ -2110,8 +2173,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOperationsAdminLogsRoute: AuthenticatedOperationsAdminLogsRoute,
   AuthenticatedOperationsAlertsRoute: AuthenticatedOperationsAlertsRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
+  AuthenticatedPoliciesAuthenticationRoute:
+    AuthenticatedPoliciesAuthenticationRoute,
+  AuthenticatedPoliciesBandwidthRoute: AuthenticatedPoliciesBandwidthRoute,
   AuthenticatedPoliciesGroupRoute: AuthenticatedPoliciesGroupRoute,
   AuthenticatedPoliciesLocationRoute: AuthenticatedPoliciesLocationRoute,
+  AuthenticatedPoliciesNetworkRoute: AuthenticatedPoliciesNetworkRoute,
   AuthenticatedPoliciesUserRoute: AuthenticatedPoliciesUserRoute,
   AuthenticatedPortalsPortalIdRoute: AuthenticatedPortalsPortalIdRoute,
   AuthenticatedRoutersRouterIdRoute: AuthenticatedRoutersRouterIdRoute,
