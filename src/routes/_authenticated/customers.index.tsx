@@ -1,10 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2, MapPin, Search, UserPlus } from "lucide-react";
+import { Building2, FilterX, MapPin, Search, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,21 +27,64 @@ export const Route = createFileRoute("/_authenticated/customers/")({
   component: CustomersListPage,
 });
 
+type LocBucket = "any" | "1" | "2-5" | "6-10" | "10+";
+
+function inBucket(count: number, bucket: LocBucket) {
+  switch (bucket) {
+    case "1":
+      return count === 1;
+    case "2-5":
+      return count >= 2 && count <= 5;
+    case "6-10":
+      return count >= 6 && count <= 10;
+    case "10+":
+      return count > 10;
+    default:
+      return true;
+  }
+}
+
 function CustomersListPage() {
   const { data, isLoading } = useCustomers();
   const [q, setQ] = useState("");
+  const [owner, setOwner] = useState<string>("any");
+  const [plan, setPlan] = useState<string>("any");
+  const [status, setStatus] = useState<string>("any");
+  const [locBucket, setLocBucket] = useState<LocBucket>("any");
+
+  const owners = useMemo(() => {
+    const set = new Map<string, string>();
+    (data ?? []).forEach((c) => set.set(c.owner.email, c.owner.name));
+    return Array.from(set.entries()).map(([email, name]) => ({ email, name }));
+  }, [data]);
+
+  const plans = useMemo(
+    () => Array.from(new Set((data ?? []).map((c) => c.subscription.plan))),
+    [data],
+  );
+  const statuses = useMemo(
+    () => Array.from(new Set((data ?? []).map((c) => c.status))),
+    [data],
+  );
 
   const filtered = useMemo(() => {
     const src = data ?? [];
-    if (!q.trim()) return src;
-    const needle = q.toLowerCase();
-    return src.filter(
-      (c) =>
-        c.name.toLowerCase().includes(needle) ||
-        c.owner.email.toLowerCase().includes(needle) ||
-        c.owner.name.toLowerCase().includes(needle),
-    );
-  }, [data, q]);
+    const needle = q.trim().toLowerCase();
+    return src.filter((c) => {
+      if (
+        needle &&
+        !c.name.toLowerCase().includes(needle) &&
+        !c.owner.email.toLowerCase().includes(needle) &&
+        !c.owner.name.toLowerCase().includes(needle)
+      )
+        return false;
+      if (owner !== "any" && c.owner.email !== owner) return false;
+      if (plan !== "any" && c.subscription.plan !== plan) return false;
+      if (status !== "any" && c.status !== status) return false;
+      if (!inBucket(c.locations.length, locBucket)) return false;
+      return true;
+    });
+  }, [data, q, owner, plan, status, locBucket]);
 
   const totals = useMemo(() => {
     const src = data ?? [];
@@ -45,6 +95,20 @@ function CustomersListPage() {
       trial: src.filter((c) => c.status === "trial").length,
     };
   }, [data]);
+
+  const activeFilters =
+    (owner !== "any" ? 1 : 0) +
+    (plan !== "any" ? 1 : 0) +
+    (status !== "any" ? 1 : 0) +
+    (locBucket !== "any" ? 1 : 0);
+
+  const resetFilters = () => {
+    setOwner("any");
+    setPlan("any");
+    setStatus("any");
+    setLocBucket("any");
+  };
+
 
   if (isLoading) return <PageSkeleton />;
 
@@ -72,18 +136,87 @@ function CustomersListPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base">All customers</CardTitle>
-          <div className="relative w-72 max-w-full">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name, owner, email"
-              className="pl-8"
-            />
+        <CardHeader className="space-y-3">
+          <div className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="text-base">
+              All customers
+              {activeFilters > 0 && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {filtered.length} of {data?.length ?? 0} · {activeFilters} filter
+                  {activeFilters > 1 ? "s" : ""}
+                </span>
+              )}
+            </CardTitle>
+            <div className="relative w-72 max-w-full">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name, owner, email"
+                className="pl-8"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={owner} onValueChange={setOwner}>
+              <SelectTrigger className="h-9 w-[200px]">
+                <SelectValue placeholder="Owner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">All owners</SelectItem>
+                {owners.map((o) => (
+                  <SelectItem key={o.email} value={o.email}>
+                    {o.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={plan} onValueChange={setPlan}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Plan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">All plans</SelectItem>
+                {plans.map((p) => (
+                  <SelectItem key={p} value={p} className="capitalize">
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">All statuses</SelectItem>
+                {statuses.map((s) => (
+                  <SelectItem key={s} value={s} className="capitalize">
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={locBucket} onValueChange={(v) => setLocBucket(v as LocBucket)}>
+              <SelectTrigger className="h-9 w-[180px]">
+                <SelectValue placeholder="Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any # of locations</SelectItem>
+                <SelectItem value="1">1 location</SelectItem>
+                <SelectItem value="2-5">2 – 5 locations</SelectItem>
+                <SelectItem value="6-10">6 – 10 locations</SelectItem>
+                <SelectItem value="10+">10+ locations</SelectItem>
+              </SelectContent>
+            </Select>
+            {activeFilters > 0 && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <FilterX className="mr-1.5 h-4 w-4" /> Clear
+              </Button>
+            )}
           </div>
         </CardHeader>
+
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -142,8 +275,9 @@ function CustomersListPage() {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                    No customers match your search.
+                    No customers match your filters.
                   </TableCell>
+
                 </TableRow>
               )}
             </TableBody>
