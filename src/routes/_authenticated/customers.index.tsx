@@ -196,7 +196,7 @@ function CustomersListPage() {
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => setParam({ q: e.target.value })}
                 placeholder="Search name, owner, email"
                 className="pl-8"
               />
