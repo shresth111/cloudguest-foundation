@@ -42,18 +42,26 @@ function BillingPage() {
         <CardContent>
           <ul className="divide-y">
             {Array.from({ length: 5 }, (_, i) => (
-              <li key={i} className="flex items-center justify-between py-3 text-sm">
+              <li
+                key={i}
+                className="grid grid-cols-2 items-center gap-2 py-3 text-sm sm:grid-cols-4"
+              >
                 <span className="font-mono">INV-{2025000 + i}</span>
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground sm:text-left">
                   {new Date(Date.now() - i * 30 * 86400000).toLocaleDateString()}
                 </span>
-                <span className="font-semibold">${(customer.subscription.plan === "enterprise" ? 899 : 299).toLocaleString()}</span>
-                <Badge variant={i === 0 ? "secondary" : "default"}>
-                  {i === 0 ? "Pending" : "Paid"}
-                </Badge>
+                <span className="font-semibold">
+                  ${(customer.subscription.plan === "enterprise" ? 899 : 299).toLocaleString()}
+                </span>
+                <div className="justify-self-end">
+                  <Badge variant={i === 0 ? "secondary" : "default"}>
+                    {i === 0 ? "Pending" : "Paid"}
+                  </Badge>
+                </div>
               </li>
             ))}
           </ul>
+
         </CardContent>
       </Card>
     </div>
