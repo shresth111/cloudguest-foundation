@@ -275,8 +275,9 @@ function CustomersListPage() {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                    No customers match your search.
+                    No customers match your filters.
                   </TableCell>
+
                 </TableRow>
               )}
             </TableBody>
