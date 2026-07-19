@@ -124,7 +124,8 @@ export function workspaceNavForRole(role: UserRole): NavItem[] {
   return WORKSPACE_NAV_ITEMS.filter((i) => i.roles.includes(role));
 }
 
-/** Super admins land on the platform console; every other role goes through the Space picker. */
-export function homeRouteForRole(role: UserRole): string {
-  return role === "super_admin" ? "/dashboard" : "/select-space";
+/** All roles land on the tiered Space picker; Super Admins see the Platform tile there too. */
+export function homeRouteForRole(_role: UserRole): string {
+  return "/select-space";
 }
+
