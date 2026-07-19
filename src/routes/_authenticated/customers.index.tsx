@@ -1,6 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import { Building2, FilterX, MapPin, Search, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,11 +25,18 @@ import {
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { useCustomers } from "@/hooks/useCustomer";
 
-export const Route = createFileRoute("/_authenticated/customers/")({
-  component: CustomersListPage,
+const LOC_BUCKETS = ["any", "1", "2-5", "6-10", "10+"] as const;
+type LocBucket = (typeof LOC_BUCKETS)[number];
+
+const customersSearchSchema = z.object({
+  q: fallback(z.string(), "").default(""),
+  owner: fallback(z.string(), "any").default("any"),
+  plan: fallback(z.string(), "any").default("any"),
+  status: fallback(z.string(), "any").default("any"),
+  loc: fallback(z.string(), "any").default("any"),
 });
 
-type LocBucket = "any" | "1" | "2-5" | "6-10" | "10+";
+type CustomersSearch = z.infer<typeof customersSearchSchema>;
 
 function inBucket(count: number, bucket: LocBucket) {
   switch (bucket) {
@@ -44,13 +53,51 @@ function inBucket(count: number, bucket: LocBucket) {
   }
 }
 
+export const Route = createFileRoute("/_authenticated/customers/")({
+  validateSearch: zodValidator(customersSearchSchema),
+  search: {
+    middlewares: [
+      // Keep URLs clean by stripping defaults
+      ({ next, search }) => {
+        const result = next(search);
+        return result;
+      },
+    ],
+  },
+  component: CustomersListPage,
+});
+
 function CustomersListPage() {
   const { data, isLoading } = useCustomers();
-  const [q, setQ] = useState("");
-  const [owner, setOwner] = useState<string>("any");
-  const [plan, setPlan] = useState<string>("any");
-  const [status, setStatus] = useState<string>("any");
-  const [locBucket, setLocBucket] = useState<LocBucket>("any");
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const q = search.q;
+  const owner = search.owner;
+  const plan = search.plan;
+  const status = search.status;
+  const locBucket: LocBucket = (LOC_BUCKETS as readonly string[]).includes(search.loc)
+    ? (search.loc as LocBucket)
+    : "any";
+
+  const setParam = (
+    patch: Partial<{ q: string; owner: string; plan: string; status: string; loc: string }>,
+  ) => {
+    navigate({
+      search: (prev: CustomersSearch) => {
+        const nextSearch = { ...prev, ...patch };
+        // Strip defaults from the URL for shareable, clean links
+        const cleaned: Record<string, string> = {};
+        for (const [k, v] of Object.entries(nextSearch)) {
+          const isDefault = k === "q" ? v === "" : v === "any";
+          if (!isDefault && typeof v === "string") cleaned[k] = v;
+        }
+        return cleaned as typeof prev;
+      },
+      replace: true,
+    });
+  };
+
 
   const owners = useMemo(() => {
     const set = new Map<string, string>();
@@ -103,11 +150,9 @@ function CustomersListPage() {
     (locBucket !== "any" ? 1 : 0);
 
   const resetFilters = () => {
-    setOwner("any");
-    setPlan("any");
-    setStatus("any");
-    setLocBucket("any");
+    navigate({ search: {} as never, replace: true });
   };
+
 
 
   if (isLoading) return <PageSkeleton />;
@@ -151,14 +196,14 @@ function CustomersListPage() {
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => setParam({ q: e.target.value })}
                 placeholder="Search name, owner, email"
                 className="pl-8"
               />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={owner} onValueChange={setOwner}>
+            <Select value={owner} onValueChange={(v) => setParam({ owner: v })}>
               <SelectTrigger className="h-9 w-[200px]">
                 <SelectValue placeholder="Owner" />
               </SelectTrigger>
@@ -171,7 +216,7 @@ function CustomersListPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={plan} onValueChange={setPlan}>
+            <Select value={plan} onValueChange={(v) => setParam({ plan: v })}>
               <SelectTrigger className="h-9 w-[160px]">
                 <SelectValue placeholder="Plan" />
               </SelectTrigger>
@@ -184,7 +229,7 @@ function CustomersListPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={(v) => setParam({ status: v })}>
               <SelectTrigger className="h-9 w-[160px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -197,7 +242,7 @@ function CustomersListPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={locBucket} onValueChange={(v) => setLocBucket(v as LocBucket)}>
+            <Select value={locBucket} onValueChange={(v) => setParam({ loc: v })}>
               <SelectTrigger className="h-9 w-[180px]">
                 <SelectValue placeholder="Locations" />
               </SelectTrigger>
