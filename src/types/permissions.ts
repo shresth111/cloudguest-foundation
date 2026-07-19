@@ -89,7 +89,12 @@ export type ModuleId =
   // FE-024 IA
   | "location-master"
   | "infrastructure"
-  | "voucher-master";
+  | "voucher-master"
+  // FE-025 Platform Console
+  | "nas-management"
+  | "nas-id-generator"
+  | "feature-catalog"
+  | "plans-billing";
 
 /** Standard per-module actions supported by the permission engine. */
 export type PermissionAction =

@@ -1,95 +1,121 @@
-# FE-024 — Location Master & NAS-Driven Workspace
 
-Refactor the existing frontend so **Location Master** becomes the single entry point and every operational module (Voucher, Guest WiFi, Captive Portal, Analytics, Monitoring, Reports, Audit) is scoped to a **Location → NAS**. No new project, no duplicate pages — reuse existing components, services, RBAC, and design tokens.
+# FE-025 — Platform Console (Super Admin Only)
 
-## 1. Information architecture (sidebar rewrite)
+Refactor the existing CloudGuest console so the Super Admin experience is a **pure platform / provisioning cockpit** (Meraki / Aruba Central / Azure Portal style). Operational modules (Guests, Voucher, Portal, Analytics, Monitoring, Reports, Radius Users, Staff) stay in the **Location Workspace** and are removed from the Super Admin sidebar. No new project, reuse existing services, hooks, and design primitives.
 
-Rewrite `src/services/permissions.service.ts` sidebar builders to the 10-item spec:
+## 1. Sidebar rewrite (Super Admin only)
 
-```text
-Dashboard · Customers · Location Master · Infrastructure ·
-Voucher Master · Policies · Analytics · Billing · Audit · Settings
-```
-
-- Collapse today's Network / Guest Mgmt / Operations groups into **Location Master** (primary) + **Infrastructure** (NAS fleet, firmware, backups).
-- Existing routes are preserved but re-linked under the new groups; role-based `LOCKED_BY_ROLE` keeps Customer Admin / Location Admin restricted to their assigned Locations and NAS.
-- Platform Admin sees everything; Customer Admin sees only Location Master + module tabs on assigned Locations; Location Admin sees only the single-Location workspace.
-
-## 2. Location Master (`/locations`)
-
-Upgrade the existing `LocationTable` into the "heart of CloudGuest":
-
-- Columns: Customer · Organization · Location · Status · Subscription · **NAS Count** · Router Count · Guests · Bandwidth.
-- Filters: Customer, Org, Country, Status, Subscription, Feature Policy.
-- Row action → opens Location Details.
-- "Create Location" CTA visible **only** to Platform Admin (gated via `usePermissions`).
-
-### 10-step Create Location wizard
-Extend existing `LocationWizard.tsx` to the new flow:
-1. Select / create Customer
-2. Select / create Organization
-3. Location basics (name, property type, country, state, city, address, timezone, coordinates)
-4. **Register NAS** (NAS Identifier, Router Identity, Serial, Model, RouterOS, Public IP, Private IP) — supports adding multiple NAS in one shot
-5. Assign Plan
-6. Assign Feature Policy
-7. Assign White Label
-8. Assign Customer Admin
-9. Review
-10. Provision (progress screen, mock)
-
-## 3. Location Details (`/locations/$locationId`)
-
-Replace current tab set with 11 tabs, all reusing existing panels where possible:
+Rewrite the Super Admin sidebar builder in `src/services/permissions.service.ts` to exactly 12 items, in this order:
 
 ```text
-Overview · NAS Devices · Guest WiFi · Captive Portal · Voucher ·
-Users · Analytics · Monitoring · Reports · Audit · Settings
+Dashboard · Customers · Location Master · NAS Management ·
+NAS ID Generator · Policies · Plans & Billing · Feature Catalog ·
+White Label · Infrastructure · Audit Logs · Platform Settings
 ```
 
-Each operational tab is **scoped to this Location** and shows a NAS picker at the top (defaults to "All NAS"). Selecting a NAS re-scopes the panel content.
+- Remove from the Super Admin envelope: `guests*`, `portals`, `vouchers`, `voucher-master`, `analytics*`, `monitoring`, `reports`, `network-monitoring`, `isp-monitoring`, `guests-live/sessions/blocklist`, `workspace-*`, `campaigns`, `smart-id`, `whitelist`, `radius`, `mac-auth`, `mac-bypass`, `web-filter`, `otp`, `survey`, `premium-wifi`, `captive-portal`, `guest-login`.
+- Customer Admin / Location Admin envelopes are unchanged — they keep operational modules inside their Location Workspace.
+- Add new `ModuleId`s in `src/types/permissions.ts`: `nas-management`, `nas-id-generator`, `feature-catalog`, `plans-billing`.
 
-## 4. NAS Management & NAS Details
+## 2. Platform Dashboard
 
-- **NAS Devices tab** on a Location: grid of NAS cards (Identifier, Router Identity, Model, Version, Status, Traffic, Guests, CPU, RAM) + "Register NAS" for Platform Admin.
-- New route `/locations/$locationId/nas/$nasId` with 13 tabs:
-  `Overview · Interfaces · Hotspot · FreeRADIUS · WireGuard · Queues · Firewall · DHCP · Traffic · Logs · Backup · Terminal · Monitoring`.
-- Router operations panel (Restart, Backup, Restore, Export/Push Config, Terminal, Upgrade RouterOS, Factory Reset, Delete) gated by `routerActions` from the permission envelope.
+Replace `SuperAdminDashboard.tsx` with a platform-only view. Remove Guest / Auth / Device / Top-Orgs-by-guests widgets; add platform KPIs and charts:
 
-## 5. Module re-scoping
+- KPI grid (10 cards via `StatCard`): Total Customers, Total Organizations, Total Locations, Registered NAS, Online NAS, Offline NAS, Active Subscriptions, Monthly Revenue, License Usage %, Platform Health %.
+- Charts: Customer Growth, Subscription Growth, Revenue, NAS Registration, Location Provisioning (reuse Recharts primitives already in `DashboardCharts.tsx`; drop guest / device / auth charts).
+- Recent Activity feed: New Customer, New Location, NAS Registered, Plan Changed, Policy Assigned (single unified widget backed by `superadmin.service.ts`).
+- Alerts panel: Offline NAS, Expiring Plans, License Expiry, Failed Provisioning.
 
-Every top-level operational route becomes a **selector shell** that forces the Customer → Location → NAS chain before rendering the module UI:
+Extend `superadmin.service.ts` mock feeds accordingly (new fields on KPI payload, new `getPlatformActivity`, `getPlatformAlerts`, `getNasRegistrationTrend`, `getLocationProvisioningTrend`, `getSubscriptionGrowth`).
 
-- `/vouchers` (Voucher Master), `/guests`, `/portals`, `/analytics`, `/monitoring`, `/reports`, `/audit`
-- Header exposes Customer / Location / NAS filters (multi-select where relevant); body reuses the existing table/chart components with a `scope` prop.
-- Direct deep-links (`/locations/$id/...`) skip the selector and pin the scope automatically.
+## 3. Customers
 
-## 6. Feature Policies & assignment
+Keep existing `/customers` table + detail; ensure Super-Admin-only actions (Create, Suspend, Activate, Delete) render via `<Can />`. Detail tabs reduced to the platform set: Overview · Locations · Subscription · Feature Assignment · White Label · Billing · Usage · Audit. Remove operational tabs if present.
 
-Reuse `tenant.service.ts` policy model. Add an **Assignment drawer** with scope `Customer | Location | NAS Group | Individual NAS` and a matrix of the 15 modules (Guest WiFi, Captive Portal, Voucher, QR, OTP, Social, Analytics, Reports, WireGuard, FreeRADIUS, Monitoring, Billing, White Label, API, Notifications). Assignment is surfaced from Location Master and from `/policies`.
+## 4. Location Master
 
-## 7. Access model surfaces
+Reuse existing `/locations` route and `LocationTable`. Column set for Super Admin only:
 
-- **User form**: add Location tree + NAS tree (checkbox multi-select) — reuse `LocationAccessTree`, add `NasAccessTree` sibling.
-- Sidebar / route guards honor the assigned scope; Customer Admin & Location Admin never see the "Create Location" or "Register NAS" affordances.
+```text
+Location · Customer · Organization · Current Plan · Plan Expiry ·
+NAS Count · Status · Provision Status · Created · Actions
+```
 
-## 8. Design & UX
+Row actions gated behind `<Can module="location-master" action="…">`: View, Edit, Suspend, Activate, Delete, Upgrade Plan, Downgrade Plan. Extend `src/types/location.ts` with `currentPlanId`, `planExpiry`, `provisionStatus` and surface them from `location.service.ts` mock.
 
-Keep the existing enterprise design system (StatCard, PageShell, SectionHeader, RightDrawer, ComingSoonPanel). No color / token changes. All new screens use those primitives so the visual language stays consistent, responsive across desktop / tablet / mobile.
+Create Location Wizard already covers steps 1–10 (FE-024); confirm labels match the FE-025 spec and adjust step titles only if drifted.
 
-## Technical notes
+## 5. NAS Management (`/nas`)
 
-- Types: extend `src/types/location.ts` with `nasDevices: NasDevice[]`, `assignedPolicyId`, `assignedPlanId`, `assignedBrandingId`, `customerAdminIds`; extend `src/types/tenant.ts::NasDevice` with `cpuPct`, `ramPct`, `trafficMbps`, `guestsOnline`, `uptimePct`.
-- Services (mock): extend `location.service.ts` with `registerNas`, `listNasByLocation`, `getNas`, `runRouterOp`; extend `tenant.service.ts` with `assignPolicy(scope, targetId, policyId)`.
-- Hooks: `useNasByLocation`, `useNas`, `useRouterOp` in `src/hooks/useLocations.ts` / new `useNas.ts`.
-- Routing (TanStack flat filenames):
-  - `_authenticated/locations.$locationId.nas.$nasId.tsx` (new)
-  - `_authenticated/vouchers.index.tsx` promoted to Voucher Master shell (existing voucher route re-pointed)
-  - Selector shells wrap existing `/guests`, `/portals`, `/analytics`, `/monitoring`, `/audit` bodies with a `<ScopePicker />`.
-- Permissions envelope: sidebar rebuilt to the 10-item list; `LOCKED_BY_ROLE` unchanged in intent, remapped to new module IDs. Add `module: "location-master"`, `"infrastructure"`, `"voucher-master"` to `ModuleId`.
-- No backend work — everything runs off the existing mock services and TanStack Query cache.
+New route `_authenticated/nas.index.tsx` — cross-location NAS inventory table:
+
+```text
+Friendly Name · NAS Identifier · Router Identity · Customer · Location ·
+Model · RouterOS · Public IP · Status · Last Seen · Actions (View / Replace / Disable / Delete)
+```
+
+Backed by a new `nas.service.ts::listAllNas()` mock that flattens NAS across locations. Row click → existing `/locations/$locationId/nas/$nasId` detail.
+
+## 6. NAS ID Generator (`/nas/id-generator`)
+
+New route with a small workbench:
+
+- Auto Generate (city code + zero-padded sequence, e.g. `NAS-DEL-0001`) — reserves the next free ID.
+- Manual Generate with live validation against the reserved / used registry.
+- Reserved IDs table (Reserve / Release / Assign to location).
+- Duplicate prevention via `nas.service.ts::isNasIdAvailable(id)`.
+
+## 7. Plans & Billing (`/plans`)
+
+Merge existing plans + subscription views under one route:
+
+- Plan catalog cards (Starter / Business / Enterprise / Custom) with edit dialog.
+- Per-Location subscription table: Location · Customer · Current Plan · Renewal · Expiry · Usage · Actions (Upgrade / Downgrade / Suspend / Resume / Invoice).
+- Reuse `billing.service.ts` and extend with `listLocationSubscriptions()`.
+
+## 8. Feature Catalog (`/feature-catalog`)
+
+New route listing every platform module with Enable / Disable / Assign controls. Uses existing feature-flag + `tenant.service.ts` policy model. Assign drawer scopes to Customer / Location / NAS Group / Individual NAS (reuse the FE-024 assignment drawer).
+
+## 9. White Label
+
+Keep `/branding`. Ensure it's Super-Admin-only in the console (Customer Admin manages their own branding inside Workspace, not here).
+
+## 10. Infrastructure (`/infrastructure`)
+
+New route aggregating platform health:
+
+- Overview tiles: Registered Routers, NAS Inventory, WireGuard, FreeRADIUS, Redis, Database, API Services, Queue Workers, Storage.
+- Each tile shows status (Healthy / Degraded / Down), latency, and last check.
+- Reuse `monitoring.service.ts` primitives; add `getInfrastructureHealth()` mock.
+
+## 11. Audit Logs & Platform Settings
+
+`/audit` and `/settings` already exist — verify they're Super-Admin-only and prune any operational filters (guest events, voucher events) from the Super Admin view.
+
+## 12. Permission envelope hardening
+
+In `permissions.service.ts`:
+
+- Super Admin: full access to the 12 platform modules above; operational modules explicitly **omitted** from the envelope (not just locked) so they cannot appear in sidebar or via deep-link.
+- Customer Admin: existing envelope untouched — never sees Current Plan, Upgrade / Downgrade, Provision Status, Infrastructure, NAS ID Generator, Feature Catalog, Platform Settings.
+- Location Admin: unchanged.
+- Add route guards: any Super-Admin-only route (`/nas`, `/nas/id-generator`, `/feature-catalog`, `/infrastructure`, `/plans`) checks `role === 'super_admin'` in `beforeLoad` and redirects otherwise.
 
 ## Out of scope
 
-- Real MikroTik integration, real RADIUS, real payments.
-- Redesign of design tokens or auth flows.
-- New dashboards beyond the Location-scoped Overview.
+- Real MikroTik / RADIUS integration.
+- Any change to the Location Workspace (operational modules stay exactly where they are).
+- Design-token or auth-flow changes.
+
+## Technical notes
+
+- Types: add `ModuleId`s (`nas-management`, `nas-id-generator`, `feature-catalog`, `plans-billing`); extend `Location` with `currentPlanId`, `planExpiry`, `provisionStatus`; add `NasReservation` to `src/types/tenant.ts`.
+- Services (mock): extend `superadmin.service.ts`, `nas.service.ts` (`listAllNas`, `generateNasId`, `reserveNasId`, `isNasIdAvailable`), `billing.service.ts` (`listLocationSubscriptions`), `monitoring.service.ts` (`getInfrastructureHealth`).
+- Routes (flat filenames):
+  - `_authenticated/nas.index.tsx`
+  - `_authenticated/nas.id-generator.tsx`
+  - `_authenticated/feature-catalog.index.tsx`
+  - `_authenticated/infrastructure.index.tsx`
+  - `_authenticated/plans.index.tsx` (upgrade existing)
+- Dashboard: rewrite `SuperAdminDashboard.tsx`, retire guest-oriented widgets from Super Admin render path (keep components for Workspace use).

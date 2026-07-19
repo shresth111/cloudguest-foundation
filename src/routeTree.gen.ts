@@ -45,13 +45,16 @@ import { Route as AuthenticatedPlansIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated/onboarding.index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications.index'
+import { Route as AuthenticatedNasIndexRouteImport } from './routes/_authenticated/nas.index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring.index'
 import { Route as AuthenticatedMarketplaceIndexRouteImport } from './routes/_authenticated/marketplace.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
 import { Route as AuthenticatedIntegrationsIndexRouteImport } from './routes/_authenticated/integrations.index'
+import { Route as AuthenticatedInfrastructureIndexRouteImport } from './routes/_authenticated/infrastructure.index'
 import { Route as AuthenticatedHelpIndexRouteImport } from './routes/_authenticated/help.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
 import { Route as AuthenticatedFeatureManagementIndexRouteImport } from './routes/_authenticated/feature-management.index'
+import { Route as AuthenticatedFeatureCatalogIndexRouteImport } from './routes/_authenticated/feature-catalog.index'
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports.index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
@@ -93,6 +96,7 @@ import { Route as AuthenticatedNetworkDscpRouteImport } from './routes/_authenti
 import { Route as AuthenticatedNetworkDnsRouteImport } from './routes/_authenticated/network.dns'
 import { Route as AuthenticatedNetworkDhcpRouteImport } from './routes/_authenticated/network.dhcp'
 import { Route as AuthenticatedNetworkAccessPointsRouteImport } from './routes/_authenticated/network.access-points'
+import { Route as AuthenticatedNasIdGeneratorRouteImport } from './routes/_authenticated/nas.id-generator'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 import { Route as AuthenticatedGuestsWhitelistRouteImport } from './routes/_authenticated/guests.whitelist'
 import { Route as AuthenticatedGuestsVoucherRouteImport } from './routes/_authenticated/guests.voucher'
@@ -302,6 +306,11 @@ const AuthenticatedNotificationsIndexRoute =
     path: '/notifications/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedNasIndexRoute = AuthenticatedNasIndexRouteImport.update({
+  id: '/nas/',
+  path: '/nas/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedMonitoringIndexRoute =
   AuthenticatedMonitoringIndexRouteImport.update({
     id: '/monitoring/',
@@ -326,6 +335,12 @@ const AuthenticatedIntegrationsIndexRoute =
     path: '/integrations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedInfrastructureIndexRoute =
+  AuthenticatedInfrastructureIndexRouteImport.update({
+    id: '/infrastructure/',
+    path: '/infrastructure/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedHelpIndexRoute = AuthenticatedHelpIndexRouteImport.update({
   id: '/help/',
   path: '/help/',
@@ -341,6 +356,12 @@ const AuthenticatedFeatureManagementIndexRoute =
   AuthenticatedFeatureManagementIndexRouteImport.update({
     id: '/feature-management/',
     path: '/feature-management/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedFeatureCatalogIndexRoute =
+  AuthenticatedFeatureCatalogIndexRouteImport.update({
+    id: '/feature-catalog/',
+    path: '/feature-catalog/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedExportsIndexRoute =
@@ -583,6 +604,12 @@ const AuthenticatedNetworkAccessPointsRoute =
     path: '/network/access-points',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedNasIdGeneratorRoute =
+  AuthenticatedNasIdGeneratorRouteImport.update({
+    id: '/nas/id-generator',
+    path: '/nas/id-generator',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedLocationsLocationIdRoute =
   AuthenticatedLocationsLocationIdRouteImport.update({
     id: '/locations/$locationId',
@@ -730,6 +757,7 @@ export interface FileRoutesByFullPath {
   '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  '/nas/id-generator': typeof AuthenticatedNasIdGeneratorRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -771,13 +799,16 @@ export interface FileRoutesByFullPath {
   '/branding/': typeof AuthenticatedBrandingIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
+  '/feature-catalog/': typeof AuthenticatedFeatureCatalogIndexRoute
   '/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/help/': typeof AuthenticatedHelpIndexRoute
+  '/infrastructure/': typeof AuthenticatedInfrastructureIndexRoute
   '/integrations/': typeof AuthenticatedIntegrationsIndexRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/nas/': typeof AuthenticatedNasIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
@@ -831,6 +862,7 @@ export interface FileRoutesByTo {
   '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  '/nas/id-generator': typeof AuthenticatedNasIdGeneratorRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -872,13 +904,16 @@ export interface FileRoutesByTo {
   '/branding': typeof AuthenticatedBrandingIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
+  '/feature-catalog': typeof AuthenticatedFeatureCatalogIndexRoute
   '/feature-management': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/help': typeof AuthenticatedHelpIndexRoute
+  '/infrastructure': typeof AuthenticatedInfrastructureIndexRoute
   '/integrations': typeof AuthenticatedIntegrationsIndexRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/marketplace': typeof AuthenticatedMarketplaceIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
+  '/nas': typeof AuthenticatedNasIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
@@ -936,6 +971,7 @@ export interface FileRoutesById {
   '/_authenticated/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/_authenticated/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  '/_authenticated/nas/id-generator': typeof AuthenticatedNasIdGeneratorRoute
   '/_authenticated/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/_authenticated/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/_authenticated/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -977,13 +1013,16 @@ export interface FileRoutesById {
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
+  '/_authenticated/feature-catalog/': typeof AuthenticatedFeatureCatalogIndexRoute
   '/_authenticated/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/help/': typeof AuthenticatedHelpIndexRoute
+  '/_authenticated/infrastructure/': typeof AuthenticatedInfrastructureIndexRoute
   '/_authenticated/integrations/': typeof AuthenticatedIntegrationsIndexRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/marketplace/': typeof AuthenticatedMarketplaceIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
+  '/_authenticated/nas/': typeof AuthenticatedNasIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
@@ -1041,6 +1080,7 @@ export interface FileRouteTypes {
     | '/guests/voucher'
     | '/guests/whitelist'
     | '/locations/$locationId'
+    | '/nas/id-generator'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1082,13 +1122,16 @@ export interface FileRouteTypes {
     | '/branding/'
     | '/customers/'
     | '/exports/'
+    | '/feature-catalog/'
     | '/feature-management/'
     | '/guests/'
     | '/help/'
+    | '/infrastructure/'
     | '/integrations/'
     | '/locations/'
     | '/marketplace/'
     | '/monitoring/'
+    | '/nas/'
     | '/notifications/'
     | '/onboarding/'
     | '/organizations/'
@@ -1142,6 +1185,7 @@ export interface FileRouteTypes {
     | '/guests/voucher'
     | '/guests/whitelist'
     | '/locations/$locationId'
+    | '/nas/id-generator'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1183,13 +1227,16 @@ export interface FileRouteTypes {
     | '/branding'
     | '/customers'
     | '/exports'
+    | '/feature-catalog'
     | '/feature-management'
     | '/guests'
     | '/help'
+    | '/infrastructure'
     | '/integrations'
     | '/locations'
     | '/marketplace'
     | '/monitoring'
+    | '/nas'
     | '/notifications'
     | '/onboarding'
     | '/organizations'
@@ -1246,6 +1293,7 @@ export interface FileRouteTypes {
     | '/_authenticated/guests/voucher'
     | '/_authenticated/guests/whitelist'
     | '/_authenticated/locations/$locationId'
+    | '/_authenticated/nas/id-generator'
     | '/_authenticated/network/access-points'
     | '/_authenticated/network/dhcp'
     | '/_authenticated/network/dns'
@@ -1287,13 +1335,16 @@ export interface FileRouteTypes {
     | '/_authenticated/branding/'
     | '/_authenticated/customers/'
     | '/_authenticated/exports/'
+    | '/_authenticated/feature-catalog/'
     | '/_authenticated/feature-management/'
     | '/_authenticated/guests/'
     | '/_authenticated/help/'
+    | '/_authenticated/infrastructure/'
     | '/_authenticated/integrations/'
     | '/_authenticated/locations/'
     | '/_authenticated/marketplace/'
     | '/_authenticated/monitoring/'
+    | '/_authenticated/nas/'
     | '/_authenticated/notifications/'
     | '/_authenticated/onboarding/'
     | '/_authenticated/organizations/'
@@ -1577,6 +1628,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotificationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/nas/': {
+      id: '/_authenticated/nas/'
+      path: '/nas'
+      fullPath: '/nas/'
+      preLoaderRoute: typeof AuthenticatedNasIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/monitoring/': {
       id: '/_authenticated/monitoring/'
       path: '/monitoring'
@@ -1605,6 +1663,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIntegrationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/infrastructure/': {
+      id: '/_authenticated/infrastructure/'
+      path: '/infrastructure'
+      fullPath: '/infrastructure/'
+      preLoaderRoute: typeof AuthenticatedInfrastructureIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/help/': {
       id: '/_authenticated/help/'
       path: '/help'
@@ -1624,6 +1689,13 @@ declare module '@tanstack/react-router' {
       path: '/feature-management'
       fullPath: '/feature-management/'
       preLoaderRoute: typeof AuthenticatedFeatureManagementIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/feature-catalog/': {
+      id: '/_authenticated/feature-catalog/'
+      path: '/feature-catalog'
+      fullPath: '/feature-catalog/'
+      preLoaderRoute: typeof AuthenticatedFeatureCatalogIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/exports/': {
@@ -1913,6 +1985,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNetworkAccessPointsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/nas/id-generator': {
+      id: '/_authenticated/nas/id-generator'
+      path: '/nas/id-generator'
+      fullPath: '/nas/id-generator'
+      preLoaderRoute: typeof AuthenticatedNasIdGeneratorRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/locations/$locationId': {
       id: '/_authenticated/locations/$locationId'
       path: '/locations/$locationId'
@@ -2147,6 +2226,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGuestsVoucherRoute: typeof AuthenticatedGuestsVoucherRoute
   AuthenticatedGuestsWhitelistRoute: typeof AuthenticatedGuestsWhitelistRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  AuthenticatedNasIdGeneratorRoute: typeof AuthenticatedNasIdGeneratorRoute
   AuthenticatedNetworkAccessPointsRoute: typeof AuthenticatedNetworkAccessPointsRoute
   AuthenticatedNetworkDhcpRoute: typeof AuthenticatedNetworkDhcpRoute
   AuthenticatedNetworkDnsRoute: typeof AuthenticatedNetworkDnsRoute
@@ -2176,13 +2256,16 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
+  AuthenticatedFeatureCatalogIndexRoute: typeof AuthenticatedFeatureCatalogIndexRoute
   AuthenticatedFeatureManagementIndexRoute: typeof AuthenticatedFeatureManagementIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedHelpIndexRoute: typeof AuthenticatedHelpIndexRoute
+  AuthenticatedInfrastructureIndexRoute: typeof AuthenticatedInfrastructureIndexRoute
   AuthenticatedIntegrationsIndexRoute: typeof AuthenticatedIntegrationsIndexRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedMarketplaceIndexRoute: typeof AuthenticatedMarketplaceIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
+  AuthenticatedNasIndexRoute: typeof AuthenticatedNasIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedOnboardingIndexRoute: typeof AuthenticatedOnboardingIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
@@ -2218,6 +2301,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGuestsWhitelistRoute: AuthenticatedGuestsWhitelistRoute,
   AuthenticatedLocationsLocationIdRoute:
     AuthenticatedLocationsLocationIdRouteWithChildren,
+  AuthenticatedNasIdGeneratorRoute: AuthenticatedNasIdGeneratorRoute,
   AuthenticatedNetworkAccessPointsRoute: AuthenticatedNetworkAccessPointsRoute,
   AuthenticatedNetworkDhcpRoute: AuthenticatedNetworkDhcpRoute,
   AuthenticatedNetworkDnsRoute: AuthenticatedNetworkDnsRoute,
@@ -2249,14 +2333,17 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
+  AuthenticatedFeatureCatalogIndexRoute: AuthenticatedFeatureCatalogIndexRoute,
   AuthenticatedFeatureManagementIndexRoute:
     AuthenticatedFeatureManagementIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedHelpIndexRoute: AuthenticatedHelpIndexRoute,
+  AuthenticatedInfrastructureIndexRoute: AuthenticatedInfrastructureIndexRoute,
   AuthenticatedIntegrationsIndexRoute: AuthenticatedIntegrationsIndexRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedMarketplaceIndexRoute: AuthenticatedMarketplaceIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
+  AuthenticatedNasIndexRoute: AuthenticatedNasIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedOnboardingIndexRoute: AuthenticatedOnboardingIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,

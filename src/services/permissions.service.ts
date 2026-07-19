@@ -46,24 +46,27 @@ const NEW_IA_MODULES: ModuleId[] = [
   "documentation", "support-contact",
 ];
 
+const PLATFORM_CONSOLE: ModuleId[] = [
+  "dashboard",
+  "customers",
+  "location-master",
+  "nas-management",
+  "nas-id-generator",
+  "policy-location",
+  "plans-billing",
+  "feature-catalog",
+  "branding",
+  "infrastructure",
+  "audit",
+  "settings",
+];
+
 const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
-    "dashboard", "customers", "location-master", "infrastructure",
-    "voucher-master",
-    "organizations", "locations", "subscription",
-    "plans", "feature-management", "audit", "system", "settings",
-    "routers", "guests", "portals", "monitoring", "analytics",
-    "billing", "branding", "marketplace", "rbac",
-    "integrations", "api-keys", "notifications", "exports", "help",
-    "vouchers", "smart-id", "whitelist", "campaigns", "devices",
-    "network-monitoring", "isp-monitoring", "dscp", "vlan", "isp-routing",
-    "firewall", "mac-auth", "mac-bypass", "web-filter", "captive-portal",
-    "guest-login", "otp", "survey", "premium-wifi", "radius",
-    "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
-    "workspace-staff", "workspace-analytics", "workspace-reports",
-    "workspace-billing", "workspace-notifications", "workspace-audit",
-    "workspace-company", "workspace-help",
-    ...NEW_IA_MODULES,
+    // FE-025: Platform Console is Super-Admin ONLY. No operational modules.
+    ...PLATFORM_CONSOLE,
+    // Extras kept accessible via deep-link for platform admin work
+    "organizations", "locations", "vouchers",
   ],
   org_admin: [
     "dashboard", "customers", "location-master", "infrastructure", "voucher-master",
@@ -158,6 +161,10 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "location-master": "MapPinned",
   infrastructure: "ServerCog",
   "voucher-master": "Ticket",
+  "nas-management": "Router",
+  "nas-id-generator": "QrCode",
+  "feature-catalog": "ToggleRight",
+  "plans-billing": "CreditCard",
   // Network
   routers: "Router",
   "network-aps": "Wifi",
@@ -240,6 +247,10 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "location-master": "Location Master",
   infrastructure: "Infrastructure",
   "voucher-master": "Voucher Master",
+  "nas-management": "NAS Management",
+  "nas-id-generator": "NAS ID Generator",
+  "feature-catalog": "Feature Catalog",
+  "plans-billing": "Plans & Billing",
   routers: "Routers",
   "network-aps": "Access Points",
   vlan: "VLAN",
@@ -311,8 +322,12 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
 const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "/dashboard",
   "location-master": "/locations",
-  infrastructure: "/routers",
+  infrastructure: "/infrastructure",
   "voucher-master": "/vouchers",
+  "nas-management": "/nas",
+  "nas-id-generator": "/nas/id-generator",
+  "feature-catalog": "/feature-catalog",
+  "plans-billing": "/plans",
   routers: "/routers",
   "network-aps": "/network/access-points",
   vlan: "/network/vlan",
@@ -533,6 +548,23 @@ function buildConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
   return primaryGroup ? [primaryGroup, ...secondary] : secondary;
 }
 
+function buildPlatformConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
+  const items: SidebarNode[] = [];
+  PLATFORM_CONSOLE.forEach((id, i) => {
+    const m = modules[id];
+    if (!m) return;
+    if (!(m.view || m.locked)) return;
+    items.push(buildNode(id, i, !!m.locked && !m.view));
+  });
+  if (items.length === 0) return [];
+  return [{
+    id: "platform",
+    label: "Platform Console",
+    order: 1,
+    items,
+  }];
+}
+
 function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {
   const items: SidebarNode[] = [];
   WORKSPACE_ORDER.forEach((id, i) => {
@@ -697,15 +729,20 @@ export const permissionsService = {
     }
     for (const id of locked) modules[id] = { view: false, locked: true };
 
+    // FE-025: Super Admin gets the Platform Console sidebar only.
+    const consoleSidebar: SidebarGroupDef[] =
+      role === "super_admin"
+        ? buildPlatformConsoleSidebar(modules)
+        : buildConsoleSidebar(modules);
+    const workspaceSidebar: SidebarGroupDef[] =
+      role === "super_admin" ? [] : buildWorkspaceSidebar(modules);
+
     return delay({
       modules,
       features: applyFeatureOverrides(FEATURES_BY_ROLE[role]),
       routerActions: ROUTER_ACTIONS_BY_ROLE[role],
       locationScope: [],
-      sidebar: {
-        console: buildConsoleSidebar(modules),
-        workspace: buildWorkspaceSidebar(modules),
-      },
+      sidebar: { console: consoleSidebar, workspace: workspaceSidebar },
     });
   },
 
