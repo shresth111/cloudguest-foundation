@@ -1,14 +1,17 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  KeyRound,
-  LogOut,
-  Settings,
-  User as UserIcon,
-  ShieldCheck,
   Bell,
-  Monitor,
+  Building2,
+  Clock,
+  KeyRound,
   KeySquare,
+  LogOut,
+  Monitor,
+  Settings,
+  Settings2,
+  ShieldCheck,
   UserCog,
+  User as UserIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
