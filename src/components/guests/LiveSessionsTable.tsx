@@ -11,8 +11,8 @@ import {
   PowerOff,
   RefreshCw,
   Search,
-  Users,
   Wifi,
+
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
