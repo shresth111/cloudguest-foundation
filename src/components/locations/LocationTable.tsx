@@ -107,6 +107,11 @@ function toCsv(rows: Location[]) {
 type ViewMode = "table" | "cards" | "map";
 
 export function LocationTable() {
+  const { can } = usePermissions();
+  const canDelete = can("location-master", "delete");
+  const canExport = can("location-master", "export");
+  const canEdit = can("location-master", "edit");
+  const canCreate = can("location-master", "create");
   const [view, setView] = usePersistentState<ViewMode>("loc-master:view", "table");
   const [search, setSearch] = usePersistentState<string>("loc-master:search", "");
   const [status, setStatus] = usePersistentState<LocationStatus | "all">("loc-master:status", "all");
