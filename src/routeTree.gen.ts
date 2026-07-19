@@ -76,6 +76,7 @@ import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authen
 import { Route as AuthenticatedCustomersCustomerIdRouteImport } from './routes/_authenticated/customers.$customerId'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
 import { Route as AuthenticatedCustomersCustomerIdTenantRouteImport } from './routes/_authenticated/customers.$customerId.tenant'
+import { Route as AuthenticatedCustomersCustomerIdOnboardingRouteImport } from './routes/_authenticated/customers.$customerId.onboarding'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -451,6 +452,12 @@ const AuthenticatedCustomersCustomerIdTenantRoute =
     path: '/tenant',
     getParentRoute: () => AuthenticatedCustomersCustomerIdRoute,
   } as any)
+const AuthenticatedCustomersCustomerIdOnboardingRoute =
+  AuthenticatedCustomersCustomerIdOnboardingRouteImport.update({
+    id: '/onboarding',
+    path: '/onboarding',
+    getParentRoute: () => AuthenticatedCustomersCustomerIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -517,6 +524,7 @@ export interface FileRoutesByFullPath {
   '/subscription/': typeof AuthenticatedSubscriptionIndexRoute
   '/system/': typeof AuthenticatedSystemIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
@@ -583,6 +591,7 @@ export interface FileRoutesByTo {
   '/subscription': typeof AuthenticatedSubscriptionIndexRoute
   '/system': typeof AuthenticatedSystemIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
+  '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
@@ -653,6 +662,7 @@ export interface FileRoutesById {
   '/_authenticated/subscription/': typeof AuthenticatedSubscriptionIndexRoute
   '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/_authenticated/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   '/_authenticated/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
 }
@@ -723,6 +733,7 @@ export interface FileRouteTypes {
     | '/subscription/'
     | '/system/'
     | '/workspace/'
+    | '/customers/$customerId/onboarding'
     | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
   fileRoutesByTo: FileRoutesByTo
@@ -789,6 +800,7 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/system'
     | '/workspace'
+    | '/customers/$customerId/onboarding'
     | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
   id:
@@ -858,6 +870,7 @@ export interface FileRouteTypes {
     | '/_authenticated/subscription/'
     | '/_authenticated/system/'
     | '/_authenticated/workspace/'
+    | '/_authenticated/customers/$customerId/onboarding'
     | '/_authenticated/customers/$customerId/tenant'
     | '/_authenticated/workspace/locations/$locationId'
   fileRoutesById: FileRoutesById
@@ -1344,6 +1357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCustomersCustomerIdTenantRouteImport
       parentRoute: typeof AuthenticatedCustomersCustomerIdRoute
     }
+    '/_authenticated/customers/$customerId/onboarding': {
+      id: '/_authenticated/customers/$customerId/onboarding'
+      path: '/onboarding'
+      fullPath: '/customers/$customerId/onboarding'
+      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdOnboardingRouteImport
+      parentRoute: typeof AuthenticatedCustomersCustomerIdRoute
+    }
   }
 }
 
@@ -1401,11 +1421,14 @@ const AuthenticatedWorkspaceRouteWithChildren =
   )
 
 interface AuthenticatedCustomersCustomerIdRouteChildren {
+  AuthenticatedCustomersCustomerIdOnboardingRoute: typeof AuthenticatedCustomersCustomerIdOnboardingRoute
   AuthenticatedCustomersCustomerIdTenantRoute: typeof AuthenticatedCustomersCustomerIdTenantRoute
 }
 
 const AuthenticatedCustomersCustomerIdRouteChildren: AuthenticatedCustomersCustomerIdRouteChildren =
   {
+    AuthenticatedCustomersCustomerIdOnboardingRoute:
+      AuthenticatedCustomersCustomerIdOnboardingRoute,
     AuthenticatedCustomersCustomerIdTenantRoute:
       AuthenticatedCustomersCustomerIdTenantRoute,
   }
