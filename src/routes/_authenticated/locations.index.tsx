@@ -65,12 +65,11 @@ function LocationMasterPage() {
               </Button>
             }
           >
-            <Button asChild size="sm">
-              <Link to="/locations">
-                <Plus className="h-4 w-4" />
-                <span className="ml-2">Create location</span>
-              </Link>
+            <Button size="sm" onClick={() => setWizardOpen(true)}>
+              <Plus className="h-4 w-4" />
+              <span className="ml-2">Create location</span>
             </Button>
+
           </Can>
         </div>
       </div>
