@@ -57,6 +57,12 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["super_admin"],
   },
   {
+    label: "Customers",
+    to: "/customers",
+    icon: UserSquare2,
+    roles: ["super_admin"],
+  },
+  {
     label: "Locations",
     to: "/locations",
     icon: MapPin,
