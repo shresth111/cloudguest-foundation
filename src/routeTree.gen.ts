@@ -29,7 +29,9 @@ import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PortalAdRouteImport } from './routes/portal.ad'
+import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedRbacIndexRouteImport } from './routes/_authenticated/rbac.index'
@@ -44,6 +46,17 @@ import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authenticated/audit.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
+import { Route as AuthenticatedWorkspaceStaffRouteImport } from './routes/_authenticated/workspace.staff'
+import { Route as AuthenticatedWorkspaceRoutersRouteImport } from './routes/_authenticated/workspace.routers'
+import { Route as AuthenticatedWorkspaceReportsRouteImport } from './routes/_authenticated/workspace.reports'
+import { Route as AuthenticatedWorkspaceNotificationsRouteImport } from './routes/_authenticated/workspace.notifications'
+import { Route as AuthenticatedWorkspaceLocationsRouteImport } from './routes/_authenticated/workspace.locations'
+import { Route as AuthenticatedWorkspaceHelpRouteImport } from './routes/_authenticated/workspace.help'
+import { Route as AuthenticatedWorkspaceGuestsRouteImport } from './routes/_authenticated/workspace.guests'
+import { Route as AuthenticatedWorkspaceCompanyRouteImport } from './routes/_authenticated/workspace.company'
+import { Route as AuthenticatedWorkspaceBillingRouteImport } from './routes/_authenticated/workspace.billing'
+import { Route as AuthenticatedWorkspaceAuditRouteImport } from './routes/_authenticated/workspace.audit'
+import { Route as AuthenticatedWorkspaceAnalyticsRouteImport } from './routes/_authenticated/workspace.analytics'
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_authenticated/portals.$portalId'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
@@ -150,11 +163,22 @@ const PortalAdRoute = PortalAdRouteImport.update({
   path: '/ad',
   getParentRoute: () => PortalRoute,
 } as any)
+const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedWorkspaceIndexRoute =
+  AuthenticatedWorkspaceIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/settings/',
@@ -236,6 +260,72 @@ const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   path: '/$method',
   getParentRoute: () => PortalAuthRoute,
 } as any)
+const AuthenticatedWorkspaceStaffRoute =
+  AuthenticatedWorkspaceStaffRouteImport.update({
+    id: '/staff',
+    path: '/staff',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceRoutersRoute =
+  AuthenticatedWorkspaceRoutersRouteImport.update({
+    id: '/routers',
+    path: '/routers',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceReportsRoute =
+  AuthenticatedWorkspaceReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceNotificationsRoute =
+  AuthenticatedWorkspaceNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceLocationsRoute =
+  AuthenticatedWorkspaceLocationsRouteImport.update({
+    id: '/locations',
+    path: '/locations',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceHelpRoute =
+  AuthenticatedWorkspaceHelpRouteImport.update({
+    id: '/help',
+    path: '/help',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceGuestsRoute =
+  AuthenticatedWorkspaceGuestsRouteImport.update({
+    id: '/guests',
+    path: '/guests',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceCompanyRoute =
+  AuthenticatedWorkspaceCompanyRouteImport.update({
+    id: '/company',
+    path: '/company',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceBillingRoute =
+  AuthenticatedWorkspaceBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceAuditRoute =
+  AuthenticatedWorkspaceAuditRouteImport.update({
+    id: '/audit',
+    path: '/audit',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
+const AuthenticatedWorkspaceAnalyticsRoute =
+  AuthenticatedWorkspaceAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
 const AuthenticatedRoutersRouterIdRoute =
   AuthenticatedRoutersRouterIdRouteImport.update({
     id: '/routers/$routerId',
@@ -282,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/expired': typeof PortalExpiredRoute
@@ -300,6 +391,17 @@ export interface FileRoutesByFullPath {
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/workspace/analytics': typeof AuthenticatedWorkspaceAnalyticsRoute
+  '/workspace/audit': typeof AuthenticatedWorkspaceAuditRoute
+  '/workspace/billing': typeof AuthenticatedWorkspaceBillingRoute
+  '/workspace/company': typeof AuthenticatedWorkspaceCompanyRoute
+  '/workspace/guests': typeof AuthenticatedWorkspaceGuestsRoute
+  '/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
+  '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRoute
+  '/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
+  '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
+  '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
+  '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/audit/': typeof AuthenticatedAuditIndexRoute
@@ -314,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/rbac/': typeof AuthenticatedRbacIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -341,6 +444,17 @@ export interface FileRoutesByTo {
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/workspace/analytics': typeof AuthenticatedWorkspaceAnalyticsRoute
+  '/workspace/audit': typeof AuthenticatedWorkspaceAuditRoute
+  '/workspace/billing': typeof AuthenticatedWorkspaceBillingRoute
+  '/workspace/company': typeof AuthenticatedWorkspaceCompanyRoute
+  '/workspace/guests': typeof AuthenticatedWorkspaceGuestsRoute
+  '/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
+  '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRoute
+  '/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
+  '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
+  '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
+  '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/audit': typeof AuthenticatedAuditIndexRoute
@@ -355,6 +469,7 @@ export interface FileRoutesByTo {
   '/rbac': typeof AuthenticatedRbacIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/workspace': typeof AuthenticatedWorkspaceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -367,6 +482,7 @@ export interface FileRoutesById {
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/expired': typeof PortalExpiredRoute
@@ -385,6 +501,17 @@ export interface FileRoutesById {
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/_authenticated/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/_authenticated/workspace/analytics': typeof AuthenticatedWorkspaceAnalyticsRoute
+  '/_authenticated/workspace/audit': typeof AuthenticatedWorkspaceAuditRoute
+  '/_authenticated/workspace/billing': typeof AuthenticatedWorkspaceBillingRoute
+  '/_authenticated/workspace/company': typeof AuthenticatedWorkspaceCompanyRoute
+  '/_authenticated/workspace/guests': typeof AuthenticatedWorkspaceGuestsRoute
+  '/_authenticated/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
+  '/_authenticated/workspace/locations': typeof AuthenticatedWorkspaceLocationsRoute
+  '/_authenticated/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
+  '/_authenticated/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
+  '/_authenticated/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
+  '/_authenticated/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/audit/': typeof AuthenticatedAuditIndexRoute
@@ -399,6 +526,7 @@ export interface FileRoutesById {
   '/_authenticated/rbac/': typeof AuthenticatedRbacIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -411,6 +539,7 @@ export interface FileRouteTypes {
     | '/session-expired'
     | '/verify-otp'
     | '/dashboard'
+    | '/workspace'
     | '/portal/ad'
     | '/portal/auth'
     | '/portal/expired'
@@ -429,6 +558,17 @@ export interface FileRouteTypes {
     | '/organizations/$orgId'
     | '/portals/$portalId'
     | '/routers/$routerId'
+    | '/workspace/analytics'
+    | '/workspace/audit'
+    | '/workspace/billing'
+    | '/workspace/company'
+    | '/workspace/guests'
+    | '/workspace/help'
+    | '/workspace/locations'
+    | '/workspace/notifications'
+    | '/workspace/reports'
+    | '/workspace/routers'
+    | '/workspace/staff'
     | '/portal/auth/$method'
     | '/analytics/'
     | '/audit/'
@@ -443,6 +583,7 @@ export interface FileRouteTypes {
     | '/rbac/'
     | '/routers/'
     | '/settings/'
+    | '/workspace/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -470,6 +611,17 @@ export interface FileRouteTypes {
     | '/organizations/$orgId'
     | '/portals/$portalId'
     | '/routers/$routerId'
+    | '/workspace/analytics'
+    | '/workspace/audit'
+    | '/workspace/billing'
+    | '/workspace/company'
+    | '/workspace/guests'
+    | '/workspace/help'
+    | '/workspace/locations'
+    | '/workspace/notifications'
+    | '/workspace/reports'
+    | '/workspace/routers'
+    | '/workspace/staff'
     | '/portal/auth/$method'
     | '/analytics'
     | '/audit'
@@ -484,6 +636,7 @@ export interface FileRouteTypes {
     | '/rbac'
     | '/routers'
     | '/settings'
+    | '/workspace'
   id:
     | '__root__'
     | '/'
@@ -495,6 +648,7 @@ export interface FileRouteTypes {
     | '/session-expired'
     | '/verify-otp'
     | '/_authenticated/dashboard'
+    | '/_authenticated/workspace'
     | '/portal/ad'
     | '/portal/auth'
     | '/portal/expired'
@@ -513,6 +667,17 @@ export interface FileRouteTypes {
     | '/_authenticated/organizations/$orgId'
     | '/_authenticated/portals/$portalId'
     | '/_authenticated/routers/$routerId'
+    | '/_authenticated/workspace/analytics'
+    | '/_authenticated/workspace/audit'
+    | '/_authenticated/workspace/billing'
+    | '/_authenticated/workspace/company'
+    | '/_authenticated/workspace/guests'
+    | '/_authenticated/workspace/help'
+    | '/_authenticated/workspace/locations'
+    | '/_authenticated/workspace/notifications'
+    | '/_authenticated/workspace/reports'
+    | '/_authenticated/workspace/routers'
+    | '/_authenticated/workspace/staff'
     | '/portal/auth/$method'
     | '/_authenticated/analytics/'
     | '/_authenticated/audit/'
@@ -527,6 +692,7 @@ export interface FileRouteTypes {
     | '/_authenticated/rbac/'
     | '/_authenticated/routers/'
     | '/_authenticated/settings/'
+    | '/_authenticated/workspace/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -682,12 +848,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAdRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/_authenticated/workspace': {
+      id: '/_authenticated/workspace'
+      path: '/workspace'
+      fullPath: '/workspace'
+      preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/workspace/': {
+      id: '/_authenticated/workspace/'
+      path: '/'
+      fullPath: '/workspace/'
+      preLoaderRoute: typeof AuthenticatedWorkspaceIndexRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
     }
     '/_authenticated/settings/': {
       id: '/_authenticated/settings/'
@@ -787,6 +967,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAuthMethodRouteImport
       parentRoute: typeof PortalAuthRoute
     }
+    '/_authenticated/workspace/staff': {
+      id: '/_authenticated/workspace/staff'
+      path: '/staff'
+      fullPath: '/workspace/staff'
+      preLoaderRoute: typeof AuthenticatedWorkspaceStaffRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/routers': {
+      id: '/_authenticated/workspace/routers'
+      path: '/routers'
+      fullPath: '/workspace/routers'
+      preLoaderRoute: typeof AuthenticatedWorkspaceRoutersRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/reports': {
+      id: '/_authenticated/workspace/reports'
+      path: '/reports'
+      fullPath: '/workspace/reports'
+      preLoaderRoute: typeof AuthenticatedWorkspaceReportsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/notifications': {
+      id: '/_authenticated/workspace/notifications'
+      path: '/notifications'
+      fullPath: '/workspace/notifications'
+      preLoaderRoute: typeof AuthenticatedWorkspaceNotificationsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/locations': {
+      id: '/_authenticated/workspace/locations'
+      path: '/locations'
+      fullPath: '/workspace/locations'
+      preLoaderRoute: typeof AuthenticatedWorkspaceLocationsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/help': {
+      id: '/_authenticated/workspace/help'
+      path: '/help'
+      fullPath: '/workspace/help'
+      preLoaderRoute: typeof AuthenticatedWorkspaceHelpRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/guests': {
+      id: '/_authenticated/workspace/guests'
+      path: '/guests'
+      fullPath: '/workspace/guests'
+      preLoaderRoute: typeof AuthenticatedWorkspaceGuestsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/company': {
+      id: '/_authenticated/workspace/company'
+      path: '/company'
+      fullPath: '/workspace/company'
+      preLoaderRoute: typeof AuthenticatedWorkspaceCompanyRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/billing': {
+      id: '/_authenticated/workspace/billing'
+      path: '/billing'
+      fullPath: '/workspace/billing'
+      preLoaderRoute: typeof AuthenticatedWorkspaceBillingRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/audit': {
+      id: '/_authenticated/workspace/audit'
+      path: '/audit'
+      fullPath: '/workspace/audit'
+      preLoaderRoute: typeof AuthenticatedWorkspaceAuditRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
+    '/_authenticated/workspace/analytics': {
+      id: '/_authenticated/workspace/analytics'
+      path: '/analytics'
+      fullPath: '/workspace/analytics'
+      preLoaderRoute: typeof AuthenticatedWorkspaceAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
     '/_authenticated/routers/$routerId': {
       id: '/_authenticated/routers/$routerId'
       path: '/routers/$routerId'
@@ -832,8 +1089,46 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedWorkspaceRouteChildren {
+  AuthenticatedWorkspaceAnalyticsRoute: typeof AuthenticatedWorkspaceAnalyticsRoute
+  AuthenticatedWorkspaceAuditRoute: typeof AuthenticatedWorkspaceAuditRoute
+  AuthenticatedWorkspaceBillingRoute: typeof AuthenticatedWorkspaceBillingRoute
+  AuthenticatedWorkspaceCompanyRoute: typeof AuthenticatedWorkspaceCompanyRoute
+  AuthenticatedWorkspaceGuestsRoute: typeof AuthenticatedWorkspaceGuestsRoute
+  AuthenticatedWorkspaceHelpRoute: typeof AuthenticatedWorkspaceHelpRoute
+  AuthenticatedWorkspaceLocationsRoute: typeof AuthenticatedWorkspaceLocationsRoute
+  AuthenticatedWorkspaceNotificationsRoute: typeof AuthenticatedWorkspaceNotificationsRoute
+  AuthenticatedWorkspaceReportsRoute: typeof AuthenticatedWorkspaceReportsRoute
+  AuthenticatedWorkspaceRoutersRoute: typeof AuthenticatedWorkspaceRoutersRoute
+  AuthenticatedWorkspaceStaffRoute: typeof AuthenticatedWorkspaceStaffRoute
+  AuthenticatedWorkspaceIndexRoute: typeof AuthenticatedWorkspaceIndexRoute
+}
+
+const AuthenticatedWorkspaceRouteChildren: AuthenticatedWorkspaceRouteChildren =
+  {
+    AuthenticatedWorkspaceAnalyticsRoute: AuthenticatedWorkspaceAnalyticsRoute,
+    AuthenticatedWorkspaceAuditRoute: AuthenticatedWorkspaceAuditRoute,
+    AuthenticatedWorkspaceBillingRoute: AuthenticatedWorkspaceBillingRoute,
+    AuthenticatedWorkspaceCompanyRoute: AuthenticatedWorkspaceCompanyRoute,
+    AuthenticatedWorkspaceGuestsRoute: AuthenticatedWorkspaceGuestsRoute,
+    AuthenticatedWorkspaceHelpRoute: AuthenticatedWorkspaceHelpRoute,
+    AuthenticatedWorkspaceLocationsRoute: AuthenticatedWorkspaceLocationsRoute,
+    AuthenticatedWorkspaceNotificationsRoute:
+      AuthenticatedWorkspaceNotificationsRoute,
+    AuthenticatedWorkspaceReportsRoute: AuthenticatedWorkspaceReportsRoute,
+    AuthenticatedWorkspaceRoutersRoute: AuthenticatedWorkspaceRoutersRoute,
+    AuthenticatedWorkspaceStaffRoute: AuthenticatedWorkspaceStaffRoute,
+    AuthenticatedWorkspaceIndexRoute: AuthenticatedWorkspaceIndexRoute,
+  }
+
+const AuthenticatedWorkspaceRouteWithChildren =
+  AuthenticatedWorkspaceRoute._addFileChildren(
+    AuthenticatedWorkspaceRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRouteWithChildren
   AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRoute
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
@@ -857,6 +1152,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRouteWithChildren,
   AuthenticatedCustomersCustomerIdRoute: AuthenticatedCustomersCustomerIdRoute,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
   AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,

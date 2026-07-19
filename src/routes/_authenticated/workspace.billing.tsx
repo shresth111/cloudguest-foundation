@@ -20,11 +20,12 @@ function BillingPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <Metric label="Plan" value={customer.subscription.plan} />
-          <Metric label="Cycle" value={customer.subscription.cycle} />
+          <Metric label="Cycle" value={customer.subscription.billingCycle} />
           <Metric
             label="Renewal"
-            value={new Date(customer.subscription.renewsAt).toLocaleDateString()}
+            value={new Date(customer.subscription.expiryDate).toLocaleDateString()}
           />
+
           <div className="rounded-md bg-muted/40 p-3">
             <p className="text-xs text-muted-foreground">Status</p>
             <Badge className="mt-1 capitalize">{customer.subscription.status}</Badge>
