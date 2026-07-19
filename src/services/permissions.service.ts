@@ -237,6 +237,9 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
 
 const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "Dashboard",
+  "location-master": "Location Master",
+  infrastructure: "Infrastructure",
+  "voucher-master": "Voucher Master",
   routers: "Routers",
   "network-aps": "Access Points",
   vlan: "VLAN",
