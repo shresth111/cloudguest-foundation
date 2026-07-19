@@ -74,6 +74,14 @@ function LocationDetailPage() {
   const disabled =
     location.status === "inactive" || location.status === "suspended" || location.status === "offline";
 
+  const canEdit = can("location-master", "edit");
+  const canDelete = can("location-master", "delete");
+  const canCreate = can("location-master", "create");
+  const canRestart = can("location-master", "restart");
+  const canExport = can("location-master", "export");
+  const anyMenu = canCreate || canRestart || canExport || canDelete;
+
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
