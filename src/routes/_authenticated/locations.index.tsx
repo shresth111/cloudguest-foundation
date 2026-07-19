@@ -81,6 +81,13 @@ function LocationMasterPage() {
       ) : (
         <LocationTable />
       )}
+
+      <PlatformLocationWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onProvisioned={() => qc.invalidateQueries({ queryKey: ["locations"] })}
+      />
     </div>
   );
 }
+
