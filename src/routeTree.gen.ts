@@ -74,6 +74,9 @@ import { Route as AuthenticatedSupportDocumentationRouteImport } from './routes/
 import { Route as AuthenticatedSupportContactRouteImport } from './routes/_authenticated/support.contact'
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedPortalsPortalIdRouteImport } from './routes/_authenticated/portals.$portalId'
+import { Route as AuthenticatedPoliciesUserRouteImport } from './routes/_authenticated/policies.user'
+import { Route as AuthenticatedPoliciesLocationRouteImport } from './routes/_authenticated/policies.location'
+import { Route as AuthenticatedPoliciesGroupRouteImport } from './routes/_authenticated/policies.group'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
 import { Route as AuthenticatedOperationsAlertsRouteImport } from './routes/_authenticated/operations.alerts'
 import { Route as AuthenticatedOperationsAdminLogsRouteImport } from './routes/_authenticated/operations.admin-logs'
@@ -465,6 +468,24 @@ const AuthenticatedPortalsPortalIdRoute =
     path: '/portals/$portalId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedPoliciesUserRoute =
+  AuthenticatedPoliciesUserRouteImport.update({
+    id: '/policies/user',
+    path: '/policies/user',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPoliciesLocationRoute =
+  AuthenticatedPoliciesLocationRouteImport.update({
+    id: '/policies/location',
+    path: '/policies/location',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPoliciesGroupRoute =
+  AuthenticatedPoliciesGroupRouteImport.update({
+    id: '/policies/group',
+    path: '/policies/group',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedOrganizationsOrgIdRoute =
   AuthenticatedOrganizationsOrgIdRouteImport.update({
     id: '/organizations/$orgId',
@@ -686,6 +707,9 @@ export interface FileRoutesByFullPath {
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/policies/group': typeof AuthenticatedPoliciesGroupRoute
+  '/policies/location': typeof AuthenticatedPoliciesLocationRoute
+  '/policies/user': typeof AuthenticatedPoliciesUserRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/support/contact': typeof AuthenticatedSupportContactRoute
@@ -779,6 +803,9 @@ export interface FileRoutesByTo {
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/policies/group': typeof AuthenticatedPoliciesGroupRoute
+  '/policies/location': typeof AuthenticatedPoliciesLocationRoute
+  '/policies/user': typeof AuthenticatedPoliciesUserRoute
   '/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/support/contact': typeof AuthenticatedSupportContactRoute
@@ -876,6 +903,9 @@ export interface FileRoutesById {
   '/_authenticated/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
   '/_authenticated/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
+  '/_authenticated/policies/group': typeof AuthenticatedPoliciesGroupRoute
+  '/_authenticated/policies/location': typeof AuthenticatedPoliciesLocationRoute
+  '/_authenticated/policies/user': typeof AuthenticatedPoliciesUserRoute
   '/_authenticated/portals/$portalId': typeof AuthenticatedPortalsPortalIdRoute
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/_authenticated/support/contact': typeof AuthenticatedSupportContactRoute
@@ -973,6 +1003,9 @@ export interface FileRouteTypes {
     | '/operations/admin-logs'
     | '/operations/alerts'
     | '/organizations/$orgId'
+    | '/policies/group'
+    | '/policies/location'
+    | '/policies/user'
     | '/portals/$portalId'
     | '/routers/$routerId'
     | '/support/contact'
@@ -1066,6 +1099,9 @@ export interface FileRouteTypes {
     | '/operations/admin-logs'
     | '/operations/alerts'
     | '/organizations/$orgId'
+    | '/policies/group'
+    | '/policies/location'
+    | '/policies/user'
     | '/portals/$portalId'
     | '/routers/$routerId'
     | '/support/contact'
@@ -1162,6 +1198,9 @@ export interface FileRouteTypes {
     | '/_authenticated/operations/admin-logs'
     | '/_authenticated/operations/alerts'
     | '/_authenticated/organizations/$orgId'
+    | '/_authenticated/policies/group'
+    | '/_authenticated/policies/location'
+    | '/_authenticated/policies/user'
     | '/_authenticated/portals/$portalId'
     | '/_authenticated/routers/$routerId'
     | '/_authenticated/support/contact'
@@ -1676,6 +1715,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPortalsPortalIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/policies/user': {
+      id: '/_authenticated/policies/user'
+      path: '/policies/user'
+      fullPath: '/policies/user'
+      preLoaderRoute: typeof AuthenticatedPoliciesUserRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/policies/location': {
+      id: '/_authenticated/policies/location'
+      path: '/policies/location'
+      fullPath: '/policies/location'
+      preLoaderRoute: typeof AuthenticatedPoliciesLocationRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/policies/group': {
+      id: '/_authenticated/policies/group'
+      path: '/policies/group'
+      fullPath: '/policies/group'
+      preLoaderRoute: typeof AuthenticatedPoliciesGroupRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/organizations/$orgId': {
       id: '/_authenticated/organizations/$orgId'
       path: '/organizations/$orgId'
@@ -1984,6 +2044,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOperationsAdminLogsRoute: typeof AuthenticatedOperationsAdminLogsRoute
   AuthenticatedOperationsAlertsRoute: typeof AuthenticatedOperationsAlertsRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
+  AuthenticatedPoliciesGroupRoute: typeof AuthenticatedPoliciesGroupRoute
+  AuthenticatedPoliciesLocationRoute: typeof AuthenticatedPoliciesLocationRoute
+  AuthenticatedPoliciesUserRoute: typeof AuthenticatedPoliciesUserRoute
   AuthenticatedPortalsPortalIdRoute: typeof AuthenticatedPortalsPortalIdRoute
   AuthenticatedRoutersRouterIdRoute: typeof AuthenticatedRoutersRouterIdRoute
   AuthenticatedSupportContactRoute: typeof AuthenticatedSupportContactRoute
@@ -2047,6 +2110,9 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOperationsAdminLogsRoute: AuthenticatedOperationsAdminLogsRoute,
   AuthenticatedOperationsAlertsRoute: AuthenticatedOperationsAlertsRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
+  AuthenticatedPoliciesGroupRoute: AuthenticatedPoliciesGroupRoute,
+  AuthenticatedPoliciesLocationRoute: AuthenticatedPoliciesLocationRoute,
+  AuthenticatedPoliciesUserRoute: AuthenticatedPoliciesUserRoute,
   AuthenticatedPortalsPortalIdRoute: AuthenticatedPortalsPortalIdRoute,
   AuthenticatedRoutersRouterIdRoute: AuthenticatedRoutersRouterIdRoute,
   AuthenticatedSupportContactRoute: AuthenticatedSupportContactRoute,
