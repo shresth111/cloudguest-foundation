@@ -443,6 +443,12 @@ export function LocationTable() {
                           <span className="text-xs text-muted-foreground">{r.id}</span>
                         </Link>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{r.ownerName ?? "—"}</span>
+                          <span className="text-xs text-muted-foreground">{r.ownerEmail ?? r.organizationName}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm">{r.organizationName}</TableCell>
                       <TableCell>
                         <SiteTypeBadge type={r.siteType} />
