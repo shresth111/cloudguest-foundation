@@ -1,55 +1,89 @@
+## Customer Workspace (FE-020)
 
-## Scope
+Goal: give Org-Admin / Location-Manager roles a unified workspace scoped to a single customer, without duplicating existing modules. Super-Admin keeps today's cross-tenant view; the new shell is a sibling that reuses the same services, queries, forms, and shadcn components.
 
-Enhance the existing Locations module in place. No new project, no replaced routes, no duplicated components. All work extends `src/components/locations/*`, `src/services/location.service.ts`, and adds a light `customer.service.ts` layer that reuses existing organization/router/billing mocks.
+### Scope boundaries (what this task does NOT touch)
 
-## What changes
+- No new routing framework, auth, RBAC, theme, or API layer.
+- No changes to existing pages (`/dashboard`, `/locations`, `/routers`, `/guests`, `/audit`, `/billing`, `/analytics`, `/settings`, `/customers`, etc.) — they stay as-is for Super-Admin.
+- No new backend. Everything runs off the existing mock services (`customer.service`, `location.service`, `router.service`, `guest.service`, `billing.service`, `audit.service`, `superadmin.service`, `rbac.service`).
 
-### 1. Location list (existing `/locations`)
-- Extend `LocationTable.tsx` columns to include: Property Type, Location Name, Owner, Customer, Subscription, Router, Status, Created Date, Actions. Keep existing search/filters/export/create button and view toggles (table/card/map) intact — only add columns and an Owner/Customer cell.
-- No route change. Sidebar unchanged (already exposes Locations).
+### Architecture
 
-### 2. Smart Provisioning Wizard (replaces body of existing `LocationWizard.tsx`)
-Reuse the same `LocationWizard` component and its existing dialog trigger — internally swap the current 4-step form for a 9-step stepper. Steps:
+New pathless layout `src/routes/_authenticated/_workspace.tsx`:
+- `beforeLoad` gate: only `org_admin`, `location_manager`, `read_only` land here (Super-Admin is redirected to `/customers`).
+- Provides `WorkspaceContext` with the resolved customer + active location scope.
+- Renders a workspace-specific sidebar and header while keeping the app's existing outer chrome (`SidebarProvider`, theme, notifications).
 
-1. **Customer Lookup** — Email + optional Mobile. On email blur call mock `customerService.checkOwner(email)`. Show skeleton → New Customer panel or Existing Customer card. Branch state is stored in wizard context and drives every later step.
-2. **Property Information** — type, name, auto-generated code, country/state/city/address/timezone/lat/lng, optional logo.
-3. **Location Owner** — new: collect name/email/mobile + auto-generated username/temp password + force-reset toggle. Existing: read-only owner card with "View Owner".
-4. **Router Registration** — serial, model, RouterOS version, public IP, private IP, WireGuard toggle. Live preview card.
-5. **Subscription** — plan (Trial/Starter/Professional/Enterprise/Custom), billing cycle, expiry. Existing customer: show current plan/limits/locations + "Keep existing" or "Upgrade".
-6. **Feature Access** — grouped checkbox cards (Networking, Management, Analytics, Authentication, Branding, Developer).
-7. **Plan Limits** — editable numeric cards for locations/routers/guests/sessions/staff/api keys/storage/sms/email.
-8. **Review** — summary cards. For existing customer, also render the list of existing properties + the new one badged "New".
-9. **Provision** — animated checklist timeline + progress bar calling `customerService.provision(payload)` (mock, staged setTimeouts). Ends on success screen with two variants (new vs existing) — copy credentials, download PDF (client-side jsPDF-free: use `window.print` for print, plain text blob download for PDF-substitute), print, resend welcome, open dashboard / view all locations / create another.
+Active-location state is a URL search param (`?loc=<id>` or `all`) on every workspace route — persistable, shareable, matches the pattern we already use for Customers filters. A `useActiveLocation()` hook reads/writes it and derives filtered query keys.
 
-Validation: React Hook Form + Zod per step; Next disabled until valid. TanStack Query mutation invalidates `locationKeys.all` and `orgKeys.all` on success.
+### New files (all under `src/…/workspace/`)
 
-### 3. Customer/location switcher on existing dashboard
-Add a `LocationSwitcher` control into `TopNavbar.tsx` (Super Admin + Org Admin only) — a shadcn `Command`-powered dropdown listing "All Properties" + each location grouped by customer. Selection writes to a new lightweight `CurrentLocationContext`; existing dashboard hooks read the id if present to scope queries (mock services accept an optional `locationId` filter — pass-through, no behavior change when unset). No dashboard layout changes beyond mounting the switcher and context provider.
+Routes (`src/routes/_authenticated/_workspace/`):
+- `route.tsx` — layout + gate + context.
+- `index.tsx` → `/workspace` — Customer Dashboard.
+- `locations.tsx` — grid + tree of the customer's properties.
+- `routers.tsx` — routers overview scoped to active location.
+- `guests.tsx` — guests overview scoped to active location.
+- `staff.tsx` — staff rollup by role.
+- `analytics.tsx` — customer analytics.
+- `reports.tsx` — report generator + export.
+- `billing.tsx` — plan / invoices / usage.
+- `notifications.tsx` — notification center.
+- `audit.tsx` — timeline + filters.
+- `company.tsx` — Customer Profile (10 tabs: Overview, Company, Business, Locations, Subscription, Billing, Feature Access, API Keys, Branding, Audit).
+- `help.tsx` — help center.
 
-### 4. Data layer
-- New `src/services/customer.service.ts` with `checkOwner`, `provision`, `listCustomersWithLocations`. Backed by existing `organizationService` + `locationService` mocks. Deterministic seed so `owner@existing.com` returns an existing customer.
-- New `src/hooks/useCustomer.ts` exposing `useCheckOwner` (lazy query) and `useProvisionCustomer` mutation.
-- New `src/lib/provisioning-schemas.ts` — per-step Zod schemas + wizard union.
-- Extend `src/types/location.ts` with `ownerName`, `ownerEmail` optional fields; extend seed generator to populate.
+Components (`src/components/workspace/`):
+- `WorkspaceSidebar.tsx`, `WorkspaceHeader.tsx`, `LocationSwitcher.tsx`, `WorkspaceCommandPalette.tsx` (⌘K).
+- `dashboard/SummaryCards.tsx`, `DashboardCharts.tsx`, `RecentActivity.tsx`, `QuickActions.tsx`.
+- `locations/LocationGrid.tsx`, `LocationCard.tsx`, `LocationTree.tsx`.
+- `staff/StaffOverview.tsx`, `guests/GuestOverview.tsx`, `routers/RoutersOverview.tsx`.
+- `company/CompanyTabs.tsx` + tab panels.
+- `common/WorkspaceEmpty.tsx`, `WorkspaceError.tsx`, skeletons.
 
-### 5. Access control
-Wizard trigger and provisioning mutation gated to Super Admin via existing `useAuth` role check (reuses `roles.ts`). Non-super-admin sees the existing simple create flow disabled with tooltip.
+Hooks: `src/hooks/useWorkspace.ts` — `useActiveCustomer`, `useActiveLocation`, `useWorkspaceScope`. Wraps existing query hooks and injects the active-location filter.
 
-## Technical notes
+### Reuse map (no duplication)
 
-- No new routes. No sidebar edits (Locations already present). "Customers/Subscriptions/Plans/Feature Management" items in the user's sidebar sketch already map to existing Organizations/Billing/Branding entries — not renaming to avoid churn.
-- No new npm dependencies. PDF export uses a text blob (`Download credentials.txt`) + `window.print()` for print-to-PDF, matching existing export patterns.
-- Reuses existing shadcn primitives (Dialog, Card, Tabs, Progress, Command, Badge, Skeleton, Toast).
-- Dark/light mode inherited from existing theme tokens; no new colors.
+- Location grid / tree → uses `useCustomer(customerId)` + existing `location.service`.
+- Routers overview → wraps `useRouters` filtered by scope; drills into existing `/routers/$routerId`.
+- Guests overview → wraps `useGuests` + existing session components.
+- Analytics → embeds existing `AnalyticsKpiGrid`, chart panels from `analytics/`.
+- Reports → embeds existing `ReportCenter`, `CustomReportBuilder`.
+- Billing → embeds existing `SubscriptionTable`, `RevenueAnalyticsPanel`.
+- Audit → embeds `AuditTable`, `ActivityTimeline`, `AuditDetailsDrawer`.
+- Company Profile → embeds branding editor, feature-access grid, and existing customer detail panels.
+- Command palette → same `GlobalSearch` primitive, filtered to customer scope.
 
-## Files touched
+### Sidebar / nav
 
-Edit: `LocationWizard.tsx`, `LocationTable.tsx`, `TopNavbar.tsx`, `location.service.ts`, `types/location.ts`, `router.tsx` (mount `CurrentLocationProvider`).
-Add: `services/customer.service.ts`, `hooks/useCustomer.ts`, `context/CurrentLocationContext.tsx`, `components/layout/LocationSwitcher.tsx`, `lib/provisioning-schemas.ts`, `components/locations/wizard/` (Step1Lookup, Step2Property, Step3Owner, Step4Router, Step5Subscription, Step6Features, Step7Limits, Step8Review, Step9Provision, SuccessScreen).
+`src/lib/roles.ts` gets a new `WORKSPACE_NAV_ITEMS` list (Dashboard, Locations, Routers, Guests, Staff, Analytics, Reports, Billing, Notifications, Audit, Company Settings, Help). Existing `NAV_ITEMS` is untouched. Post-login redirect (`src/lib/roles.ts` role→home map) sends non-Super-Admin roles to `/workspace`; Super-Admin still lands on `/dashboard`.
 
-## Out of scope
+### RBAC
 
-- Renaming sidebar sections or adding new top-level routes.
-- Real backend / Supabase — everything remains mock services per prior modules.
-- Redesigning existing dashboard cards or location detail tabs.
+Sidebar items filtered via existing `hasRole` helpers on `AuthContext`. Buttons like "Register Router", "Invite Staff", "Upgrade Plan" gated by role. Read-only role hides mutating actions.
+
+### States
+
+Every route ships skeleton, empty (`Welcome to CloudGuest → Create Location`), and error (retry via `router.invalidate()`) variants using the existing `LoadingSkeleton` / `WorkspaceEmpty` / toast primitives.
+
+### Responsiveness
+
+Reuses existing `SidebarProvider` collapse behaviour. Grid → 1/2/3 col at sm/md/xl. Data tables use existing horizontal-scroll wrappers. Charts use `ResponsiveContainer` as elsewhere.
+
+### Out of scope (explicit)
+
+- No new mock data seeds beyond thin selectors over existing customer/location/router/guest data.
+- No new payment/webhook plumbing.
+- No changes to Super-Admin routes or the Customers 360 page.
+
+### Delivery order
+
+1. Layout, context, sidebar, header, location switcher, role gating, post-login redirect.
+2. Dashboard (summary cards, charts, recent activity, quick actions, command palette).
+3. Locations grid + tree, Routers/Guests/Staff overviews.
+4. Analytics, Reports, Billing, Notifications, Audit (embedding existing modules).
+5. Company Profile tabs + Help Center + empty/error polish.
+
+Approve and I'll implement in that order in a single pass.

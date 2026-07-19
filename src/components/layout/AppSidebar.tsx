@@ -13,12 +13,15 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
-import { navForRole, ROLE_LABELS } from "@/lib/roles";
+import { navForRole, ROLE_LABELS, workspaceNavForRole } from "@/lib/roles";
 
 export function AppSidebar() {
   const { user } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const items = user ? navForRole(user.role) : [];
+  const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
+  const items = user ? (inWorkspace ? workspaceNavForRole(user.role) : navForRole(user.role)) : [];
+  const groupLabel = inWorkspace ? "Customer workspace" : "Console";
+
 
   return (
     <Sidebar collapsible="icon">
@@ -35,11 +38,15 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item, idx) => {
-                const active = pathname === item.to && idx === 0;
+                const active =
+                  item.to === "/workspace"
+                    ? pathname === "/workspace"
+                    : pathname === item.to || pathname.startsWith(item.to + "/");
+
                 return (
                   <SidebarMenuItem key={`${item.label}-${idx}`}>
                     <SidebarMenuButton asChild isActive={active} tooltip={item.label}>

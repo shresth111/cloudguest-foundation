@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/auth.service";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, homeRouteForRole } from "@/lib/roles";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -39,9 +39,10 @@ function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      await login(values);
+      const session = await login(values);
       toast.success("Welcome back");
-      navigate({ to: "/dashboard", replace: true });
+      navigate({ to: homeRouteForRole(session.user.role), replace: true });
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {
