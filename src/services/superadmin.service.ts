@@ -33,18 +33,16 @@ export const superAdminService = {
   async getKpis(): Promise<Kpi[]> {
     await delay(400);
     return [
-      { key: "orgs_total", label: "Total Organizations", value: "1,284", delta: "+42", trend: "up", hint: "vs last month" },
-      { key: "orgs_active", label: "Active Organizations", value: "1,196", delta: "+3.1%", trend: "up" },
-      { key: "locations", label: "Total Locations", value: "8,942", delta: "+184", trend: "up" },
-      { key: "routers_active", label: "Active Routers", value: "24,318", delta: "+312", trend: "up" },
-      { key: "routers_online", label: "Online Routers", value: "23,704", delta: "97.5%", trend: "flat" },
-      { key: "routers_offline", label: "Offline Routers", value: "614", delta: "-38", trend: "down" },
-      { key: "guests_active", label: "Active Guests", value: "182,430", delta: "+8.2%", trend: "up" },
-      { key: "devices", label: "Connected Devices", value: "298,712", delta: "+6.4%", trend: "up" },
-      { key: "sessions", label: "Active Sessions", value: "72,148", delta: "Live", trend: "flat" },
-      { key: "mrr", label: "Revenue (MRR)", value: "$482,904", delta: "+11.3%", trend: "up", hint: "MoM" },
-      { key: "expiring", label: "Expiring Subscriptions", value: "38", delta: "next 30d", trend: "flat" },
-      { key: "tickets", label: "Open Support Tickets", value: "142", delta: "-12", trend: "down" },
+      { key: "totalCustomers", label: "Total Customers", value: "312", delta: "+18", trend: "up", hint: "vs last month" },
+      { key: "totalOrgs", label: "Total Organizations", value: "1,284", delta: "+42", trend: "up" },
+      { key: "totalLocations", label: "Total Locations", value: "8,942", delta: "+184", trend: "up" },
+      { key: "registeredNas", label: "Registered NAS", value: "24,318", delta: "+312", trend: "up" },
+      { key: "onlineNas", label: "Online NAS", value: "23,704", delta: "97.5%", trend: "flat" },
+      { key: "offlineNas", label: "Offline NAS", value: "614", delta: "-38", trend: "down" },
+      { key: "activeSubscriptions", label: "Active Subscriptions", value: "1,196", delta: "+3.1%", trend: "up" },
+      { key: "mrr", label: "Monthly Revenue", value: "$482,904", delta: "+11.3%", trend: "up", hint: "MoM" },
+      { key: "licenseUsage", label: "License Usage", value: "78%", delta: "+2.1%", trend: "up" },
+      { key: "platformHealth", label: "Platform Health", value: "99.98%", delta: "SLA", trend: "flat" },
     ];
   },
 
