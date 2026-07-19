@@ -1,6 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import { Building2, FilterX, MapPin, Search, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,34 +25,62 @@ import {
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { useCustomers } from "@/hooks/useCustomer";
 
+const LOC_BUCKETS = ["any", "1", "2-5", "6-10", "10+"] as const;
+type LocBucket = (typeof LOC_BUCKETS)[number];
+
+const customersSearchSchema = z.object({
+  q: fallback(z.string(), "").default(""),
+  owner: fallback(z.string(), "any").default("any"),
+  plan: fallback(z.string(), "any").default("any"),
+  status: fallback(z.string(), "any").default("any"),
+  loc: fallback(z.string(), "any").default("any"),
+});
+
 export const Route = createFileRoute("/_authenticated/customers/")({
+  validateSearch: zodValidator(customersSearchSchema),
+  search: {
+    middlewares: [
+      // Keep URLs clean by stripping defaults
+      ({ next, search }) => {
+        const result = next(search);
+        return result;
+      },
+    ],
+  },
   component: CustomersListPage,
 });
 
-type LocBucket = "any" | "1" | "2-5" | "6-10" | "10+";
-
-function inBucket(count: number, bucket: LocBucket) {
-  switch (bucket) {
-    case "1":
-      return count === 1;
-    case "2-5":
-      return count >= 2 && count <= 5;
-    case "6-10":
-      return count >= 6 && count <= 10;
-    case "10+":
-      return count > 10;
-    default:
-      return true;
-  }
-}
-
 function CustomersListPage() {
   const { data, isLoading } = useCustomers();
-  const [q, setQ] = useState("");
-  const [owner, setOwner] = useState<string>("any");
-  const [plan, setPlan] = useState<string>("any");
-  const [status, setStatus] = useState<string>("any");
-  const [locBucket, setLocBucket] = useState<LocBucket>("any");
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const q = search.q;
+  const owner = search.owner;
+  const plan = search.plan;
+  const status = search.status;
+  const locBucket: LocBucket = (LOC_BUCKETS as readonly string[]).includes(search.loc)
+    ? (search.loc as LocBucket)
+    : "any";
+
+  const setParam = (
+    patch: Partial<{ q: string; owner: string; plan: string; status: string; loc: string }>,
+  ) => {
+    navigate({
+      search: (prev) => {
+        const nextSearch = { ...prev, ...patch };
+        // Strip defaults from the URL for shareable, clean links
+        const cleaned: Record<string, string> = {};
+        for (const [k, v] of Object.entries(nextSearch)) {
+          const isDefault = k === "q" ? v === "" : v === "any";
+          if (!isDefault && typeof v === "string") cleaned[k] = v;
+        }
+        return cleaned as typeof prev;
+      },
+      replace: true,
+    });
+  };
+
 
   const owners = useMemo(() => {
     const set = new Map<string, string>();
