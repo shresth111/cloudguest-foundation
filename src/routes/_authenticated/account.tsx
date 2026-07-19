@@ -3,15 +3,14 @@ import { useState } from "react";
 import { z } from "zod";
 import {
   Bell,
-  Check,
-  Copy,
+  Building2,
+  Clock,
   KeyRound,
   KeySquare,
   Loader2,
   Monitor,
-  Plus,
+  Settings2,
   ShieldCheck,
-  Trash2,
   UserCog,
   User as UserIcon,
 } from "lucide-react";
@@ -36,11 +35,14 @@ import { cn } from "@/lib/utils";
 
 const SECTION_KEYS = [
   "profile",
+  "company",
   "account",
+  "preferences",
   "security",
   "password",
   "two-factor",
   "sessions",
+  "history",
   "notifications",
   "api-tokens",
 ] as const;
@@ -57,11 +59,14 @@ export const Route = createFileRoute("/_authenticated/account")({
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof UserIcon; description: string }[] = [
   { key: "profile", label: "Profile", icon: UserIcon, description: "Public info" },
-  { key: "account", label: "Account", icon: UserCog, description: "Preferences" },
+  { key: "company", label: "Company", icon: Building2, description: "Organization details" },
+  { key: "account", label: "Account", icon: UserCog, description: "Localization" },
+  { key: "preferences", label: "Preferences", icon: Settings2, description: "Display & density" },
   { key: "security", label: "Security", icon: ShieldCheck, description: "Overview" },
   { key: "password", label: "Password", icon: KeyRound, description: "Change password" },
   { key: "two-factor", label: "Two-factor", icon: ShieldCheck, description: "Authenticator" },
   { key: "sessions", label: "Sessions", icon: Monitor, description: "Signed-in devices" },
+  { key: "history", label: "Login history", icon: Clock, description: "Recent sign-ins" },
   { key: "notifications", label: "Notifications", icon: Bell, description: "Delivery preferences" },
   { key: "api-tokens", label: "API tokens", icon: KeySquare, description: "Personal access" },
 ];
