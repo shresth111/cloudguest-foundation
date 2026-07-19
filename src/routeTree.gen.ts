@@ -20,9 +20,11 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
 import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations.index'
 import { Route as AuthenticatedLocationsIndexRouteImport } from './routes/_authenticated/locations.index'
+import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
+import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
@@ -81,6 +83,12 @@ const AuthenticatedLocationsIndexRoute =
     path: '/locations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedGuestsIndexRoute =
+  AuthenticatedGuestsIndexRouteImport.update({
+    id: '/guests/',
+    path: '/guests/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedRoutersRouterIdRoute =
   AuthenticatedRoutersRouterIdRouteImport.update({
     id: '/routers/$routerId',
@@ -99,6 +107,12 @@ const AuthenticatedLocationsLocationIdRoute =
     path: '/locations/$locationId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedGuestsGuestIdRoute =
+  AuthenticatedGuestsGuestIdRouteImport.update({
+    id: '/guests/$guestId',
+    path: '/guests/$guestId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -108,9 +122,11 @@ export interface FileRoutesByFullPath {
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/locations/': typeof AuthenticatedLocationsIndexRoute
   '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -123,9 +139,11 @@ export interface FileRoutesByTo {
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/guests': typeof AuthenticatedGuestsIndexRoute
   '/locations': typeof AuthenticatedLocationsIndexRoute
   '/organizations': typeof AuthenticatedOrganizationsIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
@@ -140,9 +158,11 @@ export interface FileRoutesById {
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
+  '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/locations/': typeof AuthenticatedLocationsIndexRoute
   '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
@@ -157,9 +177,11 @@ export interface FileRouteTypes {
     | '/session-expired'
     | '/verify-otp'
     | '/dashboard'
+    | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
     | '/routers/$routerId'
+    | '/guests/'
     | '/locations/'
     | '/organizations/'
     | '/routers/'
@@ -172,9 +194,11 @@ export interface FileRouteTypes {
     | '/session-expired'
     | '/verify-otp'
     | '/dashboard'
+    | '/guests/$guestId'
     | '/locations/$locationId'
     | '/organizations/$orgId'
     | '/routers/$routerId'
+    | '/guests'
     | '/locations'
     | '/organizations'
     | '/routers'
@@ -188,9 +212,11 @@ export interface FileRouteTypes {
     | '/session-expired'
     | '/verify-otp'
     | '/_authenticated/dashboard'
+    | '/_authenticated/guests/$guestId'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/organizations/$orgId'
     | '/_authenticated/routers/$routerId'
+    | '/_authenticated/guests/'
     | '/_authenticated/locations/'
     | '/_authenticated/organizations/'
     | '/_authenticated/routers/'
@@ -285,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/guests/': {
+      id: '/_authenticated/guests/'
+      path: '/guests'
+      fullPath: '/guests/'
+      preLoaderRoute: typeof AuthenticatedGuestsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/routers/$routerId': {
       id: '/_authenticated/routers/$routerId'
       path: '/routers/$routerId'
@@ -306,14 +339,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsLocationIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/guests/$guestId': {
+      id: '/_authenticated/guests/$guestId'
+      path: '/guests/$guestId'
+      fullPath: '/guests/$guestId'
+      preLoaderRoute: typeof AuthenticatedGuestsGuestIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
   AuthenticatedRoutersRouterIdRoute: typeof AuthenticatedRoutersRouterIdRoute
+  AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedLocationsIndexRoute: typeof AuthenticatedLocationsIndexRoute
   AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
@@ -321,9 +363,11 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
   AuthenticatedLocationsLocationIdRoute: AuthenticatedLocationsLocationIdRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
   AuthenticatedRoutersRouterIdRoute: AuthenticatedRoutersRouterIdRoute,
+  AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
   AuthenticatedLocationsIndexRoute: AuthenticatedLocationsIndexRoute,
   AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,

@@ -62,7 +62,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Guests",
-    to: "/dashboard",
+    to: "/guests",
     icon: Users,
     roles: ["super_admin", "org_admin", "location_manager", "read_only"],
   },
