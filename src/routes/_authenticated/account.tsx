@@ -4,13 +4,17 @@ import { z } from "zod";
 import {
   Bell,
   Building2,
+  Check,
   Clock,
+  Copy,
   KeyRound,
   KeySquare,
   Loader2,
   Monitor,
+  Plus,
   Settings2,
   ShieldCheck,
+  Trash2,
   UserCog,
   User as UserIcon,
 } from "lucide-react";
