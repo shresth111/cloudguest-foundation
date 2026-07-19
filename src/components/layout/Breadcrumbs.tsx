@@ -59,7 +59,7 @@ export function Breadcrumbs() {
 
         let label = humanize(seg);
         if (i === locIdx && location?.name) label = location.name;
-        else if (i === nasIdx && nas?.identity) label = nas.identity;
+        else if (i === nasIdx && nas?.name) label = nas.name;
 
         return (
           <span key={seg + i} className="flex items-center">
