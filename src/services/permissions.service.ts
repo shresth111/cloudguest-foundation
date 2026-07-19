@@ -155,6 +155,9 @@ const ROUTER_ACTIONS_BY_ROLE: Record<UserRole, Partial<Record<RouterAction, bool
 
 const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   dashboard: "LayoutDashboard",
+  "location-master": "MapPinned",
+  infrastructure: "ServerCog",
+  "voucher-master": "Ticket",
   // Network
   routers: "Router",
   "network-aps": "Wifi",
