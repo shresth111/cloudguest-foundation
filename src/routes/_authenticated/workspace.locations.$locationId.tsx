@@ -75,7 +75,7 @@ function LocationWorkspacePage() {
   }, [customers, locationId]);
 
   const setTab = (t: TabKey) =>
-    navigate({ to: ".", params: { locationId }, search: (prev) => ({ ...prev, tab: t }) });
+    navigate({ to: ".", params: { locationId }, search: (prev: { tab: TabKey }) => ({ ...prev, tab: t }) });
 
   if (loadingCustomers) return <LocationWorkspaceSkeleton />;
   if (!context) {
