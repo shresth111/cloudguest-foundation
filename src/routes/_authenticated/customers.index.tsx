@@ -203,7 +203,7 @@ function CustomersListPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={owner} onValueChange={setOwner}>
+            <Select value={owner} onValueChange={(v) => setParam({ owner: v })}>
               <SelectTrigger className="h-9 w-[200px]">
                 <SelectValue placeholder="Owner" />
               </SelectTrigger>
