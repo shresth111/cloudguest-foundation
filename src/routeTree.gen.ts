@@ -76,6 +76,7 @@ import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$meth
 import { Route as AuthenticatedWorkspaceStaffRouteImport } from './routes/_authenticated/workspace.staff'
 import { Route as AuthenticatedWorkspaceRoutersRouteImport } from './routes/_authenticated/workspace.routers'
 import { Route as AuthenticatedWorkspaceReportsRouteImport } from './routes/_authenticated/workspace.reports'
+import { Route as AuthenticatedWorkspacePendingScopeRouteImport } from './routes/_authenticated/workspace.pending-scope'
 import { Route as AuthenticatedWorkspaceNotificationsRouteImport } from './routes/_authenticated/workspace.notifications'
 import { Route as AuthenticatedWorkspaceLocationsRouteImport } from './routes/_authenticated/workspace.locations'
 import { Route as AuthenticatedWorkspaceHelpRouteImport } from './routes/_authenticated/workspace.help'
@@ -493,6 +494,12 @@ const AuthenticatedWorkspaceReportsRoute =
     path: '/reports',
     getParentRoute: () => AuthenticatedWorkspaceRoute,
   } as any)
+const AuthenticatedWorkspacePendingScopeRoute =
+  AuthenticatedWorkspacePendingScopeRouteImport.update({
+    id: '/pending-scope',
+    path: '/pending-scope',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
 const AuthenticatedWorkspaceNotificationsRoute =
   AuthenticatedWorkspaceNotificationsRouteImport.update({
     id: '/notifications',
@@ -851,6 +858,7 @@ export interface FileRoutesByFullPath {
   '/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
   '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   '/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
+  '/workspace/pending-scope': typeof AuthenticatedWorkspacePendingScopeRoute
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
@@ -963,6 +971,7 @@ export interface FileRoutesByTo {
   '/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
   '/workspace/locations': typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   '/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
+  '/workspace/pending-scope': typeof AuthenticatedWorkspacePendingScopeRoute
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
@@ -1081,6 +1090,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace/help': typeof AuthenticatedWorkspaceHelpRoute
   '/_authenticated/workspace/locations': typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   '/_authenticated/workspace/notifications': typeof AuthenticatedWorkspaceNotificationsRoute
+  '/_authenticated/workspace/pending-scope': typeof AuthenticatedWorkspacePendingScopeRoute
   '/_authenticated/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/_authenticated/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/_authenticated/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
@@ -1199,6 +1209,7 @@ export interface FileRouteTypes {
     | '/workspace/help'
     | '/workspace/locations'
     | '/workspace/notifications'
+    | '/workspace/pending-scope'
     | '/workspace/reports'
     | '/workspace/routers'
     | '/workspace/staff'
@@ -1311,6 +1322,7 @@ export interface FileRouteTypes {
     | '/workspace/help'
     | '/workspace/locations'
     | '/workspace/notifications'
+    | '/workspace/pending-scope'
     | '/workspace/reports'
     | '/workspace/routers'
     | '/workspace/staff'
@@ -1428,6 +1440,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/help'
     | '/_authenticated/workspace/locations'
     | '/_authenticated/workspace/notifications'
+    | '/_authenticated/workspace/pending-scope'
     | '/_authenticated/workspace/reports'
     | '/_authenticated/workspace/routers'
     | '/_authenticated/workspace/staff'
@@ -1954,6 +1967,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceReportsRouteImport
       parentRoute: typeof AuthenticatedWorkspaceRoute
     }
+    '/_authenticated/workspace/pending-scope': {
+      id: '/_authenticated/workspace/pending-scope'
+      path: '/pending-scope'
+      fullPath: '/workspace/pending-scope'
+      preLoaderRoute: typeof AuthenticatedWorkspacePendingScopeRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
     '/_authenticated/workspace/notifications': {
       id: '/_authenticated/workspace/notifications'
       path: '/notifications'
@@ -2318,6 +2338,7 @@ interface AuthenticatedWorkspaceRouteChildren {
   AuthenticatedWorkspaceHelpRoute: typeof AuthenticatedWorkspaceHelpRoute
   AuthenticatedWorkspaceLocationsRoute: typeof AuthenticatedWorkspaceLocationsRouteWithChildren
   AuthenticatedWorkspaceNotificationsRoute: typeof AuthenticatedWorkspaceNotificationsRoute
+  AuthenticatedWorkspacePendingScopeRoute: typeof AuthenticatedWorkspacePendingScopeRoute
   AuthenticatedWorkspaceReportsRoute: typeof AuthenticatedWorkspaceReportsRoute
   AuthenticatedWorkspaceRoutersRoute: typeof AuthenticatedWorkspaceRoutersRoute
   AuthenticatedWorkspaceStaffRoute: typeof AuthenticatedWorkspaceStaffRoute
@@ -2337,6 +2358,8 @@ const AuthenticatedWorkspaceRouteChildren: AuthenticatedWorkspaceRouteChildren =
       AuthenticatedWorkspaceLocationsRouteWithChildren,
     AuthenticatedWorkspaceNotificationsRoute:
       AuthenticatedWorkspaceNotificationsRoute,
+    AuthenticatedWorkspacePendingScopeRoute:
+      AuthenticatedWorkspacePendingScopeRoute,
     AuthenticatedWorkspaceReportsRoute: AuthenticatedWorkspaceReportsRoute,
     AuthenticatedWorkspaceRoutersRoute: AuthenticatedWorkspaceRoutersRoute,
     AuthenticatedWorkspaceStaffRoute: AuthenticatedWorkspaceStaffRoute,

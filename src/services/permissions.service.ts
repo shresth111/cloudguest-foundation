@@ -887,8 +887,13 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
     ]),
     g("ws-organization", "Organization", 10, [
       { id: "ws-org-locations", label: "Locations", icon: "MapPin", to: "/workspace/locations" },
-      { id: "ws-org-users", label: "Users", icon: "Users", to: "/rbac" },
-      { id: "ws-org-roles", label: "Roles", icon: "ShieldCheck", to: "/rbac" },
+      // /rbac's listUsers omits X-Organization-Id -- traced into
+      // backend/app/domains/user/service.py's list_users: when the header
+      // is absent it returns EVERY user platform-wide, with no check that
+      // the caller is actually Super Admin first. A real cross-tenant
+      // leak for any org-scoped Owner/Agent -- see workspace.pending-scope.tsx.
+      { id: "ws-org-users", label: "Users", icon: "Users", to: "/workspace/pending-scope" },
+      { id: "ws-org-roles", label: "Roles", icon: "ShieldCheck", to: "/workspace/pending-scope" },
     ]),
     g("ws-network", "Network", 20, [
       { id: "ws-net-routers", label: "Routers", icon: "Router", to: "/workspace/routers" },
@@ -907,21 +912,28 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       { id: "ws-net-firewall", label: "Firewall", icon: "Shield", to: "/network/firewall" },
     ]),
     g("ws-guest-access", "Guest Access", 30, [
-      { id: "ws-ga-login-methods", label: "Login Methods", icon: "KeyRound", to: "/portals" },
-      { id: "ws-ga-voucher", label: "Voucher", icon: "Ticket", to: "/vouchers" },
+      // portal.service.ts's list() fans out across every organization
+      // (fetchAllConfigs) with no per-org filter -- same leak class as
+      // NAS/Users. Every /portals-linked leaf below is neutralized until
+      // that service gets real org scoping.
+      { id: "ws-ga-login-methods", label: "Login Methods", icon: "KeyRound", to: "/workspace/pending-scope" },
+      // voucher.service.ts's own comment: "Platform-wide 'Voucher Master'
+      // view -- omits X-Organization-Id" -- deliberate for the platform
+      // console, but a real leak if reachable from the customer workspace.
+      { id: "ws-ga-voucher", label: "Voucher", icon: "Ticket", to: "/workspace/pending-scope" },
       // OTP attempt/rate policy -- there's no separate OTP admin page.
       { id: "ws-ga-otp", label: "OTP", icon: "Smartphone", to: "/policies/authentication" },
-      { id: "ws-ga-social", label: "Social Login", icon: "Users2", to: "/portals" },
+      { id: "ws-ga-social", label: "Social Login", icon: "Users2", to: "/workspace/pending-scope" },
       { id: "ws-ga-whitelist", label: "Whitelist", icon: "Fingerprint", to: "/network/mac-authorization" },
       { id: "ws-ga-session-policies", label: "Session Policies", icon: "Clock", to: "/policies/user" },
     ]),
     g("ws-captive-portal", "Captive Portal", 40, [
       { id: "ws-cp-branding", label: "Branding", icon: "Palette", to: "/branding" },
-      { id: "ws-cp-templates", label: "Templates", icon: "LayoutTemplate", to: "/portals" },
-      { id: "ws-cp-landing", label: "Landing Page", icon: "LayoutTemplate", to: "/portals" },
+      { id: "ws-cp-templates", label: "Templates", icon: "LayoutTemplate", to: "/workspace/pending-scope" },
+      { id: "ws-cp-landing", label: "Landing Page", icon: "LayoutTemplate", to: "/workspace/pending-scope" },
       { id: "ws-cp-campaigns", label: "Campaigns", icon: "Megaphone", to: "/campaigns" },
       { id: "ws-cp-surveys", label: "Surveys", icon: "MessageSquare", to: "/campaigns" },
-      { id: "ws-cp-redirect", label: "Redirect URL", icon: "Globe", to: "/portals" },
+      { id: "ws-cp-redirect", label: "Redirect URL", icon: "Globe", to: "/workspace/pending-scope" },
     ]),
     g("ws-monitoring", "Monitoring", 50, [
       { id: "ws-mon-live-users", label: "Live Users", icon: "Users", to: "/guests" },
@@ -933,9 +945,11 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
     ]),
     g("ws-analytics", "Analytics", 60, [
       { id: "ws-an-user", label: "User Report", icon: "PieChart", to: "/analytics/guest" },
-      { id: "ws-an-voucher", label: "Voucher Report", icon: "Ticket", to: "/vouchers" },
+      { id: "ws-an-voucher", label: "Voucher Report", icon: "Ticket", to: "/workspace/pending-scope" },
       { id: "ws-an-otp", label: "OTP Report", icon: "BarChart3", to: "/analytics" },
-      { id: "ws-an-revenue", label: "Revenue Report", icon: "Receipt", to: "/billing" },
+      // billing.service.ts's getSnapshot() fans out across every
+      // organization (fetchAllOrganizations) -- same leak class as NAS.
+      { id: "ws-an-revenue", label: "Revenue Report", icon: "Receipt", to: "/workspace/pending-scope" },
       { id: "ws-an-campaign", label: "Campaign Report", icon: "Megaphone", to: "/campaigns" },
       { id: "ws-an-export", label: "Export", icon: "Download", to: "/exports" },
     ]),
@@ -948,8 +962,11 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       { id: "ws-auto-integrations", label: "Integrations", icon: "Plug", to: "/settings" },
     ]),
     g("ws-security", "Security", 80, [
-      { id: "ws-sec-audit", label: "Audit Logs", icon: "ScrollText", to: "/audit" },
-      { id: "ws-sec-admin-logs", label: "Admin Logs", icon: "ScrollText", to: "/audit" },
+      // audit.service.ts's AuditListQuery has no organizationId field at
+      // all -- structurally impossible to scope from the frontend today,
+      // and the underlying /audit/entries list is platform-wide.
+      { id: "ws-sec-audit", label: "Audit Logs", icon: "ScrollText", to: "/workspace/pending-scope" },
+      { id: "ws-sec-admin-logs", label: "Admin Logs", icon: "ScrollText", to: "/workspace/pending-scope" },
       { id: "ws-sec-api-keys", label: "API Keys", icon: "KeyRound", to: "/api-keys" },
       { id: "ws-sec-sso", label: "SSO", icon: "ShieldAlert", to: "/settings" },
       { id: "ws-sec-mfa", label: "MFA", icon: "ShieldCheck", to: "/account" },
