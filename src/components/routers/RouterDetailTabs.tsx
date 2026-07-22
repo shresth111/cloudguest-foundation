@@ -1,22 +1,32 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import {
+  Activity,
+  Ban,
   BarChart3,
+  CheckCircle2,
   Copy,
   FileText,
   Gauge,
+  History,
   KeyRound,
   Network,
+  RefreshCw,
   RotateCw,
   Router as RouterIcon,
+  Send,
   ShieldCheck,
   Trash2,
+  Undo2,
   Users,
   Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -32,6 +42,26 @@ import {
   useWireGuardPeer,
 } from "@/hooks/useRouters";
 import { useAuditList } from "@/hooks/useAudit";
+import {
+  useBlockDevice,
+  useConnectedDevices,
+  useDisconnectDevice,
+  useLastDeviceSyncRun,
+  useSyncConnectedDevices,
+  useUnblockDevice,
+  useWhitelistDevice,
+} from "@/hooks/useConnectedDevices";
+import {
+  useConfigVersions,
+  useNetworkConfigPreview,
+  usePushNetworkConfig,
+  useRollbackNetworkConfig,
+} from "@/hooks/useNetworkConfig";
+import {
+  useDiagnosticRuns,
+  usePingRouter,
+  useTracerouteRouter,
+} from "@/hooks/useNetworkDiagnostics";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
 
@@ -55,6 +85,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
             ["monitoring", "Monitoring"],
             ["analytics", "Analytics"],
             ["config", "Configuration"],
+            ["diagnostics", "Diagnostics"],
             ["audit", "Audit Logs"],
           ].map(([k, l]) => (
             <TabsTrigger
@@ -155,11 +186,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         />
       </TabsContent>
       <TabsContent value="devices">
-        <ComingSoonPanel
-          icon={Users}
-          title="Connected devices"
-          description="Live connected-device tracking rolls out once this console is wired to real device telemetry."
-        />
+        <ConnectedDevicesTab routerId={router.id} />
       </TabsContent>
       <TabsContent value="monitoring">
         <ComingSoonPanel
@@ -176,11 +203,10 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         />
       </TabsContent>
       <TabsContent value="config">
-        <ComingSoonPanel
-          icon={RouterIcon}
-          title="Configuration"
-          description="Config templates, versioned push/rollback, backup/restore and factory reset roll out once this console is wired to the Router Provisioning domain's device-agent callback."
-        />
+        <ConfigTab routerId={router.id} />
+      </TabsContent>
+      <TabsContent value="diagnostics">
+        <DiagnosticsTab routerId={router.id} />
       </TabsContent>
       <TabsContent value="audit">
         <RouterAuditTab routerId={router.id} />
@@ -194,6 +220,352 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function ConnectedDevicesTab({ routerId }: { routerId: string }) {
+  const { data, isLoading, isError, refetch } = useConnectedDevices(routerId);
+  const { data: lastSync } = useLastDeviceSyncRun(routerId);
+  const sync = useSyncConnectedDevices(routerId);
+  const disconnect = useDisconnectDevice(routerId);
+  const block = useBlockDevice(routerId);
+  const unblock = useUnblockDevice(routerId);
+  const whitelist = useWhitelistDevice(routerId);
+
+  const rows = data?.rows ?? [];
+
+  async function run(action: Promise<unknown>, label: string) {
+    try {
+      await action;
+      toast.success(label);
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || `Failed to ${label.toLowerCase()}`);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {lastSync
+            ? `Last synced ${new Date(lastSync.completedAt).toLocaleString()}`
+            : "Never synced"}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={sync.isPending}
+          onClick={() => run(sync.mutateAsync(), "Sync started")}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Sync now
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <LoadingSkeleton rows={4} />
+      ) : isError ? (
+        <ErrorState onRetry={() => refetch()} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No connected devices"
+          description="Run a sync to discover devices currently connected to this router."
+        />
+      ) : (
+        <Card className="rounded-2xl border-border/70">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Device</TableHead>
+                  <TableHead>MAC</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Connection</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last seen</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>{d.hostname ?? d.vendor ?? "Unknown device"}</TableCell>
+                    <TableCell className="font-mono text-xs">{d.macAddress}</TableCell>
+                    <TableCell className="text-sm">{d.ipAddress ?? "—"}</TableCell>
+                    <TableCell className="text-sm">{d.connectionType}</TableCell>
+                    <TableCell>
+                      <Badge variant={d.isActive ? "default" : "outline"}>
+                        {d.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title="Disconnect"
+                          onClick={() =>
+                            run(disconnect.mutateAsync({ deviceId: d.id }), "Device disconnected")
+                          }
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title="Block"
+                          onClick={() => run(block.mutateAsync({ deviceId: d.id }), "Device blocked")}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title="Unblock"
+                          onClick={() =>
+                            run(unblock.mutateAsync({ deviceId: d.id }), "Device unblocked")
+                          }
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title="Whitelist"
+                          onClick={() =>
+                            run(whitelist.mutateAsync({ deviceId: d.id }), "Device whitelisted")
+                          }
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function ConfigTab({ routerId }: { routerId: string }) {
+  const preview = useNetworkConfigPreview(routerId);
+  const versions = useConfigVersions(routerId);
+  const push = usePushNetworkConfig(routerId);
+  const rollback = useRollbackNetworkConfig(routerId);
+
+  async function handlePush() {
+    try {
+      await push.mutateAsync();
+      toast.success("Config rendered and queued for application");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to push config");
+    }
+  }
+
+  async function handleRollback(versionId: string) {
+    try {
+      await rollback.mutateAsync(versionId);
+      toast.success("Rollback queued");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to roll back");
+    }
+  }
+
+  if (preview.isLoading || versions.isLoading) return <LoadingSkeleton rows={4} />;
+  if (preview.isError || versions.isError) {
+    return <ErrorState onRetry={() => { preview.refetch(); versions.refetch(); }} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="rounded-2xl border-border/70">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Rendered configuration preview</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {preview.data?.dhcpPoolCount ?? 0} DHCP pools · {preview.data?.vlanCount ?? 0} VLANs ·{" "}
+              {preview.data?.firewallRuleCount ?? 0} firewall rules ·{" "}
+              {preview.data?.portForwardingRuleCount ?? 0} port-forward rules
+            </p>
+          </div>
+          <Button size="sm" disabled={push.isPending} onClick={handlePush}>
+            <Send className="mr-2 h-4 w-4" />
+            Push config
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <pre className="max-h-64 overflow-auto rounded-lg bg-muted/40 p-3 text-xs">
+            {preview.data?.renderedContent || "No config rendered yet."}
+          </pre>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-border/70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4" />
+            Version history
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {versions.data?.rows.length ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Applied</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {versions.data.rows.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell>v{v.versionNumber}{v.isBackup ? " (backup)" : ""}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{v.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {v.appliedAt ? new Date(v.appliedAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={rollback.isPending}
+                        onClick={() => handleRollback(v.id)}
+                      >
+                        <Undo2 className="mr-2 h-3.5 w-3.5" />
+                        Roll back
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={History}
+              title="No config versions yet"
+              description="Push a config to create the first version."
+            />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function DiagnosticsTab({ routerId }: { routerId: string }) {
+  const [target, setTarget] = useState("");
+  const runs = useDiagnosticRuns(routerId);
+  const ping = usePingRouter(routerId);
+  const traceroute = useTracerouteRouter(routerId);
+
+  async function handlePing() {
+    if (!target.trim()) return;
+    try {
+      await ping.mutateAsync(target.trim());
+      toast.success("Ping complete");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Ping failed");
+    }
+  }
+
+  async function handleTraceroute() {
+    if (!target.trim()) return;
+    try {
+      await traceroute.mutateAsync(target.trim());
+      toast.success("Traceroute complete");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Traceroute failed");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="rounded-2xl border-border/70">
+        <CardHeader>
+          <CardTitle className="text-base">Run diagnostic</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Target host or IP"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="max-w-xs"
+          />
+          <Button size="sm" variant="outline" disabled={ping.isPending} onClick={handlePing}>
+            <Activity className="mr-2 h-4 w-4" />
+            Ping
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={traceroute.isPending}
+            onClick={handleTraceroute}
+          >
+            <Network className="mr-2 h-4 w-4" />
+            Traceroute
+          </Button>
+        </CardContent>
+      </Card>
+
+      {runs.isLoading ? (
+        <LoadingSkeleton rows={3} />
+      ) : runs.isError ? (
+        <ErrorState onRetry={() => runs.refetch()} />
+      ) : !runs.data?.rows.length ? (
+        <EmptyState
+          icon={Activity}
+          title="No diagnostic runs yet"
+          description="Ping or traceroute a target to see results here."
+        />
+      ) : (
+        <Card className="rounded-2xl border-border/70">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Run at</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.data.rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="capitalize">{r.diagnosticType}</TableCell>
+                    <TableCell>{r.target}</TableCell>
+                    <TableCell>
+                      <Badge variant={r.status === "completed" ? "default" : "outline"}>
+                        {r.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(r.createdAt).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
