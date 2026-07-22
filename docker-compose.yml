@@ -1,8 +1,19 @@
+# Builds and runs the CloudGuest frontend only. The backend
+# (~/cloud-guest-repo/backend, a separate repo) is not included here --
+# reference it via VITE_API_BASE_URL, whether that's a docker-compose
+# stack of its own, a bare-metal service, or a staging/prod deployment.
+#
+# Set VITE_API_BASE_URL in a local .env file (see .env.example) or the
+# shell environment before running `docker compose build` -- it's baked
+# into the client bundle at build time, so changing it later requires a
+# rebuild, not just a restart.
 services:
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
     ports:
       - "3000:3000"
     environment:
@@ -10,3 +21,9 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
