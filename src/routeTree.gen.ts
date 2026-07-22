@@ -96,7 +96,6 @@ import { Route as AuthenticatedNetworkDscpRouteImport } from './routes/_authenti
 import { Route as AuthenticatedNetworkDnsRouteImport } from './routes/_authenticated/network.dns'
 import { Route as AuthenticatedNetworkDhcpRouteImport } from './routes/_authenticated/network.dhcp'
 import { Route as AuthenticatedNetworkAccessPointsRouteImport } from './routes/_authenticated/network.access-points'
-import { Route as AuthenticatedNasIdGeneratorRouteImport } from './routes/_authenticated/nas.id-generator'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 import { Route as AuthenticatedGuestsWhitelistRouteImport } from './routes/_authenticated/guests.whitelist'
 import { Route as AuthenticatedGuestsVoucherRouteImport } from './routes/_authenticated/guests.voucher'
@@ -110,6 +109,7 @@ import { Route as AuthenticatedAnalyticsGuestRouteImport } from './routes/_authe
 import { Route as AuthenticatedAnalyticsExecutiveRouteImport } from './routes/_authenticated/analytics.executive'
 import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_authenticated/analytics.device'
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
+import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './routes/_authenticated/locations.$locationId.index'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
 import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
@@ -601,12 +601,6 @@ const AuthenticatedNetworkAccessPointsRoute =
     path: '/network/access-points',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedNasIdGeneratorRoute =
-  AuthenticatedNasIdGeneratorRouteImport.update({
-    id: '/nas/id-generator',
-    path: '/nas/id-generator',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedLocationsLocationIdRoute =
   AuthenticatedLocationsLocationIdRouteImport.update({
     id: '/locations/$locationId',
@@ -685,6 +679,12 @@ const AuthenticatedAdministrationBusinessUnitsRoute =
     path: '/administration/business-units',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedLocationsLocationIdIndexRoute =
+  AuthenticatedLocationsLocationIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedLocationsLocationIdRoute,
+  } as any)
 const AuthenticatedWorkspaceLocationsLocationIdRoute =
   AuthenticatedWorkspaceLocationsLocationIdRouteImport.update({
     id: '/$locationId',
@@ -735,7 +735,6 @@ export interface FileRoutesByFullPath {
   '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
-  '/nas/id-generator': typeof AuthenticatedNasIdGeneratorRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -800,6 +799,7 @@ export interface FileRoutesByFullPath {
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 export interface FileRoutesByTo {
@@ -836,8 +836,6 @@ export interface FileRoutesByTo {
   '/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
   '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
-  '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
-  '/nas/id-generator': typeof AuthenticatedNasIdGeneratorRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -902,6 +900,7 @@ export interface FileRoutesByTo {
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 export interface FileRoutesById {
@@ -943,7 +942,6 @@ export interface FileRoutesById {
   '/_authenticated/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
   '/_authenticated/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
-  '/_authenticated/nas/id-generator': typeof AuthenticatedNasIdGeneratorRoute
   '/_authenticated/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/_authenticated/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/_authenticated/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -1008,6 +1006,7 @@ export interface FileRoutesById {
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 export interface FileRouteTypes {
@@ -1049,7 +1048,6 @@ export interface FileRouteTypes {
     | '/guests/voucher'
     | '/guests/whitelist'
     | '/locations/$locationId'
-    | '/nas/id-generator'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1114,6 +1112,7 @@ export interface FileRouteTypes {
     | '/vouchers/'
     | '/workspace/'
     | '/workspace/locations/$locationId'
+    | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1150,8 +1149,6 @@ export interface FileRouteTypes {
     | '/guests/smart-id'
     | '/guests/voucher'
     | '/guests/whitelist'
-    | '/locations/$locationId'
-    | '/nas/id-generator'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1216,6 +1213,7 @@ export interface FileRouteTypes {
     | '/vouchers'
     | '/workspace'
     | '/workspace/locations/$locationId'
+    | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
   id:
     | '__root__'
@@ -1256,7 +1254,6 @@ export interface FileRouteTypes {
     | '/_authenticated/guests/voucher'
     | '/_authenticated/guests/whitelist'
     | '/_authenticated/locations/$locationId'
-    | '/_authenticated/nas/id-generator'
     | '/_authenticated/network/access-points'
     | '/_authenticated/network/dhcp'
     | '/_authenticated/network/dns'
@@ -1321,6 +1318,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/_authenticated/workspace/locations/$locationId'
+    | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
   fileRoutesById: FileRoutesById
 }
@@ -1946,13 +1944,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNetworkAccessPointsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/nas/id-generator': {
-      id: '/_authenticated/nas/id-generator'
-      path: '/nas/id-generator'
-      fullPath: '/nas/id-generator'
-      preLoaderRoute: typeof AuthenticatedNasIdGeneratorRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/locations/$locationId': {
       id: '/_authenticated/locations/$locationId'
       path: '/locations/$locationId'
@@ -2044,6 +2035,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdministrationBusinessUnitsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/locations/$locationId/': {
+      id: '/_authenticated/locations/$locationId/'
+      path: '/'
+      fullPath: '/locations/$locationId/'
+      preLoaderRoute: typeof AuthenticatedLocationsLocationIdIndexRouteImport
+      parentRoute: typeof AuthenticatedLocationsLocationIdRoute
+    }
     '/_authenticated/workspace/locations/$locationId': {
       id: '/_authenticated/workspace/locations/$locationId'
       path: '/$locationId'
@@ -2115,11 +2113,14 @@ const AuthenticatedWorkspaceRouteWithChildren =
   )
 
 interface AuthenticatedLocationsLocationIdRouteChildren {
+  AuthenticatedLocationsLocationIdIndexRoute: typeof AuthenticatedLocationsLocationIdIndexRoute
   AuthenticatedLocationsLocationIdNasNasIdRoute: typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
 
 const AuthenticatedLocationsLocationIdRouteChildren: AuthenticatedLocationsLocationIdRouteChildren =
   {
+    AuthenticatedLocationsLocationIdIndexRoute:
+      AuthenticatedLocationsLocationIdIndexRoute,
     AuthenticatedLocationsLocationIdNasNasIdRoute:
       AuthenticatedLocationsLocationIdNasNasIdRoute,
   }
@@ -2147,7 +2148,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGuestsVoucherRoute: typeof AuthenticatedGuestsVoucherRoute
   AuthenticatedGuestsWhitelistRoute: typeof AuthenticatedGuestsWhitelistRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRouteWithChildren
-  AuthenticatedNasIdGeneratorRoute: typeof AuthenticatedNasIdGeneratorRoute
   AuthenticatedNetworkAccessPointsRoute: typeof AuthenticatedNetworkAccessPointsRoute
   AuthenticatedNetworkDhcpRoute: typeof AuthenticatedNetworkDhcpRoute
   AuthenticatedNetworkDnsRoute: typeof AuthenticatedNetworkDnsRoute
@@ -2220,7 +2220,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGuestsWhitelistRoute: AuthenticatedGuestsWhitelistRoute,
   AuthenticatedLocationsLocationIdRoute:
     AuthenticatedLocationsLocationIdRouteWithChildren,
-  AuthenticatedNasIdGeneratorRoute: AuthenticatedNasIdGeneratorRoute,
   AuthenticatedNetworkAccessPointsRoute: AuthenticatedNetworkAccessPointsRoute,
   AuthenticatedNetworkDhcpRoute: AuthenticatedNetworkDhcpRoute,
   AuthenticatedNetworkDnsRoute: AuthenticatedNetworkDnsRoute,

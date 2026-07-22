@@ -1,19 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { Activity, Server, Database, Cloud, ShieldCheck, GaugeCircle } from "lucide-react";
 import { PageShell, SectionHeader, StatCard } from "@/components/ui-ext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { nasService } from "@/services/nas.service";
-import { locationService } from "@/services/location.service";
+import { useAllNas } from "@/hooks/useNas";
 
 export const Route = createFileRoute("/_authenticated/infrastructure/")({
   component: InfrastructurePage,
 });
 
-interface Component { name: string; status: "operational" | "degraded" | "down"; latency: string; icon: React.ComponentType<{ className?: string }>; }
+interface Component {
+  name: string;
+  status: "operational" | "degraded" | "down";
+  latency: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
 
 const COMPONENTS: Component[] = [
   { name: "API Gateway", status: "operational", latency: "42 ms", icon: Cloud },
@@ -25,18 +27,13 @@ const COMPONENTS: Component[] = [
 ];
 
 function InfrastructurePage() {
-  const locations = useQuery({ queryKey: ["locations", "all"], queryFn: () => locationService.listAll() });
-  const seedIds = useMemo(() => (locations.data ?? []).slice(0, 20).map((l) => l.id), [locations.data]);
-  const nas = useQuery({
-    queryKey: ["nas", "all", seedIds],
-    queryFn: () => nasService.listAllNas(seedIds),
-    enabled: seedIds.length > 0,
-  });
+  const nas = useAllNas();
 
   const total = nas.data?.length ?? 0;
-  const online = nas.data?.filter((n) => n.status === "online").length ?? 0;
-  const degraded = nas.data?.filter((n) => n.status === "degraded").length ?? 0;
-  const offline = nas.data?.filter((n) => n.status === "offline").length ?? 0;
+  const active = nas.data?.filter((n) => n.status === "active").length ?? 0;
+  const pending = nas.data?.filter((n) => n.status === "pending").length ?? 0;
+  const attention =
+    nas.data?.filter((n) => n.status === "disabled" || n.status === "suspended").length ?? 0;
 
   return (
     <PageShell mesh>
@@ -47,14 +44,16 @@ function InfrastructurePage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="NAS Online" value={online} tone="success" icon={Server} />
-        <StatCard label="NAS Degraded" value={degraded} tone="warning" icon={Activity} />
-        <StatCard label="NAS Offline" value={offline} tone="danger" icon={Server} />
+        <StatCard label="NAS Active" value={active} tone="success" icon={Server} />
+        <StatCard label="NAS Pending" value={pending} tone="info" icon={Activity} />
+        <StatCard label="NAS Needs Attention" value={attention} tone="warning" icon={Server} />
         <StatCard label="Fleet Total" value={total} tone="info" icon={Cloud} />
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Control plane</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Control plane
+        </h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {COMPONENTS.map((c) => {
             const Icon = c.icon;
@@ -65,7 +64,13 @@ function InfrastructurePage() {
                     <Icon className="h-4 w-4 text-primary" /> {c.name}
                   </CardTitle>
                   <Badge
-                    variant={c.status === "operational" ? "default" : c.status === "degraded" ? "secondary" : "destructive"}
+                    variant={
+                      c.status === "operational"
+                        ? "default"
+                        : c.status === "degraded"
+                          ? "secondary"
+                          : "destructive"
+                    }
                   >
                     {c.status}
                   </Badge>
@@ -84,7 +89,9 @@ function InfrastructurePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Regions</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Regions
+        </h2>
         <div className="grid gap-3 md:grid-cols-3">
           {[
             { name: "ap-south-1 (Mumbai)", load: 62 },

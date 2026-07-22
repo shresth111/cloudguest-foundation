@@ -1,86 +1,131 @@
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Cpu, Gauge, HardDrive, Signal, Users, Wrench } from "lucide-react";
+import { ArrowLeft, Copy, KeyRound, Power, RotateCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ComingSoonPanel } from "@/components/ui-ext/ComingSoonPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
-import { useNas, useRunNasOperation } from "@/hooks/useNas";
-import { useAuth } from "@/context/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
-import { legacyRoleBucket } from "@/lib/roles";
+import {
+  useActivateNas,
+  useDeleteNas,
+  useDisableNas,
+  useNas,
+  useRegenerateNasSecret,
+} from "@/hooks/useNas";
+import { NAS_STATUS_LABEL } from "@/types/nas";
+import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/_authenticated/locations/$locationId/nas/$nasId")({
   component: NasDetailPage,
 });
 
-const TABS: Array<[string, string]> = [
-  ["overview", "Overview"],
-  ["interfaces", "Interfaces"],
-  ["hotspot", "Hotspot"],
-  ["radius", "FreeRADIUS"],
-  ["wireguard", "WireGuard"],
-  ["queues", "Queues"],
-  ["firewall", "Firewall"],
-  ["dhcp", "DHCP"],
-  ["traffic", "Traffic"],
-  ["logs", "Logs"],
-  ["backup", "Backup"],
-  ["terminal", "Terminal"],
-  ["monitoring", "Monitoring"],
-];
-
-const OPS: Array<{ id: string; label: string; destructive?: boolean }> = [
-  { id: "restart", label: "Restart" },
-  { id: "backup", label: "Backup" },
-  { id: "restore", label: "Restore" },
-  { id: "export", label: "Export config" },
-  { id: "push", label: "Push config" },
-  { id: "terminal", label: "Open terminal" },
-  { id: "upgrade", label: "Upgrade RouterOS" },
-  { id: "factory_reset", label: "Factory reset", destructive: true },
-  { id: "delete", label: "Delete", destructive: true },
-];
-
-const TONE: Record<string, string> = {
-  online: "border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
-  degraded: "border-amber-500/30 text-amber-600 dark:text-amber-400",
-  offline: "border-rose-500/30 text-rose-600 dark:text-rose-400",
+const STATUS_TONE: Record<string, string> = {
+  active: "border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+  pending: "border-zinc-500/30 text-zinc-600 dark:text-zinc-400",
+  disabled: "border-amber-500/30 text-amber-600 dark:text-amber-400",
+  suspended: "border-fuchsia-500/30 text-fuchsia-600 dark:text-fuchsia-400",
+  deleted: "border-rose-500/30 text-rose-600 dark:text-rose-400",
 };
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground">{value}</dd>
+    </div>
+  );
+}
 
 function NasDetailPage() {
   const { locationId, nasId } = Route.useParams();
   const navigate = useNavigate();
-  const { data: nas, isLoading, isError, refetch } = useNas(locationId, nasId);
-  const runOp = useRunNasOperation(locationId);
-  const { roles } = useAuth();
-  const { canRouterAction } = usePermissions();
-  const bucket = legacyRoleBucket(roles);
-  const canWrite = bucket === "super_admin" || bucket === "org_admin";
+  const { data: nas, isLoading, isError, refetch } = useNas(nasId);
+  const activate = useActivateNas();
+  const disable = useDisableNas();
+  const regenerate = useRegenerateNasSecret();
+  const remove = useDeleteNas();
+
+  const [confirm, setConfirm] = useState<null | {
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    destructive?: boolean;
+  }>(null);
+  const [disableReasonOpen, setDisableReasonOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reveal, setReveal] = useState<string | null>(null);
 
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
-  if (!nas) return <ErrorState title="NAS not found" description="This device may have been removed." />;
+  if (!nas)
+    return <ErrorState title="NAS not found" description="This NAS may have been removed." />;
 
-  const OP_TO_ACTION: Record<string, string> = {
-    restart: "restart",
-    backup: "backup",
-    restore: "restore",
-    upgrade: "upgrade_firmware",
-  };
-  const opEnabled = (id: string) => {
-    if (!canWrite) return false;
-    const action = OP_TO_ACTION[id];
-    return action ? canRouterAction(action as never) : true;
-  };
+  // Mirrors the real backend's NasStatus transition graph: activate is legal
+  // from pending/disabled/suspended, disable only from pending/active, and
+  // delete from anything non-terminal. There is no direct "suspend" action
+  // exposed by the API -- suspended is reached some other way -- so only the
+  // transitions the backend actually offers are ever shown here.
+  const canActivate =
+    nas.status === "pending" || nas.status === "disabled" || nas.status === "suspended";
+  const canDisable = nas.status === "pending" || nas.status === "active";
+  const canDelete = nas.status !== "deleted";
+
+  async function handleActivate() {
+    try {
+      await activate.mutateAsync(nasId);
+      toast.success("NAS activated");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to activate NAS");
+    }
+  }
+
+  async function handleDisable() {
+    try {
+      await disable.mutateAsync({ nasId, reason: reason || undefined });
+      toast.success("NAS disabled");
+      setDisableReasonOpen(false);
+      setReason("");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to disable NAS");
+    }
+  }
+
+  async function handleRegenerate() {
+    try {
+      const result = await regenerate.mutateAsync(nasId);
+      setReveal(result.sharedSecret);
+      toast.success("Secret regenerated");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to regenerate secret");
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await remove.mutateAsync(nasId);
+      toast.success("NAS deleted");
+      navigate({ to: "/locations/$locationId", params: { locationId }, search: { tab: "nas" } });
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to delete NAS");
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="space-y-2">
         <Link
           to="/locations/$locationId"
           params={{ locationId }}
@@ -89,105 +134,168 @@ function NasDetailPage() {
         >
           <ArrowLeft className="h-3 w-3" /> Back to location
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{nas.id}</h1>
-          <Badge variant="outline" className={TONE[nas.status] ?? ""}>{nas.status}</Badge>
-          <Badge variant="outline">{nas.model}</Badge>
-          <Badge variant="outline" className="font-mono text-xs">RouterOS {nas.routerOsVersion}</Badge>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {nas.nasCode ?? nas.nasIdentifier}
+          </h1>
+          <Badge variant="outline" className={STATUS_TONE[nas.status] ?? ""}>
+            {NAS_STATUS_LABEL[nas.status]}
+          </Badge>
+          <Badge variant="outline">{nas.vendor}</Badge>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {nas.routerIdentity} · Public {nas.publicIp} · Private {nas.privateIp}
+        <p className="text-sm text-muted-foreground">
+          {nas.name ?? "Unnamed"} · {nas.organizationName} · {nas.locationName}
         </p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <div className="overflow-x-auto">
-          <TabsList className="h-auto flex-wrap gap-1 bg-muted/40 p-1">
-            {TABS.map(([k, l]) => (
-              <TabsTrigger
-                key={k}
-                value={k}
-                className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+      {reveal && (
+        <Card className="rounded-2xl border-primary/40 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-base">New shared secret — shown once</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-background/70 px-3 py-2">
+              <code className="text-sm">{reveal}</code>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  navigator.clipboard.writeText(reveal);
+                  toast.success("Copied");
+                }}
               >
-                {l}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Configure the router's RADIUS client with this secret now — it will not be shown
+              again.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Signal} label="Traffic" value={`${nas.trafficMbps} Mbps`} />
-            <StatCard icon={Users} label="Guests online" value={nas.guestsOnline.toLocaleString()} />
-            <StatCard icon={Cpu} label="CPU" value={`${nas.cpuPct}%`} progress={nas.cpuPct} />
-            <StatCard icon={HardDrive} label="RAM" value={`${nas.ramPct}%`} progress={nas.ramPct} />
-            <StatCard icon={Gauge} label="Temp" value={`${nas.temperatureC}°C`} />
-            <StatCard icon={Signal} label="Uptime" value={`${nas.uptimePct}%`} />
-          </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/70">
+          <CardHeader>
+            <CardTitle className="text-base">Device</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              A NAS wraps exactly one router. Device details (model, firmware, IPs) live on the
+              router's own record.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/routers/$routerId" params={{ routerId: nas.routerId }}>
+                View router
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
 
-          <Card className="rounded-2xl border-border/70 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Wrench className="h-4 w-4" /> Router operations
-              </CardTitle>
-              {!canWrite && <span className="text-xs text-muted-foreground">Read-only for your role</span>}
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {OPS.map((op) => (
-                <Button
-                  key={op.id}
-                  size="sm"
-                  variant={op.destructive ? "destructive" : "outline"}
-                  disabled={!opEnabled(op.id)}
-                  onClick={async () => {
-                    await runOp.mutateAsync({ nasId: nas.id, op: op.id });
-                    toast.success(`${op.label} queued`);
-                    if (op.id === "delete") navigate({ to: "/locations/$locationId", params: { locationId } });
-                  }}
-                >
-                  {op.label}
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <Card className="rounded-2xl border-border/70">
+          <CardHeader>
+            <CardTitle className="text-base">Identity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+              <Field label="NAS identifier" value={nas.nasIdentifier} />
+              <Field label="IP address" value={nas.ipAddress ?? "—"} />
+              <Field label="Description" value={nas.description ?? "—"} />
+              <Field label="Created" value={new Date(nas.createdAt).toLocaleString()} />
+              <Field label="Updated" value={new Date(nas.updatedAt).toLocaleString()} />
+            </dl>
+          </CardContent>
+        </Card>
+      </div>
 
-        {TABS.filter(([k]) => k !== "overview").map(([k, l]) => (
-          <TabsContent key={k} value={k}>
-            <ComingSoonPanel
-              title={`${l} — ${nas.id}`}
-              description={`${l} configuration for this NAS. Wiring to the live MikroTik feed will land next.`}
+      <Card className="rounded-2xl border-border/70">
+        <CardHeader>
+          <CardTitle className="text-base">Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {canActivate && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleActivate}
+              disabled={activate.isPending}
+            >
+              <Power className="h-4 w-4" /> <span className="ml-2">Activate</span>
+            </Button>
+          )}
+          {canDisable && (
+            <Button size="sm" variant="outline" onClick={() => setDisableReasonOpen(true)}>
+              <Power className="h-4 w-4" /> <span className="ml-2">Disable</span>
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRegenerate}
+            disabled={regenerate.isPending}
+          >
+            <RotateCw className="h-4 w-4" /> <span className="ml-2">Regenerate secret</span>
+          </Button>
+          {canDelete && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() =>
+                setConfirm({
+                  title: `Delete ${nas.nasCode ?? nas.nasIdentifier}?`,
+                  description:
+                    "This permanently removes the NAS registration. This cannot be undone.",
+                  destructive: true,
+                  onConfirm: handleDelete,
+                })
+              }
+            >
+              <Trash2 className="h-4 w-4" /> <span className="ml-2">Delete</span>
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={disableReasonOpen} onOpenChange={setDisableReasonOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disable NAS</DialogTitle>
+            <DialogDescription>
+              Guest authentication through this NAS will stop until it's reactivated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="disable-reason">Reason (optional)</Label>
+            <Textarea
+              id="disable-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Maintenance window, decommissioning, etc."
             />
-          </TabsContent>
-        ))}
-      </Tabs>
-    </div>
-  );
-}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisableReasonOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleDisable} disabled={disable.isPending}>
+              <KeyRound className="h-4 w-4" /> <span className="ml-2">Disable</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  progress,
-}: {
-  icon: typeof Cpu;
-  label: string;
-  value: string;
-  progress?: number;
-}) {
-  return (
-    <Card className="rounded-2xl border-border/70 shadow-sm">
-      <CardContent className="flex flex-col gap-3 p-4">
-        <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className="text-2xl font-semibold tabular-nums">{value}</div>
-        </div>
-        {typeof progress === "number" && <Progress value={progress} className="h-1.5" />}
-      </CardContent>
-    </Card>
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm?.title ?? ""}
+        description={confirm?.description ?? ""}
+        destructive={confirm?.destructive}
+        onConfirm={() => {
+          confirm?.onConfirm();
+          setConfirm(null);
+        }}
+      />
+    </div>
   );
 }

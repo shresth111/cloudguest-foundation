@@ -26,7 +26,6 @@ const STATIC_LABELS: Record<string, string> = {
   notifications: "Notifications",
   onboarding: "Onboarding",
   account: "Account",
-  "id-generator": "ID Generator",
 };
 
 function humanize(seg: string) {
@@ -44,7 +43,7 @@ export function Breadcrumbs() {
   const nasId = nasIdx > 0 ? segments[nasIdx] : "";
 
   const { data: location } = useLocation(locationId);
-  const { data: nas } = useNas(locationId, nasId);
+  const { data: nas } = useNas(nasId);
 
   if (segments.length === 0) return null;
 

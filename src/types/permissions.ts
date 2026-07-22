@@ -92,7 +92,6 @@ export type ModuleId =
   | "voucher-master"
   // FE-025 Platform Console
   | "nas-management"
-  | "nas-id-generator"
   | "feature-catalog"
   | "plans-billing";
 
