@@ -31,6 +31,7 @@ import {
   useRotateWireGuardPeer,
   useWireGuardPeer,
 } from "@/hooks/useRouters";
+import { useAuditList } from "@/hooks/useAudit";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
 
@@ -182,11 +183,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         />
       </TabsContent>
       <TabsContent value="audit">
-        <ComingSoonPanel
-          icon={FileText}
-          title="Audit logs"
-          description="A per-router audit trail rolls out once this console is wired to the Audit Log domain."
-        />
+        <RouterAuditTab routerId={router.id} />
       </TabsContent>
     </Tabs>
   );
@@ -198,6 +195,58 @@ function Field({ label, value }: { label: string; value: string }) {
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm text-foreground">{value}</dd>
     </div>
+  );
+}
+
+function RouterAuditTab({ routerId }: { routerId: string }) {
+  // Backend's /audit/entries only filters by entity_type, not a specific
+  // entity_id (see backend/app/domains/audit/router.py) -- fetch every
+  // router-entity entry and narrow to this router client-side.
+  const { data, isLoading, isError, refetch } = useAuditList({
+    entityType: "router",
+    page: 1,
+    pageSize: 100,
+  });
+  const rows = (data?.rows ?? []).filter((e) => e.entityId === routerId);
+
+  if (isLoading) return <LoadingSkeleton rows={4} />;
+  if (isError) return <ErrorState onRetry={() => refetch()} />;
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title="No audit entries yet"
+        description="Actions taken on this router will appear here."
+      />
+    );
+  }
+
+  return (
+    <Card className="rounded-2xl border-border/70">
+      <CardHeader>
+        <CardTitle className="text-base">Audit log</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ol className="relative space-y-4 border-l border-border/60 pl-6">
+          {rows.map((e) => (
+            <li key={e.id} className="relative">
+              <span className="absolute -left-[31px] top-1 flex h-6 w-6 items-center justify-center rounded-full border border-border/60 bg-background shadow-sm">
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">{e.action.replace(/_/g, " ")}</span>
+                <span className="ml-auto text-[11px] text-muted-foreground">
+                  {new Date(e.createdAt).toLocaleString()}
+                </span>
+              </div>
+              {e.description && (
+                <p className="text-xs text-muted-foreground">{e.description}</p>
+              )}
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 
