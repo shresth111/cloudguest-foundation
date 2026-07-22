@@ -781,19 +781,6 @@ const MODULE_ORDER: ModuleId[] = [
   "portals",
 ];
 
-const WORKSPACE_ORDER: ModuleId[] = [
-  "workspace",
-  "workspace-locations",
-  "workspace-routers",
-  "workspace-guests",
-  "workspace-analytics",
-  "workspace-reports",
-  "workspace-billing",
-  "workspace-notifications",
-  "workspace-company",
-  "workspace-help",
-];
-
 function buildNode(id: ModuleId, order: number, locked: boolean): SidebarNode {
   return {
     id,
@@ -863,22 +850,115 @@ function buildPlatformConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] 
   ];
 }
 
-function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {
-  const items: SidebarNode[] = [];
-  WORKSPACE_ORDER.forEach((id, i) => {
-    const m = modules[id];
-    if (!m) return;
-    if (!(m.view || m.locked)) return;
-    items.push(buildNode(id, i, !!m.locked && !m.view));
+/**
+ * The customer workspace's full nav tree (Organization/Network/Guest
+ * Access/Captive Portal/Monitoring/Analytics/Automation/Security/
+ * Settings), per the IA the user specified directly. Every leaf links to
+ * an already-real, already-backend-wired page -- reusing the platform
+ * console's own pages (scoped to the signed-in user's own org via the
+ * same X-Organization-Id/session mechanism those pages already use) per
+ * the confirmed "new nav shell linking to existing real pages" approach,
+ * rather than duplicating ~50 pages that mostly already exist. A few
+ * leaves (Provisioning, Radius, OTP, Session Policies, Auto Provisioning)
+ * have no dedicated real page yet -- those point at the closest existing
+ * real page rather than a dead link; see the inline comment on each.
+ *
+ * Deliberately NOT built on the generic ModuleId/MODULE_PERMISSION_PREFIX
+ * system every other sidebar group uses: that system is one ModuleId ->
+ * one canonical route, and this tree needs several *different* labels
+ * pointing at the *same* underlying route (e.g. "Audit Logs" and "Admin
+ * Logs" both -> /audit), which the 1:1 mapping doesn't support cleanly.
+ * The real permission check still happens where it matters -- each
+ * destination page/route enforces its own RequirePermission-backed access
+ * control server-side -- this tree just isn't individually gated leaf-by-
+ * leaf the way MODULE_PERMISSION_PREFIX-covered items are.
+ */
+function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
+  const g = (id: string, label: string, order: number, items: Omit<SidebarNode, "order">[]) => ({
+    id,
+    label,
+    order,
+    items: items.map((it, i) => ({ ...it, order: i })),
   });
-  if (items.length === 0) return [];
+
   return [
-    {
-      id: "workspace",
-      label: GROUP_META.workspace.label,
-      order: GROUP_META.workspace.order,
-      items,
-    },
+    g("ws-overview", "Overview", 0, [
+      { id: "ws-dashboard", label: "Dashboard", icon: "LayoutDashboard", to: "/workspace" },
+    ]),
+    g("ws-organization", "Organization", 10, [
+      { id: "ws-org-locations", label: "Locations", icon: "MapPin", to: "/workspace/locations" },
+      { id: "ws-org-users", label: "Users", icon: "Users", to: "/rbac" },
+      { id: "ws-org-roles", label: "Roles", icon: "ShieldCheck", to: "/rbac" },
+    ]),
+    g("ws-network", "Network", 20, [
+      { id: "ws-net-routers", label: "Routers", icon: "Router", to: "/workspace/routers" },
+      // No dedicated provisioning workflow page yet -- routers list is the
+      // real, closest entry point today.
+      { id: "ws-net-provisioning", label: "Provisioning", icon: "ServerCog", to: "/workspace/routers" },
+      { id: "ws-net-vlan", label: "VLAN", icon: "Network", to: "/network/vlan" },
+      { id: "ws-net-dhcp", label: "DHCP", icon: "Share2", to: "/network/dhcp" },
+      { id: "ws-net-hotspot", label: "Hotspot", icon: "Wifi", to: "/network/hotspot" },
+      // RADIUS clients are managed via the NAS registry.
+      { id: "ws-net-radius", label: "Radius", icon: "Radio", to: "/nas" },
+      { id: "ws-net-firewall", label: "Firewall", icon: "Shield", to: "/network/firewall" },
+    ]),
+    g("ws-guest-access", "Guest Access", 30, [
+      { id: "ws-ga-login-methods", label: "Login Methods", icon: "KeyRound", to: "/portals" },
+      { id: "ws-ga-voucher", label: "Voucher", icon: "Ticket", to: "/vouchers" },
+      // OTP attempt/rate policy -- there's no separate OTP admin page.
+      { id: "ws-ga-otp", label: "OTP", icon: "Smartphone", to: "/policies/authentication" },
+      { id: "ws-ga-social", label: "Social Login", icon: "Users2", to: "/portals" },
+      { id: "ws-ga-whitelist", label: "Whitelist", icon: "Fingerprint", to: "/network/mac-authorization" },
+      { id: "ws-ga-session-policies", label: "Session Policies", icon: "Clock", to: "/policies/user" },
+    ]),
+    g("ws-captive-portal", "Captive Portal", 40, [
+      { id: "ws-cp-branding", label: "Branding", icon: "Palette", to: "/branding" },
+      { id: "ws-cp-templates", label: "Templates", icon: "LayoutTemplate", to: "/portals" },
+      { id: "ws-cp-landing", label: "Landing Page", icon: "LayoutTemplate", to: "/portals" },
+      { id: "ws-cp-campaigns", label: "Campaigns", icon: "Megaphone", to: "/campaigns" },
+      { id: "ws-cp-surveys", label: "Surveys", icon: "MessageSquare", to: "/campaigns" },
+      { id: "ws-cp-redirect", label: "Redirect URL", icon: "Globe", to: "/portals" },
+    ]),
+    g("ws-monitoring", "Monitoring", 50, [
+      { id: "ws-mon-live-users", label: "Live Users", icon: "Users", to: "/guests" },
+      { id: "ws-mon-sessions", label: "Active Sessions", icon: "Activity", to: "/monitoring" },
+      { id: "ws-mon-device-health", label: "Device Health", icon: "HeartPulse", to: "/monitoring" },
+      { id: "ws-mon-isp", label: "ISP Status", icon: "Cable", to: "/network/isp" },
+      { id: "ws-mon-wan", label: "WAN Health", icon: "Signal", to: "/network/wan" },
+      { id: "ws-mon-alerts", label: "Alerts", icon: "BellRing", to: "/monitoring" },
+    ]),
+    g("ws-analytics", "Analytics", 60, [
+      { id: "ws-an-user", label: "User Report", icon: "PieChart", to: "/analytics/guest" },
+      { id: "ws-an-voucher", label: "Voucher Report", icon: "Ticket", to: "/vouchers" },
+      { id: "ws-an-otp", label: "OTP Report", icon: "BarChart3", to: "/analytics" },
+      { id: "ws-an-revenue", label: "Revenue Report", icon: "Receipt", to: "/billing" },
+      { id: "ws-an-campaign", label: "Campaign Report", icon: "Megaphone", to: "/campaigns" },
+      { id: "ws-an-export", label: "Export", icon: "Download", to: "/exports" },
+    ]),
+    g("ws-automation", "Automation", 70, [
+      { id: "ws-auto-reports", label: "Scheduled Reports", icon: "FileClock", to: "/analytics" },
+      // No dedicated auto-provisioning workflow yet -- routers list is the
+      // real, closest entry point today.
+      { id: "ws-auto-provisioning", label: "Auto Provisioning", icon: "ServerCog", to: "/workspace/routers" },
+      { id: "ws-auto-webhooks", label: "Webhooks", icon: "Plug", to: "/api-keys" },
+      { id: "ws-auto-integrations", label: "Integrations", icon: "Plug", to: "/settings" },
+    ]),
+    g("ws-security", "Security", 80, [
+      { id: "ws-sec-audit", label: "Audit Logs", icon: "ScrollText", to: "/audit" },
+      { id: "ws-sec-admin-logs", label: "Admin Logs", icon: "ScrollText", to: "/audit" },
+      { id: "ws-sec-api-keys", label: "API Keys", icon: "KeyRound", to: "/api-keys" },
+      { id: "ws-sec-sso", label: "SSO", icon: "ShieldAlert", to: "/settings" },
+      { id: "ws-sec-mfa", label: "MFA", icon: "ShieldCheck", to: "/account" },
+    ]),
+    g("ws-settings", "Settings", 90, [
+      { id: "ws-set-branding", label: "Branding", icon: "Palette", to: "/branding" },
+      { id: "ws-set-domains", label: "Domains", icon: "Globe", to: "/branding" },
+      { id: "ws-set-email", label: "Email", icon: "Mail", to: "/settings" },
+      { id: "ws-set-sms", label: "SMS", icon: "MessageSquare", to: "/settings" },
+      { id: "ws-set-billing", label: "Billing", icon: "Receipt", to: "/workspace/billing" },
+      { id: "ws-set-subscription", label: "Subscription", icon: "CreditCard", to: "/subscription" },
+      { id: "ws-set-integrations", label: "Integrations", icon: "Plug", to: "/settings" },
+    ]),
   ];
 }
 
@@ -1176,11 +1256,14 @@ export const permissionsService = {
       }
     }
 
-    // FE-025: Super Admin gets the Platform Console sidebar only.
+    // FE-025: Super Admin's *console* sidebar (outside /workspace) is the
+    // Platform Console only. Inside /workspace, every role -- including
+    // super_admin, who workspace.tsx's own ALLOWED list already lets in --
+    // gets the same real Owner workspace tree; AppSidebar picks between
+    // these two arrays purely on the current pathname, not role.
     const consoleSidebar: SidebarGroupDef[] =
       role === "super_admin" ? buildPlatformConsoleSidebar(modules) : buildConsoleSidebar(modules);
-    const workspaceSidebar: SidebarGroupDef[] =
-      role === "super_admin" ? [] : buildWorkspaceSidebar(modules);
+    const workspaceSidebar: SidebarGroupDef[] = buildOwnerWorkspaceSidebar();
 
     return delay({
       modules,

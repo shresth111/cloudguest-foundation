@@ -6,7 +6,7 @@ import {
   Signal, Cable, Cpu, Radio, Globe, Filter, Fingerprint, Megaphone,
   QrCode, MessageSquare, ServerCog, Server, Network, EthernetPort,
   Clock, Ban, UserCog, Users2, Gauge, PieChart, Smartphone, BellRing,
-  FileClock, Building, Shield, Share2, CreditCard,
+  FileClock, Building, Shield, Share2, CreditCard, Mail,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,7 +19,7 @@ const ICONS: Record<string, LucideIcon> = {
   Signal, Cable, Cpu, Radio, Globe, Filter, Fingerprint, Megaphone,
   QrCode, MessageSquare, ServerCog, Server, Network, EthernetPort,
   Clock, Ban, UserCog, Users2, Gauge, PieChart, Smartphone, BellRing,
-  FileClock, Building, Shield, Share2, CreditCard,
+  FileClock, Building, Shield, Share2, CreditCard, Mail,
 };
 
 export function resolveIcon(name?: string): LucideIcon {
