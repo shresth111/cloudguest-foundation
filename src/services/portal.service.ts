@@ -1,3 +1,4 @@
+import { api } from "@/services/api";
 import type {
   Portal,
   PortalAd,
@@ -5,6 +6,7 @@ import type {
   PortalBranding,
   PortalComponent,
   PortalKpis,
+  PortalLanguage,
   PortalListQuery,
   PortalListResult,
   PortalLoginMethod,
@@ -13,30 +15,76 @@ import type {
   PortalVersion,
 } from "@/types/portal";
 
-// ------------- Seed data --------------
-const ORGS: Array<[string, string]> = [
-  ["ORG-01000", "Nimbus Hospitality"],
-  ["ORG-01001", "Vertex Retail"],
-  ["ORG-01002", "Halo Group"],
-  ["ORG-01003", "Orbit Holdings"],
-  ["ORG-01004", "Lumen Ventures"],
-];
-const LOCATIONS: Array<[string, string, string]> = [
-  ["LOC-02000", "Nimbus San Francisco Downtown", "ORG-01000"],
-  ["LOC-02001", "Vertex New York Central", "ORG-01001"],
-  ["LOC-02002", "Halo London Airport", "ORG-01002"],
-  ["LOC-02003", "Orbit Bengaluru Plaza", "ORG-01003"],
-  ["LOC-02004", "Lumen Singapore Riverside", "ORG-01004"],
-  ["LOC-02005", "Nimbus Paris Opera", "ORG-01000"],
-  ["LOC-02006", "Vertex Chicago Riverwalk", "ORG-01001"],
-  ["LOC-02007", "Halo Dubai Marina", "ORG-01002"],
-];
+// ============================================================================
+// Real backend wiring -- backend/app/domains/captive_portal is a flat config
+// record (colors/theme string/login-method toggles/legal text), far
+// narrower than this file's Portal type (which also models a drag-drop
+// component builder, versioning history, ad slots, and page-view/login
+// analytics -- none of which the backend persists anywhere). Every field
+// with a real backend counterpart below is read/written for real; every
+// field with no backend counterpart is filled with an honest, structural
+// default (0 / empty array / unset), never fabricated sample data, and
+// left clearly commented. Operations with NO backend support at all
+// (theme catalog application, version restore, ads, page analytics) still
+// echo the current real config so the UI doesn't break, but do not
+// persist -- see each method below.
+// ============================================================================
+
+interface BackendCaptivePortalConfig {
+  id: string;
+  organization_id: string;
+  location_id: string | null;
+  name: string;
+  is_active: boolean;
+  is_default: boolean;
+  theme: string;
+  logo_url: string | null;
+  background_image_url: string | null;
+  primary_color: string;
+  secondary_color: string;
+  default_language: string;
+  supported_languages: string[];
+  advertisement_banner_url: string | null;
+  advertisement_banner_link: string | null;
+  terms_and_conditions_text: string | null;
+  terms_and_conditions_url: string | null;
+  privacy_policy_text: string | null;
+  privacy_policy_url: string | null;
+  splash_headline: string | null;
+  splash_welcome_message: string | null;
+  redirect_url: string | null;
+  otp_sms_enabled: boolean;
+  otp_email_enabled: boolean;
+  voucher_enabled: boolean;
+  username_password_enabled: boolean;
+  social_login_enabled: boolean;
+  social_login_providers: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendListResponse<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+interface BackendOrg {
+  id: string;
+  name: string;
+}
+
+interface BackendLocation {
+  id: string;
+  name: string;
+}
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const pick = <T,>(arr: T[], i: number) => arr[i % arr.length];
-const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
-// ------------- Themes --------------
 const baseBranding = (over: Partial<PortalBranding> = {}): PortalBranding => ({
   primaryColor: "#0EA5E9",
   secondaryColor: "#0F172A",
@@ -60,6 +108,11 @@ const defaultComponents = (): PortalComponent[] => [
   { id: uid(), type: "footer", props: { text: "Powered by CloudGuest" } },
 ];
 
+// ------------- Design theme catalog --------------
+// No backend equivalent -- CaptivePortalConfig.theme is a plain string
+// label, not a structured template. Kept as a local, static design catalog
+// (same content as before) purely for the theme-picker UI; applyTheme()/
+// saveAsTheme() below apply it in-memory only, see their own comments.
 export const THEMES: PortalTheme[] = [
   {
     id: "theme-modern-hotel",
@@ -144,117 +197,210 @@ export const THEMES: PortalTheme[] = [
   },
 ];
 
-// ------------- Portals --------------
-const STATUSES: PortalStatus[] = ["published", "draft", "scheduled", "archived"];
-const METHODS: PortalLoginMethod[] = ["mobile_otp", "email_otp", "voucher", "pms", "social", "click_through"];
+// ------------- Org/location seed data (organizations()/locations() only) --------------
+// portalService.organizations()/.locations() are consumed synchronously via
+// useMemo in PortalWizard.tsx/PortalTable.tsx (not through react-query), so
+// they can't become async without changing those call sites -- out of
+// scope for this migration. Real org/location data is real elsewhere
+// (organization.service.ts, location.service.ts); this stays a static seed
+// purely for the wizard's dropdowns.
+const ORGS: Array<[string, string]> = [
+  ["ORG-01000", "Nimbus Hospitality"],
+  ["ORG-01001", "Vertex Retail"],
+  ["ORG-01002", "Halo Group"],
+  ["ORG-01003", "Orbit Holdings"],
+  ["ORG-01004", "Lumen Ventures"],
+];
+const LOCATIONS: Array<[string, string, string]> = [
+  ["LOC-02000", "Nimbus San Francisco Downtown", "ORG-01000"],
+  ["LOC-02001", "Vertex New York Central", "ORG-01001"],
+  ["LOC-02002", "Halo London Airport", "ORG-01002"],
+  ["LOC-02003", "Orbit Bengaluru Plaza", "ORG-01003"],
+  ["LOC-02004", "Lumen Singapore Riverside", "ORG-01004"],
+  ["LOC-02005", "Nimbus Paris Opera", "ORG-01000"],
+  ["LOC-02006", "Vertex Chicago Riverwalk", "ORG-01001"],
+  ["LOC-02007", "Halo Dubai Marina", "ORG-01002"],
+];
 
-function makePortal(i: number): Portal {
-  const [locId, locName, orgId] = pick(LOCATIONS, i);
-  const orgTuple = ORGS.find(([id]) => id === orgId) ?? ORGS[0];
-  const theme = pick(THEMES, i);
-  const status = pick(STATUSES, i);
-  const methods = [pick(METHODS, i), pick(METHODS, i + 2)].filter((v, k, a) => a.indexOf(v) === k);
-  const now = Date.now();
-  const versions: PortalVersion[] = [
-    { id: uid(), version: 1, label: "Initial", createdAt: new Date(now - 1000 * 60 * 60 * 24 * 12).toISOString(), createdBy: "system@cloudguest.io", status: "draft" },
-    { id: uid(), version: 2, label: "Branding update", createdAt: new Date(now - 1000 * 60 * 60 * 24 * 5).toISOString(), createdBy: "ops@cloudguest.io", status: "draft", notes: "Updated hero copy and gradient" },
-    { id: uid(), version: 3, label: "Published", createdAt: new Date(now - 1000 * 60 * 60 * 24).toISOString(), createdBy: "admin@cloudguest.io", status: "published", notes: "Enabled OTP + click-through" },
-  ];
+// ============================================================================
+// Real <-> frontend mapping
+// ============================================================================
+
+const LOGIN_METHOD_FLAGS: Array<{ method: PortalLoginMethod; flag: keyof BackendCaptivePortalConfig }> = [
+  { method: "mobile_otp", flag: "otp_sms_enabled" },
+  { method: "email_otp", flag: "otp_email_enabled" },
+  { method: "voucher", flag: "voucher_enabled" },
+  { method: "social", flag: "social_login_enabled" },
+];
+
+function toLoginMethods(c: BackendCaptivePortalConfig): PortalLoginMethod[] {
+  return LOGIN_METHOD_FLAGS.filter((m) => c[m.flag]).map((m) => m.method);
+}
+
+function loginMethodFlags(methods: PortalLoginMethod[]): Partial<BackendCaptivePortalConfig> {
+  const set = new Set(methods);
   return {
-    id: `PRT-${(4000 + i).toString().padStart(5, "0")}`,
-    name: `${locName.split(" ")[0]} Guest Portal`,
-    description: "Enterprise captive portal with OTP and social login.",
-    organizationId: orgId,
-    organizationName: orgTuple[1],
-    locationId: locId,
-    locationName: locName,
-    status,
-    themeId: theme.id,
-    themeName: theme.name,
-    loginMethods: methods,
-    primaryLoginMethod: methods[0] ?? "mobile_otp",
-    languages: ["en", "hi", "ar"],
-    defaultLanguage: "en",
-    branding: theme.branding,
+    otp_sms_enabled: set.has("mobile_otp"),
+    otp_email_enabled: set.has("email_otp"),
+    voucher_enabled: set.has("voucher"),
+    social_login_enabled: set.has("social"),
+  };
+}
+
+async function fetchOrgNameMap(): Promise<Map<string, string>> {
+  const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
+    params: { page_size: 100 },
+  });
+  return new Map(data.items.map((o) => [o.id, o.name]));
+}
+
+/** Fans out one /organizations/{id}/locations call per org present in
+ * `configs` and builds a locationId -> name map -- there is no cross-org
+ * location lookup endpoint (same constraint documented in
+ * location.service.ts's fetchAllLocations). */
+async function fetchLocationNameMap(orgIds: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(orgIds)];
+  const settled = await Promise.allSettled(
+    unique.map((orgId) =>
+      api.get<BackendListResponse<BackendLocation>>(`/organizations/${orgId}/locations`, {
+        params: { page_size: 100 },
+      }),
+    ),
+  );
+  const map = new Map<string, string>();
+  for (const r of settled) {
+    if (r.status !== "fulfilled") continue;
+    for (const loc of r.value.data.items) map.set(loc.id, loc.name);
+  }
+  return map;
+}
+
+function toPortal(
+  c: BackendCaptivePortalConfig,
+  orgNames: Map<string, string>,
+  locNames: Map<string, string>,
+): Portal {
+  const loginMethods = toLoginMethods(c);
+  const version: PortalVersion = {
+    id: c.id,
+    version: 1,
+    label: c.is_active ? "Active" : "Draft",
+    createdAt: c.created_at,
+    createdBy: "",
+    status: c.is_active ? "published" : "draft",
+  };
+  return {
+    id: c.id,
+    name: c.name,
+    description: undefined,
+    organizationId: c.organization_id,
+    organizationName: orgNames.get(c.organization_id) ?? "",
+    locationId: c.location_id ?? "",
+    locationName: c.location_id ? (locNames.get(c.location_id) ?? "") : "Organization default",
+    status: c.is_active ? "published" : "draft",
+    themeId: c.theme,
+    themeName: c.theme,
+    loginMethods,
+    primaryLoginMethod: loginMethods[0] ?? "mobile_otp",
+    languages: c.supported_languages as PortalLanguage[],
+    defaultLanguage: c.default_language as PortalLanguage,
+    branding: baseBranding({
+      logoUrl: c.logo_url ?? undefined,
+      backgroundUrl: c.background_image_url ?? undefined,
+      primaryColor: c.primary_color,
+      secondaryColor: c.secondary_color,
+    }),
     login: {
       sessionTimeoutMinutes: 60,
       idleTimeoutMinutes: 15,
       deviceLimit: 3,
-      redirectUrl: "https://example.com/welcome",
-      successPage: "https://example.com/success",
-      failurePage: "https://example.com/failure",
+      redirectUrl: c.redirect_url ?? "",
+      successPage: "",
+      failurePage: "",
       autoLogin: true,
       rememberDevice: true,
     },
     consent: {
-      termsRequired: true,
-      privacyRequired: true,
+      termsRequired: !!(c.terms_and_conditions_text || c.terms_and_conditions_url),
+      privacyRequired: !!(c.privacy_policy_text || c.privacy_policy_url),
       marketingConsent: false,
-      gdprConsent: true,
-      termsUrl: "https://example.com/terms",
-      privacyUrl: "https://example.com/privacy",
+      gdprConsent: false,
+      termsUrl: c.terms_and_conditions_url ?? "",
+      privacyUrl: c.privacy_policy_url ?? "",
     },
     seo: {
-      pageTitle: `${locName} — WiFi Login`,
-      metaDescription: `Connect to complimentary guest WiFi at ${locName}.`,
-      faviconUrl: "",
-      socialImageUrl: "",
+      pageTitle: c.splash_headline ?? c.name,
+      metaDescription: c.splash_welcome_message ?? "",
+      faviconUrl: undefined,
+      socialImageUrl: c.advertisement_banner_url ?? undefined,
     },
-    ads: [
-      {
-        id: uid(),
-        name: "Summer Promo",
-        type: "banner",
-        mediaUrl: "https://picsum.photos/seed/ad1/800/200",
-        clickUrl: "https://example.com/promo",
-        startsAt: new Date(now - 1000 * 60 * 60 * 24 * 2).toISOString(),
-        endsAt: new Date(now + 1000 * 60 * 60 * 24 * 14).toISOString(),
-        impressions: 12480 + i * 143,
-        clicks: 342 + i * 11,
-        active: true,
-      },
-    ],
-    components: theme.components.map((c) => ({ ...c, id: uid() })),
-    versions,
-    currentVersion: versions.length,
-    lastPublishedAt: status === "published" ? versions[versions.length - 1].createdAt : undefined,
-    publishedBy: status === "published" ? "admin@cloudguest.io" : undefined,
-    updatedAt: new Date(now - 1000 * 60 * 60 * (i + 1)).toISOString(),
-    createdAt: new Date(now - 1000 * 60 * 60 * 24 * (14 + i)).toISOString(),
-    views: 4200 + i * 173,
-    logins: 1800 + i * 87,
+    ads: [],
+    components: defaultComponents(),
+    versions: [version],
+    currentVersion: 1,
+    lastPublishedAt: c.is_active ? c.updated_at : undefined,
+    publishedBy: undefined,
+    updatedAt: c.updated_at,
+    createdAt: c.created_at,
+    views: 0,
+    logins: 0,
   };
 }
 
-const PORTALS: Portal[] = Array.from({ length: 24 }, (_, i) => makePortal(i));
+async function fetchAllConfigs(): Promise<BackendCaptivePortalConfig[]> {
+  const { data } = await api.get<BackendListResponse<BackendCaptivePortalConfig>>(
+    "/captive-portal-configs",
+    { params: { page: 1, page_size: 100 } },
+  );
+  return data.items;
+}
 
-// ------------- API --------------
+async function hydrate(configs: BackendCaptivePortalConfig[]): Promise<Portal[]> {
+  const [orgNames, locNames] = await Promise.all([
+    fetchOrgNameMap(),
+    fetchLocationNameMap(configs.map((c) => c.organization_id)),
+  ]);
+  return configs.map((c) => toPortal(c, orgNames, locNames));
+}
+
+async function fetchOnePortal(id: string): Promise<Portal> {
+  const { data } = await api.get<BackendCaptivePortalConfig>(`/captive-portal-configs/${id}`);
+  const [orgNames, locNames] = await Promise.all([
+    fetchOrgNameMap(),
+    fetchLocationNameMap([data.organization_id]),
+  ]);
+  return toPortal(data, orgNames, locNames);
+}
+
+// ============================================================================
+// Service
+// ============================================================================
+
 export const portalService = {
   async kpis(): Promise<PortalKpis> {
-    await delay(180);
-    const total = PORTALS.length;
-    const published = PORTALS.filter((p) => p.status === "published").length;
-    const draft = PORTALS.filter((p) => p.status === "draft").length;
-    const locations = new Set(PORTALS.map((p) => p.locationId)).size;
-    const activeThemes = new Set(PORTALS.map((p) => p.themeId)).size;
-    const todaysLogins = PORTALS.reduce((s, p) => s + Math.round(p.logins / 90), 0);
-    const views = PORTALS.reduce((s, p) => s + p.views, 0);
-    const logins = PORTALS.reduce((s, p) => s + p.logins, 0);
+    const configs = await fetchAllConfigs();
+    const total = configs.length;
+    const published = configs.filter((c) => c.is_active).length;
+    const draft = total - published;
+    const locations = new Set(configs.map((c) => c.location_id).filter(Boolean)).size;
+    const activeThemes = new Set(configs.map((c) => c.theme)).size;
     return {
       totalPortals: total,
       publishedPortals: published,
       draftPortals: draft,
       activeLocations: locations,
       activeThemes,
-      todaysLogins,
-      conversionRate: views ? +(100 * (logins / views)).toFixed(1) : 0,
-      portalViews: views,
+      // No page-view/login tracking exists in the captive_portal domain --
+      // these stay 0 rather than a fabricated figure.
+      todaysLogins: 0,
+      conversionRate: 0,
+      portalViews: 0,
     };
   },
 
   async list(query: PortalListQuery): Promise<PortalListResult> {
-    await delay(200);
-    let rows = [...PORTALS];
+    const configs = await fetchAllConfigs();
+    let rows = await hydrate(configs);
     if (query.search) {
       const s = query.search.toLowerCase();
       rows = rows.filter(
@@ -281,125 +427,102 @@ export const portalService = {
   },
 
   async get(id: string): Promise<Portal> {
-    await delay(180);
-    const found = PORTALS.find((p) => p.id === id);
-    if (!found) throw new Error("Portal not found");
-    return structuredClone(found);
+    return fetchOnePortal(id);
   },
 
   async create(input: Partial<Portal> & { name: string; organizationId: string; locationId: string }): Promise<Portal> {
-    await delay(280);
-    const orgName = ORGS.find(([id]) => id === input.organizationId)?.[1] ?? "Organization";
-    const locName = LOCATIONS.find(([id]) => id === input.locationId)?.[1] ?? "Location";
-    const p: Portal = {
-      ...(makePortal(PORTALS.length) as Portal),
-      ...input,
-      id: `PRT-${(4000 + PORTALS.length).toString().padStart(5, "0")}`,
-      organizationName: orgName,
-      locationName: locName,
-      status: "draft",
-      loginMethods: input.loginMethods ?? ["mobile_otp"],
-      primaryLoginMethod: input.primaryLoginMethod ?? "mobile_otp",
-      versions: [
-        {
-          id: uid(),
-          version: 1,
-          label: "Initial",
-          createdAt: new Date().toISOString(),
-          createdBy: "you@cloudguest.io",
-          status: "draft",
-        },
-      ],
-      currentVersion: 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    PORTALS.unshift(p);
-    return structuredClone(p);
+    const flags = loginMethodFlags(input.loginMethods ?? ["mobile_otp"]);
+    const { data } = await api.post<BackendCaptivePortalConfig>("/captive-portal-configs", {
+      organization_id: input.organizationId,
+      location_id: input.locationId || null,
+      name: input.name,
+      is_active: false,
+      theme: input.themeId ?? "corporate",
+      logo_url: input.branding?.logoUrl ?? null,
+      background_image_url: input.branding?.backgroundUrl ?? null,
+      primary_color: input.branding?.primaryColor ?? "#0EA5E9",
+      secondary_color: input.branding?.secondaryColor ?? "#0F172A",
+      default_language: input.defaultLanguage ?? "en",
+      supported_languages: input.languages ?? ["en"],
+      terms_and_conditions_url: input.consent?.termsUrl || null,
+      privacy_policy_url: input.consent?.privacyUrl || null,
+      splash_headline: input.seo?.pageTitle ?? null,
+      splash_welcome_message: input.seo?.metaDescription ?? null,
+      redirect_url: input.login?.redirectUrl || null,
+      ...flags,
+    });
+    return fetchOnePortal(data.id);
   },
 
   async update(id: string, patch: Partial<Portal>): Promise<Portal> {
-    await delay(200);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error("Portal not found");
-    const merged: Portal = {
-      ...PORTALS[idx],
-      ...patch,
-      branding: { ...PORTALS[idx].branding, ...(patch.branding ?? {}) },
-      login: { ...PORTALS[idx].login, ...(patch.login ?? {}) },
-      consent: { ...PORTALS[idx].consent, ...(patch.consent ?? {}) },
-      seo: { ...PORTALS[idx].seo, ...(patch.seo ?? {}) },
-      updatedAt: new Date().toISOString(),
-    };
-    PORTALS[idx] = merged;
-    return structuredClone(merged);
+    const body: Record<string, unknown> = {};
+    if (patch.name !== undefined) body.name = patch.name;
+    if (patch.themeId !== undefined) body.theme = patch.themeId;
+    if (patch.branding?.logoUrl !== undefined) body.logo_url = patch.branding.logoUrl || null;
+    if (patch.branding?.backgroundUrl !== undefined)
+      body.background_image_url = patch.branding.backgroundUrl || null;
+    if (patch.branding?.primaryColor !== undefined) body.primary_color = patch.branding.primaryColor;
+    if (patch.branding?.secondaryColor !== undefined) body.secondary_color = patch.branding.secondaryColor;
+    if (patch.defaultLanguage !== undefined) body.default_language = patch.defaultLanguage;
+    if (patch.languages !== undefined) body.supported_languages = patch.languages;
+    if (patch.consent?.termsUrl !== undefined) body.terms_and_conditions_url = patch.consent.termsUrl || null;
+    if (patch.consent?.privacyUrl !== undefined) body.privacy_policy_url = patch.consent.privacyUrl || null;
+    if (patch.seo?.pageTitle !== undefined) body.splash_headline = patch.seo.pageTitle || null;
+    if (patch.seo?.metaDescription !== undefined) body.splash_welcome_message = patch.seo.metaDescription || null;
+    if (patch.login?.redirectUrl !== undefined) body.redirect_url = patch.login.redirectUrl || null;
+    if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
+
+    if (Object.keys(body).length > 0) {
+      await api.put(`/captive-portal-configs/${id}`, body);
+    }
+    return fetchOnePortal(id);
   },
 
+  /** No backend equivalent for cloning a config -- fetches the real source
+   * and creates a real copy via the same create() path above (a real,
+   * persisted duplicate, not a mocked one). */
   async duplicate(id: string): Promise<Portal> {
-    await delay(240);
-    const src = PORTALS.find((p) => p.id === id);
-    if (!src) throw new Error("Portal not found");
-    const copy: Portal = {
-      ...structuredClone(src),
-      id: `PRT-${(4000 + PORTALS.length).toString().padStart(5, "0")}`,
-      name: `${src.name} (Copy)`,
-      status: "draft",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    PORTALS.unshift(copy);
-    return copy;
+    const src = await fetchOnePortal(id);
+    return portalService.create({ ...src, name: `${src.name} (Copy)` });
   },
 
   async remove(id: string): Promise<void> {
-    await delay(180);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (idx >= 0) PORTALS.splice(idx, 1);
+    await api.delete(`/captive-portal-configs/${id}`);
   },
 
   async setStatus(id: string, status: PortalStatus): Promise<Portal> {
-    await delay(180);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error("Portal not found");
-    PORTALS[idx].status = status;
-    if (status === "published") {
-      PORTALS[idx].lastPublishedAt = new Date().toISOString();
-      PORTALS[idx].publishedBy = "you@cloudguest.io";
-      PORTALS[idx].currentVersion += 1;
-      PORTALS[idx].versions.push({
-        id: uid(),
-        version: PORTALS[idx].currentVersion,
-        label: `Published v${PORTALS[idx].currentVersion}`,
-        createdAt: new Date().toISOString(),
-        createdBy: "you@cloudguest.io",
-        status: "published",
-      });
-    }
-    PORTALS[idx].updatedAt = new Date().toISOString();
-    return structuredClone(PORTALS[idx]);
+    // Backend only has a binary is_active -- "published" activates, every
+    // other frontend status ("draft"/"archived"/"scheduled", none of which
+    // the backend distinguishes) deactivates.
+    await api.post(`/captive-portal-configs/${id}/${status === "published" ? "activate" : "deactivate"}`);
+    return fetchOnePortal(id);
   },
 
+  /** Static design catalog -- see THEMES comment above, no backend concept. */
   async themes(): Promise<PortalTheme[]> {
-    await delay(120);
     return structuredClone(THEMES);
   },
 
+  /** No backend field stores an applied "theme id" beyond the plain
+   * `theme` string -- this persists the theme's real color fields for
+   * real (primary/secondary color), then returns the refreshed config
+   * with the local theme id attached for display. */
   async applyTheme(id: string, themeId: string): Promise<Portal> {
-    await delay(200);
     const theme = THEMES.find((t) => t.id === themeId);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (!theme || idx < 0) throw new Error("Theme or portal not found");
-    PORTALS[idx].branding = { ...theme.branding };
-    PORTALS[idx].themeId = theme.id;
-    PORTALS[idx].themeName = theme.name;
-    PORTALS[idx].updatedAt = new Date().toISOString();
-    return structuredClone(PORTALS[idx]);
+    if (!theme) throw new Error("Theme not found");
+    await api.put(`/captive-portal-configs/${id}`, {
+      theme: theme.id,
+      primary_color: theme.branding.primaryColor,
+      secondary_color: theme.branding.secondaryColor,
+    });
+    return fetchOnePortal(id);
   },
 
+  /** No backend endpoint to persist a new theme definition -- appends to
+   * the local, in-memory catalog only (matches prior mock behavior; not
+   * shared across sessions/users). */
   async saveAsTheme(id: string, name: string): Promise<PortalTheme> {
-    await delay(200);
-    const p = PORTALS.find((x) => x.id === id);
-    if (!p) throw new Error("Portal not found");
+    const p = await fetchOnePortal(id);
     const t: PortalTheme = {
       id: `theme-${uid()}`,
       name,
@@ -407,75 +530,43 @@ export const portalService = {
       description: "Custom theme saved from portal",
       preview: { from: p.branding.gradientFrom, to: p.branding.gradientTo, accent: p.branding.primaryColor },
       branding: { ...p.branding },
-      components: [...p.components],
+      components: defaultComponents(),
     };
     THEMES.push(t);
     return t;
   },
 
-  async restoreVersion(id: string, versionId: string): Promise<Portal> {
-    await delay(200);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error("Portal not found");
-    const v = PORTALS[idx].versions.find((x) => x.id === versionId);
-    if (!v) throw new Error("Version not found");
-    PORTALS[idx].currentVersion += 1;
-    PORTALS[idx].versions.push({
-      id: uid(),
-      version: PORTALS[idx].currentVersion,
-      label: `Restored v${v.version}`,
-      createdAt: new Date().toISOString(),
-      createdBy: "you@cloudguest.io",
-      status: "draft",
-      notes: `Restored from ${v.label}`,
-    });
-    PORTALS[idx].updatedAt = new Date().toISOString();
-    return structuredClone(PORTALS[idx]);
+  /** No version history exists in the backend (see module comment) --
+   * this is a UI-only echo of the current config so the version panel
+   * doesn't crash; it does not change any persisted data. */
+  async restoreVersion(id: string, _versionId: string): Promise<Portal> {
+    return fetchOnePortal(id);
   },
 
+  /** No ad-slot storage exists in the backend's captive_portal domain --
+   * kept as an in-memory echo (not persisted) so the ads panel stays
+   * usable; a real ads feature would need a backend field/table first. */
   async addAd(id: string, ad: Omit<PortalAd, "id" | "impressions" | "clicks">): Promise<Portal> {
-    await delay(180);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error("Portal not found");
-    PORTALS[idx].ads.unshift({ ...ad, id: uid(), impressions: 0, clicks: 0 });
-    return structuredClone(PORTALS[idx]);
+    const p = await fetchOnePortal(id);
+    p.ads = [{ ...ad, id: uid(), impressions: 0, clicks: 0 }, ...p.ads];
+    return p;
   },
 
   async removeAd(id: string, adId: string): Promise<Portal> {
-    await delay(150);
-    const idx = PORTALS.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error("Portal not found");
-    PORTALS[idx].ads = PORTALS[idx].ads.filter((a) => a.id !== adId);
-    return structuredClone(PORTALS[idx]);
+    const p = await fetchOnePortal(id);
+    p.ads = p.ads.filter((a) => a.id !== adId);
+    return p;
   },
 
-  async analytics(id: string): Promise<PortalAnalyticsData> {
-    await delay(200);
-    const p = PORTALS.find((x) => x.id === id);
-    if (!p) throw new Error("Portal not found");
-    const trend = Array.from({ length: 14 }, (_, i) => {
-      const day = new Date(Date.now() - (13 - i) * 86400000);
-      const base = 120 + Math.round(Math.sin(i / 2) * 40) + i * 8;
-      return {
-        date: day.toISOString().slice(5, 10),
-        views: base,
-        logins: Math.round(base * 0.65 - (i % 3) * 4),
-        failed: 4 + (i % 5),
-      };
-    });
+  /** No analytics/event tracking exists for captive_portal configs --
+   * returns real zeros rather than a fabricated trend line. */
+  async analytics(_id: string): Promise<PortalAnalyticsData> {
     return {
-      trend,
-      bounceRate: 22.4,
-      avgTimeSeconds: 78,
-      conversionRate: 64.3,
-      methodBreakdown: [
-        { method: "mobile_otp", value: 48 },
-        { method: "email_otp", value: 21 },
-        { method: "social", value: 14 },
-        { method: "voucher", value: 9 },
-        { method: "click_through", value: 6 },
-        { method: "pms", value: 2 },
-      ],
+      trend: [],
+      bounceRate: 0,
+      avgTimeSeconds: 0,
+      conversionRate: 0,
+      methodBreakdown: [],
     };
   },
 

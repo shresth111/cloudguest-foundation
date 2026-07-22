@@ -80,7 +80,7 @@ export function usePermissions() {
   const bucket = legacyRoleBucket(roles);
   const q = useQuery({
     queryKey: permissionKeys.me(bucket, locationId),
-    queryFn: () => permissionsService.getPermissions(bucket, locationId),
+    queryFn: () => permissionsService.getPermissions(bucket, locationId, user?.id),
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });

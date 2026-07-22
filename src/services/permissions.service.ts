@@ -16,17 +16,92 @@ import type {
 } from "@/types/permissions";
 import type { DashboardLayout, DashboardWidget } from "@/types/dashboard-layout";
 import { permissionsBus } from "@/lib/permissionsBus";
+import { rbacService } from "@/services/rbac.service";
 
 /**
- * Mock permissions endpoint. Shape mirrors what the real backend
- * will return so it can be swapped later without touching consumers.
+ * The module tree/action-map/sidebar below is a frontend-owned IA
+ * (information architecture) table, not backend data -- there is no
+ * "sidebar layout" or "dashboard widget order" concept in the real
+ * backend, so BASE_BY_ROLE/LOCKED_BY_ROLE/etc. legitimately stay local.
  *
- *   GET /api/v1/me/permissions?locationId=<id> -> PermissionEnvelope
- *
- * Everything the sidebar renders — including group order, item order,
- * icon, badges, and locked state — comes from this payload. No route
- * files, buttons or widgets are permitted to hardcode a role check.
+ * What IS real: `getPermissions` additionally fetches the caller's actual
+ * RBAC permission keys (GET /users/{id}/permissions, via
+ * rbacService.getUserPermissions -- already a live integration) and, for
+ * the subset of modules with an unambiguous backend permission-domain
+ * match (MODULE_PERMISSION_PREFIX below), downgrades `view` to false when
+ * the real backend says the user lacks `<prefix>.read`. This only ever
+ * *removes* a grant the static table over-offered -- it never adds one --
+ * and fails open (falls back to the static table untouched) if the fetch
+ * errors, e.g. a non-admin bucket lacking `users.read` on itself gets a
+ * 403 from that endpoint. Modules with no clean single backend-domain
+ * match (dashboard, workspace-*, rbac, guests, portals, ...) are left
+ * exactly as the static table decides, same as before this change.
  */
+const MODULE_PERMISSION_PREFIX: Partial<Record<ModuleId, string>> = {
+  organizations: "organizations",
+  locations: "locations",
+  "location-master": "locations",
+  subscription: "subscriptions",
+  audit: "audit_logs",
+  routers: "routers",
+  monitoring: "monitoring",
+  billing: "billing",
+  vlan: "vlan",
+  "api-keys": "api_keys",
+  notifications: "notifications",
+  campaigns: "campaigns",
+  dscp: "qos",
+  "isp-routing": "isp_routing",
+  firewall: "firewall",
+  "captive-portal": "captive_portal",
+  otp: "otp",
+  radius: "radius",
+  "network-dhcp": "dhcp",
+  "network-dns": "dns",
+  "policy-location": "policy",
+  "policy-user": "policy",
+  "policy-group": "policy",
+  "policy-auth": "policy",
+  "policy-bandwidth": "policy",
+  "policy-network": "policy",
+  analytics: "analytics",
+  "analytics-executive": "analytics",
+  "analytics-network": "analytics",
+  "analytics-guest": "analytics",
+  "analytics-device": "analytics",
+  "analytics-isp": "analytics",
+  "voucher-master": "voucher",
+};
+
+/**
+ * Real permission keys the current user actually holds, or `null` if they
+ * couldn't be fetched (no user id yet, or the endpoint rejected the call --
+ * e.g. RequirePermission("users.read") on GET /users/{id}/permissions
+ * means only admin-bucket callers can read their own key set today). A
+ * `null` result means "don't override the static table" -- see module
+ * docstring above.
+ */
+async function fetchRealPermissionKeys(userId: string | undefined): Promise<Set<string> | null> {
+  if (!userId) return null;
+  try {
+    const keys = await rbacService.getUserPermissions(userId);
+    return new Set(keys);
+  } catch {
+    return null;
+  }
+}
+
+/** Modules to downgrade to `view: false` given a real permission-key set. */
+function modulesDeniedByReal(realKeys: Set<string>): Set<ModuleId> {
+  const denied = new Set<ModuleId>();
+  for (const [moduleId, prefix] of Object.entries(MODULE_PERMISSION_PREFIX) as [
+    ModuleId,
+    string,
+  ][]) {
+    if (!realKeys.has(`${prefix}.read`)) denied.add(moduleId);
+  }
+  return denied;
+}
 
 const FULL_ACTIONS: Required<Omit<ModulePermission, "locked">> = {
   view: true,
@@ -1014,7 +1089,11 @@ function applyFeatureOverrides(
 }
 
 export const permissionsService = {
-  async getPermissions(role: UserRole, _locationId?: string): Promise<PermissionEnvelope> {
+  async getPermissions(
+    role: UserRole,
+    _locationId?: string,
+    userId?: string,
+  ): Promise<PermissionEnvelope> {
     const allowed = new Set(BASE_BY_ROLE[role] ?? []);
     const locked = new Set(LOCKED_BY_ROLE[role] ?? []);
     const modules: PermissionMap = {};
@@ -1036,6 +1115,15 @@ export const permissionsService = {
               : READ_ONLY;
     }
     for (const id of locked) modules[id] = { view: false, locked: true };
+
+    // Real-permission downgrade -- see MODULE_PERMISSION_PREFIX's docstring.
+    // Never grants beyond what the static table above already decided.
+    const realKeys = await fetchRealPermissionKeys(userId);
+    if (realKeys) {
+      for (const id of modulesDeniedByReal(realKeys)) {
+        if (modules[id]) modules[id] = { ...modules[id], view: false };
+      }
+    }
 
     // FE-025: Super Admin gets the Platform Console sidebar only.
     const consoleSidebar: SidebarGroupDef[] =
