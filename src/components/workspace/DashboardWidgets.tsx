@@ -1,5 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Activity, ArrowUpRight, MapPin, Router as RouterIcon, Users, Wifi } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Activity, AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Globe, Megaphone,
+  MapPin, Router as RouterIcon, ShieldCheck, Ticket, Users, Wifi, XCircle,
+} from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -17,8 +21,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
+import { rbacService } from "@/services/rbac.service";
+import { campaignService } from "@/services/campaign.service";
+import { billingService } from "@/services/billing.service";
+import { monitoringService } from "@/services/monitoring.service";
+import { cn } from "@/lib/utils";
 
 const CHART_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
 
@@ -27,34 +37,140 @@ function kFmt(n: number) {
   return `${n}`;
 }
 
+function startOfToday(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * Real, org-scoped counts this dashboard's own KPI row needs but that
+ * useWorkspace()/useWorkspaceScope() don't already provide: total staff
+ * users, active campaigns, and the org's own active subscription/license.
+ * Each is a genuinely real backend call -- fetched here rather than
+ * fabricated, and each degrades to an honest "—" (not a fake number) if
+ * its query hasn't resolved yet or the org has none.
+ */
+function useOwnerKpis(organizationId: string | undefined) {
+  const usersQ = useQuery({
+    queryKey: ["workspace-kpi", "users", organizationId],
+    queryFn: () => rbacService.listUsers({ page: 1, pageSize: 1 }),
+    enabled: !!organizationId,
+  });
+
+  const campaignsQ = useQuery({
+    queryKey: ["workspace-kpi", "campaigns", organizationId],
+    queryFn: () => campaignService.list({ page: 1, pageSize: 100 }),
+    enabled: !!organizationId,
+  });
+
+  const billingQ = useQuery({
+    queryKey: ["workspace-kpi", "billing", organizationId],
+    queryFn: () => billingService.getSnapshot(),
+    enabled: !!organizationId,
+  });
+
+  const alertsQ = useQuery({
+    queryKey: ["workspace-kpi", "alerts", organizationId],
+    queryFn: () =>
+      monitoringService.listAlerts({
+        organizationId,
+        status: "triggered",
+        page: 1,
+        pageSize: 50,
+      }),
+    enabled: !!organizationId,
+  });
+
+  const activeCampaigns = campaignsQ.data?.rows.filter((c) => c.status === "active").length;
+  const activeSubscription = billingQ.data?.subscriptions.find(
+    (s) => s.organizationId === organizationId && s.status === "active",
+  );
+  const openAlerts = alertsQ.data?.totalItems;
+
+  return {
+    isLoading: usersQ.isLoading || campaignsQ.isLoading || billingQ.isLoading || alertsQ.isLoading,
+    totalUsers: usersQ.data?.totalItems,
+    activeCampaigns,
+    activeLicense: activeSubscription?.planName,
+    openAlerts,
+  };
+}
+
 export function DashboardWidgets() {
   const { customer, locations, activeLocation, activeLocationId } = useWorkspace();
   const { aggregated, scope } = useWorkspaceScope();
+  const owner = useOwnerKpis(customer?.organizationId);
+
+  const onlineRouters = aggregated.routers.filter((r) => r.status === "online").length;
+  const offlineRouters = aggregated.routers.length - onlineRouters;
+  const todayGuests = aggregated.guestSessions.filter(
+    (g) => new Date(g.startedAt).getTime() >= startOfToday(),
+  );
+  const newGuestsToday = new Set(todayGuests.map((g) => g.guestIdentifier)).size;
+
+  // A real, derived signal -- not a fabricated score. Router online-ratio
+  // plus open-alert count, the only two real health inputs this workspace
+  // actually has (see the module docstring on RouterDetailTabs' own
+  // monitoring-tab gap: no live CPU/RAM/bandwidth endpoint exists yet).
+  const routerRatio = aggregated.routers.length
+    ? onlineRouters / aggregated.routers.length
+    : 1;
+  const systemHealth: "healthy" | "degraded" | "critical" =
+    routerRatio === 1 && (owner.openAlerts ?? 0) === 0
+      ? "healthy"
+      : routerRatio >= 0.7
+        ? "degraded"
+        : "critical";
 
   const kpis = [
     {
-      label: "Active guests",
+      label: "Total locations",
+      value: locations.length,
+      hint: `${customer?.organizationName ?? "your org"}`,
+      icon: MapPin,
+    },
+    {
+      label: "Active routers",
+      value: onlineRouters,
+      hint: `of ${aggregated.routers.length} total`,
+      icon: RouterIcon,
+    },
+    {
+      label: "Online guests",
       value: aggregated.analytics.activeSessions,
-      hint: "Currently online",
+      hint: "Currently connected",
       icon: Users,
     },
     {
-      label: "Routers online",
-      value: aggregated.routers.filter((r) => r.status === "online").length,
-      hint: `of ${aggregated.routers.length} total`,
-      icon: RouterIcon,
+      label: "Today's logins",
+      value: newGuestsToday,
+      hint: "Unique guests since midnight",
+      icon: Clock,
+    },
+    {
+      label: "Total users",
+      value: owner.totalUsers,
+      hint: "Organization staff",
+      icon: ShieldCheck,
+    },
+    {
+      label: "Active campaigns",
+      value: owner.activeCampaigns,
+      hint: "Currently running",
+      icon: Megaphone,
+    },
+    {
+      label: "License",
+      value: owner.activeLicense ?? "—",
+      hint: "Active plan",
+      icon: Ticket,
     },
     {
       label: "Guest sessions",
       value: aggregated.analytics.totalSessions,
       hint: "Recent sessions",
       icon: Activity,
-    },
-    {
-      label: "Data consumed",
-      value: `${aggregated.analytics.dataConsumedGb.toFixed(1)} GB`,
-      hint: "Recent sessions",
-      icon: Wifi,
     },
   ];
 
@@ -81,15 +197,19 @@ export function DashboardWidgets() {
   return (
     <div className="space-y-6">
       {/* KPI */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((k) => (
           <Card key={k.label}>
             <CardContent className="flex items-start justify-between p-5">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">{k.label}</p>
-                <p className="mt-2 text-2xl font-semibold">
-                  {typeof k.value === "number" ? kFmt(k.value) : k.value}
-                </p>
+                {k.value === undefined ? (
+                  <Skeleton className="mt-2 h-8 w-16" />
+                ) : (
+                  <p className="mt-2 text-2xl font-semibold">
+                    {typeof k.value === "number" ? kFmt(k.value) : k.value}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">{k.hint}</p>
               </div>
               <div className="rounded-lg bg-primary/10 p-2 text-primary">
@@ -98,6 +218,61 @@ export function DashboardWidgets() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Network overview */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Network overview</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <HealthCard
+            label="Connected routers"
+            value={onlineRouters}
+            tone="green"
+            icon={CheckCircle2}
+          />
+          <HealthCard
+            label="Offline routers"
+            value={offlineRouters}
+            tone={offlineRouters > 0 ? "red" : "green"}
+            icon={XCircle}
+          />
+          <HealthCard
+            label="System health"
+            value={systemHealth === "healthy" ? "Healthy" : systemHealth === "degraded" ? "Degraded" : "Critical"}
+            tone={systemHealth === "healthy" ? "green" : systemHealth === "degraded" ? "yellow" : "red"}
+            icon={systemHealth === "healthy" ? ShieldCheck : AlertTriangle}
+            hint={
+              owner.openAlerts !== undefined
+                ? `${owner.openAlerts} open alert${owner.openAlerts === 1 ? "" : "s"}`
+                : undefined
+            }
+          />
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <Globe className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">Last sync</p>
+                <p className="truncate text-sm font-medium">
+                  {aggregated.routers.length && aggregated.routers.some((r) => r.lastSeenAt)
+                    ? new Date(
+                        Math.max(
+                          ...aggregated.routers
+                            .filter((r) => r.lastSeenAt)
+                            .map((r) => new Date(r.lastSeenAt as string).getTime()),
+                        ),
+                      ).toLocaleString()
+                    : "Never"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          CPU, memory, disk and uptime aren't shown here yet — the backend only records a
+          self-reported heartbeat today, not live device metrics.
+        </p>
       </div>
 
       {/* Charts */}
@@ -249,5 +424,40 @@ export function DashboardWidgets() {
         </Card>
       </div>
     </div>
+  );
+}
+
+const TONE_STYLES = {
+  green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  yellow: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  red: "bg-red-500/10 text-red-600 dark:text-red-400",
+} as const;
+
+function HealthCard({
+  label,
+  value,
+  hint,
+  tone,
+  icon: Icon,
+}: {
+  label: string;
+  value: number | string;
+  hint?: string;
+  tone: "green" | "yellow" | "red";
+  icon: typeof CheckCircle2;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", TONE_STYLES[tone])}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="truncate text-sm font-medium">{value}</p>
+          {hint && <p className="truncate text-xs text-muted-foreground">{hint}</p>}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
