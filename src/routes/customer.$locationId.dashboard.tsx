@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   ChevronLeft, Bell, Search, Sun, Moon, LayoutDashboard, Users as UsersIcon, BarChart3,
@@ -41,6 +41,9 @@ const NAV = [
 const DEVICE_COLORS = ["#ec3013", "#f05a3a", "#f4856a", "#f7b0a0", "#fad5cd", "#e5e5e5"];
 
 export const Route = createFileRoute("/customer/$locationId/dashboard")({
+  beforeLoad: ({ context }) => {
+    if (context.auth?.status === "anonymous") throw redirect({ to: "/login" });
+  },
   component: CustomerDashboardPage,
 });
 
@@ -58,6 +61,7 @@ function CustomerDashboardPage() {
   const handleNav = (id: string) => {
     if (id === "dashboard") navigate({ to: `/customer/${locationId}/dashboard` });
     else if (id === "users") navigate({ to: `/customer/${locationId}/users` });
+    else navigate({ to: `/customer/${locationId}/${id}` });
     setMobileOpen(false);
   };
 

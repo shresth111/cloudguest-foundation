@@ -6,9 +6,9 @@ export function primaryRoleLabel(roles: RoleAssignment[]): string {
   return roles[0]?.roleName ?? "No role assigned";
 }
 
-/** All authenticated users land on the tiered space picker. */
+/** All authenticated users land on the customer dashboard. */
 export function homeRoute(): string {
-  return "/select-space";
+  return "/customer";
 }
 
 /**
@@ -21,7 +21,7 @@ export function homeRoute(): string {
 export type LoginMode = "owner" | "agent";
 
 export function landingRouteForLoginMode(mode: LoginMode): string {
-  return mode === "agent" ? "/workspace/agent" : homeRoute();
+  return "/customer";
 }
 
 /**

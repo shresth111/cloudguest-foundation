@@ -145,6 +145,11 @@ api.interceptors.response.use(
         (config.headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
         return api.request(config);
       }
+      // Demo mode: skip session expiry redirect for demo tokens
+      const currentToken = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+      if (currentToken === "demo-access-token") {
+        return Promise.reject(toAppError(error));
+      }
       clearSession();
       goToSessionExpired();
     }

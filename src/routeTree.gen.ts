@@ -76,6 +76,7 @@ import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authe
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
 import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
+import { Route as CustomerLocationIdFeatureRouteImport } from './routes/customer.$locationId.$feature'
 import { Route as AuthenticatedWorkspaceStaffRouteImport } from './routes/_authenticated/workspace.staff'
 import { Route as AuthenticatedWorkspaceRoutersRouteImport } from './routes/_authenticated/workspace.routers'
 import { Route as AuthenticatedWorkspaceReportsRouteImport } from './routes/_authenticated/workspace.reports'
@@ -495,6 +496,12 @@ const CustomerLocationIdDashboardRoute =
     path: '/customer/$locationId/dashboard',
     getParentRoute: () => rootRouteImport,
   } as any)
+const CustomerLocationIdFeatureRoute =
+  CustomerLocationIdFeatureRouteImport.update({
+    id: '/customer/$locationId/$feature',
+    path: '/customer/$locationId/$feature',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedWorkspaceStaffRoute =
   AuthenticatedWorkspaceStaffRouteImport.update({
     id: '/staff',
@@ -882,6 +889,7 @@ export interface FileRoutesByFullPath {
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
+  '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
@@ -998,6 +1006,7 @@ export interface FileRoutesByTo {
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
+  '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
@@ -1120,6 +1129,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/_authenticated/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/_authenticated/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
+  '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
@@ -1242,6 +1252,7 @@ export interface FileRouteTypes {
     | '/workspace/reports'
     | '/workspace/routers'
     | '/workspace/staff'
+    | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
@@ -1358,6 +1369,7 @@ export interface FileRouteTypes {
     | '/workspace/reports'
     | '/workspace/routers'
     | '/workspace/staff'
+    | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
@@ -1479,6 +1491,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/reports'
     | '/_authenticated/workspace/routers'
     | '/_authenticated/workspace/staff'
+    | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
@@ -1532,6 +1545,7 @@ export interface RootRouteChildren {
   SessionExpiredRoute: typeof SessionExpiredRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
+  CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
   CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
 }
@@ -2005,6 +2019,13 @@ declare module '@tanstack/react-router' {
       path: '/customer/$locationId/dashboard'
       fullPath: '/customer/$locationId/dashboard'
       preLoaderRoute: typeof CustomerLocationIdDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$locationId/$feature': {
+      id: '/customer/$locationId/$feature'
+      path: '/customer/$locationId/$feature'
+      fullPath: '/customer/$locationId/$feature'
+      preLoaderRoute: typeof CustomerLocationIdFeatureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspace/staff': {
@@ -2679,6 +2700,7 @@ const rootRouteChildren: RootRouteChildren = {
   SessionExpiredRoute: SessionExpiredRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   CustomerIndexRoute: CustomerIndexRoute,
+  CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
   CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
 }

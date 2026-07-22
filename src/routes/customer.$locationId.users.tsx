@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import {
   ChevronLeft, Bell, Search, Sun, Moon, LayoutDashboard, Users as UsersIcon, BarChart3,
   FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield, Monitor,
@@ -35,6 +35,9 @@ const NAV = [
 ];
 
 export const Route = createFileRoute("/customer/$locationId/users")({
+  beforeLoad: ({ context }) => {
+    if (context.auth?.status === "anonymous") throw redirect({ to: "/login" });
+  },
   component: CustomerUsersPage,
 });
 
@@ -74,7 +77,7 @@ function CustomerUsersPage() {
         <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
           {NAV.map((item) => {
             const Icon = item.icon; const isActive = item.id === "users";
-            return (<button key={item.id} onClick={() => { if (item.id === "dashboard") navigate({ to: `/customer/${locationId}/dashboard` }); setMobileOpen(false); }} className={cn("flex w-full items-center gap-3 px-3 py-2 text-sm border-l-2", isActive ? "border-l-[#ec3013] bg-[#f3f2f2] dark:bg-neutral-800 text-[#ec3013] font-semibold" : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")}><Icon className="h-4 w-4 shrink-0" />{sidebarOpen && <span className="truncate">{item.label}</span>}</button>);
+            return (<button key={item.id} onClick={() => { navigate({ to: `/customer/${locationId}/${item.id}` }); setMobileOpen(false); }} className={cn("flex w-full items-center gap-3 px-3 py-2 text-sm border-l-2", isActive ? "border-l-[#ec3013] bg-[#f3f2f2] dark:bg-neutral-800 text-[#ec3013] font-semibold" : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")}><Icon className="h-4 w-4 shrink-0" />{sidebarOpen && <span className="truncate">{item.label}</span>}</button>);
           })}
         </nav>
         <div className="border-t-2 border-border p-2 hidden lg:block"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="flex w-full items-center justify-center px-3 py-2 text-xs text-muted-foreground">{sidebarOpen ? "◄ Collapse" : "►"}</button></div>
