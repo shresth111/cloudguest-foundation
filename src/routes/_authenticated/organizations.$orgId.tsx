@@ -43,7 +43,7 @@ function OrganizationDetailPage() {
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (!org) return <ErrorState title="Organization not found" description="This organization may have been deleted." />;
 
-  const suspended = org.status === "suspended" || org.status === "expired";
+  const suspended = org.status === "suspended";
 
   return (
     <div className="space-y-6">
@@ -56,9 +56,7 @@ function OrganizationDetailPage() {
             <h1 className="text-2xl font-semibold tracking-tight">{org.name}</h1>
             <StatusBadge status={org.status} />
           </div>
-          <p className="text-sm text-muted-foreground">
-            {org.id} · {org.industry} · {org.city}, {org.country}
-          </p>
+          <p className="text-sm text-muted-foreground">{org.slug}</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -82,7 +80,7 @@ function OrganizationDetailPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => toast.success("Temporary password sent")}>
+              <DropdownMenuItem onClick={() => toast.info("Admin password reset — coming soon")}>
                 <KeyRound className="h-4 w-4" /><span className="ml-2">Reset admin password</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => toast.info(`Logged in as ${org.name} (placeholder)`)}>
@@ -95,17 +93,17 @@ function OrganizationDetailPage() {
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setConfirm({
-                  title: `Delete ${org.name}?`,
-                  description: "This permanently removes the organization and all associated data.",
+                  title: `Archive ${org.name}?`,
+                  description: "This archives the organization.",
                   destructive: true,
                   onConfirm: async () => {
                     await remove.mutateAsync([org.id]);
-                    toast.success("Organization deleted");
+                    toast.success("Organization archived");
                     navigate({ to: "/organizations" });
                   },
                 })}
               >
-                <Trash2 className="h-4 w-4" /><span className="ml-2">Delete organization</span>
+                <Trash2 className="h-4 w-4" /><span className="ml-2">Archive organization</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

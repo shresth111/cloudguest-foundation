@@ -1,20 +1,23 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock } from "lucide-react";
 import { useEffect } from "react";
+import { z } from "zod";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/session-expired")({
+  validateSearch: z.object({ redirect: z.string().optional() }),
   component: SessionExpiredPage,
 });
 
 function SessionExpiredPage() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
 
   useEffect(() => {
-    logout();
+    void logout();
   }, [logout]);
 
   return (
@@ -26,7 +29,10 @@ function SessionExpiredPage() {
         <p className="text-sm text-muted-foreground">
           You've been signed out due to inactivity or an expired session token.
         </p>
-        <Button className="w-full" onClick={() => navigate({ to: "/login", replace: true })}>
+        <Button
+          className="w-full"
+          onClick={() => navigate({ to: "/login", search: { redirect }, replace: true })}
+        >
           Return to sign in
         </Button>
       </div>

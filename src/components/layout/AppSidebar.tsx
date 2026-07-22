@@ -17,11 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { resolveIcon } from "@/lib/icons";
-import { ROLE_LABELS } from "@/lib/roles";
+import { primaryRoleLabel } from "@/lib/roles";
 import type { SidebarGroupDef, SidebarNode } from "@/types/permissions";
 
 export function AppSidebar() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { sidebar, isLoading } = usePermissions();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
@@ -70,7 +70,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border">
         {user && (
           <div className="px-2 py-2 text-xs text-muted-foreground">
-            Signed in as <span className="font-medium text-foreground">{ROLE_LABELS[user.role]}</span>
+            Signed in as <span className="font-medium text-foreground">{primaryRoleLabel(roles)}</span>
           </div>
         )}
       </SidebarFooter>

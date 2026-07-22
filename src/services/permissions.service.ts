@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types/auth";
+import type { LegacyRoleBucket as UserRole } from "@/lib/roles";
 import type {
   AssignedOrganization,
   AssignmentEnvelope,
@@ -48,7 +48,6 @@ const NEW_IA_MODULES: ModuleId[] = [
 
 const PLATFORM_CONSOLE: ModuleId[] = [
   "dashboard",
-  "customers",
   "location-master",
   "nas-management",
   "nas-id-generator",
@@ -69,7 +68,7 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "organizations", "locations", "vouchers",
   ],
   org_admin: [
-    "dashboard", "customers", "location-master", "infrastructure", "voucher-master",
+    "dashboard", "location-master", "infrastructure", "voucher-master",
     "locations", "subscription", "audit", "settings",
     "routers", "guests", "portals", "monitoring", "analytics",
     "billing", "branding", "marketplace", "rbac",
@@ -424,12 +423,11 @@ const GROUP_META: Record<GroupId, { label: string; order: number }> = {
 };
 
 /**
- * FE-024 Primary IA — a flat 10-item list surfaced at the top of the sidebar.
+ * FE-024 Primary IA — a flat list surfaced at the top of the sidebar.
  * Everything else remains available in secondary groups below for power users.
  */
 const PRIMARY_IA: ModuleId[] = [
   "dashboard",
-  "customers",
   "location-master",
   "infrastructure",
   "voucher-master",

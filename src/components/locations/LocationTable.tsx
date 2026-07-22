@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
-  Copy,
   Download,
   LayoutGrid,
   List,
@@ -19,7 +18,6 @@ import {
   RefreshCw,
   Search,
   Trash2,
-  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -55,26 +53,21 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import {
   useAllLocations,
-  useCloneLocation,
   useDeleteLocations,
   useLocations,
   useUpdateLocationStatus,
 } from "@/hooks/useLocations";
 import { locationService } from "@/services/location.service";
-import type { Location, LocationListQuery, LocationStatus, SiteType } from "@/types/location";
-import { SITE_TYPE_LABEL } from "@/types/location";
-import {
-  InternetStatusBadge,
-  LocationStatusBadge,
-  SiteTypeBadge,
-  SubscriptionBadge,
-} from "./LocationStatusBadge";
+import type { Location, LocationListQuery, LocationStatus, PropertyType } from "@/types/location";
+import { PROPERTY_TYPE_LABEL } from "@/types/location";
+import { LocationStatusBadge, SiteTypeBadge } from "./LocationStatusBadge";
 import { LocationWizard } from "./LocationWizard";
 import { LocationCardView } from "./LocationCardView";
 import { LocationMapView } from "./LocationMapView";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Lock } from "lucide-react";
+import type { AppError } from "@/services/api";
 
 const PAGE_SIZES = [10, 20, 50];
 
@@ -87,17 +80,9 @@ function formatDate(iso: string) {
 }
 
 function toCsv(rows: Location[]) {
-  const headers = [
-    "ID", "Name", "Organization", "Site Type", "Country", "State", "City",
-    "Address", "Timezone", "Routers", "Active Guests", "Internet Status",
-    "Subscription Status", "Status", "Created",
-  ];
+  const headers = ["ID", "Name", "Organization", "Property Type", "Country", "State", "City", "Address", "Timezone", "Status", "Created"];
   const lines = rows.map((r) =>
-    [
-      r.id, r.name, r.organizationName, r.siteType, r.country, r.state, r.city,
-      r.address, r.timezone, r.routerCount, r.activeGuests, r.internetStatus,
-      r.subscriptionStatus, r.status, r.createdAt,
-    ]
+    [r.id, r.name, r.organizationName, r.propertyType ?? "", r.country, r.stateProvince, r.city, r.addressLine1, r.timezone, r.status, r.createdAt]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(","),
   );
@@ -115,13 +100,11 @@ export function LocationTable() {
   const [view, setView] = usePersistentState<ViewMode>("loc-master:view", "table");
   const [search, setSearch] = usePersistentState<string>("loc-master:search", "");
   const [status, setStatus] = usePersistentState<LocationStatus | "all">("loc-master:status", "all");
-  const [siteType, setSiteType] = usePersistentState<SiteType | "all">("loc-master:siteType", "all");
+  const [propertyType, setPropertyType] = usePersistentState<PropertyType | "all">("loc-master:propertyType", "all");
   const [organizationId, setOrganizationId] = usePersistentState<string | "all">("loc-master:org", "all");
   const [country, setCountry] = usePersistentState<string | "all">("loc-master:country", "all");
   const [page, setPage] = usePersistentState<number>("loc-master:page", 1);
   const [pageSize, setPageSize] = usePersistentState<number>("loc-master:pageSize", 10);
-  const [sortBy, setSortBy] = usePersistentState<keyof Location>("loc-master:sortBy", "createdAt");
-  const [sortDir, setSortDir] = usePersistentState<"asc" | "desc">("loc-master:sortDir", "desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | {
@@ -132,31 +115,25 @@ export function LocationTable() {
   }>(null);
 
   const query: LocationListQuery = useMemo(
-    () => ({ search, status, siteType, organizationId, country, page, pageSize, sortBy, sortDir }),
-    [search, status, siteType, organizationId, country, page, pageSize, sortBy, sortDir],
+    () => ({ search, status, propertyType, organizationId, country, page, pageSize }),
+    [search, status, propertyType, organizationId, country, page, pageSize],
   );
 
   const { data, isLoading, isError, refetch, isFetching } = useLocations(query);
   const { data: allRows } = useAllLocations();
   const updateStatus = useUpdateLocationStatus();
   const remove = useDeleteLocations();
-  const clone = useCloneLocation();
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
-  const orgs = locationService.organizations();
+  const { data: orgs = [] } = useQuery({
+    queryKey: ["locations", "org-options"],
+    queryFn: () => locationService.organizations(),
+  });
   const countries = locationService.countries();
-
-  function toggleSort(key: keyof Location) {
-    if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortBy(key);
-      setSortDir("asc");
-    }
-  }
 
   function toggleAll() {
     setSelected((prev) => {
@@ -197,12 +174,12 @@ export function LocationTable() {
         return;
       }
       setConfirm({
-        title: `Delete ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
-        description: "This permanently removes the selected locations and their data.",
+        title: `Archive ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
+        description: "This archives the selected locations.",
         destructive: true,
         onConfirm: async () => {
           await remove.mutateAsync(ids);
-          toast.success("Locations deleted");
+          toast.success("Locations archived");
           setSelected(new Set());
         },
       });
@@ -212,9 +189,9 @@ export function LocationTable() {
       toast.error("Edit restricted. Contact your Administrator.");
       return;
     }
-    const newStatus: LocationStatus = action === "enable" ? "active" : "inactive";
+    const newStatus: LocationStatus = action === "enable" ? "active" : "suspended";
     setConfirm({
-      title: `${action === "enable" ? "Enable" : "Disable"} ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
+      title: `${action === "enable" ? "Activate" : "Suspend"} ${ids.length} location${ids.length > 1 ? "s" : ""}?`,
       description: `Selected locations will be marked as ${newStatus}.`,
       onConfirm: async () => {
         await updateStatus.mutateAsync({ ids, status: newStatus });
@@ -256,27 +233,25 @@ export function LocationTable() {
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="maintenance">Maintenance</SelectItem>
-              <SelectItem value="offline">Offline</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
           <Select
-            value={siteType}
+            value={propertyType}
             onValueChange={(v) => {
-              setSiteType(v as SiteType | "all");
+              setPropertyType(v as PropertyType | "all");
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Site type" />
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Property type" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
-              {(Object.keys(SITE_TYPE_LABEL) as SiteType[]).map((t) => (
+              {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => (
                 <SelectItem key={t} value={t}>
-                  {SITE_TYPE_LABEL[t]}
+                  {PROPERTY_TYPE_LABEL[t]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -373,7 +348,7 @@ export function LocationTable() {
                 title={canEdit ? undefined : "Edit restricted. Contact your Administrator."}
               >
                 {canEdit ? <PlayCircle className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                <span className="ml-2">Enable</span>
+                <span className="ml-2">Activate</span>
               </Button>
               <Button
                 variant="outline"
@@ -383,7 +358,7 @@ export function LocationTable() {
                 title={canEdit ? undefined : "Edit restricted. Contact your Administrator."}
               >
                 {canEdit ? <PauseCircle className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                <span className="ml-2">Disable</span>
+                <span className="ml-2">Suspend</span>
               </Button>
               <Button
                 variant={canDelete ? "destructive" : "outline"}
@@ -393,7 +368,7 @@ export function LocationTable() {
                 title={canDelete ? undefined : "Delete restricted. Contact your Administrator."}
               >
                 {canDelete ? <Trash2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                <span className="ml-2">Delete</span>
+                <span className="ml-2">Archive</span>
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
                 Clear
@@ -466,18 +441,13 @@ export function LocationTable() {
                     <TableHead className="w-10">
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" />
                     </TableHead>
-                    <SortableHead label="Location" k="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
-                    <TableHead>Owner / Customer</TableHead>
+                    <TableHead>Location</TableHead>
                     <TableHead>Organization</TableHead>
-                    <TableHead>Site type</TableHead>
+                    <TableHead>Property type</TableHead>
                     <TableHead>City / Country</TableHead>
                     <TableHead>Timezone</TableHead>
-                    <SortableHead label="Routers" k="routerCount" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <SortableHead label="Guests" k="activeGuests" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <TableHead>Internet</TableHead>
-                    <TableHead>Subscription</TableHead>
                     <TableHead>Status</TableHead>
-                    <SortableHead label="Created" k="createdAt" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                    <TableHead>Created</TableHead>
                     <TableHead className="w-10 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -498,36 +468,22 @@ export function LocationTable() {
                           className="group flex flex-col"
                         >
                           <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
-                          <span className="text-xs text-muted-foreground">{r.id}</span>
+                          <span className="text-xs text-muted-foreground">{r.slug}</span>
                         </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{r.ownerName ?? "—"}</span>
-                          <span className="text-xs text-muted-foreground">{r.ownerEmail ?? r.organizationName}</span>
-                        </div>
                       </TableCell>
                       <TableCell className="text-sm">{r.organizationName}</TableCell>
                       <TableCell>
-                        <SiteTypeBadge type={r.siteType} />
+                        <SiteTypeBadge type={r.propertyType} />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="text-sm">{r.city}</span>
                           <span className="text-xs text-muted-foreground">
-                            {r.state}, {r.country}
+                            {r.stateProvince}, {r.country}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{r.timezone}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.routerCount}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.activeGuests.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <InternetStatusBadge status={r.internetStatus} />
-                      </TableCell>
-                      <TableCell>
-                        <SubscriptionBadge status={r.subscriptionStatus} />
-                      </TableCell>
                       <TableCell>
                         <LocationStatusBadge status={r.status} />
                       </TableCell>
@@ -538,29 +494,22 @@ export function LocationTable() {
                           onAction={(a) => {
                             if (a === "enable" || a === "disable") {
                               updateStatus.mutate(
-                                { ids: [r.id], status: a === "enable" ? "active" : "inactive" },
+                                { ids: [r.id], status: a === "enable" ? "active" : "suspended" },
                                 {
-                                  onSuccess: () => toast.success(`${r.name} ${a}d`),
+                                  onSuccess: () => toast.success(`${r.name} ${a === "enable" ? "activated" : "suspended"}`),
+                                  onError: (err) => toast.error((err as unknown as AppError).message || `Failed to ${a}`),
                                 },
                               );
                             } else if (a === "delete") {
                               setConfirm({
-                                title: `Delete ${r.name}?`,
-                                description: "This action cannot be undone.",
+                                title: `Archive ${r.name}?`,
+                                description: "This archives the location.",
                                 destructive: true,
                                 onConfirm: async () => {
                                   await remove.mutateAsync([r.id]);
-                                  toast.success("Deleted");
+                                  toast.success("Archived");
                                 },
                               });
-                            } else if (a === "clone") {
-                              clone.mutate(r.id, {
-                                onSuccess: (loc) => toast.success(`Cloned as ${loc?.name}`),
-                              });
-                            } else if (a === "restart") {
-                              toast.success("Restart command sent (placeholder)");
-                            } else if (a === "download") {
-                              toast.success("Configuration download queued (placeholder)");
                             }
                           }}
                         />
@@ -701,47 +650,14 @@ function Pagination({
   );
 }
 
-function SortableHead({
-  label,
-  k,
-  sortBy,
-  sortDir,
-  onSort,
-  align,
-}: {
-  label: string;
-  k: keyof Location;
-  sortBy: keyof Location;
-  sortDir: "asc" | "desc";
-  onSort: (k: keyof Location) => void;
-  align?: "right";
-}) {
-  const active = sortBy === k;
-  return (
-    <TableHead className={align === "right" ? "text-right" : ""}>
-      <button
-        onClick={() => onSort(k)}
-        className={`inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide ${
-          active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        {label}
-        <ArrowUpDown className={`h-3 w-3 ${active ? "opacity-100" : "opacity-40"}`} />
-        {active && <span className="text-[10px]">{sortDir}</span>}
-      </button>
-    </TableHead>
-  );
-}
-
 function RowActions({
   location,
   onAction,
 }: {
   location: Location;
-  onAction: (a: "enable" | "disable" | "delete" | "clone" | "restart" | "download") => void;
+  onAction: (a: "enable" | "disable" | "delete") => void;
 }) {
-  const disabled =
-    location.status === "inactive" || location.status === "suspended" || location.status === "offline";
+  const disabled = location.status === "suspended" || location.status === "inactive";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -754,38 +670,21 @@ function RowActions({
         <DropdownMenuItem asChild>
           <Link to="/locations/$locationId" params={{ locationId: location.id }}>View details</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/locations/$locationId" params={{ locationId: location.id }} search={{ tab: "monitoring" }}>
-            Open monitoring
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("clone")}>
-          <Copy className="h-4 w-4" />
-          <span className="ml-2">Clone location</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("restart")}>
-          <Wrench className="h-4 w-4" />
-          <span className="ml-2">Restart services</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("download")}>
-          <Download className="h-4 w-4" />
-          <span className="ml-2">Download config</span>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {disabled ? (
           <DropdownMenuItem onClick={() => onAction("enable")}>
             <PlayCircle className="h-4 w-4" />
-            <span className="ml-2">Enable</span>
+            <span className="ml-2">Activate</span>
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem onClick={() => onAction("disable")}>
             <PauseCircle className="h-4 w-4" />
-            <span className="ml-2">Disable</span>
+            <span className="ml-2">Suspend</span>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onAction("delete")}>
           <Trash2 className="h-4 w-4" />
-          <span className="ml-2">Delete</span>
+          <span className="ml-2">Archive</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { customerService } from "@/services/customer.service";
 import { customerKeys } from "@/hooks/useCustomer";
 import { useAuth } from "@/context/AuthContext";
+import { legacyRoleBucket } from "@/lib/roles";
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
 
 export function SpaceContextChip() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { data: customers } = useQuery({
     queryKey: customerKeys.list,
     queryFn: () => customerService.listCustomers(),
@@ -30,7 +31,7 @@ export function SpaceContextChip() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  if (!customers?.length || !user || user.role === "super_admin") return null;
+  if (!customers?.length || !user || legacyRoleBucket(roles) === "super_admin") return null;
 
   const email = user.email.toLowerCase();
   const customer =

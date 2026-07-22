@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Activity, MapPin, Router, Users, Wifi } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Location } from "@/types/location";
-import { InternetStatusBadge, LocationStatusBadge, SiteTypeBadge } from "./LocationStatusBadge";
+import { LocationStatusBadge, SiteTypeBadge } from "./LocationStatusBadge";
 
 export function LocationCardView({ rows }: { rows: Location[] }) {
   return (
@@ -32,39 +32,14 @@ export function LocationCardView({ rows }: { rows: Location[] }) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <SiteTypeBadge type={r.siteType} />
-                <InternetStatusBadge status={r.internetStatus} />
+                <SiteTypeBadge type={r.propertyType} />
               </div>
 
-              <div className="mt-auto grid grid-cols-3 gap-2 border-t border-border/60 pt-4 text-center">
-                <Stat icon={Router} value={r.routerCount} label="Routers" />
-                <Stat icon={Users} value={r.activeGuests} label="Guests" />
-                <Stat icon={Activity} value={r.todaysSessions} label="Sessions" />
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <div className="truncate">{r.organizationName}</div>
-                <div className="flex items-center gap-1">
-                  <Wifi className="h-3 w-3" />
-                  {r.internetSpeedMbps}Mbps
-                </div>
-              </div>
+              <div className="mt-auto text-xs text-muted-foreground">{r.organizationName}</div>
             </CardContent>
           </Card>
         </Link>
       ))}
-    </div>
-  );
-}
-
-function Stat({ icon: Icon, value, label }: { icon: typeof Router; value: number; label: string }) {
-  return (
-    <div>
-      <div className="flex items-center justify-center gap-1 text-sm font-semibold tabular-nums">
-        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-        {value.toLocaleString()}
-      </div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
   );
 }

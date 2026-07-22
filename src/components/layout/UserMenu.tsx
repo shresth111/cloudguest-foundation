@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/context/AuthContext";
-import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/roles";
+import { primaryRoleLabel } from "@/lib/roles";
 
 function initials(name: string) {
   return name
@@ -37,7 +37,7 @@ function initials(name: string) {
 }
 
 export function UserMenu() {
-  const { user, logout } = useAuth();
+  const { user, roles, logout } = useAuth();
   const navigate = useNavigate();
 
   if (!user) return null;
@@ -73,8 +73,8 @@ export function UserMenu() {
           <div className="flex flex-col gap-1">
             <span className="text-sm font-semibold">{user.name}</span>
             <span className="text-xs font-normal text-muted-foreground">{user.email}</span>
-            <Badge variant={ROLE_BADGE_VARIANT[user.role]} className="mt-1 w-fit">
-              {ROLE_LABELS[user.role]}
+            <Badge variant="secondary" className="mt-1 w-fit">
+              {primaryRoleLabel(roles)}
             </Badge>
           </div>
         </DropdownMenuLabel>
@@ -120,8 +120,8 @@ export function UserMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => {
-            logout();
+          onClick={async () => {
+            await logout();
             navigate({ to: "/login" });
           }}
         >

@@ -1,75 +1,63 @@
-export type LocationStatus =
-  | "active"
-  | "inactive"
-  | "maintenance"
-  | "offline"
-  | "pending"
-  | "suspended";
+export type LocationStatus = "active" | "inactive" | "suspended" | "archived";
 
-export type SiteType =
+export type PropertyType =
   | "hotel"
+  | "resort"
   | "cafe"
   | "restaurant"
   | "hospital"
-  | "school"
+  | "clinic"
   | "office"
+  | "coworking_space"
+  | "school"
+  | "college"
+  | "university"
   | "mall"
   | "airport"
-  | "other";
+  | "factory"
+  | "warehouse"
+  | "apartment"
+  | "hostel"
+  | "custom";
 
-export type InternetStatus = "online" | "offline" | "degraded";
-export type SubscriptionStatus = "active" | "trial" | "expired" | "suspended";
+// Kept as an alias -- Phase 1's WorkspaceContext/select-space already import
+// `SiteType` from here for display purposes.
+export type SiteType = PropertyType;
 
 export interface Location {
   id: string;
   name: string;
+  slug: string;
   organizationId: string;
   organizationName: string;
-  ownerName?: string;
-  ownerEmail?: string;
-  siteType: SiteType;
-  country: string;
-  state: string;
-  city: string;
-  address: string;
-  zipCode: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  isp: string;
-  primaryWan: string;
-  secondaryWan?: string;
-  internetSpeedMbps: number;
-  publicIp: string;
-  dns: string;
-  routerCount: number;
-  activeGuests: number;
-  todaysSessions: number;
-  bandwidthUsageMbps: number;
-  uptimePct: number;
-  activeAlerts: number;
-  guestWifiEnabled: boolean;
-  captivePortalEnabled: boolean;
-  voucherLogin: boolean;
-  otpLogin: boolean;
-  pmsIntegration: boolean;
-  socialLogin: boolean;
-  internetStatus: InternetStatus;
-  subscriptionStatus: SubscriptionStatus;
   status: LocationStatus;
+  propertyType: PropertyType | null;
+  locationCode: string | null;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  stateProvince: string;
+  postalCode: string;
+  country: string;
+  timezone: string;
+  latitude: number | null;
+  longitude: number | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  settings: Record<string, unknown>;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface LocationListQuery {
   search?: string;
   status?: LocationStatus | "all";
-  siteType?: SiteType | "all";
+  propertyType?: PropertyType | "all";
   organizationId?: string | "all";
   country?: string | "all";
   page: number;
   pageSize: number;
-  sortBy?: keyof Location;
-  sortDir?: "asc" | "desc";
 }
 
 export interface LocationListResult {
@@ -78,56 +66,121 @@ export interface LocationListResult {
 }
 
 export interface CreateLocationPayload {
-  basic: {
-    name: string;
-    organizationId: string;
-    siteType: SiteType;
-  };
-  address: {
-    country: string;
-    state: string;
-    city: string;
-    address: string;
-    zipCode: string;
-    latitude: number;
-    longitude: number;
-    timezone: string;
-  };
-  network: {
-    isp: string;
-    primaryWan: string;
-    secondaryWan?: string;
-    internetSpeedMbps: number;
-    publicIp: string;
-    dns: string;
-  };
-  settings: {
-    guestWifiEnabled: boolean;
-    captivePortalEnabled: boolean;
-    voucherLogin: boolean;
-    otpLogin: boolean;
-    pmsIntegration: boolean;
-    socialLogin: boolean;
-  };
+  organizationId: string;
+  name: string;
+  slug: string;
+  propertyType?: PropertyType;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  stateProvince: string;
+  postalCode: string;
+  country: string;
+  timezone: string;
+  latitude?: number;
+  longitude?: number;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  settings?: Record<string, unknown>;
 }
 
-export const SITE_TYPE_LABEL: Record<SiteType, string> = {
+export interface ProvisionLocationPayload {
+  existingOrganizationId?: string;
+  newOrganization?: {
+    name: string;
+    slug: string;
+    contactEmail: string;
+    contactPhone?: string;
+    legalName?: string;
+    timezone?: string;
+    defaultLocale?: string;
+  };
+  location: {
+    name: string;
+    slug: string;
+    propertyType?: PropertyType;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    stateProvince: string;
+    postalCode: string;
+    country: string;
+    timezone?: string;
+    latitude?: number;
+    longitude?: number;
+    contactName?: string;
+    contactPhone?: string;
+    contactEmail?: string;
+  };
+  owner: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    username?: string;
+    phone?: string;
+    designation?: string;
+    department?: string;
+  };
+  router: {
+    name: string;
+    serialNumber: string;
+    macAddress: string;
+    model: string;
+    managementIpAddress?: string;
+    publicIpAddress?: string;
+  };
+  planId: string;
+  featureOverrides?: Array<{ featureKey: string; isEnabled?: boolean; limitValue?: number }>;
+  couponCode?: string;
+}
+
+export interface ProvisionLocationResult {
+  organizationId: string;
+  organizationName: string;
+  locationId: string;
+  locationName: string;
+  locationCode: string;
+  planId: string;
+  planName: string;
+  routerId: string;
+  routerName: string;
+  ownerUserId: string;
+  ownerName: string;
+  ownerUsername: string;
+  ownerEmail: string;
+  ownerTemporaryPassword: string;
+  loginUrl: string;
+  provisionedAt: string;
+}
+
+export const PROPERTY_TYPE_LABEL: Record<PropertyType, string> = {
   hotel: "Hotel",
+  resort: "Resort",
   cafe: "Cafe",
   restaurant: "Restaurant",
   hospital: "Hospital",
-  school: "School",
+  clinic: "Clinic",
   office: "Office",
+  coworking_space: "Coworking Space",
+  school: "School",
+  college: "College",
+  university: "University",
   mall: "Mall",
   airport: "Airport",
-  other: "Other",
+  factory: "Factory",
+  warehouse: "Warehouse",
+  apartment: "Apartment",
+  hostel: "Hostel",
+  custom: "Custom",
 };
+
+// Kept as an alias -- see `SiteType` above.
+export const SITE_TYPE_LABEL = PROPERTY_TYPE_LABEL;
 
 export const LOCATION_STATUS_LABEL: Record<LocationStatus, string> = {
   active: "Active",
   inactive: "Inactive",
-  maintenance: "Maintenance",
-  offline: "Offline",
-  pending: "Pending",
   suspended: "Suspended",
+  archived: "Archived",
 };

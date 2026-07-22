@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { customerService, type ExistingCustomer } from "@/services/customer.service";
+import { api } from "@/services/api";
+import type { ExistingCustomer } from "@/services/customer.service";
+import type { SiteType } from "@/types/location";
 import { useAuth } from "@/context/AuthContext";
-import { customerKeys } from "@/hooks/useCustomer";
-
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
 
@@ -18,22 +18,95 @@ interface WorkspaceContextValue {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(undefined);
 
+// `SiteType` is a straight alias of the real backend `PropertyType` enum
+// (see src/types/location.ts) -- no lossy mapping needed, just a safe
+// fallback for locations created before `property_type` existed.
+function toSiteType(propertyType: string | null | undefined): SiteType {
+  return (propertyType as SiteType) ?? "custom";
+}
+
+interface BackendOrganization {
+  id: string;
+  name: string;
+  status: "trial" | "active" | "suspended" | "archived";
+  contact_email: string;
+  subscription_tier: string | null;
+}
+
+interface BackendLocation {
+  id: string;
+  name: string;
+  city: string;
+  property_type: string | null;
+}
+
+interface BackendLocationList {
+  items: BackendLocation[];
+}
+
+async function fetchActiveCustomer(
+  organizationId: string,
+  isPrimaryContact: boolean,
+  currentUser: { name: string; email: string },
+): Promise<ExistingCustomer> {
+  const [{ data: org }, { data: locationList }] = await Promise.all([
+    api.get<BackendOrganization>(`/organizations/${organizationId}`, {
+      headers: { "X-Organization-Id": organizationId },
+    }),
+    api.get<BackendLocationList>(`/organizations/${organizationId}/locations`, {
+      params: { page_size: 100 },
+      headers: { "X-Organization-Id": organizationId },
+    }),
+  ]);
+
+  const locations = locationList.items.map((loc) => ({
+    id: loc.id,
+    name: loc.name,
+    siteType: toSiteType(loc.property_type),
+    city: loc.city,
+  }));
+
+  const status: ExistingCustomer["status"] =
+    org.status === "trial" ? "trial" : org.status === "active" ? "active" : "suspended";
+
+  return {
+    id: org.id,
+    name: org.name,
+    organizationId: org.id,
+    organizationName: org.name,
+    subscription: {
+      // Real field where available (`subscription_tier`); billing cycle/expiry
+      // have no backend source yet — the Billing domain isn't wired here.
+      plan: (org.subscription_tier as ExistingCustomer["subscription"]["plan"]) || "trial",
+      billingCycle: "yearly",
+      status: status === "suspended" ? "expired" : status,
+      expiryDate: "",
+    },
+    owner: {
+      name: isPrimaryContact ? currentUser.name : "",
+      email: org.contact_email,
+      mobile: "",
+      role: "Organization Admin",
+      assignedLocations: locations.length,
+    },
+    locations,
+    status,
+  };
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, organizations } = useAuth();
+  const activeOrg = organizations[0] ?? null;
 
-  const { data: customers, isLoading } = useQuery({
-    queryKey: customerKeys.list,
-    queryFn: () => customerService.listCustomers(),
+  const { data: customer, isLoading } = useQuery({
+    queryKey: ["workspace", "customer", activeOrg?.organizationId],
+    queryFn: () =>
+      fetchActiveCustomer(activeOrg!.organizationId, activeOrg!.isPrimaryContact, {
+        name: user?.name ?? "",
+        email: user?.email ?? "",
+      }),
+    enabled: !!activeOrg,
   });
-
-  // Pick the customer that matches the signed-in user's email, else first.
-  const customer = useMemo<ExistingCustomer | null>(() => {
-    if (!customers?.length) return null;
-    const email = user?.email?.toLowerCase();
-    return (
-      customers.find((c) => c.owner.email.toLowerCase() === email) ?? customers[0] ?? null
-    );
-  }, [customers, user?.email]);
 
   const [activeLocationId, setActiveLocationIdState] = useState<string>("all");
 
@@ -87,7 +160,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const activeLocation = locs.find((l) => l.id === activeLocationId) ?? null;
     return {
       isLoading,
-      customer,
+      customer: customer ?? null,
       locations: locs,
       activeLocationId,
       activeLocation,

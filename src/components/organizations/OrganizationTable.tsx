@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  ArrowUpDown,
   Building2,
   ChevronLeft,
   ChevronRight,
@@ -47,14 +46,15 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
-import { PlanBadge, StatusBadge } from "./StatusBadge";
+import { StatusBadge } from "./StatusBadge";
 import { OrganizationWizard } from "./OrganizationWizard";
 import {
   useDeleteOrganizations,
   useOrganizations,
   useUpdateOrgStatus,
 } from "@/hooks/useOrganizations";
-import type { OrgListQuery, OrgStatus, Organization, SubscriptionPlan } from "@/types/organization";
+import type { OrgListQuery, OrgStatus, Organization } from "@/types/organization";
+import type { AppError } from "@/services/api";
 
 const PAGE_SIZES = [10, 20, 50];
 
@@ -63,13 +63,9 @@ function formatDate(iso: string) {
 }
 
 function toCsv(rows: Organization[]) {
-  const headers = [
-    "ID", "Name", "Type", "Contact", "Email", "Phone", "Plan",
-    "Locations", "Routers", "Guests", "Status", "Created",
-  ];
+  const headers = ["ID", "Name", "Slug", "Type", "Email", "Phone", "Subscription tier", "Status", "Created"];
   const lines = rows.map((r) =>
-    [r.id, r.name, r.type, r.contactName, r.contactEmail, r.contactPhone, r.plan,
-      r.activeLocations, r.activeRouters, r.activeGuests, r.status, r.createdAt]
+    [r.id, r.name, r.slug, r.orgType, r.contactEmail, r.contactPhone ?? "", r.subscriptionTier ?? "", r.status, r.createdAt]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","),
   );
   return [headers.join(","), ...lines].join("\n");
@@ -78,18 +74,15 @@ function toCsv(rows: Organization[]) {
 export function OrganizationTable() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrgStatus | "all">("all");
-  const [plan, setPlan] = useState<SubscriptionPlan | "all">("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortBy, setSortBy] = useState<keyof Organization>("createdAt");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | { title: string; description: string; onConfirm: () => void; destructive?: boolean }>(null);
 
   const query: OrgListQuery = useMemo(
-    () => ({ search, status, plan, page, pageSize, sortBy, sortDir }),
-    [search, status, plan, page, pageSize, sortBy, sortDir],
+    () => ({ search, status, page, pageSize }),
+    [search, status, page, pageSize],
   );
 
   const { data, isLoading, isError, refetch, isFetching } = useOrganizations(query);
@@ -98,13 +91,8 @@ export function OrganizationTable() {
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = data?.totalPages ?? 1;
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
-
-  function toggleSort(key: keyof Organization) {
-    if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortBy(key); setSortDir("asc"); }
-  }
 
   function toggleAll() {
     setSelected((prev) => {
@@ -140,24 +128,24 @@ export function OrganizationTable() {
     if (!ids.length) return;
     if (action === "delete") {
       setConfirm({
-        title: `Delete ${ids.length} organization${ids.length > 1 ? "s" : ""}?`,
-        description: "This permanently removes the selected organizations and their data.",
+        title: `Archive ${ids.length} organization${ids.length > 1 ? "s" : ""}?`,
+        description: "This archives the selected organizations.",
         destructive: true,
         onConfirm: async () => {
           await remove.mutateAsync(ids);
-          toast.success("Organizations deleted");
+          toast.success("Organizations archived");
           setSelected(new Set());
         },
       });
       return;
     }
-    const status: OrgStatus = action === "activate" ? "active" : "suspended";
+    const targetStatus: OrgStatus = action === "activate" ? "active" : "suspended";
     setConfirm({
       title: `${action === "activate" ? "Activate" : "Suspend"} ${ids.length} organization${ids.length > 1 ? "s" : ""}?`,
-      description: `Selected organizations will be marked as ${status}.`,
+      description: `Selected organizations will be marked as ${targetStatus}.`,
       onConfirm: async () => {
-        await updateStatus.mutateAsync({ ids, status });
-        toast.success(`Marked as ${status}`);
+        await updateStatus.mutateAsync({ ids, status: targetStatus });
+        toast.success(`Marked as ${targetStatus}`);
         setSelected(new Set());
       },
     });
@@ -174,7 +162,7 @@ export function OrganizationTable() {
             <Input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search organizations, contacts, emails…"
+              placeholder="Search organizations, contact emails…"
               className="pl-9"
             />
           </div>
@@ -182,21 +170,10 @@ export function OrganizationTable() {
             <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
               <SelectItem value="trial">Trial</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
               <SelectItem value="suspended">Suspended</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-              <SelectItem value="pending_verification">Pending</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={plan} onValueChange={(v) => { setPlan(v as SubscriptionPlan | "all"); setPage(1); }}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Plan" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All plans</SelectItem>
-              <SelectItem value="starter">Starter</SelectItem>
-              <SelectItem value="growth">Growth</SelectItem>
-              <SelectItem value="business">Business</SelectItem>
-              <SelectItem value="enterprise">Enterprise</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
@@ -224,7 +201,7 @@ export function OrganizationTable() {
                 <PauseCircle className="h-4 w-4" /><span className="ml-2">Suspend</span>
               </Button>
               <Button variant="destructive" size="sm" onClick={() => bulk("delete")}>
-                <Trash2 className="h-4 w-4" /><span className="ml-2">Delete</span>
+                <Trash2 className="h-4 w-4" /><span className="ml-2">Archive</span>
               </Button>
             </div>
           </div>
@@ -249,15 +226,12 @@ export function OrganizationTable() {
               <TableHeader>
                 <TableRow className="bg-muted/30">
                   <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" /></TableHead>
-                  <SortableHead label="Organization" k="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                  <TableHead>Organization</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Contact</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <SortableHead label="Locations" k="activeLocations" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  <SortableHead label="Routers" k="activeRouters" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  <SortableHead label="Guests" k="activeGuests" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <TableHead>Subscription</TableHead>
                   <TableHead>Status</TableHead>
-                  <SortableHead label="Created" k="createdAt" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                  <TableHead>Created</TableHead>
                   <TableHead className="w-10 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -268,20 +242,17 @@ export function OrganizationTable() {
                     <TableCell>
                       <Link to="/organizations/$orgId" params={{ orgId: r.id }} className="group flex flex-col">
                         <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
-                        <span className="text-xs text-muted-foreground">{r.id} · {r.industry}</span>
+                        <span className="text-xs text-muted-foreground">{r.slug}</span>
                       </Link>
                     </TableCell>
-                    <TableCell className="capitalize text-sm">{r.type}</TableCell>
+                    <TableCell className="capitalize text-sm">{r.orgType}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="text-sm">{r.contactName}</span>
-                        <span className="text-xs text-muted-foreground">{r.contactEmail}</span>
+                        <span className="text-sm">{r.contactEmail}</span>
+                        {r.contactPhone && <span className="text-xs text-muted-foreground">{r.contactPhone}</span>}
                       </div>
                     </TableCell>
-                    <TableCell><PlanBadge plan={r.plan} /></TableCell>
-                    <TableCell className="text-right tabular-nums">{r.activeLocations}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.activeRouters}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.activeGuests.toLocaleString()}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.subscriptionTier ?? "—"}</TableCell>
                     <TableCell><StatusBadge status={r.status} /></TableCell>
                     <TableCell className="text-sm text-muted-foreground">{formatDate(r.createdAt)}</TableCell>
                     <TableCell className="text-right">
@@ -289,16 +260,13 @@ export function OrganizationTable() {
                         if (a === "activate" || a === "suspend") {
                           updateStatus.mutate({ ids: [r.id], status: a === "activate" ? "active" : "suspended" }, {
                             onSuccess: () => toast.success(`${r.name} ${a}d`),
+                            onError: (err) => toast.error((err as unknown as AppError).message || `Failed to ${a}`),
                           });
                         } else if (a === "delete") {
                           setConfirm({
-                            title: `Delete ${r.name}?`, description: "This action cannot be undone.", destructive: true,
-                            onConfirm: async () => { await remove.mutateAsync([r.id]); toast.success("Deleted"); },
+                            title: `Archive ${r.name}?`, description: "This archives the organization.", destructive: true,
+                            onConfirm: async () => { await remove.mutateAsync([r.id]); toast.success("Archived"); },
                           });
-                        } else if (a === "reset") {
-                          toast.success("Temporary password sent to admin email");
-                        } else if (a === "impersonate") {
-                          toast.info(`Logged in as ${r.name} (placeholder)`);
                         }
                       }} />
                     </TableCell>
@@ -347,27 +315,9 @@ export function OrganizationTable() {
   );
 }
 
-function SortableHead({
-  label, k, sortBy, sortDir, onSort, align,
-}: {
-  label: string; k: keyof Organization; sortBy: keyof Organization; sortDir: "asc" | "desc";
-  onSort: (k: keyof Organization) => void; align?: "right";
-}) {
-  const active = sortBy === k;
-  return (
-    <TableHead className={align === "right" ? "text-right" : ""}>
-      <button onClick={() => onSort(k)} className={`inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide ${active ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-        {label}
-        <ArrowUpDown className={`h-3 w-3 ${active ? "opacity-100" : "opacity-40"}`} />
-        {active && <span className="text-[10px]">{sortDir}</span>}
-      </button>
-    </TableHead>
-  );
-}
-
 function RowActions({ org, onAction }: {
   org: Organization;
-  onAction: (a: "activate" | "suspend" | "delete" | "reset" | "impersonate") => void;
+  onAction: (a: "activate" | "suspend" | "delete") => void;
 }) {
   return (
     <DropdownMenu>
@@ -379,19 +329,14 @@ function RowActions({ org, onAction }: {
         <DropdownMenuItem asChild>
           <Link to="/organizations/$orgId" params={{ orgId: org.id }}>View details</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/organizations/$orgId" params={{ orgId: org.id }} search={{ tab: "billing" }}>View billing</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("reset")}>Reset admin password</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("impersonate")}>Login as organization</DropdownMenuItem>
         <DropdownMenuSeparator />
-        {org.status === "suspended" || org.status === "expired" ? (
+        {org.status === "suspended" ? (
           <DropdownMenuItem onClick={() => onAction("activate")}>Activate</DropdownMenuItem>
         ) : (
           <DropdownMenuItem onClick={() => onAction("suspend")}>Suspend</DropdownMenuItem>
         )}
         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onAction("delete")}>
-          Delete
+          Archive
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

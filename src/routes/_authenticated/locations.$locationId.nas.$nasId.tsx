@@ -12,6 +12,7 @@ import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { useNas, useRunNasOperation } from "@/hooks/useNas";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { legacyRoleBucket } from "@/lib/roles";
 
 export const Route = createFileRoute("/_authenticated/locations/$locationId/nas/$nasId")({
   component: NasDetailPage,
@@ -56,9 +57,10 @@ function NasDetailPage() {
   const navigate = useNavigate();
   const { data: nas, isLoading, isError, refetch } = useNas(locationId, nasId);
   const runOp = useRunNasOperation(locationId);
-  const { role } = useAuth();
+  const { roles } = useAuth();
   const { canRouterAction } = usePermissions();
-  const canWrite = role === "super_admin" || role === "org_admin";
+  const bucket = legacyRoleBucket(roles);
+  const canWrite = bucket === "super_admin" || bucket === "org_admin";
 
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;

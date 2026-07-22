@@ -3,22 +3,23 @@ import { useEffect } from "react";
 import { WorkspaceProvider, useWorkspace } from "@/context/WorkspaceContext";
 import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
 import { useAuth } from "@/context/AuthContext";
+import { legacyRoleBucket, type LegacyRoleBucket } from "@/lib/roles";
 
 export const Route = createFileRoute("/_authenticated/workspace")({
   component: WorkspaceLayout,
 });
 
-const ALLOWED = ["super_admin", "org_admin", "location_manager", "read_only"] as const;
+const ALLOWED: LegacyRoleBucket[] = ["super_admin", "org_admin", "location_manager", "read_only"];
 
 function WorkspaceLayout() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && !ALLOWED.includes(user.role as (typeof ALLOWED)[number])) {
+    if (user && !ALLOWED.includes(legacyRoleBucket(roles))) {
       navigate({ to: "/dashboard", replace: true });
     }
-  }, [user, navigate]);
+  }, [user, roles, navigate]);
 
   return (
     <WorkspaceProvider>

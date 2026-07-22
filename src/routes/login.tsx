@@ -11,25 +11,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { authService } from "@/services/auth.service";
-import { ROLE_LABELS, homeRouteForRole } from "@/lib/roles";
+import { homeRoute } from "@/lib/roles";
+import type { AppError } from "@/services/api";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"),
   remember: z.boolean().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/login")({
+  validateSearch: z.object({ redirect: z.string().optional() }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
-  const demo = authService.listDemoAccounts();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -39,20 +40,14 @@ function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      const session = await login(values);
+      await login(values);
       toast.success("Welcome back");
-      navigate({ to: homeRouteForRole(session.user.role), replace: true });
-
+      navigate({ to: redirect || homeRoute(), replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Login failed");
+      toast.error((err as AppError).message || "Login failed");
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const quickFill = (email: string) => {
-    form.setValue("email", email);
-    form.setValue("password", "password");
   };
 
   return (
@@ -100,23 +95,6 @@ function LoginPage() {
           Sign in
         </Button>
       </form>
-
-      <div className="mt-8 rounded-xl border border-border bg-muted/40 p-4">
-        <p className="text-xs font-medium text-muted-foreground">Demo accounts (password: <code>password</code>)</p>
-        <div className="mt-2 grid gap-1">
-          {demo.map((d) => (
-            <button
-              key={d.email}
-              type="button"
-              onClick={() => quickFill(d.email)}
-              className="flex items-center justify-between rounded-md px-2 py-1 text-left text-xs hover:bg-background"
-            >
-              <span className="font-mono">{d.email}</span>
-              <span className="text-muted-foreground">{ROLE_LABELS[d.role]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
     </AuthLayout>
   );
 }

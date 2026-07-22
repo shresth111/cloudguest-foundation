@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authService } from "@/services/auth.service";
+import type { AppError } from "@/services/api";
 
 const schema = z
   .object({
-    password: z.string().min(8, "At least 8 characters"),
+    password: z.string().min(12, "At least 12 characters"),
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, {
@@ -23,22 +24,30 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/reset-password")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: typeof search.token === "string" ? search.token : "",
+  }),
   component: ResetPasswordPage,
 });
 
 function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { token } = Route.useSearch();
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { password: "", confirm: "" } });
 
   const onSubmit = async (values: FormValues) => {
+    if (!token) {
+      toast.error("This reset link is missing or invalid. Request a new one.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await authService.resetPassword("mock-token", values.password);
+      await authService.resetPassword(token, values.password);
       toast.success("Password updated. Please sign in.");
       navigate({ to: "/login", replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to reset password");
+      toast.error((err as AppError).message || "Failed to reset password");
     } finally {
       setSubmitting(false);
     }
@@ -47,7 +56,11 @@ function ResetPasswordPage() {
   return (
     <AuthLayout
       title="Set a new password"
-      subtitle="Choose a strong password you haven't used before."
+      subtitle={
+        token
+          ? "Choose a strong password you haven't used before."
+          : "This link is missing its reset token — request a new one from the forgot password page."
+      }
       footer={
         <Link to="/login" className="font-medium text-primary hover:underline">
           Back to sign in

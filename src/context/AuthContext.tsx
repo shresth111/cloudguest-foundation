@@ -1,78 +1,148 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authService } from "@/services/auth.service";
-import { TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
-import type { AuthSession, LoginCredentials, User, UserRole } from "@/types/auth";
+import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
+import type { AuthSession, LoginCredentials, OrganizationMembership, RoleAssignment, User } from "@/types/auth";
+
+const ROLES_STORAGE_KEY = "cloudguest_roles";
+const ORGS_STORAGE_KEY = "cloudguest_organizations";
+
+export type AuthStatus = "loading" | "authenticated" | "anonymous";
+
+/** The minimal slice of auth state pushed into TanStack Router's context so
+ * `beforeLoad` guards can read it outside React. */
+export interface RouterAuthContext {
+  status: AuthStatus;
+}
 
 interface AuthContextValue {
   user: User | null;
-  token: string | null;
-  role: UserRole | null;
+  roles: RoleAssignment[];
+  organizations: OrganizationMembership[];
+  status: AuthStatus;
   isAuthenticated: boolean;
   isReady: boolean;
   login: (creds: LoginCredentials) => Promise<AuthSession>;
-  logout: () => void;
-  hasRole: (roles: UserRole | UserRole[]) => boolean;
+  logout: () => Promise<void>;
+  can: (permission: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function readStoredJson<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistSession(session: AuthSession) {
+  localStorage.setItem(TOKEN_STORAGE_KEY, session.tokens.accessToken);
+  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, session.tokens.refreshToken);
+  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(session.user));
+  localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(session.roles));
+  localStorage.setItem(ORGS_STORAGE_KEY, JSON.stringify(session.organizations));
+}
+
+function clearStoredSession() {
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(USER_STORAGE_KEY);
+  localStorage.removeItem(ROLES_STORAGE_KEY);
+  localStorage.removeItem(ORGS_STORAGE_KEY);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const [roles, setRoles] = useState<RoleAssignment[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [status, setStatus] = useState<AuthStatus>("loading");
 
   useEffect(() => {
-    try {
-      const t = localStorage.getItem(TOKEN_STORAGE_KEY);
-      const u = localStorage.getItem(USER_STORAGE_KEY);
-      if (t && u) {
-        setToken(t);
-        setUser(JSON.parse(u) as User);
+    let cancelled = false;
+
+    async function rehydrate() {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      const storedUser = readStoredJson<User>(USER_STORAGE_KEY);
+      if (!token || !storedUser) {
+        if (!cancelled) setStatus("anonymous");
+        return;
       }
-    } catch {
-      // ignore
-    } finally {
-      setIsReady(true);
+
+      // Rehydrate synchronously from storage first so nothing flashes while
+      // /auth/me and /me/permissions confirm the session in the background.
+      setUser(storedUser);
+      setRoles(readStoredJson<RoleAssignment[]>(ROLES_STORAGE_KEY) ?? []);
+      setOrganizations(readStoredJson<OrganizationMembership[]>(ORGS_STORAGE_KEY) ?? []);
+      setStatus("authenticated");
+
+      try {
+        const [freshUser, freshPermissions] = await Promise.all([
+          authService.me(),
+          authService.myPermissions(),
+        ]);
+        if (cancelled) return;
+        setUser(freshUser);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(freshUser));
+        setPermissions(new Set(freshPermissions));
+      } catch {
+        // A 401 here is handled globally by the api.ts response interceptor
+        // (refresh-then-retry, or clear session + redirect to /session-expired).
+      }
     }
+
+    void rehydrate();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (creds: LoginCredentials) => {
     const session = await authService.login(creds);
-    localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(session.user));
-    setToken(session.token);
+    persistSession(session);
     setUser(session.user);
+    setRoles(session.roles);
+    setOrganizations(session.organizations);
+    setStatus("authenticated");
+
+    const myPermissions = await authService.myPermissions();
+    setPermissions(new Set(myPermissions));
+
     return session;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
-    setToken(null);
+  const logout = useCallback(async () => {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+    try {
+      await authService.logout(refreshToken);
+    } catch {
+      // Best-effort revoke — always clear local session regardless.
+    }
+    clearStoredSession();
     setUser(null);
+    setRoles([]);
+    setOrganizations([]);
+    setPermissions(new Set());
+    setStatus("anonymous");
   }, []);
 
-  const hasRole = useCallback(
-    (roles: UserRole | UserRole[]) => {
-      if (!user) return false;
-      const list = Array.isArray(roles) ? roles : [roles];
-      return list.includes(user.role);
-    },
-    [user],
-  );
+  const can = useCallback((permission: string) => permissions.has(permission), [permissions]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      token,
-      role: user?.role ?? null,
-      isAuthenticated: !!user && !!token,
-      isReady,
+      roles,
+      organizations,
+      status,
+      isAuthenticated: status === "authenticated",
+      isReady: status !== "loading",
       login,
       logout,
-      hasRole,
+      can,
     }),
-    [user, token, isReady, login, logout, hasRole],
+    [user, roles, organizations, status, login, logout, can],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

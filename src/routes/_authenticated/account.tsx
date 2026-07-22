@@ -34,7 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/context/AuthContext";
-import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/roles";
+import { primaryRoleLabel } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const SECTION_KEYS = [
@@ -167,7 +167,7 @@ function SectionCard({
 /* ---------------- Sections ---------------- */
 
 function ProfileSection() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [title, setTitle] = useState("Platform Administrator");
   const [phone, setPhone] = useState("+91 98200 00000");
@@ -224,7 +224,7 @@ function ProfileSection() {
       {user && (
         <div className="flex items-center gap-2 pt-2">
           <span className="text-xs text-muted-foreground">Role</span>
-          <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
+          <Badge variant="secondary">{primaryRoleLabel(roles)}</Badge>
         </div>
       )}
     </SectionCard>

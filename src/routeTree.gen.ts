@@ -104,7 +104,6 @@ import { Route as AuthenticatedGuestsSmartIdRouteImport } from './routes/_authen
 import { Route as AuthenticatedGuestsSessionsRouteImport } from './routes/_authenticated/guests.sessions'
 import { Route as AuthenticatedGuestsBlocklistRouteImport } from './routes/_authenticated/guests.blocklist'
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
-import { Route as AuthenticatedCustomersCustomerIdRouteImport } from './routes/_authenticated/customers.$customerId'
 import { Route as AuthenticatedAnalyticsNetworkRouteImport } from './routes/_authenticated/analytics.network'
 import { Route as AuthenticatedAnalyticsIspRouteImport } from './routes/_authenticated/analytics.isp'
 import { Route as AuthenticatedAnalyticsGuestRouteImport } from './routes/_authenticated/analytics.guest'
@@ -112,8 +111,6 @@ import { Route as AuthenticatedAnalyticsExecutiveRouteImport } from './routes/_a
 import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_authenticated/analytics.device'
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
-import { Route as AuthenticatedCustomersCustomerIdTenantRouteImport } from './routes/_authenticated/customers.$customerId.tenant'
-import { Route as AuthenticatedCustomersCustomerIdOnboardingRouteImport } from './routes/_authenticated/customers.$customerId.onboarding'
 import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
@@ -652,12 +649,6 @@ const AuthenticatedGuestsGuestIdRoute =
     path: '/guests/$guestId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedCustomersCustomerIdRoute =
-  AuthenticatedCustomersCustomerIdRouteImport.update({
-    id: '/customers/$customerId',
-    path: '/customers/$customerId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAnalyticsNetworkRoute =
   AuthenticatedAnalyticsNetworkRouteImport.update({
     id: '/analytics/network',
@@ -700,18 +691,6 @@ const AuthenticatedWorkspaceLocationsLocationIdRoute =
     path: '/$locationId',
     getParentRoute: () => AuthenticatedWorkspaceLocationsRoute,
   } as any)
-const AuthenticatedCustomersCustomerIdTenantRoute =
-  AuthenticatedCustomersCustomerIdTenantRouteImport.update({
-    id: '/tenant',
-    path: '/tenant',
-    getParentRoute: () => AuthenticatedCustomersCustomerIdRoute,
-  } as any)
-const AuthenticatedCustomersCustomerIdOnboardingRoute =
-  AuthenticatedCustomersCustomerIdOnboardingRouteImport.update({
-    id: '/onboarding',
-    path: '/onboarding',
-    getParentRoute: () => AuthenticatedCustomersCustomerIdRoute,
-  } as any)
 const AuthenticatedLocationsLocationIdNasNasIdRoute =
   AuthenticatedLocationsLocationIdNasNasIdRouteImport.update({
     id: '/nas/$nasId',
@@ -749,7 +728,6 @@ export interface FileRoutesByFullPath {
   '/analytics/guest': typeof AuthenticatedAnalyticsGuestRoute
   '/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
-  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/guests/blocklist': typeof AuthenticatedGuestsBlocklistRoute
   '/guests/sessions': typeof AuthenticatedGuestsSessionsRoute
@@ -821,8 +799,6 @@ export interface FileRoutesByFullPath {
   '/system/': typeof AuthenticatedSystemIndexRoute
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
-  '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
-  '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -854,7 +830,6 @@ export interface FileRoutesByTo {
   '/analytics/guest': typeof AuthenticatedAnalyticsGuestRoute
   '/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
-  '/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/guests/blocklist': typeof AuthenticatedGuestsBlocklistRoute
   '/guests/sessions': typeof AuthenticatedGuestsSessionsRoute
@@ -926,8 +901,6 @@ export interface FileRoutesByTo {
   '/system': typeof AuthenticatedSystemIndexRoute
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
-  '/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
-  '/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -963,7 +936,6 @@ export interface FileRoutesById {
   '/_authenticated/analytics/guest': typeof AuthenticatedAnalyticsGuestRoute
   '/_authenticated/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/_authenticated/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
-  '/_authenticated/customers/$customerId': typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/_authenticated/guests/blocklist': typeof AuthenticatedGuestsBlocklistRoute
   '/_authenticated/guests/sessions': typeof AuthenticatedGuestsSessionsRoute
@@ -1035,8 +1007,6 @@ export interface FileRoutesById {
   '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
-  '/_authenticated/customers/$customerId/onboarding': typeof AuthenticatedCustomersCustomerIdOnboardingRoute
-  '/_authenticated/customers/$customerId/tenant': typeof AuthenticatedCustomersCustomerIdTenantRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -1072,7 +1042,6 @@ export interface FileRouteTypes {
     | '/analytics/guest'
     | '/analytics/isp'
     | '/analytics/network'
-    | '/customers/$customerId'
     | '/guests/$guestId'
     | '/guests/blocklist'
     | '/guests/sessions'
@@ -1144,8 +1113,6 @@ export interface FileRouteTypes {
     | '/system/'
     | '/vouchers/'
     | '/workspace/'
-    | '/customers/$customerId/onboarding'
-    | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
   fileRoutesByTo: FileRoutesByTo
@@ -1177,7 +1144,6 @@ export interface FileRouteTypes {
     | '/analytics/guest'
     | '/analytics/isp'
     | '/analytics/network'
-    | '/customers/$customerId'
     | '/guests/$guestId'
     | '/guests/blocklist'
     | '/guests/sessions'
@@ -1249,8 +1215,6 @@ export interface FileRouteTypes {
     | '/system'
     | '/vouchers'
     | '/workspace'
-    | '/customers/$customerId/onboarding'
-    | '/customers/$customerId/tenant'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
   id:
@@ -1285,7 +1249,6 @@ export interface FileRouteTypes {
     | '/_authenticated/analytics/guest'
     | '/_authenticated/analytics/isp'
     | '/_authenticated/analytics/network'
-    | '/_authenticated/customers/$customerId'
     | '/_authenticated/guests/$guestId'
     | '/_authenticated/guests/blocklist'
     | '/_authenticated/guests/sessions'
@@ -1357,8 +1320,6 @@ export interface FileRouteTypes {
     | '/_authenticated/system/'
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
-    | '/_authenticated/customers/$customerId/onboarding'
-    | '/_authenticated/customers/$customerId/tenant'
     | '/_authenticated/workspace/locations/$locationId'
     | '/_authenticated/locations/$locationId/nas/$nasId'
   fileRoutesById: FileRoutesById
@@ -2041,13 +2002,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGuestsGuestIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/customers/$customerId': {
-      id: '/_authenticated/customers/$customerId'
-      path: '/customers/$customerId'
-      fullPath: '/customers/$customerId'
-      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/analytics/network': {
       id: '/_authenticated/analytics/network'
       path: '/analytics/network'
@@ -2096,20 +2050,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspace/locations/$locationId'
       preLoaderRoute: typeof AuthenticatedWorkspaceLocationsLocationIdRouteImport
       parentRoute: typeof AuthenticatedWorkspaceLocationsRoute
-    }
-    '/_authenticated/customers/$customerId/tenant': {
-      id: '/_authenticated/customers/$customerId/tenant'
-      path: '/tenant'
-      fullPath: '/customers/$customerId/tenant'
-      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdTenantRouteImport
-      parentRoute: typeof AuthenticatedCustomersCustomerIdRoute
-    }
-    '/_authenticated/customers/$customerId/onboarding': {
-      id: '/_authenticated/customers/$customerId/onboarding'
-      path: '/onboarding'
-      fullPath: '/customers/$customerId/onboarding'
-      preLoaderRoute: typeof AuthenticatedCustomersCustomerIdOnboardingRouteImport
-      parentRoute: typeof AuthenticatedCustomersCustomerIdRoute
     }
     '/_authenticated/locations/$locationId/nas/$nasId': {
       id: '/_authenticated/locations/$locationId/nas/$nasId'
@@ -2174,24 +2114,6 @@ const AuthenticatedWorkspaceRouteWithChildren =
     AuthenticatedWorkspaceRouteChildren,
   )
 
-interface AuthenticatedCustomersCustomerIdRouteChildren {
-  AuthenticatedCustomersCustomerIdOnboardingRoute: typeof AuthenticatedCustomersCustomerIdOnboardingRoute
-  AuthenticatedCustomersCustomerIdTenantRoute: typeof AuthenticatedCustomersCustomerIdTenantRoute
-}
-
-const AuthenticatedCustomersCustomerIdRouteChildren: AuthenticatedCustomersCustomerIdRouteChildren =
-  {
-    AuthenticatedCustomersCustomerIdOnboardingRoute:
-      AuthenticatedCustomersCustomerIdOnboardingRoute,
-    AuthenticatedCustomersCustomerIdTenantRoute:
-      AuthenticatedCustomersCustomerIdTenantRoute,
-  }
-
-const AuthenticatedCustomersCustomerIdRouteWithChildren =
-  AuthenticatedCustomersCustomerIdRoute._addFileChildren(
-    AuthenticatedCustomersCustomerIdRouteChildren,
-  )
-
 interface AuthenticatedLocationsLocationIdRouteChildren {
   AuthenticatedLocationsLocationIdNasNasIdRoute: typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -2218,7 +2140,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAnalyticsGuestRoute: typeof AuthenticatedAnalyticsGuestRoute
   AuthenticatedAnalyticsIspRoute: typeof AuthenticatedAnalyticsIspRoute
   AuthenticatedAnalyticsNetworkRoute: typeof AuthenticatedAnalyticsNetworkRoute
-  AuthenticatedCustomersCustomerIdRoute: typeof AuthenticatedCustomersCustomerIdRouteWithChildren
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
   AuthenticatedGuestsBlocklistRoute: typeof AuthenticatedGuestsBlocklistRoute
   AuthenticatedGuestsSessionsRoute: typeof AuthenticatedGuestsSessionsRoute
@@ -2291,8 +2212,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAnalyticsGuestRoute: AuthenticatedAnalyticsGuestRoute,
   AuthenticatedAnalyticsIspRoute: AuthenticatedAnalyticsIspRoute,
   AuthenticatedAnalyticsNetworkRoute: AuthenticatedAnalyticsNetworkRoute,
-  AuthenticatedCustomersCustomerIdRoute:
-    AuthenticatedCustomersCustomerIdRouteWithChildren,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
   AuthenticatedGuestsBlocklistRoute: AuthenticatedGuestsBlocklistRoute,
   AuthenticatedGuestsSessionsRoute: AuthenticatedGuestsSessionsRoute,
@@ -2419,3 +2338,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

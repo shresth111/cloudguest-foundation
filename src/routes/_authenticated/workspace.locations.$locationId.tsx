@@ -58,6 +58,16 @@ export const Route = createFileRoute("/_authenticated/workspace/locations/$locat
   ),
 });
 
+// `navigate({ to: ".", search: reducer })` resolves against every route's
+// search type at once (an ambiguous-`to` quirk in this router version), so a
+// reducer that's correct for this route's own `{ tab: TabKey }` schema still
+// fails to type-check against that unrelated union. Narrowing it here, once,
+// documents why -- the alternative is threading `as any` through the call site.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function asTabSearchReducer(fn: (prev: { tab: TabKey }) => { tab: TabKey }): any {
+  return fn;
+}
+
 function LocationWorkspacePage() {
   const { locationId } = Route.useParams();
   const { tab } = Route.useSearch();
@@ -75,7 +85,7 @@ function LocationWorkspacePage() {
   }, [customers, locationId]);
 
   const setTab = (t: TabKey) =>
-    navigate({ to: ".", params: { locationId }, search: (prev: { tab: TabKey }) => ({ ...prev, tab: t }) });
+    navigate({ to: ".", params: { locationId }, search: asTabSearchReducer((prev) => ({ ...prev, tab: t })) });
 
   if (loadingCustomers) return <LocationWorkspaceSkeleton />;
   if (!context) {

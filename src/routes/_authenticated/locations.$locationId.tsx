@@ -2,14 +2,11 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  Copy,
-  Download,
   Lock,
   MoreHorizontal,
   PauseCircle,
   PlayCircle,
   Trash2,
-  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -28,7 +25,6 @@ import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { LocationDetailTabs } from "@/components/locations/LocationDetailTabs";
 import { LocationStatusBadge } from "@/components/locations/LocationStatusBadge";
 import {
-  useCloneLocation,
   useDeleteLocations,
   useLocation,
   useUpdateLocationStatus,
@@ -52,7 +48,6 @@ function LocationDetailPage() {
   const { can } = usePermissions();
   const updateStatus = useUpdateLocationStatus();
   const remove = useDeleteLocations();
-  const clone = useCloneLocation();
   const [confirm, setConfirm] = useState<null | {
     title: string;
     description: string;
@@ -71,15 +66,13 @@ function LocationDetailPage() {
   if (!location)
     return <ErrorState title="Location not found" description="This location may have been deleted." />;
 
-  const disabled =
-    location.status === "inactive" || location.status === "suspended" || location.status === "offline";
+  const disabled = location.status === "inactive" || location.status === "suspended";
 
   const canEdit = can("location-master", "edit");
   const canDelete = can("location-master", "delete");
-  const canCreate = can("location-master", "create");
   const canRestart = can("location-master", "restart");
   const canExport = can("location-master", "export");
-  const anyMenu = canCreate || canRestart || canExport || canDelete;
+  const anyMenu = canRestart || canExport || canDelete;
 
 
   return (
@@ -97,7 +90,7 @@ function LocationDetailPage() {
             <LocationStatusBadge status={location.status} />
           </div>
           <p className="text-sm text-muted-foreground">
-            {location.id} · {location.organizationName} · {location.city}, {location.country}
+            {location.slug} · {location.organizationName} · {location.city}, {location.country}
           </p>
         </div>
         <div className="flex gap-2">
@@ -106,28 +99,28 @@ function LocationDetailPage() {
               variant={disabled ? "default" : "outline"}
               onClick={() =>
                 setConfirm({
-                  title: disabled ? `Enable ${location.name}?` : `Disable ${location.name}?`,
+                  title: disabled ? `Activate ${location.name}?` : `Suspend ${location.name}?`,
                   description: disabled
                     ? "Guest WiFi and services will resume immediately."
-                    : "Guest access at this site will stop until re-enabled.",
+                    : "Guest access at this site will stop until re-activated.",
                   destructive: !disabled,
                   onConfirm: async () => {
                     await updateStatus.mutateAsync({
                       ids: [location.id],
-                      status: disabled ? "active" : "inactive",
+                      status: disabled ? "active" : "suspended",
                     });
-                    toast.success(disabled ? "Location enabled" : "Location disabled");
+                    toast.success(disabled ? "Location activated" : "Location suspended");
                   },
                 })
               }
             >
               {disabled ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
-              <span className="ml-2">{disabled ? "Enable" : "Disable"}</span>
+              <span className="ml-2">{disabled ? "Activate" : "Suspend"}</span>
             </Button>
           ) : (
             <Button variant="outline" disabled title="Access restricted. Contact your Administrator.">
               <Lock className="h-4 w-4" />
-              <span className="ml-2">{disabled ? "Enable" : "Disable"}</span>
+              <span className="ml-2">{disabled ? "Activate" : "Suspend"}</span>
             </Button>
           )}
           {anyMenu && (
@@ -139,57 +132,25 @@ function LocationDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                {canCreate && (
+                {canDelete && (
                   <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
                     onClick={() =>
-                      clone.mutate(location.id, {
-                        onSuccess: (loc) => {
-                          if (loc) {
-                            toast.success(`Cloned as ${loc.name}`);
-                            navigate({ to: "/locations/$locationId", params: { locationId: loc.id } });
-                          }
+                      setConfirm({
+                        title: `Archive ${location.name}?`,
+                        description: "This archives the location.",
+                        destructive: true,
+                        onConfirm: async () => {
+                          await remove.mutateAsync([location.id]);
+                          toast.success("Location archived");
+                          navigate({ to: "/locations" });
                         },
                       })
                     }
                   >
-                    <Copy className="h-4 w-4" />
-                    <span className="ml-2">Clone location</span>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="ml-2">Archive location</span>
                   </DropdownMenuItem>
-                )}
-                {canRestart && (
-                  <DropdownMenuItem onClick={() => toast.success("Restart command sent (placeholder)")}>
-                    <Wrench className="h-4 w-4" />
-                    <span className="ml-2">Restart services</span>
-                  </DropdownMenuItem>
-                )}
-                {canExport && (
-                  <DropdownMenuItem onClick={() => toast.success("Configuration download queued (placeholder)")}>
-                    <Download className="h-4 w-4" />
-                    <span className="ml-2">Download configuration</span>
-                  </DropdownMenuItem>
-                )}
-                {canDelete && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() =>
-                        setConfirm({
-                          title: `Delete ${location.name}?`,
-                          description: "This permanently removes the location and all associated data.",
-                          destructive: true,
-                          onConfirm: async () => {
-                            await remove.mutateAsync([location.id]);
-                            toast.success("Location deleted");
-                            navigate({ to: "/locations" });
-                          },
-                        })
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="ml-2">Delete location</span>
-                    </DropdownMenuItem>
-                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

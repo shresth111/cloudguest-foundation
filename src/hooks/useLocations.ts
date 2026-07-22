@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { locationService } from "@/services/location.service";
-import type { CreateLocationPayload, LocationListQuery, LocationStatus } from "@/types/location";
+import type { CreateLocationPayload, LocationListQuery, LocationStatus, ProvisionLocationPayload } from "@/types/location";
 
 export const locationKeys = {
   all: ["locations"] as const,
@@ -56,10 +56,13 @@ export function useDeleteLocations() {
   });
 }
 
-export function useCloneLocation() {
+export function useProvisionLocation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => locationService.clone(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: locationKeys.all }),
+    mutationFn: (payload: ProvisionLocationPayload) => locationService.provisionLocation(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: locationKeys.all });
+      qc.invalidateQueries({ queryKey: ["organizations"] });
+    },
   });
 }

@@ -12,4 +12,18 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Local-dev-only proxy so the frontend can call the real backend at
+  // /api/v1 without CORS setup. Stripped automatically inside the Lovable
+  // sandbox (see @lovable.dev/vite-tanstack-config's cleanServerConfig) —
+  // that environment has no route to a developer's local backend anyway.
+  vite: {
+    server: {
+      proxy: {
+        "/api/v1": {
+          target: process.env.VITE_BACKEND_ORIGIN || "http://localhost:8000",
+          changeOrigin: true,
+        },
+      },
+    },
+  },
 });

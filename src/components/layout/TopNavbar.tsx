@@ -43,8 +43,8 @@ function QuickActionsMenu() {
         <DropdownMenuItem onClick={() => go("/guests")}>
           <Ticket className="mr-2 h-4 w-4" /> Generate voucher
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => go("/customers")}>
-          <Plus className="mr-2 h-4 w-4" /> New customer
+        <DropdownMenuItem onClick={() => go("/organizations")}>
+          <Plus className="mr-2 h-4 w-4" /> New organization
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

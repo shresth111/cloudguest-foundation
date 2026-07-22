@@ -7,10 +7,8 @@ import { cn } from "@/lib/utils";
 const STATUS_DOT: Record<Location["status"], string> = {
   active: "bg-emerald-500",
   inactive: "bg-zinc-400",
-  maintenance: "bg-amber-500",
-  offline: "bg-rose-500",
-  pending: "bg-sky-500",
   suspended: "bg-fuchsia-500",
+  archived: "bg-rose-500",
 };
 
 export function LocationMapView({ rows }: { rows: Location[] }) {
@@ -50,8 +48,8 @@ export function LocationMapView({ rows }: { rows: Location[] }) {
             }}
           />
 
-          {rows.map((r) => {
-            const pos = project(r.latitude, r.longitude);
+          {rows.filter((r) => r.latitude != null && r.longitude != null).map((r) => {
+            const pos = project(r.latitude as number, r.longitude as number);
             return (
               <Link
                 key={r.id}

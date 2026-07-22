@@ -10,18 +10,19 @@ import {
 } from "@/components/dashboard/widgetRegistry";
 import { useAuth } from "@/context/AuthContext";
 import { useDashboardLayout, usePermissions } from "@/hooks/usePermissions";
+import { legacyRoleBucket } from "@/lib/roles";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { data: layout, isLoading } = useDashboardLayout();
   const { can, hasFeature, isLocked } = usePermissions();
 
   if (!user) return null;
-  if (user.role === "super_admin") return <SuperAdminDashboard />;
+  if (legacyRoleBucket(roles) === "super_admin") return <SuperAdminDashboard />;
 
   if (isLoading || !layout) {
     return (

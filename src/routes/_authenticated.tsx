@@ -1,28 +1,24 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import { QuickActionsFab } from "@/components/system/QuickActionsFab";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
 
-
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
+  beforeLoad: ({ context, location }) => {
+    if (context.auth?.status === "anonymous") {
+      throw redirect({ to: "/login", search: { redirect: location.href } });
+    }
+  },
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
-  const { isAuthenticated, isReady } = useAuth();
-  const navigate = useNavigate();
+  const { status } = useAuth();
 
-  useEffect(() => {
-    if (isReady && !isAuthenticated) {
-      navigate({ to: "/login", replace: true });
-    }
-  }, [isReady, isAuthenticated, navigate]);
-
-  if (!isReady || !isAuthenticated) {
+  if (status !== "authenticated") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -43,6 +39,5 @@ function AuthenticatedLayout() {
         <QuickActionsFab />
       </div>
     </SidebarProvider>
-
   );
 }

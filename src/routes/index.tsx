@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { homeRouteForRole } from "@/lib/roles";
+import { homeRoute } from "@/lib/roles";
 
 export const Route = createFileRoute("/")({
   component: IndexRedirect,
@@ -17,7 +17,7 @@ function IndexRedirect() {
       navigate({ to: "/login", replace: true });
       return;
     }
-    navigate({ to: homeRouteForRole(user.role), replace: true });
+    navigate({ to: homeRoute(), replace: true });
   }, [isReady, isAuthenticated, user, navigate]);
 
   return (

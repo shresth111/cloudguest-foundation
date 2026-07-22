@@ -1,19 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Star,
-  Wifi,
   MapPin,
-  Users,
-  Activity,
   Building2,
   ArrowRight,
   Clock,
   ShieldCheck,
   Shield,
-  Briefcase,
   Sparkles,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -34,34 +30,52 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { customerService, type ExistingCustomer } from "@/services/customer.service";
-import { customerKeys } from "@/hooks/useCustomer";
+import { api } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
-import { ROLE_LABELS } from "@/lib/roles";
+import { primaryRoleLabel } from "@/lib/roles";
+import type { SiteType } from "@/types/location";
 import type { LucideIcon } from "lucide-react";
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
 const FAV_KEY = "cg.spaces.favorites";
 const RECENT_KEY = "cg.spaces.recent";
 
-type Tier = "platform" | "customer" | "organization" | "location";
+type Tier = "platform" | "organization" | "location";
 
 interface SpaceCard {
   id: string;
   tier: Tier;
   title: string;
   subtitle: string;
-  location?: string;
-  siteType?: string;
-  customerId?: string;
-  subscription?: ExistingCustomer["subscription"];
-  status?: "online" | "degraded" | "offline";
-  devices?: number;
-  online?: number;
-  lastSyncMinutes?: number;
-  members?: number;
+  city?: string;
+  siteType?: SiteType;
+  organizationId?: string;
+  memberCount?: number;
   gradient: string;
 }
+
+interface BackendLocation {
+  id: string;
+  name: string;
+  city: string;
+  property_type: string | null;
+}
+
+const PROPERTY_TYPE_LABEL: Record<string, string> = {
+  hotel: "Hotels",
+  resort: "Resorts",
+  cafe: "Cafes",
+  restaurant: "Restaurants",
+  hospital: "Hospitals",
+  clinic: "Clinics",
+  office: "Corporates",
+  coworking_space: "Coworking",
+  school: "Schools",
+  college: "Colleges",
+  university: "Universities",
+  mall: "Malls",
+  airport: "Airports",
+};
 
 function readList(key: string): string[] {
   try {
@@ -97,138 +111,142 @@ function pickGradient(seed: string): string {
   return GRADIENTS[hash(seed) % GRADIENTS.length];
 }
 
-function buildCards(
-  customers: ExistingCustomer[],
-  role: string | undefined,
-  forEmail?: string,
-): SpaceCard[] {
-  const cards: SpaceCard[] = [];
-
-  // Platform tier — Super Admin only
-  if (role === "super_admin") {
-    cards.push({
-      id: "platform",
-      tier: "platform",
-      title: "Platform Administration",
-      subtitle: "Manage every customer, subscription and system service.",
-      members: customers.length,
-      gradient: "from-primary/25 via-primary/10 to-transparent",
-    });
-  }
-
-  const email = forEmail?.toLowerCase();
-  const scoped = email
-    ? customers.filter((c) => c.owner.email.toLowerCase() === email)
-    : customers;
-  const source = scoped.length ? scoped : customers;
-
-  // Customer tier
-  for (const c of source) {
-    cards.push({
-      id: `customer:${c.id}`,
-      tier: "customer",
-      title: c.name,
-      subtitle: c.organizationName ?? "Customer workspace",
-      subscription: c.subscription,
-      customerId: c.id,
-      members: c.locations.length,
-      gradient: pickGradient(c.id),
-    });
-  }
-
-  // Organization tier (using organizationName grouping)
-  const orgSeen = new Set<string>();
-  for (const c of source) {
-    const key = c.organizationName;
-    if (!key || orgSeen.has(key)) continue;
-    orgSeen.add(key);
-    cards.push({
-      id: `org:${key}`,
-      tier: "organization",
-      title: key,
-      subtitle: "Organization workspace",
-      members: source.filter((s) => s.organizationName === key).reduce((n, x) => n + x.locations.length, 0),
-      gradient: pickGradient(key),
-    });
-  }
-
-  // Location tier
-  for (const c of source) {
-    for (const l of c.locations) {
-      const h = hash(l.id);
-      const statuses = ["online", "online", "online", "degraded", "offline"] as const;
-      cards.push({
-        id: l.id,
-        tier: "location",
-        title: l.name,
-        subtitle: c.name,
-        location: l.city,
-        siteType: l.siteType,
-        customerId: c.id,
-        subscription: c.subscription,
-        status: statuses[h % statuses.length],
-        devices: 6 + (h % 42),
-        online: 5 + (h % 180),
-        lastSyncMinutes: h % 32,
-        gradient: pickGradient(l.id),
-      });
-    }
-  }
-
-  return cards;
-}
-
 export const Route = createFileRoute("/_authenticated/select-space")({
   component: SelectSpacePage,
 });
 
 const TIER_META: Record<Tier, { label: string; icon: LucideIcon; tone: string }> = {
   platform: { label: "Platform", icon: Shield, tone: "text-primary" },
-  customer: { label: "Customer", icon: Briefcase, tone: "text-emerald-600 dark:text-emerald-400" },
   organization: { label: "Organization", icon: Building2, tone: "text-amber-600 dark:text-amber-400" },
   location: { label: "Location", icon: MapPin, tone: "text-sky-600 dark:text-sky-400" },
 };
 
 function SelectSpacePage() {
-  const { user } = useAuth();
+  const { user, roles, organizations } = useAuth();
   const navigate = useNavigate();
 
-  const { data: customers, isLoading } = useQuery({
-    queryKey: customerKeys.list,
-    queryFn: () => customerService.listCustomers(),
+  const isPlatformUser = roles.some((r) => r.scopeType === "global");
+
+  const { data: platformOrgCount } = useQuery({
+    queryKey: ["select-space", "platform-org-count"],
+    queryFn: async () => {
+      const { data } = await api.get<{ total_items: number }>("/organizations", {
+        params: { page_size: 1 },
+      });
+      return data.total_items;
+    },
+    enabled: isPlatformUser,
   });
+
+  const locationQueries = useQueries({
+    queries: organizations.map((org) => ({
+      queryKey: ["select-space", "locations", org.organizationId],
+      queryFn: async () => {
+        const { data } = await api.get<{ items: BackendLocation[] }>(
+          `/organizations/${org.organizationId}/locations`,
+          { params: { page_size: 100 }, headers: { "X-Organization-Id": org.organizationId } },
+        );
+        return data.items;
+      },
+    })),
+  });
+
+  const isLoading = locationQueries.some((q) => q.isLoading);
+  const locationsByOrg = useMemo(() => {
+    const map = new Map<string, BackendLocation[]>();
+    organizations.forEach((org, i) => {
+      map.set(org.organizationId, locationQueries[i]?.data ?? []);
+    });
+    return map;
+  }, [organizations, locationQueries]);
 
   const [favorites, setFavorites] = useState<string[]>(() => readList(FAV_KEY));
   const [recent, setRecent] = useState<string[]>(() => readList(RECENT_KEY));
   const [query, setQuery] = useState("");
   const [tierFilter, setTierFilter] = useState<"all" | Tier>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [spaceTypeFilter, setSpaceTypeFilter] = useState<string>("all");
 
-  const allCards = useMemo(
-    () => (customers ? buildCards(customers, user?.role, user?.email) : []),
-    [customers, user?.role, user?.email],
-  );
+  const allCards = useMemo<SpaceCard[]>(() => {
+    const cards: SpaceCard[] = [];
 
+    if (isPlatformUser) {
+      cards.push({
+        id: "platform",
+        tier: "platform",
+        title: "Platform Administration",
+        subtitle: "Manage every organization, subscription and system service.",
+        memberCount: platformOrgCount,
+        gradient: "from-primary/25 via-primary/10 to-transparent",
+      });
+    }
+
+    for (const org of organizations) {
+      const locs = locationsByOrg.get(org.organizationId) ?? [];
+      cards.push({
+        id: `org:${org.organizationId}`,
+        tier: "organization",
+        title: org.organizationName,
+        subtitle: "Organization workspace",
+        organizationId: org.organizationId,
+        memberCount: locs.length,
+        gradient: pickGradient(org.organizationId),
+      });
+      for (const loc of locs) {
+        cards.push({
+          id: loc.id,
+          tier: "location",
+          title: loc.name,
+          subtitle: org.organizationName,
+          city: loc.city,
+          siteType: (loc.property_type as SiteType) ?? undefined,
+          organizationId: org.organizationId,
+          gradient: pickGradient(loc.id),
+        });
+      }
+    }
+
+    return cards;
+  }, [isPlatformUser, platformOrgCount, organizations, locationsByOrg]);
+
+  const spaceTypes = useMemo(() => {
+    const seen = new Set<string>();
+    for (const org of organizations) {
+      for (const loc of locationsByOrg.get(org.organizationId) ?? []) {
+        if (loc.property_type) seen.add(loc.property_type);
+      }
+    }
+    return Array.from(seen);
+  }, [organizations, locationsByOrg]);
+
+  // Skip the picker silently when there's exactly one organization with
+  // exactly one location and no elevated platform access to choose instead.
   useEffect(() => {
-    if (isLoading || !customers) return;
-    // Auto-enter for accounts with a single actionable space
-    if (allCards.length === 1) selectSpace(allCards[0]);
+    if (isLoading || isPlatformUser) return;
+    if (organizations.length !== 1) return;
+    const onlyOrgLocations = locationsByOrg.get(organizations[0].organizationId) ?? [];
+    if (onlyOrgLocations.length !== 1) return;
+    try {
+      localStorage.setItem(ACTIVE_LOC_KEY, onlyOrgLocations[0].id);
+    } catch {
+      /* ignore */
+    }
+    navigate({ to: "/workspace", replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, allCards.length]);
+  }, [isLoading, isPlatformUser, organizations, locationsByOrg]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allCards.filter((c) => {
       if (tierFilter !== "all" && c.tier !== tierFilter) return false;
-      if (statusFilter !== "all" && c.tier === "location" && c.status !== statusFilter) return false;
+      if (spaceTypeFilter !== "all" && c.tier === "location" && c.siteType !== spaceTypeFilter) return false;
       if (!q) return true;
       return (
         c.title.toLowerCase().includes(q) ||
         c.subtitle.toLowerCase().includes(q) ||
-        (c.location?.toLowerCase().includes(q) ?? false)
+        (c.city?.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [allCards, query, tierFilter, statusFilter]);
+  }, [allCards, query, tierFilter, spaceTypeFilter]);
 
   const favoriteCards = filtered.filter((c) => favorites.includes(c.id));
   const recentCards = filtered
@@ -236,7 +254,7 @@ function SelectSpacePage() {
     .sort((a, b) => recent.indexOf(a.id) - recent.indexOf(b.id))
     .slice(0, 4);
 
-  const tiersInOrder: Tier[] = ["platform", "customer", "organization", "location"];
+  const tiersInOrder: Tier[] = ["platform", "organization", "location"];
   const otherByTier = tiersInOrder
     .map((tier) => ({
       tier,
@@ -263,10 +281,6 @@ function SelectSpacePage() {
       navigate({ to: "/dashboard", replace: true });
       return;
     }
-    if (card.tier === "customer" && card.customerId) {
-      navigate({ to: "/customers/$customerId", params: { customerId: card.customerId }, replace: true });
-      return;
-    }
     if (card.tier === "organization") {
       navigate({ to: "/organizations", replace: true });
       return;
@@ -285,7 +299,7 @@ function SelectSpacePage() {
       <header className="space-y-3">
         <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
           <ShieldCheck className="h-3.5 w-3.5" />
-          Signed in as {user?.name} · {user ? ROLE_LABELS[user.role] : ""}
+          Signed in as {user?.name} · {primaryRoleLabel(roles)}
         </div>
         <div className="flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary" />
@@ -302,30 +316,33 @@ function SelectSpacePage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search platforms, customers, organizations, locations…"
+            placeholder="Search platforms, organizations, locations…"
             className="pl-9 h-11"
           />
         </div>
         <Tabs value={tierFilter} onValueChange={(v) => setTierFilter(v as "all" | Tier)}>
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
-            {user?.role === "super_admin" && <TabsTrigger value="platform">Platform</TabsTrigger>}
-            <TabsTrigger value="customer">Customers</TabsTrigger>
-            <TabsTrigger value="organization">Orgs</TabsTrigger>
+            {isPlatformUser && <TabsTrigger value="platform">Platform</TabsTrigger>}
+            <TabsTrigger value="organization">Organizations</TabsTrigger>
             <TabsTrigger value="location">Locations</TabsTrigger>
           </TabsList>
         </Tabs>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full lg:w-44">
-            <SelectValue placeholder="Router status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="online">Online</SelectItem>
-            <SelectItem value="degraded">Degraded</SelectItem>
-            <SelectItem value="offline">Offline</SelectItem>
-          </SelectContent>
-        </Select>
+        {spaceTypes.length > 0 && (
+          <Select value={spaceTypeFilter} onValueChange={setSpaceTypeFilter}>
+            <SelectTrigger className="w-full lg:w-44">
+              <SelectValue placeholder="Space type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All space types</SelectItem>
+              {spaceTypes.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {PROPERTY_TYPE_LABEL[t] ?? t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {isLoading ? (
@@ -410,15 +427,6 @@ function SpaceTile({
   const tier = TIER_META[card.tier];
   const TierIcon = tier.icon;
 
-  const statusDot =
-    card.status === "online"
-      ? "bg-emerald-500"
-      : card.status === "degraded"
-        ? "bg-amber-500"
-        : card.status === "offline"
-          ? "bg-rose-500"
-          : "bg-muted-foreground/40";
-
   return (
     <Card className="group relative overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_40px_-20px_oklch(0.52_0.18_265/0.35)]">
       <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-70`} />
@@ -431,11 +439,11 @@ function SpaceTile({
             </div>
             <CardTitle className="mt-1.5 truncate text-lg">{card.title}</CardTitle>
             <CardDescription className="mt-0.5 truncate text-xs">
-              {card.location ? (
+              {card.city ? (
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  {card.location}
-                  {card.siteType ? ` · ${card.siteType}` : ""}
+                  {card.city}
+                  {card.siteType ? ` · ${PROPERTY_TYPE_LABEL[card.siteType] ?? card.siteType}` : ""}
                 </span>
               ) : (
                 card.subtitle
@@ -453,48 +461,15 @@ function SpaceTile({
         </div>
       </CardHeader>
       <CardContent className="relative space-y-4">
-        {card.tier === "location" ? (
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <Metric icon={Wifi} label="Router">
-              <span className="flex items-center gap-1.5">
-                <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} />
-                <span className="capitalize">{card.status}</span>
-              </span>
-            </Metric>
-            <Metric icon={Activity} label="Devices">{card.devices}</Metric>
-            <Metric icon={Users} label="Online">{card.online}</Metric>
-          </div>
-        ) : (
+        {card.memberCount !== undefined && (
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <Metric icon={card.tier === "platform" ? Building2 : MapPin} label={card.tier === "platform" ? "Customers" : "Locations"}>
-              {card.members ?? 0}
-            </Metric>
-            <Metric icon={Users} label="Status">
-              <span className="capitalize">{card.subscription?.status ?? "active"}</span>
+            <Metric icon={card.tier === "platform" ? Building2 : MapPin} label={card.tier === "platform" ? "Organizations" : "Locations"}>
+              {card.memberCount}
             </Metric>
           </div>
         )}
         <div className="flex items-center justify-between">
-          {card.subscription ? (
-            <Badge
-              variant={
-                card.subscription.status === "expired"
-                  ? "destructive"
-                  : card.subscription.status === "trial"
-                    ? "secondary"
-                    : "default"
-              }
-            >
-              {card.subscription.plan}
-            </Badge>
-          ) : (
-            <Badge variant="outline">{tier.label}</Badge>
-          )}
-          {card.lastSyncMinutes !== undefined && (
-            <span className="text-xs text-muted-foreground">
-              Synced {card.lastSyncMinutes === 0 ? "just now" : `${card.lastSyncMinutes}m ago`}
-            </span>
-          )}
+          <Badge variant="outline">{tier.label}</Badge>
         </div>
         <Button className="w-full" onClick={() => onSelect(card)}>
           Enter workspace

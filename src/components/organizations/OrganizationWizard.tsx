@@ -18,36 +18,30 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { orgWizardSchema, type OrgWizardValues } from "@/lib/organization-schemas";
 import { useCreateOrganization } from "@/hooks/useOrganizations";
+import type { AppError } from "@/services/api";
 
 const STEPS = [
-  { key: "basic", title: "Basic information", description: "Company profile & identifiers" },
-  { key: "contact", title: "Primary contact", description: "Who we reach out to" },
-  { key: "address", title: "Address", description: "Head-office location" },
-  { key: "subscription", title: "Subscription", description: "Plan & billing" },
-  { key: "admin", title: "Administrator", description: "First admin account" },
+  { key: "basic", title: "Basic information", description: "Name & identifiers" },
+  { key: "contact", title: "Contact", description: "Who we reach out to" },
+  { key: "settings", title: "Settings", description: "Locale & subscription" },
 ] as const;
 
-const INDUSTRIES = ["Hospitality", "Retail", "Education", "Healthcare", "F&B", "Coworking", "Transport"];
-const COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
-const COUNTRIES = ["USA", "UK", "India", "Singapore", "UAE", "Germany", "Australia"];
-const TIMEZONES = ["America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai"];
+const ORG_TYPES = ["standard", "msp"] as const;
+const TIMEZONES = ["UTC", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai"];
+const LOCALES = ["en", "en-GB", "hi", "de", "fr", "es"];
 
 interface Props { open: boolean; onOpenChange: (o: boolean) => void }
 
 const DEFAULTS: OrgWizardValues = {
-  basic: { name: "", businessName: "", industry: "", companySize: "", gstNumber: "", website: "" },
-  contact: { contactName: "", contactEmail: "", contactPhone: "", contactDesignation: "" },
-  address: { country: "", state: "", city: "", address: "", zipCode: "", timezone: "" },
-  subscription: { plan: "growth", billingCycle: "monthly", trial: true, expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) },
-  admin: { adminName: "", adminEmail: "", adminPhone: "", tempPassword: "" },
+  basic: { name: "", slug: "", legalName: "", orgType: "standard" },
+  contact: { contactEmail: "", contactPhone: "" },
+  settings: { timezone: "UTC", defaultLocale: "en", subscriptionTier: "" },
 };
 
 export function OrganizationWizard({ open, onOpenChange }: Props) {
@@ -71,16 +65,14 @@ export function OrganizationWizard({ open, onOpenChange }: Props) {
       const org = await create.mutateAsync({
         basic: values.basic,
         contact: values.contact,
-        address: values.address,
-        subscription: values.subscription,
-        admin: values.admin,
+        settings: values.settings,
       });
       toast.success(`${org.name} created`);
       onOpenChange(false);
       form.reset(DEFAULTS);
       setStep(0);
-    } catch {
-      toast.error("Failed to create organization");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to create organization");
     }
   }
 
@@ -89,7 +81,7 @@ export function OrganizationWizard({ open, onOpenChange }: Props) {
       <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-6 py-4">
           <DialogTitle>Create organization</DialogTitle>
-          <DialogDescription>Set up a new tenant on CloudGuest in five quick steps.</DialogDescription>
+          <DialogDescription>Set up a new tenant on CloudGuest.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-0 md:grid-cols-[220px_1fr]">
@@ -129,66 +121,27 @@ export function OrganizationWizard({ open, onOpenChange }: Props) {
           </aside>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(submit)} className="flex min-h-[440px] flex-col">
+            <form onSubmit={form.handleSubmit(submit)} className="flex min-h-[380px] flex-col">
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 {step === 0 && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <TextField name="basic.name" label="Organization name" placeholder="Nimbus Hospitality" form={form} />
-                    <TextField name="basic.businessName" label="Legal business name" placeholder="Nimbus Pvt Ltd" form={form} />
-                    <SelectField name="basic.industry" label="Industry" options={INDUSTRIES} form={form} />
-                    <SelectField name="basic.companySize" label="Company size" options={COMPANY_SIZES} form={form} />
-                    <TextField name="basic.gstNumber" label="GST / Tax ID (optional)" placeholder="29ABCDE1234F1Z5" form={form} />
-                    <TextField name="basic.website" label="Website (optional)" placeholder="https://example.com" form={form} />
+                    <TextField name="basic.slug" label="Slug" placeholder="nimbus-hospitality" form={form} />
+                    <TextField name="basic.legalName" label="Legal name (optional)" placeholder="Nimbus Pvt Ltd" form={form} />
+                    <SelectField name="basic.orgType" label="Organization type" options={ORG_TYPES} form={form} capitalize />
                   </div>
                 )}
                 {step === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="contact.contactName" label="Full name" placeholder="Ava Chen" form={form} />
-                    <TextField name="contact.contactEmail" label="Work email" placeholder="ava@example.com" form={form} />
-                    <TextField name="contact.contactPhone" label="Mobile" placeholder="+1 415 555 0100" form={form} />
-                    <TextField name="contact.contactDesignation" label="Designation" placeholder="IT Director" form={form} />
+                    <TextField name="contact.contactEmail" label="Contact email" placeholder="ops@example.com" form={form} />
+                    <TextField name="contact.contactPhone" label="Contact phone (optional)" placeholder="+1 415 555 0100" form={form} />
                   </div>
                 )}
                 {step === 2 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <SelectField name="address.country" label="Country" options={COUNTRIES} form={form} />
-                    <TextField name="address.state" label="State / Region" form={form} />
-                    <TextField name="address.city" label="City" form={form} />
-                    <TextField name="address.zipCode" label="ZIP / Postal code" form={form} />
-                    <div className="sm:col-span-2"><TextField name="address.address" label="Street address" form={form} /></div>
-                    <SelectField name="address.timezone" label="Timezone" options={TIMEZONES} form={form} />
-                  </div>
-                )}
-                {step === 3 && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <SelectField name="subscription.plan" label="Plan" options={["starter", "growth", "business", "enterprise"]} form={form} capitalize />
-                    <SelectField name="subscription.billingCycle" label="Billing cycle" options={["monthly", "quarterly", "annual"]} form={form} capitalize />
-                    <FormField control={form.control} name="subscription.trial" render={({ field }) => (
-                      <FormItem className="flex flex-col rounded-lg border border-border/70 p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <FormLabel className="text-sm">Start trial</FormLabel>
-                            <FormDescription className="text-xs">30-day complimentary access</FormDescription>
-                          </div>
-                          <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        </div>
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="subscription.expiryDate" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expiry date</FormLabel>
-                        <FormControl><Input type="date" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
-                )}
-                {step === 4 && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="admin.adminName" label="Admin name" placeholder="Jane Doe" form={form} />
-                    <TextField name="admin.adminEmail" label="Admin email" placeholder="admin@example.com" form={form} />
-                    <TextField name="admin.adminPhone" label="Admin phone" placeholder="+1 415 555 0101" form={form} />
-                    <TextField name="admin.tempPassword" label="Temporary password" placeholder="Min 8 chars, 1 upper, 1 number" type="password" form={form} />
+                    <SelectField name="settings.timezone" label="Timezone" options={TIMEZONES} form={form} />
+                    <SelectField name="settings.defaultLocale" label="Default locale" options={LOCALES} form={form} />
+                    <TextField name="settings.subscriptionTier" label="Subscription tier (optional)" placeholder="starter" form={form} />
                   </div>
                 )}
               </div>
@@ -231,7 +184,7 @@ function TextField({ name, label, placeholder, type, form }: { name: any; label:
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function SelectField({ name, label, options, form, capitalize }: { name: any; label: string; options: string[]; form: any; capitalize?: boolean }) {
+function SelectField({ name, label, options, form, capitalize }: { name: any; label: string; options: readonly string[]; form: any; capitalize?: boolean }) {
   return (
     <FormField control={form.control} name={name} render={({ field }) => (
       <FormItem>

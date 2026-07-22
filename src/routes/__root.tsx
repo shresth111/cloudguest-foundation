@@ -11,7 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth, type RouterAuthContext } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -76,7 +76,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+  auth: RouterAuthContext | undefined;
+}>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -135,6 +138,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
+          <AuthRouterContextSync />
           <TooltipProvider delayDuration={200}>
             <Outlet />
             <Toaster position="top-right" richColors closeButton />
@@ -143,4 +147,19 @@ function RootComponent() {
       </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+/** Pushes `AuthContext`'s status into the router's own context so
+ * `beforeLoad` guards (which run outside React) can read it, and
+ * re-runs those guards whenever it changes. */
+function AuthRouterContextSync() {
+  const { status } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    router.update({ context: { ...router.options.context, auth: { status } } });
+    void router.invalidate();
+  }, [status, router]);
+
+  return null;
 }

@@ -7,6 +7,7 @@ import { Can } from "@/components/permissions/Can";
 import { LocationTable } from "@/components/locations/LocationTable";
 import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/_authenticated/locations/")({
   component: LocationMasterPage,
@@ -15,6 +16,11 @@ export const Route = createFileRoute("/_authenticated/locations/")({
 
 function LocationMasterPage() {
   const { can, isLocked, isVisible } = usePermissions();
+  // The real POST /locations/provision endpoint is gated to
+  // RequirePermission("locations.manage", scope=GLOBAL) -- mirror that here,
+  // on top of (not instead of) the existing module-permission gate below.
+  const { can: canReal } = useAuth();
+  const canProvision = canReal("locations.manage");
   const qc = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
 
@@ -65,7 +71,12 @@ function LocationMasterPage() {
               </Button>
             }
           >
-            <Button size="sm" onClick={() => setWizardOpen(true)}>
+            <Button
+              size="sm"
+              onClick={() => setWizardOpen(true)}
+              disabled={!canProvision}
+              title={canProvision ? undefined : "Smart Location Provisioning requires platform-level access."}
+            >
               <Plus className="h-4 w-4" />
               <span className="ml-2">Create location</span>
             </Button>

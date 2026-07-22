@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { permissionsService } from "@/services/permissions.service";
 import { useAuth } from "@/context/AuthContext";
+import { legacyRoleBucket } from "@/lib/roles";
 import { permissionsBus } from "@/lib/permissionsBus";
 import type {
   AssignmentEnvelope,
@@ -74,11 +75,12 @@ function usePermissionBusInvalidation() {
 
 export function usePermissions() {
   usePermissionBusInvalidation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const locationId = readActiveLocation();
+  const bucket = legacyRoleBucket(roles);
   const q = useQuery({
-    queryKey: permissionKeys.me(user?.role ?? "anon", locationId),
-    queryFn: () => permissionsService.getPermissions(user!.role, locationId),
+    queryKey: permissionKeys.me(bucket, locationId),
+    queryFn: () => permissionsService.getPermissions(bucket, locationId),
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
@@ -114,41 +116,45 @@ export function usePermissions() {
 }
 
 export function useAssignments() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const bucket = legacyRoleBucket(roles);
   return useQuery<AssignmentEnvelope>({
-    queryKey: permissionKeys.assignments(user?.role ?? "anon"),
-    queryFn: () => permissionsService.getAssignments(user!.role),
+    queryKey: permissionKeys.assignments(bucket),
+    queryFn: () => permissionsService.getAssignments(bucket),
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useDashboardLayout() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const locationId = readActiveLocation();
+  const bucket = legacyRoleBucket(roles);
   return useQuery<DashboardLayout>({
-    queryKey: permissionKeys.dashboardLayout(user?.role ?? "anon", locationId),
-    queryFn: () => permissionsService.getDashboardLayout(user!.role, locationId),
+    queryKey: permissionKeys.dashboardLayout(bucket, locationId),
+    queryFn: () => permissionsService.getDashboardLayout(bucket, locationId),
     enabled: !!user,
     staleTime: 60 * 1000,
   });
 }
 
 export function useTopbarConfig() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const bucket = legacyRoleBucket(roles);
   return useQuery<TopbarConfig>({
-    queryKey: permissionKeys.topbar(user?.role ?? "anon"),
-    queryFn: () => permissionsService.getTopbarConfig(user!.role),
+    queryKey: permissionKeys.topbar(bucket),
+    queryFn: () => permissionsService.getTopbarConfig(bucket),
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useRouterCapabilities(routerId: string | undefined) {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const bucket = legacyRoleBucket(roles);
   return useQuery<RouterCapabilities>({
-    queryKey: permissionKeys.router(user?.role ?? "anon", routerId ?? "none"),
-    queryFn: () => permissionsService.getRouterCapabilities(user!.role, routerId!),
+    queryKey: permissionKeys.router(bucket, routerId ?? "none"),
+    queryFn: () => permissionsService.getRouterCapabilities(bucket, routerId!),
     enabled: !!user && !!routerId,
     staleTime: 60 * 1000,
   });

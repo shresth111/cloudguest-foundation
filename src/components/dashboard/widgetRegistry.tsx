@@ -18,7 +18,7 @@ import {
 import { useNotifications } from "@/hooks/useDashboardData";
 import type { DashboardWidget, WidgetKind, WidgetSize } from "@/types/dashboard-layout";
 import { useAuth } from "@/context/AuthContext";
-import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/roles";
+import { primaryRoleLabel } from "@/lib/roles";
 
 /**
  * Backend-driven widget registry. Every widget the dashboard can
@@ -52,7 +52,7 @@ function NotificationsBinding() {
 }
 
 function WelcomeWidget() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   if (!user) return null;
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -67,8 +67,8 @@ function WelcomeWidget() {
           Every module, widget and action below is rendered from your assigned permissions.
         </p>
       </div>
-      <Badge variant={ROLE_BADGE_VARIANT[user.role]} className="h-6">
-        {ROLE_LABELS[user.role]}
+      <Badge variant="secondary" className="h-6">
+        {primaryRoleLabel(roles)}
       </Badge>
     </div>
   );

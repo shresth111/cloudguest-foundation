@@ -1,3 +1,4 @@
+import { api } from "@/services/api";
 import type {
   CreateOrgPayload,
   OrgListQuery,
@@ -6,166 +7,110 @@ import type {
   Organization,
 } from "@/types/organization";
 
-const INDUSTRIES = ["Hospitality", "Retail", "Education", "Healthcare", "F&B", "Coworking", "Transport"];
-const CITIES = [
-  ["USA", "California", "San Francisco", "America/Los_Angeles"],
-  ["USA", "New York", "New York", "America/New_York"],
-  ["UK", "England", "London", "Europe/London"],
-  ["India", "Karnataka", "Bengaluru", "Asia/Kolkata"],
-  ["Singapore", "Central", "Singapore", "Asia/Singapore"],
-  ["UAE", "Dubai", "Dubai", "Asia/Dubai"],
-  ["Germany", "Bavaria", "Munich", "Europe/Berlin"],
-];
-const PLANS: Organization["plan"][] = ["starter", "growth", "business", "enterprise"];
-const STATUSES: OrgStatus[] = ["active", "active", "active", "trial", "suspended", "expired", "pending_verification"];
+interface BackendOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  legal_name: string | null;
+  org_type: Organization["orgType"];
+  status: OrgStatus;
+  parent_organization_id: string | null;
+  contact_email: string;
+  contact_phone: string | null;
+  timezone: string;
+  default_locale: string;
+  settings: Record<string, unknown>;
+  subscription_tier: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
-function seedRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
+interface BackendOrgListResponse {
+  items: BackendOrganization[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+function toOrganization(o: BackendOrganization): Organization {
+  return {
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    legalName: o.legal_name,
+    orgType: o.org_type,
+    status: o.status,
+    parentOrganizationId: o.parent_organization_id,
+    contactEmail: o.contact_email,
+    contactPhone: o.contact_phone,
+    timezone: o.timezone,
+    defaultLocale: o.default_locale,
+    settings: o.settings,
+    subscriptionTier: o.subscription_tier,
+    createdAt: o.created_at,
+    updatedAt: o.updated_at,
   };
-}
-
-const rand = seedRandom(42);
-
-function generate(count: number): Organization[] {
-  const out: Organization[] = [];
-  for (let i = 0; i < count; i++) {
-    const [country, state, city, tz] = CITIES[i % CITIES.length];
-    const plan = PLANS[i % PLANS.length];
-    const status = STATUSES[i % STATUSES.length];
-    const industry = INDUSTRIES[i % INDUSTRIES.length];
-    const created = new Date(Date.now() - Math.floor(rand() * 400) * 86400000);
-    const expiry = new Date(created.getTime() + 365 * 86400000);
-    out.push({
-      id: `ORG-${String(1000 + i).padStart(5, "0")}`,
-      name: `${["Nimbus", "Vertex", "Halo", "Orbit", "Lumen", "Cascade", "Atlas", "Meridian"][i % 8]} ${["Hospitality", "Retail", "Group", "Holdings", "Ventures", "Networks"][i % 6]}`,
-      businessName: `${["Nimbus", "Vertex", "Halo", "Orbit", "Lumen", "Cascade", "Atlas", "Meridian"][i % 8]} Pvt Ltd`,
-      type: (["enterprise", "smb", "hospitality", "retail", "education", "healthcare"] as const)[i % 6],
-      industry,
-      companySize: ["1-10", "11-50", "51-200", "201-500", "500+"][i % 5],
-      gstNumber: `29ABCDE${1000 + i}F1Z5`,
-      website: `https://${["nimbus", "vertex", "halo", "orbit", "lumen"][i % 5]}.io`,
-      contactName: ["Ava Chen", "Marco Silva", "Priya Rao", "Liam O'Neil", "Sara Kim"][i % 5],
-      contactEmail: `contact${i}@${["nimbus", "vertex", "halo"][i % 3]}.io`,
-      contactPhone: `+1 415 555 0${100 + i}`,
-      contactDesignation: ["Founder", "IT Director", "COO", "GM", "CTO"][i % 5],
-      country,
-      state,
-      city,
-      address: `${100 + i} Market Street`,
-      zipCode: `${94000 + i}`,
-      timezone: tz,
-      plan,
-      billingCycle: (["monthly", "quarterly", "annual"] as const)[i % 3],
-      trial: status === "trial",
-      expiryDate: expiry.toISOString(),
-      activeLocations: 2 + Math.floor(rand() * 40),
-      activeRouters: 4 + Math.floor(rand() * 120),
-      activeGuests: 50 + Math.floor(rand() * 5000),
-      monthlyRevenue: 200 + Math.floor(rand() * 12000),
-      activeSessions: Math.floor(rand() * 400),
-      uptimePct: 97 + Math.round(rand() * 30) / 10,
-      status,
-      createdAt: created.toISOString(),
-    });
-  }
-  return out;
-}
-
-let ORGS: Organization[] = generate(87);
-
-function delay<T>(v: T, ms = 300): Promise<T> {
-  return new Promise((res) => setTimeout(() => res(v), ms));
 }
 
 export const organizationService = {
   async list(q: OrgListQuery): Promise<OrgListResult> {
-    let rows = [...ORGS];
-    if (q.search) {
-      const s = q.search.toLowerCase();
-      rows = rows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(s) ||
-          r.id.toLowerCase().includes(s) ||
-          r.contactEmail.toLowerCase().includes(s) ||
-          r.contactName.toLowerCase().includes(s),
-      );
-    }
+    const { data } = await api.get<BackendOrgListResponse>("/organizations", {
+      params: {
+        page: q.page,
+        page_size: q.pageSize,
+        search: q.search || undefined,
+      },
+    });
+    let rows = data.items.map(toOrganization);
+    // The list endpoint has no status filter param -- filter client-side over
+    // the current page rather than fake a server-side filter that doesn't exist.
     if (q.status && q.status !== "all") rows = rows.filter((r) => r.status === q.status);
-    if (q.plan && q.plan !== "all") rows = rows.filter((r) => r.plan === q.plan);
-    if (q.sortBy) {
-      const dir = q.sortDir === "desc" ? -1 : 1;
-      const key = q.sortBy;
-      rows.sort((a, b) => {
-        const av = a[key];
-        const bv = b[key];
-        if (av == null || bv == null) return 0;
-        return av > bv ? dir : av < bv ? -dir : 0;
-      });
-    }
-    const total = rows.length;
-    const start = (q.page - 1) * q.pageSize;
-    rows = rows.slice(start, start + q.pageSize);
-    return delay({ rows, total });
+    return {
+      rows,
+      total: data.total_items,
+      totalPages: data.total_pages,
+      hasNext: data.has_next,
+      hasPrevious: data.has_previous,
+    };
   },
 
   async get(id: string): Promise<Organization | null> {
-    return delay(ORGS.find((r) => r.id === id) ?? null);
+    const { data } = await api.get<BackendOrganization>(`/organizations/${id}`);
+    return toOrganization(data);
   },
 
   async create(payload: CreateOrgPayload): Promise<Organization> {
-    const id = `ORG-${String(10000 + ORGS.length).padStart(5, "0")}`;
-    const now = new Date();
-    const org: Organization = {
-      id,
+    const { data } = await api.post<BackendOrganization>("/organizations", {
       name: payload.basic.name,
-      businessName: payload.basic.businessName,
-      type: "enterprise",
-      industry: payload.basic.industry,
-      companySize: payload.basic.companySize,
-      gstNumber: payload.basic.gstNumber,
-      website: payload.basic.website,
-      contactName: payload.contact.contactName,
-      contactEmail: payload.contact.contactEmail,
-      contactPhone: payload.contact.contactPhone,
-      contactDesignation: payload.contact.contactDesignation,
-      country: payload.address.country,
-      state: payload.address.state,
-      city: payload.address.city,
-      address: payload.address.address,
-      zipCode: payload.address.zipCode,
-      timezone: payload.address.timezone,
-      plan: payload.subscription.plan,
-      billingCycle: payload.subscription.billingCycle,
-      trial: payload.subscription.trial,
-      expiryDate: payload.subscription.expiryDate,
-      activeLocations: 0,
-      activeRouters: 0,
-      activeGuests: 0,
-      monthlyRevenue: 0,
-      activeSessions: 0,
-      uptimePct: 100,
-      status: payload.subscription.trial ? "trial" : "pending_verification",
-      createdAt: now.toISOString(),
-    };
-    ORGS = [org, ...ORGS];
-    return delay(org, 600);
+      slug: payload.basic.slug,
+      legal_name: payload.basic.legalName,
+      org_type: payload.basic.orgType,
+      contact_email: payload.contact.contactEmail,
+      contact_phone: payload.contact.contactPhone,
+      timezone: payload.settings.timezone,
+      default_locale: payload.settings.defaultLocale,
+      subscription_tier: payload.settings.subscriptionTier,
+    });
+    return toOrganization(data);
   },
 
   async updateStatus(ids: string[], status: OrgStatus): Promise<void> {
-    ORGS = ORGS.map((r) => (ids.includes(r.id) ? { ...r, status } : r));
-    return delay(undefined, 400);
+    const endpoint = status === "suspended" ? "suspend" : "activate";
+    await Promise.all(ids.map((id) => api.post(`/organizations/${id}/${endpoint}`)));
   },
 
   async remove(ids: string[]): Promise<void> {
-    ORGS = ORGS.filter((r) => !ids.includes(r.id));
-    return delay(undefined, 400);
+    await Promise.all(ids.map((id) => api.delete(`/organizations/${id}`)));
   },
 
-  async resetAdminPassword(id: string): Promise<{ tempPassword: string }> {
-    void id;
-    return delay({ tempPassword: `Temp!${Math.random().toString(36).slice(2, 10)}` }, 500);
+  async locationCount(id: string): Promise<number> {
+    const { data } = await api.get<{ total_items: number }>(
+      `/organizations/${id}/locations`,
+      { params: { page_size: 1 }, headers: { "X-Organization-Id": id } },
+    );
+    return data.total_items;
   },
 };

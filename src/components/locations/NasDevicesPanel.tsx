@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useLocationNas } from "@/hooks/useNas";
 import { useAuth } from "@/context/AuthContext";
+import { legacyRoleBucket } from "@/lib/roles";
 
 interface Props {
   locationId: string;
@@ -21,8 +22,8 @@ const STATUS_TONE: Record<string, string> = {
 
 export function NasDevicesPanel({ locationId }: Props) {
   const { data, isLoading } = useLocationNas(locationId);
-  const { role } = useAuth();
-  const canRegister = role === "super_admin";
+  const { roles } = useAuth();
+  const canRegister = legacyRoleBucket(roles) === "super_admin";
 
   if (isLoading) return <LoadingSkeleton rows={3} />;
   if (!data || data.length === 0) {
