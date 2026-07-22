@@ -84,6 +84,7 @@ import { Route as AuthenticatedWorkspaceCompanyRouteImport } from './routes/_aut
 import { Route as AuthenticatedWorkspaceBillingRouteImport } from './routes/_authenticated/workspace.billing'
 import { Route as AuthenticatedWorkspaceAuditRouteImport } from './routes/_authenticated/workspace.audit'
 import { Route as AuthenticatedWorkspaceAnalyticsRouteImport } from './routes/_authenticated/workspace.analytics'
+import { Route as AuthenticatedWorkspaceAgentRouteImport } from './routes/_authenticated/workspace.agent'
 import { Route as AuthenticatedSupportDocumentationRouteImport } from './routes/_authenticated/support.documentation'
 import { Route as AuthenticatedSupportContactRouteImport } from './routes/_authenticated/support.contact'
 import { Route as AuthenticatedRoutersRouterIdRouteImport } from './routes/_authenticated/routers.$routerId'
@@ -540,6 +541,12 @@ const AuthenticatedWorkspaceAnalyticsRoute =
     path: '/analytics',
     getParentRoute: () => AuthenticatedWorkspaceRoute,
   } as any)
+const AuthenticatedWorkspaceAgentRoute =
+  AuthenticatedWorkspaceAgentRouteImport.update({
+    id: '/agent',
+    path: '/agent',
+    getParentRoute: () => AuthenticatedWorkspaceRoute,
+  } as any)
 const AuthenticatedSupportDocumentationRoute =
   AuthenticatedSupportDocumentationRouteImport.update({
     id: '/support/documentation',
@@ -835,6 +842,7 @@ export interface FileRoutesByFullPath {
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/support/contact': typeof AuthenticatedSupportContactRoute
   '/support/documentation': typeof AuthenticatedSupportDocumentationRoute
+  '/workspace/agent': typeof AuthenticatedWorkspaceAgentRoute
   '/workspace/analytics': typeof AuthenticatedWorkspaceAnalyticsRoute
   '/workspace/audit': typeof AuthenticatedWorkspaceAuditRoute
   '/workspace/billing': typeof AuthenticatedWorkspaceBillingRoute
@@ -946,6 +954,7 @@ export interface FileRoutesByTo {
   '/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/support/contact': typeof AuthenticatedSupportContactRoute
   '/support/documentation': typeof AuthenticatedSupportDocumentationRoute
+  '/workspace/agent': typeof AuthenticatedWorkspaceAgentRoute
   '/workspace/analytics': typeof AuthenticatedWorkspaceAnalyticsRoute
   '/workspace/audit': typeof AuthenticatedWorkspaceAuditRoute
   '/workspace/billing': typeof AuthenticatedWorkspaceBillingRoute
@@ -1063,6 +1072,7 @@ export interface FileRoutesById {
   '/_authenticated/routers/$routerId': typeof AuthenticatedRoutersRouterIdRoute
   '/_authenticated/support/contact': typeof AuthenticatedSupportContactRoute
   '/_authenticated/support/documentation': typeof AuthenticatedSupportDocumentationRoute
+  '/_authenticated/workspace/agent': typeof AuthenticatedWorkspaceAgentRoute
   '/_authenticated/workspace/analytics': typeof AuthenticatedWorkspaceAnalyticsRoute
   '/_authenticated/workspace/audit': typeof AuthenticatedWorkspaceAuditRoute
   '/_authenticated/workspace/billing': typeof AuthenticatedWorkspaceBillingRoute
@@ -1180,6 +1190,7 @@ export interface FileRouteTypes {
     | '/routers/$routerId'
     | '/support/contact'
     | '/support/documentation'
+    | '/workspace/agent'
     | '/workspace/analytics'
     | '/workspace/audit'
     | '/workspace/billing'
@@ -1291,6 +1302,7 @@ export interface FileRouteTypes {
     | '/routers/$routerId'
     | '/support/contact'
     | '/support/documentation'
+    | '/workspace/agent'
     | '/workspace/analytics'
     | '/workspace/audit'
     | '/workspace/billing'
@@ -1407,6 +1419,7 @@ export interface FileRouteTypes {
     | '/_authenticated/routers/$routerId'
     | '/_authenticated/support/contact'
     | '/_authenticated/support/documentation'
+    | '/_authenticated/workspace/agent'
     | '/_authenticated/workspace/analytics'
     | '/_authenticated/workspace/audit'
     | '/_authenticated/workspace/billing'
@@ -1997,6 +2010,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceAnalyticsRouteImport
       parentRoute: typeof AuthenticatedWorkspaceRoute
     }
+    '/_authenticated/workspace/agent': {
+      id: '/_authenticated/workspace/agent'
+      path: '/agent'
+      fullPath: '/workspace/agent'
+      preLoaderRoute: typeof AuthenticatedWorkspaceAgentRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRoute
+    }
     '/_authenticated/support/documentation': {
       id: '/_authenticated/support/documentation'
       path: '/support/documentation'
@@ -2289,6 +2309,7 @@ const AuthenticatedWorkspaceLocationsRouteWithChildren =
   )
 
 interface AuthenticatedWorkspaceRouteChildren {
+  AuthenticatedWorkspaceAgentRoute: typeof AuthenticatedWorkspaceAgentRoute
   AuthenticatedWorkspaceAnalyticsRoute: typeof AuthenticatedWorkspaceAnalyticsRoute
   AuthenticatedWorkspaceAuditRoute: typeof AuthenticatedWorkspaceAuditRoute
   AuthenticatedWorkspaceBillingRoute: typeof AuthenticatedWorkspaceBillingRoute
@@ -2305,6 +2326,7 @@ interface AuthenticatedWorkspaceRouteChildren {
 
 const AuthenticatedWorkspaceRouteChildren: AuthenticatedWorkspaceRouteChildren =
   {
+    AuthenticatedWorkspaceAgentRoute: AuthenticatedWorkspaceAgentRoute,
     AuthenticatedWorkspaceAnalyticsRoute: AuthenticatedWorkspaceAnalyticsRoute,
     AuthenticatedWorkspaceAuditRoute: AuthenticatedWorkspaceAuditRoute,
     AuthenticatedWorkspaceBillingRoute: AuthenticatedWorkspaceBillingRoute,

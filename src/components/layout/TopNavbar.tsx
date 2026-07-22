@@ -25,9 +25,38 @@ interface TopNavbarProps {
   onToggleActivityFeed?: () => void;
 }
 
-function QuickActionsMenu() {
+// Two entirely separate action sets -- the workspace one never links
+// outside /workspace/*, same boundary as WORKSPACE_NAV_COMMANDS in
+// CommandPalette.tsx.
+function QuickActionsMenu({ inWorkspace }: { inWorkspace: boolean }) {
   const navigate = useNavigate();
   const go = (to: string) => navigate({ to });
+
+  if (inWorkspace) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Quick actions">
+            <Zap className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel>Quick actions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => go("/workspace/guests")}>
+            <Ticket className="mr-2 h-4 w-4" /> Generate voucher
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => go("/workspace/routers")}>
+            <RouterIcon className="mr-2 h-4 w-4" /> View routers
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => go("/workspace/locations")}>
+            <MapPin className="mr-2 h-4 w-4" /> View locations
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -78,9 +107,15 @@ export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
           <Breadcrumbs />
         </div>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <OrganizationSwitcher />
+          {/* Platform-only: switching between OTHER organizations has no
+              meaning for an Owner/Agent viewing their own single org. */}
+          {!inWorkspace && <OrganizationSwitcher />}
           {inWorkspace && <SpaceContextChip />}
-          <GlobalSearch />
+          {/* Searches organizations/routers platform-wide with no tenant
+              scoping -- a real cross-tenant data leak if shown to a
+              customer workspace user. Hidden here until it's rebuilt to
+              search only within the signed-in customer's own org. */}
+          {!inWorkspace && <GlobalSearch />}
           <Button
             variant="ghost"
             size="icon"
@@ -91,7 +126,7 @@ export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
             <Activity className="h-4 w-4" />
           </Button>
           <NotificationBell />
-          <QuickActionsMenu />
+          <QuickActionsMenu inWorkspace={inWorkspace} />
           <Button
             variant="ghost"
             size="icon"

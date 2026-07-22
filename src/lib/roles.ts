@@ -12,6 +12,19 @@ export function homeRoute(): string {
 }
 
 /**
+ * Login-time landing preference, not an authorization mechanism -- real
+ * page content is still gated by the user's actual assigned permissions
+ * (see `<Can/>`/`useAuth().can`) regardless of which one was picked. An
+ * agent who selects "Owner" just sees an owner-shaped page with locked/
+ * empty sections; nothing here grants access on its own.
+ */
+export type LoginMode = "owner" | "agent";
+
+export function landingRouteForLoginMode(mode: LoginMode): string {
+  return mode === "agent" ? "/workspace/agent" : homeRoute();
+}
+
+/**
  * The still-mocked sidebar/dashboard-visibility system
  * (`usePermissions`/`permissions.service.ts`) predates real RBAC and keys
  * its fake permission tables on one of five legacy buckets. Real roles are

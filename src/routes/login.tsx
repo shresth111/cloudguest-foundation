@@ -3,16 +3,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { usePlatformBranding } from "@/context/PlatformBrandingContext";
-import { homeRoute } from "@/lib/roles";
+import { landingRouteForLoginMode, type LoginMode } from "@/lib/roles";
 import type { AppError } from "@/services/api";
 
 const schema = z.object({
@@ -33,6 +34,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<LoginMode>("owner");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -44,7 +46,7 @@ function LoginPage() {
     try {
       await login(values);
       toast.success("Welcome back");
-      navigate({ to: redirect || homeRoute(), replace: true });
+      navigate({ to: redirect || landingRouteForLoginMode(mode), replace: true });
     } catch (err) {
       toast.error((err as AppError).message || "Login failed");
     } finally {
@@ -63,6 +65,29 @@ function LoginPage() {
       }
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label>I'm signing in as</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <ModeBox
+              active={mode === "owner"}
+              icon={ShieldCheck}
+              title="Owner"
+              description="Full workspace access"
+              onClick={() => setMode("owner")}
+            />
+            <ModeBox
+              active={mode === "agent"}
+              icon={UserRound}
+              title="Agent"
+              description="Assigned features only"
+              onClick={() => setMode("agent")}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Just picks your landing view — what you can actually see and do is still controlled
+            by your account's real permissions.
+          </p>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" placeholder="you@company.com" autoComplete="email" {...form.register("email")} />
@@ -98,5 +123,37 @@ function LoginPage() {
         </Button>
       </form>
     </AuthLayout>
+  );
+}
+
+function ModeBox({
+  active,
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  icon: typeof ShieldCheck;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
+        active
+          ? "border-primary bg-primary/5 ring-1 ring-primary"
+          : "border-input hover:bg-muted/50",
+      )}
+    >
+      <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-muted-foreground")} />
+      <span className="text-sm font-medium">{title}</span>
+      <span className="text-xs text-muted-foreground">{description}</span>
+    </button>
   );
 }

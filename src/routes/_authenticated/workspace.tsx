@@ -9,7 +9,17 @@ export const Route = createFileRoute("/_authenticated/workspace")({
   component: WorkspaceLayout,
 });
 
-const ALLOWED: LegacyRoleBucket[] = ["super_admin", "org_admin", "location_manager", "read_only"];
+// support_engineer covers helpdesk/network-engineer/network-administrator --
+// exactly the kind of operational role an Owner would assign as an "Agent"
+// (see workspace.agent.tsx) -- without it here, those users get bounced to
+// /dashboard before ever reaching the workspace at all.
+const ALLOWED: LegacyRoleBucket[] = [
+  "super_admin",
+  "org_admin",
+  "location_manager",
+  "support_engineer",
+  "read_only",
+];
 
 function WorkspaceLayout() {
   const { user, roles } = useAuth();

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import { QuickActionsFab } from "@/components/system/QuickActionsFab";
@@ -23,6 +23,12 @@ function AuthenticatedLayout() {
   const { status } = useAuth();
   const [activityOpen, setActivityOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  // QuickActionsFab only ever links to platform-only pages (/locations,
+  // /routers, /rbac, /marketplace) and duplicates TopNavbar's own
+  // workspace-scoped quick actions -- keep it out of the customer
+  // workspace entirely rather than teach it a second link set.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
 
   if (status !== "authenticated") {
     return (
@@ -42,7 +48,7 @@ function AuthenticatedLayout() {
             <Outlet />
           </main>
         </SidebarInset>
-        <QuickActionsFab />
+        {!inWorkspace && <QuickActionsFab />}
       </div>
       <CommandPalette />
       <ActivityFeed open={activityOpen} onOpenChange={setActivityOpen} />
