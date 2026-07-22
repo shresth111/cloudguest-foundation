@@ -57,6 +57,7 @@ import { Route as AuthenticatedFeatureManagementIndexRouteImport } from './route
 import { Route as AuthenticatedFeatureCatalogIndexRouteImport } from './routes/_authenticated/feature-catalog.index'
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports.index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
+import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated/campaigns.index'
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
 import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authenticated/billing.index'
 import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authenticated/audit.index'
@@ -88,14 +89,20 @@ import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_a
 import { Route as AuthenticatedOperationsAdminLogsRouteImport } from './routes/_authenticated/operations.admin-logs'
 import { Route as AuthenticatedNetworkWanRouteImport } from './routes/_authenticated/network.wan'
 import { Route as AuthenticatedNetworkVlanRouteImport } from './routes/_authenticated/network.vlan'
+import { Route as AuthenticatedNetworkQueueManagementRouteImport } from './routes/_authenticated/network.queue-management'
+import { Route as AuthenticatedNetworkPortForwardingRouteImport } from './routes/_authenticated/network.port-forwarding'
+import { Route as AuthenticatedNetworkMacAuthorizationRouteImport } from './routes/_authenticated/network.mac-authorization'
 import { Route as AuthenticatedNetworkLanRouteImport } from './routes/_authenticated/network.lan'
 import { Route as AuthenticatedNetworkIspRouteImport } from './routes/_authenticated/network.isp'
+import { Route as AuthenticatedNetworkHotspotRouteImport } from './routes/_authenticated/network.hotspot'
 import { Route as AuthenticatedNetworkFirewallRouteImport } from './routes/_authenticated/network.firewall'
 import { Route as AuthenticatedNetworkDscpRouteImport } from './routes/_authenticated/network.dscp'
 import { Route as AuthenticatedNetworkDnsRouteImport } from './routes/_authenticated/network.dns'
 import { Route as AuthenticatedNetworkDhcpRouteImport } from './routes/_authenticated/network.dhcp'
 import { Route as AuthenticatedNetworkAccessPointsRouteImport } from './routes/_authenticated/network.access-points'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
+import { Route as AuthenticatedGuestsTeamsRouteImport } from './routes/_authenticated/guests.teams'
+import { Route as AuthenticatedGuestsAccessRulesRouteImport } from './routes/_authenticated/guests.access-rules'
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
 import { Route as AuthenticatedAnalyticsNetworkRouteImport } from './routes/_authenticated/analytics.network'
 import { Route as AuthenticatedAnalyticsIspRouteImport } from './routes/_authenticated/analytics.isp'
@@ -366,6 +373,12 @@ const AuthenticatedCustomersIndexRoute =
     path: '/customers/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCampaignsIndexRoute =
+  AuthenticatedCampaignsIndexRouteImport.update({
+    id: '/campaigns/',
+    path: '/campaigns/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedBrandingIndexRoute =
   AuthenticatedBrandingIndexRouteImport.update({
     id: '/branding/',
@@ -549,6 +562,24 @@ const AuthenticatedNetworkVlanRoute =
     path: '/network/vlan',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedNetworkQueueManagementRoute =
+  AuthenticatedNetworkQueueManagementRouteImport.update({
+    id: '/network/queue-management',
+    path: '/network/queue-management',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNetworkPortForwardingRoute =
+  AuthenticatedNetworkPortForwardingRouteImport.update({
+    id: '/network/port-forwarding',
+    path: '/network/port-forwarding',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNetworkMacAuthorizationRoute =
+  AuthenticatedNetworkMacAuthorizationRouteImport.update({
+    id: '/network/mac-authorization',
+    path: '/network/mac-authorization',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedNetworkLanRoute = AuthenticatedNetworkLanRouteImport.update({
   id: '/network/lan',
   path: '/network/lan',
@@ -559,6 +590,12 @@ const AuthenticatedNetworkIspRoute = AuthenticatedNetworkIspRouteImport.update({
   path: '/network/isp',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNetworkHotspotRoute =
+  AuthenticatedNetworkHotspotRouteImport.update({
+    id: '/network/hotspot',
+    path: '/network/hotspot',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedNetworkFirewallRoute =
   AuthenticatedNetworkFirewallRouteImport.update({
     id: '/network/firewall',
@@ -592,6 +629,18 @@ const AuthenticatedLocationsLocationIdRoute =
   AuthenticatedLocationsLocationIdRouteImport.update({
     id: '/locations/$locationId',
     path: '/locations/$locationId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGuestsTeamsRoute =
+  AuthenticatedGuestsTeamsRouteImport.update({
+    id: '/guests/teams',
+    path: '/guests/teams',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGuestsAccessRulesRoute =
+  AuthenticatedGuestsAccessRulesRouteImport.update({
+    id: '/guests/access-rules',
+    path: '/guests/access-rules',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedGuestsGuestIdRoute =
@@ -686,14 +735,20 @@ export interface FileRoutesByFullPath {
   '/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
+  '/guests/access-rules': typeof AuthenticatedGuestsAccessRulesRoute
+  '/guests/teams': typeof AuthenticatedGuestsTeamsRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
   '/network/dscp': typeof AuthenticatedNetworkDscpRoute
   '/network/firewall': typeof AuthenticatedNetworkFirewallRoute
+  '/network/hotspot': typeof AuthenticatedNetworkHotspotRoute
   '/network/isp': typeof AuthenticatedNetworkIspRoute
   '/network/lan': typeof AuthenticatedNetworkLanRoute
+  '/network/mac-authorization': typeof AuthenticatedNetworkMacAuthorizationRoute
+  '/network/port-forwarding': typeof AuthenticatedNetworkPortForwardingRoute
+  '/network/queue-management': typeof AuthenticatedNetworkQueueManagementRoute
   '/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/network/wan': typeof AuthenticatedNetworkWanRoute
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
@@ -725,6 +780,7 @@ export interface FileRoutesByFullPath {
   '/audit/': typeof AuthenticatedAuditIndexRoute
   '/billing/': typeof AuthenticatedBillingIndexRoute
   '/branding/': typeof AuthenticatedBrandingIndexRoute
+  '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
   '/feature-catalog/': typeof AuthenticatedFeatureCatalogIndexRoute
@@ -781,13 +837,19 @@ export interface FileRoutesByTo {
   '/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
+  '/guests/access-rules': typeof AuthenticatedGuestsAccessRulesRoute
+  '/guests/teams': typeof AuthenticatedGuestsTeamsRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
   '/network/dscp': typeof AuthenticatedNetworkDscpRoute
   '/network/firewall': typeof AuthenticatedNetworkFirewallRoute
+  '/network/hotspot': typeof AuthenticatedNetworkHotspotRoute
   '/network/isp': typeof AuthenticatedNetworkIspRoute
   '/network/lan': typeof AuthenticatedNetworkLanRoute
+  '/network/mac-authorization': typeof AuthenticatedNetworkMacAuthorizationRoute
+  '/network/port-forwarding': typeof AuthenticatedNetworkPortForwardingRoute
+  '/network/queue-management': typeof AuthenticatedNetworkQueueManagementRoute
   '/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/network/wan': typeof AuthenticatedNetworkWanRoute
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
@@ -819,6 +881,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AuthenticatedAuditIndexRoute
   '/billing': typeof AuthenticatedBillingIndexRoute
   '/branding': typeof AuthenticatedBrandingIndexRoute
+  '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/customers': typeof AuthenticatedCustomersIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
   '/feature-catalog': typeof AuthenticatedFeatureCatalogIndexRoute
@@ -880,14 +943,20 @@ export interface FileRoutesById {
   '/_authenticated/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/_authenticated/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
+  '/_authenticated/guests/access-rules': typeof AuthenticatedGuestsAccessRulesRoute
+  '/_authenticated/guests/teams': typeof AuthenticatedGuestsTeamsRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/_authenticated/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/_authenticated/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/_authenticated/network/dns': typeof AuthenticatedNetworkDnsRoute
   '/_authenticated/network/dscp': typeof AuthenticatedNetworkDscpRoute
   '/_authenticated/network/firewall': typeof AuthenticatedNetworkFirewallRoute
+  '/_authenticated/network/hotspot': typeof AuthenticatedNetworkHotspotRoute
   '/_authenticated/network/isp': typeof AuthenticatedNetworkIspRoute
   '/_authenticated/network/lan': typeof AuthenticatedNetworkLanRoute
+  '/_authenticated/network/mac-authorization': typeof AuthenticatedNetworkMacAuthorizationRoute
+  '/_authenticated/network/port-forwarding': typeof AuthenticatedNetworkPortForwardingRoute
+  '/_authenticated/network/queue-management': typeof AuthenticatedNetworkQueueManagementRoute
   '/_authenticated/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/_authenticated/network/wan': typeof AuthenticatedNetworkWanRoute
   '/_authenticated/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
@@ -919,6 +988,7 @@ export interface FileRoutesById {
   '/_authenticated/audit/': typeof AuthenticatedAuditIndexRoute
   '/_authenticated/billing/': typeof AuthenticatedBillingIndexRoute
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
+  '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/feature-catalog/': typeof AuthenticatedFeatureCatalogIndexRoute
@@ -980,14 +1050,20 @@ export interface FileRouteTypes {
     | '/analytics/isp'
     | '/analytics/network'
     | '/guests/$guestId'
+    | '/guests/access-rules'
+    | '/guests/teams'
     | '/locations/$locationId'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
     | '/network/dscp'
     | '/network/firewall'
+    | '/network/hotspot'
     | '/network/isp'
     | '/network/lan'
+    | '/network/mac-authorization'
+    | '/network/port-forwarding'
+    | '/network/queue-management'
     | '/network/vlan'
     | '/network/wan'
     | '/operations/admin-logs'
@@ -1019,6 +1095,7 @@ export interface FileRouteTypes {
     | '/audit/'
     | '/billing/'
     | '/branding/'
+    | '/campaigns/'
     | '/customers/'
     | '/exports/'
     | '/feature-catalog/'
@@ -1075,13 +1152,19 @@ export interface FileRouteTypes {
     | '/analytics/isp'
     | '/analytics/network'
     | '/guests/$guestId'
+    | '/guests/access-rules'
+    | '/guests/teams'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
     | '/network/dscp'
     | '/network/firewall'
+    | '/network/hotspot'
     | '/network/isp'
     | '/network/lan'
+    | '/network/mac-authorization'
+    | '/network/port-forwarding'
+    | '/network/queue-management'
     | '/network/vlan'
     | '/network/wan'
     | '/operations/admin-logs'
@@ -1113,6 +1196,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/billing'
     | '/branding'
+    | '/campaigns'
     | '/customers'
     | '/exports'
     | '/feature-catalog'
@@ -1173,14 +1257,20 @@ export interface FileRouteTypes {
     | '/_authenticated/analytics/isp'
     | '/_authenticated/analytics/network'
     | '/_authenticated/guests/$guestId'
+    | '/_authenticated/guests/access-rules'
+    | '/_authenticated/guests/teams'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/network/access-points'
     | '/_authenticated/network/dhcp'
     | '/_authenticated/network/dns'
     | '/_authenticated/network/dscp'
     | '/_authenticated/network/firewall'
+    | '/_authenticated/network/hotspot'
     | '/_authenticated/network/isp'
     | '/_authenticated/network/lan'
+    | '/_authenticated/network/mac-authorization'
+    | '/_authenticated/network/port-forwarding'
+    | '/_authenticated/network/queue-management'
     | '/_authenticated/network/vlan'
     | '/_authenticated/network/wan'
     | '/_authenticated/operations/admin-logs'
@@ -1212,6 +1302,7 @@ export interface FileRouteTypes {
     | '/_authenticated/audit/'
     | '/_authenticated/billing/'
     | '/_authenticated/branding/'
+    | '/_authenticated/campaigns/'
     | '/_authenticated/customers/'
     | '/_authenticated/exports/'
     | '/_authenticated/feature-catalog/'
@@ -1590,6 +1681,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCustomersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/campaigns/': {
+      id: '/_authenticated/campaigns/'
+      path: '/campaigns'
+      fullPath: '/campaigns/'
+      preLoaderRoute: typeof AuthenticatedCampaignsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/branding/': {
       id: '/_authenticated/branding/'
       path: '/branding'
@@ -1807,6 +1905,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNetworkVlanRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/network/queue-management': {
+      id: '/_authenticated/network/queue-management'
+      path: '/network/queue-management'
+      fullPath: '/network/queue-management'
+      preLoaderRoute: typeof AuthenticatedNetworkQueueManagementRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/network/port-forwarding': {
+      id: '/_authenticated/network/port-forwarding'
+      path: '/network/port-forwarding'
+      fullPath: '/network/port-forwarding'
+      preLoaderRoute: typeof AuthenticatedNetworkPortForwardingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/network/mac-authorization': {
+      id: '/_authenticated/network/mac-authorization'
+      path: '/network/mac-authorization'
+      fullPath: '/network/mac-authorization'
+      preLoaderRoute: typeof AuthenticatedNetworkMacAuthorizationRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/network/lan': {
       id: '/_authenticated/network/lan'
       path: '/network/lan'
@@ -1819,6 +1938,13 @@ declare module '@tanstack/react-router' {
       path: '/network/isp'
       fullPath: '/network/isp'
       preLoaderRoute: typeof AuthenticatedNetworkIspRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/network/hotspot': {
+      id: '/_authenticated/network/hotspot'
+      path: '/network/hotspot'
+      fullPath: '/network/hotspot'
+      preLoaderRoute: typeof AuthenticatedNetworkHotspotRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/network/firewall': {
@@ -1861,6 +1987,20 @@ declare module '@tanstack/react-router' {
       path: '/locations/$locationId'
       fullPath: '/locations/$locationId'
       preLoaderRoute: typeof AuthenticatedLocationsLocationIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/guests/teams': {
+      id: '/_authenticated/guests/teams'
+      path: '/guests/teams'
+      fullPath: '/guests/teams'
+      preLoaderRoute: typeof AuthenticatedGuestsTeamsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/guests/access-rules': {
+      id: '/_authenticated/guests/access-rules'
+      path: '/guests/access-rules'
+      fullPath: '/guests/access-rules'
+      preLoaderRoute: typeof AuthenticatedGuestsAccessRulesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/guests/$guestId': {
@@ -2019,14 +2159,20 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAnalyticsIspRoute: typeof AuthenticatedAnalyticsIspRoute
   AuthenticatedAnalyticsNetworkRoute: typeof AuthenticatedAnalyticsNetworkRoute
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
+  AuthenticatedGuestsAccessRulesRoute: typeof AuthenticatedGuestsAccessRulesRoute
+  AuthenticatedGuestsTeamsRoute: typeof AuthenticatedGuestsTeamsRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRouteWithChildren
   AuthenticatedNetworkAccessPointsRoute: typeof AuthenticatedNetworkAccessPointsRoute
   AuthenticatedNetworkDhcpRoute: typeof AuthenticatedNetworkDhcpRoute
   AuthenticatedNetworkDnsRoute: typeof AuthenticatedNetworkDnsRoute
   AuthenticatedNetworkDscpRoute: typeof AuthenticatedNetworkDscpRoute
   AuthenticatedNetworkFirewallRoute: typeof AuthenticatedNetworkFirewallRoute
+  AuthenticatedNetworkHotspotRoute: typeof AuthenticatedNetworkHotspotRoute
   AuthenticatedNetworkIspRoute: typeof AuthenticatedNetworkIspRoute
   AuthenticatedNetworkLanRoute: typeof AuthenticatedNetworkLanRoute
+  AuthenticatedNetworkMacAuthorizationRoute: typeof AuthenticatedNetworkMacAuthorizationRoute
+  AuthenticatedNetworkPortForwardingRoute: typeof AuthenticatedNetworkPortForwardingRoute
+  AuthenticatedNetworkQueueManagementRoute: typeof AuthenticatedNetworkQueueManagementRoute
   AuthenticatedNetworkVlanRoute: typeof AuthenticatedNetworkVlanRoute
   AuthenticatedNetworkWanRoute: typeof AuthenticatedNetworkWanRoute
   AuthenticatedOperationsAdminLogsRoute: typeof AuthenticatedOperationsAdminLogsRoute
@@ -2046,6 +2192,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAuditIndexRoute: typeof AuthenticatedAuditIndexRoute
   AuthenticatedBillingIndexRoute: typeof AuthenticatedBillingIndexRoute
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
+  AuthenticatedCampaignsIndexRoute: typeof AuthenticatedCampaignsIndexRoute
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedFeatureCatalogIndexRoute: typeof AuthenticatedFeatureCatalogIndexRoute
@@ -2083,6 +2230,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAnalyticsIspRoute: AuthenticatedAnalyticsIspRoute,
   AuthenticatedAnalyticsNetworkRoute: AuthenticatedAnalyticsNetworkRoute,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
+  AuthenticatedGuestsAccessRulesRoute: AuthenticatedGuestsAccessRulesRoute,
+  AuthenticatedGuestsTeamsRoute: AuthenticatedGuestsTeamsRoute,
   AuthenticatedLocationsLocationIdRoute:
     AuthenticatedLocationsLocationIdRouteWithChildren,
   AuthenticatedNetworkAccessPointsRoute: AuthenticatedNetworkAccessPointsRoute,
@@ -2090,8 +2239,15 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNetworkDnsRoute: AuthenticatedNetworkDnsRoute,
   AuthenticatedNetworkDscpRoute: AuthenticatedNetworkDscpRoute,
   AuthenticatedNetworkFirewallRoute: AuthenticatedNetworkFirewallRoute,
+  AuthenticatedNetworkHotspotRoute: AuthenticatedNetworkHotspotRoute,
   AuthenticatedNetworkIspRoute: AuthenticatedNetworkIspRoute,
   AuthenticatedNetworkLanRoute: AuthenticatedNetworkLanRoute,
+  AuthenticatedNetworkMacAuthorizationRoute:
+    AuthenticatedNetworkMacAuthorizationRoute,
+  AuthenticatedNetworkPortForwardingRoute:
+    AuthenticatedNetworkPortForwardingRoute,
+  AuthenticatedNetworkQueueManagementRoute:
+    AuthenticatedNetworkQueueManagementRoute,
   AuthenticatedNetworkVlanRoute: AuthenticatedNetworkVlanRoute,
   AuthenticatedNetworkWanRoute: AuthenticatedNetworkWanRoute,
   AuthenticatedOperationsAdminLogsRoute: AuthenticatedOperationsAdminLogsRoute,
@@ -2113,6 +2269,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditIndexRoute: AuthenticatedAuditIndexRoute,
   AuthenticatedBillingIndexRoute: AuthenticatedBillingIndexRoute,
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
+  AuthenticatedCampaignsIndexRoute: AuthenticatedCampaignsIndexRoute,
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedFeatureCatalogIndexRoute: AuthenticatedFeatureCatalogIndexRoute,
