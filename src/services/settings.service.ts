@@ -1,9 +1,99 @@
+import { api } from "@/services/api";
 import type {
   ApiKey,
   BackupEntry,
   IntegrationCard,
   PlatformSettings,
 } from "@/types/settings";
+
+// ============================================================================
+// Real backend integration -- API keys only (backend/app/domains/api_keys).
+// Every other slice of PlatformSettings below (general/auth/security/email/
+// sms/storage/integrations/payment/system/backup/featureFlags/license/about)
+// has no matching backend domain and stays an in-memory mock -- see the
+// mock `state` object below.
+// ============================================================================
+
+interface BackendApiKey {
+  id: string;
+  organization_id: string;
+  name: string;
+  display_prefix: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+interface BackendApiKeyListResponse {
+  items: BackendApiKey[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+interface BackendApiKeyCreateResponse {
+  id: string;
+  name: string;
+  plaintext_key: string;
+  display_prefix: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+// Backend's ApiKeyResponse (list/read) never carries the real secret --
+// only `display_prefix` (the plaintext is returned exactly once, at
+// creation, per backend/app/domains/api_keys/schemas.py's own docstring).
+// `ApiKey.key` has no separate "masked" variant in the frontend type, so
+// keys loaded from the list endpoint populate it with the display prefix
+// instead of a fabricated full key -- honest about what's actually
+// recoverable, rather than inventing a fake secret.
+function toApiKeyFromList(k: BackendApiKey): ApiKey {
+  return {
+    id: k.id,
+    name: k.name,
+    key: `${k.display_prefix}…`,
+    createdAt: k.created_at,
+    lastUsedAt: k.last_used_at ?? undefined,
+    // Backend has no scope/permission-set concept on an API key today --
+    // every key acts as its creating user (see api_keys/router.py's module
+    // docstring). No real value to map here.
+    scopes: ["read", "write"],
+  };
+}
+
+function toApiKeyFromCreate(k: BackendApiKeyCreateResponse): ApiKey {
+  return {
+    id: k.id,
+    name: k.name,
+    key: k.plaintext_key,
+    createdAt: k.created_at,
+    lastUsedAt: undefined,
+    scopes: ["read", "write"],
+  };
+}
+
+let cachedOrganizationId: string | null | undefined;
+
+// These settings pages have no organization selector -- they act as
+// self-service settings for the caller's own organization. There's no
+// existing "current organization" accessor outside the super-admin
+// cross-org browsing helpers (see location.service.ts's
+// fetchAllOrganizations), so this resolves it the same way those do: the
+// first organization visible to the caller.
+async function resolveOrganizationId(): Promise<string> {
+  if (cachedOrganizationId) return cachedOrganizationId;
+  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", {
+    params: { page_size: 1 },
+  });
+  const id = data.items[0]?.id;
+  if (!id) throw new Error("No organization found for the current session");
+  cachedOrganizationId = id;
+  return id;
+}
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
@@ -140,6 +230,12 @@ function touch<T extends object>(patch: Partial<PlatformSettings>): PlatformSett
 export const settingsService = {
   async getAll(): Promise<PlatformSettings> {
     await delay();
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<BackendApiKeyListResponse>("/api-keys", {
+      params: { page_size: 100 },
+      headers: { "X-Organization-Id": orgId },
+    });
+    state.api = { ...state.api, keys: data.items.map(toApiKeyFromList) };
     return structuredClone(state);
   },
   async updateSection<K extends keyof PlatformSettings>(section: K, value: PlatformSettings[K]): Promise<PlatformSettings> {
@@ -195,17 +291,19 @@ export const settingsService = {
     await delay(800);
   },
   async createApiKey(name: string): Promise<ApiKey> {
-    await delay(300);
-    const key: ApiKey = {
-      id: "k_" + Math.random().toString(36).slice(2, 8),
-      name, key: "sk_live_" + rand(24),
-      createdAt: now(), scopes: ["read", "write"],
-    };
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendApiKeyCreateResponse>(
+      "/api-keys",
+      { name },
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    const key = toApiKeyFromCreate(data);
     state.api.keys = [key, ...state.api.keys];
     return key;
   },
   async revokeApiKey(id: string): Promise<void> {
-    await delay(200);
+    const orgId = await resolveOrganizationId();
+    await api.delete(`/api-keys/${id}`, { headers: { "X-Organization-Id": orgId } });
     state.api.keys = state.api.keys.filter((k) => k.id !== id);
   },
   async backupNow(): Promise<BackupEntry> {
