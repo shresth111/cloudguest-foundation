@@ -1,45 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { Building2, ChevronDown, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { customerService } from "@/services/customer.service";
-import { customerKeys } from "@/hooks/useCustomer";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
 import { legacyRoleBucket } from "@/lib/roles";
 
-const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
-
 export function SpaceContextChip() {
   const { user, roles } = useAuth();
-  const { data: customers } = useQuery({
-    queryKey: customerKeys.list,
-    queryFn: () => customerService.listCustomers(),
-  });
+  const { customer, locations, activeLocation } = useWorkspace();
+  const location = activeLocation ?? locations[0];
 
-  const [activeId, setActiveId] = useState<string | null>(null);
-  useEffect(() => {
-    try {
-      setActiveId(localStorage.getItem(ACTIVE_LOC_KEY));
-    } catch {
-      /* ignore */
-    }
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === ACTIVE_LOC_KEY) setActiveId(e.newValue);
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  if (!customers?.length || !user || legacyRoleBucket(roles) === "super_admin") return null;
-
-  const email = user.email.toLowerCase();
-  const customer =
-    customers.find((c) => c.owner.email.toLowerCase() === email) ?? customers[0];
-  const location =
-    customer?.locations.find((l) => l.id === activeId) ?? customer?.locations[0];
-
-  if (!customer || !location) return null;
+  if (!customer || !location || !user || legacyRoleBucket(roles) === "super_admin") return null;
 
   return (
     <Button

@@ -41,7 +41,7 @@ export function LocationGrid() {
                 <div className="rounded-md bg-muted/40 p-2">
                   <p className="text-xs text-muted-foreground">Guests</p>
                   <p className="text-sm font-semibold">
-                    {l.resources?.analytics.activeGuests ?? "—"}
+                    {l.resources?.analytics.activeSessions ?? "—"}
                   </p>
                 </div>
                 <div className="rounded-md bg-muted/40 p-2">
@@ -53,27 +53,19 @@ export function LocationGrid() {
                 <div className="rounded-md bg-muted/40 p-2">
                   <p className="text-xs text-muted-foreground">Data</p>
                   <p className="text-sm font-semibold">
-                    {l.resources?.analytics.dataConsumedGb ?? "—"} GB
+                    {l.resources?.analytics.dataConsumedGb.toFixed(1) ?? "—"} GB
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveLocationId(l.id)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setActiveLocationId(l.id)}>
                   Focus location
                 </Button>
                 <Button asChild size="sm">
-                  <Link
-                    to="/workspace/locations/$locationId"
-                    params={{ locationId: l.id }}
-                  >
+                  <Link to="/workspace/locations/$locationId" params={{ locationId: l.id }}>
                     Open workspace
                   </Link>
                 </Button>
-
               </div>
             </CardContent>
           </Card>

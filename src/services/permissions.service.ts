@@ -29,21 +29,42 @@ import { permissionsBus } from "@/lib/permissionsBus";
  */
 
 const FULL_ACTIONS: Required<Omit<ModulePermission, "locked">> = {
-  view: true, create: true, edit: true, delete: true, export: true,
-  import: true, approve: true, execute: true, restart: true, configure: true,
+  view: true,
+  create: true,
+  edit: true,
+  delete: true,
+  export: true,
+  import: true,
+  approve: true,
+  execute: true,
+  restart: true,
+  configure: true,
 };
 
 const READ_ONLY: ModulePermission = { view: true, export: true };
 
 const NEW_IA_MODULES: ModuleId[] = [
-  "network-aps", "network-wan", "network-lan", "network-dhcp", "network-dns",
+  "network-aps",
+  "network-wan",
+  "network-lan",
+  "network-dhcp",
+  "network-dns",
   "guests-live",
-  "policy-location", "policy-user", "policy-group",
-  "policy-auth", "policy-bandwidth", "policy-network",
-  "analytics-executive", "analytics-network", "analytics-guest",
-  "analytics-device", "analytics-isp",
-  "admin-logs", "business-units",
-  "documentation", "support-contact",
+  "policy-location",
+  "policy-user",
+  "policy-group",
+  "policy-auth",
+  "policy-bandwidth",
+  "policy-network",
+  "analytics-executive",
+  "analytics-network",
+  "analytics-guest",
+  "analytics-device",
+  "analytics-isp",
+  "admin-logs",
+  "business-units",
+  "documentation",
+  "support-contact",
 ];
 
 const PLATFORM_CONSOLE: ModuleId[] = [
@@ -64,47 +85,114 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     // FE-025: Platform Console is Super-Admin ONLY. No operational modules.
     ...PLATFORM_CONSOLE,
     // Extras kept accessible via deep-link for platform admin work
-    "organizations", "locations",
+    "organizations",
+    "locations",
   ],
   org_admin: [
-    "dashboard", "location-master", "infrastructure", "voucher-master",
-    "locations", "subscription", "audit", "settings",
-    "routers", "guests", "portals", "monitoring", "analytics",
-    "billing", "branding", "marketplace", "rbac",
-    "integrations", "api-keys", "notifications", "exports", "help",
-    "campaigns", "devices", "captive-portal",
-    "vlan", "dscp", "firewall", "isp-routing",
-    "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
-    "workspace-staff", "workspace-analytics", "workspace-reports",
-    "workspace-billing", "workspace-notifications", "workspace-audit",
-    "workspace-company", "workspace-help",
+    "dashboard",
+    "location-master",
+    "infrastructure",
+    "voucher-master",
+    "locations",
+    "subscription",
+    "audit",
+    "settings",
+    "routers",
+    "guests",
+    "portals",
+    "monitoring",
+    "analytics",
+    "billing",
+    "branding",
+    "marketplace",
+    "rbac",
+    "integrations",
+    "api-keys",
+    "notifications",
+    "exports",
+    "help",
+    "campaigns",
+    "devices",
+    "captive-portal",
+    "vlan",
+    "dscp",
+    "firewall",
+    "isp-routing",
+    "workspace",
+    "workspace-locations",
+    "workspace-routers",
+    "workspace-guests",
+    "workspace-analytics",
+    "workspace-reports",
+    "workspace-billing",
+    "workspace-notifications",
+    "workspace-audit",
+    "workspace-company",
+    "workspace-help",
     ...NEW_IA_MODULES,
   ],
   location_manager: [
-    "dashboard", "location-master", "voucher-master",
-    "locations", "routers", "guests", "portals",
-    "monitoring", "notifications", "help", "devices",
-    "vlan", "guests-live",
-    "policy-location", "policy-user",
-    "analytics-executive", "analytics-guest",
-    "documentation", "support-contact",
-    "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
-    "workspace-staff", "workspace-notifications", "workspace-help",
+    "dashboard",
+    "location-master",
+    "voucher-master",
+    "locations",
+    "routers",
+    "guests",
+    "portals",
+    "monitoring",
+    "notifications",
+    "help",
+    "devices",
+    "vlan",
+    "guests-live",
+    "policy-location",
+    "policy-user",
+    "analytics-executive",
+    "analytics-guest",
+    "documentation",
+    "support-contact",
+    "workspace",
+    "workspace-locations",
+    "workspace-routers",
+    "workspace-guests",
+    "workspace-notifications",
+    "workspace-help",
   ],
   support_engineer: [
-    "dashboard", "audit", "routers", "monitoring",
-    "network-monitoring", "isp-monitoring", "devices",
-    "notifications", "help",
-    "admin-logs", "documentation", "support-contact",
-    "analytics-network", "analytics-device", "analytics-isp",
-    "workspace-audit", "workspace-help",
+    "dashboard",
+    "audit",
+    "routers",
+    "monitoring",
+    "network-monitoring",
+    "isp-monitoring",
+    "devices",
+    "notifications",
+    "help",
+    "admin-logs",
+    "documentation",
+    "support-contact",
+    "analytics-network",
+    "analytics-device",
+    "analytics-isp",
+    "workspace-audit",
+    "workspace-help",
   ],
   read_only: [
-    "dashboard", "guests", "analytics", "notifications", "help",
-    "analytics-executive", "analytics-guest",
-    "guests-live", "documentation",
-    "workspace", "workspace-locations", "workspace-guests",
-    "workspace-analytics", "workspace-notifications", "workspace-help",
+    "dashboard",
+    "guests",
+    "analytics",
+    "notifications",
+    "help",
+    "analytics-executive",
+    "analytics-guest",
+    "guests-live",
+    "documentation",
+    "workspace",
+    "workspace-locations",
+    "workspace-guests",
+    "workspace-analytics",
+    "workspace-notifications",
+    "workspace-help",
   ],
 };
 
@@ -112,19 +200,42 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
 const LOCKED_BY_ROLE: Partial<Record<UserRole, ModuleId[]>> = {
   org_admin: ["plans", "feature-management"],
   location_manager: ["billing", "branding", "rbac", "policy-group", "policy-bandwidth"],
-  read_only: ["portals", "monitoring", "billing", "branding", "settings", "policy-location", "policy-user"],
+  read_only: [
+    "portals",
+    "monitoring",
+    "billing",
+    "branding",
+    "settings",
+    "policy-location",
+    "policy-user",
+  ],
   support_engineer: ["billing", "branding"],
 };
 
 const FEATURES_BY_ROLE: Record<UserRole, Partial<Record<FeatureFlag, boolean>>> = {
   super_admin: {
-    ai_assistant: true, premium_wifi: true, campaigns: true, smart_id: true,
-    voucher: true, survey: true, webhooks: true, public_api: true,
-    white_label: true, sso: true, marketplace: true,
+    ai_assistant: true,
+    premium_wifi: true,
+    campaigns: true,
+    smart_id: true,
+    voucher: true,
+    survey: true,
+    webhooks: true,
+    public_api: true,
+    white_label: true,
+    sso: true,
+    marketplace: true,
   },
   org_admin: {
-    ai_assistant: true, premium_wifi: true, campaigns: true, voucher: true,
-    survey: true, webhooks: true, public_api: true, white_label: true, marketplace: true,
+    ai_assistant: true,
+    premium_wifi: true,
+    campaigns: true,
+    voucher: true,
+    survey: true,
+    webhooks: true,
+    public_api: true,
+    white_label: true,
+    marketplace: true,
   },
   location_manager: { voucher: true, campaigns: true },
   support_engineer: { public_api: true, webhooks: true },
@@ -133,23 +244,65 @@ const FEATURES_BY_ROLE: Record<UserRole, Partial<Record<FeatureFlag, boolean>>> 
 
 const ROUTER_ACTIONS_BY_ROLE: Record<UserRole, Partial<Record<RouterAction, boolean>>> = {
   super_admin: Object.fromEntries(
-    ["restart", "reboot", "upgrade_firmware", "backup", "restore", "diagnostics",
-     "ping", "traceroute", "isp_test", "bandwidth_test", "mac_table", "arp_table",
-     "dhcp", "dns", "firewall", "vlan", "dscp", "queue"].map((a) => [a, true]),
+    [
+      "restart",
+      "reboot",
+      "upgrade_firmware",
+      "backup",
+      "restore",
+      "diagnostics",
+      "ping",
+      "traceroute",
+      "isp_test",
+      "bandwidth_test",
+      "mac_table",
+      "arp_table",
+      "dhcp",
+      "dns",
+      "firewall",
+      "vlan",
+      "dscp",
+      "queue",
+    ].map((a) => [a, true]),
   ) as Record<RouterAction, boolean>,
   org_admin: {
-    restart: true, reboot: true, backup: true, restore: true, diagnostics: true,
-    ping: true, traceroute: true, isp_test: true, bandwidth_test: true,
-    mac_table: true, arp_table: true, dhcp: true, dns: true, firewall: true,
-    vlan: true, dscp: true, queue: true,
+    restart: true,
+    reboot: true,
+    backup: true,
+    restore: true,
+    diagnostics: true,
+    ping: true,
+    traceroute: true,
+    isp_test: true,
+    bandwidth_test: true,
+    mac_table: true,
+    arp_table: true,
+    dhcp: true,
+    dns: true,
+    firewall: true,
+    vlan: true,
+    dscp: true,
+    queue: true,
   },
   location_manager: {
-    restart: true, diagnostics: true, ping: true, traceroute: true,
-    bandwidth_test: true, mac_table: true, arp_table: true,
+    restart: true,
+    diagnostics: true,
+    ping: true,
+    traceroute: true,
+    bandwidth_test: true,
+    mac_table: true,
+    arp_table: true,
   },
   support_engineer: {
-    diagnostics: true, ping: true, traceroute: true, isp_test: true,
-    bandwidth_test: true, mac_table: true, arp_table: true, dhcp: true, dns: true,
+    diagnostics: true,
+    ping: true,
+    traceroute: true,
+    isp_test: true,
+    bandwidth_test: true,
+    mac_table: true,
+    arp_table: true,
+    dhcp: true,
+    dns: true,
   },
   read_only: {},
 };
@@ -222,7 +375,6 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "workspace-locations": "MapPin",
   "workspace-routers": "Router",
   "workspace-guests": "Users",
-  "workspace-staff": "UserSquare2",
   "workspace-analytics": "BarChart3",
   "workspace-reports": "ScrollText",
   "workspace-billing": "Receipt",
@@ -291,7 +443,6 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "workspace-locations": "Locations",
   "workspace-routers": "Routers",
   "workspace-guests": "Guests",
-  "workspace-staff": "Staff",
   "workspace-analytics": "Analytics",
   "workspace-reports": "Reports",
   "workspace-billing": "Billing",
@@ -360,7 +511,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "workspace-locations": "/workspace/locations",
   "workspace-routers": "/workspace/routers",
   "workspace-guests": "/workspace/guests",
-  "workspace-staff": "/workspace/staff",
   "workspace-analytics": "/workspace/analytics",
   "workspace-reports": "/workspace/reports",
   "workspace-billing": "/workspace/billing",
@@ -384,17 +534,17 @@ type GroupId =
   | "workspace";
 
 const GROUP_META: Record<GroupId, { label: string; order: number }> = {
-  platform:       { label: "CloudGuest",     order: 1 },
-  dashboard:      { label: "Dashboard",      order: 10 },
-  network:        { label: "Network",        order: 20 },
-  guests:         { label: "Guest Management", order: 30 },
-  policies:       { label: "Policies",       order: 40 },
-  analytics:      { label: "Analytics",      order: 50 },
-  operations:     { label: "Operations",     order: 60 },
+  platform: { label: "CloudGuest", order: 1 },
+  dashboard: { label: "Dashboard", order: 10 },
+  network: { label: "Network", order: 20 },
+  guests: { label: "Guest Management", order: 30 },
+  policies: { label: "Policies", order: 40 },
+  analytics: { label: "Analytics", order: 50 },
+  operations: { label: "Operations", order: 60 },
   administration: { label: "Administration", order: 70 },
-  support:        { label: "Support",        order: 80 },
-  system:         { label: "System",         order: 90 },
-  workspace:      { label: "Customer workspace", order: 5 },
+  support: { label: "Support", order: 80 },
+  system: { label: "System", order: 90 },
+  workspace: { label: "Customer workspace", order: 5 },
 };
 
 /**
@@ -416,63 +566,119 @@ const PRIMARY_IA: ModuleId[] = [
 const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   dashboard: "dashboard",
   // Network
-  routers: "network", "network-aps": "network", vlan: "network",
-  "isp-routing": "network", "network-wan": "network", "network-lan": "network",
-  dscp: "network", firewall: "network", "network-dhcp": "network", "network-dns": "network",
+  routers: "network",
+  "network-aps": "network",
+  vlan: "network",
+  "isp-routing": "network",
+  "network-wan": "network",
+  "network-lan": "network",
+  dscp: "network",
+  firewall: "network",
+  "network-dhcp": "network",
+  "network-dns": "network",
   // Guest management
   "guests-live": "guests",
   // Policies
-  "policy-user": "policies", "policy-group": "policies",
-  "policy-auth": "policies", "policy-bandwidth": "policies", "policy-network": "policies",
+  "policy-user": "policies",
+  "policy-group": "policies",
+  "policy-auth": "policies",
+  "policy-bandwidth": "policies",
+  "policy-network": "policies",
   // Analytics
-  "analytics-executive": "analytics", "analytics-network": "analytics",
-  "analytics-guest": "analytics", "analytics-device": "analytics", "analytics-isp": "analytics",
+  "analytics-executive": "analytics",
+  "analytics-network": "analytics",
+  "analytics-guest": "analytics",
+  "analytics-device": "analytics",
+  "analytics-isp": "analytics",
   // Operations
-  monitoring: "operations", "admin-logs": "operations",
+  monitoring: "operations",
+  "admin-logs": "operations",
   // Administration
-  organizations: "administration", "business-units": "administration", locations: "administration",
-  rbac: "administration", "feature-management": "administration",
-  subscription: "administration", plans: "administration",
+  organizations: "administration",
+  "business-units": "administration",
+  locations: "administration",
+  rbac: "administration",
+  "feature-management": "administration",
+  subscription: "administration",
+  plans: "administration",
   // Support
-  help: "support", documentation: "support", "support-contact": "support",
+  help: "support",
+  documentation: "support",
+  "support-contact": "support",
   // System
   integrations: "system",
-  "api-keys": "system", notifications: "system", exports: "system",
-  branding: "system", marketplace: "system", portals: "system",
+  "api-keys": "system",
+  notifications: "system",
+  exports: "system",
+  branding: "system",
+  marketplace: "system",
+  portals: "system",
   guests: "guests",
 };
 
 const MODULE_ORDER: ModuleId[] = [
   // Network
-  "routers", "network-aps", "vlan", "isp-routing", "network-wan", "network-lan",
-  "dscp", "firewall", "network-dhcp", "network-dns",
+  "routers",
+  "network-aps",
+  "vlan",
+  "isp-routing",
+  "network-wan",
+  "network-lan",
+  "dscp",
+  "firewall",
+  "network-dhcp",
+  "network-dns",
   // Guests
   "guests-live",
   // Policies
-  "policy-user", "policy-group",
-  "policy-auth", "policy-bandwidth", "policy-network",
+  "policy-user",
+  "policy-group",
+  "policy-auth",
+  "policy-bandwidth",
+  "policy-network",
   // Analytics
-  "analytics-executive", "analytics-network", "analytics-guest",
-  "analytics-device", "analytics-isp",
+  "analytics-executive",
+  "analytics-network",
+  "analytics-guest",
+  "analytics-device",
+  "analytics-isp",
   // Operations
-  "monitoring", "admin-logs",
+  "monitoring",
+  "admin-logs",
   // Administration
-  "organizations", "business-units", "locations",
-  "rbac", "feature-management", "subscription", "plans",
+  "organizations",
+  "business-units",
+  "locations",
+  "rbac",
+  "feature-management",
+  "subscription",
+  "plans",
   // Support
-  "help", "documentation", "support-contact",
+  "help",
+  "documentation",
+  "support-contact",
   // System
-  "integrations", "api-keys", "notifications",
-  "exports", "branding", "marketplace", "portals",
+  "integrations",
+  "api-keys",
+  "notifications",
+  "exports",
+  "branding",
+  "marketplace",
+  "portals",
 ];
 
-
-
 const WORKSPACE_ORDER: ModuleId[] = [
-  "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
-  "workspace-staff", "workspace-analytics", "workspace-reports",
-  "workspace-billing", "workspace-notifications", "workspace-audit",
-  "workspace-company", "workspace-help",
+  "workspace",
+  "workspace-locations",
+  "workspace-routers",
+  "workspace-guests",
+  "workspace-analytics",
+  "workspace-reports",
+  "workspace-billing",
+  "workspace-notifications",
+  "workspace-audit",
+  "workspace-company",
+  "workspace-help",
 ];
 
 function buildNode(id: ModuleId, order: number, locked: boolean): SidebarNode {
@@ -497,7 +703,12 @@ function buildConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] {
     primaryItems.push(buildNode(id, i, !!m.locked && !m.view));
   });
   const primaryGroup: SidebarGroupDef | null = primaryItems.length
-    ? { id: "platform", label: GROUP_META.platform.label, order: GROUP_META.platform.order, items: primaryItems }
+    ? {
+        id: "platform",
+        label: GROUP_META.platform.label,
+        order: GROUP_META.platform.order,
+        items: primaryItems,
+      }
     : null;
 
   // Secondary groups — everything else bucketed by domain, hidden from the
@@ -529,12 +740,14 @@ function buildPlatformConsoleSidebar(modules: PermissionMap): SidebarGroupDef[] 
     items.push(buildNode(id, i, !!m.locked && !m.view));
   });
   if (items.length === 0) return [];
-  return [{
-    id: "platform",
-    label: "Platform Console",
-    order: 1,
-    items,
-  }];
+  return [
+    {
+      id: "platform",
+      label: "Platform Console",
+      order: 1,
+      items,
+    },
+  ];
 }
 
 function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {
@@ -546,12 +759,14 @@ function buildWorkspaceSidebar(modules: PermissionMap): SidebarGroupDef[] {
     items.push(buildNode(id, i, !!m.locked && !m.view));
   });
   if (items.length === 0) return [];
-  return [{
-    id: "workspace",
-    label: GROUP_META.workspace.label,
-    order: GROUP_META.workspace.order,
-    items,
-  }];
+  return [
+    {
+      id: "workspace",
+      label: GROUP_META.workspace.label,
+      order: GROUP_META.workspace.order,
+      items,
+    },
+  ];
 }
 
 function delay<T>(v: T, ms = 200): Promise<T> {
@@ -570,15 +785,33 @@ const ASSIGNMENTS_BY_ROLE: Record<UserRole, AssignedOrganization[]> = {
       id: "ORG-01000",
       name: "Nimbus Hospitality",
       businessUnits: [
-        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL", "LOC-JAI"] },
-        { id: "BU-NIM-W", organizationId: "ORG-01000", name: "West India", region: "IN-W", locationIds: ["LOC-BOM", "LOC-GOA"] },
+        {
+          id: "BU-NIM-N",
+          organizationId: "ORG-01000",
+          name: "North India",
+          region: "IN-N",
+          locationIds: ["LOC-DEL", "LOC-JAI"],
+        },
+        {
+          id: "BU-NIM-W",
+          organizationId: "ORG-01000",
+          name: "West India",
+          region: "IN-W",
+          locationIds: ["LOC-BOM", "LOC-GOA"],
+        },
       ],
     },
     {
       id: "ORG-01001",
       name: "Vertex Retail",
       businessUnits: [
-        { id: "BU-VER-US", organizationId: "ORG-01001", name: "US East", region: "US-E", locationIds: ["LOC-NYC", "LOC-CHI"] },
+        {
+          id: "BU-VER-US",
+          organizationId: "ORG-01001",
+          name: "US East",
+          region: "US-E",
+          locationIds: ["LOC-NYC", "LOC-CHI"],
+        },
       ],
     },
   ],
@@ -587,8 +820,20 @@ const ASSIGNMENTS_BY_ROLE: Record<UserRole, AssignedOrganization[]> = {
       id: "ORG-01000",
       name: "Nimbus Hospitality",
       businessUnits: [
-        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL", "LOC-JAI"] },
-        { id: "BU-NIM-W", organizationId: "ORG-01000", name: "West India", region: "IN-W", locationIds: ["LOC-BOM", "LOC-GOA"] },
+        {
+          id: "BU-NIM-N",
+          organizationId: "ORG-01000",
+          name: "North India",
+          region: "IN-N",
+          locationIds: ["LOC-DEL", "LOC-JAI"],
+        },
+        {
+          id: "BU-NIM-W",
+          organizationId: "ORG-01000",
+          name: "West India",
+          region: "IN-W",
+          locationIds: ["LOC-BOM", "LOC-GOA"],
+        },
       ],
     },
   ],
@@ -597,7 +842,13 @@ const ASSIGNMENTS_BY_ROLE: Record<UserRole, AssignedOrganization[]> = {
       id: "ORG-01000",
       name: "Nimbus Hospitality",
       businessUnits: [
-        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL"] },
+        {
+          id: "BU-NIM-N",
+          organizationId: "ORG-01000",
+          name: "North India",
+          region: "IN-N",
+          locationIds: ["LOC-DEL"],
+        },
       ],
     },
   ],
@@ -606,8 +857,20 @@ const ASSIGNMENTS_BY_ROLE: Record<UserRole, AssignedOrganization[]> = {
       id: "ORG-01000",
       name: "Nimbus Hospitality",
       businessUnits: [
-        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL", "LOC-JAI"] },
-        { id: "BU-NIM-W", organizationId: "ORG-01000", name: "West India", region: "IN-W", locationIds: ["LOC-BOM", "LOC-GOA"] },
+        {
+          id: "BU-NIM-N",
+          organizationId: "ORG-01000",
+          name: "North India",
+          region: "IN-N",
+          locationIds: ["LOC-DEL", "LOC-JAI"],
+        },
+        {
+          id: "BU-NIM-W",
+          organizationId: "ORG-01000",
+          name: "West India",
+          region: "IN-W",
+          locationIds: ["LOC-BOM", "LOC-GOA"],
+        },
       ],
     },
   ],
@@ -616,7 +879,13 @@ const ASSIGNMENTS_BY_ROLE: Record<UserRole, AssignedOrganization[]> = {
       id: "ORG-01000",
       name: "Nimbus Hospitality",
       businessUnits: [
-        { id: "BU-NIM-N", organizationId: "ORG-01000", name: "North India", region: "IN-N", locationIds: ["LOC-DEL"] },
+        {
+          id: "BU-NIM-N",
+          organizationId: "ORG-01000",
+          name: "North India",
+          region: "IN-N",
+          locationIds: ["LOC-DEL"],
+        },
       ],
     },
   ],
@@ -632,28 +901,97 @@ function widgetsForRole(role: UserRole): DashboardWidget[] {
   if (role === "super_admin") {
     return [
       ...base,
-      { id: "trend", kind: "trend-chart", title: "Growth trends", size: "lg", order: 20, requires: { module: "analytics" } },
-      { id: "health", kind: "health-chart", title: "Platform health", size: "md", order: 30, requires: { module: "monitoring" } },
-      { id: "usage", kind: "usage-chart", title: "Bandwidth usage", size: "md", order: 40, requires: { module: "monitoring" } },
-      { id: "top-locs", kind: "top-locations", title: "Top locations", size: "md", order: 50, requires: { module: "locations" } },
-      { id: "activity", kind: "recent-activity", title: "Recent activity", size: "lg", order: 60, requires: { module: "audit" } },
-      { id: "notifs", kind: "notifications-preview", title: "Notifications", size: "md", order: 70, requires: { module: "notifications" } },
+      {
+        id: "trend",
+        kind: "trend-chart",
+        title: "Growth trends",
+        size: "lg",
+        order: 20,
+        requires: { module: "analytics" },
+      },
+      {
+        id: "health",
+        kind: "health-chart",
+        title: "Platform health",
+        size: "md",
+        order: 30,
+        requires: { module: "monitoring" },
+      },
+      {
+        id: "usage",
+        kind: "usage-chart",
+        title: "Bandwidth usage",
+        size: "md",
+        order: 40,
+        requires: { module: "monitoring" },
+      },
+      {
+        id: "top-locs",
+        kind: "top-locations",
+        title: "Top locations",
+        size: "md",
+        order: 50,
+        requires: { module: "locations" },
+      },
+      {
+        id: "activity",
+        kind: "recent-activity",
+        title: "Recent activity",
+        size: "lg",
+        order: 60,
+        requires: { module: "audit" },
+      },
+      {
+        id: "notifs",
+        kind: "notifications-preview",
+        title: "Notifications",
+        size: "md",
+        order: 70,
+        requires: { module: "notifications" },
+      },
     ];
   }
   if (role === "org_admin" || role === "location_manager") {
     return [
       ...base,
-      { id: "usage", kind: "usage-chart", title: "Live usage", size: "lg", order: 20, requires: { module: "monitoring" } },
+      {
+        id: "usage",
+        kind: "usage-chart",
+        title: "Live usage",
+        size: "lg",
+        order: 20,
+        requires: { module: "monitoring" },
+      },
       { id: "activity", kind: "recent-activity", title: "Recent activity", size: "lg", order: 30 },
-      { id: "notifs", kind: "notifications-preview", title: "Notifications", size: "md", order: 40 },
+      {
+        id: "notifs",
+        kind: "notifications-preview",
+        title: "Notifications",
+        size: "md",
+        order: 40,
+      },
       { id: "quick", kind: "quick-actions", title: "Quick actions", size: "md", order: 50 },
     ];
   }
   if (role === "support_engineer") {
     return [
       ...base,
-      { id: "health", kind: "health-chart", title: "Router health", size: "lg", order: 20, requires: { module: "monitoring" } },
-      { id: "activity", kind: "recent-activity", title: "Recent tickets", size: "lg", order: 30, requires: { module: "audit" } },
+      {
+        id: "health",
+        kind: "health-chart",
+        title: "Router health",
+        size: "lg",
+        order: 20,
+        requires: { module: "monitoring" },
+      },
+      {
+        id: "activity",
+        kind: "recent-activity",
+        title: "Recent tickets",
+        size: "lg",
+        order: 30,
+        requires: { module: "audit" },
+      },
     ];
   }
   return [
@@ -664,7 +1002,10 @@ function widgetsForRole(role: UserRole): DashboardWidget[] {
 
 /* ---------------- Topbar (backend-driven) ---------------- */
 
-function topbarForRole(role: UserRole, features: Partial<Record<FeatureFlag, boolean>>): TopbarConfig {
+function topbarForRole(
+  role: UserRole,
+  features: Partial<Record<FeatureFlag, boolean>>,
+): TopbarConfig {
   return {
     showGlobalSearch: true,
     showQuickActions: role !== "read_only",
@@ -691,21 +1032,27 @@ export const permissionsService = {
     const locked = new Set(LOCKED_BY_ROLE[role] ?? []);
     const modules: PermissionMap = {};
     for (const id of allowed) {
-      modules[id] = role === "super_admin" || role === "org_admin"
-        ? { ...FULL_ACTIONS }
-        : role === "location_manager"
-          ? { view: true, create: true, edit: true, export: true, execute: true, restart: true }
-          : role === "support_engineer"
-            ? { view: true, edit: true, export: true, execute: true, restart: true, configure: true }
-            : READ_ONLY;
+      modules[id] =
+        role === "super_admin" || role === "org_admin"
+          ? { ...FULL_ACTIONS }
+          : role === "location_manager"
+            ? { view: true, create: true, edit: true, export: true, execute: true, restart: true }
+            : role === "support_engineer"
+              ? {
+                  view: true,
+                  edit: true,
+                  export: true,
+                  execute: true,
+                  restart: true,
+                  configure: true,
+                }
+              : READ_ONLY;
     }
     for (const id of locked) modules[id] = { view: false, locked: true };
 
     // FE-025: Super Admin gets the Platform Console sidebar only.
     const consoleSidebar: SidebarGroupDef[] =
-      role === "super_admin"
-        ? buildPlatformConsoleSidebar(modules)
-        : buildConsoleSidebar(modules);
+      role === "super_admin" ? buildPlatformConsoleSidebar(modules) : buildConsoleSidebar(modules);
     const workspaceSidebar: SidebarGroupDef[] =
       role === "super_admin" ? [] : buildWorkspaceSidebar(modules);
 
@@ -729,9 +1076,12 @@ export const permissionsService = {
 
   async getDashboardLayout(role: UserRole, _locationId?: string): Promise<DashboardLayout> {
     const variant: DashboardLayout["variant"] =
-      role === "super_admin" ? "super-admin"
-        : role === "support_engineer" ? "support"
-          : role === "read_only" ? "read-only"
+      role === "super_admin"
+        ? "super-admin"
+        : role === "support_engineer"
+          ? "support"
+          : role === "read_only"
+            ? "read-only"
             : "customer";
     return delay({ variant, widgets: widgetsForRole(role) });
   },
@@ -758,5 +1108,11 @@ export const permissionsService = {
 };
 
 // Convenience export so business units are easily discoverable at module scope.
-export type { BusinessUnit, AssignedOrganization, AssignmentEnvelope, TopbarConfig, RouterCapabilities };
+export type {
+  BusinessUnit,
+  AssignedOrganization,
+  AssignmentEnvelope,
+  TopbarConfig,
+  RouterCapabilities,
+};
 export type { DashboardLayout, DashboardWidget };

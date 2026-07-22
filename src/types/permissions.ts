@@ -43,7 +43,6 @@ export type ModuleId =
   | "workspace-locations"
   | "workspace-routers"
   | "workspace-guests"
-  | "workspace-staff"
   | "workspace-analytics"
   | "workspace-reports"
   | "workspace-billing"
@@ -102,8 +101,16 @@ export type PermissionAction =
   | "configure";
 
 export const ALL_ACTIONS: PermissionAction[] = [
-  "view", "create", "edit", "delete", "export",
-  "import", "approve", "execute", "restart", "configure",
+  "view",
+  "create",
+  "edit",
+  "delete",
+  "export",
+  "import",
+  "approve",
+  "execute",
+  "restart",
+  "configure",
 ];
 
 export interface ModulePermission {

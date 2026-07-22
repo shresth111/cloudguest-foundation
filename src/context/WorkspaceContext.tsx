@@ -1,11 +1,36 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import type { ExistingCustomer } from "@/services/customer.service";
 import type { SiteType } from "@/types/location";
 import { useAuth } from "@/context/AuthContext";
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
+
+/** The current user's own organization, shaped for the workspace UI --
+ * built from real `/organizations/{id}` + `/organizations/{id}/locations`
+ * data. There is exactly one of these per workspace (the user's own org),
+ * never a list to pick from. */
+export interface ExistingCustomer {
+  id: string;
+  name: string;
+  organizationId: string;
+  organizationName: string;
+  subscription: {
+    plan: "trial" | "starter" | "professional" | "enterprise" | "custom";
+    billingCycle: "monthly" | "quarterly" | "yearly";
+    status: "active" | "trial" | "expired";
+    expiryDate: string;
+  };
+  owner: {
+    name: string;
+    email: string;
+    mobile: string;
+    role: "Organization Admin";
+    assignedLocations: number;
+  };
+  locations: Array<{ id: string; name: string; siteType: SiteType; city: string }>;
+  status: "active" | "trial" | "suspended";
+}
 
 interface WorkspaceContextValue {
   isLoading: boolean;
@@ -153,7 +178,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ["locations"] });
     queryClient.invalidateQueries({ queryKey: ["settings"] });
   };
-
 
   const value: WorkspaceContextValue = useMemo(() => {
     const locs = customer?.locations ?? [];

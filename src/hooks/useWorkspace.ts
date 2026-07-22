@@ -1,7 +1,101 @@
-import { useQueries } from "@tanstack/react-query";
-import { customerService, type LocationResources } from "@/services/customer.service";
-import { customerKeys } from "@/hooks/useCustomer";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { routerService } from "@/services/router.service";
+import { guestService } from "@/services/guest.service";
+import type { RouterStatus } from "@/types/router";
+import type { GuestAuthMethod, GuestSessionStatus } from "@/types/guest";
 import { useWorkspace } from "@/context/WorkspaceContext";
+
+export interface LocationRouterSummary {
+  id: string;
+  name: string;
+  model: string;
+  serialNumber: string;
+  routerOsVersion: string | null;
+  status: RouterStatus;
+  publicIpAddress: string | null;
+  lastSeenAt: string | null;
+}
+
+export interface LocationGuestSessionSummary {
+  id: string;
+  guestIdentifier: string;
+  ipAddress: string | null;
+  authMethod: GuestAuthMethod;
+  status: GuestSessionStatus;
+  startedAt: string;
+  dataMb: number;
+}
+
+export interface LocationResources {
+  routers: LocationRouterSummary[];
+  guestSessions: LocationGuestSessionSummary[];
+  analytics: {
+    activeSessions: number;
+    totalSessions: number;
+    dataConsumedGb: number;
+  };
+}
+
+const EMPTY_RESOURCES: LocationResources = {
+  routers: [],
+  guestSessions: [],
+  analytics: { activeSessions: 0, totalSessions: 0, dataConsumedGb: 0 },
+};
+
+export const locationResourcesKeys = {
+  forLocation: (id: string) => ["workspace", "locationResources", id] as const,
+};
+
+async function fetchLocationResources(locationId: string): Promise<LocationResources> {
+  const [routersResult, sessionsResult] = await Promise.allSettled([
+    routerService.list({ locationId, page: 1, pageSize: 100 }),
+    guestService.listSessions({ locationId, page: 1, pageSize: 100 }),
+  ]);
+
+  const routers =
+    routersResult.status === "fulfilled"
+      ? routersResult.value.rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          model: r.model,
+          serialNumber: r.serialNumber,
+          routerOsVersion: r.routerOsVersion,
+          status: r.status,
+          publicIpAddress: r.publicIpAddress,
+          lastSeenAt: r.lastSeenAt,
+        }))
+      : [];
+
+  const sessionRows = sessionsResult.status === "fulfilled" ? sessionsResult.value.rows : [];
+  const guestSessions = sessionRows.map((s) => ({
+    id: s.id,
+    guestIdentifier: s.guestIdentifier,
+    ipAddress: s.ipAddress,
+    authMethod: s.authMethod,
+    status: s.status,
+    startedAt: s.startedAt,
+    dataMb: (s.bytesUploaded + s.bytesDownloaded) / 1e6,
+  }));
+
+  return {
+    routers,
+    guestSessions,
+    analytics: {
+      activeSessions: guestSessions.filter((s) => s.status === "active").length,
+      totalSessions:
+        sessionsResult.status === "fulfilled" ? sessionsResult.value.total : guestSessions.length,
+      dataConsumedGb: guestSessions.reduce((sum, s) => sum + s.dataMb, 0) / 1000,
+    },
+  };
+}
+
+export function useLocationResources(locationId: string) {
+  return useQuery({
+    queryKey: locationResourcesKeys.forLocation(locationId),
+    queryFn: () => fetchLocationResources(locationId),
+    enabled: !!locationId,
+  });
+}
 
 export interface ScopedLocation {
   id: string;
@@ -25,8 +119,8 @@ export function useWorkspaceScope(): {
 
   const queries = useQueries({
     queries: scoped.map((l) => ({
-      queryKey: customerKeys.locationResources(l.id),
-      queryFn: () => customerService.getLocationResources(l.id),
+      queryKey: locationResourcesKeys.forLocation(l.id),
+      queryFn: () => fetchLocationResources(l.id),
       enabled: !!customer,
     })),
   });
@@ -42,25 +136,18 @@ export function useWorkspaceScope(): {
 
   const isLoading = queries.some((q) => q.isLoading);
 
-  const aggregated: LocationResources = {
-    routers: scope.flatMap((s) => s.resources?.routers ?? []),
-    staff: scope.flatMap((s) => s.resources?.staff ?? []),
-    guests: scope.flatMap((s) => s.resources?.guests ?? []),
-    analytics: {
-      activeGuests: scope.reduce((a, s) => a + (s.resources?.analytics.activeGuests ?? 0), 0),
-      peakConcurrent: scope.reduce(
-        (a, s) => Math.max(a, s.resources?.analytics.peakConcurrent ?? 0),
-        0,
-      ),
-      dailySessions: scope.reduce((a, s) => a + (s.resources?.analytics.dailySessions ?? 0), 0),
-      dataConsumedGb: scope.reduce((a, s) => a + (s.resources?.analytics.dataConsumedGb ?? 0), 0),
-      topDevice: scope[0]?.resources?.analytics.topDevice ?? "—",
-      satisfaction: Math.round(
-        scope.reduce((a, s) => a + (s.resources?.analytics.satisfaction ?? 0), 0) /
-          Math.max(1, scope.length),
-      ),
-    },
-  };
+  const aggregated: LocationResources = scope.reduce<LocationResources>(
+    (acc, s) => ({
+      routers: [...acc.routers, ...(s.resources?.routers ?? [])],
+      guestSessions: [...acc.guestSessions, ...(s.resources?.guestSessions ?? [])],
+      analytics: {
+        activeSessions: acc.analytics.activeSessions + (s.resources?.analytics.activeSessions ?? 0),
+        totalSessions: acc.analytics.totalSessions + (s.resources?.analytics.totalSessions ?? 0),
+        dataConsumedGb: acc.analytics.dataConsumedGb + (s.resources?.analytics.dataConsumedGb ?? 0),
+      },
+    }),
+    { ...EMPTY_RESOURCES, routers: [], guestSessions: [] },
+  );
 
   return { isLoading, scope, aggregated };
 }

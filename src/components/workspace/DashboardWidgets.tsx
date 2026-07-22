@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  Activity,
-  ArrowUpRight,
-  MapPin,
-  Router as RouterIcon,
-  Users,
-  Wifi,
-} from "lucide-react";
+import { Activity, ArrowUpRight, MapPin, Router as RouterIcon, Users, Wifi } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -41,7 +34,7 @@ export function DashboardWidgets() {
   const kpis = [
     {
       label: "Active guests",
-      value: aggregated.analytics.activeGuests,
+      value: aggregated.analytics.activeSessions,
       hint: "Currently online",
       icon: Users,
     },
@@ -52,15 +45,15 @@ export function DashboardWidgets() {
       icon: RouterIcon,
     },
     {
-      label: "Daily sessions",
-      value: aggregated.analytics.dailySessions,
-      hint: "Last 24h",
+      label: "Guest sessions",
+      value: aggregated.analytics.totalSessions,
+      hint: "Recent sessions",
       icon: Activity,
     },
     {
       label: "Data consumed",
-      value: `${aggregated.analytics.dataConsumedGb} GB`,
-      hint: "Rolling 24h",
+      value: `${aggregated.analytics.dataConsumedGb.toFixed(1)} GB`,
+      hint: "Recent sessions",
       icon: Wifi,
     },
   ];
@@ -69,21 +62,21 @@ export function DashboardWidgets() {
     hour: `${i * 2}:00`,
     sessions:
       Math.round(
-        (aggregated.analytics.dailySessions / 24) * (0.6 + Math.sin(i / 2) * 0.4 + i * 0.05),
+        (aggregated.analytics.totalSessions / 24) * (0.6 + Math.sin(i / 2) * 0.4 + i * 0.05),
       ) || 20,
   }));
 
   const perLocation = scope.map((s) => ({
     name: s.name.length > 14 ? s.name.slice(0, 14) + "…" : s.name,
-    guests: s.resources?.analytics.activeGuests ?? 0,
-    sessions: s.resources?.analytics.dailySessions ?? 0,
+    guests: s.resources?.analytics.activeSessions ?? 0,
+    sessions: s.resources?.analytics.totalSessions ?? 0,
   }));
 
-  const deviceBreakdown = aggregated.guests.reduce<Record<string, number>>((acc, g) => {
-    acc[g.device] = (acc[g.device] ?? 0) + 1;
+  const methodBreakdown = aggregated.guestSessions.reduce<Record<string, number>>((acc, g) => {
+    acc[g.authMethod] = (acc[g.authMethod] ?? 0) + 1;
     return acc;
   }, {});
-  const devicePie = Object.entries(deviceBreakdown).map(([name, value]) => ({ name, value }));
+  const devicePie = Object.entries(methodBreakdown).map(([name, value]) => ({ name, value }));
 
   return (
     <div className="space-y-6">
@@ -143,7 +136,7 @@ export function DashboardWidgets() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Devices</CardTitle>
+            <CardTitle className="text-base">Login methods</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -192,24 +185,24 @@ export function DashboardWidgets() {
             <CardTitle className="text-base">Recent activity</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {aggregated.guests.slice(0, 6).map((g) => (
+            {aggregated.guestSessions.slice(0, 6).map((g) => (
               <div
                 key={g.id}
                 className="flex items-center justify-between rounded-md border p-3 text-sm"
               >
                 <div>
-                  <p className="font-medium">{g.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {g.device} · {g.mac}
+                  <p className="font-medium">{g.guestIdentifier}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {g.authMethod.replace(/_/g, " ")} · {g.ipAddress ?? "—"}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>{g.connectedAt}</p>
-                  <p>{g.dataMb} MB</p>
+                  <p>{new Date(g.startedAt).toLocaleString()}</p>
+                  <p>{g.dataMb.toFixed(1)} MB</p>
                 </div>
               </div>
             ))}
-            {aggregated.guests.length === 0 && (
+            {aggregated.guestSessions.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">No recent guests.</p>
             )}
           </CardContent>
