@@ -1,11 +1,17 @@
+import { api } from "@/services/api";
 import type {
   BillingSnapshot,
   Coupon,
+  CouponStatus,
   Invoice,
   Payment,
+  PaymentStatus,
   Plan,
+  PlanTier,
   ScheduledBillingReport,
   Subscription,
+  SubscriptionStatus,
+  UsageRow,
 } from "@/types/billing";
 import type {
   BillingReportFormat,
@@ -13,434 +19,837 @@ import type {
   ReportFrequency,
 } from "@/types/billing";
 
+interface BackendListResponse<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+interface BackendOrg {
+  id: string;
+  name: string;
+}
+
+interface BackendPlanFeature {
+  id: string;
+  feature_key: string;
+  feature_type: string;
+  limit_value: string | number | null;
+  is_enabled: boolean | null;
+  tier_value: string | null;
+}
+
+interface BackendPlan {
+  id: string;
+  name: string;
+  slug: string;
+  plan_type: string;
+  description: string | null;
+  billing_cycle: string;
+  base_price: string | number;
+  currency: string;
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+  features: BackendPlanFeature[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendSubscription {
+  id: string;
+  organization_id: string;
+  license_id: string;
+  plan_id: string;
+  status: string;
+  billing_cycle: string;
+  current_period_start: string;
+  current_period_end: string;
+  trial_end: string | null;
+  auto_renew: boolean;
+  cancel_at_period_end: boolean;
+  started_at: string;
+  cancelled_at: string | null;
+  applied_coupon_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendCoupon {
+  id: string;
+  code: string;
+  discount_type: string;
+  discount_value: string | number;
+  currency: string | null;
+  organization_id: string | null;
+  max_uses: number | null;
+  current_uses: number;
+  valid_from: string;
+  valid_until: string | null;
+  is_active: boolean;
+  applicable_plan_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendPayment {
+  id: string;
+  organization_id: string;
+  subscription_id: string | null;
+  amount: string | number;
+  currency: string;
+  status: string;
+  provider: string;
+  provider_payment_id: string | null;
+  idempotency_key: string;
+  failure_reason: string | null;
+  refunded_amount: string | number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendInvoiceNote {
+  id: string;
+  invoice_id: string;
+  note_type: "credit" | "debit" | string;
+  note_number: string;
+  amount: string | number;
+  reason: string;
+  issued_at: string;
+}
+
+interface BackendInvoice {
+  id: string;
+  organization_id: string;
+  invoice_number: string;
+  status: string;
+  issue_date: string;
+  due_date: string;
+  subtotal: string | number;
+  tax_amount: string | number;
+  total_amount: string | number;
+  currency: string;
+  notes: BackendInvoiceNote[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendUsageMetric {
+  metric_key: string;
+  value: string | number;
+}
+
+interface BackendUsageLimitCheck {
+  metric_key: string;
+  current_value: string | number;
+  limit_value: string | number;
+  exceeded: boolean;
+}
+
+interface BackendUsageSummary {
+  organization_id: string;
+  metrics: BackendUsageMetric[];
+  limit_checks: BackendUsageLimitCheck[];
+  any_limit_exceeded: boolean;
+}
+
+interface BackendRevenueTrendPoint {
+  month: string;
+  gross_amount: string | number;
+  refunded_amount: string | number;
+  net_amount: string | number;
+}
+
+interface BackendSuperAdminDashboard {
+  revenue: {
+    total_revenue: string | number;
+    total_refunded: string | number;
+    mrr: string | number;
+    arr: string | number;
+    active_paying_subscription_count: number;
+    trend: BackendRevenueTrendPoint[];
+  };
+  subscriptions: {
+    counts_by_status: Record<string, number>;
+    counts_by_plan_type: Record<string, number>;
+    churn: {
+      active_at_period_start: number;
+      cancelled_this_period: number;
+      churn_rate: number | null;
+    };
+  };
+  customers: BackendListResponse<{
+    organization_id: string;
+    organization_name: string;
+    plan_id: string;
+    plan_name: string;
+    plan_slug: string;
+    subscription_status: string;
+    lifetime_revenue: string | number;
+    outstanding_invoice_count: number;
+  }>;
+  failed_payments: {
+    items: { payment: BackendPayment; retry_eligible: boolean }[];
+    total_items: number;
+  };
+}
+
+function n(v: string | number | null | undefined): number {
+  if (v === null || v === undefined) return 0;
+  return typeof v === "number" ? v : Number(v) || 0;
+}
+
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
+async function fetchAllOrganizations(): Promise<BackendOrg[]> {
+  const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
+    params: { page_size: 100 },
+  });
+  return data.items;
+}
+
+// ============================================================================
+// Plans -- backend has a single billing_cycle/base_price per Plan row (not
+// separate monthly+annual prices) and a generic feature-key registry, not
+// fixed columns. Both monthlyPrice/annualPrice are derived from the one
+// real base_price so the existing Plan shape keeps working; feature flags
+// are read from the matching PlanFeatureKey row when present.
+// ============================================================================
+
+const PLAN_TIERS: ReadonlySet<string> = new Set(["starter", "professional", "enterprise", "custom"]);
+
+function planTier(planType: string): PlanTier {
+  return (PLAN_TIERS.has(planType) ? planType : "custom") as PlanTier;
+}
+
+function featureLimit(features: BackendPlanFeature[], key: string): number {
+  return n(features.find((f) => f.feature_key === key)?.limit_value);
+}
+
+function featureBool(features: BackendPlanFeature[], key: string): boolean {
+  return features.find((f) => f.feature_key === key)?.is_enabled ?? false;
+}
+
+function supportLevelFrom(features: BackendPlanFeature[]): Plan["supportLevel"] {
+  const tier = features.find((f) => f.feature_key === "support_level")?.tier_value;
+  if (tier === "basic") return "email";
+  if (tier === "priority") return "priority";
+  if (tier === "dedicated") return "dedicated";
+  return "email";
+}
+
+function toPlan(p: BackendPlan): Plan {
+  const monthly = p.billing_cycle === "yearly" ? Math.round(n(p.base_price) / 12) : n(p.base_price);
+  const annual = p.billing_cycle === "yearly" ? n(p.base_price) : Math.round(n(p.base_price) * 12);
+  return {
+    id: p.id,
+    name: p.name,
+    tier: planTier(p.plan_type),
+    monthlyPrice: monthly,
+    annualPrice: annual,
+    includedLocations: featureLimit(p.features, "max_locations"),
+    includedRouters: featureLimit(p.features, "max_routers"),
+    includedGuests: featureLimit(p.features, "max_guests"),
+    storageLimitGb: Math.round(featureLimit(p.features, "storage_quota_mb") / 1024),
+    apiAccess: featureBool(p.features, "api_access"),
+    whiteLabel: featureBool(p.features, "white_label"),
+    pmsIntegration: featureBool(p.features, "pms_integration"),
+    aiFeatures: featureBool(p.features, "ai_features"),
+    supportLevel: supportLevelFrom(p.features),
   };
 }
 
-const ORG_NAMES = [
-  "Nova Hospitality",
-  "Beacon Retail",
-  "Skyline Airports",
-  "Marina Resorts",
-  "Vantage Coworks",
-  "Harbor Cafes",
-  "Aurora Malls",
-  "Summit Hotels",
-  "Northwind Health",
-  "Cascade Universities",
-  "Meridian Stadiums",
-  "Orbit Coliving",
-  "Lumen Clinics",
-  "Trident Marine",
-  "Pinnacle Airlines",
-  "Riverstone Hostels",
-  "Zenith Convention",
-  "Emerald Country Club",
-  "Solace Spas",
-  "Halcyon Cruises",
-];
-
-const PLANS: Plan[] = [
-  {
-    id: "plan_starter",
-    name: "Starter",
-    tier: "starter",
-    monthlyPrice: 49,
-    annualPrice: 490,
-    includedLocations: 2,
-    includedRouters: 4,
-    includedGuests: 500,
-    storageLimitGb: 25,
-    apiAccess: false,
-    whiteLabel: false,
-    pmsIntegration: false,
-    aiFeatures: false,
-    supportLevel: "email",
-  },
-  {
-    id: "plan_professional",
-    name: "Professional",
-    tier: "professional",
-    monthlyPrice: 199,
-    annualPrice: 1990,
-    includedLocations: 10,
-    includedRouters: 25,
-    includedGuests: 5000,
-    storageLimitGb: 100,
-    apiAccess: true,
-    whiteLabel: false,
-    pmsIntegration: true,
-    aiFeatures: false,
-    supportLevel: "priority",
-    popular: true,
-  },
-  {
-    id: "plan_enterprise",
-    name: "Enterprise",
-    tier: "enterprise",
-    monthlyPrice: 799,
-    annualPrice: 7990,
-    includedLocations: 50,
-    includedRouters: 200,
-    includedGuests: 50000,
-    storageLimitGb: 1000,
-    apiAccess: true,
-    whiteLabel: true,
-    pmsIntegration: true,
-    aiFeatures: true,
-    supportLevel: "24x7",
-  },
-  {
-    id: "plan_custom",
-    name: "Custom",
-    tier: "custom",
-    monthlyPrice: 0,
-    annualPrice: 0,
-    includedLocations: 100,
-    includedRouters: 500,
-    includedGuests: 100000,
-    storageLimitGb: 2000,
-    apiAccess: true,
-    whiteLabel: true,
-    pmsIntegration: true,
-    aiFeatures: true,
-    supportLevel: "dedicated",
-  },
-];
-
-function isoDaysFromNow(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString();
+async function fetchAllPlans(): Promise<BackendPlan[]> {
+  // list_plans defaults is_active to true -- fetch both slices to also
+  // surface deactivated plans in the admin management view.
+  const [active, inactive] = await Promise.all([
+    api.get<BackendListResponse<BackendPlan>>("/plans", {
+      params: { include_private: true, is_active: true, page_size: 100 },
+    }),
+    api.get<BackendListResponse<BackendPlan>>("/plans", {
+      params: { include_private: true, is_active: false, page_size: 100 },
+    }),
+  ]);
+  return [...active.data.items, ...inactive.data.items];
 }
 
-function buildSubscriptions(): Subscription[] {
-  const r = seeded(101);
-  const statuses: Subscription["status"][] = ["active", "active", "active", "trial", "past_due", "canceled", "expired", "paused"];
-  const gateways = ["stripe", "razorpay", "paypal"] as const;
-  return ORG_NAMES.map((name, i) => {
-    const plan = PLANS[i % 3];
-    const cycle: Subscription["billingCycle"] = r() > 0.4 ? "annual" : "monthly";
-    const status = statuses[Math.floor(r() * statuses.length)];
-    const payStatus: Subscription["paymentStatus"] =
-      status === "past_due" ? "failed" : status === "expired" ? "pending" : r() > 0.15 ? "paid" : "pending";
-    const price = cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
-    return {
-      id: `sub_${1000 + i}`,
-      organizationId: `org_${1000 + i}`,
-      organizationName: name,
-      planId: plan.id,
-      planName: plan.name,
-      tier: plan.tier,
-      billingCycle: cycle,
-      startDate: isoDaysFromNow(-Math.floor(r() * 300 + 30)),
-      renewalDate: isoDaysFromNow(Math.floor(r() * 60 - 5)),
-      expiryDate: isoDaysFromNow(Math.floor(r() * 300 + 30)),
-      status,
-      amount: price,
-      autoRenewal: r() > 0.25,
-      paymentStatus: payStatus,
-      locations: Math.max(1, Math.floor(r() * plan.includedLocations)),
-      routers: Math.max(1, Math.floor(r() * plan.includedRouters)),
-      maxGuests: plan.includedGuests,
-      trialDays: status === "trial" ? 14 : undefined,
-      discount: Math.floor(r() * 15),
-      tax: 18,
-      notes: gateways[i % gateways.length],
-    };
-  });
+// ============================================================================
+// Subscriptions -- one per organization, no bulk cross-org endpoint exists
+// (GET /subscriptions/{organization_id} only), so this fans out over every
+// organization the caller can reach, same convention as
+// location.service.ts's fetchAllLocations.
+// ============================================================================
+
+const SUBSCRIPTION_STATUS_MAP: Record<string, SubscriptionStatus> = {
+  trialing: "trial",
+  active: "active",
+  past_due: "past_due",
+  paused: "paused",
+  cancelled: "canceled",
+};
+
+function toSubscription(
+  s: BackendSubscription,
+  org: BackendOrg,
+  plan: BackendPlan | undefined,
+  coupon: BackendCoupon | undefined,
+): Subscription {
+  const status = SUBSCRIPTION_STATUS_MAP[s.status] ?? "active";
+  return {
+    id: s.id,
+    organizationId: org.id,
+    organizationName: org.name,
+    planId: s.plan_id,
+    planName: plan?.name ?? "Unknown plan",
+    tier: plan ? planTier(plan.plan_type) : "custom",
+    billingCycle: s.billing_cycle === "yearly" ? "annual" : "monthly",
+    startDate: s.started_at,
+    renewalDate: s.current_period_end,
+    expiryDate: s.current_period_end,
+    status,
+    amount: plan ? n(plan.base_price) : 0,
+    autoRenewal: s.auto_renew,
+    paymentStatus: status === "past_due" ? "failed" : status === "trial" ? "pending" : "paid",
+    locations: plan ? featureLimit(plan.features, "max_locations") : 0,
+    routers: plan ? featureLimit(plan.features, "max_routers") : 0,
+    maxGuests: plan ? featureLimit(plan.features, "max_guests") : 0,
+    trialDays: s.trial_end ? Math.max(0, Math.round((new Date(s.trial_end).getTime() - Date.now()) / 86_400_000)) : undefined,
+    discount: coupon ? n(coupon.discount_value) : undefined,
+    tax: undefined,
+    notes: undefined,
+  };
 }
 
-function buildPayments(subs: Subscription[]): Payment[] {
-  const r = seeded(202);
-  const gateways: Payment["gateway"][] = ["stripe", "razorpay", "paypal"];
-  const out: Payment[] = [];
-  subs.forEach((s, i) => {
-    const count = 2 + Math.floor(r() * 3);
-    for (let j = 0; j < count; j++) {
-      const gross = s.amount;
-      const disc = Math.round((s.discount ?? 0) * 0.01 * gross);
-      const tax = Math.round(((s.tax ?? 18) * (gross - disc)) / 100);
-      const status: Payment["status"] =
-        j === 0 && s.paymentStatus === "failed" ? "failed" : r() > 0.9 ? "refunded" : r() > 0.08 ? "paid" : "pending";
-      out.push({
-        id: `pay_${i}_${j}`,
-        invoiceNumber: `INV-${2025}-${String(3000 + i * 5 + j).padStart(5, "0")}`,
-        organizationId: s.organizationId,
-        organizationName: s.organizationName,
-        amount: gross,
-        tax,
-        discount: disc,
-        gateway: gateways[(i + j) % gateways.length],
-        transactionId: `txn_${Math.floor(r() * 1e10).toString(36)}`,
-        status,
-        paidAt: isoDaysFromNow(-Math.floor(r() * 180)),
+async function fetchAllSubscriptions(
+  orgs: BackendOrg[],
+  plans: BackendPlan[],
+  coupons: BackendCoupon[],
+): Promise<{ sub: BackendSubscription; org: BackendOrg }[]> {
+  const settled = await Promise.allSettled(
+    orgs.map(async (org) => {
+      const { data } = await api.get<BackendSubscription>(`/subscriptions/${org.id}`, {
+        headers: { "X-Organization-Id": org.id },
       });
-    }
-  });
-  return out.sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+      return { sub: data, org };
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<{ sub: BackendSubscription; org: BackendOrg }> => r.status === "fulfilled")
+    .map((r) => r.value);
 }
 
-function buildInvoices(payments: Payment[]): Invoice[] {
-  return payments.slice(0, 40).map((p, i) => ({
-    id: `inv_${i}`,
-    invoiceNumber: p.invoiceNumber,
-    organizationName: p.organizationName,
-    type: i % 9 === 0 ? "credit_note" : i % 11 === 0 ? "debit_note" : "tax_invoice",
-    amount: p.amount,
-    tax: p.tax,
-    total: p.amount + p.tax - p.discount,
-    issuedAt: p.paidAt,
-    dueAt: isoDaysFromNow(14 - (i % 30)),
-    status: p.status,
+// ============================================================================
+// Payments / Invoices / Usage -- also organization-scoped only (no bulk
+// endpoint), same fan-out convention.
+// ============================================================================
+
+const PAYMENT_STATUS_MAP: Record<string, PaymentStatus> = {
+  pending: "pending",
+  succeeded: "paid",
+  failed: "failed",
+  refunded: "refunded",
+  partially_refunded: "refunded",
+};
+
+function toPayment(p: BackendPayment, org: BackendOrg): Payment {
+  return {
+    id: p.id,
+    invoiceNumber: p.provider_payment_id ?? p.idempotency_key,
+    organizationId: org.id,
+    organizationName: org.name,
+    amount: n(p.amount),
+    tax: 0,
+    discount: 0,
+    gateway: (p.provider as PaymentGateway) ?? "stripe",
+    transactionId: p.provider_payment_id ?? p.id,
+    status: PAYMENT_STATUS_MAP[p.status] ?? "pending",
+    paidAt: p.updated_at,
+  };
+}
+
+async function fetchAllPayments(orgs: BackendOrg[]): Promise<Payment[]> {
+  const settled = await Promise.allSettled(
+    orgs.map(async (org) => {
+      const { data } = await api.get<BackendListResponse<BackendPayment>>("/payments", {
+        params: { page_size: 100 },
+        headers: { "X-Organization-Id": org.id },
+      });
+      return data.items.map((p) => toPayment(p, org));
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<Payment[]> => r.status === "fulfilled")
+    .flatMap((r) => r.value)
+    .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+}
+
+const INVOICE_STATUS_MAP: Record<string, PaymentStatus> = {
+  paid: "paid",
+  issued: "pending",
+  draft: "pending",
+  overdue: "pending",
+  cancelled: "failed",
+  void: "failed",
+};
+
+function toInvoice(inv: BackendInvoice, org: BackendOrg): Invoice[] {
+  const base: Invoice = {
+    id: inv.id,
+    invoiceNumber: inv.invoice_number,
+    organizationName: org.name,
+    type: "tax_invoice",
+    amount: n(inv.subtotal),
+    tax: n(inv.tax_amount),
+    total: n(inv.total_amount),
+    issuedAt: inv.issue_date,
+    dueAt: inv.due_date,
+    status: INVOICE_STATUS_MAP[inv.status] ?? "pending",
+  };
+  // Credit/debit notes are separate documents attached to their parent
+  // invoice on the real backend (Invoice.notes), not standalone rows --
+  // flattened here so this UI's single mixed-type list keeps working.
+  const notes: Invoice[] = inv.notes.map((note) => ({
+    id: note.id,
+    invoiceNumber: note.note_number,
+    organizationName: org.name,
+    type: note.note_type === "credit" ? "credit_note" : "debit_note",
+    amount: n(note.amount),
+    tax: 0,
+    total: n(note.amount),
+    issuedAt: note.issued_at,
+    dueAt: note.issued_at,
+    status: "paid",
   }));
+  return [base, ...notes];
 }
 
-const COUPONS: Coupon[] = [
-  { id: "c1", code: "WELCOME10", discountType: "percentage", discountValue: 10, expiryDate: isoDaysFromNow(90), maxUsage: 500, used: 128, status: "active" },
-  { id: "c2", code: "SUMMER25", discountType: "percentage", discountValue: 25, expiryDate: isoDaysFromNow(30), maxUsage: 200, used: 92, status: "active" },
-  { id: "c3", code: "FLAT50", discountType: "fixed", discountValue: 50, expiryDate: isoDaysFromNow(-5), maxUsage: 100, used: 100, status: "expired" },
-  { id: "c4", code: "PARTNER15", discountType: "percentage", discountValue: 15, expiryDate: isoDaysFromNow(120), maxUsage: 1000, used: 341, status: "active" },
-  { id: "c5", code: "ENT200", discountType: "fixed", discountValue: 200, expiryDate: isoDaysFromNow(60), maxUsage: 50, used: 7, status: "disabled" },
-];
-
-function buildUsage(subs: Subscription[]) {
-  const r = seeded(303);
-  return subs.slice(0, 12).map((s) => {
-    const plan = PLANS.find((p) => p.id === s.planId)!;
-    return {
-      organizationId: s.organizationId,
-      organizationName: s.organizationName,
-      locationsUsed: Math.max(1, Math.floor(r() * plan.includedLocations)),
-      locationsLimit: plan.includedLocations,
-      routersUsed: Math.max(1, Math.floor(r() * plan.includedRouters)),
-      routersLimit: plan.includedRouters,
-      guestSessions: Math.floor(r() * plan.includedGuests),
-      smsOtp: Math.floor(r() * 2000),
-      emailOtp: Math.floor(r() * 8000),
-      storageUsedGb: Math.floor(r() * plan.storageLimitGb),
-      storageLimitGb: plan.storageLimitGb,
-      apiCalls: Math.floor(r() * 250000),
-    };
-  });
+async function fetchAllInvoices(orgs: BackendOrg[]): Promise<Invoice[]> {
+  const settled = await Promise.allSettled(
+    orgs.map(async (org) => {
+      const { data } = await api.get<BackendListResponse<BackendInvoice>>("/invoices", {
+        params: { page_size: 100 },
+        headers: { "X-Organization-Id": org.id },
+      });
+      return data.items.flatMap((inv) => toInvoice(inv, org));
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<Invoice[]> => r.status === "fulfilled")
+    .flatMap((r) => r.value)
+    .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
 }
 
-const GATEWAYS = [
-  { id: "stripe" as PaymentGateway, name: "Stripe", connected: true, lastTransactionAt: isoDaysFromNow(-1), mode: "live" as const },
-  { id: "razorpay" as PaymentGateway, name: "Razorpay", connected: true, lastTransactionAt: isoDaysFromNow(-3), mode: "live" as const },
-  { id: "paypal" as PaymentGateway, name: "PayPal", connected: false, lastTransactionAt: undefined, mode: "test" as const },
-];
+function usageMetric(metrics: BackendUsageMetric[], key: string): number {
+  return n(metrics.find((m) => m.metric_key === key)?.value);
+}
 
-function buildRevenue() {
-  const r = seeded(404);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  let base = 42000;
-  const trend = months.map((m) => {
-    const growth = -3 + r() * 12;
-    base = Math.round(base * (1 + growth / 100));
-    return { label: m, revenue: base, growth: Math.round(growth * 10) / 10 };
-  });
+function usageLimit(checks: BackendUsageLimitCheck[], key: string): { used: number; limit: number } {
+  const row = checks.find((c) => c.metric_key === key);
+  return { used: n(row?.current_value), limit: n(row?.limit_value) };
+}
+
+function toUsageRow(u: BackendUsageSummary, org: BackendOrg): UsageRow {
+  const locations = usageLimit(u.limit_checks, "locations");
+  const routers = usageLimit(u.limit_checks, "routers");
+  const storage = usageLimit(u.limit_checks, "storage_usage_mb");
   return {
-    trend,
-    planDistribution: [
-      { tier: "starter" as const, count: 42, revenue: 8400 },
-      { tier: "professional" as const, count: 71, revenue: 42000 },
-      { tier: "enterprise" as const, count: 18, revenue: 96000 },
-      { tier: "custom" as const, count: 4, revenue: 32000 },
-    ],
-    subscriptionDistribution: [
-      { status: "active" as const, count: 96 },
-      { status: "trial" as const, count: 21 },
-      { status: "past_due" as const, count: 9 },
-      { status: "canceled" as const, count: 7 },
-      { status: "expired" as const, count: 4 },
-      { status: "paused" as const, count: 3 },
-    ],
-    paymentSuccessRate: months.slice(-6).map((m) => ({
-      label: m,
-      success: 85 + Math.floor(r() * 12),
-      failed: 3 + Math.floor(r() * 10),
-    })),
-    churnRate: months.slice(-6).map((m) => ({ label: m, value: Math.round(r() * 5 * 10) / 10 })),
+    organizationId: org.id,
+    organizationName: org.name,
+    locationsUsed: locations.used,
+    locationsLimit: locations.limit,
+    routersUsed: routers.used,
+    routersLimit: routers.limit,
+    guestSessions: usageMetric(u.metrics, "guest_sessions"),
+    smsOtp: usageMetric(u.metrics, "sms_usage"),
+    emailOtp: usageMetric(u.metrics, "email_usage"),
+    storageUsedGb: Math.round(storage.used / 1024),
+    storageLimitGb: Math.round(storage.limit / 1024),
+    apiCalls: usageMetric(u.metrics, "api_requests"),
   };
 }
 
-function buildReminders(subs: Subscription[]): BillingSnapshot["reminders"] {
-  return [
-    { id: "r1", type: "expiry", title: "Subscription expiring in 5 days", organizationName: subs[3].organizationName, dueAt: isoDaysFromNow(5), severity: "warning" },
-    { id: "r2", type: "invoice_due", title: "Invoice INV-2025-03011 due", organizationName: subs[7].organizationName, dueAt: isoDaysFromNow(2), severity: "warning" },
-    { id: "r3", type: "payment_failed", title: "Payment retry required", organizationName: subs[4].organizationName, dueAt: isoDaysFromNow(-1), severity: "critical" },
-    { id: "r4", type: "trial_ending", title: "Trial ends in 3 days", organizationName: subs[9].organizationName, dueAt: isoDaysFromNow(3), severity: "info" },
-    { id: "r5", type: "expiry", title: "Annual renewal upcoming", organizationName: subs[12].organizationName, dueAt: isoDaysFromNow(14), severity: "info" },
-    { id: "r6", type: "payment_failed", title: "Card declined – action needed", organizationName: subs[15].organizationName, dueAt: isoDaysFromNow(-4), severity: "critical" },
-  ];
+async function fetchAllUsage(orgs: BackendOrg[]): Promise<UsageRow[]> {
+  const settled = await Promise.allSettled(
+    orgs.map(async (org) => {
+      const { data } = await api.get<BackendUsageSummary>(`/usage/${org.id}`, {
+        headers: { "X-Organization-Id": org.id },
+      });
+      return toUsageRow(data, org);
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<UsageRow> => r.status === "fulfilled")
+    .map((r) => r.value);
 }
 
-// --- Mutable stores (module-scope, mock) ---
-let subscriptionsStore = buildSubscriptions();
-const paymentsStore = buildPayments(subscriptionsStore);
-const invoicesStore = buildInvoices(paymentsStore);
-let couponsStore: Coupon[] = [...COUPONS];
-let plansStore: Plan[] = [...PLANS];
-let gatewaysStore = [...GATEWAYS];
+// ============================================================================
+// Coupons
+// ============================================================================
+
+function couponStatus(c: BackendCoupon): CouponStatus {
+  if (!c.is_active) return "disabled";
+  if (c.valid_until && new Date(c.valid_until).getTime() < Date.now()) return "expired";
+  return "active";
+}
+
+function toCoupon(c: BackendCoupon): Coupon {
+  return {
+    id: c.id,
+    code: c.code,
+    discountType: c.discount_type === "flat" ? "fixed" : "percentage",
+    discountValue: n(c.discount_value),
+    expiryDate: c.valid_until ?? c.valid_from,
+    maxUsage: c.max_uses ?? 0,
+    used: c.current_uses,
+    status: couponStatus(c),
+  };
+}
+
+async function fetchAllCoupons(): Promise<BackendCoupon[]> {
+  const { data } = await api.get<BackendListResponse<BackendCoupon>>("/coupons", {
+    params: { page_size: 100 },
+  });
+  return data.items;
+}
+
+// ============================================================================
+// Aggregate snapshot -- kpis/revenue/reminders come from the real
+// /billing/dashboard/super-admin composite; subscriptions/payments/
+// invoices/usage are fanned out per organization (see helpers above).
+// gateways/scheduledReports/generateReport/generateInvoice/sendReminder
+// have no backend equivalent (no connectable-gateway registry, no
+// scheduled-report or ad-hoc report-generation endpoints exist in
+// backend/app/domains/billing) -- left mocked below, unchanged.
+// ============================================================================
+
+let gatewaysStore = [
+  { id: "stripe" as PaymentGateway, name: "Stripe", connected: true, lastTransactionAt: undefined as string | undefined, mode: "live" as const },
+  { id: "razorpay" as PaymentGateway, name: "Razorpay", connected: true, lastTransactionAt: undefined as string | undefined, mode: "live" as const },
+  { id: "paypal" as PaymentGateway, name: "PayPal", connected: false, lastTransactionAt: undefined as string | undefined, mode: "test" as const },
+];
+
 let scheduledReports: ScheduledBillingReport[] = [
-  { id: "srp_1", name: "Weekly revenue digest", frequency: "weekly", recipients: ["finance@cloudguest.io"], format: "pdf", enabled: true, nextRunAt: isoDaysFromNow(3) },
-  { id: "srp_2", name: "Monthly MRR report", frequency: "monthly", recipients: ["cfo@cloudguest.io", "ops@cloudguest.io"], format: "excel", enabled: true, nextRunAt: isoDaysFromNow(10) },
-  { id: "srp_3", name: "Daily overdue payments", frequency: "daily", recipients: ["billing@cloudguest.io"], format: "csv", enabled: false, nextRunAt: isoDaysFromNow(1) },
+  { id: "srp_1", name: "Weekly revenue digest", frequency: "weekly", recipients: ["finance@cloudguest.io"], format: "pdf", enabled: true, nextRunAt: new Date(Date.now() + 3 * 86_400_000).toISOString() },
+  { id: "srp_2", name: "Monthly MRR report", frequency: "monthly", recipients: ["cfo@cloudguest.io", "ops@cloudguest.io"], format: "excel", enabled: true, nextRunAt: new Date(Date.now() + 10 * 86_400_000).toISOString() },
+  { id: "srp_3", name: "Daily overdue payments", frequency: "daily", recipients: ["billing@cloudguest.io"], format: "csv", enabled: false, nextRunAt: new Date(Date.now() + 86_400_000).toISOString() },
 ];
 
-function computeKpis(): BillingSnapshot["kpis"] {
-  const active = subscriptionsStore.filter((s) => s.status === "active");
-  const mrrRaw = active.reduce((sum, s) => sum + (s.billingCycle === "annual" ? s.amount / 12 : s.amount), 0);
-  const mrr = Math.round(mrrRaw);
-  const arr = mrr * 12;
-  const trial = subscriptionsStore.filter((s) => s.status === "trial").length;
-  const now = Date.now();
-  const expiring = subscriptionsStore.filter((s) => {
-    const t = new Date(s.renewalDate).getTime();
-    return t - now < 14 * 86400000 && t - now > 0;
-  }).length;
-  const overdue = paymentsStore.filter((p) => p.status === "failed" || p.status === "pending").length;
-  const totalRevenue = paymentsStore.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const paid = paymentsStore.filter((p) => p.status === "paid").length;
-  const collectionRate = Math.round((paid / paymentsStore.length) * 100);
-  const arpo = active.length ? Math.round(mrr / active.length) : 0;
-  return {
-    mrr,
-    arr,
-    activeSubscriptions: active.length,
-    trialOrganizations: trial,
-    expiringPlans: expiring,
-    overduePayments: overdue,
-    totalRevenue,
-    collectionRate,
-    arpo,
-  };
+async function fetchDashboard(): Promise<BackendSuperAdminDashboard> {
+  const { data } = await api.get<BackendSuperAdminDashboard>("/billing/dashboard/super-admin", {
+    params: { months: 12, page_size: 100 },
+  });
+  return data;
+}
+
+async function findSubscriptionContext(
+  subscriptionId: string,
+): Promise<{ org: BackendOrg; sub: BackendSubscription } | undefined> {
+  const orgs = await fetchAllOrganizations();
+  const settled = await Promise.allSettled(
+    orgs.map(async (org) => {
+      const { data } = await api.get<BackendSubscription>(`/subscriptions/${org.id}`, {
+        headers: { "X-Organization-Id": org.id },
+      });
+      return { org, sub: data };
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<{ org: BackendOrg; sub: BackendSubscription }> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .find((r) => r.sub.id === subscriptionId);
 }
 
 export const billingService = {
   async getSnapshot(): Promise<BillingSnapshot> {
-    await delay();
+    const [dashboard, orgs, backendPlans, backendCoupons] = await Promise.all([
+      fetchDashboard(),
+      fetchAllOrganizations(),
+      fetchAllPlans(),
+      fetchAllCoupons(),
+    ]);
+    const plans = backendPlans.map(toPlan);
+    const [subRecords, payments, invoices, usage] = await Promise.all([
+      fetchAllSubscriptions(orgs, backendPlans, backendCoupons),
+      fetchAllPayments(orgs),
+      fetchAllInvoices(orgs),
+      fetchAllUsage(orgs),
+    ]);
+    const subscriptions = subRecords.map(({ sub, org }) =>
+      toSubscription(
+        sub,
+        org,
+        backendPlans.find((p) => p.id === sub.plan_id),
+        backendCoupons.find((c) => c.id === sub.applied_coupon_id),
+      ),
+    );
+
+    const active = subscriptions.filter((s) => s.status === "active");
+    const trial = subscriptions.filter((s) => s.status === "trial").length;
+    const now = Date.now();
+    const expiring = subscriptions.filter((s) => {
+      const t = new Date(s.renewalDate).getTime();
+      return t - now < 14 * 86_400_000 && t - now > 0;
+    }).length;
+
+    const paid = payments.filter((p) => p.status === "paid").length;
+    const collectionRate = payments.length ? Math.round((paid / payments.length) * 100) : 0;
+    const mrr = Math.round(n(dashboard.revenue.mrr));
+    const arpo = active.length ? Math.round(mrr / active.length) : 0;
+
+    const reminders: BillingSnapshot["reminders"] = dashboard.failed_payments.items.map((row, i) => {
+      const org = orgs.find((o) => o.id === row.payment.organization_id);
+      return {
+        id: `fp_${row.payment.id ?? i}`,
+        type: "payment_failed",
+        title: row.payment.failure_reason ?? "Payment retry required",
+        organizationName: org?.name ?? "Unknown organization",
+        dueAt: row.payment.updated_at,
+        severity: "critical",
+      };
+    });
+    dashboard.customers.items
+      .filter((c) => c.outstanding_invoice_count > 0)
+      .slice(0, 10)
+      .forEach((c, i) => {
+        reminders.push({
+          id: `inv_due_${c.organization_id}_${i}`,
+          type: "invoice_due",
+          title: `${c.outstanding_invoice_count} outstanding invoice(s)`,
+          organizationName: c.organization_name,
+          dueAt: new Date().toISOString(),
+          severity: "warning",
+        });
+      });
+
+    const planTierCounts = dashboard.customers.items.reduce<Record<string, number>>((acc, c) => {
+      const plan = backendPlans.find((p) => p.id === c.plan_id);
+      const tier = plan ? planTier(plan.plan_type) : "custom";
+      acc[tier] = (acc[tier] ?? 0) + 1;
+      return acc;
+    }, {});
+
     return {
-      kpis: computeKpis(),
-      subscriptions: subscriptionsStore,
-      payments: paymentsStore,
-      invoices: invoicesStore,
-      coupons: couponsStore,
-      usage: buildUsage(subscriptionsStore),
+      kpis: {
+        mrr,
+        arr: Math.round(n(dashboard.revenue.arr)),
+        activeSubscriptions: active.length,
+        trialOrganizations: trial,
+        expiringPlans: expiring,
+        overduePayments: dashboard.failed_payments.total_items,
+        totalRevenue: Math.round(n(dashboard.revenue.total_revenue)),
+        collectionRate,
+        arpo,
+      },
+      subscriptions,
+      payments,
+      invoices,
+      coupons: backendCoupons.map(toCoupon),
+      usage,
       gateways: gatewaysStore,
-      revenue: buildRevenue(),
-      reminders: buildReminders(subscriptionsStore),
-      plans: plansStore,
+      revenue: {
+        trend: dashboard.revenue.trend.map((pt, i, arr) => {
+          const prev = i > 0 ? n(arr[i - 1].net_amount) : n(pt.net_amount);
+          const growth = prev ? Math.round(((n(pt.net_amount) - prev) / prev) * 1000) / 10 : 0;
+          return { label: pt.month, revenue: Math.round(n(pt.net_amount)), growth };
+        }),
+        planDistribution: (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map((tier) => ({
+          tier,
+          count: planTierCounts[tier] ?? 0,
+          revenue: 0,
+        })),
+        subscriptionDistribution: Object.entries(dashboard.subscriptions.counts_by_status).map(([status, count]) => ({
+          status: SUBSCRIPTION_STATUS_MAP[status] ?? "active",
+          count,
+        })),
+        paymentSuccessRate: [],
+        churnRate: dashboard.subscriptions.churn.churn_rate === null
+          ? []
+          : [{ label: "Current", value: Math.round(dashboard.subscriptions.churn.churn_rate * 1000) / 10 }],
+      },
+      reminders,
+      plans,
     };
   },
+
   async listOrganizations() {
-    await delay(150);
-    return ORG_NAMES.map((name, i) => ({ id: `org_${1000 + i}`, name }));
+    const orgs = await fetchAllOrganizations();
+    return orgs.map((o) => ({ id: o.id, name: o.name }));
   },
+
   async createSubscription(input: Omit<Subscription, "id" | "organizationName" | "planName" | "tier" | "startDate" | "renewalDate" | "expiryDate" | "status" | "amount" | "paymentStatus">) {
-    await delay(500);
-    const plan = plansStore.find((p) => p.id === input.planId)!;
-    const price = input.billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
-    const org = ORG_NAMES[Number(input.organizationId.split("_")[1]) - 1000] ?? "New Organization";
-    const created: Subscription = {
-      id: `sub_${Date.now()}`,
-      organizationId: input.organizationId,
-      organizationName: org,
-      planId: plan.id,
-      planName: plan.name,
-      tier: plan.tier,
-      billingCycle: input.billingCycle,
-      startDate: new Date().toISOString(),
-      renewalDate: isoDaysFromNow(input.billingCycle === "annual" ? 365 : 30),
-      expiryDate: isoDaysFromNow(input.billingCycle === "annual" ? 365 : 30),
-      status: input.trialDays && input.trialDays > 0 ? "trial" : "active",
-      amount: price,
-      autoRenewal: input.autoRenewal,
-      paymentStatus: "paid",
-      locations: input.locations,
-      routers: input.routers,
-      maxGuests: input.maxGuests,
-      trialDays: input.trialDays,
-      discount: input.discount,
-      tax: input.tax,
-      notes: input.notes,
-    };
-    subscriptionsStore = [created, ...subscriptionsStore];
-    return created;
+    const [orgs, backendPlans, backendCoupons] = await Promise.all([
+      fetchAllOrganizations(),
+      fetchAllPlans(),
+      fetchAllCoupons(),
+    ]);
+    const org = orgs.find((o) => o.id === input.organizationId);
+    const plan = backendPlans.find((p) => p.id === input.planId);
+    const coupon = backendCoupons.find((c) => c.id === input.notes || c.code === input.notes);
+    const { data } = await api.post<BackendSubscription>(
+      "/subscriptions",
+      {
+        organization_id: input.organizationId,
+        plan_id: input.planId,
+        coupon_code: coupon?.code,
+      },
+      { headers: { "X-Organization-Id": input.organizationId } },
+    );
+    return toSubscription(data, org ?? { id: input.organizationId, name: "New organization" }, plan, coupon);
   },
+
   async cancelSubscription(id: string) {
-    await delay(300);
-    subscriptionsStore = subscriptionsStore.map((s) => (s.id === id ? { ...s, status: "canceled" as const, autoRenewal: false } : s));
+    const ctx = await findSubscriptionContext(id);
+    if (!ctx) return false;
+    await api.post(
+      `/subscriptions/${id}/cancel`,
+      { immediate: true },
+      { headers: { "X-Organization-Id": ctx.org.id } },
+    );
     return true;
   },
+
   async upgradeSubscription(id: string) {
-    await delay(300);
-    subscriptionsStore = subscriptionsStore.map((s) => {
-      if (s.id !== id) return s;
-      const idx = plansStore.findIndex((p) => p.id === s.planId);
-      const next = plansStore[Math.min(idx + 1, plansStore.length - 2)];
-      return { ...s, planId: next.id, planName: next.name, tier: next.tier, amount: s.billingCycle === "annual" ? next.annualPrice : next.monthlyPrice };
-    });
+    const ctx = await findSubscriptionContext(id);
+    if (!ctx) return false;
+    const backendPlans = await fetchAllPlans();
+    const active = backendPlans.filter((p) => p.is_active).sort((a, b) => n(a.base_price) - n(b.base_price));
+    const idx = active.findIndex((p) => p.id === ctx.sub.plan_id);
+    const next = active[Math.min(idx + 1, active.length - 1)];
+    if (!next) return false;
+    await api.post(
+      `/licenses/${ctx.sub.license_id}/upgrade`,
+      { new_plan_id: next.id },
+      { headers: { "X-Organization-Id": ctx.org.id } },
+    );
     return true;
   },
+
   async downgradeSubscription(id: string) {
-    await delay(300);
-    subscriptionsStore = subscriptionsStore.map((s) => {
-      if (s.id !== id) return s;
-      const idx = plansStore.findIndex((p) => p.id === s.planId);
-      const next = plansStore[Math.max(idx - 1, 0)];
-      return { ...s, planId: next.id, planName: next.name, tier: next.tier, amount: s.billingCycle === "annual" ? next.annualPrice : next.monthlyPrice };
-    });
+    const ctx = await findSubscriptionContext(id);
+    if (!ctx) return false;
+    const backendPlans = await fetchAllPlans();
+    const active = backendPlans.filter((p) => p.is_active).sort((a, b) => n(a.base_price) - n(b.base_price));
+    const idx = active.findIndex((p) => p.id === ctx.sub.plan_id);
+    const prev = active[Math.max(idx - 1, 0)];
+    if (!prev) return false;
+    await api.post(
+      `/licenses/${ctx.sub.license_id}/downgrade`,
+      { new_plan_id: prev.id },
+      { headers: { "X-Organization-Id": ctx.org.id } },
+    );
     return true;
   },
+
   async savePlan(input: Omit<Plan, "id"> & { id?: string }) {
-    await delay(300);
+    const features = [
+      { feature_key: "max_locations", feature_type: "limit", limit_value: input.includedLocations },
+      { feature_key: "max_routers", feature_type: "limit", limit_value: input.includedRouters },
+      { feature_key: "max_guests", feature_type: "limit", limit_value: input.includedGuests },
+      { feature_key: "storage_quota_mb", feature_type: "limit", limit_value: input.storageLimitGb * 1024 },
+      { feature_key: "api_access", feature_type: "boolean", is_enabled: input.apiAccess },
+      { feature_key: "white_label", feature_type: "boolean", is_enabled: input.whiteLabel },
+      { feature_key: "pms_integration", feature_type: "boolean", is_enabled: input.pmsIntegration },
+      { feature_key: "ai_features", feature_type: "boolean", is_enabled: input.aiFeatures },
+      {
+        feature_key: "support_level",
+        feature_type: "tier",
+        tier_value: input.supportLevel === "email" ? "basic" : input.supportLevel === "24x7" ? "dedicated" : input.supportLevel,
+      },
+    ];
     if (input.id) {
-      plansStore = plansStore.map((p) => (p.id === input.id ? { ...p, ...input, id: input.id! } : p));
-      return plansStore.find((p) => p.id === input.id)!;
+      const { data } = await api.put<BackendPlan>(`/plans/${input.id}`, {
+        name: input.name,
+        base_price: input.monthlyPrice,
+        features,
+      });
+      return toPlan(data);
     }
-    const plan: Plan = { ...input, id: `plan_${Date.now()}` };
-    plansStore = [...plansStore, plan];
-    return plan;
+    const { data } = await api.post<BackendPlan>("/plans", {
+      name: input.name,
+      slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      plan_type: input.tier,
+      billing_cycle: "monthly",
+      base_price: input.monthlyPrice,
+      currency: "USD",
+      is_active: true,
+      is_public: true,
+      sort_order: 0,
+      features,
+    });
+    return toPlan(data);
   },
+
   async deletePlan(id: string) {
-    await delay(200);
-    plansStore = plansStore.filter((p) => p.id !== id);
+    // No hard delete on the backend -- deactivate is the real equivalent.
+    await api.delete(`/plans/${id}`);
     return true;
   },
+
   async saveCoupon(input: Omit<Coupon, "id" | "used"> & { id?: string }) {
-    await delay(250);
     if (input.id) {
-      couponsStore = couponsStore.map((c) => (c.id === input.id ? { ...c, ...input, id: input.id! } : c));
-      return couponsStore.find((c) => c.id === input.id)!;
+      const { data } = await api.put<BackendCoupon>(`/coupons/${input.id}`, {
+        discount_type: input.discountType === "fixed" ? "flat" : "percentage",
+        discount_value: input.discountValue,
+        max_uses: input.maxUsage,
+        valid_until: input.expiryDate,
+        is_active: input.status !== "disabled",
+      });
+      return toCoupon(data);
     }
-    const coupon: Coupon = { ...input, id: `c_${Date.now()}`, used: 0 };
-    couponsStore = [...couponsStore, coupon];
-    return coupon;
+    const { data } = await api.post<BackendCoupon>("/coupons", {
+      code: input.code,
+      discount_type: input.discountType === "fixed" ? "flat" : "percentage",
+      discount_value: input.discountValue,
+      max_uses: input.maxUsage || null,
+      valid_from: new Date().toISOString(),
+      valid_until: input.expiryDate,
+      is_active: input.status !== "disabled",
+      applicable_plan_ids: [],
+    });
+    return toCoupon(data);
   },
+
   async deleteCoupon(id: string) {
-    await delay(200);
-    couponsStore = couponsStore.filter((c) => c.id !== id);
+    // No hard delete on the backend -- deactivate is the real equivalent.
+    await api.delete(`/coupons/${id}`);
     return true;
   },
+
+  // No backend concept of a connectable/toggleable payment gateway registry
+  // (PaymentProvider is just a per-payment field: stripe/razorpay) -- kept
+  // mocked, no real endpoint to wire.
   async toggleGateway(id: PaymentGateway) {
     await delay(200);
     gatewaysStore = gatewaysStore.map((g) => (g.id === id ? { ...g, connected: !g.connected } : g));
     return true;
   },
+
   async refundPayment(id: string) {
-    await delay(300);
-    const p = paymentsStore.find((x) => x.id === id);
-    if (p) p.status = "refunded";
+    const orgs = await fetchAllOrganizations();
+    const settled = await Promise.allSettled(
+      orgs.map(async (org) => {
+        const { data } = await api.get<BackendListResponse<BackendPayment>>("/payments", {
+          params: { page_size: 100 },
+          headers: { "X-Organization-Id": org.id },
+        });
+        return { org, payment: data.items.find((p) => p.id === id) };
+      }),
+    );
+    const found = settled
+      .filter((r): r is PromiseFulfilledResult<{ org: BackendOrg; payment: BackendPayment | undefined }> => r.status === "fulfilled")
+      .map((r) => r.value)
+      .find((r) => r.payment);
+    if (!found) return false;
+    await api.post(`/payments/${id}/refund`, {}, { headers: { "X-Organization-Id": found.org.id } });
     return true;
   },
+
+  // No scheduled-report entity exists in backend/app/domains/billing --
+  // kept mocked, no real endpoint to wire.
   async listScheduledReports() {
     await delay(150);
     return scheduledReports;
@@ -450,7 +859,7 @@ export const billingService = {
     const rep: ScheduledBillingReport = {
       ...input,
       id: `srp_${Date.now()}`,
-      nextRunAt: isoDaysFromNow(input.frequency === "daily" ? 1 : input.frequency === "weekly" ? 7 : 30),
+      nextRunAt: new Date(Date.now() + (input.frequency === "daily" ? 1 : input.frequency === "weekly" ? 7 : 30) * 86_400_000).toISOString(),
     };
     scheduledReports = [rep, ...scheduledReports];
     return rep;
@@ -465,14 +874,26 @@ export const billingService = {
     scheduledReports = scheduledReports.filter((r) => r.id !== id);
     return true;
   },
+  // No generic ad-hoc report-generation endpoint exists -- kept mocked.
   async generateReport(type: string, format: BillingReportFormat) {
     await delay(600);
     return { fileName: `${type}-report-${Date.now()}.${format}`, size: `${Math.round(200 + Math.random() * 1800)} KB` };
   },
+
   async generateInvoice(id: string) {
-    await delay(400);
-    return { url: `#invoice-${id}`, fileName: `${id}.pdf` };
+    // GET /invoices/{id}/download returns the file directly (no shareable
+    // URL concept) -- resolving to a blob URL is a real backend call.
+    try {
+      const response = await api.get(`/invoices/${id}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(response.data as Blob);
+      return { url, fileName: `${id}.pdf` };
+    } catch {
+      return { url: `#invoice-${id}`, fileName: `${id}.pdf` };
+    }
   },
+
+  // No reminder-dispatch endpoint exists in backend/app/domains/billing --
+  // kept mocked.
   async sendReminder(id: string, _frequency?: ReportFrequency) {
     await delay(200);
     return { ok: true, id };
