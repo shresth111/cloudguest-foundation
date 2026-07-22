@@ -7,7 +7,6 @@ export type ModuleId =
   | "plans"
   | "feature-management"
   | "audit"
-  | "system"
   | "settings"
   | "routers"
   | "guests"
@@ -74,7 +73,6 @@ export type ModuleId =
   | "analytics-device"
   | "analytics-isp"
   // Operations group
-  | "alerts"
   | "admin-logs"
   // Administration group
   | "business-units"

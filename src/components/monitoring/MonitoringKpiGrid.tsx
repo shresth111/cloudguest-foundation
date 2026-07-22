@@ -1,30 +1,38 @@
 import {
   Activity,
   AlertTriangle,
-  Cpu,
-  Gauge,
-  MemoryStick,
-  Radio,
+  Building2,
+  Loader2,
+  MapPin,
+  PlayCircle,
   Router as RouterIcon,
   ShieldAlert,
   ShieldCheck,
   Signal,
-  Users,
   WifiOff,
+  Zap,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/ErrorState";
-import { useMonitoringKpis } from "@/hooks/useMonitoring";
+import {
+  useEvaluateAlertRules,
+  usePlatformDashboard,
+  useRunHealthChecks,
+  useTopologyCounts,
+} from "@/hooks/useMonitoring";
+import { HEALTH_STATUS_LABEL } from "@/types/monitoring";
+import type { AppError } from "@/services/api";
 import { cn } from "@/lib/utils";
 
 interface Tile {
   label: string;
   value: string;
-  icon: typeof Cpu;
+  icon: typeof RouterIcon;
   tone: "default" | "success" | "warning" | "danger";
-  hint?: string;
 }
 
 const toneClass: Record<Tile["tone"], string> = {
@@ -35,12 +43,15 @@ const toneClass: Record<Tile["tone"], string> = {
 };
 
 export function MonitoringKpiGrid() {
-  const { data, isLoading, isError, refetch } = useMonitoringKpis();
+  const { data, isLoading, isError, refetch } = usePlatformDashboard();
+  const { data: topology } = useTopologyCounts();
+  const runHealthChecks = useRunHealthChecks();
+  const evaluateRules = useEvaluateAlertRules();
 
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 12 }).map((_, i) => (
+        {Array.from({ length: 10 }).map((_, i) => (
           <Skeleton key={i} className="h-28 rounded-xl" />
         ))}
       </div>
@@ -48,20 +59,38 @@ export function MonitoringKpiGrid() {
   }
   if (isError || !data) return <ErrorState onRetry={refetch} />;
 
+  const activeAlerts =
+    (data.alertCountsByStatus.triggered ?? 0) + (data.alertCountsByStatus.acknowledged ?? 0);
+  const criticalAlerts = data.alertCountsBySeverity.critical ?? 0;
+  const onlineRouters = data.lifecycleStageCounts.online ?? 0;
+  const offlineRouters = data.lifecycleStageCounts.offline ?? 0;
+  const healthStatus = data.overallHealthStatus;
+
   const tiles: Tile[] = [
-    { label: "Total routers", value: String(data.totalRouters), icon: RouterIcon, tone: "default" },
-    { label: "Online routers", value: String(data.onlineRouters), icon: ShieldCheck, tone: "success" },
-    { label: "Offline routers", value: String(data.offlineRouters), icon: WifiOff, tone: "danger" },
-    { label: "WireGuard tunnels", value: String(data.activeWireGuardTunnels), icon: Radio, tone: "default" },
-    { label: "RADIUS servers", value: String(data.activeRadiusServers), icon: ShieldCheck, tone: "success" },
-    { label: "Internet uptime", value: `${data.internetUptime.toFixed(2)}%`, icon: Signal, tone: "success" },
-    { label: "Active guest sessions", value: data.activeGuestSessions.toLocaleString(), icon: Users, tone: "default" },
-    { label: "Active alerts", value: String(data.activeAlerts), icon: AlertTriangle, tone: "warning" },
-    { label: "Critical alerts", value: String(data.criticalAlerts), icon: ShieldAlert, tone: "danger" },
-    { label: "Warning alerts", value: String(data.warningAlerts), icon: AlertTriangle, tone: "warning" },
-    { label: "Avg. CPU usage", value: `${data.avgCpu}%`, icon: Cpu, tone: data.avgCpu > 70 ? "warning" : "default" },
-    { label: "Avg. memory usage", value: `${data.avgMemory}%`, icon: MemoryStick, tone: data.avgMemory > 75 ? "warning" : "default" },
+    {
+      label: "Overall platform health",
+      value: HEALTH_STATUS_LABEL[healthStatus],
+      icon: ShieldCheck,
+      tone: healthStatus === "healthy" ? "success" : healthStatus === "unknown" ? "default" : "warning",
+    },
+    { label: "Organizations", value: String(topology?.organizations ?? "—"), icon: Building2, tone: "default" },
+    { label: "Locations", value: String(topology?.locations ?? "—"), icon: MapPin, tone: "default" },
+    { label: "Total routers", value: String(topology?.routers ?? "—"), icon: RouterIcon, tone: "default" },
+    { label: "Online routers", value: String(onlineRouters), icon: ShieldCheck, tone: "success" },
+    { label: "Offline routers", value: String(offlineRouters), icon: WifiOff, tone: offlineRouters > 0 ? "danger" : "default" },
+    { label: "Pending enrollments", value: String(data.pendingEnrollmentCount), icon: Activity, tone: "default" },
+    { label: "Active alerts", value: String(activeAlerts), icon: AlertTriangle, tone: activeAlerts > 0 ? "warning" : "default" },
+    { label: "Critical alerts", value: String(criticalAlerts), icon: ShieldAlert, tone: criticalAlerts > 0 ? "danger" : "default" },
   ];
+
+  if (data.availabilityPercentage !== null) {
+    tiles.push({
+      label: "Availability",
+      value: `${data.availabilityPercentage.toFixed(2)}%`,
+      icon: Signal,
+      tone: data.availabilityPercentage >= 99 ? "success" : "warning",
+    });
+  }
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -79,7 +108,6 @@ export function MonitoringKpiGrid() {
                 <div>
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.label}</div>
                   <div className="mt-1 text-2xl font-semibold tracking-tight">{t.value}</div>
-                  {t.hint && <div className="text-[11px] text-muted-foreground">{t.hint}</div>}
                 </div>
                 <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneClass[t.tone])}>
                   <Icon className="h-5 w-5" />
@@ -90,10 +118,49 @@ export function MonitoringKpiGrid() {
         );
       })}
       <Card className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
-        <CardContent className="flex items-center gap-3 p-3 text-xs text-muted-foreground">
-          <Gauge className="h-4 w-4" />
-          Live values refresh every 15 seconds. Adjust in Monitoring settings.
-          <Activity className="ml-auto h-3.5 w-3.5 animate-pulse text-emerald-500" />
+        <CardContent className="flex flex-wrap items-center gap-3 p-3">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={runHealthChecks.isPending}
+            onClick={() =>
+              runHealthChecks.mutate(undefined, {
+                onSuccess: () => toast.success("Health checks executed"),
+                onError: (e) => toast.error((e as unknown as AppError).message),
+              })
+            }
+          >
+            {runHealthChecks.isPending ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PlayCircle className="mr-2 h-3.5 w-3.5" />
+            )}
+            Run health checks now
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={evaluateRules.isPending}
+            onClick={() =>
+              evaluateRules.mutate(undefined, {
+                onSuccess: (result) =>
+                  toast.success(
+                    `Evaluated rules: ${result.triggered.length} triggered, ${result.resolved.length} resolved`,
+                  ),
+                onError: (e) => toast.error((e as unknown as AppError).message),
+              })
+            }
+          >
+            {evaluateRules.isPending ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Zap className="mr-2 h-3.5 w-3.5" />
+            )}
+            Evaluate alert rules now
+          </Button>
+          <span className="ml-auto text-xs text-muted-foreground">
+            Overview refreshes every 30 seconds.
+          </span>
         </CardContent>
       </Card>
     </div>

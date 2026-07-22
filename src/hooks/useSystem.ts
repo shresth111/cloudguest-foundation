@@ -9,7 +9,6 @@ export const systemKeys = {
   marketplace: ["system", "marketplace"] as const,
   plan: ["system", "plan"] as const,
   invoices: ["system", "invoices"] as const,
-  services: ["system", "services"] as const,
   metrics: ["system", "metrics"] as const,
   apiKeys: ["system", "apiKeys"] as const,
   webhooks: ["system", "webhooks"] as const,
@@ -33,8 +32,6 @@ export const useToggleFeature = () => {
 export const usePlan = () => useQuery({ queryKey: systemKeys.plan, queryFn: () => systemService.getPlan() });
 export const useInvoices = () => useQuery({ queryKey: systemKeys.invoices, queryFn: () => systemService.listInvoices() });
 
-export const useServices = () =>
-  useQuery({ queryKey: systemKeys.services, queryFn: () => systemService.listServices(), refetchInterval: 15_000 });
 export const useSystemMetrics = () =>
   useQuery({ queryKey: systemKeys.metrics, queryFn: () => systemService.systemMetrics(), refetchInterval: 30_000 });
 

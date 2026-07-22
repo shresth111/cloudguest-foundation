@@ -42,7 +42,7 @@ const NEW_IA_MODULES: ModuleId[] = [
   "policy-auth", "policy-bandwidth", "policy-network",
   "analytics-executive", "analytics-network", "analytics-guest",
   "analytics-device", "analytics-isp",
-  "alerts", "admin-logs", "business-units",
+  "admin-logs", "business-units",
   "documentation", "support-contact",
 ];
 
@@ -87,15 +87,15 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "vlan", "guests-live",
     "policy-location", "policy-user",
     "analytics-executive", "analytics-guest",
-    "alerts", "documentation", "support-contact",
+    "documentation", "support-contact",
     "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
     "workspace-staff", "workspace-notifications", "workspace-help",
   ],
   support_engineer: [
-    "dashboard", "audit", "system", "routers", "monitoring",
+    "dashboard", "audit", "routers", "monitoring",
     "network-monitoring", "isp-monitoring", "devices",
     "notifications", "help",
-    "alerts", "admin-logs", "documentation", "support-contact",
+    "admin-logs", "documentation", "support-contact",
     "analytics-network", "analytics-device", "analytics-isp",
     "workspace-audit", "workspace-help",
   ],
@@ -110,7 +110,7 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
 
 /** Modules that stay visible-but-locked instead of hidden for a given role. */
 const LOCKED_BY_ROLE: Partial<Record<UserRole, ModuleId[]>> = {
-  org_admin: ["plans", "feature-management", "system"],
+  org_admin: ["plans", "feature-management"],
   location_manager: ["billing", "branding", "rbac", "policy-group", "policy-bandwidth"],
   read_only: ["portals", "monitoring", "billing", "branding", "settings", "policy-location", "policy-user"],
   support_engineer: ["billing", "branding"],
@@ -192,7 +192,6 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   analytics: "BarChart3",
   // Operations
   monitoring: "Activity",
-  alerts: "BellRing",
   audit: "ScrollText",
   "admin-logs": "FileClock",
   // Administration
@@ -210,7 +209,6 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   documentation: "BookOpen",
   "support-contact": "MessageSquare",
   // System / misc
-  system: "HeartPulse",
   settings: "Settings",
   integrations: "Plug",
   "api-keys": "KeyRound",
@@ -267,7 +265,6 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "analytics-isp": "ISP Analytics",
   analytics: "Analytics",
   monitoring: "Device Monitoring",
-  alerts: "Alerts",
   audit: "Audit Logs",
   "admin-logs": "Admin Logs",
   organizations: "Organizations",
@@ -282,7 +279,6 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   help: "Help Center",
   documentation: "Documentation",
   "support-contact": "Contact Support",
-  system: "System health",
   settings: "Platform settings",
   integrations: "Integrations",
   "api-keys": "API keys",
@@ -338,7 +334,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "analytics-isp": "/analytics/isp",
   analytics: "/analytics",
   monitoring: "/monitoring",
-  alerts: "/operations/alerts",
   audit: "/audit",
   "admin-logs": "/operations/admin-logs",
   organizations: "/organizations",
@@ -353,7 +348,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   help: "/help",
   documentation: "/support/documentation",
   "support-contact": "/support/contact",
-  system: "/system",
   settings: "/settings",
   integrations: "/integrations",
   "api-keys": "/api-keys",
@@ -434,7 +428,7 @@ const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   "analytics-executive": "analytics", "analytics-network": "analytics",
   "analytics-guest": "analytics", "analytics-device": "analytics", "analytics-isp": "analytics",
   // Operations
-  monitoring: "operations", alerts: "operations", "admin-logs": "operations",
+  monitoring: "operations", "admin-logs": "operations",
   // Administration
   organizations: "administration", "business-units": "administration", locations: "administration",
   rbac: "administration", "feature-management": "administration",
@@ -442,7 +436,7 @@ const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   // Support
   help: "support", documentation: "support", "support-contact": "support",
   // System
-  system: "system", integrations: "system",
+  integrations: "system",
   "api-keys": "system", notifications: "system", exports: "system",
   branding: "system", marketplace: "system", portals: "system",
   guests: "guests",
@@ -461,14 +455,14 @@ const MODULE_ORDER: ModuleId[] = [
   "analytics-executive", "analytics-network", "analytics-guest",
   "analytics-device", "analytics-isp",
   // Operations
-  "monitoring", "alerts", "admin-logs",
+  "monitoring", "admin-logs",
   // Administration
   "organizations", "business-units", "locations",
   "rbac", "feature-management", "subscription", "plans",
   // Support
   "help", "documentation", "support-contact",
   // System
-  "system", "integrations", "api-keys", "notifications",
+  "integrations", "api-keys", "notifications",
   "exports", "branding", "marketplace", "portals",
 ];
 
@@ -639,7 +633,7 @@ function widgetsForRole(role: UserRole): DashboardWidget[] {
     return [
       ...base,
       { id: "trend", kind: "trend-chart", title: "Growth trends", size: "lg", order: 20, requires: { module: "analytics" } },
-      { id: "health", kind: "health-chart", title: "Platform health", size: "md", order: 30, requires: { module: "system" } },
+      { id: "health", kind: "health-chart", title: "Platform health", size: "md", order: 30, requires: { module: "monitoring" } },
       { id: "usage", kind: "usage-chart", title: "Bandwidth usage", size: "md", order: 40, requires: { module: "monitoring" } },
       { id: "top-locs", kind: "top-locations", title: "Top locations", size: "md", order: 50, requires: { module: "locations" } },
       { id: "activity", kind: "recent-activity", title: "Recent activity", size: "lg", order: 60, requires: { module: "audit" } },

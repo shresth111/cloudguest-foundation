@@ -36,7 +36,6 @@ import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticate
 import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
-import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system.index'
 import { Route as AuthenticatedSubscriptionIndexRouteImport } from './routes/_authenticated/subscription.index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
@@ -86,7 +85,6 @@ import { Route as AuthenticatedPoliciesGroupRouteImport } from './routes/_authen
 import { Route as AuthenticatedPoliciesBandwidthRouteImport } from './routes/_authenticated/policies.bandwidth'
 import { Route as AuthenticatedPoliciesAuthenticationRouteImport } from './routes/_authenticated/policies.authentication'
 import { Route as AuthenticatedOrganizationsOrgIdRouteImport } from './routes/_authenticated/organizations.$orgId'
-import { Route as AuthenticatedOperationsAlertsRouteImport } from './routes/_authenticated/operations.alerts'
 import { Route as AuthenticatedOperationsAdminLogsRouteImport } from './routes/_authenticated/operations.admin-logs'
 import { Route as AuthenticatedNetworkWanRouteImport } from './routes/_authenticated/network.wan'
 import { Route as AuthenticatedNetworkVlanRouteImport } from './routes/_authenticated/network.vlan'
@@ -244,12 +242,6 @@ const AuthenticatedVouchersIndexRoute =
   AuthenticatedVouchersIndexRouteImport.update({
     id: '/vouchers/',
     path: '/vouchers/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSystemIndexRoute =
-  AuthenticatedSystemIndexRouteImport.update({
-    id: '/system/',
-    path: '/system/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSubscriptionIndexRoute =
@@ -540,12 +532,6 @@ const AuthenticatedOrganizationsOrgIdRoute =
     path: '/organizations/$orgId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedOperationsAlertsRoute =
-  AuthenticatedOperationsAlertsRouteImport.update({
-    id: '/operations/alerts',
-    path: '/operations/alerts',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedOperationsAdminLogsRoute =
   AuthenticatedOperationsAdminLogsRouteImport.update({
     id: '/operations/admin-logs',
@@ -711,7 +697,6 @@ export interface FileRoutesByFullPath {
   '/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/network/wan': typeof AuthenticatedNetworkWanRoute
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
-  '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/policies/authentication': typeof AuthenticatedPoliciesAuthenticationRoute
   '/policies/bandwidth': typeof AuthenticatedPoliciesBandwidthRoute
@@ -761,7 +746,6 @@ export interface FileRoutesByFullPath {
   '/routers/': typeof AuthenticatedRoutersIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/subscription/': typeof AuthenticatedSubscriptionIndexRoute
-  '/system/': typeof AuthenticatedSystemIndexRoute
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
@@ -807,7 +791,6 @@ export interface FileRoutesByTo {
   '/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/network/wan': typeof AuthenticatedNetworkWanRoute
   '/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
-  '/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/policies/authentication': typeof AuthenticatedPoliciesAuthenticationRoute
   '/policies/bandwidth': typeof AuthenticatedPoliciesBandwidthRoute
@@ -857,7 +840,6 @@ export interface FileRoutesByTo {
   '/routers': typeof AuthenticatedRoutersIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/subscription': typeof AuthenticatedSubscriptionIndexRoute
-  '/system': typeof AuthenticatedSystemIndexRoute
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
@@ -909,7 +891,6 @@ export interface FileRoutesById {
   '/_authenticated/network/vlan': typeof AuthenticatedNetworkVlanRoute
   '/_authenticated/network/wan': typeof AuthenticatedNetworkWanRoute
   '/_authenticated/operations/admin-logs': typeof AuthenticatedOperationsAdminLogsRoute
-  '/_authenticated/operations/alerts': typeof AuthenticatedOperationsAlertsRoute
   '/_authenticated/organizations/$orgId': typeof AuthenticatedOrganizationsOrgIdRoute
   '/_authenticated/policies/authentication': typeof AuthenticatedPoliciesAuthenticationRoute
   '/_authenticated/policies/bandwidth': typeof AuthenticatedPoliciesBandwidthRoute
@@ -959,7 +940,6 @@ export interface FileRoutesById {
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/subscription/': typeof AuthenticatedSubscriptionIndexRoute
-  '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
@@ -1011,7 +991,6 @@ export interface FileRouteTypes {
     | '/network/vlan'
     | '/network/wan'
     | '/operations/admin-logs'
-    | '/operations/alerts'
     | '/organizations/$orgId'
     | '/policies/authentication'
     | '/policies/bandwidth'
@@ -1061,7 +1040,6 @@ export interface FileRouteTypes {
     | '/routers/'
     | '/settings/'
     | '/subscription/'
-    | '/system/'
     | '/vouchers/'
     | '/workspace/'
     | '/portal/auth/'
@@ -1107,7 +1085,6 @@ export interface FileRouteTypes {
     | '/network/vlan'
     | '/network/wan'
     | '/operations/admin-logs'
-    | '/operations/alerts'
     | '/organizations/$orgId'
     | '/policies/authentication'
     | '/policies/bandwidth'
@@ -1157,7 +1134,6 @@ export interface FileRouteTypes {
     | '/routers'
     | '/settings'
     | '/subscription'
-    | '/system'
     | '/vouchers'
     | '/workspace'
     | '/portal/auth'
@@ -1208,7 +1184,6 @@ export interface FileRouteTypes {
     | '/_authenticated/network/vlan'
     | '/_authenticated/network/wan'
     | '/_authenticated/operations/admin-logs'
-    | '/_authenticated/operations/alerts'
     | '/_authenticated/organizations/$orgId'
     | '/_authenticated/policies/authentication'
     | '/_authenticated/policies/bandwidth'
@@ -1258,7 +1233,6 @@ export interface FileRouteTypes {
     | '/_authenticated/routers/'
     | '/_authenticated/settings/'
     | '/_authenticated/subscription/'
-    | '/_authenticated/system/'
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/portal/auth/'
@@ -1467,13 +1441,6 @@ declare module '@tanstack/react-router' {
       path: '/vouchers'
       fullPath: '/vouchers/'
       preLoaderRoute: typeof AuthenticatedVouchersIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/system/': {
-      id: '/_authenticated/system/'
-      path: '/system'
-      fullPath: '/system/'
-      preLoaderRoute: typeof AuthenticatedSystemIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/subscription/': {
@@ -1819,13 +1786,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationsOrgIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/operations/alerts': {
-      id: '/_authenticated/operations/alerts'
-      path: '/operations/alerts'
-      fullPath: '/operations/alerts'
-      preLoaderRoute: typeof AuthenticatedOperationsAlertsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/operations/admin-logs': {
       id: '/_authenticated/operations/admin-logs'
       path: '/operations/admin-logs'
@@ -2070,7 +2030,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNetworkVlanRoute: typeof AuthenticatedNetworkVlanRoute
   AuthenticatedNetworkWanRoute: typeof AuthenticatedNetworkWanRoute
   AuthenticatedOperationsAdminLogsRoute: typeof AuthenticatedOperationsAdminLogsRoute
-  AuthenticatedOperationsAlertsRoute: typeof AuthenticatedOperationsAlertsRoute
   AuthenticatedOrganizationsOrgIdRoute: typeof AuthenticatedOrganizationsOrgIdRoute
   AuthenticatedPoliciesAuthenticationRoute: typeof AuthenticatedPoliciesAuthenticationRoute
   AuthenticatedPoliciesBandwidthRoute: typeof AuthenticatedPoliciesBandwidthRoute
@@ -2108,7 +2067,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSubscriptionIndexRoute: typeof AuthenticatedSubscriptionIndexRoute
-  AuthenticatedSystemIndexRoute: typeof AuthenticatedSystemIndexRoute
   AuthenticatedVouchersIndexRoute: typeof AuthenticatedVouchersIndexRoute
 }
 
@@ -2137,7 +2095,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNetworkVlanRoute: AuthenticatedNetworkVlanRoute,
   AuthenticatedNetworkWanRoute: AuthenticatedNetworkWanRoute,
   AuthenticatedOperationsAdminLogsRoute: AuthenticatedOperationsAdminLogsRoute,
-  AuthenticatedOperationsAlertsRoute: AuthenticatedOperationsAlertsRoute,
   AuthenticatedOrganizationsOrgIdRoute: AuthenticatedOrganizationsOrgIdRoute,
   AuthenticatedPoliciesAuthenticationRoute:
     AuthenticatedPoliciesAuthenticationRoute,
@@ -2178,7 +2135,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedSubscriptionIndexRoute: AuthenticatedSubscriptionIndexRoute,
-  AuthenticatedSystemIndexRoute: AuthenticatedSystemIndexRoute,
   AuthenticatedVouchersIndexRoute: AuthenticatedVouchersIndexRoute,
 }
 

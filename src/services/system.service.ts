@@ -107,30 +107,6 @@ const INVOICES: InvoiceRow[] = Array.from({ length: 8 }).map((_, i) => ({
   dueAt: iso(-i * 30 + 15),
 }));
 
-// ---------- System Health ----------
-export type HealthStatus = "healthy" | "warning" | "critical";
-export interface ServiceHealth {
-  id: string;
-  name: string;
-  status: HealthStatus;
-  responseMs: number;
-  uptime: number;
-  version: string;
-  region: string;
-}
-const SERVICES: ServiceHealth[] = [
-  { id: "api", name: "Backend API", status: "healthy", responseMs: 84, uptime: 99.998, version: "4.12.1", region: "us-east-1" },
-  { id: "db", name: "Postgres", status: "healthy", responseMs: 12, uptime: 99.999, version: "16.2", region: "us-east-1" },
-  { id: "redis", name: "Redis", status: "healthy", responseMs: 4, uptime: 99.999, version: "7.2", region: "us-east-1" },
-  { id: "celery", name: "Celery Workers", status: "warning", responseMs: 210, uptime: 99.87, version: "5.3", region: "us-east-1" },
-  { id: "radius", name: "FreeRADIUS", status: "healthy", responseMs: 32, uptime: 99.94, version: "3.2.5", region: "eu-west-1" },
-  { id: "wg", name: "WireGuard", status: "healthy", responseMs: 18, uptime: 99.97, version: "1.0.20", region: "global" },
-  { id: "smtp", name: "SMTP", status: "healthy", responseMs: 140, uptime: 99.9, version: "postfix-3.7", region: "us-east-1" },
-  { id: "sms", name: "SMS Gateway", status: "critical", responseMs: 4200, uptime: 96.2, version: "twilio-2024", region: "global" },
-  { id: "storage", name: "Object Storage", status: "healthy", responseMs: 55, uptime: 99.99, version: "s3-compat", region: "us-east-1" },
-  { id: "sched", name: "Scheduler", status: "healthy", responseMs: 21, uptime: 99.98, version: "cron-1.4", region: "us-east-1" },
-];
-
 // ---------- API Keys / Webhooks ----------
 export interface ApiKeyRow {
   id: string;
@@ -275,7 +251,6 @@ export const systemService = {
   async listInvoices() { await delay(); return INVOICES; },
 
   // system health
-  async listServices() { await delay(); return SERVICES; },
   async systemMetrics() {
     await delay();
     return Array.from({ length: 24 }).map((_, i) => ({

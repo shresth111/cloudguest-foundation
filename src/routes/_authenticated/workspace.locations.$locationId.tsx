@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/select";
 import { useCustomers, useLocationResources } from "@/hooks/useCustomer";
 import type { ExistingCustomer, LocationResources, LocationRouter } from "@/services/customer.service";
-import { PerformanceCharts } from "@/components/monitoring/PerformanceCharts";
 import { toast } from "sonner";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -808,8 +807,6 @@ function MonitoringTab({ resources }: { resources: LocationResources }) {
         <Kpi label="WireGuard" value="Connected" icon={ShieldCheck} tone="positive" />
         <Kpi label="Routers" value={`${resources.routers.filter(r=>r.status==="online").length}/${resources.routers.length}`} icon={RouterIcon} />
       </div>
-
-      <PerformanceCharts />
 
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Active alerts</CardTitle></CardHeader>

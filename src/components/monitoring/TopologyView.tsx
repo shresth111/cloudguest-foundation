@@ -1,20 +1,27 @@
-import { Cloud, Building2, MapPin, Router as RouterIcon, Smartphone } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Cloud, Building2, MapPin, Router as RouterIcon } from "lucide-react";
 import { motion } from "framer-motion";
-
-const nodes = [
-  { key: "cloud", label: "CloudGuest Platform", sub: "Global control plane", icon: Cloud, color: "bg-sky-500/15 text-sky-500" },
-  { key: "org", label: "Organizations", sub: "128 tenants", icon: Building2, color: "bg-violet-500/15 text-violet-500" },
-  { key: "loc", label: "Locations", sub: "612 sites", icon: MapPin, color: "bg-emerald-500/15 text-emerald-500" },
-  { key: "router", label: "Routers", sub: "1,240 devices online", icon: RouterIcon, color: "bg-amber-500/15 text-amber-500" },
-  { key: "guest", label: "Guest devices", sub: "24,812 connected", icon: Smartphone, color: "bg-pink-500/15 text-pink-500" },
-];
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/common/ErrorState";
+import { useTopologyCounts } from "@/hooks/useMonitoring";
 
 export function TopologyView() {
+  const { data, isLoading, isError, refetch } = useTopologyCounts();
+
+  if (isLoading) return <Skeleton className="h-80 rounded-xl" />;
+  if (isError || !data) return <ErrorState onRetry={refetch} />;
+
+  const nodes = [
+    { key: "cloud", label: "CloudGuest Platform", sub: "Global control plane", icon: Cloud, color: "bg-sky-500/15 text-sky-500" },
+    { key: "org", label: "Organizations", sub: `${data.organizations} tenant${data.organizations === 1 ? "" : "s"}`, icon: Building2, color: "bg-violet-500/15 text-violet-500" },
+    { key: "loc", label: "Locations", sub: `${data.locations} site${data.locations === 1 ? "" : "s"}`, icon: MapPin, color: "bg-emerald-500/15 text-emerald-500" },
+    { key: "router", label: "Routers", sub: `${data.routers} device${data.routers === 1 ? "" : "s"} registered`, icon: RouterIcon, color: "bg-amber-500/15 text-amber-500" },
+  ];
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Live topology</CardTitle>
+        <CardTitle className="text-sm">Platform topology</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="mx-auto flex max-w-md flex-col items-center gap-2">
@@ -35,7 +42,6 @@ export function TopologyView() {
                     <div className="text-sm font-medium">{n.label}</div>
                     <div className="text-xs text-muted-foreground">{n.sub}</div>
                   </div>
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
                 </motion.div>
                 {i < nodes.length - 1 && (
                   <div className="flex justify-center py-1">
