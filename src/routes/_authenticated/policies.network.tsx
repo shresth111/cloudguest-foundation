@@ -1,20 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Network } from "lucide-react";
-import { PageShell, ComingSoonPanel } from "@/components/ui-ext";
+import { PageShell } from "@/components/ui-ext";
+import { RoutingPolicyManagement } from "@/components/policies/RoutingPolicyManagement";
 
 export const Route = createFileRoute("/_authenticated/policies/network")({
-  component: Page,
-});
-
-function Page() {
-  return (
+  component: () => (
     <PageShell>
-      <ComingSoonPanel
-        title="Network Policies"
-        description="Firewall, VLAN membership and application filtering combined into one deployable bundle."
-        icon={Network}
-        bullets={["Firewall templates", "VLAN membership", "App filtering"]}
-      />
+      <RoutingPolicyManagement />
     </PageShell>
-  );
-}
+  ),
+});

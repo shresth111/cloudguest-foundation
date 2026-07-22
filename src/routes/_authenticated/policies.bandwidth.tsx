@@ -1,20 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Gauge } from "lucide-react";
-import { PageShell, ComingSoonPanel } from "@/components/ui-ext";
+import { PageShell } from "@/components/ui-ext";
+import { BandwidthPolicyManagement } from "@/components/policies/BandwidthPolicyManagement";
 
 export const Route = createFileRoute("/_authenticated/policies/bandwidth")({
-  component: Page,
-});
-
-function Page() {
-  return (
+  component: () => (
     <PageShell>
-      <ComingSoonPanel
-        title="Bandwidth Policies"
-        description="Reusable bandwidth templates: cap, burst, DSCP marks and per-VLAN queue shaping."
-        icon={Gauge}
-        bullets={["Cap & burst", "DSCP mapping", "Per-VLAN queues"]}
-      />
+      <BandwidthPolicyManagement />
     </PageShell>
-  );
-}
+  ),
+});
