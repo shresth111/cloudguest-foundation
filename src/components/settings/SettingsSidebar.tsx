@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import {
   Bell, Cloud, Cpu, Database, FileKey, FileText, Flag, Globe2, HardDrive,
-  Info, KeyRound, Lock, Plug, ScrollText, ShieldCheck, Wallet,
+  Info, KeyRound, Lock, Palette, Plug, ScrollText, ShieldCheck, Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ export interface SettingsNavItem {
 
 export const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "general",       label: "General",       description: "Identity & locale",           icon: Globe2,       group: "Workspace" },
+  { id: "branding",      label: "Branding",      description: "Logo, name & theme colors",   icon: Palette,      group: "Workspace" },
   { id: "authentication",label: "Authentication",description: "Sign-in methods & sessions",  icon: KeyRound,     group: "Security" },
   { id: "security",      label: "Security",      description: "Access controls & audit",     icon: ShieldCheck,  group: "Security" },
   { id: "notifications", label: "Notifications", description: "Channels and endpoints",      icon: Bell,         group: "Communications" },

@@ -1,5 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Lock, Wifi } from "lucide-react";
+import { Lock } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { BrandTitle } from "@/components/brand/BrandTitle";
 import {
   Sidebar,
   SidebarContent,
@@ -32,11 +34,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <Wifi className="h-4 w-4" />
-          </div>
+          <BrandLogo size="h-8 w-8" />
           <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight">CloudGuest</span>
+            <BrandTitle className="text-sm" />
             <span className="text-xs text-muted-foreground">Guest WiFi Platform</span>
           </div>
         </div>

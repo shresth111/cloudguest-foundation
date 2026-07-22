@@ -16,6 +16,7 @@ import {
 import { SettingsSearch } from "@/components/settings/SettingsSearch";
 import { SettingsQuickActions } from "@/components/settings/SettingsQuickActions";
 import { GeneralPanel } from "@/components/settings/panels/GeneralPanel";
+import { BrandingPanel } from "@/components/settings/panels/BrandingPanel";
 import { AuthenticationPanel } from "@/components/settings/panels/AuthenticationPanel";
 import { SecurityPanel } from "@/components/settings/panels/SecurityPanel";
 import { NotificationsPanel } from "@/components/settings/panels/NotificationsPanel";
@@ -63,6 +64,7 @@ function SettingsPage() {
   const renderPanel = () => {
     switch (active) {
       case "general":       return <GeneralPanel data={data.general} />;
+      case "branding":      return <BrandingPanel />;
       case "authentication":return <AuthenticationPanel data={data.auth} />;
       case "security":      return <SecurityPanel data={data.security} />;
       case "notifications": return <NotificationsPanel data={data.notifications} />;

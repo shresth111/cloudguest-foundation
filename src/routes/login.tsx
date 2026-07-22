@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatformBranding } from "@/context/PlatformBrandingContext";
 import { homeRoute } from "@/lib/roles";
 import type { AppError } from "@/services/api";
 
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const { login } = useAuth();
+  const { branding } = usePlatformBranding();
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
   const [submitting, setSubmitting] = useState(false);
@@ -52,7 +54,7 @@ function LoginPage() {
 
   return (
     <AuthLayout
-      title="Sign in to CloudGuest"
+      title={`Sign in to ${branding.companyName}`}
       subtitle="Enter your credentials to access your workspace."
       footer={
         <>

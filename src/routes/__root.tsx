@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth, type RouterAuthContext } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { PlatformBrandingProvider } from "@/context/PlatformBrandingContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -137,13 +138,15 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>
-          <AuthRouterContextSync />
-          <TooltipProvider delayDuration={200}>
-            <Outlet />
-            <Toaster position="top-right" richColors closeButton />
-          </TooltipProvider>
-        </AuthProvider>
+        <PlatformBrandingProvider>
+          <AuthProvider>
+            <AuthRouterContextSync />
+            <TooltipProvider delayDuration={200}>
+              <Outlet />
+              <Toaster position="top-right" richColors closeButton />
+            </TooltipProvider>
+          </AuthProvider>
+        </PlatformBrandingProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
