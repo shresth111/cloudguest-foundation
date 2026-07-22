@@ -1,37 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-export interface CustomerLocation {
-  id: string;
-  name: string;
-  city: string;
-  status: "online" | "offline" | "degraded";
-  onlineUsers: number;
-  routerHealth: number;
-  bandwidth: string;
-  isp: string;
-  lastSync: string;
-}
-
-export interface CustomerUser {
-  id: string;
-  name: string;
-  email: string;
-  device: string;
-  mac: string;
-  ip: string;
-  loginTime: string;
-  sessionDuration: string;
-  download: string;
-  upload: string;
-  status: "online" | "offline" | "idle";
-}
+import type { CustomerLocationSummary } from "@/services/customer.service";
 
 interface CustomerState {
   activeLocationId: string | null;
-  activeLocation: CustomerLocation | null;
+  activeLocation: CustomerLocationSummary | null;
   permissions: string[];
-  setActiveLocation: (id: string, loc: CustomerLocation) => void;
+  setActiveLocation: (id: string, loc: CustomerLocationSummary) => void;
   clearLocation: () => void;
 }
 
