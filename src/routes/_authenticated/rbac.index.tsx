@@ -13,6 +13,7 @@ import { LoginHistoryPanel } from "@/components/rbac/LoginHistoryPanel";
 import { PasswordPolicyInfo } from "@/components/rbac/PasswordPolicyInfo";
 import { RbacQuickActions } from "@/components/rbac/RbacQuickActions";
 import { GlobalUserSearch } from "@/components/rbac/GlobalUserSearch";
+import { SectionHeader } from "@/components/ui-ext";
 import type { Role, RbacUser } from "@/types/rbac";
 
 export const Route = createFileRoute("/_authenticated/rbac/")({
@@ -30,24 +31,24 @@ function RbacPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Users & Roles</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage teammates, roles, scoped permissions, and invitations across CloudGuest.
-        </p>
-      </div>
+      <SectionHeader
+        eyebrow="Administration"
+        title="Users & Roles"
+        description="Manage teammates, roles, scoped permissions, and invitations across CloudGuest."
+        actions={
+          <RbacQuickActions
+            onAddUser={() => setUserDialog({ open: true, user: null })}
+            onCreateRole={() => setRoleDialog({ open: true, role: null })}
+            onInvite={() => setTab("invitations")}
+            onExport={() => {
+              setTab("users");
+              toast.info("Use the Export button on the Users tab.");
+            }}
+          />
+        }
+      />
 
       <RbacKpiGrid />
-
-      <RbacQuickActions
-        onAddUser={() => setUserDialog({ open: true, user: null })}
-        onCreateRole={() => setRoleDialog({ open: true, role: null })}
-        onInvite={() => setTab("invitations")}
-        onExport={() => {
-          setTab("users");
-          toast.info("Use the Export button on the Users tab.");
-        }}
-      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto w-full flex-wrap gap-1">

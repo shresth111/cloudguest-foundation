@@ -1,125 +1,174 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
-import { ChevronLeft, Bell, Search, Sun, Moon, LayoutDashboard, Users, BarChart3, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, Menu, X, RotateCw } from "lucide-react";
+import { RotateCw, Wifi, Activity, TrendingUp, TrendingDown, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { CustomerShell, LoadingSkeleton } from "@/components/customer/CustomerShell";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerSidebar, useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
-
-const MODULE_ICONS: Record<string, typeof LayoutDashboard> = { dashboard: LayoutDashboard, users: Users, analytics: BarChart3, reports: FileText, campaigns: Megaphone, portal: Palette, vouchers: Ticket, policies: ShieldCheck, whitelist: Shield, devices: Monitor, teams: UsersRound, agents: Bot, networking: Network, advanced: Settings2, audit: ScrollText, help: LifeBuoy };
-
-const FEATURE_DESC: Record<string, string> = {
-  analytics: "Guest, network, and authentication analytics — powered by GET /analytics/guests, /analytics/network, /analytics/authentication, /guest-analytics/summary",
-  reports: "Generate PDF/CSV reports — powered by POST /reports, GET /reports/templates, GET /reports/schedule",
-  campaigns: "Guest engagement campaigns — powered by GET/POST /campaigns",
-  portal: "Captive portal configuration — powered by GET /captive-portal, GET /guest/login/otp, POST /guest/consent",
-  vouchers: "Voucher batch management — powered by GET/POST /voucher-batches, GET /voucher-plans, GET /voucher-series",
-  policies: "Authentication, bandwidth, and access policies — powered by GET/POST /policies, /policies/resolve",
-  whitelist: "MAC and device whitelisting — powered by GET /guest-access/device-rules, POST /guest-access/check",
-  devices: "Connected device monitoring — powered by GET /connected-devices",
-  teams: "Guest team management with shared quotas — powered by GET/POST /guest-teams",
-  agents: "Support agent permissions — powered by GET /roles/suggested, GET /permissions/tree",
-  networking: "VLAN, DHCP, DNS, Firewall, Hotspot, ISP — powered by /vlan, /dhcp, /dns, /firewall, /hotspot, /isp",
-  advanced: "System configuration and integrations",
-  audit: "Complete audit trail — powered by GET /audit/entries with CSV export at /audit/entries/export",
-  help: "Documentation, FAQs, and support resources",
-};
+import { useCustomerDashboard, useCustomerUsers, useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
-  beforeLoad: ({ context }) => {
-    if (context.auth?.status === "anonymous") throw redirect({ to: "/login" });
-  },
-  component: CustomerFeaturePage });
+  beforeLoad: ({ context }) => { if (context.auth?.status === "anonymous") throw redirect({ to: "/login" }); },
+  component: CustomerFeatureRoute,
+});
 
-function CustomerFeaturePage() {
+function CustomerFeatureRoute() {
   const { locationId, feature } = Route.useParams();
+  const { activeLocationId } = useCustomerStore();
   const navigate = useNavigate();
-  const { activeLocation } = useCustomerStore();
-  const { data: navItems } = useCustomerSidebar();
-  const { data: featureData, isLoading, isError, refetch } = useCustomerFeatureData(feature, locationId);
-  const meta = FEATURE_DESC[feature] ?? `${feature} management`;
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const toggleTheme = () => { const n = theme === "light" ? "dark" : "light"; setTheme(n); document.documentElement.classList.toggle("dark", n === "dark"); };
-  const items = navItems ?? [
-    { id: "dashboard", label: "Dashboard", module: "" },
-    { id: "users", label: "Users", module: "" },
-    { id: "analytics", label: "Analytics", module: "" }, { id: "reports", label: "Reports", module: "" },
-    { id: "campaigns", label: "Campaigns", module: "" }, { id: "portal", label: "Portal", module: "" },
-    { id: "vouchers", label: "Vouchers", module: "" }, { id: "policies", label: "Policies", module: "" },
-    { id: "whitelist", label: "Whitelist", module: "" }, { id: "devices", label: "Devices", module: "" },
-    { id: "teams", label: "Teams", module: "" }, { id: "agents", label: "Agents", module: "" },
-    { id: "networking", label: "Networking", module: "" }, { id: "advanced", label: "Advanced", module: "" },
-    { id: "audit", label: "Audit Logs", module: "" }, { id: "help", label: "Help", module: "" },
-  ];
+
+  if (activeLocationId !== locationId) {
+    return <div className="min-h-screen bg-[#0d1117] flex items-center justify-center"><p className="text-[#8b949e]">Location not found</p></div>;
+  }
+
+  return <FeaturePageShell locationId={locationId} feature={feature} />;
+}
+
+function FeaturePageShell({ locationId, feature }: { locationId: string; feature: string }) {
+  const dashData = useCustomerDashboard(locationId);
+  const usersData = useCustomerUsers(locationId, { page: 1, pageSize: 8 });
+  const featureData = useCustomerFeatureData(feature, locationId);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => { document.documentElement.classList.add("dark"); }, []);
+
+  if (dashData.isLoading) return <CustomerShell locationId={locationId} feature={feature}><LoadingSkeleton /></CustomerShell>;
+
+  const d = dashData.data;
 
   return (
-    <div className={cn("customer-theme flex min-h-screen", theme === "dark" && "dark")}>
-      {mobileOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />}
-      <aside className={cn("fixed inset-y-0 left-0 z-50 flex flex-col bg-card border-r-2 border-border lg:static lg:z-auto", sidebarOpen ? "w-56" : "w-14", mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
-        <div className="flex items-center gap-3 border-b-2 border-border px-3 h-14 shrink-0"><div className="flex h-8 w-8 items-center justify-center bg-[#ec3013] text-white text-xs font-bold">CG</div>{sidebarOpen && <p className="text-sm font-semibold truncate">{activeLocation?.name ?? "CloudGuest"}</p>}</div>
-        <button className="absolute right-2 top-3 lg:hidden" onClick={() => setMobileOpen(false)}><X className="h-4 w-4" /></button>
-        <div className="px-2 pt-2"><button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><ChevronLeft className="h-3.5 w-3.5" />{sidebarOpen && <span>All locations</span>}</button></div>
-        <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
-          {items.map((item) => {
-            const Icon = MODULE_ICONS[item.id] ?? LayoutDashboard; const isActive = item.id === feature;
-            return (<button key={item.id} onClick={() => { navigate({ to: `/customer/${locationId}/${item.id}` }); setMobileOpen(false); }} className={cn("flex w-full items-center gap-3 px-3 py-2 text-sm border-l-2", isActive ? "border-l-[#ec3013] bg-[#f3f2f2] dark:bg-neutral-800 text-[#ec3013] font-semibold" : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")}><Icon className="h-4 w-4 shrink-0" />{sidebarOpen && <span className="truncate">{item.label}</span>}</button>);
-          })}
-        </nav>
-        <div className="border-t-2 border-border p-2 hidden lg:block"><button onClick={() => setSidebarOpen(!sidebarOpen)} className="flex w-full items-center justify-center px-3 py-2 text-xs text-muted-foreground">{sidebarOpen ? "◄ Collapse" : "►"}</button></div>
-      </aside>
+    <CustomerShell locationId={locationId} feature={feature}>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {feature === "dashboard" && d && (
+          <>
+            {/* Health Row */}
+            <div className="flex flex-wrap gap-6 bg-[#161b22] border border-[#30363d] p-4 rounded">
+              {[
+                { icon: CheckCircle, label: "System", value: d.health.systemHealth, color: "text-emerald-500" },
+                { icon: Wifi, label: "Routers", value: d.health.routersOnline, color: "text-emerald-500" },
+                { icon: Activity, label: "ISP", value: d.health.isp, color: "text-emerald-500" },
+                { icon: TrendingUp, label: "Load", value: d.health.networkLoad, color: "text-emerald-500" },
+              ].map((item) => (<div key={item.label} className="flex items-center gap-3"><item.icon className={cn("h-5 w-5", item.color)} /><div><p className="text-xs text-[#8b949e] uppercase tracking-wider">{item.label}</p><p className="text-sm font-semibold text-[#c9d1d9]">{item.value}</p></div></div>))}
+            </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b-2 border-border bg-card px-4">
-          <button className="lg:hidden" onClick={() => setMobileOpen(true)}><Menu className="h-5 w-5" /></button>
-          <p className="text-sm font-semibold flex-1 truncate capitalize">{feature}</p>
-          <button className="flex h-8 w-8 items-center justify-center text-muted-foreground"><Search className="h-4 w-4" /></button>
-          <div className="relative"><button onClick={() => setNotifOpen(!notifOpen)} className="flex h-8 w-8 items-center justify-center text-muted-foreground relative"><Bell className="h-4 w-4" /><span className="absolute -right-0.5 -top-0.5 h-3 w-3 bg-[#ec3013] text-[7px] font-bold text-white flex items-center justify-center">3</span></button></div>
-          <button onClick={toggleTheme} className="flex h-8 w-8 items-center justify-center text-muted-foreground">{theme === "light" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
-          <button onClick={() => refetch()} className="flex h-8 w-8 items-center justify-center text-muted-foreground"><RotateCw className="h-4 w-4" /></button>
-        </header>
+            {/* KPI Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3">
+              {[
+                { l: "Online", v: d.kpis.onlineUsers }, { l: "Sessions", v: d.kpis.activeSessions },
+                { l: "Routers", v: `${d.kpis.routersOnline}/${d.kpis.totalRouters}` }, { l: "Today Guests", v: d.kpis.todayGuests },
+                { l: "Avg Session", v: `${d.kpis.avgSession}m` }, { l: "SLA", v: `${d.kpis.slaUptime}%` },
+              ].map((kpi) => (
+                <div key={kpi.l} className="bg-[#161b22] border border-[#30363d] p-4 rounded hover:border-[#ec3013] transition-colors">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b949e]">{kpi.l}</p>
+                  <p className="text-xl font-bold text-[#c9d1d9] mt-1">{kpi.v}</p>
+                </div>
+              ))}
+            </div>
 
-        <main className="flex-1 bg-[#f3f2f2] dark:bg-neutral-900 p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex items-start justify-between"><div><h1 className="text-xl font-bold capitalize">{feature}</h1><p className="text-xs text-muted-foreground mt-1">{meta}</p></div></div>
-            {isLoading ? (<div className="space-y-3 animate-pulse">{Array.from({length:4}).map((_,i)=><div key={i} className="border-2 border-border bg-card p-6"><div className="h-4 w-48 bg-muted mb-3"/><div className="h-8 w-full bg-muted"/></div>)}</div>)
-            : isError ? (<div className="text-center py-12"><p className="text-muted-foreground mb-4">Failed to load</p><Button variant="outline" className="border-2 border-border rounded-none" onClick={()=>refetch()}><RotateCw className="mr-2 h-4 w-4"/>Retry</Button></div>)
-            : <FeatureContent feature={feature} locationId={locationId} data={featureData} />}
-          </div>
-        </main>
+            {/* Charts */}
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-1 bg-[#161b22] border border-[#30363d] p-4 rounded">
+                <p className="text-sm font-semibold text-[#c9d1d9] mb-3">Users (24h)</p>
+                <div className="h-48"><ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ec3013" stopOpacity={0.3} /><stop offset="100%" stopColor="#ec3013" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#30363d" /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: "#8b949e" }} /><YAxis tick={{ fontSize: 10, fill: "#8b949e" }} /><Tooltip contentStyle={{ background: "#161b22", border: "1px solid #30363d" }} /><Area type="monotone" dataKey="users" stroke="#ec3013" fill="url(#ug)" strokeWidth={2} /></AreaChart></ResponsiveContainer></div>
+              </div>
+              <div className="lg:col-span-1 bg-[#161b22] border border-[#30363d] p-4 rounded">
+                <p className="text-sm font-semibold text-[#c9d1d9] mb-3">Devices</p>
+                <div className="h-48"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={d.deviceDistribution} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2} dataKey="value">{d.deviceDistribution.map((_, i) => <Cell key={i} fill={["#ec3013","#f05a3a","#f4856a","#f7b0a0","#fad5cd","#e5e5e5"][i % 6]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div>
+              </div>
+              <div className="lg:col-span-1 bg-[#161b22] border border-[#30363d] p-4 rounded">
+                <p className="text-sm font-semibold text-[#c9d1d9] mb-3">Sessions</p>
+                <div className="h-48"><ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" stroke="#30363d" /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: "#8b949e" }} /><YAxis tick={{ fontSize: 10, fill: "#8b949e" }} /><Tooltip contentStyle={{ background: "#161b22", border: "1px solid #30363d" }} /><Bar dataKey="sessions" fill="#ec3013" /></BarChart></ResponsiveContainer></div>
+              </div>
+            </div>
+
+            {/* Tables */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="bg-[#161b22] border border-[#30363d] rounded">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363d]"><p className="text-sm font-semibold text-[#c9d1d9]">Recent Users</p><Button variant="ghost" size="sm" className="text-xs text-[#ec3013]" onClick={() => navigate({ to: `/customer/${locationId}/users` })}>All →</Button></div>
+                <div className="overflow-x-auto"><Table><TableHeader><TableRow className="border-b border-[#30363d]"><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">User</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e] hidden md:table-cell">Device</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Status</TableHead></TableRow></TableHeader>
+                <TableBody>{d.recentUsers.map((u) => (<TableRow key={u.id} className="border-b border-[#30363d]"><TableCell><p className="text-sm font-medium text-[#c9d1d9]">{u.name}</p><p className="text-xs text-[#8b949e]">{u.email}</p></TableCell><TableCell className="text-sm text-[#c9d1d9] hidden md:table-cell">{u.device}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-[#8b949e]")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-[#8b949e]")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></div>
+              </div>
+              <div className="bg-[#161b22] border border-[#30363d] rounded">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363d]"><p className="text-sm font-semibold text-[#c9d1d9]">Alerts</p><Button variant="ghost" size="sm" className="text-xs text-[#ec3013]">All →</Button></div>
+                <div className="divide-y divide-[#30363d]">{d.recentAlerts.map((a) => (<div key={a.msg} className="flex items-start gap-3 px-4 py-3">
+                  {a.type === "error" && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />}
+                  {a.type === "warning" && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />}
+                  {a.type === "success" && <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />}
+                  {a.type === "info" && <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />}
+                  <div className="min-w-0 flex-1"><p className="text-sm text-[#c9d1d9]">{a.msg}</p><p className="text-xs text-[#8b949e]">{a.time}</p></div>
+                </div>))}</div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {feature === "users" && <UsersView locationId={locationId} />}
+        {feature === "analytics" && <AnalyticsView locationId={locationId} />}
+        {feature === "reports" && <ReportsView />}
+        {feature === "campaigns" && <CampaignsView locationId={locationId} />}
+        {feature === "vouchers" && <VouchersView />}
+        {feature === "portal" && <PortalView />}
+        {feature === "audit" && <AuditView locationId={locationId} />}
+        {feature === "devices" && <DevicesView locationId={locationId} />}
+        {["policies","whitelist","teams","agents","networking","advanced","help"].includes(feature) && <PlaceholderView feature={feature} />}
       </div>
-    </div>
+    </CustomerShell>
   );
 }
 
-function FeatureContent({ feature, locationId, data }: { feature: string; locationId: string; data: any }) {
-  switch (feature) {
-    case "analytics": {
-      const a = data?.analytics;
-      return (<div className="grid gap-4"><div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card className="border-2 border-border"><CardContent className="p-4"><p className="text-xs text-muted-foreground uppercase">Total Sessions</p><p className="text-xl font-bold mt-1">{a?.totalSessions ?? 1892}</p></CardContent></Card>
-        <Card className="border-2 border-border"><CardContent className="p-4"><p className="text-xs text-muted-foreground uppercase">Unique Guests</p><p className="text-xl font-bold mt-1">{a?.uniqueGuests ?? 847}</p></CardContent></Card>
-        <Card className="border-2 border-border"><CardContent className="p-4"><p className="text-xs text-muted-foreground uppercase">Return Rate</p><p className="text-xl font-bold mt-1">{a?.returningRate ?? 34}%</p></CardContent></Card>
-        <Card className="border-2 border-border"><CardContent className="p-4"><p className="text-xs text-muted-foreground uppercase">Avg Duration</p><p className="text-xl font-bold mt-1">{Math.round(a?.avgDuration ?? 28)} min</p></CardContent></Card>
-      </div><Card className="border-2 border-border"><CardContent className="p-6 text-sm text-muted-foreground">Real analytics loaded from <code>GET /guest-analytics/summary</code>, <code>GET /analytics/guests</code>, <code>GET /analytics/routers</code>, <code>GET /analytics/network</code>, <code>GET /analytics/authentication</code> — all scoped to organization via X-Organization-Id.</CardContent></Card></div>);
-    }
-    case "reports": return (<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report",d:"Guest activity, trends, and demographics"},{n:"Bandwidth Report",d:"Usage trends and top consumers"},{n:"Revenue Report",d:"Revenue, MRR, and billing summary"},{n:"Router Report",d:"Router health, uptime, and performance"},{n:"Voucher Report",d:"Voucher usage and redemption rates"},{n:"Portal Report",d:"Portal views, conversions, and engagement"}].map((r)=>(<Card key={r.n} className="border-2 border-border hover:border-[#ec3013] transition-colors"><CardContent className="p-4"><p className="text-sm font-semibold">{r.n}</p><p className="text-xs text-muted-foreground mt-1">{r.d}</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-7 text-xs border-2 border-border">PDF</Button><Button size="sm" variant="outline" className="h-7 text-xs border-2 border-border">CSV</Button></div></CardContent></Card>))}</div>);
-    case "campaigns": return (<Card className="border-2 border-border"><CardHeader><CardTitle className="text-sm">Campaigns</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead className="text-xs font-semibold uppercase">Name</TableHead><TableHead className="text-xs font-semibold uppercase">Status</TableHead><TableHead className="text-xs font-semibold uppercase">Impressions</TableHead></TableRow></TableHeader><TableBody>{(data?.campaigns ?? []).length === 0 ? (<TableRow><TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">No campaigns — GET /campaigns</TableCell></TableRow>) : data.campaigns.map((c:any)=>(<TableRow key={c.id} className="border-b border-border"><TableCell className="text-sm font-medium">{c.name}</TableCell><TableCell><Badge variant={c.status==="active"?"default":"secondary"} className="capitalize text-[10px]">{c.status}</Badge></TableCell><TableCell className="text-sm">{c.impressions}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
-    case "vouchers": return (<Card className="border-2 border-border"><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Voucher Batches</CardTitle><Button size="sm" className="bg-[#ec3013] text-white text-xs">Generate</Button></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead className="text-xs font-semibold uppercase">Code</TableHead><TableHead className="text-xs font-semibold uppercase">Plan</TableHead><TableHead className="text-xs font-semibold uppercase">Status</TableHead><TableHead className="text-xs font-semibold uppercase">Used</TableHead></TableRow></TableHeader><TableBody>{(data?.vouchers ?? []).length === 0 ? (<TableRow><TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">No vouchers — GET /voucher-batches, POST /voucher-batches</TableCell></TableRow>) : data.vouchers.map((v:any)=>(<TableRow key={v.code} className="border-b border-border"><TableCell className="font-mono text-xs">{v.code}</TableCell><TableCell className="text-sm">{v.plan}</TableCell><TableCell><Badge variant={v.status==="active"?"default":"secondary"} className="capitalize text-[10px]">{v.status}</Badge></TableCell><TableCell className="text-sm">{v.used}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
-    case "portal": return (<div className="grid gap-4 lg:grid-cols-2"><Card className="border-2 border-border"><CardHeader><CardTitle className="text-sm">Configuration</CardTitle></CardHeader><CardContent className="space-y-3">{(data?.portal ? [{l:"Status",v:data.portal.status},{l:"Theme",v:data.portal.theme},{l:"Auth",v:data.portal.authMethods.join(", ")},{l:"Languages",v:data.portal.languages.join(", ")}] : [{l:"Status",v:"Live"},{l:"Theme",v:"Enterprise Blue"},{l:"Endpoints",v:"POST /guest/login/otp, /guest/login/voucher, /guest/consent"},{l:"Config",v:"GET /captive-portal"}]).map((f)=>(<div key={f.l} className="flex justify-between border-b-2 border-border pb-2"><span className="text-sm text-muted-foreground">{f.l}</span><span className="text-sm font-medium">{f.v}</span></div>))}</CardContent></Card><Card className="border-2 border-border"><CardHeader><CardTitle className="text-sm">QR Code</CardTitle></CardHeader><CardContent className="flex flex-col items-center gap-3"><div className="grid h-32 w-32 place-items-center bg-[#f3f2f2]"><Palette className="h-12 w-12 text-muted-foreground"/></div><p className="text-xs text-muted-foreground">portal.cloudguest.io/{locationId}</p></CardContent></Card></div>);
-    case "policies": return (<Card className="border-2 border-border"><CardContent className="p-6 text-sm text-muted-foreground"><p className="font-semibold text-foreground mb-2">Policy Engine</p>Authentication, bandwidth, and access policies — powered by <code>GET /policies/resolve</code>, <code>POST /policies</code>, <code>POST /policies/{id}/activate</code>, <code>POST /policies/{id}/assignments</code>. Each policy is scoped by organization, location, or group.</CardContent></Card>);
-    case "whitelist": return (<Card className="border-2 border-border"><CardContent className="p-6 text-sm text-muted-foreground"><p className="font-semibold text-foreground mb-2">MAC Whitelist</p>Manage MAC address and device whitelisting — <code>GET /guest-access/device-rules</code>, <code>POST /guest-access/device-rules</code>, <code>POST /guest-access/rules</code>. Access checks via <code>POST /guest-access/check</code>.</CardContent></Card>);
-    case "devices": return (<Card className="border-2 border-border"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead className="text-xs font-semibold uppercase">MAC</TableHead><TableHead className="text-xs font-semibold uppercase">IP</TableHead><TableHead className="text-xs font-semibold uppercase">Device</TableHead><TableHead className="text-xs font-semibold uppercase">Last Seen</TableHead></TableRow></TableHeader><TableBody>{(data?.devices ?? []).length === 0 ? (<TableRow><TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">No devices — GET /connected-devices</TableCell></TableRow>) : data.devices.map((d:any)=>(<TableRow key={d.mac} className="border-b border-border"><TableCell className="font-mono text-xs">{d.mac}</TableCell><TableCell className="font-mono text-xs">{d.ip}</TableCell><TableCell className="text-sm">{d.device}</TableCell><TableCell className="text-xs text-muted-foreground">{d.lastSeen}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
-    case "teams": return (<Card className="border-2 border-border"><CardContent className="p-6 text-sm text-muted-foreground"><p className="font-semibold text-foreground mb-2">Guest Teams</p>Team-based access with shared data quotas — <code>GET /guest-teams</code>, <code>POST /guest-teams</code>, <code>DELETE /guest-teams/{id}/members/{guestId}</code>, <code>POST /guest-teams/{id}/revoke</code>. Teams can share bandwidth and time limits.</CardContent></Card>);
-    case "agents": return (<Card className="border-2 border-border"><CardContent className="p-6 text-sm text-muted-foreground"><p className="font-semibold text-foreground mb-2">Agent Permissions</p>Invite and manage support agents — <code>GET /roles/suggested</code>, <code>GET /permissions/tree</code>, <code>POST /agents/{id}/permissions</code>. Role-based access via <code>POST /users/{id}/roles</code>, <code>DELETE /users/{id}/roles/{assignmentId}</code>.</CardContent></Card>);
-    case "networking": return (<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{["VLAN","DHCP","DNS","Firewall","Hotspot","ISP","Port Forwarding","MAC Auth","QoS"].map((n)=>(<Card key={n} className="border-2 border-border hover:border-[#ec3013] transition-colors cursor-pointer"><CardContent className="p-4"><p className="text-sm font-semibold">{n}</p><p className="text-xs text-muted-foreground mt-1">Manage {n.toLowerCase()} — GET/POST /{n.toLowerCase().replace(/ /g,"-")}</p></CardContent></Card>))}</div>);
-    case "audit": return (<Card className="border-2 border-border"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent>{(data?.audit ?? []).length === 0 ? (<p className="text-sm text-muted-foreground py-8 text-center">No audit entries — GET /audit/entries, Export: GET /audit/entries/export</p>) : (<div className="space-y-3">{data.audit.map((ev:any,i:number)=>(<div key={i} className="flex items-start gap-3 border-b-2 border-border pb-2 last:border-0"><div className={cn("h-2 w-2 rounded-full mt-1.5",ev.status==="success"?"bg-emerald-500":"bg-sky-500")}/><div className="min-w-0 flex-1"><p className="text-sm">{ev.action}</p><p className="text-xs text-muted-foreground">{ev.user} · {ev.time}</p></div></div>))}</div>)}</CardContent></Card>);
-    case "help": return (<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{["Documentation","FAQs","Video Tutorials","Raise Ticket","Live Chat","Contact Support"].map((h)=>(<Card key={h} className="border-2 border-border hover:border-[#ec3013] transition-colors cursor-pointer"><CardContent className="p-4"><p className="text-sm font-semibold">{h}</p><p className="text-xs text-muted-foreground mt-1">Access {h.toLowerCase()}</p></CardContent></Card>))}</div>);
-    default: return <div className="text-center py-12 text-muted-foreground">Module not found</div>;
-  }
+function UsersView({ locationId }: { locationId: string }) {
+  const { data, isLoading } = useCustomerUsers(locationId, { page: 1, pageSize: 10 });
+  if (isLoading) return <LoadingSkeleton />;
+  return (<div className="bg-[#161b22] border border-[#30363d] rounded overflow-x-auto"><Table><TableHeader><TableRow className="border-b border-[#30363d]"><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">User</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e] hidden sm:table-cell">MAC</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Duration</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Download</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Status</TableHead></TableRow></TableHeader>
+  <TableBody>{(data?.users ?? []).length === 0 ? (<TableRow><TableCell colSpan={5} className="py-12 text-center text-sm text-[#8b949e]">No users</TableCell></TableRow>) : data?.users.map((u) => (<TableRow key={u.id} className="border-b border-[#30363d]"><TableCell><p className="text-sm font-medium text-[#c9d1d9]">{u.name}</p><p className="text-xs text-[#8b949e]">{u.email}</p></TableCell><TableCell className="font-mono text-xs text-[#8b949e] hidden sm:table-cell">{u.mac}</TableCell><TableCell className="text-xs text-[#c9d1d9]">{u.duration}</TableCell><TableCell className="text-xs text-[#c9d1d9]">{u.download}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : u.status === "idle" ? "text-amber-500" : "text-[#8b949e]")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : u.status === "idle" ? "bg-amber-500" : "bg-[#8b949e]")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></div>);
+}
+
+function AnalyticsView(_props: { locationId: string }) {
+  return (<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[{l:"Total Sessions",v:"1,892"},{l:"Unique Guests",v:"847"},{l:"Return Rate",v:"34%"},{l:"Avg Duration",v:"28 min"}].map((k)=> (<div key={k.l} className="bg-[#161b22] border border-[#30363d] p-4 rounded"><p className="text-[10px] font-semibold uppercase text-[#8b949e]">{k.l}</p><p className="text-xl font-bold text-[#c9d1d9] mt-1">{k.v}</p></div>))}</div>);
+}
+
+function ReportsView() {
+  return (<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report"},{n:"Bandwidth Report"},{n:"Revenue Report"},{n:"Router Report"},{n:"Voucher Report"},{n:"Portal Report"}].map((r)=>(<div key={r.n} className="bg-[#161b22] border border-[#30363d] p-4 rounded hover:border-[#ec3013] transition-colors"><p className="text-sm font-semibold text-[#c9d1d9]">{r.n}</p><p className="text-xs text-[#8b949e] mt-1">Generate PDF/CSV</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-7 text-xs border-[#30363d] text-[#c9d1d9]">PDF</Button><Button size="sm" variant="outline" className="h-7 text-xs border-[#30363d] text-[#c9d1d9]">CSV</Button></div></div>))}</div>);
+}
+
+function CampaignsView(_props: { locationId: string }) {
+  return (<div className="bg-[#161b22] border border-[#30363d] rounded"><div className="px-4 py-3 border-b border-[#30363d]"><p className="text-sm font-semibold text-[#c9d1d9]">Campaigns</p></div><Table><TableHeader><TableRow className="border-b border-[#30363d]"><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Name</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Status</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Impressions</TableHead></TableRow></TableHeader>
+  <TableBody>{[{n:"Summer Promo",s:"active",i:2841},{n:"New Year",s:"draft",i:0},{n:"Weekend Special",s:"active",i:1520}].map((c)=>(<TableRow key={c.n} className="border-b border-[#30363d]"><TableCell className="text-sm font-medium text-[#c9d1d9]">{c.n}</TableCell><TableCell><Badge className="bg-[#21262d] text-[#c9d1d9] border border-[#30363d] capitalize text-[10px]">{c.s}</Badge></TableCell><TableCell className="text-sm text-[#c9d1d9]">{c.i}</TableCell></TableRow>))}</TableBody></Table></div>);
+}
+
+function VouchersView() {
+  return (<div className="bg-[#161b22] border border-[#30363d] rounded"><div className="flex items-center justify-between px-4 py-3 border-b border-[#30363d]"><p className="text-sm font-semibold text-[#c9d1d9]">Vouchers</p><Button size="sm" className="bg-[#ec3013] text-white text-xs hover:bg-[#d42a11]">Generate</Button></div><Table><TableHeader><TableRow className="border-b border-[#30363d]"><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Code</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Plan</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Status</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Used</TableHead></TableRow></TableHeader>
+  <TableBody>{[{c:"VCH-8821",p:"1h",s:"active",u:3},{c:"VCH-8822",p:"24h",s:"active",u:12},{c:"VCH-8823",p:"1h",s:"active",u:1},{c:"VCH-8824",p:"3d",s:"unused",u:0}].map((v)=>(<TableRow key={v.c} className="border-b border-[#30363d]"><TableCell className="font-mono text-xs text-[#c9d1d9]">{v.c}</TableCell><TableCell className="text-sm text-[#c9d1d9]">{v.p}</TableCell><TableCell><Badge className="bg-[#21262d] text-[#c9d1d9] border border-[#30363d] capitalize text-[10px]">{v.s}</Badge></TableCell><TableCell className="text-sm text-[#c9d1d9]">{v.u}</TableCell></TableRow>))}</TableBody></Table></div>);
+}
+
+function PortalView() {
+  return (<div className="grid gap-4 lg:grid-cols-2"><div className="bg-[#161b22] border border-[#30363d] p-4 rounded"><p className="text-sm font-semibold text-[#c9d1d9] mb-3">Portal Config</p>{[{l:"Status",v:"Live"},{l:"Theme",v:"Enterprise"},{l:"Auth",v:"OTP, SMS, Voucher"},{l:"Languages",v:"EN, HI, AR"}].map((f)=>(<div key={f.l} className="flex justify-between border-b border-[#30363d] pb-2 mb-2"><span className="text-sm text-[#8b949e]">{f.l}</span><span className="text-sm font-medium text-[#c9d1d9]">{f.v}</span></div>))}</div><div className="bg-[#161b22] border border-[#30363d] p-4 rounded flex flex-col items-center justify-center"><p className="text-sm font-semibold text-[#c9d1d9] mb-2">QR Code</p><div className="grid h-32 w-32 place-items-center bg-[#21262d] border border-[#30363d] rounded"><svg className="h-16 w-16 text-[#8b949e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><p className="text-xs text-[#8b949e] mt-2">portal.cloudguest.io</p></div></div>);
+}
+
+function AuditView(_props: { locationId: string }) {
+  const items = [{a:"Guest login via OTP",w:"guest@email.com",t:"2m ago"},{a:"Voucher VCH-8824 created",w:"reception",t:"18m ago"},{a:"Router restart completed",w:"system",t:"1h ago"},{a:"Portal branding updated",w:"manager",t:"3h ago"}];
+  return (<div className="bg-[#161b22] border border-[#30363d] rounded"><div className="px-4 py-3 border-b border-[#30363d]"><p className="text-sm font-semibold text-[#c9d1d9]">Audit Trail</p></div><div className="divide-y divide-[#30363d]">{items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 px-4 py-3"><div className="h-2 w-2 rounded-full bg-emerald-500 mt-1.5"/><div><p className="text-sm text-[#c9d1d9]">{ev.a}</p><p className="text-xs text-[#8b949e]">{ev.w} · {ev.t}</p></div></div>))}</div></div>);
+}
+
+function DevicesView(_props: { locationId: string }) {
+  return (<div className="bg-[#161b22] border border-[#30363d] rounded"><div className="px-4 py-3 border-b border-[#30363d]"><p className="text-sm font-semibold text-[#c9d1d9]">Connected Devices</p></div><Table><TableHeader><TableRow className="border-b border-[#30363d]"><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">MAC</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">IP</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Device</TableHead><TableHead className="text-[10px] font-semibold uppercase text-[#8b949e]">Last Seen</TableHead></TableRow></TableHeader>
+  <TableBody>{[{m:"00:1A:2B:3C:4D:5E",i:"10.0.1.42",d:"iPhone 15",ls:"Just now"},{m:"AA:BB:CC:DD:EE:FF",i:"10.0.1.87",d:"MacBook Pro",ls:"2m ago"}].map((dv)=>(<TableRow key={dv.m} className="border-b border-[#30363d]"><TableCell className="font-mono text-xs text-[#c9d1d9]">{dv.m}</TableCell><TableCell className="font-mono text-xs text-[#c9d1d9]">{dv.i}</TableCell><TableCell className="text-sm text-[#c9d1d9]">{dv.d}</TableCell><TableCell className="text-xs text-[#8b949e]">{dv.ls}</TableCell></TableRow>))}</TableBody></Table></div>);
+}
+
+function PlaceholderView({ feature }: { feature: string }) {
+  const descriptions: Record<string, string> = {
+    policies: "Authentication, bandwidth, and access policies via GET /policies/resolve, POST /policies",
+    whitelist: "MAC whitelist via GET /guest-access/device-rules, POST /guest-access/device-rules",
+    teams: "Guest teams with shared quotas via GET /guest-teams, POST /guest-teams",
+    agents: "Agent permissions via GET /roles/suggested, GET /permissions/tree",
+    networking: "VLAN, DHCP, DNS, Firewall, Hotspot, ISP management",
+    advanced: "System configuration, integrations, and advanced tools",
+    help: "Documentation, FAQs, video tutorials, and support",
+  };
+  return (<div className="bg-[#161b22] border border-[#30363d] p-8 rounded text-center"><p className="text-sm font-semibold text-[#c9d1d9] mb-2 capitalize">{feature}</p><p className="text-xs text-[#8b949e]">{descriptions[feature] ?? "Module available"}</p></div>);
 }

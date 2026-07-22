@@ -34,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/context/AuthContext";
 import { primaryRoleLabel } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+import { SectionHeader } from "@/components/ui-ext";
 import { authService } from "@/services/auth.service";
 import { rbacService } from "@/services/rbac.service";
 import type { AppError } from "@/services/api";
@@ -93,12 +94,11 @@ function AccountPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your profile, security, and personal integrations.
-        </p>
-      </header>
+      <SectionHeader
+        eyebrow="Personal settings"
+        title="Account"
+        description="Manage your profile, security, and personal integrations."
+      />
 
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav className="space-y-1">
@@ -164,7 +164,7 @@ function SectionCard({
   footer?: React.ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="rounded-2xl border-border/70 shadow-sm transition-all duration-200 hover:shadow-md">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>

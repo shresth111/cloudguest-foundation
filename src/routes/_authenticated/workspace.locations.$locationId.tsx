@@ -53,6 +53,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { StatCard } from "@/components/ui-ext";
+import type { StatTone } from "@/components/ui-ext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useLocationResources } from "@/hooks/useWorkspace";
 import { useDeleteLocations } from "@/hooks/useLocations";
@@ -352,11 +354,16 @@ function LocationHeader({
 
 /* ---------- Overview ---------- */
 
+// Thin wrapper over the app's real premium StatCard (src/components/
+// ui-ext/StatCard.tsx) -- keeps every existing call site's `sub`/`tone`
+// API unchanged while giving all ~35 KPI usages across this file's tabs
+// the same gradient-accent, animated-counter treatment as the workspace
+// Dashboard Overview, in one place.
 function Kpi({
   label,
   value,
   sub,
-  icon: Icon,
+  icon,
   tone = "default",
 }: {
   label: string;
@@ -365,26 +372,8 @@ function Kpi({
   icon: React.ComponentType<{ className?: string }>;
   tone?: "default" | "positive" | "warning" | "danger";
 }) {
-  const toneCls = {
-    default: "bg-primary/10 text-primary",
-    positive: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    danger: "bg-red-500/10 text-red-600 dark:text-red-400",
-  }[tone];
-  return (
-    <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-4">
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 truncate text-xl font-semibold">{value}</p>
-          {sub && <p className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</p>}
-        </div>
-        <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${toneCls}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const statTone: StatTone = tone === "positive" ? "success" : tone;
+  return <StatCard label={label} value={value} hint={sub} tone={statTone} icon={icon} />;
 }
 
 function OverviewTab({
