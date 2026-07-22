@@ -898,8 +898,12 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       { id: "ws-net-vlan", label: "VLAN", icon: "Network", to: "/network/vlan" },
       { id: "ws-net-dhcp", label: "DHCP", icon: "Share2", to: "/network/dhcp" },
       { id: "ws-net-hotspot", label: "Hotspot", icon: "Wifi", to: "/network/hotspot" },
-      // RADIUS clients are managed via the NAS registry.
-      { id: "ws-net-radius", label: "Radius", icon: "Radio", to: "/nas" },
+      // RADIUS clients are managed via the NAS registry -- but /nas fans
+      // out across EVERY organization (no per-org scoping exists there),
+      // a real cross-tenant leak if linked from the customer workspace.
+      // Routers is the closest safe, already org-scoped destination until
+      // a workspace-scoped NAS view exists.
+      { id: "ws-net-radius", label: "Radius", icon: "Radio", to: "/workspace/routers" },
       { id: "ws-net-firewall", label: "Firewall", icon: "Shield", to: "/network/firewall" },
     ]),
     g("ws-guest-access", "Guest Access", 30, [
