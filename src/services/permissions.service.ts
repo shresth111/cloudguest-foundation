@@ -61,7 +61,6 @@ const NEW_IA_MODULES: ModuleId[] = [
   "analytics-guest",
   "analytics-device",
   "analytics-isp",
-  "admin-logs",
   "business-units",
   "documentation",
   "support-contact",
@@ -126,7 +125,6 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "workspace-reports",
     "workspace-billing",
     "workspace-notifications",
-    "workspace-audit",
     "workspace-company",
     "workspace-help",
     ...NEW_IA_MODULES,
@@ -168,13 +166,11 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "devices",
     "notifications",
     "help",
-    "admin-logs",
     "documentation",
     "support-contact",
     "analytics-network",
     "analytics-device",
     "analytics-isp",
-    "workspace-audit",
     "workspace-help",
   ],
   read_only: [
@@ -346,7 +342,6 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   // Operations
   monitoring: "Activity",
   audit: "ScrollText",
-  "admin-logs": "FileClock",
   // Administration
   organizations: "Building2",
   "business-units": "Building",
@@ -379,7 +374,6 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "workspace-reports": "ScrollText",
   "workspace-billing": "Receipt",
   "workspace-notifications": "Bell",
-  "workspace-audit": "ScrollText",
   "workspace-company": "Building2",
   "workspace-help": "LifeBuoy",
 };
@@ -418,7 +412,6 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   analytics: "Analytics",
   monitoring: "Device Monitoring",
   audit: "Audit Logs",
-  "admin-logs": "Admin Logs",
   organizations: "Organizations",
   "business-units": "Business Units",
   locations: "Locations",
@@ -447,7 +440,6 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "workspace-reports": "Reports",
   "workspace-billing": "Billing",
   "workspace-notifications": "Notifications",
-  "workspace-audit": "Audit logs",
   "workspace-company": "Company settings",
   "workspace-help": "Help center",
 };
@@ -486,7 +478,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   analytics: "/analytics",
   monitoring: "/monitoring",
   audit: "/audit",
-  "admin-logs": "/operations/admin-logs",
   organizations: "/organizations",
   "business-units": "/administration/business-units",
   locations: "/locations",
@@ -515,7 +506,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "workspace-reports": "/workspace/reports",
   "workspace-billing": "/workspace/billing",
   "workspace-notifications": "/workspace/notifications",
-  "workspace-audit": "/workspace/audit",
   "workspace-company": "/workspace/company",
   "workspace-help": "/workspace/help",
 };
@@ -592,7 +582,6 @@ const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   "analytics-isp": "analytics",
   // Operations
   monitoring: "operations",
-  "admin-logs": "operations",
   // Administration
   organizations: "administration",
   "business-units": "administration",
@@ -644,7 +633,6 @@ const MODULE_ORDER: ModuleId[] = [
   "analytics-isp",
   // Operations
   "monitoring",
-  "admin-logs",
   // Administration
   "organizations",
   "business-units",
@@ -676,7 +664,6 @@ const WORKSPACE_ORDER: ModuleId[] = [
   "workspace-reports",
   "workspace-billing",
   "workspace-notifications",
-  "workspace-audit",
   "workspace-company",
   "workspace-help",
 ];

@@ -47,7 +47,6 @@ export type ModuleId =
   | "workspace-reports"
   | "workspace-billing"
   | "workspace-notifications"
-  | "workspace-audit"
   | "workspace-company"
   | "workspace-help"
   // Network group
@@ -71,8 +70,6 @@ export type ModuleId =
   | "analytics-guest"
   | "analytics-device"
   | "analytics-isp"
-  // Operations group
-  | "admin-logs"
   // Administration group
   | "business-units"
   // Support group

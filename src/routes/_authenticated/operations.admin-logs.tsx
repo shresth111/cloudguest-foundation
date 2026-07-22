@@ -1,20 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { FileClock } from "lucide-react";
-import { PageShell, ComingSoonPanel } from "@/components/ui-ext";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Empty "coming soon" placeholder -- no data fetching, no backend behind it,
+// conceptually a duplicate of the real /audit page. Retired in favor of
+// /audit; this redirect exists only so old bookmarks/links don't dead-end.
 export const Route = createFileRoute("/_authenticated/operations/admin-logs")({
-  component: Page,
+  beforeLoad: () => {
+    throw redirect({ to: "/audit" });
+  },
 });
-
-function Page() {
-  return (
-    <PageShell>
-      <ComingSoonPanel
-        title="Admin Logs"
-        description="Immutable ledger of every administrative action across the platform."
-        icon={FileClock}
-        bullets={["Immutable ledger","Actor & IP","Diff view"]}
-      />
-    </PageShell>
-  );
-}
