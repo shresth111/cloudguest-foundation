@@ -11,7 +11,7 @@ export interface AppError {
   fieldErrors?: Record<string, string>;
 }
 
-interface BackendEnvelope<T> {
+export interface BackendEnvelope<T> {
   success: boolean;
   message: string;
   data: T;
@@ -40,7 +40,7 @@ function fieldErrorsFromValidation(data: unknown): Record<string, string> | unde
   return out;
 }
 
-function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppError {
+export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppError {
   const status = error.response?.status ?? null;
   const envelope = error.response?.data;
   const message = envelope?.message || error.message || "Something went wrong";
@@ -132,7 +132,9 @@ api.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<BackendEnvelope<unknown>>) => {
-    const config = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const config = error.config as
+      | (InternalAxiosRequestConfig & { _retried?: boolean })
+      | undefined;
     const isRefreshCall = config?.url?.includes("/auth/refresh");
 
     if (error.response?.status === 401 && config && !config._retried && !isRefreshCall) {

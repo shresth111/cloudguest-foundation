@@ -3,23 +3,14 @@ import { Clock } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { portalRuntimeService } from "@/services/portal-runtime.service";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/portal/expired")({
   component: ExpiredPage,
 });
 
 function ExpiredPage() {
-  const { t, setSession } = usePortalRuntime();
-  const navigate = useNavigate();
-
-  const extend = async () => {
-    const s = await portalRuntimeService.createSession();
-    setSession(s);
-    toast.success("Session extended");
-    navigate({ to: "/portal/session" });
-  };
+  const { t } = usePortalRuntime();
+  const navigate = useNavigate({ from: "/portal/expired" });
 
   return (
     <PortalShell>
@@ -38,16 +29,9 @@ function ExpiredPage() {
           <Button
             className="h-11 w-full font-semibold text-white shadow-lg"
             style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={() => navigate({ to: "/portal/welcome" })}
+            onClick={() => navigate({ to: "/portal/welcome", search: (prev) => prev })}
           >
             {t("reconnect")}
-          </Button>
-          <Button
-            variant="outline"
-            className="h-11 w-full border-white/15 bg-white/[0.06] text-white hover:bg-white/10 hover:text-white"
-            onClick={extend}
-          >
-            {t("extend")}
           </Button>
         </div>
       </div>

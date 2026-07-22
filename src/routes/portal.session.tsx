@@ -18,55 +18,66 @@ function formatBytes(b: number) {
 
 function SessionPage() {
   const { t, session, setSession } = usePortalRuntime();
-  const navigate = useNavigate();
-  const [now, setNow] = useState(Date.now());
+  const navigate = useNavigate({ from: "/portal/session" });
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (!session) {
-      navigate({ to: "/portal/expired", replace: true });
+      navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
       return;
     }
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [session, navigate]);
 
-  if (!session) return null;
-  const remainingMs = Math.max(0, session.expiresAt - now);
+  if (!session || now === 0) return null;
+
+  const timeoutMinutes = session.sessionTimeoutMinutes ?? 0;
+  const expiresAtMs = new Date(session.startedAt).getTime() + timeoutMinutes * 60_000;
+  const remainingMs = Math.max(0, expiresAtMs - now);
   const h = Math.floor(remainingMs / 3_600_000);
   const m = Math.floor((remainingMs % 3_600_000) / 60_000);
   const s = Math.floor((remainingMs % 60_000) / 1000);
-  const usagePct = (session.bytesUsed / session.bytesLimit) * 100;
+  const bytesUsed = session.bytesUploaded + session.bytesDownloaded;
+  const bytesLimit = (session.dataLimitMb ?? 0) * 1024 * 1024;
+  const usagePct = bytesLimit > 0 ? (bytesUsed / bytesLimit) * 100 : 0;
 
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
         <div>
           <h1 className="text-2xl font-semibold">Session</h1>
-          <p className="mt-1 text-sm text-white/60">Live usage for this device.</p>
+          <p className="mt-1 text-sm text-white/60">Live countdown for this device.</p>
         </div>
         <PortalCard className="space-y-4">
           <div>
-            <p className="text-xs uppercase tracking-wider text-white/50">{t("sessionRemaining")}</p>
+            <p className="text-xs uppercase tracking-wider text-white/50">
+              {t("sessionRemaining")}
+            </p>
             <p className="mt-1 text-4xl font-bold tabular-nums">
               {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
             </p>
           </div>
           <div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">{t("dataUsage")}</span>
+              <span className="text-white/70">{t("dataUsage")} (as of sign-in)</span>
               <span className="font-semibold">
-                {formatBytes(session.bytesUsed)} / {formatBytes(session.bytesLimit)}
+                {formatBytes(bytesUsed)}
+                {bytesLimit > 0 ? ` / ${formatBytes(bytesLimit)}` : ""}
               </span>
             </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.min(100, usagePct)}%`,
-                  background: `linear-gradient(90deg, var(--pr-primary), var(--pr-accent))`,
-                }}
-              />
-            </div>
+            {bytesLimit > 0 && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(100, usagePct)}%`,
+                    background: `linear-gradient(90deg, var(--pr-primary), var(--pr-accent))`,
+                  }}
+                />
+              </div>
+            )}
           </div>
         </PortalCard>
         <PortalCard>
@@ -75,9 +86,10 @@ function SessionPage() {
               <Laptop className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{session.device}</p>
+              <p className="text-sm font-semibold">{session.deviceName ?? "This device"}</p>
               <p className="truncate text-xs text-white/60">
-                {session.ipAddress} · {session.macAddress}
+                {session.ipAddress ?? "IP unknown"}
+                {session.deviceMacAddress ? ` · ${session.deviceMacAddress}` : ""}
               </p>
             </div>
           </div>
@@ -85,7 +97,10 @@ function SessionPage() {
         <Button
           variant="outline"
           className="h-11 w-full border-white/15 bg-white/[0.06] text-white hover:bg-white/10 hover:text-white"
-          onClick={() => { setSession(undefined); navigate({ to: "/portal/expired" }); }}
+          onClick={() => {
+            setSession(undefined);
+            navigate({ to: "/portal/expired", search: (prev) => prev });
+          }}
         >
           <LogOut className="me-2 h-4 w-4" /> {t("logout")}
         </Button>

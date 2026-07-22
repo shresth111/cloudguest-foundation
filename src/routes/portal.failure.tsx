@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { XCircle, RotateCcw, LifeBuoy } from "lucide-react";
+import { XCircle, RotateCcw } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -9,8 +9,8 @@ export const Route = createFileRoute("/portal/failure")({
 });
 
 function FailurePage() {
-  const { t, config } = usePortalRuntime();
-  const navigate = useNavigate();
+  const { t } = usePortalRuntime();
+  const navigate = useNavigate({ from: "/portal/failure" });
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-5">
@@ -23,23 +23,16 @@ function FailurePage() {
         </div>
         <PortalCard>
           <p className="text-sm text-white/70">
-            If the issue continues, please contact our team:
+            If the issue continues, please ask venue staff for assistance.
           </p>
-          <div className="mt-3 space-y-1 text-sm">
-            <p className="text-white/90">{config?.brand.supportEmail}</p>
-            <p className="text-white/60">{config?.brand.supportPhone}</p>
-          </div>
         </PortalCard>
         <div className="flex flex-col gap-2">
           <Button
             className="h-11 w-full font-semibold text-white shadow-lg"
             style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={() => navigate({ to: "/portal/auth" })}
+            onClick={() => navigate({ to: "/portal/auth", search: (prev) => prev })}
           >
             <RotateCcw className="me-2 h-4 w-4" /> {t("retry")}
-          </Button>
-          <Button variant="ghost" className="h-11 w-full text-white/80 hover:bg-white/10 hover:text-white">
-            <LifeBuoy className="me-2 h-4 w-4" /> {t("contactSupport")}
           </Button>
         </div>
       </div>

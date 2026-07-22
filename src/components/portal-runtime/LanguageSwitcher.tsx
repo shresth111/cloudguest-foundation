@@ -12,7 +12,7 @@ import type { RuntimeLanguage } from "@/types/portal-runtime";
 
 export function LanguageSwitcher() {
   const { config, language, setLanguage, t } = usePortalRuntime();
-  const langs = (config?.languages ?? ["en"]) as RuntimeLanguage[];
+  const langs = (config?.supportedLanguages ?? ["en"]) as RuntimeLanguage[];
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

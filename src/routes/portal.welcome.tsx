@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Wifi } from "lucide-react";
-import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { ArrowRight } from "lucide-react";
+import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
@@ -10,39 +10,24 @@ export const Route = createFileRoute("/portal/welcome")({
 
 function WelcomePage() {
   const { config, t } = usePortalRuntime();
-  const navigate = useNavigate();
-  const brand = config?.brand;
+  const navigate = useNavigate({ from: "/portal/welcome" });
 
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-6">
         <div>
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
-            {brand?.welcomeTitle ?? "Welcome"}
+            {config?.splashHeadline ?? "Welcome"}
           </h1>
-          <p className="mt-3 text-sm text-white/70 sm:text-base">
-            {brand?.welcomeMessage}
-          </p>
+          <p className="mt-3 text-sm text-white/70 sm:text-base">{config?.splashWelcomeMessage}</p>
         </div>
-        <PortalCard className="space-y-3">
-          <div className="flex items-center gap-3 text-sm">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-white/10">
-              <Wifi className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-white/60 text-xs">{t("wifi")}</p>
-              <p className="font-medium truncate">{brand?.wifiSsid}</p>
-            </div>
-          </div>
-          <p className="text-xs text-white/60">{brand?.termsSummary}</p>
-        </PortalCard>
 
         <div className="flex flex-col gap-2">
           <Button
             size="lg"
             className="h-12 w-full text-base font-semibold text-white shadow-lg"
             style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={() => navigate({ to: "/portal/auth" })}
+            onClick={() => navigate({ to: "/portal/auth", search: (prev) => prev })}
           >
             {t("connect")} <ArrowRight className="ms-2 h-4 w-4" />
           </Button>
@@ -51,7 +36,9 @@ function WelcomePage() {
             className="h-11 w-full text-white/80 hover:bg-white/10 hover:text-white"
             asChild
           >
-            <Link to="/portal/terms">{t("learnMore")}</Link>
+            <Link to="/portal/terms" from="/portal/welcome" search={(prev) => prev}>
+              {t("learnMore")}
+            </Link>
           </Button>
         </div>
       </div>

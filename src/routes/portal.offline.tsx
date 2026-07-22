@@ -10,7 +10,7 @@ export const Route = createFileRoute("/portal/offline")({
 
 function OfflinePage() {
   const { t } = usePortalRuntime();
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/portal/offline" });
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-5">
@@ -27,7 +27,7 @@ function OfflinePage() {
         <Button
           className="h-11 w-full font-semibold text-white shadow-lg"
           style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-          onClick={() => navigate({ to: "/portal", replace: true })}
+          onClick={() => navigate({ to: "/portal", replace: true, search: (prev) => prev })}
         >
           {t("retry")}
         </Button>

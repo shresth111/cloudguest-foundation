@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
@@ -11,15 +11,29 @@ export const Route = createFileRoute("/portal/redirect")({
 
 function RedirectPage() {
   const { config, t } = usePortalRuntime();
-  const [remaining, setRemaining] = useState(config?.redirectDelaySeconds ?? 5);
+  const navigate = useNavigate({ from: "/portal/redirect" });
+  const [remaining, setRemaining] = useState(5);
+  const url = config?.redirectUrl;
 
   useEffect(() => {
-    if (remaining <= 0) return;
+    if (!url) {
+      navigate({ to: "/portal/success", replace: true, search: (prev) => prev });
+    }
+  }, [url, navigate]);
+
+  useEffect(() => {
+    if (!url || remaining <= 0) return;
     const id = setInterval(() => setRemaining((r) => r - 1), 1000);
     return () => clearInterval(id);
-  }, [remaining]);
+  }, [url, remaining]);
 
-  const url = config?.redirectUrl ?? "#";
+  useEffect(() => {
+    if (url && remaining <= 0) {
+      window.location.href = url;
+    }
+  }, [url, remaining]);
+
+  if (!url) return null;
 
   return (
     <PortalShell>
@@ -32,7 +46,9 @@ function RedirectPage() {
             <ExternalLink className="h-9 w-9" />
           </div>
           <h1 className="mt-5 text-2xl font-bold">{t("redirecting")}</h1>
-          <p className="mt-1 text-sm text-white/60">You'll be sent to <span className="text-white">{url}</span> shortly.</p>
+          <p className="mt-1 text-sm text-white/60">
+            You'll be sent to <span className="text-white">{url}</span> shortly.
+          </p>
         </div>
         <PortalCard className="text-center">
           <p className="text-4xl font-bold tabular-nums">{remaining}</p>
@@ -43,7 +59,9 @@ function RedirectPage() {
           style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
           asChild
         >
-          <a href={url} target="_blank" rel="noreferrer">Continue now</a>
+          <a href={url} target="_blank" rel="noreferrer">
+            Continue now
+          </a>
         </Button>
       </div>
     </PortalShell>

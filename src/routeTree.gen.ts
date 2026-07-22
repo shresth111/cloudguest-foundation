@@ -33,6 +33,7 @@ import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authentica
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
 import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system.index'
@@ -227,6 +228,11 @@ const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const PortalAuthIndexRoute = PortalAuthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PortalAuthRoute,
 } as any)
 const AuthenticatedWorkspaceIndexRoute =
   AuthenticatedWorkspaceIndexRouteImport.update({
@@ -758,6 +764,7 @@ export interface FileRoutesByFullPath {
   '/system/': typeof AuthenticatedSystemIndexRoute
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/portal/auth/': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -773,7 +780,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/portal/ad': typeof PortalAdRoute
-  '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
@@ -854,6 +860,7 @@ export interface FileRoutesByTo {
   '/system': typeof AuthenticatedSystemIndexRoute
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
+  '/portal/auth': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -955,6 +962,7 @@ export interface FileRoutesById {
   '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/portal/auth/': typeof PortalAuthIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1056,6 +1064,7 @@ export interface FileRouteTypes {
     | '/system/'
     | '/vouchers/'
     | '/workspace/'
+    | '/portal/auth/'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
@@ -1071,7 +1080,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/select-space'
     | '/portal/ad'
-    | '/portal/auth'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
@@ -1152,6 +1160,7 @@ export interface FileRouteTypes {
     | '/system'
     | '/vouchers'
     | '/workspace'
+    | '/portal/auth'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
@@ -1252,6 +1261,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system/'
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
+    | '/portal/auth/'
     | '/_authenticated/workspace/locations/$locationId'
     | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
@@ -1437,6 +1447,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/account'
       preLoaderRoute: typeof AuthenticatedAccountRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/portal/auth/': {
+      id: '/portal/auth/'
+      path: '/'
+      fullPath: '/portal/auth/'
+      preLoaderRoute: typeof PortalAuthIndexRouteImport
+      parentRoute: typeof PortalAuthRoute
     }
     '/_authenticated/workspace/': {
       id: '/_authenticated/workspace/'
@@ -2171,10 +2188,12 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface PortalAuthRouteChildren {
   PortalAuthMethodRoute: typeof PortalAuthMethodRoute
+  PortalAuthIndexRoute: typeof PortalAuthIndexRoute
 }
 
 const PortalAuthRouteChildren: PortalAuthRouteChildren = {
   PortalAuthMethodRoute: PortalAuthMethodRoute,
+  PortalAuthIndexRoute: PortalAuthIndexRoute,
 }
 
 const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(

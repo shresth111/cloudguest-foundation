@@ -10,9 +10,11 @@ export const Route = createFileRoute("/portal/success")({
 });
 
 function SuccessPage() {
-  const { t, session, config, setSession } = usePortalRuntime();
-  const navigate = useNavigate();
-  const remaining = session ? Math.max(0, Math.round((session.expiresAt - Date.now()) / 60000)) : config?.sessionMinutes ?? 0;
+  const { t, session, setSession } = usePortalRuntime();
+  const navigate = useNavigate({ from: "/portal/success" });
+  const timeoutMinutes = session?.sessionTimeoutMinutes ?? 0;
+  const expiresAtMs = session ? new Date(session.startedAt).getTime() + timeoutMinutes * 60_000 : 0;
+  const remaining = session ? Math.max(0, Math.round((expiresAtMs - Date.now()) / 60_000)) : 0;
 
   return (
     <PortalShell>
@@ -31,14 +33,16 @@ function SuccessPage() {
         </div>
         <PortalCard className="space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-white/70"><Timer className="h-4 w-4" /> {t("sessionRemaining")}</span>
+            <span className="flex items-center gap-2 text-white/70">
+              <Timer className="h-4 w-4" /> {t("sessionRemaining")}
+            </span>
             <span className="font-semibold">{remaining} min</span>
           </div>
           <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full"
               style={{
-                width: `${Math.min(100, (remaining / (config?.sessionMinutes ?? 120)) * 100)}%`,
+                width: `${timeoutMinutes > 0 ? Math.min(100, (remaining / timeoutMinutes) * 100) : 0}%`,
                 background: `linear-gradient(90deg, var(--pr-primary), var(--pr-accent))`,
               }}
             />
@@ -48,21 +52,24 @@ function SuccessPage() {
           <Button
             className="h-11 w-full font-semibold text-white shadow-lg"
             style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={() => navigate({ to: "/portal/redirect" })}
+            onClick={() => navigate({ to: "/portal/redirect", search: (prev) => prev })}
           >
             {t("continue")}
           </Button>
           <Button
             variant="ghost"
             className="h-11 w-full text-white/80 hover:bg-white/10 hover:text-white"
-            onClick={() => { setSession(undefined); navigate({ to: "/portal/expired" }); }}
+            onClick={() => {
+              setSession(undefined);
+              navigate({ to: "/portal/expired", search: (prev) => prev });
+            }}
           >
             <LogOut className="me-2 h-4 w-4" /> {t("logout")}
           </Button>
           <Button
             variant="link"
             className="text-white/60 hover:text-white"
-            onClick={() => navigate({ to: "/portal/session" })}
+            onClick={() => navigate({ to: "/portal/session", search: (prev) => prev })}
           >
             View session details
           </Button>
