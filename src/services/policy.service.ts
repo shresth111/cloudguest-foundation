@@ -1,119 +1,202 @@
-import type { Policy, PolicyKpis, PolicyScope } from "@/types/policy";
+import { api } from "@/services/api";
+import type { AuthMethod, Policy, PolicyKpis, PolicyScope, PolicyStatus } from "@/types/policy";
 
-const now = Date.now();
+// PolicyType.ACCESS is backend's generic, dependency-free policy type --
+// GenericPolicyRules accepts any JSON object with no typed schema (see
+// backend/app/domains/policy/constants.py's module docstring). The full
+// composite Policy shape this UI edits (bandwidth/quota/device/authMethods/
+// timeWindow/targets) has no dedicated backend type of its own, so it is
+// persisted whole as one version's `rules` blob under this type.
+const POLICY_TYPE = "access";
 
-let POLICIES: Policy[] = [
-  {
-    id: "pol_1", scope: "location", name: "Flagship Hotel — Guest",
-    description: "Standard guest policy for the flagship hotel property.",
-    status: "active", priority: 10,
-    bandwidth: { downloadKbps: 8_000, uploadKbps: 4_000, burstDownloadKbps: 20_000 },
-    quota: { dailyMB: 2_000, dailyMinutes: 720 },
-    device: { maxDevicesPerGuest: 3, allowBYOD: true, blockedOSes: [] },
-    authMethods: ["otp_sms", "voucher", "social"],
-    timeWindow: { start: "00:00", end: "23:59", days: [0,1,2,3,4,5,6] },
-    locationIds: ["loc_1"], userIds: [], groupIds: [], vlanIds: ["vlan_10"],
-    createdAt: now - 86_400_000 * 20, updatedAt: now - 86_400_000,
-  },
-  {
-    id: "pol_2", scope: "location", name: "Airport Lounge — Premium",
-    description: "High-throughput policy bound to Premium VLAN.",
-    status: "active", priority: 20,
-    bandwidth: { downloadKbps: 50_000, uploadKbps: 25_000 },
-    quota: { sessionMinutes: 240 },
-    device: { maxDevicesPerGuest: 5, allowBYOD: true, blockedOSes: [] },
-    authMethods: ["otp_email", "voucher", "pms"],
-    locationIds: ["loc_2", "loc_3"], userIds: [], groupIds: [], vlanIds: ["vlan_40"],
-    createdAt: now - 86_400_000 * 10, updatedAt: now - 86_400_000 * 2,
-  },
-  {
-    id: "pol_3", scope: "user", name: "VIP Guests",
-    description: "Unlimited access for VIP profiles.",
-    status: "active", priority: 5,
-    bandwidth: { downloadKbps: 100_000, uploadKbps: 50_000 },
-    quota: {},
-    device: { maxDevicesPerGuest: 10, allowBYOD: true, blockedOSes: [] },
-    authMethods: ["otp_sms", "otp_email", "click_through"],
-    locationIds: [], userIds: ["u_vip1", "u_vip2", "u_vip3"], groupIds: [], vlanIds: [],
-    createdAt: now - 86_400_000 * 30, updatedAt: now - 86_400_000 * 5,
-  },
-  {
-    id: "pol_4", scope: "user", name: "Blocked Repeat Offenders",
-    description: "Manually blocked identities.",
-    status: "active", priority: 1,
-    bandwidth: { downloadKbps: 0, uploadKbps: 0 },
-    quota: { dailyMB: 0 },
-    device: { maxDevicesPerGuest: 0, allowBYOD: false, blockedOSes: [] },
-    authMethods: [],
-    locationIds: [], userIds: ["u_b1", "u_b2"], groupIds: [], vlanIds: [],
-    createdAt: now - 86_400_000 * 15, updatedAt: now - 86_400_000 * 3,
-  },
-  {
-    id: "pol_5", scope: "group", name: "Staff — Corporate",
-    description: "Employees with RADIUS authentication.",
-    status: "active", priority: 30,
-    bandwidth: { downloadKbps: 30_000, uploadKbps: 15_000 },
-    quota: {},
-    device: { maxDevicesPerGuest: 4, allowBYOD: true, blockedOSes: [] },
-    authMethods: ["radius"],
-    locationIds: ["loc_1", "loc_2"], userIds: [], groupIds: ["grp_staff"], vlanIds: ["vlan_20"],
-    createdAt: now - 86_400_000 * 60, updatedAt: now - 86_400_000 * 10,
-  },
-  {
-    id: "pol_6", scope: "group", name: "Contractors",
-    description: "Time-boxed access for on-site contractors.",
-    status: "draft", priority: 40,
-    bandwidth: { downloadKbps: 5_000, uploadKbps: 2_500 },
-    quota: { dailyMinutes: 480 },
-    device: { maxDevicesPerGuest: 2, allowBYOD: true, blockedOSes: [] },
-    authMethods: ["voucher"],
-    timeWindow: { start: "08:00", end: "18:00", days: [1,2,3,4,5] },
-    locationIds: ["loc_1"], userIds: [], groupIds: ["grp_contractors"], vlanIds: ["vlan_10"],
-    createdAt: now - 86_400_000 * 5, updatedAt: now - 86_400_000,
-  },
-];
-
-function d<T>(v: T, ms = 220): Promise<T> {
-  return new Promise((r) => setTimeout(() => r(v), ms));
+interface BackendPolicy {
+  id: string;
+  organization_id: string | null;
+  policy_type: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  current_version_id: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-function computeTargets(p: Policy): number {
+interface BackendPolicyVersion {
+  id: string;
+  policy_id: string;
+  version_number: number;
+  status: "draft" | "published";
+  rules: Record<string, unknown>;
+  published_at: string | null;
+  created_at: string;
+}
+
+interface BackendPolicyDetail extends BackendPolicy {
+  versions: BackendPolicyVersion[];
+}
+
+interface BackendPolicyListResponse {
+  items: BackendPolicy[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+type PolicyRules = Pick<
+  Policy,
+  | "scope"
+  | "priority"
+  | "bandwidth"
+  | "quota"
+  | "device"
+  | "authMethods"
+  | "timeWindow"
+  | "locationIds"
+  | "userIds"
+  | "groupIds"
+  | "vlanIds"
+>;
+
+function latestVersion(detail: BackendPolicyDetail): BackendPolicyVersion | undefined {
+  return [...detail.versions].sort((a, b) => b.version_number - a.version_number)[0];
+}
+
+function toPolicy(detail: BackendPolicyDetail): Policy {
+  const version = latestVersion(detail);
+  const rules = (version?.rules ?? {}) as Partial<PolicyRules>;
+  // Backend has no "reactivate" endpoint (only /deactivate), so an
+  // is_active=false policy has no path back to active -- it always reads
+  // as archived here, honestly reflecting that real constraint.
+  const status: PolicyStatus = !detail.is_active
+    ? "archived"
+    : version?.status === "published"
+      ? "active"
+      : "draft";
+  return {
+    id: detail.id,
+    scope: rules.scope ?? "location",
+    name: detail.name,
+    description: detail.description ?? undefined,
+    status,
+    priority: rules.priority ?? 0,
+    bandwidth: rules.bandwidth ?? { downloadKbps: 0, uploadKbps: 0 },
+    quota: rules.quota ?? {},
+    device: rules.device ?? { maxDevicesPerGuest: 0, allowBYOD: false, blockedOSes: [] },
+    authMethods: (rules.authMethods ?? []) as AuthMethod[],
+    timeWindow: rules.timeWindow,
+    locationIds: rules.locationIds ?? [],
+    userIds: rules.userIds ?? [],
+    groupIds: rules.groupIds ?? [],
+    vlanIds: rules.vlanIds ?? [],
+    createdAt: new Date(detail.created_at).getTime(),
+    updatedAt: new Date(detail.updated_at).getTime(),
+  };
+}
+
+function toRules(input: PolicyRules): PolicyRules {
+  return {
+    scope: input.scope,
+    priority: input.priority,
+    bandwidth: input.bandwidth,
+    quota: input.quota,
+    device: input.device,
+    authMethods: input.authMethods,
+    timeWindow: input.timeWindow,
+    locationIds: input.locationIds,
+    userIds: input.userIds,
+    groupIds: input.groupIds,
+    vlanIds: input.vlanIds,
+  };
+}
+
+function targetCount(p: Policy): number {
   if (p.scope === "location") return p.locationIds.length;
   if (p.scope === "user") return p.userIds.length;
   return p.groupIds.length;
 }
 
+async function fetchDetail(id: string): Promise<BackendPolicyDetail> {
+  const { data } = await api.get<BackendPolicyDetail>(`/policies/${id}`);
+  return data;
+}
+
+// These pages have no organization selector -- they browse and manage
+// policies platform-wide, so calls deliberately omit X-Organization-Id.
+// CurrentOrganization then resolves to null server-side (see
+// backend/app/domains/rbac/dependencies.py), which is what makes list
+// return every organization's policies and create produce a platform-wide
+// policy definition; RequirePermission still gates who may call these at
+// all.
 export const policyService = {
   async list(scope?: PolicyScope): Promise<Policy[]> {
-    return d(scope ? POLICIES.filter((p) => p.scope === scope) : [...POLICIES]);
-  },
-  async get(id: string): Promise<Policy | undefined> {
-    return d(POLICIES.find((p) => p.id === id));
-  },
-  async kpis(scope?: PolicyScope): Promise<PolicyKpis> {
-    const src = scope ? POLICIES.filter((p) => p.scope === scope) : POLICIES;
-    return d({
-      total: src.length,
-      active: src.filter((p) => p.status === "active").length,
-      draft: src.filter((p) => p.status === "draft").length,
-      assignedTargets: src.reduce((s, p) => s + computeTargets(p), 0),
+    const { data } = await api.get<BackendPolicyListResponse>("/policies", {
+      params: { policy_type: POLICY_TYPE, page: 1, page_size: 100 },
     });
+    const details = await Promise.all(data.items.map((item) => fetchDetail(item.id)));
+    const policies = details.map(toPolicy);
+    return scope ? policies.filter((p) => p.scope === scope) : policies;
   },
-  async create(input: Omit<Policy, "id" | "createdAt" | "updatedAt">): Promise<Policy> {
-    const p: Policy = {
-      ...input,
-      id: `pol_${crypto.randomUUID().slice(0, 8)}`,
-      createdAt: Date.now(), updatedAt: Date.now(),
+
+  async get(id: string): Promise<Policy | undefined> {
+    try {
+      return toPolicy(await fetchDetail(id));
+    } catch {
+      return undefined;
+    }
+  },
+
+  async kpis(scope?: PolicyScope): Promise<PolicyKpis> {
+    const policies = await policyService.list(scope);
+    return {
+      total: policies.length,
+      active: policies.filter((p) => p.status === "active").length,
+      draft: policies.filter((p) => p.status === "draft").length,
+      assignedTargets: policies.reduce((sum, p) => sum + targetCount(p), 0),
     };
-    POLICIES = [p, ...POLICIES];
-    return d(p);
   },
+
+  async create(input: Omit<Policy, "id" | "createdAt" | "updatedAt">): Promise<Policy> {
+    const { data: policy } = await api.post<BackendPolicy>("/policies", {
+      policy_type: POLICY_TYPE,
+      name: input.name,
+      description: input.description ?? null,
+    });
+    const { data: version } = await api.post<BackendPolicyVersion>(
+      `/policies/${policy.id}/versions`,
+      { rules: toRules(input) },
+    );
+    if (input.status !== "draft") {
+      await api.post(`/policies/${policy.id}/versions/${version.id}/publish`);
+    }
+    if (input.status === "archived") {
+      await api.post(`/policies/${policy.id}/deactivate`);
+    }
+    return toPolicy(await fetchDetail(policy.id));
+  },
+
   async update(id: string, patch: Partial<Policy>): Promise<Policy> {
-    POLICIES = POLICIES.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p));
-    return d(POLICIES.find((p) => p.id === id)!);
+    const current = toPolicy(await fetchDetail(id));
+    const merged: Policy = { ...current, ...patch };
+    const { data: version } = await api.post<BackendPolicyVersion>(
+      `/policies/${id}/versions`,
+      { rules: toRules(merged) },
+    );
+    if (merged.status !== "draft") {
+      await api.post(`/policies/${id}/versions/${version.id}/publish`);
+    }
+    if (merged.status === "archived" && current.status !== "archived") {
+      await api.post(`/policies/${id}/deactivate`);
+    }
+    return toPolicy(await fetchDetail(id));
   },
+
   async remove(id: string): Promise<void> {
-    POLICIES = POLICIES.filter((p) => p.id !== id);
-    return d(undefined);
+    // Policy has no hard delete -- deactivate is the real, honest
+    // equivalent (see backend/app/domains/policy/router.py).
+    await api.post(`/policies/${id}/deactivate`);
   },
 };
