@@ -22,6 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard, SectionHeader } from "@/components/ui-ext";
+import type { StatTone } from "@/components/ui-ext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
 import { rbacService } from "@/services/rbac.service";
@@ -123,54 +125,68 @@ export function DashboardWidgets() {
         ? "degraded"
         : "critical";
 
-  const kpis = [
+  const kpis: Array<{
+    label: string;
+    value: number | string | undefined;
+    hint: string;
+    icon: typeof MapPin;
+    tone: StatTone;
+  }> = [
     {
       label: "Total locations",
       value: locations.length,
       hint: `${customer?.organizationName ?? "your org"}`,
       icon: MapPin,
+      tone: "primary",
     },
     {
       label: "Active routers",
       value: onlineRouters,
       hint: `of ${aggregated.routers.length} total`,
       icon: RouterIcon,
+      tone: "info",
     },
     {
       label: "Online guests",
       value: aggregated.analytics.activeSessions,
       hint: "Currently connected",
       icon: Users,
+      tone: "success",
     },
     {
       label: "Today's logins",
       value: newGuestsToday,
       hint: "Unique guests since midnight",
       icon: Clock,
+      tone: "default",
     },
     {
       label: "Total users",
       value: owner.totalUsers,
       hint: "Organization staff",
       icon: ShieldCheck,
+      tone: "default",
     },
     {
       label: "Active campaigns",
       value: owner.activeCampaigns,
       hint: "Currently running",
       icon: Megaphone,
+      tone: "warning",
     },
     {
       label: "License",
       value: owner.activeLicense ?? "—",
       hint: "Active plan",
       icon: Ticket,
+      tone: "info",
     },
     {
       label: "Guest sessions",
       value: aggregated.analytics.totalSessions,
       hint: "Recent sessions",
       icon: Activity,
+      tone: "default",
     },
   ];
 
@@ -196,28 +212,34 @@ export function DashboardWidgets() {
 
   return (
     <div className="space-y-6">
+      <SectionHeader
+        eyebrow="Workspace"
+        title="Dashboard overview"
+        description="Unified view of your locations, guests, routers, and revenue."
+      />
+
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((k) => (
-          <Card key={k.label}>
-            <CardContent className="flex items-start justify-between p-5">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{k.label}</p>
-                {k.value === undefined ? (
-                  <Skeleton className="mt-2 h-8 w-16" />
-                ) : (
-                  <p className="mt-2 text-2xl font-semibold">
-                    {typeof k.value === "number" ? kFmt(k.value) : k.value}
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-muted-foreground">{k.hint}</p>
-              </div>
-              <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                <k.icon className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {kpis.map((k) =>
+          k.value === undefined ? (
+            <Card key={k.label} className="rounded-2xl border-border/70 shadow-sm">
+              <CardContent className="space-y-2 p-5">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ) : (
+            <StatCard
+              key={k.label}
+              label={k.label}
+              value={k.value}
+              hint={k.hint}
+              tone={k.tone}
+              icon={k.icon}
+            />
+          ),
+        )}
       </div>
 
       {/* Network overview */}
