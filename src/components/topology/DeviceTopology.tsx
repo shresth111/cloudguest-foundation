@@ -65,7 +65,7 @@ const STATUS_COLORS = {
   offline: { dot: "bg-rose-500", bg: "bg-rose-500/10 text-rose-600", border: "border-rose-500/30" },
 };
 
-const LEVEL_ICONS = [Cloud, Building2, MapPin, Router, Switch, Wifi, Users] as const;
+const LEVEL_ICONS = [Cloud, Building2, MapPin, Router, SWITCH, Wifi, Users] as const;
 const LEVEL_LABELS = ["Cloud", "Organization", "Location", "Router", "Switch", "Access Point", "Clients"] as const;
 
 function NodeRow({ node, depth = 0 }: { node: TopologyNode; depth?: number }) {
