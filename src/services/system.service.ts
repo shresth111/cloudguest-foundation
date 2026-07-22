@@ -1,14 +1,17 @@
 /**
- * System-level mock services powering FE-022:
+ * System-level services powering FE-022:
  * - Feature Marketplace
  * - Subscription Center + Usage
  * - System Health + Monitoring
- * - API Keys + Webhooks
+ * - API Keys (real, backend/app/domains/api_keys) + Webhooks (still mock --
+ *   no backend domain for outbound webhook subscriptions exists)
  * - Integrations catalog
  * - Notification Center
  * - Help Center
  * - Export Center
  */
+
+import { api } from "@/services/api";
 
 const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 const iso = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86_400_000).toISOString();
@@ -107,7 +110,7 @@ const INVOICES: InvoiceRow[] = Array.from({ length: 8 }).map((_, i) => ({
   dueAt: iso(-i * 30 + 15),
 }));
 
-// ---------- API Keys / Webhooks ----------
+// ---------- API Keys (real, backend/app/domains/api_keys) / Webhooks (mock) ----------
 export interface ApiKeyRow {
   id: string;
   name: string;
@@ -125,11 +128,67 @@ export interface WebhookRow {
   createdAt: string;
 }
 
-let API_KEYS: ApiKeyRow[] = [
-  { id: "k1", name: "Production Server", key: "sk_live_" + rand(28), createdAt: iso(-120), lastUsedAt: iso(-0.2), scopes: ["read", "write", "admin"] },
-  { id: "k2", name: "Analytics ETL", key: "sk_live_" + rand(28), createdAt: iso(-64), lastUsedAt: iso(-1), scopes: ["read"] },
-  { id: "k3", name: "Zapier Bridge", key: "sk_live_" + rand(28), createdAt: iso(-14), lastUsedAt: iso(-0.05), scopes: ["read", "write"], expiresAt: iso(180) },
-];
+interface BackendApiKey {
+  id: string;
+  organization_id: string;
+  name: string;
+  display_prefix: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+interface BackendApiKeyListResponse {
+  items: BackendApiKey[];
+}
+
+interface BackendApiKeyCreateResponse {
+  id: string;
+  name: string;
+  plaintext_key: string;
+  display_prefix: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+// Backend has no per-key scope/permission-set concept (every key acts as
+// its creating user, see api_keys/router.py's module docstring) and no
+// rotate endpoint -- `scopes` below echoes what the caller picked in the
+// UI for display only, and `rotateApiKey` stays a local-only mock (see its
+// definition further down) since there is nothing real to call.
+function toApiKeyRowFromList(k: BackendApiKey, scopes: string[]): ApiKeyRow {
+  return {
+    id: k.id,
+    name: k.name,
+    // Backend never returns the plaintext key again after creation (see
+    // BackendApiKeyCreateResponse) -- the display prefix is all that's
+    // actually recoverable for an existing key.
+    key: `${k.display_prefix}…`,
+    createdAt: k.created_at,
+    lastUsedAt: k.last_used_at ?? k.created_at,
+    scopes,
+    expiresAt: k.expires_at ?? undefined,
+  };
+}
+
+let cachedOrganizationId: string | null = null;
+async function resolveOrganizationId(): Promise<string> {
+  if (cachedOrganizationId) return cachedOrganizationId;
+  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", {
+    params: { page_size: 1 },
+  });
+  const id = data.items[0]?.id;
+  if (!id) throw new Error("No organization found for the current session");
+  cachedOrganizationId = id;
+  return id;
+}
+
+// Client-side memory of which scopes the caller picked per key, purely for
+// display -- see toApiKeyRowFromList's docstring on why the backend has no
+// real scope concept to read this back from.
+const keyScopes = new Map<string, string[]>();
+
 let WEBHOOKS: WebhookRow[] = [
   { id: "w1", url: "https://hooks.acme.io/cloudguest", events: ["guest.connected", "router.offline"], status: "active", createdAt: iso(-60) },
   { id: "w2", url: "https://ops.acme.io/alerts", events: ["security.alert"], status: "failed", createdAt: iso(-30) },
@@ -266,20 +325,48 @@ export const systemService = {
     }));
   },
 
-  // api keys
-  async listApiKeys() { await delay(); return API_KEYS; },
+  // api keys -- real, see BackendApiKey* types above
+  async listApiKeys() {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<BackendApiKeyListResponse>("/api-keys", {
+      params: { page_size: 100 },
+      headers: { "X-Organization-Id": orgId },
+    });
+    return data.items.map((k) => toApiKeyRowFromList(k, keyScopes.get(k.id) ?? ["read"]));
+  },
   async createApiKey(name: string, scopes: string[]) {
-    await delay(200);
-    const row: ApiKeyRow = { id: `k_${Date.now()}`, name, key: "sk_live_" + rand(28), createdAt: iso(0), lastUsedAt: iso(0), scopes };
-    API_KEYS = [row, ...API_KEYS];
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendApiKeyCreateResponse>(
+      "/api-keys",
+      { name },
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    keyScopes.set(data.id, scopes);
+    const row: ApiKeyRow = {
+      id: data.id,
+      name: data.name,
+      key: data.plaintext_key,
+      createdAt: data.created_at,
+      lastUsedAt: data.created_at,
+      scopes,
+      expiresAt: data.expires_at ?? undefined,
+    };
     return row;
   },
-  async revokeApiKey(id: string) { await delay(150); API_KEYS = API_KEYS.filter((k) => k.id !== id); return true; },
+  async revokeApiKey(id: string) {
+    const orgId = await resolveOrganizationId();
+    await api.delete(`/api-keys/${id}`, { headers: { "X-Organization-Id": orgId } });
+    keyScopes.delete(id);
+    return true;
+  },
+  // No backend rotate endpoint exists for API keys (create a new key and
+  // revoke the old one is the real equivalent) -- kept as a local-only
+  // mock so the existing "Rotate" button doesn't 404, but it does not
+  // persist: refreshing `listApiKeys` will show the original, unrotated
+  // key.
   async rotateApiKey(id: string) {
     await delay(200);
-    const k = API_KEYS.find((x) => x.id === id);
-    if (k) k.key = "sk_live_" + rand(28);
-    return k;
+    return { id, key: "sk_live_" + rand(28) };
   },
   async listWebhooks() { await delay(); return WEBHOOKS; },
   async createWebhook(url: string, events: string[]) {
