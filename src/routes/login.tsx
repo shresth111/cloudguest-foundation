@@ -46,7 +46,7 @@ function LoginPage() {
     try {
       await login(values);
       toast.success("Welcome back");
-      navigate({ to: redirect || landingRouteForLoginMode(mode), replace: true });
+      navigate({ to: redirect || "/customer", replace: true });
     } catch (err) {
       toast.error((err as AppError).message || "Login failed");
     } finally {

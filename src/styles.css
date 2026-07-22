@@ -189,6 +189,67 @@
   color-scheme: dark;
 }
 
+/**
+ * Customer dashboard theme -- Modernist: Archivo, zero border radius,
+ * #ec3013 red accent, off-white #f3f2f2 background, 2px rules as
+ * separators. Applied to customer-facing routes.
+ */
+.customer-theme {
+  --background: oklch(0.965 0.002 85);
+  --foreground: oklch(0.15 0.01 30);
+  --card: oklch(0.99 0.001 85);
+  --card-foreground: oklch(0.15 0.01 30);
+  --popover: oklch(0.99 0.001 85);
+  --popover-foreground: oklch(0.15 0.01 30);
+  --primary: oklch(0.55 0.22 30);
+  --primary-foreground: oklch(0.99 0.001 85);
+  --secondary: oklch(0.93 0.005 85);
+  --secondary-foreground: oklch(0.2 0.01 30);
+  --muted: oklch(0.94 0.003 85);
+  --muted-foreground: oklch(0.5 0.01 30);
+  --accent: oklch(0.9 0.01 30);
+  --accent-foreground: oklch(0.15 0.01 30);
+  --destructive: oklch(0.55 0.22 30);
+  --destructive-foreground: oklch(0.99 0.001 85);
+  --border: oklch(0.87 0.005 85);
+  --input: oklch(0.87 0.005 85);
+  --ring: oklch(0.55 0.22 30);
+  --chart-1: oklch(0.55 0.22 30);
+  --chart-2: oklch(0.65 0.15 190);
+  --chart-3: oklch(0.7 0.16 145);
+  --chart-4: oklch(0.75 0.17 70);
+  --chart-5: oklch(0.65 0.2 20);
+  --sidebar: oklch(0.96 0.002 85);
+  --sidebar-foreground: oklch(0.15 0.01 30);
+  --sidebar-primary: oklch(0.55 0.22 30);
+  --sidebar-primary-foreground: oklch(0.99 0.001 85);
+  --sidebar-accent: oklch(0.93 0.005 85);
+  --sidebar-accent-foreground: oklch(0.15 0.01 30);
+  --sidebar-border: oklch(0.87 0.005 85);
+  --sidebar-ring: oklch(0.55 0.22 30);
+  border-radius: 0 !important;
+  --radius: 0px;
+  font-family: "Archivo", ui-sans-serif, system-ui, sans-serif;
+}
+
+.customer-theme * {
+  border-radius: 0 !important;
+}
+
+.customer-theme .dark {
+  --background: oklch(0.15 0.01 30);
+  --foreground: oklch(0.93 0.003 85);
+  --card: oklch(0.18 0.012 30);
+  --card-foreground: oklch(0.93 0.003 85);
+  --primary: oklch(0.65 0.22 30);
+  --primary-foreground: oklch(0.15 0.01 30);
+  --border: oklch(0.25 0.01 30);
+  --sidebar: oklch(0.12 0.008 30);
+  --sidebar-foreground: oklch(0.9 0.003 85);
+  --sidebar-border: oklch(0.22 0.01 30);
+  color-scheme: dark;
+}
+
 /** Opt-in glow effect for primary CTA buttons within the workspace theme --
  * a deliberate accent, not applied to every button, matching VerbaFlo's
  * treatment of its own primary CTAs. */

@@ -33,3 +33,6 @@ dist-ssr
 
 # Lovable mirror directory (embedded git repo)
 /cloudguest-foundation/
+
+# Local env
+.env

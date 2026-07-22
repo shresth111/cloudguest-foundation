@@ -78,6 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganizations(readStoredJson<OrganizationMembership[]>(ORGS_STORAGE_KEY) ?? []);
       setStatus("authenticated");
 
+      // Demo mode: skip backend calls for demo sessions
+      if (token === "demo-access-token") {
+        setPermissions(new Set(["*"]));
+        return;
+      }
+
       try {
         const [freshUser, freshPermissions] = await Promise.all([
           authService.me(),
@@ -100,6 +106,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (creds: LoginCredentials) => {
+    // Demo mode: bypass backend if using test credentials
+    if (creds.email === "admin@example.com" && creds.password === "test") {
+      const demoSession: AuthSession = {
+        user: {
+          id: "u-001",
+          firstName: "Admin",
+          lastName: "User",
+          name: "Admin User",
+          email: creds.email,
+          username: "admin",
+          timezone: "Asia/Kolkata",
+          language: "en",
+          isActive: true,
+          isVerified: true,
+          status: "active",
+        },
+        tokens: {
+          accessToken: "demo-access-token",
+          refreshToken: "demo-refresh-token",
+          tokenType: "Bearer",
+          expiresIn: 3600,
+          refreshExpiresIn: 86400,
+        },
+        sessionId: "sess-demo-001",
+        roles: [
+          { roleId: "r-001", roleName: "Super Admin", roleSlug: "super-admin", scopeType: "global", isActive: true },
+        ],
+        organizations: [
+          {
+            organizationId: "org-001",
+            organizationName: "Acme Corp",
+            organizationSlug: "acme-corp",
+            isPrimaryContact: true,
+            enabledFeatures: ["all"],
+          },
+        ],
+      };
+      persistSession(demoSession);
+      setUser(demoSession.user);
+      setRoles(demoSession.roles);
+      setOrganizations(demoSession.organizations);
+      setPermissions(new Set(["*"]));
+      setStatus("authenticated");
+      return demoSession;
+    }
+
     const session = await authService.login(creds);
     persistSession(session);
     setUser(session.user);

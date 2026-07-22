@@ -18,6 +18,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as CustomerIndexRouteImport } from './routes/customer.index'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
 import { Route as PortalTermsRouteImport } from './routes/portal.terms'
@@ -73,6 +74,8 @@ import { Route as AuthenticatedAuditTimelineIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
+import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
+import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
 import { Route as AuthenticatedWorkspaceStaffRouteImport } from './routes/_authenticated/workspace.staff'
 import { Route as AuthenticatedWorkspaceRoutersRouteImport } from './routes/_authenticated/workspace.routers'
 import { Route as AuthenticatedWorkspaceReportsRouteImport } from './routes/_authenticated/workspace.reports'
@@ -169,6 +172,11 @@ const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => PortalRoute,
+} as any)
+const CustomerIndexRoute = CustomerIndexRouteImport.update({
+  id: '/customer/',
+  path: '/customer/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PortalWelcomeRoute = PortalWelcomeRouteImport.update({
   id: '/welcome',
@@ -476,6 +484,17 @@ const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   path: '/$method',
   getParentRoute: () => PortalAuthRoute,
 } as any)
+const CustomerLocationIdUsersRoute = CustomerLocationIdUsersRouteImport.update({
+  id: '/customer/$locationId/users',
+  path: '/customer/$locationId/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerLocationIdDashboardRoute =
+  CustomerLocationIdDashboardRouteImport.update({
+    id: '/customer/$locationId/dashboard',
+    path: '/customer/$locationId/dashboard',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedWorkspaceStaffRoute =
   AuthenticatedWorkspaceStaffRouteImport.update({
     id: '/staff',
@@ -812,6 +831,7 @@ export interface FileRoutesByFullPath {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/customer/': typeof CustomerIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -862,6 +882,8 @@ export interface FileRoutesByFullPath {
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
+  '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
+  '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
@@ -926,6 +948,7 @@ export interface FileRoutesByTo {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/customer': typeof CustomerIndexRoute
   '/portal': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -975,6 +998,8 @@ export interface FileRoutesByTo {
   '/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
+  '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
+  '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
@@ -1044,6 +1069,7 @@ export interface FileRoutesById {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/customer/': typeof CustomerIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/_authenticated/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -1094,6 +1120,8 @@ export interface FileRoutesById {
   '/_authenticated/workspace/reports': typeof AuthenticatedWorkspaceReportsRoute
   '/_authenticated/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/_authenticated/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
+  '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
+  '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
@@ -1163,6 +1191,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/customer/'
     | '/portal/'
     | '/administration/business-units'
     | '/analytics/device'
@@ -1213,6 +1242,8 @@ export interface FileRouteTypes {
     | '/workspace/reports'
     | '/workspace/routers'
     | '/workspace/staff'
+    | '/customer/$locationId/dashboard'
+    | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/analytics/'
     | '/api-keys/'
@@ -1277,6 +1308,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/customer'
     | '/portal'
     | '/administration/business-units'
     | '/analytics/device'
@@ -1326,6 +1358,8 @@ export interface FileRouteTypes {
     | '/workspace/reports'
     | '/workspace/routers'
     | '/workspace/staff'
+    | '/customer/$locationId/dashboard'
+    | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/analytics'
     | '/api-keys'
@@ -1394,6 +1428,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/customer/'
     | '/portal/'
     | '/_authenticated/administration/business-units'
     | '/_authenticated/analytics/device'
@@ -1444,6 +1479,8 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/reports'
     | '/_authenticated/workspace/routers'
     | '/_authenticated/workspace/staff'
+    | '/customer/$locationId/dashboard'
+    | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/_authenticated/analytics/'
     | '/_authenticated/api-keys/'
@@ -1494,6 +1531,9 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
+  CustomerIndexRoute: typeof CustomerIndexRoute
+  CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
+  CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1560,6 +1600,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/'
       preLoaderRoute: typeof PortalIndexRouteImport
       parentRoute: typeof PortalRoute
+    }
+    '/customer/': {
+      id: '/customer/'
+      path: '/customer'
+      fullPath: '/customer/'
+      preLoaderRoute: typeof CustomerIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/portal/welcome': {
       id: '/portal/welcome'
@@ -1945,6 +1992,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/auth/$method'
       preLoaderRoute: typeof PortalAuthMethodRouteImport
       parentRoute: typeof PortalAuthRoute
+    }
+    '/customer/$locationId/users': {
+      id: '/customer/$locationId/users'
+      path: '/customer/$locationId/users'
+      fullPath: '/customer/$locationId/users'
+      preLoaderRoute: typeof CustomerLocationIdUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$locationId/dashboard': {
+      id: '/customer/$locationId/dashboard'
+      path: '/customer/$locationId/dashboard'
+      fullPath: '/customer/$locationId/dashboard'
+      preLoaderRoute: typeof CustomerLocationIdDashboardRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspace/staff': {
       id: '/_authenticated/workspace/staff'
@@ -2617,6 +2678,9 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,
   VerifyOtpRoute: VerifyOtpRoute,
+  CustomerIndexRoute: CustomerIndexRoute,
+  CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
+  CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
