@@ -6,9 +6,7 @@ export const routerKeys = {
   all: ["routers"] as const,
   list: (q: RouterListQuery) => ["routers", "list", q] as const,
   detail: (id: string) => ["routers", "detail", id] as const,
-  devices: (id: string) => ["routers", "devices", id] as const,
-  peers: (id: string) => ["routers", "peers", id] as const,
-  alerts: (id: string) => ["routers", "alerts", id] as const,
+  wireguardPeer: (id: string) => ["routers", "wireguard-peer", id] as const,
 };
 
 export function useRouters(query: RouterListQuery) {
@@ -26,26 +24,10 @@ export function useRouter(id: string) {
   });
 }
 
-export function useConnectedDevices(id: string) {
+export function useWireGuardPeer(id: string) {
   return useQuery({
-    queryKey: routerKeys.devices(id),
-    queryFn: () => routerService.connectedDevices(id),
-    enabled: !!id,
-  });
-}
-
-export function useWireGuardPeers(id: string) {
-  return useQuery({
-    queryKey: routerKeys.peers(id),
-    queryFn: () => routerService.wireguardPeers(id),
-    enabled: !!id,
-  });
-}
-
-export function useRouterAlerts(id: string) {
-  return useQuery({
-    queryKey: routerKeys.alerts(id),
-    queryFn: () => routerService.alerts(id),
+    queryKey: routerKeys.wireguardPeer(id),
+    queryFn: () => routerService.getWireGuardPeer(id),
     enabled: !!id,
   });
 }
@@ -75,14 +57,35 @@ export function useDeleteRouters() {
   });
 }
 
-export function useRebootRouters() {
-  return useMutation({ mutationFn: (ids: string[]) => routerService.reboot(ids) });
+export function useGenerateProvisioningToken() {
+  return useMutation({
+    mutationFn: (routerId: string) => routerService.generateProvisioningToken(routerId),
+  });
 }
 
-export function useUpgradeRouters() {
+export function useCreateWireGuardPeer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: string[]) => routerService.upgrade(ids),
-    onSuccess: () => qc.invalidateQueries({ queryKey: routerKeys.all }),
+    mutationFn: (routerId: string) => routerService.createWireGuardPeer(routerId),
+    onSuccess: (_data, routerId) =>
+      qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
+  });
+}
+
+export function useRotateWireGuardPeer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (routerId: string) => routerService.rotateWireGuardPeer(routerId),
+    onSuccess: (_data, routerId) =>
+      qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
+  });
+}
+
+export function useRevokeWireGuardPeer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (routerId: string) => routerService.revokeWireGuardPeer(routerId),
+    onSuccess: (_data, routerId) =>
+      qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
   });
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -27,24 +28,13 @@ import { cn } from "@/lib/utils";
 import { routerWizardSchema, type RouterWizardValues } from "@/lib/router-schemas";
 import { useCreateRouter } from "@/hooks/useRouters";
 import { routerService } from "@/services/router.service";
+import type { AppError } from "@/services/api";
 
 const STEPS = [
   { key: "basic", title: "Basic information", description: "Router profile" },
-  { key: "network", title: "Network", description: "IP, DNS & gateway" },
-  { key: "auth", title: "Authentication", description: "NAS, API & RADIUS" },
-  { key: "services", title: "Services", description: "Enable modules" },
+  { key: "credentials", title: "Credentials", description: "API access (optional)" },
+  { key: "services", title: "Services", description: "Config preferences" },
 ] as const;
-
-const TIMEZONES = [
-  "America/Los_Angeles",
-  "America/New_York",
-  "Europe/London",
-  "Europe/Berlin",
-  "Asia/Kolkata",
-  "Asia/Singapore",
-  "Asia/Dubai",
-  "Australia/Sydney",
-];
 
 interface Props {
   open: boolean;
@@ -52,9 +42,8 @@ interface Props {
 }
 
 const DEFAULTS: RouterWizardValues = {
-  basic: { name: "", organizationId: "", locationId: "", model: "", serialNumber: "", mikrotikIdentity: "" },
-  network: { wanIp: "", lanIp: "", dns: "1.1.1.1, 8.8.8.8", gateway: "", timezone: "" },
-  auth: { nasId: "", sharedSecret: "", apiPort: 8728, apiUsername: "cloudguest", apiPassword: "" },
+  basic: { name: "", locationId: "", model: "", serialNumber: "", macAddress: "", managementIpAddress: "", publicIpAddress: "" },
+  credentials: { apiUsername: "", apiSecret: "" },
   services: {
     freeradius: true,
     wireguard: true,
@@ -68,8 +57,11 @@ const DEFAULTS: RouterWizardValues = {
 export function RouterWizard({ open, onOpenChange }: Props) {
   const [step, setStep] = useState(0);
   const create = useCreateRouter();
-  const orgs = routerService.organizations();
-  const locations = routerService.locations();
+  const { data: locations = [] } = useQuery({
+    queryKey: ["routers", "location-options"],
+    queryFn: () => routerService.locations(),
+    enabled: open,
+  });
   const models = routerService.models();
 
   const form = useForm<RouterWizardValues>({
@@ -86,13 +78,24 @@ export function RouterWizard({ open, onOpenChange }: Props) {
 
   async function submit(values: RouterWizardValues) {
     try {
-      const r = await create.mutateAsync(values);
-      toast.success(`${r.name} provisioning started`);
+      const r = await create.mutateAsync({
+        locationId: values.basic.locationId,
+        name: values.basic.name,
+        serialNumber: values.basic.serialNumber,
+        macAddress: values.basic.macAddress,
+        model: values.basic.model,
+        managementIpAddress: values.basic.managementIpAddress || undefined,
+        publicIpAddress: values.basic.publicIpAddress || undefined,
+        apiUsername: values.credentials.apiUsername || undefined,
+        apiSecret: values.credentials.apiSecret || undefined,
+        settings: values.services,
+      });
+      toast.success(`${r.name} registered`);
       onOpenChange(false);
       form.reset(DEFAULTS);
       setStep(0);
-    } catch {
-      toast.error("Failed to add router");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to add router");
     }
   }
 
@@ -110,7 +113,7 @@ export function RouterWizard({ open, onOpenChange }: Props) {
       <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-6 py-4">
           <DialogTitle>Add router</DialogTitle>
-          <DialogDescription>Provision a new MikroTik router in four steps.</DialogDescription>
+          <DialogDescription>Register a new router at a location you manage.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-0 md:grid-cols-[220px_1fr]">
@@ -154,13 +157,11 @@ export function RouterWizard({ open, onOpenChange }: Props) {
           </aside>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(submit)} className="flex min-h-[460px] flex-col">
+            <form onSubmit={form.handleSubmit(submit)} className="flex min-h-[420px] flex-col">
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 {step === 0 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="basic.name" label="Router name" placeholder="SF-RTR-001" form={form} />
-                    <TextField name="basic.mikrotikIdentity" label="MikroTik identity" placeholder="mt-nimbus-1" form={form} />
-                    <SelectFieldOpts name="basic.organizationId" label="Organization" options={orgs} form={form} />
+                    <TextField name="basic.name" label="Router name" placeholder="Lobby Router" form={form} />
                     <SelectFieldOpts name="basic.locationId" label="Location" options={locations} form={form} />
                     <FormField
                       control={form.control}
@@ -187,31 +188,21 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                       )}
                     />
                     <TextField name="basic.serialNumber" label="Serial number" placeholder="SN01234567" form={form} />
+                    <TextField name="basic.macAddress" label="MAC address" placeholder="AA:BB:CC:DD:EE:01" form={form} />
+                    <TextField name="basic.managementIpAddress" label="Management IP (optional)" placeholder="192.168.88.1" form={form} />
+                    <TextField name="basic.publicIpAddress" label="Public IP (optional)" placeholder="203.0.113.10" form={form} />
                   </div>
                 )}
                 {step === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="network.wanIp" label="WAN IP" placeholder="203.0.113.10" form={form} />
-                    <TextField name="network.lanIp" label="LAN IP" placeholder="192.168.10.1" form={form} />
-                    <TextField name="network.gateway" label="Gateway" placeholder="203.0.113.1" form={form} />
-                    <TextField name="network.dns" label="DNS servers" placeholder="1.1.1.1, 8.8.8.8" form={form} />
-                    <div className="sm:col-span-2">
-                      <SelectFieldStrings name="network.timezone" label="Timezone" options={TIMEZONES} form={form} />
-                    </div>
+                    <TextField name="credentials.apiUsername" label="API username (optional)" form={form} />
+                    <TextField name="credentials.apiSecret" label="API secret (optional)" type="password" form={form} />
+                    <p className="sm:col-span-2 text-xs text-muted-foreground">
+                      Stored encrypted server-side. Never shown again after this form — the API never returns it back.
+                    </p>
                   </div>
                 )}
                 {step === 2 && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="auth.nasId" label="NAS ID" placeholder="nas-nimbus-1001" form={form} />
-                    <TextField name="auth.sharedSecret" label="Shared secret" type="password" form={form} />
-                    <TextField name="auth.apiPort" label="Router API port" type="number" form={form} />
-                    <TextField name="auth.apiUsername" label="API username" form={form} />
-                    <div className="sm:col-span-2">
-                      <TextField name="auth.apiPassword" label="API password" type="password" form={form} />
-                    </div>
-                  </div>
-                )}
-                {step === 3 && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <ToggleField name="services.freeradius" label="FreeRADIUS" description="AAA & accounting" form={form} />
                     <ToggleField name="services.wireguard" label="WireGuard" description="Management tunnel" form={form} />
@@ -289,36 +280,6 @@ function SelectFieldOpts({ name, label, options, form }: { name: any; label: str
               {options.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function SelectFieldStrings({ name, label, options, form }: { name: any; label: string; options: string[]; form: any }) {
-  return (
-    <FormField
-      control={form.control}
-      name={name}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <Select value={field.value} onValueChange={field.onChange}>
-            <FormControl>
-              <SelectTrigger>
-                <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent>
-              {options.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
                 </SelectItem>
               ))}
             </SelectContent>

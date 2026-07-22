@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -10,13 +10,10 @@ import {
   PauseCircle,
   PlayCircle,
   Plus,
-  PowerOff,
   RefreshCw,
-  RotateCw,
   Router as RouterIcon,
   Search,
   Trash2,
-  UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,28 +36,19 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import {
   useDeleteRouters,
-  useRebootRouters,
   useRouters,
   useUpdateRouterStatus,
-  useUpgradeRouters,
 } from "@/hooks/useRouters";
 import { routerService } from "@/services/router.service";
 import type { RouterDevice, RouterListQuery, RouterStatus } from "@/types/router";
-import { RouterStatusBadge, ServiceStatusBadge, TunnelStatusBadge } from "./RouterStatusBadge";
+import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
 import { RouterWizard } from "./RouterWizard";
-import { cn } from "@/lib/utils";
+import type { AppError } from "@/services/api";
 
 const PAGE_SIZES = [10, 20, 50];
 
-function formatUptime(hours: number) {
-  if (!hours) return "—";
-  if (hours < 24) return `${hours}h`;
-  const d = Math.floor(hours / 24);
-  const h = hours % 24;
-  return `${d}d ${h}h`;
-}
-
-function relative(iso: string) {
+function relative(iso: string | null) {
+  if (!iso) return "Never";
   const diff = Date.now() - new Date(iso).getTime();
   const s = Math.floor(diff / 1000);
   if (s < 60) return `${s}s ago`;
@@ -72,34 +60,13 @@ function relative(iso: string) {
 }
 
 function toCsv(rows: RouterDevice[]) {
-  const headers = [
-    "ID", "Name", "MikroTik ID", "NAS ID", "Organization", "Location", "Model",
-    "Serial", "RouterOS", "Public IP", "Private IP", "WireGuard", "RADIUS",
-    "Internet", "Uptime (h)", "CPU %", "RAM %", "Guests", "Status", "Last Seen",
-  ];
+  const headers = ["ID", "Name", "Organization", "Location", "Model", "Serial", "MAC", "RouterOS", "Management IP", "Public IP", "Status", "Health", "Last Seen"];
   const lines = rows.map((r) =>
-    [
-      r.id, r.name, r.mikrotikIdentity, r.nasId, r.organizationName, r.locationName,
-      r.model, r.serialNumber, r.routerOsVersion, r.publicIp, r.privateIp,
-      r.wireguardStatus, r.radiusStatus, r.internetStatus, r.uptimeHours,
-      r.cpuPct, r.ramPct, r.activeGuests, r.status, r.lastSeen,
-    ]
+    [r.id, r.name, r.organizationName, r.locationName, r.model, r.serialNumber, r.macAddress, r.routerOsVersion ?? "", r.managementIpAddress ?? "", r.publicIpAddress ?? "", r.status, r.healthStatus ?? "unknown", r.lastSeenAt ?? ""]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(","),
   );
   return [headers.join(","), ...lines].join("\n");
-}
-
-function UsageBar({ pct, tone }: { pct: number; tone?: "cpu" | "ram" }) {
-  const color = pct > 85 ? "bg-rose-500" : pct > 65 ? "bg-amber-500" : "bg-emerald-500";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-        <div className={cn("h-full", color)} style={{ width: `${Math.min(100, pct)}%` }} />
-      </div>
-      <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
-    </div>
-  );
 }
 
 export function RouterTable() {
@@ -107,11 +74,8 @@ export function RouterTable() {
   const [status, setStatus] = useState<RouterStatus | "all">("all");
   const [organizationId, setOrganizationId] = useState<string | "all">("all");
   const [locationId, setLocationId] = useState<string | "all">("all");
-  const [model, setModel] = useState<string | "all">("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortBy, setSortBy] = useState<keyof RouterDevice>("createdAt");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | {
@@ -122,32 +86,27 @@ export function RouterTable() {
   }>(null);
 
   const query: RouterListQuery = useMemo(
-    () => ({ search, status, organizationId, locationId, model, page, pageSize, sortBy, sortDir }),
-    [search, status, organizationId, locationId, model, page, pageSize, sortBy, sortDir],
+    () => ({ search, status, organizationId, locationId, page, pageSize }),
+    [search, status, organizationId, locationId, page, pageSize],
   );
 
   const { data, isLoading, isError, refetch, isFetching } = useRouters(query);
   const updateStatus = useUpdateRouterStatus();
   const remove = useDeleteRouters();
-  const reboot = useRebootRouters();
-  const upgrade = useUpgradeRouters();
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
-  const orgs = routerService.organizations();
-  const locations = routerService.locations();
-  const models = routerService.models();
-
-  function toggleSort(key: keyof RouterDevice) {
-    if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortBy(key);
-      setSortDir("asc");
-    }
-  }
+  const { data: orgs = [] } = useQuery({
+    queryKey: ["routers", "org-options"],
+    queryFn: () => routerService.organizations(),
+  });
+  const { data: locations = [] } = useQuery({
+    queryKey: ["routers", "location-options"],
+    queryFn: () => routerService.locations(),
+  });
 
   function toggleAll() {
     setSelected((prev) => {
@@ -178,41 +137,17 @@ export function RouterTable() {
     toast.success(`Exported ${rows.length} rows`);
   }
 
-  function bulk(action: "enable" | "disable" | "delete" | "reboot" | "upgrade") {
+  function bulk(action: "enable" | "disable" | "delete") {
     const ids = Array.from(selected);
     if (!ids.length) return;
     if (action === "delete") {
       setConfirm({
-        title: `Delete ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
-        description: "This permanently removes the selected routers and their configuration.",
+        title: `Decommission ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
+        description: "This decommissions the selected routers.",
         destructive: true,
         onConfirm: async () => {
           await remove.mutateAsync(ids);
-          toast.success("Routers deleted");
-          setSelected(new Set());
-        },
-      });
-      return;
-    }
-    if (action === "reboot") {
-      setConfirm({
-        title: `Reboot ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
-        description: "Routers will be unreachable for ~2 minutes.",
-        onConfirm: async () => {
-          await reboot.mutateAsync(ids);
-          toast.success("Reboot commands sent");
-          setSelected(new Set());
-        },
-      });
-      return;
-    }
-    if (action === "upgrade") {
-      setConfirm({
-        title: `Upgrade firmware on ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
-        description: "Selected routers will be upgraded to the latest RouterOS release.",
-        onConfirm: async () => {
-          await upgrade.mutateAsync(ids);
-          toast.success("Firmware upgrade queued");
+          toast.success("Routers decommissioned");
           setSelected(new Set());
         },
       });
@@ -220,7 +155,7 @@ export function RouterTable() {
     }
     const newStatus: RouterStatus = action === "enable" ? "online" : "suspended";
     setConfirm({
-      title: `${action === "enable" ? "Enable" : "Disable"} ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
+      title: `${action === "enable" ? "Reinstate" : "Suspend"} ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
       description: `Selected routers will be marked as ${newStatus}.`,
       onConfirm: async () => {
         await updateStatus.mutateAsync({ ids, status: newStatus });
@@ -240,27 +175,24 @@ export function RouterTable() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search by name, ID, IP, MikroTik identity…"
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search by name, serial, IP, location…"
               className="pl-9"
             />
           </div>
           <Select value={status} onValueChange={(v) => { setStatus(v as RouterStatus | "all"); setPage(1); }}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="pending_provisioning">Pending Provisioning</SelectItem>
+              <SelectItem value="provisioning">Provisioning</SelectItem>
               <SelectItem value="online">Online</SelectItem>
               <SelectItem value="offline">Offline</SelectItem>
-              <SelectItem value="maintenance">Maintenance</SelectItem>
-              <SelectItem value="provisioning">Provisioning</SelectItem>
               <SelectItem value="suspended">Suspended</SelectItem>
-              <SelectItem value="error">Error</SelectItem>
+              <SelectItem value="decommissioned">Decommissioned</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={organizationId} onValueChange={(v) => { setOrganizationId(v); setPage(1); }}>
+          <Select value={organizationId} onValueChange={(v) => { setOrganizationId(v); setLocationId("all"); setPage(1); }}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Organization" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All organizations</SelectItem>
@@ -271,14 +203,9 @@ export function RouterTable() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Location" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All locations</SelectItem>
-              {locations.map((l) => (<SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>))}
-            </SelectContent>
-          </Select>
-          <Select value={model} onValueChange={(v) => { setModel(v); setPage(1); }}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Model" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All models</SelectItem>
-              {models.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
+              {locations
+                .filter((l) => organizationId === "all" || l.organizationId === organizationId)
+                .map((l) => (<SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>))}
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
@@ -302,19 +229,13 @@ export function RouterTable() {
             <span className="font-medium">{selectedCount} selected</span>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => bulk("enable")}>
-                <PlayCircle className="h-4 w-4" /><span className="ml-2">Enable</span>
+                <PlayCircle className="h-4 w-4" /><span className="ml-2">Reinstate</span>
               </Button>
               <Button variant="outline" size="sm" onClick={() => bulk("disable")}>
                 <PauseCircle className="h-4 w-4" /><span className="ml-2">Suspend</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => bulk("reboot")}>
-                <RotateCw className="h-4 w-4" /><span className="ml-2">Reboot</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => bulk("upgrade")}>
-                <UploadCloud className="h-4 w-4" /><span className="ml-2">Upgrade</span>
-              </Button>
               <Button variant="destructive" size="sm" onClick={() => bulk("delete")}>
-                <Trash2 className="h-4 w-4" /><span className="ml-2">Delete</span>
+                <Trash2 className="h-4 w-4" /><span className="ml-2">Decommission</span>
               </Button>
             </div>
           </div>
@@ -330,7 +251,7 @@ export function RouterTable() {
           <EmptyState
             icon={RouterIcon}
             title="No routers found"
-            description="Try clearing filters or provision your first router."
+            description="Try clearing filters or register your first router."
             action={{ label: "Add router", onClick: () => setWizardOpen(true) }}
           />
         ) : (
@@ -341,19 +262,13 @@ export function RouterTable() {
                   <TableHead className="w-10">
                     <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" />
                   </TableHead>
-                  <SortableHead label="Router" k="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
-                  <TableHead>MikroTik / NAS</TableHead>
+                  <TableHead>Router</TableHead>
                   <TableHead>Organization / Location</TableHead>
                   <TableHead>Model</TableHead>
                   <TableHead>RouterOS</TableHead>
                   <TableHead>IPs</TableHead>
-                  <TableHead>WireGuard</TableHead>
-                  <TableHead>RADIUS</TableHead>
-                  <SortableHead label="Uptime" k="uptimeHours" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="CPU" k="cpuPct" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="RAM" k="ramPct" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="Guests" k="activeGuests" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort} align="right" />
                   <TableHead>Status</TableHead>
+                  <TableHead>Health</TableHead>
                   <TableHead>Last seen</TableHead>
                   <TableHead className="w-10 text-right">Actions</TableHead>
                 </TableRow>
@@ -367,36 +282,22 @@ export function RouterTable() {
                     <TableCell>
                       <Link to="/routers/$routerId" params={{ routerId: r.id }} className="group flex flex-col">
                         <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
-                        <span className="text-xs text-muted-foreground">{r.id} · SN {r.serialNumber}</span>
+                        <span className="text-xs text-muted-foreground">SN {r.serialNumber}</span>
                       </Link>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="font-medium text-foreground">{r.mikrotikIdentity}</div>
-                      <div className="text-muted-foreground">{r.nasId}</div>
                     </TableCell>
                     <TableCell className="text-xs">
                       <div className="text-foreground">{r.organizationName}</div>
                       <div className="text-muted-foreground">{r.locationName}</div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{r.model}</TableCell>
+                    <TableCell className="text-xs tabular-nums">{r.routerOsVersion ?? "—"}</TableCell>
                     <TableCell className="text-xs tabular-nums">
-                      <div>{r.routerOsVersion}</div>
-                      {r.routerOsVersion !== r.latestOsVersion && (
-                        <div className="text-[10px] text-amber-500">→ {r.latestOsVersion}</div>
-                      )}
+                      <div>{r.publicIpAddress ?? "—"}</div>
+                      <div className="text-muted-foreground">{r.managementIpAddress ?? "—"}</div>
                     </TableCell>
-                    <TableCell className="text-xs tabular-nums">
-                      <div>{r.publicIp}</div>
-                      <div className="text-muted-foreground">{r.privateIp}</div>
-                    </TableCell>
-                    <TableCell><TunnelStatusBadge status={r.wireguardStatus} /></TableCell>
-                    <TableCell><ServiceStatusBadge status={r.radiusStatus} /></TableCell>
-                    <TableCell className="text-xs tabular-nums">{formatUptime(r.uptimeHours)}</TableCell>
-                    <TableCell><UsageBar pct={r.cpuPct} /></TableCell>
-                    <TableCell><UsageBar pct={r.ramPct} /></TableCell>
-                    <TableCell className="text-right tabular-nums">{r.activeGuests}</TableCell>
                     <TableCell><RouterStatusBadge status={r.status} /></TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{relative(r.lastSeen)}</TableCell>
+                    <TableCell><HealthStatusBadge status={r.healthStatus} /></TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{relative(r.lastSeenAt)}</TableCell>
                     <TableCell className="text-right">
                       <RowActions
                         router={r}
@@ -404,33 +305,21 @@ export function RouterTable() {
                           if (a === "enable" || a === "disable") {
                             updateStatus.mutate(
                               { ids: [r.id], status: a === "enable" ? "online" : "suspended" },
-                              { onSuccess: () => toast.success(`${r.name} ${a}d`) },
+                              {
+                                onSuccess: () => toast.success(`${r.name} ${a === "enable" ? "reinstated" : "suspended"}`),
+                                onError: (err) => toast.error((err as unknown as AppError).message || `Failed to ${a}`),
+                              },
                             );
                           } else if (a === "delete") {
                             setConfirm({
-                              title: `Delete ${r.name}?`,
-                              description: "This action cannot be undone.",
+                              title: `Decommission ${r.name}?`,
+                              description: "This decommissions the router.",
                               destructive: true,
                               onConfirm: async () => {
                                 await remove.mutateAsync([r.id]);
-                                toast.success("Router deleted");
+                                toast.success("Decommissioned");
                               },
                             });
-                          } else if (a === "reboot") {
-                            setConfirm({
-                              title: `Reboot ${r.name}?`,
-                              description: "Router will be unreachable for ~2 minutes.",
-                              onConfirm: async () => {
-                                await reboot.mutateAsync([r.id]);
-                                toast.success("Reboot command sent");
-                              },
-                            });
-                          } else if (a === "upgrade") {
-                            upgrade.mutate([r.id], { onSuccess: () => toast.success("Firmware upgrade queued") });
-                          } else if (a === "backup") {
-                            toast.success("Configuration backup queued (placeholder)");
-                          } else if (a === "sync") {
-                            toast.success("Configuration sync started (placeholder)");
                           }
                         }}
                       />
@@ -500,37 +389,14 @@ function Pagination({
   );
 }
 
-function SortableHead({
-  label, k, sortBy, sortDir, onSort, align,
-}: {
-  label: string; k: keyof RouterDevice;
-  sortBy: keyof RouterDevice; sortDir: "asc" | "desc";
-  onSort: (k: keyof RouterDevice) => void; align?: "right";
-}) {
-  const active = sortBy === k;
-  return (
-    <TableHead className={align === "right" ? "text-right" : ""}>
-      <button
-        onClick={() => onSort(k)}
-        className={`inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide ${
-          active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        {label}
-        <ArrowUpDown className={`h-3 w-3 ${active ? "opacity-100" : "opacity-40"}`} />
-      </button>
-    </TableHead>
-  );
-}
-
 function RowActions({
   router: r,
   onAction,
 }: {
   router: RouterDevice;
-  onAction: (a: "enable" | "disable" | "delete" | "reboot" | "upgrade" | "backup" | "sync") => void;
+  onAction: (a: "enable" | "disable" | "delete") => void;
 }) {
-  const disabled = r.status === "suspended" || r.status === "offline" || r.status === "error";
+  const disabled = r.status === "suspended" || r.status === "offline" || r.status === "decommissioned";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -543,35 +409,18 @@ function RowActions({
         <DropdownMenuItem asChild>
           <Link to="/routers/$routerId" params={{ routerId: r.id }}>View details</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/routers/$routerId" params={{ routerId: r.id }} search={{ tab: "monitoring" }}>
-            Open monitoring
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("reboot")}>
-          <RotateCw className="h-4 w-4" /><span className="ml-2">Reboot</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("sync")}>
-          <RefreshCw className="h-4 w-4" /><span className="ml-2">Sync configuration</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("backup")}>
-          <Download className="h-4 w-4" /><span className="ml-2">Backup configuration</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("upgrade")}>
-          <UploadCloud className="h-4 w-4" /><span className="ml-2">Upgrade firmware</span>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {disabled ? (
           <DropdownMenuItem onClick={() => onAction("enable")}>
-            <PlayCircle className="h-4 w-4" /><span className="ml-2">Enable</span>
+            <PlayCircle className="h-4 w-4" /><span className="ml-2">Reinstate</span>
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem onClick={() => onAction("disable")}>
-            <PowerOff className="h-4 w-4" /><span className="ml-2">Suspend</span>
+            <PauseCircle className="h-4 w-4" /><span className="ml-2">Suspend</span>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onAction("delete")}>
-          <Trash2 className="h-4 w-4" /><span className="ml-2">Delete</span>
+          <Trash2 className="h-4 w-4" /><span className="ml-2">Decommission</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

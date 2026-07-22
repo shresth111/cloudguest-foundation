@@ -1,17 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Download,
-  MoreHorizontal,
-  PauseCircle,
-  PlayCircle,
-  Power,
-  RefreshCw,
-  RotateCw,
-  Trash2,
-  UploadCloud,
-} from "lucide-react";
+import { ArrowLeft, MoreHorizontal, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -20,7 +9,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -28,13 +16,8 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { RouterDetailTabs } from "@/components/routers/RouterDetailTabs";
 import { RouterStatusBadge } from "@/components/routers/RouterStatusBadge";
-import {
-  useDeleteRouters,
-  useRebootRouters,
-  useRouter,
-  useUpdateRouterStatus,
-  useUpgradeRouters,
-} from "@/hooks/useRouters";
+import { useDeleteRouters, useRouter, useUpdateRouterStatus } from "@/hooks/useRouters";
+import type { AppError } from "@/services/api";
 
 const searchSchema = z.object({ tab: z.string().optional() });
 
@@ -50,8 +33,6 @@ function RouterDetailPage() {
   const { data: router, isLoading, isError, refetch } = useRouter(routerId);
   const updateStatus = useUpdateRouterStatus();
   const remove = useDeleteRouters();
-  const reboot = useRebootRouters();
-  const upgrade = useUpgradeRouters();
   const [confirm, setConfirm] = useState<null | {
     title: string;
     description: string;
@@ -64,13 +45,23 @@ function RouterDetailPage() {
   if (!router)
     return <ErrorState title="Router not found" description="This router may have been deleted." />;
 
-  const disabled = router.status === "suspended" || router.status === "offline" || router.status === "error";
+  // Mirrors the backend's real ROUTER_STATUS_TRANSITIONS graph: suspend is
+  // only legal from online/offline, reinstate only from suspended (and it
+  // lands on offline, not online -- only a device heartbeat may ever assert
+  // "online"). Every other status (pending_provisioning, provisioning,
+  // decommissioned) has neither edge, so the toggle has nothing valid to do.
+  const canSuspend = router.status === "online" || router.status === "offline";
+  const canReinstate = router.status === "suspended";
+  const showToggle = canSuspend || canReinstate;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <Link to="/routers" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <Link
+            to="/routers"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-3 w-3" /> Back to routers
           </Link>
           <div className="flex flex-wrap items-center gap-3">
@@ -78,85 +69,75 @@ function RouterDetailPage() {
             <RouterStatusBadge status={router.status} />
           </div>
           <p className="text-sm text-muted-foreground">
-            {router.id} · {router.model} · {router.locationName} · {router.publicIp}
+            {router.model} · {router.locationName} · {router.publicIpAddress ?? "no public IP"}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant={disabled ? "default" : "outline"}
-            onClick={() =>
-              setConfirm({
-                title: disabled ? `Enable ${router.name}?` : `Suspend ${router.name}?`,
-                description: disabled
-                  ? "The router will be marked online and start serving guests again."
-                  : "Guest traffic through this router will stop until re-enabled.",
-                destructive: !disabled,
-                onConfirm: async () => {
-                  await updateStatus.mutateAsync({
-                    ids: [router.id],
-                    status: disabled ? "online" : "suspended",
-                  });
-                  toast.success(disabled ? "Router enabled" : "Router suspended");
-                },
-              })
-            }
-          >
-            {disabled ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
-            <span className="ml-2">{disabled ? "Enable" : "Suspend"}</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              setConfirm({
-                title: `Reboot ${router.name}?`,
-                description: "Router will be unreachable for ~2 minutes.",
-                onConfirm: async () => {
-                  await reboot.mutateAsync([router.id]);
-                  toast.success("Reboot command sent");
-                },
-              })
-            }
-          >
-            <RotateCw className="h-4 w-4" /><span className="ml-2">Reboot</span>
-          </Button>
+          {showToggle && (
+            <Button
+              variant={canReinstate ? "default" : "outline"}
+              onClick={() =>
+                setConfirm({
+                  title: canReinstate ? `Reinstate ${router.name}?` : `Suspend ${router.name}?`,
+                  description: canReinstate
+                    ? "The router moves back to offline. Only the device's own heartbeat can mark it online again."
+                    : "Guest traffic through this router will stop until re-enabled.",
+                  destructive: canSuspend,
+                  onConfirm: async () => {
+                    try {
+                      await updateStatus.mutateAsync({
+                        ids: [router.id],
+                        status: canReinstate ? "offline" : "suspended",
+                      });
+                      toast.success(canReinstate ? "Router reinstated" : "Router suspended");
+                    } catch (err) {
+                      toast.error(
+                        (err as unknown as AppError).message || "Failed to update router status",
+                      );
+                    }
+                  },
+                })
+              }
+            >
+              {canReinstate ? (
+                <PlayCircle className="h-4 w-4" />
+              ) : (
+                <PauseCircle className="h-4 w-4" />
+              )}
+              <span className="ml-2">{canReinstate ? "Reinstate" : "Suspend"}</span>
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => toast.success("Configuration sync started")}>
-                <RefreshCw className="h-4 w-4" /><span className="ml-2">Sync configuration</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Configuration pushed")}>
-                <UploadCloud className="h-4 w-4" /><span className="ml-2">Push configuration</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Backup queued")}>
-                <Download className="h-4 w-4" /><span className="ml-2">Backup configuration</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => upgrade.mutate([router.id], { onSuccess: () => toast.success("Firmware upgrade queued") })}>
-                <UploadCloud className="h-4 w-4" /><span className="ml-2">Upgrade firmware</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Shutdown command sent")}>
-                <Power className="h-4 w-4" /><span className="ml-2">Shutdown</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() =>
                   setConfirm({
-                    title: `Delete ${router.name}?`,
-                    description: "This permanently removes the router and its configuration.",
+                    title: `Decommission ${router.name}?`,
+                    description: "This decommissions the router.",
                     destructive: true,
                     onConfirm: async () => {
-                      await remove.mutateAsync([router.id]);
-                      toast.success("Router deleted");
-                      navigate({ to: "/routers" });
+                      try {
+                        await remove.mutateAsync([router.id]);
+                        toast.success("Router decommissioned");
+                        navigate({ to: "/routers" });
+                      } catch (err) {
+                        toast.error(
+                          (err as unknown as AppError).message || "Failed to decommission",
+                        );
+                      }
                     },
                   })
                 }
               >
-                <Trash2 className="h-4 w-4" /><span className="ml-2">Delete router</span>
+                <Trash2 className="h-4 w-4" />
+                <span className="ml-2">Decommission router</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

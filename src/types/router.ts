@@ -1,61 +1,35 @@
 export type RouterStatus =
+  | "pending_provisioning"
+  | "provisioning"
   | "online"
   | "offline"
-  | "maintenance"
-  | "provisioning"
   | "suspended"
-  | "error";
+  | "decommissioned";
 
-export type TunnelStatus = "up" | "down" | "connecting";
-export type ServiceStatus = "running" | "stopped" | "error";
+export type HealthStatus = "healthy" | "unhealthy" | null;
 
 export interface RouterDevice {
   id: string;
-  name: string;
-  mikrotikIdentity: string;
-  nasId: string;
-  organizationId: string;
-  organizationName: string;
   locationId: string;
   locationName: string;
-  model: string;
+  organizationId: string;
+  organizationName: string;
+  name: string;
   serialNumber: string;
-  routerOsVersion: string;
-  latestOsVersion: string;
-  publicIp: string;
-  privateIp: string;
-  wireguardStatus: TunnelStatus;
-  radiusStatus: ServiceStatus;
-  internetStatus: "online" | "offline" | "degraded";
-  uptimeHours: number;
-  cpuPct: number;
-  ramPct: number;
-  storagePct: number;
-  temperatureC: number;
-  latencyMs: number;
-  packetLossPct: number;
-  activeGuests: number;
-  activeSessions: number;
+  macAddress: string;
+  model: string;
+  vendor: string;
+  routerOsVersion: string | null;
+  managementIpAddress: string | null;
+  publicIpAddress: string | null;
   status: RouterStatus;
-  lastSeen: string;
+  lastSeenAt: string | null;
+  lastHealthCheckAt: string | null;
+  healthStatus: HealthStatus;
+  hasApiCredentials: boolean;
+  settings: Record<string, unknown>;
   createdAt: string;
-  // Config
-  wanIp: string;
-  lanIp: string;
-  dns: string;
-  gateway: string;
-  timezone: string;
-  sharedSecret: string;
-  apiPort: number;
-  apiUsername: string;
-  services: {
-    freeradius: boolean;
-    wireguard: boolean;
-    captivePortal: boolean;
-    guestWifi: boolean;
-    monitoring: boolean;
-    analytics: boolean;
-  };
+  updatedAt: string;
 }
 
 export interface RouterListQuery {
@@ -63,11 +37,8 @@ export interface RouterListQuery {
   status?: RouterStatus | "all";
   organizationId?: string | "all";
   locationId?: string | "all";
-  model?: string | "all";
   page: number;
   pageSize: number;
-  sortBy?: keyof RouterDevice;
-  sortDir?: "asc" | "desc";
 }
 
 export interface RouterListResult {
@@ -76,73 +47,65 @@ export interface RouterListResult {
 }
 
 export interface CreateRouterPayload {
-  basic: {
-    name: string;
-    organizationId: string;
-    locationId: string;
-    model: string;
-    serialNumber: string;
-    mikrotikIdentity: string;
-  };
-  network: {
-    wanIp: string;
-    lanIp: string;
-    dns: string;
-    gateway: string;
-    timezone: string;
-  };
-  auth: {
-    nasId: string;
-    sharedSecret: string;
-    apiPort: number;
-    apiUsername: string;
-    apiPassword: string;
-  };
-  services: {
-    freeradius: boolean;
-    wireguard: boolean;
-    captivePortal: boolean;
-    guestWifi: boolean;
-    monitoring: boolean;
-    analytics: boolean;
-  };
+  locationId: string;
+  name: string;
+  serialNumber: string;
+  macAddress: string;
+  model: string;
+  vendor?: string;
+  managementIpAddress?: string;
+  publicIpAddress?: string;
+  apiUsername?: string;
+  apiSecret?: string;
+  settings?: Record<string, unknown>;
 }
 
 export const ROUTER_STATUS_LABEL: Record<RouterStatus, string> = {
+  pending_provisioning: "Pending Provisioning",
+  provisioning: "Provisioning",
   online: "Online",
   offline: "Offline",
-  maintenance: "Maintenance",
-  provisioning: "Provisioning",
   suspended: "Suspended",
-  error: "Error",
+  decommissioned: "Decommissioned",
 };
 
-export interface ConnectedDevice {
-  id: string;
-  name: string;
-  mac: string;
-  ip: string;
-  guestName: string;
-  connectedSince: string;
-  downloadMb: number;
-  uploadMb: number;
-  rssi: number;
-}
+export type PeerStatus = "pending" | "active" | "revoked";
+
+export type PeerHealthStatus = "healthy" | "stale" | "unknown" | "revoked";
+
+export const PEER_STATUS_LABEL: Record<PeerStatus, string> = {
+  pending: "Pending device pull",
+  active: "Active",
+  revoked: "Revoked",
+};
 
 export interface WireGuardPeer {
   id: string;
-  name: string;
+  routerId: string;
+  serverId: string;
+  tunnelIpAddress: string;
   publicKey: string;
-  endpoint: string;
-  allowedIps: string;
-  lastHandshake: string;
-  status: TunnelStatus;
+  status: PeerStatus;
+  rotationCount: number;
+  lastHandshakeAt: string | null;
+  healthStatus: PeerHealthStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface RouterAlert {
-  id: string;
-  type: "cpu" | "memory" | "offline" | "wireguard" | "radius" | "wan";
-  title: string;
-  severity: "info" | "warning" | "critical";
-  raisedAt: string;
+/** Only ever returned once, at the moment a tunnel is created or rotated. */
+export interface WireGuardTunnelSecrets extends WireGuardPeer {
+  peerPrivateKey: string;
+  hubPublicKey: string;
+  hubEndpointHost: string;
+  hubEndpointPort: number;
+  tunnelNetworkCidr: string;
+  persistentKeepaliveSeconds: number;
+}
+
+/** Only ever returned once, at the moment it's generated. */
+export interface ProvisioningToken {
+  routerId: string;
+  token: string;
+  expiresAt: string;
 }
