@@ -1,35 +1,56 @@
-export type VlanStatus = "active" | "draft" | "disabled";
-export type IspBinding = "primary" | "secondary" | "failover" | "none";
-
 export interface Vlan {
   id: string;
-  vlanId: number;                 // 802.1Q tag, 1-4094
+  routerId: string;
+  organizationId: string;
+  locationId: string;
+  vlanId: number; // 802.1Q tag, 1-4094
   name: string;
-  description?: string;
-  subnet: string;                 // CIDR
-  gateway: string;
-  dnsPrimary: string;
-  dnsSecondary?: string;
-  dhcpEnabled: boolean;
-  dhcpRangeStart?: string;
-  dhcpRangeEnd?: string;
-  leaseMinutes: number;
-  isolation: boolean;             // client isolation
-  isp: IspBinding;
-  locationIds: string[];
-  routerIds: string[];
-  ssids: string[];
-  status: VlanStatus;
-  createdAt: number;
-  updatedAt: number;
-  clients: number;
-  throughputMbps: number;
+  gatewayIpAddress: string | null;
+  cidr: string | null;
+  interface: string | null;
+  description: string | null;
+  isEnabled: boolean;
+  createdAt: string;
+}
+
+export interface VlanListQuery {
+  routerId?: string;
+  locationId?: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface VlanListResult {
+  rows: Vlan[];
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface CreateVlanPayload {
+  routerId: string;
+  vlanId: number;
+  name: string;
+  gatewayIpAddress?: string | null;
+  cidr?: string | null;
+  interface?: string | null;
+  description?: string | null;
+  isEnabled?: boolean;
+}
+
+export interface UpdateVlanPayload {
+  vlanId?: number;
+  name?: string;
+  gatewayIpAddress?: string | null;
+  cidr?: string | null;
+  interface?: string | null;
+  description?: string | null;
+  isEnabled?: boolean;
 }
 
 export interface VlanKpis {
   total: number;
-  active: number;
+  enabled: number;
   disabled: number;
-  clients: number;
-  totalThroughputMbps: number;
 }
