@@ -2,10 +2,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   Activity,
+  AlertTriangle,
   Ban,
   BarChart3,
   CheckCircle2,
   Copy,
+  DatabaseBackup,
   FileText,
   Gauge,
   History,
@@ -18,8 +20,10 @@ import {
   ShieldCheck,
   Trash2,
   Undo2,
+  Upload,
   Users,
   Wifi,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +66,16 @@ import {
   usePingRouter,
   useTracerouteRouter,
 } from "@/hooks/useNetworkDiagnostics";
+import {
+  useConfigVersionHistory,
+  useCreateBackup,
+  useFactoryReset,
+  useProvisioningStatus,
+  useRestoreBackup,
+  useRollbackConfigVersion,
+  useRotateSecret,
+} from "@/hooks/useRouterProvisioning";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
 
@@ -85,6 +99,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
             ["monitoring", "Monitoring"],
             ["analytics", "Analytics"],
             ["config", "Configuration"],
+            ["provisioning", "Provisioning"],
             ["diagnostics", "Diagnostics"],
             ["audit", "Audit Logs"],
           ].map(([k, l]) => (
@@ -204,6 +219,9 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
       </TabsContent>
       <TabsContent value="config">
         <ConfigTab routerId={router.id} />
+      </TabsContent>
+      <TabsContent value="provisioning">
+        <ProvisioningTab routerId={router.id} />
       </TabsContent>
       <TabsContent value="diagnostics">
         <DiagnosticsTab routerId={router.id} />
@@ -465,6 +483,215 @@ function ConfigTab({ routerId }: { routerId: string }) {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function ProvisioningTab({ routerId }: { routerId: string }) {
+  const status = useProvisioningStatus(routerId);
+  const versions = useConfigVersionHistory(routerId);
+  const rollback = useRollbackConfigVersion(routerId);
+  const backup = useCreateBackup(routerId);
+  const restore = useRestoreBackup(routerId);
+  const factoryReset = useFactoryReset(routerId);
+  const rotateSecret = useRotateSecret(routerId);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [newSecret, setNewSecret] = useState<string | null>(null);
+
+  async function handleRollback(versionId: string) {
+    try {
+      await rollback.mutateAsync(versionId);
+      toast.success("Rollback queued");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to roll back");
+    }
+  }
+  async function handleBackup() {
+    try {
+      await backup.mutateAsync();
+      toast.success("Backup job queued");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to queue backup");
+    }
+  }
+  async function handleRestore(backupVersionId: string) {
+    try {
+      await restore.mutateAsync(backupVersionId);
+      toast.success("Restore job queued");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to queue restore");
+    }
+  }
+  async function handleFactoryReset() {
+    try {
+      await factoryReset.mutateAsync();
+      toast.success("Factory reset job queued");
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to queue factory reset");
+    } finally {
+      setConfirmReset(false);
+    }
+  }
+  async function handleRotateSecret() {
+    try {
+      const r = await rotateSecret.mutateAsync();
+      setNewSecret(r.newSecret);
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to rotate secret");
+    }
+  }
+
+  if (status.isLoading || versions.isLoading) return <LoadingSkeleton rows={4} />;
+  if (status.isError || versions.isError) {
+    return <ErrorState onRetry={() => { status.refetch(); versions.refetch(); }} />;
+  }
+
+  const backupVersions = versions.data?.rows.filter((v) => v.isBackup) ?? [];
+
+  return (
+    <div className="space-y-4">
+      {newSecret && (
+        <Card className="rounded-2xl border-primary/40 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-base">New API secret — shown once</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <KeyRow label="New secret" value={newSecret} />
+            <p className="text-xs text-muted-foreground">
+              Store this now — it will not be shown again.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="rounded-2xl border-border/70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Workflow className="h-4 w-4" />
+            Provisioning status
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+            <Field label="Router status" value={status.data?.routerStatus ?? "—"} />
+            <Field
+              label="Current config version"
+              value={status.data?.latestVersion ? `v${status.data.latestVersion.versionNumber}` : "None"}
+            />
+          </dl>
+          {status.data?.activeJobs.length ? (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">Active jobs</div>
+              {status.data.activeJobs.map((j) => (
+                <div key={j.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-xs">
+                  <span>{j.jobType.replace(/_/g, " ")}</span>
+                  <Badge variant="outline">{j.status}</Badge>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button size="sm" variant="outline" disabled={backup.isPending} onClick={handleBackup}>
+              <DatabaseBackup className="mr-2 h-3.5 w-3.5" />
+              Backup now
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={rotateSecret.isPending}
+              onClick={handleRotateSecret}
+            >
+              <KeyRound className="mr-2 h-3.5 w-3.5" />
+              Rotate API secret
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={factoryReset.isPending}
+              onClick={() => setConfirmReset(true)}
+            >
+              <AlertTriangle className="mr-2 h-3.5 w-3.5" />
+              Factory reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-border/70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4" />
+            Config version history
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {versions.data?.rows.length ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Applied</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {versions.data.rows.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell>v{v.versionNumber}{v.isBackup ? " (backup)" : ""}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{v.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {v.appliedAt ? new Date(v.appliedAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={rollback.isPending}
+                          onClick={() => handleRollback(v.id)}
+                        >
+                          <Undo2 className="mr-2 h-3.5 w-3.5" />
+                          Roll back
+                        </Button>
+                        {v.isBackup && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={restore.isPending}
+                            onClick={() => handleRestore(v.id)}
+                          >
+                            <Upload className="mr-2 h-3.5 w-3.5" />
+                            Restore
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={History}
+              title="No config versions yet"
+              description={`No versions recorded. ${backupVersions.length} backup(s) available.`}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog
+        open={confirmReset}
+        onOpenChange={setConfirmReset}
+        title="Factory reset this router?"
+        description="This queues a factory-reset job on the physical device. This cannot be undone."
+        confirmLabel="Factory reset"
+        destructive
+        onConfirm={handleFactoryReset}
+      />
     </div>
   );
 }

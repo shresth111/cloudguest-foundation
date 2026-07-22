@@ -1,223 +1,224 @@
+import { api } from "@/services/api";
+import { organizationService } from "@/services/organization.service";
+import { locationService } from "@/services/location.service";
+import { routerService } from "@/services/router.service";
+import { auditService } from "@/services/audit.service";
 import type {
   AuditRow,
-  AuthPoint,
-  DeviceTypeSlice,
   GrowthPoint,
-  Kpi,
   LocationRow,
-  NotificationItem,
   OrgRow,
-  PaymentRow,
-  RevenuePoint,
-  RouterHealth,
+  PlatformDashboard,
+  PlatformHealth,
+  RevenueDashboard,
+  RevenueTrendPoint,
   RouterRow,
-  SearchResult,
-  SessionRow,
-  TicketRow,
-  TopOrgUsage,
-  TrendPoint,
+  UnifiedDashboard,
 } from "@/types/dashboard";
 
-const delay = (ms = 500) => new Promise((r) => setTimeout(r, ms));
+interface BackendGrowthPoint {
+  metric: string;
+  current_value: number;
+  previous_value: number | null;
+  delta: number | null;
+  delta_percent: number | null;
+  direction: string;
+}
 
-// Deterministic-ish random so charts stay stable across renders
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
+interface BackendPlatformDashboard {
+  total_organizations: number;
+  total_locations: number;
+  total_routers: number;
+  routers_online: number;
+  routers_offline: number;
+  total_guests: number;
+  todays_guests: number;
+  monthly_guests: number;
+  total_sessions: number;
+  active_sessions: number;
+  peak_concurrent_sessions: number;
+  organization_growth: BackendGrowthPoint;
+  location_growth: BackendGrowthPoint;
+  router_growth: BackendGrowthPoint;
+  guest_growth: BackendGrowthPoint;
+  network_growth: BackendGrowthPoint;
+  trial_customers: number;
+  paid_customers: number;
+}
+
+interface BackendPlatformHealth {
+  overall_health_status: string;
+  alert_counts_by_severity: Record<string, number>;
+  alert_counts_by_status: Record<string, number>;
+  device_counts_by_status: Record<string, number>;
+  average_response_time_ms: number | null;
+  availability_percentage: number | null;
+}
+
+interface BackendUnifiedDashboard {
+  platform: BackendPlatformDashboard;
+  operations: BackendPlatformHealth;
+  license_status_breakdown: Record<string, number>;
+  total_revenue: number | null;
+  mrr: number | null;
+  arr: number | null;
+}
+
+interface BackendRevenueTrendPoint {
+  month: string;
+  gross_amount: number;
+  refunded_amount: number;
+  net_amount: number;
+}
+
+interface BackendSuperAdminBillingDashboard {
+  revenue: {
+    total_revenue: number;
+    total_refunded: number;
+    mrr: number;
+    arr: number;
+    active_paying_subscription_count: number;
+    trend: BackendRevenueTrendPoint[];
+  };
+  subscriptions: {
+    counts_by_status: Record<string, number>;
+    counts_by_plan_type: Record<string, number>;
+    churn: { churn_rate: number | null };
+  };
+}
+
+function toGrowthPoint(g: BackendGrowthPoint): GrowthPoint {
+  return {
+    metric: g.metric,
+    currentValue: g.current_value,
+    previousValue: g.previous_value,
+    delta: g.delta,
+    deltaPercent: g.delta_percent,
+    direction: g.direction,
+  };
+}
+
+function toPlatformDashboard(p: BackendPlatformDashboard): PlatformDashboard {
+  return {
+    totalOrganizations: p.total_organizations,
+    totalLocations: p.total_locations,
+    totalRouters: p.total_routers,
+    routersOnline: p.routers_online,
+    routersOffline: p.routers_offline,
+    totalGuests: p.total_guests,
+    todaysGuests: p.todays_guests,
+    monthlyGuests: p.monthly_guests,
+    totalSessions: p.total_sessions,
+    activeSessions: p.active_sessions,
+    peakConcurrentSessions: p.peak_concurrent_sessions,
+    organizationGrowth: toGrowthPoint(p.organization_growth),
+    locationGrowth: toGrowthPoint(p.location_growth),
+    routerGrowth: toGrowthPoint(p.router_growth),
+    guestGrowth: toGrowthPoint(p.guest_growth),
+    networkGrowth: toGrowthPoint(p.network_growth),
+    trialCustomers: p.trial_customers,
+    paidCustomers: p.paid_customers,
+  };
+}
+
+function toPlatformHealth(h: BackendPlatformHealth): PlatformHealth {
+  return {
+    overallHealthStatus: h.overall_health_status,
+    alertCountsBySeverity: h.alert_counts_by_severity,
+    alertCountsByStatus: h.alert_counts_by_status,
+    deviceCountsByStatus: h.device_counts_by_status,
+    averageResponseTimeMs: h.average_response_time_ms,
+    availabilityPercentage: h.availability_percentage,
   };
 }
 
 export const superAdminService = {
-  async getKpis(): Promise<Kpi[]> {
-    await delay(400);
-    return [
-      { key: "totalCustomers", label: "Total Customers", value: "312", delta: "+18", trend: "up", hint: "vs last month" },
-      { key: "totalOrgs", label: "Total Organizations", value: "1,284", delta: "+42", trend: "up" },
-      { key: "totalLocations", label: "Total Locations", value: "8,942", delta: "+184", trend: "up" },
-      { key: "registeredNas", label: "Registered NAS", value: "24,318", delta: "+312", trend: "up" },
-      { key: "onlineNas", label: "Online NAS", value: "23,704", delta: "97.5%", trend: "flat" },
-      { key: "offlineNas", label: "Offline NAS", value: "614", delta: "-38", trend: "down" },
-      { key: "activeSubscriptions", label: "Active Subscriptions", value: "1,196", delta: "+3.1%", trend: "up" },
-      { key: "mrr", label: "Monthly Revenue", value: "$482,904", delta: "+11.3%", trend: "up", hint: "MoM" },
-      { key: "licenseUsage", label: "License Usage", value: "78%", delta: "+2.1%", trend: "up" },
-      { key: "platformHealth", label: "Platform Health", value: "99.98%", delta: "SLA", trend: "flat" },
-    ];
+  async getUnifiedDashboard(): Promise<UnifiedDashboard> {
+    const { data } = await api.get<BackendUnifiedDashboard>("/dashboard/super-admin/unified");
+    return {
+      platform: toPlatformDashboard(data.platform),
+      operations: toPlatformHealth(data.operations),
+      licenseStatusBreakdown: data.license_status_breakdown,
+      totalRevenue: data.total_revenue,
+      mrr: data.mrr,
+      arr: data.arr,
+    };
   },
 
-  async getGuestTrend(): Promise<TrendPoint[]> {
-    await delay(350);
-    const rnd = seeded(11);
-    return Array.from({ length: 30 }, (_, i) => ({
-      date: `Day ${i + 1}`,
-      value: Math.round(4000 + rnd() * 3000 + i * 60),
+  async getRevenueDashboard(months = 12): Promise<RevenueDashboard> {
+    const { data } = await api.get<BackendSuperAdminBillingDashboard>(
+      "/billing/dashboard/super-admin",
+      { params: { months } },
+    );
+    return {
+      totalRevenue: data.revenue.total_revenue,
+      totalRefunded: data.revenue.total_refunded,
+      mrr: data.revenue.mrr,
+      arr: data.revenue.arr,
+      activePayingSubscriptionCount: data.revenue.active_paying_subscription_count,
+      trend: data.revenue.trend.map(
+        (t): RevenueTrendPoint => ({
+          month: t.month,
+          grossAmount: t.gross_amount,
+          refundedAmount: t.refunded_amount,
+          netAmount: t.net_amount,
+        }),
+      ),
+      subscriptionsByStatus: data.subscriptions.counts_by_status,
+      subscriptionsByPlanType: data.subscriptions.counts_by_plan_type,
+      churnRate: data.subscriptions.churn.churn_rate,
+    };
+  },
+
+  async getRecentOrgs(limit = 5): Promise<OrgRow[]> {
+    const { rows } = await organizationService.list({ page: 1, pageSize: limit });
+    return rows.map((o) => ({
+      id: o.id,
+      name: o.name,
+      plan: o.subscriptionTier,
+      status: o.status,
+      createdAt: o.createdAt,
     }));
   },
 
-  async getRevenueTrend(): Promise<RevenuePoint[]> {
-    await delay(300);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return months.map((m, i) => ({
-      month: m,
-      mrr: 280000 + i * 18000 + Math.round(Math.sin(i) * 12000),
-      arr: (280000 + i * 18000) * 12,
+  async getRecentLocations(limit = 5): Promise<LocationRow[]> {
+    const all = await locationService.listAll();
+    return [...all]
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, limit)
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        organizationName: l.organizationName,
+        city: l.city,
+        createdAt: l.createdAt,
+      }));
+  },
+
+  async getRecentRouters(limit = 5): Promise<RouterRow[]> {
+    const { rows } = await routerService.list({ page: 1, pageSize: 1000 });
+    return [...rows]
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, limit)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        serialNumber: r.serialNumber,
+        model: r.model,
+        organizationName: r.organizationName,
+        status: r.status,
+        createdAt: r.createdAt,
+      }));
+  },
+
+  async getRecentAudit(limit = 8): Promise<AuditRow[]> {
+    const { rows } = await auditService.list({ page: 1, pageSize: limit });
+    return rows.map((a) => ({
+      id: a.id,
+      action: a.action,
+      entityType: a.entityType,
+      description: a.description,
+      createdAt: a.createdAt,
     }));
-  },
-
-  async getRouterHealth(): Promise<RouterHealth> {
-    await delay(200);
-    return { online: 23704, warning: 218, offline: 614 };
-  },
-
-  async getAuthStats(): Promise<AuthPoint[]> {
-    await delay(300);
-    const rnd = seeded(7);
-    return Array.from({ length: 14 }, (_, i) => ({
-      date: `D${i + 1}`,
-      success: Math.round(9000 + rnd() * 2000),
-      failed: Math.round(200 + rnd() * 400),
-    }));
-  },
-
-  async getTopOrgs(): Promise<TopOrgUsage[]> {
-    await delay(250);
-    return [
-      { name: "Aurora Hotels", usage: 92 },
-      { name: "NovaMalls", usage: 84 },
-      { name: "Skyline Airports", usage: 78 },
-      { name: "MetroTransit", usage: 66 },
-      { name: "Cafe Verona", usage: 54 },
-      { name: "GreenLeaf Resorts", usage: 47 },
-    ];
-  },
-
-  async getDeviceDistribution(): Promise<DeviceTypeSlice[]> {
-    await delay(200);
-    return [
-      { type: "Mobile", value: 62 },
-      { type: "Laptop", value: 22 },
-      { type: "Tablet", value: 11 },
-      { type: "IoT", value: 5 },
-    ];
-  },
-
-  async getDailyActive(): Promise<TrendPoint[]> {
-    await delay(280);
-    const rnd = seeded(19);
-    return Array.from({ length: 7 }, (_, i) => ({
-      date: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i],
-      value: Math.round(24000 + rnd() * 12000),
-    }));
-  },
-
-  async getMonthlyGrowth(): Promise<GrowthPoint[]> {
-    await delay(320);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return months.map((m, i) => ({
-      month: m,
-      orgs: 60 + i * 8 + Math.round(Math.sin(i) * 4),
-      locations: 320 + i * 42 + Math.round(Math.cos(i) * 20),
-    }));
-  },
-
-  async getRecentOrgs(): Promise<OrgRow[]> {
-    await delay(220);
-    return [
-      { id: "o1", name: "Nimbus Coworks", plan: "Enterprise", locations: 24, createdAt: "2h ago", status: "active" },
-      { id: "o2", name: "Harbor Hotels", plan: "Growth", locations: 12, createdAt: "5h ago", status: "active" },
-      { id: "o3", name: "Kite Cafés", plan: "Starter", locations: 3, createdAt: "1d ago", status: "pending" },
-      { id: "o4", name: "Meridian Malls", plan: "Enterprise", locations: 48, createdAt: "2d ago", status: "active" },
-      { id: "o5", name: "Sunset Resorts", plan: "Growth", locations: 8, createdAt: "3d ago", status: "inactive" },
-    ];
-  },
-
-  async getRecentLocations(): Promise<LocationRow[]> {
-    await delay(220);
-    return [
-      { id: "l1", name: "Downtown Flagship", org: "Nimbus Coworks", city: "Austin, TX", addedAt: "1h ago", status: "active" },
-      { id: "l2", name: "Marina Terminal", org: "Skyline Airports", city: "Dubai", addedAt: "3h ago", status: "active" },
-      { id: "l3", name: "Riverside Plaza", org: "Meridian Malls", city: "Chicago, IL", addedAt: "6h ago", status: "warning" },
-      { id: "l4", name: "Old Town Café", org: "Kite Cafés", city: "Lisbon", addedAt: "1d ago", status: "active" },
-    ];
-  },
-
-  async getRecentRouters(): Promise<RouterRow[]> {
-    await delay(200);
-    return [
-      { id: "r1", serial: "CG-4821-A2", model: "CG-Pro X2", org: "Harbor Hotels", registeredAt: "22m ago", status: "online" },
-      { id: "r2", serial: "CG-4820-A1", model: "CG-Mini", org: "Kite Cafés", registeredAt: "1h ago", status: "online" },
-      { id: "r3", serial: "CG-4819-B7", model: "CG-Pro X2", org: "Meridian Malls", registeredAt: "3h ago", status: "offline" },
-      { id: "r4", serial: "CG-4818-C4", model: "CG-Edge", org: "Aurora Hotels", registeredAt: "5h ago", status: "online" },
-    ];
-  },
-
-  async getRecentSessions(): Promise<SessionRow[]> {
-    await delay(200);
-    return [
-      { id: "s1", guest: "guest_8241", org: "Aurora Hotels", location: "Downtown", startedAt: "just now", duration: "12m" },
-      { id: "s2", guest: "guest_8240", org: "NovaMalls", location: "Riverside", startedAt: "2m ago", duration: "26m" },
-      { id: "s3", guest: "guest_8239", org: "Skyline Airports", location: "T2", startedAt: "6m ago", duration: "48m" },
-      { id: "s4", guest: "guest_8238", org: "MetroTransit", location: "Central", startedAt: "12m ago", duration: "8m" },
-    ];
-  },
-
-  async getRecentPayments(): Promise<PaymentRow[]> {
-    await delay(220);
-    return [
-      { id: "p1", org: "Aurora Hotels", amount: 4800, method: "Card ••4242", paidAt: "1h ago", status: "paid" },
-      { id: "p2", org: "NovaMalls", amount: 12400, method: "ACH", paidAt: "3h ago", status: "paid" },
-      { id: "p3", org: "Kite Cafés", amount: 320, method: "Card ••1121", paidAt: "6h ago", status: "failed" },
-      { id: "p4", org: "Harbor Hotels", amount: 2100, method: "Card ••9910", paidAt: "1d ago", status: "paid" },
-    ];
-  },
-
-  async getRecentTickets(): Promise<TicketRow[]> {
-    await delay(220);
-    return [
-      { id: "t1", subject: "AP offline in T2", org: "Skyline Airports", priority: "urgent", updatedAt: "8m ago", status: "open" },
-      { id: "t2", subject: "Captive portal timeout", org: "Aurora Hotels", priority: "high", updatedAt: "34m ago", status: "open" },
-      { id: "t3", subject: "Billing question", org: "Kite Cafés", priority: "low", updatedAt: "2h ago", status: "open" },
-      { id: "t4", subject: "Firmware update failed", org: "Meridian Malls", priority: "medium", updatedAt: "5h ago", status: "resolved" },
-    ];
-  },
-
-  async getRecentAudit(): Promise<AuditRow[]> {
-    await delay(200);
-    return [
-      { id: "a1", actor: "alex@cloudguest.io", action: "Created organization", target: "Nimbus Coworks", at: "12m ago" },
-      { id: "a2", actor: "priya@acme.com", action: "Updated plan", target: "Harbor Hotels", at: "1h ago" },
-      { id: "a3", actor: "system", action: "Auto-suspended router", target: "CG-4819-B7", at: "3h ago" },
-      { id: "a4", actor: "diego@acme.com", action: "Invited user", target: "manager+2@acme.com", at: "5h ago" },
-    ];
-  },
-
-  async getNotifications(): Promise<NotificationItem[]> {
-    await delay(200);
-    return [
-      { id: "n1", kind: "router", title: "Router offline", message: "CG-4819-B7 at Riverside Plaza has been offline for 12 minutes.", at: "2m ago", unread: true },
-      { id: "n2", kind: "billing", title: "Payment failed", message: "Kite Cafés payment of $320 failed. Retry scheduled.", at: "1h ago", unread: true },
-      { id: "n3", kind: "subscription", title: "Subscription expiring", message: "3 subscriptions expire in the next 7 days.", at: "3h ago", unread: true },
-      { id: "n4", kind: "warning", title: "High auth failure rate", message: "Aurora Hotels — Downtown exceeded 4% failed auths.", at: "5h ago" },
-      { id: "n5", kind: "alert", title: "Firmware rollout complete", message: "v3.4.2 deployed to 1,204 routers.", at: "1d ago" },
-      { id: "n6", kind: "system", title: "Scheduled maintenance", message: "Reporting service maintenance Sunday 02:00 UTC.", at: "2d ago" },
-    ];
-  },
-
-  async search(query: string): Promise<SearchResult[]> {
-    await delay(150);
-    const q = query.toLowerCase().trim();
-    const all: SearchResult[] = [
-      { id: "1", type: "organization", title: "Aurora Hotels", subtitle: "Enterprise · 42 locations" },
-      { id: "2", type: "organization", title: "NovaMalls", subtitle: "Growth · 18 locations" },
-      { id: "3", type: "location", title: "Downtown Flagship", subtitle: "Nimbus Coworks · Austin, TX" },
-      { id: "4", type: "location", title: "Marina Terminal", subtitle: "Skyline Airports · Dubai" },
-      { id: "5", type: "router", title: "CG-4821-A2", subtitle: "Harbor Hotels · Online" },
-      { id: "6", type: "router", title: "CG-4819-B7", subtitle: "Meridian Malls · Offline" },
-      { id: "7", type: "guest", title: "guest_8241", subtitle: "Aurora Hotels · Downtown" },
-      { id: "8", type: "ticket", title: "AP offline in T2", subtitle: "Urgent · Skyline Airports" },
-    ];
-    if (!q) return all.slice(0, 6);
-    return all.filter((r) => r.title.toLowerCase().includes(q) || r.subtitle.toLowerCase().includes(q));
   },
 };

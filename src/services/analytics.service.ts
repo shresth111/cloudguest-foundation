@@ -6,6 +6,10 @@ import type {
   AuthAnalytics,
   DateRangePreset,
   DeviceAnalytics,
+  DomainAuthAnalytics,
+  DomainGuestAnalytics,
+  DomainNetworkAnalytics,
+  DomainRouterAnalytics,
   GuestAnalytics,
   NetworkAnalytics,
   OrganizationAnalyticsRow,
@@ -143,7 +147,273 @@ function emptyAuthAnalytics(): AuthAnalytics {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Real, org/location-scoped domain analytics -- GET /analytics/{routers,
+// network,guests,authentication} all require organization_id (RequireOrganization,
+// not optional like most other domains' CurrentOrganization dependency), so
+// every function below takes an explicit organizationId. Used by the
+// analytics.guest/.network/.device/.isp pages, which add their own org/
+// location picker since (unlike the platform-wide overview page) there's no
+// honest way to call these without one.
+// ---------------------------------------------------------------------------
+
+interface BackendDeviceBreakdownItem {
+  label: string;
+  session_count: number;
+}
+
+interface BackendGuestAnalyticsResponse {
+  window_start: string;
+  window_end: string;
+  new_guests: number;
+  returning_guests: number;
+  unique_guests: number;
+  repeat_visits: number;
+  guest_retention: {
+    available: boolean;
+    retention_rate_percent: number | null;
+    period_days: number;
+  };
+  average_data_usage_bytes: number | null;
+  average_session_duration_seconds: number | null;
+  top_devices: { mac_address: string; session_count: number; unique_guest_count: number }[];
+  top_locations: { location_id: string; location_name: string; session_count: number }[];
+  devices: {
+    sessions_total: number;
+    sessions_with_data: number;
+    by_os: BackendDeviceBreakdownItem[];
+    by_browser: BackendDeviceBreakdownItem[];
+    by_device_type: BackendDeviceBreakdownItem[];
+  };
+  languages: {
+    sessions_total: number;
+    sessions_with_data: number;
+    by_language: Record<string, unknown>[];
+  };
+}
+
+interface BackendNetworkAnalyticsResponse {
+  window_start: string;
+  window_end: string;
+  download_bytes: number;
+  upload_bytes: number;
+  total_bytes: number;
+  peak_bandwidth: { available: boolean; peak_bytes: number | null; bucket_start: string | null };
+  average_speed_bytes_per_second: number | null;
+  network_availability: {
+    available_router_count: number;
+    total_router_count: number;
+    availability_percent: number | null;
+  };
+  top_consumers: { guest_id: string; identifier: string; total_bytes: number }[];
+  top_locations: { location_id: string; location_name: string; total_bytes: number }[];
+  top_routers: { router_id: string; router_name: string; total_bytes: number }[];
+  traffic_trend: { metric: string; current_value: number; delta_percent: number | null }[];
+}
+
+interface BackendAuthAnalyticsResponse {
+  window_start: string;
+  window_end: string;
+  otp: { total_requests: number; successful_count: number; failed_count: number; success_rate: number };
+  voucher: { redeemed_count: number; failed_attempts_recorded: number };
+  authentication_success_total: number;
+  authentication_failure_total: number;
+  authentication_trends: { date: string; success_count: number; failure_count: number }[];
+  failed_login_reasons: { reason: string; count: number }[];
+  auth_methods: { auth_method: string; successful_attempts: number; failed_attempts: number }[];
+}
+
+interface BackendRouterAnalyticsResponse {
+  window_start: string;
+  window_end: string;
+  routers: {
+    router_id: string;
+    router_name: string;
+    status: string;
+    cpu_usage_percent_current: number | null;
+    memory_usage_percent_current: number | null;
+    uptime_seconds: number | null;
+    connected_clients_count: number | null;
+    bandwidth_total_bytes: number;
+    internet_available: boolean;
+    wireguard: { available: boolean; status: string | null };
+    radius_success_count: number;
+    radius_failure_count: number;
+  }[];
+}
+
+function toDeviceBreakdown(items: BackendDeviceBreakdownItem[]) {
+  return items.map((i) => ({ label: i.label, sessionCount: i.session_count }));
+}
+
+async function domainAnalyticsParams(organizationId: string, locationId?: string) {
+  return {
+    headers: { "X-Organization-Id": organizationId },
+    params: locationId ? { location_id: locationId } : undefined,
+  };
+}
+
 export const analyticsService = {
+  async getDomainGuestAnalytics(
+    organizationId: string,
+    locationId?: string,
+  ): Promise<DomainGuestAnalytics> {
+    const { data } = await api.get<BackendGuestAnalyticsResponse>(
+      "/analytics/guests",
+      await domainAnalyticsParams(organizationId, locationId),
+    );
+    return {
+      windowStart: data.window_start,
+      windowEnd: data.window_end,
+      newGuests: data.new_guests,
+      returningGuests: data.returning_guests,
+      uniqueGuests: data.unique_guests,
+      repeatVisits: data.repeat_visits,
+      retention: {
+        available: data.guest_retention.available,
+        retentionRatePercent: data.guest_retention.retention_rate_percent,
+        periodDays: data.guest_retention.period_days,
+      },
+      averageDataUsageBytes: data.average_data_usage_bytes,
+      averageSessionDurationSeconds: data.average_session_duration_seconds,
+      topDevices: data.top_devices.map((d) => ({
+        macAddress: d.mac_address,
+        sessionCount: d.session_count,
+        uniqueGuestCount: d.unique_guest_count,
+      })),
+      topLocations: data.top_locations.map((l) => ({
+        locationId: l.location_id,
+        locationName: l.location_name,
+        sessionCount: l.session_count,
+      })),
+      devices: {
+        sessionsTotal: data.devices.sessions_total,
+        sessionsWithData: data.devices.sessions_with_data,
+        byOs: toDeviceBreakdown(data.devices.by_os),
+        byBrowser: toDeviceBreakdown(data.devices.by_browser),
+        byDeviceType: toDeviceBreakdown(data.devices.by_device_type),
+      },
+      languages: {
+        sessionsTotal: data.languages.sessions_total,
+        sessionsWithData: data.languages.sessions_with_data,
+        byLanguage: data.languages.by_language,
+      },
+    };
+  },
+
+  async getDomainNetworkAnalytics(
+    organizationId: string,
+    locationId?: string,
+  ): Promise<DomainNetworkAnalytics> {
+    const { data } = await api.get<BackendNetworkAnalyticsResponse>(
+      "/analytics/network",
+      await domainAnalyticsParams(organizationId, locationId),
+    );
+    return {
+      windowStart: data.window_start,
+      windowEnd: data.window_end,
+      downloadBytes: data.download_bytes,
+      uploadBytes: data.upload_bytes,
+      totalBytes: data.total_bytes,
+      peakBandwidth: {
+        available: data.peak_bandwidth.available,
+        peakBytes: data.peak_bandwidth.peak_bytes,
+        bucketStart: data.peak_bandwidth.bucket_start,
+      },
+      averageSpeedBytesPerSecond: data.average_speed_bytes_per_second,
+      networkAvailability: {
+        availableRouterCount: data.network_availability.available_router_count,
+        totalRouterCount: data.network_availability.total_router_count,
+        availabilityPercent: data.network_availability.availability_percent,
+      },
+      topConsumers: data.top_consumers.map((c) => ({
+        guestId: c.guest_id,
+        identifier: c.identifier,
+        totalBytes: c.total_bytes,
+      })),
+      topLocations: data.top_locations.map((l) => ({
+        locationId: l.location_id,
+        locationName: l.location_name,
+        totalBytes: l.total_bytes,
+      })),
+      topRouters: data.top_routers.map((r) => ({
+        routerId: r.router_id,
+        routerName: r.router_name,
+        totalBytes: r.total_bytes,
+      })),
+      trafficTrend: data.traffic_trend.map((t) => ({
+        metric: t.metric,
+        currentValue: t.current_value,
+        deltaPercent: t.delta_percent,
+      })),
+    };
+  },
+
+  async getDomainAuthAnalytics(
+    organizationId: string,
+    locationId?: string,
+  ): Promise<DomainAuthAnalytics> {
+    const { data } = await api.get<BackendAuthAnalyticsResponse>(
+      "/analytics/authentication",
+      await domainAnalyticsParams(organizationId, locationId),
+    );
+    return {
+      windowStart: data.window_start,
+      windowEnd: data.window_end,
+      otp: {
+        totalRequests: data.otp.total_requests,
+        successfulCount: data.otp.successful_count,
+        failedCount: data.otp.failed_count,
+        successRate: data.otp.success_rate,
+      },
+      voucher: {
+        redeemedCount: data.voucher.redeemed_count,
+        failedAttemptsRecorded: data.voucher.failed_attempts_recorded,
+      },
+      successTotal: data.authentication_success_total,
+      failureTotal: data.authentication_failure_total,
+      trends: data.authentication_trends.map((t) => ({
+        date: t.date,
+        successCount: t.success_count,
+        failureCount: t.failure_count,
+      })),
+      failureReasons: data.failed_login_reasons,
+      authMethods: data.auth_methods.map((m) => ({
+        authMethod: m.auth_method,
+        successfulAttempts: m.successful_attempts,
+        failedAttempts: m.failed_attempts,
+      })),
+    };
+  },
+
+  async getDomainRouterAnalytics(
+    organizationId: string,
+    locationId?: string,
+  ): Promise<DomainRouterAnalytics> {
+    const { data } = await api.get<BackendRouterAnalyticsResponse>(
+      "/analytics/routers",
+      await domainAnalyticsParams(organizationId, locationId),
+    );
+    return {
+      windowStart: data.window_start,
+      windowEnd: data.window_end,
+      routers: data.routers.map((r) => ({
+        routerId: r.router_id,
+        routerName: r.router_name,
+        status: r.status,
+        cpuUsagePercent: r.cpu_usage_percent_current,
+        memoryUsagePercent: r.memory_usage_percent_current,
+        uptimeSeconds: r.uptime_seconds,
+        connectedClients: r.connected_clients_count,
+        bandwidthTotalBytes: r.bandwidth_total_bytes,
+        internetAvailable: r.internet_available,
+        wireguard: { available: r.wireguard.available, status: r.wireguard.status },
+        radiusSuccessCount: r.radius_success_count,
+        radiusFailureCount: r.radius_failure_count,
+      })),
+    };
+  },
+
   async getSnapshot(_range: DateRangePreset = "last30"): Promise<AnalyticsSnapshot> {
     const [{ data: unified }, organizations] = await Promise.all([
       api.get<BackendUnifiedDashboard>("/dashboard/super-admin/unified"),

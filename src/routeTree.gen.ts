@@ -31,14 +31,21 @@ import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
+import { Route as AuthenticatedErrorMaintenanceRouteImport } from './routes/_authenticated/error-maintenance'
+import { Route as AuthenticatedError500RouteImport } from './routes/_authenticated/error-500'
+import { Route as AuthenticatedError403RouteImport } from './routes/_authenticated/error-403'
+import { Route as AuthenticatedError401RouteImport } from './routes/_authenticated/error-401'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
+import { Route as AuthenticatedTopologyIndexRouteImport } from './routes/_authenticated/topology.index'
 import { Route as AuthenticatedSubscriptionIndexRouteImport } from './routes/_authenticated/subscription.index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings.index'
+import { Route as AuthenticatedSessionsIndexRouteImport } from './routes/_authenticated/sessions.index'
 import { Route as AuthenticatedRoutersIndexRouteImport } from './routes/_authenticated/routers.index'
+import { Route as AuthenticatedReleaseNotesIndexRouteImport } from './routes/_authenticated/release-notes.index'
 import { Route as AuthenticatedRbacIndexRouteImport } from './routes/_authenticated/rbac.index'
 import { Route as AuthenticatedPortalsIndexRouteImport } from './routes/_authenticated/portals.index'
 import { Route as AuthenticatedPlansIndexRouteImport } from './routes/_authenticated/plans.index'
@@ -54,6 +61,7 @@ import { Route as AuthenticatedInfrastructureIndexRouteImport } from './routes/_
 import { Route as AuthenticatedHelpIndexRouteImport } from './routes/_authenticated/help.index'
 import { Route as AuthenticatedGuestsIndexRouteImport } from './routes/_authenticated/guests.index'
 import { Route as AuthenticatedFeatureManagementIndexRouteImport } from './routes/_authenticated/feature-management.index'
+import { Route as AuthenticatedFeatureFlagsIndexRouteImport } from './routes/_authenticated/feature-flags.index'
 import { Route as AuthenticatedFeatureCatalogIndexRouteImport } from './routes/_authenticated/feature-catalog.index'
 import { Route as AuthenticatedExportsIndexRouteImport } from './routes/_authenticated/exports.index'
 import { Route as AuthenticatedCustomersIndexRouteImport } from './routes/_authenticated/customers.index'
@@ -61,6 +69,7 @@ import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedBrandingIndexRouteImport } from './routes/_authenticated/branding.index'
 import { Route as AuthenticatedBillingIndexRouteImport } from './routes/_authenticated/billing.index'
 import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authenticated/audit.index'
+import { Route as AuthenticatedAuditTimelineIndexRouteImport } from './routes/_authenticated/audit-timeline.index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
@@ -100,6 +109,7 @@ import { Route as AuthenticatedNetworkDscpRouteImport } from './routes/_authenti
 import { Route as AuthenticatedNetworkDnsRouteImport } from './routes/_authenticated/network.dns'
 import { Route as AuthenticatedNetworkDhcpRouteImport } from './routes/_authenticated/network.dhcp'
 import { Route as AuthenticatedNetworkAccessPointsRouteImport } from './routes/_authenticated/network.access-points'
+import { Route as AuthenticatedLocationsMapRouteImport } from './routes/_authenticated/locations.map'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
 import { Route as AuthenticatedGuestsTeamsRouteImport } from './routes/_authenticated/guests.teams'
 import { Route as AuthenticatedGuestsAccessRulesRouteImport } from './routes/_authenticated/guests.access-rules'
@@ -224,6 +234,27 @@ const AuthenticatedSelectSpaceRoute =
     path: '/select-space',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedErrorMaintenanceRoute =
+  AuthenticatedErrorMaintenanceRouteImport.update({
+    id: '/error-maintenance',
+    path: '/error-maintenance',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedError500Route = AuthenticatedError500RouteImport.update({
+  id: '/error-500',
+  path: '/error-500',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedError403Route = AuthenticatedError403RouteImport.update({
+  id: '/error-403',
+  path: '/error-403',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedError401Route = AuthenticatedError401RouteImport.update({
+  id: '/error-401',
+  path: '/error-401',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -251,6 +282,12 @@ const AuthenticatedVouchersIndexRoute =
     path: '/vouchers/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedTopologyIndexRoute =
+  AuthenticatedTopologyIndexRouteImport.update({
+    id: '/topology/',
+    path: '/topology/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSubscriptionIndexRoute =
   AuthenticatedSubscriptionIndexRouteImport.update({
     id: '/subscription/',
@@ -263,10 +300,22 @@ const AuthenticatedSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSessionsIndexRoute =
+  AuthenticatedSessionsIndexRouteImport.update({
+    id: '/sessions/',
+    path: '/sessions/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedRoutersIndexRoute =
   AuthenticatedRoutersIndexRouteImport.update({
     id: '/routers/',
     path: '/routers/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedReleaseNotesIndexRoute =
+  AuthenticatedReleaseNotesIndexRouteImport.update({
+    id: '/release-notes/',
+    path: '/release-notes/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedRbacIndexRoute = AuthenticatedRbacIndexRouteImport.update({
@@ -355,6 +404,12 @@ const AuthenticatedFeatureManagementIndexRoute =
     path: '/feature-management/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedFeatureFlagsIndexRoute =
+  AuthenticatedFeatureFlagsIndexRouteImport.update({
+    id: '/feature-flags/',
+    path: '/feature-flags/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedFeatureCatalogIndexRoute =
   AuthenticatedFeatureCatalogIndexRouteImport.update({
     id: '/feature-catalog/',
@@ -396,6 +451,12 @@ const AuthenticatedAuditIndexRoute = AuthenticatedAuditIndexRouteImport.update({
   path: '/audit/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAuditTimelineIndexRoute =
+  AuthenticatedAuditTimelineIndexRouteImport.update({
+    id: '/audit-timeline/',
+    path: '/audit-timeline/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedApiKeysIndexRoute =
   AuthenticatedApiKeysIndexRouteImport.update({
     id: '/api-keys/',
@@ -625,6 +686,12 @@ const AuthenticatedNetworkAccessPointsRoute =
     path: '/network/access-points',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedLocationsMapRoute =
+  AuthenticatedLocationsMapRouteImport.update({
+    id: '/locations/map',
+    path: '/locations/map',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedLocationsLocationIdRoute =
   AuthenticatedLocationsLocationIdRouteImport.update({
     id: '/locations/$locationId',
@@ -714,6 +781,10 @@ export interface FileRoutesByFullPath {
   '/verify-otp': typeof VerifyOtpRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/error-401': typeof AuthenticatedError401Route
+  '/error-403': typeof AuthenticatedError403Route
+  '/error-500': typeof AuthenticatedError500Route
+  '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/portal/ad': typeof PortalAdRoute
@@ -738,6 +809,7 @@ export interface FileRoutesByFullPath {
   '/guests/access-rules': typeof AuthenticatedGuestsAccessRulesRoute
   '/guests/teams': typeof AuthenticatedGuestsTeamsRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  '/locations/map': typeof AuthenticatedLocationsMapRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -777,6 +849,7 @@ export interface FileRoutesByFullPath {
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
+  '/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
   '/audit/': typeof AuthenticatedAuditIndexRoute
   '/billing/': typeof AuthenticatedBillingIndexRoute
   '/branding/': typeof AuthenticatedBrandingIndexRoute
@@ -784,6 +857,7 @@ export interface FileRoutesByFullPath {
   '/customers/': typeof AuthenticatedCustomersIndexRoute
   '/exports/': typeof AuthenticatedExportsIndexRoute
   '/feature-catalog/': typeof AuthenticatedFeatureCatalogIndexRoute
+  '/feature-flags/': typeof AuthenticatedFeatureFlagsIndexRoute
   '/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests/': typeof AuthenticatedGuestsIndexRoute
   '/help/': typeof AuthenticatedHelpIndexRoute
@@ -799,9 +873,12 @@ export interface FileRoutesByFullPath {
   '/plans/': typeof AuthenticatedPlansIndexRoute
   '/portals/': typeof AuthenticatedPortalsIndexRoute
   '/rbac/': typeof AuthenticatedRbacIndexRoute
+  '/release-notes/': typeof AuthenticatedReleaseNotesIndexRoute
   '/routers/': typeof AuthenticatedRoutersIndexRoute
+  '/sessions/': typeof AuthenticatedSessionsIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/subscription/': typeof AuthenticatedSubscriptionIndexRoute
+  '/topology/': typeof AuthenticatedTopologyIndexRoute
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
@@ -818,6 +895,10 @@ export interface FileRoutesByTo {
   '/verify-otp': typeof VerifyOtpRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/error-401': typeof AuthenticatedError401Route
+  '/error-403': typeof AuthenticatedError403Route
+  '/error-500': typeof AuthenticatedError500Route
+  '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/portal/ad': typeof PortalAdRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -839,6 +920,7 @@ export interface FileRoutesByTo {
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
   '/guests/access-rules': typeof AuthenticatedGuestsAccessRulesRoute
   '/guests/teams': typeof AuthenticatedGuestsTeamsRoute
+  '/locations/map': typeof AuthenticatedLocationsMapRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -878,6 +960,7 @@ export interface FileRoutesByTo {
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
+  '/audit-timeline': typeof AuthenticatedAuditTimelineIndexRoute
   '/audit': typeof AuthenticatedAuditIndexRoute
   '/billing': typeof AuthenticatedBillingIndexRoute
   '/branding': typeof AuthenticatedBrandingIndexRoute
@@ -885,6 +968,7 @@ export interface FileRoutesByTo {
   '/customers': typeof AuthenticatedCustomersIndexRoute
   '/exports': typeof AuthenticatedExportsIndexRoute
   '/feature-catalog': typeof AuthenticatedFeatureCatalogIndexRoute
+  '/feature-flags': typeof AuthenticatedFeatureFlagsIndexRoute
   '/feature-management': typeof AuthenticatedFeatureManagementIndexRoute
   '/guests': typeof AuthenticatedGuestsIndexRoute
   '/help': typeof AuthenticatedHelpIndexRoute
@@ -900,9 +984,12 @@ export interface FileRoutesByTo {
   '/plans': typeof AuthenticatedPlansIndexRoute
   '/portals': typeof AuthenticatedPortalsIndexRoute
   '/rbac': typeof AuthenticatedRbacIndexRoute
+  '/release-notes': typeof AuthenticatedReleaseNotesIndexRoute
   '/routers': typeof AuthenticatedRoutersIndexRoute
+  '/sessions': typeof AuthenticatedSessionsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/subscription': typeof AuthenticatedSubscriptionIndexRoute
+  '/topology': typeof AuthenticatedTopologyIndexRoute
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
@@ -922,6 +1009,10 @@ export interface FileRoutesById {
   '/verify-otp': typeof VerifyOtpRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/error-401': typeof AuthenticatedError401Route
+  '/_authenticated/error-403': typeof AuthenticatedError403Route
+  '/_authenticated/error-500': typeof AuthenticatedError500Route
+  '/_authenticated/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/_authenticated/select-space': typeof AuthenticatedSelectSpaceRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/portal/ad': typeof PortalAdRoute
@@ -946,6 +1037,7 @@ export interface FileRoutesById {
   '/_authenticated/guests/access-rules': typeof AuthenticatedGuestsAccessRulesRoute
   '/_authenticated/guests/teams': typeof AuthenticatedGuestsTeamsRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  '/_authenticated/locations/map': typeof AuthenticatedLocationsMapRoute
   '/_authenticated/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/_authenticated/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/_authenticated/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -985,6 +1077,7 @@ export interface FileRoutesById {
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
+  '/_authenticated/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
   '/_authenticated/audit/': typeof AuthenticatedAuditIndexRoute
   '/_authenticated/billing/': typeof AuthenticatedBillingIndexRoute
   '/_authenticated/branding/': typeof AuthenticatedBrandingIndexRoute
@@ -992,6 +1085,7 @@ export interface FileRoutesById {
   '/_authenticated/customers/': typeof AuthenticatedCustomersIndexRoute
   '/_authenticated/exports/': typeof AuthenticatedExportsIndexRoute
   '/_authenticated/feature-catalog/': typeof AuthenticatedFeatureCatalogIndexRoute
+  '/_authenticated/feature-flags/': typeof AuthenticatedFeatureFlagsIndexRoute
   '/_authenticated/feature-management/': typeof AuthenticatedFeatureManagementIndexRoute
   '/_authenticated/guests/': typeof AuthenticatedGuestsIndexRoute
   '/_authenticated/help/': typeof AuthenticatedHelpIndexRoute
@@ -1007,9 +1101,12 @@ export interface FileRoutesById {
   '/_authenticated/plans/': typeof AuthenticatedPlansIndexRoute
   '/_authenticated/portals/': typeof AuthenticatedPortalsIndexRoute
   '/_authenticated/rbac/': typeof AuthenticatedRbacIndexRoute
+  '/_authenticated/release-notes/': typeof AuthenticatedReleaseNotesIndexRoute
   '/_authenticated/routers/': typeof AuthenticatedRoutersIndexRoute
+  '/_authenticated/sessions/': typeof AuthenticatedSessionsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/subscription/': typeof AuthenticatedSubscriptionIndexRoute
+  '/_authenticated/topology/': typeof AuthenticatedTopologyIndexRoute
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
@@ -1029,6 +1126,10 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/account'
     | '/dashboard'
+    | '/error-401'
+    | '/error-403'
+    | '/error-500'
+    | '/error-maintenance'
     | '/select-space'
     | '/workspace'
     | '/portal/ad'
@@ -1053,6 +1154,7 @@ export interface FileRouteTypes {
     | '/guests/access-rules'
     | '/guests/teams'
     | '/locations/$locationId'
+    | '/locations/map'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1092,6 +1194,7 @@ export interface FileRouteTypes {
     | '/portal/auth/$method'
     | '/analytics/'
     | '/api-keys/'
+    | '/audit-timeline/'
     | '/audit/'
     | '/billing/'
     | '/branding/'
@@ -1099,6 +1202,7 @@ export interface FileRouteTypes {
     | '/customers/'
     | '/exports/'
     | '/feature-catalog/'
+    | '/feature-flags/'
     | '/feature-management/'
     | '/guests/'
     | '/help/'
@@ -1114,9 +1218,12 @@ export interface FileRouteTypes {
     | '/plans/'
     | '/portals/'
     | '/rbac/'
+    | '/release-notes/'
     | '/routers/'
+    | '/sessions/'
     | '/settings/'
     | '/subscription/'
+    | '/topology/'
     | '/vouchers/'
     | '/workspace/'
     | '/portal/auth/'
@@ -1133,6 +1240,10 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/account'
     | '/dashboard'
+    | '/error-401'
+    | '/error-403'
+    | '/error-500'
+    | '/error-maintenance'
     | '/select-space'
     | '/portal/ad'
     | '/portal/expired'
@@ -1154,6 +1265,7 @@ export interface FileRouteTypes {
     | '/guests/$guestId'
     | '/guests/access-rules'
     | '/guests/teams'
+    | '/locations/map'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1193,6 +1305,7 @@ export interface FileRouteTypes {
     | '/portal/auth/$method'
     | '/analytics'
     | '/api-keys'
+    | '/audit-timeline'
     | '/audit'
     | '/billing'
     | '/branding'
@@ -1200,6 +1313,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/exports'
     | '/feature-catalog'
+    | '/feature-flags'
     | '/feature-management'
     | '/guests'
     | '/help'
@@ -1215,9 +1329,12 @@ export interface FileRouteTypes {
     | '/plans'
     | '/portals'
     | '/rbac'
+    | '/release-notes'
     | '/routers'
+    | '/sessions'
     | '/settings'
     | '/subscription'
+    | '/topology'
     | '/vouchers'
     | '/workspace'
     | '/portal/auth'
@@ -1236,6 +1353,10 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/_authenticated/account'
     | '/_authenticated/dashboard'
+    | '/_authenticated/error-401'
+    | '/_authenticated/error-403'
+    | '/_authenticated/error-500'
+    | '/_authenticated/error-maintenance'
     | '/_authenticated/select-space'
     | '/_authenticated/workspace'
     | '/portal/ad'
@@ -1260,6 +1381,7 @@ export interface FileRouteTypes {
     | '/_authenticated/guests/access-rules'
     | '/_authenticated/guests/teams'
     | '/_authenticated/locations/$locationId'
+    | '/_authenticated/locations/map'
     | '/_authenticated/network/access-points'
     | '/_authenticated/network/dhcp'
     | '/_authenticated/network/dns'
@@ -1299,6 +1421,7 @@ export interface FileRouteTypes {
     | '/portal/auth/$method'
     | '/_authenticated/analytics/'
     | '/_authenticated/api-keys/'
+    | '/_authenticated/audit-timeline/'
     | '/_authenticated/audit/'
     | '/_authenticated/billing/'
     | '/_authenticated/branding/'
@@ -1306,6 +1429,7 @@ export interface FileRouteTypes {
     | '/_authenticated/customers/'
     | '/_authenticated/exports/'
     | '/_authenticated/feature-catalog/'
+    | '/_authenticated/feature-flags/'
     | '/_authenticated/feature-management/'
     | '/_authenticated/guests/'
     | '/_authenticated/help/'
@@ -1321,9 +1445,12 @@ export interface FileRouteTypes {
     | '/_authenticated/plans/'
     | '/_authenticated/portals/'
     | '/_authenticated/rbac/'
+    | '/_authenticated/release-notes/'
     | '/_authenticated/routers/'
+    | '/_authenticated/sessions/'
     | '/_authenticated/settings/'
     | '/_authenticated/subscription/'
+    | '/_authenticated/topology/'
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/portal/auth/'
@@ -1499,6 +1626,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSelectSpaceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/error-maintenance': {
+      id: '/_authenticated/error-maintenance'
+      path: '/error-maintenance'
+      fullPath: '/error-maintenance'
+      preLoaderRoute: typeof AuthenticatedErrorMaintenanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/error-500': {
+      id: '/_authenticated/error-500'
+      path: '/error-500'
+      fullPath: '/error-500'
+      preLoaderRoute: typeof AuthenticatedError500RouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/error-403': {
+      id: '/_authenticated/error-403'
+      path: '/error-403'
+      fullPath: '/error-403'
+      preLoaderRoute: typeof AuthenticatedError403RouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/error-401': {
+      id: '/_authenticated/error-401'
+      path: '/error-401'
+      fullPath: '/error-401'
+      preLoaderRoute: typeof AuthenticatedError401RouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -1534,6 +1689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVouchersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/topology/': {
+      id: '/_authenticated/topology/'
+      path: '/topology'
+      fullPath: '/topology/'
+      preLoaderRoute: typeof AuthenticatedTopologyIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/subscription/': {
       id: '/_authenticated/subscription/'
       path: '/subscription'
@@ -1548,11 +1710,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sessions/': {
+      id: '/_authenticated/sessions/'
+      path: '/sessions'
+      fullPath: '/sessions/'
+      preLoaderRoute: typeof AuthenticatedSessionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/routers/': {
       id: '/_authenticated/routers/'
       path: '/routers'
       fullPath: '/routers/'
       preLoaderRoute: typeof AuthenticatedRoutersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/release-notes/': {
+      id: '/_authenticated/release-notes/'
+      path: '/release-notes'
+      fullPath: '/release-notes/'
+      preLoaderRoute: typeof AuthenticatedReleaseNotesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/rbac/': {
@@ -1660,6 +1836,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFeatureManagementIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/feature-flags/': {
+      id: '/_authenticated/feature-flags/'
+      path: '/feature-flags'
+      fullPath: '/feature-flags/'
+      preLoaderRoute: typeof AuthenticatedFeatureFlagsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/feature-catalog/': {
       id: '/_authenticated/feature-catalog/'
       path: '/feature-catalog'
@@ -1707,6 +1890,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit/'
       preLoaderRoute: typeof AuthenticatedAuditIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/audit-timeline/': {
+      id: '/_authenticated/audit-timeline/'
+      path: '/audit-timeline'
+      fullPath: '/audit-timeline/'
+      preLoaderRoute: typeof AuthenticatedAuditTimelineIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/api-keys/': {
@@ -1982,6 +2172,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNetworkAccessPointsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/locations/map': {
+      id: '/_authenticated/locations/map'
+      path: '/locations/map'
+      fullPath: '/locations/map'
+      preLoaderRoute: typeof AuthenticatedLocationsMapRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/locations/$locationId': {
       id: '/_authenticated/locations/$locationId'
       path: '/locations/$locationId'
@@ -2150,6 +2347,10 @@ const AuthenticatedLocationsLocationIdRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedError401Route: typeof AuthenticatedError401Route
+  AuthenticatedError403Route: typeof AuthenticatedError403Route
+  AuthenticatedError500Route: typeof AuthenticatedError500Route
+  AuthenticatedErrorMaintenanceRoute: typeof AuthenticatedErrorMaintenanceRoute
   AuthenticatedSelectSpaceRoute: typeof AuthenticatedSelectSpaceRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRouteWithChildren
   AuthenticatedAdministrationBusinessUnitsRoute: typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -2162,6 +2363,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGuestsAccessRulesRoute: typeof AuthenticatedGuestsAccessRulesRoute
   AuthenticatedGuestsTeamsRoute: typeof AuthenticatedGuestsTeamsRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRouteWithChildren
+  AuthenticatedLocationsMapRoute: typeof AuthenticatedLocationsMapRoute
   AuthenticatedNetworkAccessPointsRoute: typeof AuthenticatedNetworkAccessPointsRoute
   AuthenticatedNetworkDhcpRoute: typeof AuthenticatedNetworkDhcpRoute
   AuthenticatedNetworkDnsRoute: typeof AuthenticatedNetworkDnsRoute
@@ -2189,6 +2391,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSupportDocumentationRoute: typeof AuthenticatedSupportDocumentationRoute
   AuthenticatedAnalyticsIndexRoute: typeof AuthenticatedAnalyticsIndexRoute
   AuthenticatedApiKeysIndexRoute: typeof AuthenticatedApiKeysIndexRoute
+  AuthenticatedAuditTimelineIndexRoute: typeof AuthenticatedAuditTimelineIndexRoute
   AuthenticatedAuditIndexRoute: typeof AuthenticatedAuditIndexRoute
   AuthenticatedBillingIndexRoute: typeof AuthenticatedBillingIndexRoute
   AuthenticatedBrandingIndexRoute: typeof AuthenticatedBrandingIndexRoute
@@ -2196,6 +2399,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCustomersIndexRoute: typeof AuthenticatedCustomersIndexRoute
   AuthenticatedExportsIndexRoute: typeof AuthenticatedExportsIndexRoute
   AuthenticatedFeatureCatalogIndexRoute: typeof AuthenticatedFeatureCatalogIndexRoute
+  AuthenticatedFeatureFlagsIndexRoute: typeof AuthenticatedFeatureFlagsIndexRoute
   AuthenticatedFeatureManagementIndexRoute: typeof AuthenticatedFeatureManagementIndexRoute
   AuthenticatedGuestsIndexRoute: typeof AuthenticatedGuestsIndexRoute
   AuthenticatedHelpIndexRoute: typeof AuthenticatedHelpIndexRoute
@@ -2211,15 +2415,22 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPlansIndexRoute: typeof AuthenticatedPlansIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
   AuthenticatedRbacIndexRoute: typeof AuthenticatedRbacIndexRoute
+  AuthenticatedReleaseNotesIndexRoute: typeof AuthenticatedReleaseNotesIndexRoute
   AuthenticatedRoutersIndexRoute: typeof AuthenticatedRoutersIndexRoute
+  AuthenticatedSessionsIndexRoute: typeof AuthenticatedSessionsIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSubscriptionIndexRoute: typeof AuthenticatedSubscriptionIndexRoute
+  AuthenticatedTopologyIndexRoute: typeof AuthenticatedTopologyIndexRoute
   AuthenticatedVouchersIndexRoute: typeof AuthenticatedVouchersIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedError401Route: AuthenticatedError401Route,
+  AuthenticatedError403Route: AuthenticatedError403Route,
+  AuthenticatedError500Route: AuthenticatedError500Route,
+  AuthenticatedErrorMaintenanceRoute: AuthenticatedErrorMaintenanceRoute,
   AuthenticatedSelectSpaceRoute: AuthenticatedSelectSpaceRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRouteWithChildren,
   AuthenticatedAdministrationBusinessUnitsRoute:
@@ -2234,6 +2445,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGuestsTeamsRoute: AuthenticatedGuestsTeamsRoute,
   AuthenticatedLocationsLocationIdRoute:
     AuthenticatedLocationsLocationIdRouteWithChildren,
+  AuthenticatedLocationsMapRoute: AuthenticatedLocationsMapRoute,
   AuthenticatedNetworkAccessPointsRoute: AuthenticatedNetworkAccessPointsRoute,
   AuthenticatedNetworkDhcpRoute: AuthenticatedNetworkDhcpRoute,
   AuthenticatedNetworkDnsRoute: AuthenticatedNetworkDnsRoute,
@@ -2266,6 +2478,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedSupportDocumentationRoute,
   AuthenticatedAnalyticsIndexRoute: AuthenticatedAnalyticsIndexRoute,
   AuthenticatedApiKeysIndexRoute: AuthenticatedApiKeysIndexRoute,
+  AuthenticatedAuditTimelineIndexRoute: AuthenticatedAuditTimelineIndexRoute,
   AuthenticatedAuditIndexRoute: AuthenticatedAuditIndexRoute,
   AuthenticatedBillingIndexRoute: AuthenticatedBillingIndexRoute,
   AuthenticatedBrandingIndexRoute: AuthenticatedBrandingIndexRoute,
@@ -2273,6 +2486,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCustomersIndexRoute: AuthenticatedCustomersIndexRoute,
   AuthenticatedExportsIndexRoute: AuthenticatedExportsIndexRoute,
   AuthenticatedFeatureCatalogIndexRoute: AuthenticatedFeatureCatalogIndexRoute,
+  AuthenticatedFeatureFlagsIndexRoute: AuthenticatedFeatureFlagsIndexRoute,
   AuthenticatedFeatureManagementIndexRoute:
     AuthenticatedFeatureManagementIndexRoute,
   AuthenticatedGuestsIndexRoute: AuthenticatedGuestsIndexRoute,
@@ -2289,9 +2503,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPlansIndexRoute: AuthenticatedPlansIndexRoute,
   AuthenticatedPortalsIndexRoute: AuthenticatedPortalsIndexRoute,
   AuthenticatedRbacIndexRoute: AuthenticatedRbacIndexRoute,
+  AuthenticatedReleaseNotesIndexRoute: AuthenticatedReleaseNotesIndexRoute,
   AuthenticatedRoutersIndexRoute: AuthenticatedRoutersIndexRoute,
+  AuthenticatedSessionsIndexRoute: AuthenticatedSessionsIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedSubscriptionIndexRoute: AuthenticatedSubscriptionIndexRoute,
+  AuthenticatedTopologyIndexRoute: AuthenticatedTopologyIndexRoute,
   AuthenticatedVouchersIndexRoute: AuthenticatedVouchersIndexRoute,
 }
 

@@ -1,19 +1,17 @@
 import { KpiGrid } from "./KpiGrid";
 import { QuickActions } from "./QuickActions";
 import {
-  MonthlyGrowthChart,
+  LicenseStatusChart,
   RevenueChart,
   RouterHealthChart,
+  SubscriptionStatusChart,
 } from "./DashboardCharts";
 import {
-  NotificationsWidget,
   RecentAuditWidget,
   RecentLocationsWidget,
   RecentOrgsWidget,
-  RecentPaymentsWidget,
   RecentRoutersWidget,
 } from "./DashboardWidgets";
-import { useNotifications } from "@/hooks/useDashboardData";
 import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
@@ -21,7 +19,6 @@ import { PageShell, SectionHeader } from "@/components/ui-ext";
 
 export function SuperAdminDashboard() {
   const { user } = useAuth();
-  const notif = useNotifications();
 
   return (
     <PageShell mesh>
@@ -51,11 +48,11 @@ export function SuperAdminDashboard() {
         <SectionHeader
           eyebrow="Infrastructure"
           title="NAS fleet posture"
-          description="Registered NAS distribution across all customers."
+          description="Revenue trend and NAS device health across all customers."
         />
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <MonthlyGrowthChart />
+            <RevenueChart />
           </div>
           <RouterHealthChart />
         </div>
@@ -64,11 +61,12 @@ export function SuperAdminDashboard() {
       <section className="space-y-4">
         <SectionHeader
           eyebrow="Revenue"
-          title="Subscription & billing"
-          description="Monthly recurring revenue trend across the platform."
+          title="Subscriptions & licensing"
+          description="Subscription status and license mix across the platform."
         />
-        <div className="grid gap-4">
-          <RevenueChart />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <SubscriptionStatusChart />
+          <LicenseStatusChart />
         </div>
       </section>
 
@@ -82,14 +80,7 @@ export function SuperAdminDashboard() {
           <RecentOrgsWidget />
           <RecentLocationsWidget />
           <RecentRoutersWidget />
-          <RecentPaymentsWidget />
           <RecentAuditWidget />
-          <NotificationsWidget
-            items={notif.data}
-            isLoading={notif.isLoading}
-            isError={notif.isError}
-            onRetry={() => notif.refetch()}
-          />
         </div>
       </section>
     </PageShell>

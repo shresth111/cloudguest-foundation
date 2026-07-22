@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { analyticsService } from "@/services/analytics.service";
+import { locationService } from "@/services/location.service";
 import type { AnalyticsSettings, DateRangePreset, ReportFormat, ReportType, ScheduledReport } from "@/types/analytics";
 
 export function useAnalyticsSnapshot(range: DateRangePreset) {
@@ -7,6 +8,46 @@ export function useAnalyticsSnapshot(range: DateRangePreset) {
     queryKey: ["analytics", "snapshot", range],
     queryFn: () => analyticsService.getSnapshot(range),
     staleTime: 30_000,
+  });
+}
+
+export function useDomainGuestAnalytics(organizationId?: string, locationId?: string) {
+  return useQuery({
+    queryKey: ["analytics", "domain-guests", organizationId, locationId],
+    queryFn: () => analyticsService.getDomainGuestAnalytics(organizationId!, locationId),
+    enabled: !!organizationId,
+  });
+}
+
+export function useDomainNetworkAnalytics(organizationId?: string, locationId?: string) {
+  return useQuery({
+    queryKey: ["analytics", "domain-network", organizationId, locationId],
+    queryFn: () => analyticsService.getDomainNetworkAnalytics(organizationId!, locationId),
+    enabled: !!organizationId,
+  });
+}
+
+export function useDomainAuthAnalytics(organizationId?: string, locationId?: string) {
+  return useQuery({
+    queryKey: ["analytics", "domain-auth", organizationId, locationId],
+    queryFn: () => analyticsService.getDomainAuthAnalytics(organizationId!, locationId),
+    enabled: !!organizationId,
+  });
+}
+
+export function useDomainRouterAnalytics(organizationId?: string, locationId?: string) {
+  return useQuery({
+    queryKey: ["analytics", "domain-routers", organizationId, locationId],
+    queryFn: () => analyticsService.getDomainRouterAnalytics(organizationId!, locationId),
+    enabled: !!organizationId,
+  });
+}
+
+export function useAnalyticsOrganizations() {
+  return useQuery({
+    queryKey: ["analytics", "organizations"],
+    queryFn: () => locationService.organizations(),
+    staleTime: 60_000,
   });
 }
 

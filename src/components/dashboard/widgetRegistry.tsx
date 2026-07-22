@@ -5,17 +5,15 @@ import { Sparkles } from "lucide-react";
 import { KpiGrid } from "./KpiGrid";
 import { QuickActions } from "./QuickActions";
 import {
-  DailyActiveChart,
-  DeviceDistributionChart,
-  MonthlyGrowthChart,
+  LicenseStatusChart,
+  RevenueChart,
   RouterHealthChart,
+  SubscriptionStatusChart,
 } from "./DashboardCharts";
 import {
-  NotificationsWidget,
   RecentAuditWidget,
   RecentLocationsWidget,
 } from "./DashboardWidgets";
-import { useNotifications } from "@/hooks/useDashboardData";
 import type { DashboardWidget, WidgetKind, WidgetSize } from "@/types/dashboard-layout";
 import { useAuth } from "@/context/AuthContext";
 import { primaryRoleLabel } from "@/lib/roles";
@@ -29,27 +27,15 @@ import { primaryRoleLabel } from "@/lib/roles";
 export const dashboardWidgetRegistry: Record<WidgetKind, (w: DashboardWidget) => ReactElement> = {
   welcome: () => <WelcomeWidget />,
   "kpi-grid": () => <KpiGrid />,
-  "trend-chart": () => <MonthlyGrowthChart />,
+  "trend-chart": () => <RevenueChart />,
   "health-chart": () => <RouterHealthChart />,
-  "usage-chart": () => <DailyActiveChart />,
+  "usage-chart": () => <SubscriptionStatusChart />,
   "top-locations": () => <RecentLocationsWidget />,
   "recent-activity": () => <RecentAuditWidget />,
-  "notifications-preview": () => <NotificationsBinding />,
+  "notifications-preview": () => <RecentAuditWidget />,
   "quick-actions": () => <QuickActions />,
-  custom: () => <DeviceDistributionChart />,
+  custom: () => <LicenseStatusChart />,
 };
-
-function NotificationsBinding() {
-  const { data, isLoading, isError, refetch } = useNotifications();
-  return (
-    <NotificationsWidget
-      items={data}
-      isLoading={isLoading}
-      isError={isError}
-      onRetry={() => refetch()}
-    />
-  );
-}
 
 function WelcomeWidget() {
   const { user, roles } = useAuth();

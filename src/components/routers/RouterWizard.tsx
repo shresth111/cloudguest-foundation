@@ -2,9 +2,23 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  Undo2,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,12 +43,26 @@ import { routerWizardSchema, type RouterWizardValues } from "@/lib/router-schema
 import { useCreateRouter } from "@/hooks/useRouters";
 import { routerService } from "@/services/router.service";
 import type { AppError } from "@/services/api";
+import {
+  useCancelProvisionJob,
+  useCreateProvisionJob,
+  useDiscoverDevice,
+  useProvisionJob,
+  useProvisionTimeline,
+  useRetryProvisionJob,
+  useRollbackProvisionJob,
+  useStartProvisionJob,
+  useValidateDevice,
+} from "@/hooks/useProvisioning";
+import type { DeviceDiscoveryResult } from "@/types/provisioning";
 
 const STEPS = [
   { key: "basic", title: "Basic information", description: "Router profile" },
   { key: "credentials", title: "Credentials", description: "API access (optional)" },
   { key: "services", title: "Services", description: "Config preferences" },
+  { key: "provision", title: "Provision", description: "Discover & configure (optional)" },
 ] as const;
+const LAST_FORM_STEP = 2;
 
 interface Props {
   open: boolean;
@@ -56,6 +84,7 @@ const DEFAULTS: RouterWizardValues = {
 
 export function RouterWizard({ open, onOpenChange }: Props) {
   const [step, setStep] = useState(0);
+  const [createdRouter, setCreatedRouter] = useState<{ id: string; name: string } | null>(null);
   const create = useCreateRouter();
   const { data: locations = [] } = useQuery({
     queryKey: ["routers", "location-options"],
@@ -71,9 +100,11 @@ export function RouterWizard({ open, onOpenChange }: Props) {
   });
 
   async function next() {
-    const key = STEPS[step].key;
+    // Only reachable for step < LAST_FORM_STEP, i.e. "basic"/"credentials" --
+    // "provision" isn't a form field and is never trigger()-ed.
+    const key = STEPS[step].key as "basic" | "credentials" | "services";
     const valid = await form.trigger(key);
-    if (valid) setStep((s) => Math.min(STEPS.length - 1, s + 1));
+    if (valid) setStep((s) => Math.min(LAST_FORM_STEP, s + 1));
   }
 
   async function submit(values: RouterWizardValues) {
@@ -91,12 +122,18 @@ export function RouterWizard({ open, onOpenChange }: Props) {
         settings: values.services,
       });
       toast.success(`${r.name} registered`);
-      onOpenChange(false);
-      form.reset(DEFAULTS);
-      setStep(0);
+      setCreatedRouter({ id: r.id, name: r.name });
+      setStep(3);
     } catch (err) {
       toast.error((err as AppError).message || "Failed to add router");
     }
+  }
+
+  function finish() {
+    onOpenChange(false);
+    form.reset(DEFAULTS);
+    setStep(0);
+    setCreatedRouter(null);
   }
 
   return (
@@ -107,6 +144,7 @@ export function RouterWizard({ open, onOpenChange }: Props) {
         if (!o) {
           form.reset(DEFAULTS);
           setStep(0);
+          setCreatedRouter(null);
         }
       }}
     >
@@ -212,6 +250,7 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                     <ToggleField name="services.analytics" label="Analytics" description="Session & usage analytics" form={form} />
                   </div>
                 )}
+                {step === 3 && createdRouter && <ProvisionStep router={createdRouter} />}
               </div>
 
               <div className="flex items-center justify-between gap-3 border-t border-border/70 bg-muted/20 px-6 py-3">
@@ -219,17 +258,26 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                   Step {step + 1} of {STEPS.length}
                 </div>
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep((s) => Math.max(0, s - 1))}
+                    disabled={step === 0 || step === 3}
+                  >
                     <ChevronLeft className="h-4 w-4" /> Back
                   </Button>
-                  {step < STEPS.length - 1 ? (
+                  {step < LAST_FORM_STEP ? (
                     <Button type="button" onClick={next}>
                       Next <ChevronRight className="h-4 w-4" />
                     </Button>
-                  ) : (
+                  ) : step === LAST_FORM_STEP ? (
                     <Button type="submit" disabled={create.isPending}>
                       {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                       <span className={create.isPending ? "ml-2" : ""}>Add router</span>
+                    </Button>
+                  ) : (
+                    <Button type="button" onClick={finish}>
+                      Done
                     </Button>
                   )}
                 </div>
@@ -239,6 +287,220 @@ export function RouterWizard({ open, onOpenChange }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Provisioning Engine integration (backend/app/domains/provisioning_engine)
+ * -- an optional post-flight layer that runs after the router record above
+ * is already created. `previewConfiguration` needs a provision_template_id
+ * this wizard has no picker for (template management lives in the
+ * router_provisioning domain, a separate config-templates admin surface
+ * out of scope here), so this step only covers discover -> validate ->
+ * create+start a job -> track it, which is the real value for "did the
+ * device I just registered actually come up correctly."
+ */
+function ProvisionStep({ router }: { router: { id: string; name: string } }) {
+  const [discovery, setDiscovery] = useState<DeviceDiscoveryResult | null>(null);
+  const [validated, setValidated] = useState<"idle" | "pass" | "fail">("idle");
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  const discover = useDiscoverDevice();
+  const validate = useValidateDevice();
+  const createJob = useCreateProvisionJob();
+  const startJob = useStartProvisionJob();
+  const retryJob = useRetryProvisionJob();
+  const rollbackJob = useRollbackProvisionJob();
+  const cancelJob = useCancelProvisionJob();
+  const job = useProvisionJob(jobId, { pollWhileActive: true });
+  const timeline = useProvisionTimeline(jobId);
+
+  async function runDiscover() {
+    try {
+      setDiscovery(await discover.mutateAsync(router.id));
+    } catch (err) {
+      toast.error((err as AppError).message || "Discovery failed");
+    }
+  }
+
+  async function runValidate() {
+    try {
+      await validate.mutateAsync({ routerId: router.id });
+      setValidated("pass");
+      toast.success("Device validation passed");
+    } catch (err) {
+      setValidated("fail");
+      toast.error((err as AppError).message || "Device validation failed");
+    }
+  }
+
+  async function runStart() {
+    try {
+      const created = await createJob.mutateAsync({ routerId: router.id });
+      await startJob.mutateAsync(created.id);
+      setJobId(created.id);
+      toast.success("Provision job started");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to start provision job");
+    }
+  }
+
+  const status = job.data?.status;
+  const isTerminal = status === "completed" || status === "failed" || status === "cancelled";
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">{router.name}</span> was registered. This
+        step is optional — discover and validate the live device, then run a provisioning job to
+        push its baseline config, or skip and finish now.
+      </p>
+
+      {!jobId && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Card className="rounded-xl border-border/70">
+            <CardContent className="space-y-2 p-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={runDiscover}
+                disabled={discover.isPending}
+              >
+                {discover.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Search className="h-3.5 w-3.5" />
+                )}
+                <span className="ml-2">Discover device</span>
+              </Button>
+              {discovery && (
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <dt>Vendor</dt>
+                  <dd className="text-foreground">{discovery.vendor}</dd>
+                  <dt>Model</dt>
+                  <dd className="text-foreground">{discovery.model ?? "—"}</dd>
+                  <dt>Firmware</dt>
+                  <dd className="text-foreground">{discovery.firmwareVersion ?? "—"}</dd>
+                  <dt>Uptime</dt>
+                  <dd className="text-foreground">
+                    {discovery.uptimeSeconds != null
+                      ? `${Math.round(discovery.uptimeSeconds / 3600)}h`
+                      : "—"}
+                  </dd>
+                </dl>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border-border/70">
+            <CardContent className="space-y-2 p-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={runValidate}
+                disabled={validate.isPending}
+              >
+                {validate.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                )}
+                <span className="ml-2">Validate device</span>
+              </Button>
+              {validated === "pass" && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Validation passed
+                </div>
+              )}
+              {validated === "fail" && (
+                <div className="flex items-center gap-1.5 text-xs text-destructive">
+                  <XCircle className="h-3.5 w-3.5" /> Validation failed
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {!jobId ? (
+        <Button type="button" size="sm" onClick={runStart} disabled={createJob.isPending || startJob.isPending}>
+          {(createJob.isPending || startJob.isPending) && (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          )}
+          <span className={createJob.isPending || startJob.isPending ? "ml-2" : ""}>
+            Run provisioning job
+          </span>
+        </Button>
+      ) : (
+        <Card className="rounded-xl border-border/70">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Job status</span>
+                <Badge variant={status === "failed" ? "destructive" : "secondary"}>
+                  {status ?? "…"}
+                </Badge>
+              </div>
+              <div className="flex gap-2">
+                {status === "failed" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => retryJob.mutateAsync(jobId)}
+                    disabled={retryJob.isPending}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Retry
+                  </Button>
+                )}
+                {job.data?.appliedConfigVersionId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => rollbackJob.mutateAsync(jobId)}
+                    disabled={rollbackJob.isPending}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" /> Rollback
+                  </Button>
+                )}
+                {!isTerminal && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => cancelJob.mutateAsync({ jobId })}
+                    disabled={cancelJob.isPending}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </div>
+            {job.data?.errorMessage && (
+              <div className="flex items-start gap-1.5 text-xs text-destructive">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {job.data.errorMessage}
+              </div>
+            )}
+            {timeline.data && timeline.data.length > 0 && (
+              <ol className="space-y-1.5 border-l border-border/60 pl-3 text-xs">
+                {timeline.data.map((e, i) => (
+                  <li key={i}>
+                    <span className="font-medium text-foreground">{e.label}</span>{" "}
+                    <span className="text-muted-foreground">
+                      {new Date(e.occurredAt).toLocaleTimeString()}
+                    </span>
+                    {e.detail && <div className="text-muted-foreground">{e.detail}</div>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

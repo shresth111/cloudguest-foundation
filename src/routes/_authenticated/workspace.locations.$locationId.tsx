@@ -55,9 +55,12 @@ import {
 } from "@/components/ui/select";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useLocationResources } from "@/hooks/useWorkspace";
+import { useDeleteLocations } from "@/hooks/useLocations";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { ExistingCustomer } from "@/context/WorkspaceContext";
 import type { LocationResources, LocationRouterSummary } from "@/hooks/useWorkspace";
 import type { RouterStatus } from "@/types/router";
+import type { AppError } from "@/services/api";
 import { toast } from "sonner";
 import {
   Area,
@@ -134,6 +137,8 @@ function LocationWorkspacePage() {
     isLoading: loadingResources,
     refetch,
   } = useLocationResources(locationId);
+  const remove = useDeleteLocations();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const context = useMemo(() => {
     if (!workspaceCustomer) return null;
@@ -174,8 +179,25 @@ function LocationWorkspacePage() {
       <LocationHeader
         customer={customer}
         location={location}
-        onEdit={() => toast.info("Open location editor (mock)")}
+        onEdit={() => setTab("settings")}
         onRefresh={() => refetch()}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete ${location.name}?`}
+        description="This archives the location. Guest access and monitoring for it will stop."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          try {
+            await remove.mutateAsync([location.id]);
+            toast.success("Location deleted");
+            navigate({ to: "/workspace/locations" });
+          } catch (err) {
+            toast.error((err as unknown as AppError).message || "Failed to delete location");
+          }
+        }}
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
@@ -240,7 +262,11 @@ function LocationWorkspacePage() {
                 <AuditTab />
               </TabsContent>
               <TabsContent value="settings">
-                <SettingsTab customer={customer} location={location} />
+                <SettingsTab
+                  customer={customer}
+                  location={location}
+                  onDeleteClick={() => setConfirmDelete(true)}
+                />
               </TabsContent>
             </>
           )}
@@ -1467,9 +1493,11 @@ function AuditTab() {
 function SettingsTab({
   customer,
   location,
+  onDeleteClick,
 }: {
   customer: ExistingCustomer;
   location: ExistingCustomer["locations"][number];
+  onDeleteClick: () => void;
 }) {
   const sections = [
     "General",
@@ -1554,7 +1582,7 @@ function SettingsTab({
                   <Download className="mr-1.5 h-4 w-4" />
                   Upload logo
                 </Button>
-                <Button variant="destructive" onClick={() => toast.error("Delete location (mock)")}>
+                <Button variant="destructive" onClick={onDeleteClick}>
                   Delete location
                 </Button>
               </div>

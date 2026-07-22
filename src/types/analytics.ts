@@ -158,3 +158,86 @@ export interface AnalyticsSettings {
   timezone: string;
   chartStyle: "smooth" | "linear" | "bars";
 }
+
+// ---------------------------------------------------------------------------
+// Real, org/location-scoped domain analytics (backend/app/domains/analytics's
+// GET /analytics/{routers,network,guests,authentication}). Distinct from the
+// SeriesPoint-trend-shaped GuestAnalytics/NetworkAnalytics/DeviceAnalytics/
+// AuthAnalytics types above, which the platform-wide overview page uses with
+// honest-empty fallbacks -- these types mirror what the backend actually
+// returns for one org (+ optional location): point-in-time window
+// aggregates and top-N breakdowns, not day-by-day trend series.
+// ---------------------------------------------------------------------------
+
+export interface DeviceBreakdownItem {
+  label: string;
+  sessionCount: number;
+}
+
+export interface DomainGuestAnalytics {
+  windowStart: string;
+  windowEnd: string;
+  newGuests: number;
+  returningGuests: number;
+  uniqueGuests: number;
+  repeatVisits: number;
+  retention: { available: boolean; retentionRatePercent: number | null; periodDays: number };
+  averageDataUsageBytes: number | null;
+  averageSessionDurationSeconds: number | null;
+  topDevices: { macAddress: string; sessionCount: number; uniqueGuestCount: number }[];
+  topLocations: { locationId: string; locationName: string; sessionCount: number }[];
+  devices: {
+    sessionsTotal: number;
+    sessionsWithData: number;
+    byOs: DeviceBreakdownItem[];
+    byBrowser: DeviceBreakdownItem[];
+    byDeviceType: DeviceBreakdownItem[];
+  };
+  languages: { sessionsTotal: number; sessionsWithData: number; byLanguage: Record<string, unknown>[] };
+}
+
+export interface DomainNetworkAnalytics {
+  windowStart: string;
+  windowEnd: string;
+  downloadBytes: number;
+  uploadBytes: number;
+  totalBytes: number;
+  peakBandwidth: { available: boolean; peakBytes: number | null; bucketStart: string | null };
+  averageSpeedBytesPerSecond: number | null;
+  networkAvailability: { availableRouterCount: number; totalRouterCount: number; availabilityPercent: number | null };
+  topConsumers: { guestId: string; identifier: string; totalBytes: number }[];
+  topLocations: { locationId: string; locationName: string; totalBytes: number }[];
+  topRouters: { routerId: string; routerName: string; totalBytes: number }[];
+  trafficTrend: { metric: string; currentValue: number; deltaPercent: number | null }[];
+}
+
+export interface DomainAuthAnalytics {
+  windowStart: string;
+  windowEnd: string;
+  otp: { totalRequests: number; successfulCount: number; failedCount: number; successRate: number };
+  voucher: { redeemedCount: number; failedAttemptsRecorded: number };
+  successTotal: number;
+  failureTotal: number;
+  trends: { date: string; successCount: number; failureCount: number }[];
+  failureReasons: { reason: string; count: number }[];
+  authMethods: { authMethod: string; successfulAttempts: number; failedAttempts: number }[];
+}
+
+export interface DomainRouterAnalytics {
+  windowStart: string;
+  windowEnd: string;
+  routers: {
+    routerId: string;
+    routerName: string;
+    status: string;
+    cpuUsagePercent: number | null;
+    memoryUsagePercent: number | null;
+    uptimeSeconds: number | null;
+    connectedClients: number | null;
+    bandwidthTotalBytes: number;
+    internetAvailable: boolean;
+    wireguard: { available: boolean; status: string | null };
+    radiusSuccessCount: number;
+    radiusFailureCount: number;
+  }[];
+}

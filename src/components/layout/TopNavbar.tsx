@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { LifeBuoy, Plus, MapPin, Router as RouterIcon, UserPlus, Ticket, Zap } from "lucide-react";
+import { LifeBuoy, Plus, MapPin, Router as RouterIcon, UserPlus, Ticket, Zap, Activity, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,11 +13,17 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Breadcrumbs } from "./Breadcrumbs";
-import { NotificationBell } from "./NotificationBell";
 import { SpaceContextChip } from "./SpaceContextChip";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { OrganizationSwitcher } from "@/components/org-switcher/OrganizationSwitcher";
+import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts/KeyboardShortcutsModal";
+
+interface TopNavbarProps {
+  onToggleActivityFeed?: () => void;
+}
 
 function QuickActionsMenu() {
   const navigate = useNavigate();
@@ -51,32 +58,56 @@ function QuickActionsMenu() {
   );
 }
 
-export function TopNavbar() {
+export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
   const navigate = useNavigate();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="h-6" />
-      <div className="hidden md:block">
-        <Breadcrumbs />
-      </div>
-      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-        <SpaceContextChip />
-        <GlobalSearch />
-        <QuickActionsMenu />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          aria-label="Help"
-          onClick={() => navigate({ to: "/help" })}
-        >
-          <LifeBuoy className="h-4 w-4" />
-        </Button>
-        <ThemeToggle />
-        <NotificationBell />
-        <UserMenu />
-      </div>
-    </header>
+    <>
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="h-6" />
+        <div className="hidden md:block">
+          <Breadcrumbs />
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <OrganizationSwitcher />
+          <SpaceContextChip />
+          <GlobalSearch />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            aria-label="Activity feed"
+            onClick={onToggleActivityFeed}
+          >
+            <Activity className="h-4 w-4" />
+          </Button>
+          <NotificationBell />
+          <QuickActionsMenu />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden h-9 w-9 sm:flex"
+            aria-label="Keyboard shortcuts"
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <Keyboard className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            aria-label="Help"
+            onClick={() => navigate({ to: "/help" })}
+          >
+            <LifeBuoy className="h-4 w-4" />
+          </Button>
+          <ThemeToggle />
+          <UserMenu />
+        </div>
+      </header>
+      <KeyboardShortcutsModal open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+    </>
   );
 }
