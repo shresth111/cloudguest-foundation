@@ -1,6 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Bell,
   Building2,
@@ -22,13 +26,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -36,6 +34,19 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/context/AuthContext";
 import { primaryRoleLabel } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/auth.service";
+import { rbacService } from "@/services/rbac.service";
+import type { AppError } from "@/services/api";
+import {
+  changePasswordSchema,
+  mfaDisableSchema,
+  mfaRegenerateSchema,
+  mfaVerifySchema,
+  type ChangePasswordFormValues,
+  type MfaDisableFormValues,
+  type MfaRegenerateFormValues,
+  type MfaVerifyFormValues,
+} from "@/lib/rbac-schemas";
 
 const SECTION_KEYS = [
   "profile",
@@ -104,12 +115,7 @@ function AccountPage() {
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                 )}
               >
-                <s.icon
-                  className={cn(
-                    "mt-0.5 h-4 w-4 shrink-0",
-                    isActive ? "text-primary" : "",
-                  )}
-                />
+                <s.icon className={cn("mt-0.5 h-4 w-4 shrink-0", isActive ? "text-primary" : "")} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">{s.label}</span>
                   <span className="block text-xs text-muted-foreground">{s.description}</span>
@@ -138,7 +144,12 @@ function AccountPage() {
 }
 
 function initials(name: string) {
-  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }
 
 function SectionCard({
@@ -199,7 +210,9 @@ function ProfileSection() {
           </AvatarFallback>
         </Avatar>
         <div>
-          <Button variant="outline" size="sm">Upload photo</Button>
+          <Button variant="outline" size="sm">
+            Upload photo
+          </Button>
           <p className="mt-1 text-xs text-muted-foreground">JPG or PNG, up to 2 MB.</p>
         </div>
       </div>
@@ -274,7 +287,9 @@ function AccountSection() {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-medium">Compact density</div>
-          <div className="text-xs text-muted-foreground">Reduce padding across tables and cards.</div>
+          <div className="text-xs text-muted-foreground">
+            Reduce padding across tables and cards.
+          </div>
         </div>
         <Switch />
       </div>
@@ -283,30 +298,58 @@ function AccountSection() {
 }
 
 function SecuritySection() {
+  const { user } = useAuth();
   return (
     <div className="space-y-4">
-      <SectionCard title="Security overview" description="Snapshot of your account security posture.">
+      <SectionCard
+        title="Security overview"
+        description="Snapshot of your account security posture."
+      >
         <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            { label: "Password", status: "Strong", tone: "text-emerald-600" },
-            { label: "Two-factor", status: "Not enabled", tone: "text-amber-600" },
-            { label: "Recovery email", status: "Verified", tone: "text-emerald-600" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-lg border p-4">
-              <div className="text-xs text-muted-foreground">{s.label}</div>
-              <div className={cn("mt-1 text-sm font-semibold", s.tone)}>{s.status}</div>
+          <div className="rounded-lg border p-4">
+            <div className="text-xs text-muted-foreground">Email verified</div>
+            <div
+              className={cn(
+                "mt-1 text-sm font-semibold",
+                user?.isVerified ? "text-emerald-600" : "text-amber-600",
+              )}
+            >
+              {user?.isVerified ? "Verified" : "Not verified"}
             </div>
-          ))}
+          </div>
+          <div className="rounded-lg border p-4">
+            <div className="text-xs text-muted-foreground">Last login</div>
+            <div className="mt-1 text-sm font-semibold">
+              {user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—"}
+            </div>
+          </div>
+          <div className="rounded-lg border p-4">
+            <div className="text-xs text-muted-foreground">Account status</div>
+            <div
+              className={cn(
+                "mt-1 text-sm font-semibold",
+                user?.isActive ? "text-emerald-600" : "text-amber-600",
+              )}
+            >
+              {user?.isActive ? "Active" : "Inactive"}
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 pt-2">
           <Button asChild variant="outline" size="sm">
-            <Link to="/account" search={{ section: "password" }}>Change password</Link>
+            <Link to="/account" search={{ section: "password" }}>
+              Change password
+            </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/account" search={{ section: "two-factor" }}>Set up 2FA</Link>
+            <Link to="/account" search={{ section: "two-factor" }}>
+              Two-factor authentication
+            </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/account" search={{ section: "sessions" }}>Review sessions</Link>
+            <Link to="/account" search={{ section: "sessions" }}>
+              Review sessions
+            </Link>
           </Button>
         </div>
       </SectionCard>
@@ -315,45 +358,53 @@ function SecuritySection() {
 }
 
 function PasswordSection() {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [saving, setSaving] = useState(false);
+  const form = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
+  });
+  const change = useMutation({
+    mutationFn: (v: ChangePasswordFormValues) =>
+      authService.changePassword(v.currentPassword, v.newPassword),
+    onSuccess: () => {
+      toast.success("Password updated. You've been signed out of all other sessions.");
+      form.reset({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    },
+    onError: (e) => toast.error((e as unknown as AppError).message || "Failed to change password"),
+  });
+
   return (
     <SectionCard
       title="Change password"
-      description="Use at least 8 characters with a mix of letters, numbers and symbols."
+      description="Must be at least 12 characters with uppercase, lowercase, a digit, and a symbol."
       footer={
-        <Button
-          disabled={saving || !current || next.length < 8 || next !== confirm}
-          onClick={() => {
-            setSaving(true);
-            setTimeout(() => {
-              setSaving(false);
-              setCurrent("");
-              setNext("");
-              setConfirm("");
-              toast.success("Password updated");
-            }, 700);
-          }}
-        >
-          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Update password
+        <Button onClick={form.handleSubmit((v) => change.mutate(v))} disabled={change.isPending}>
+          {change.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Update password
         </Button>
       }
     >
       <div className="space-y-2">
         <Label>Current password</Label>
-        <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+        <Input type="password" {...form.register("currentPassword")} />
+        {form.formState.errors.currentPassword && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.currentPassword.message}
+          </p>
+        )}
       </div>
       <div className="space-y-2">
         <Label>New password</Label>
-        <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} />
+        <Input type="password" {...form.register("newPassword")} />
+        {form.formState.errors.newPassword && (
+          <p className="text-xs text-destructive">{form.formState.errors.newPassword.message}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label>Confirm new password</Label>
-        <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-        {confirm && next !== confirm && (
-          <p className="text-xs text-destructive">Passwords do not match</p>
+        <Input type="password" {...form.register("confirmPassword")} />
+        {form.formState.errors.confirmPassword && (
+          <p className="text-xs text-destructive">
+            {form.formState.errors.confirmPassword.message}
+          </p>
         )}
       </div>
     </SectionCard>
@@ -361,93 +412,239 @@ function PasswordSection() {
 }
 
 function TwoFactorSection() {
-  const [enabled, setEnabled] = useState(false);
-  const [codes] = useState(() =>
-    Array.from({ length: 8 }, () =>
-      Math.random().toString(36).slice(2, 6).toUpperCase() +
-      "-" +
-      Math.random().toString(36).slice(2, 6).toUpperCase(),
-    ),
+  const [enrollment, setEnrollment] = useState<{ secret: string; provisioningUri: string } | null>(
+    null,
   );
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+
+  const enroll = useMutation({
+    mutationFn: () => authService.enrollMfa(),
+    onSuccess: (res) => {
+      setEnrollment(res);
+      setRecoveryCodes(null);
+    },
+    onError: (e) => toast.error((e as unknown as AppError).message || "Failed to start enrollment"),
+  });
+
+  const verifyForm = useForm<MfaVerifyFormValues>({
+    resolver: zodResolver(mfaVerifySchema),
+    defaultValues: { code: "" },
+  });
+  const verify = useMutation({
+    mutationFn: (v: MfaVerifyFormValues) => authService.verifyMfa(v.code),
+    onSuccess: (codes) => {
+      setRecoveryCodes(codes);
+      setEnrollment(null);
+      verifyForm.reset({ code: "" });
+      toast.success("Two-factor authentication enabled");
+    },
+    onError: (e) => toast.error((e as unknown as AppError).message || "Invalid code"),
+  });
+
+  const disableForm = useForm<MfaDisableFormValues>({
+    resolver: zodResolver(mfaDisableSchema),
+    defaultValues: { password: "", code: "" },
+  });
+  const disable = useMutation({
+    mutationFn: (v: MfaDisableFormValues) => authService.disableMfa(v.password, v.code),
+    onSuccess: () => {
+      toast.success("Two-factor authentication disabled");
+      disableForm.reset({ password: "", code: "" });
+    },
+    onError: (e) => toast.error((e as unknown as AppError).message || "Failed to disable"),
+  });
+
+  const regenForm = useForm<MfaRegenerateFormValues>({
+    resolver: zodResolver(mfaRegenerateSchema),
+    defaultValues: { code: "" },
+  });
+  const regenerate = useMutation({
+    mutationFn: (v: MfaRegenerateFormValues) => authService.regenerateMfaRecoveryCodes(v.code),
+    onSuccess: (codes) => {
+      setRecoveryCodes(codes);
+      regenForm.reset({ code: "" });
+      toast.success("New recovery codes generated");
+    },
+    onError: (e) => toast.error((e as unknown as AppError).message || "Failed to regenerate codes"),
+  });
+
   return (
-    <SectionCard
-      title="Two-factor authentication"
-      description="Protect your account with a time-based one-time password."
-    >
-      <div className="flex items-center justify-between rounded-lg border p-4">
-        <div>
-          <div className="text-sm font-medium">Authenticator app</div>
-          <div className="text-xs text-muted-foreground">
-            {enabled ? "Enabled · using CloudGuest Authenticator" : "Not enabled"}
+    <div className="space-y-4">
+      <SectionCard
+        title="Authenticator app (TOTP)"
+        description="Add a time-based one-time password from an app like Google Authenticator, Authy, or 1Password."
+      >
+        {!enrollment ? (
+          <Button variant="outline" onClick={() => enroll.mutate()} disabled={enroll.isPending}>
+            {enroll.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Set up
+            authenticator app
+          </Button>
+        ) : (
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+              <div className="rounded-lg bg-white p-2">
+                <QRCodeSVG value={enrollment.provisioningUri} size={140} />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Scan this QR code, or enter the secret manually:
+                </p>
+                <code className="block break-all rounded bg-muted px-2 py-1 text-xs">
+                  {enrollment.secret}
+                </code>
+              </div>
+            </div>
+            <form
+              onSubmit={verifyForm.handleSubmit((v) => verify.mutate(v))}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <div className="space-y-1.5">
+                <Label>Enter the 6-digit code</Label>
+                <Input className="w-32" maxLength={6} {...verifyForm.register("code")} />
+                {verifyForm.formState.errors.code && (
+                  <p className="text-xs text-destructive">
+                    {verifyForm.formState.errors.code.message}
+                  </p>
+                )}
+              </div>
+              <Button type="submit" disabled={verify.isPending}>
+                {verify.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Verify &amp;
+                enable
+              </Button>
+            </form>
           </div>
-        </div>
-        <Switch
-          checked={enabled}
-          onCheckedChange={(v) => {
-            setEnabled(v);
-            toast.success(v ? "Two-factor enabled" : "Two-factor disabled");
-          }}
-        />
-      </div>
-      {enabled && (
-        <div className="rounded-lg border p-4">
-          <div className="mb-2 text-sm font-medium">Backup codes</div>
-          <div className="grid grid-cols-2 gap-2 font-mono text-xs sm:grid-cols-4">
-            {codes.map((c) => (
-              <div key={c} className="rounded bg-muted px-2 py-1.5 text-center">{c}</div>
+        )}
+      </SectionCard>
+
+      {recoveryCodes && (
+        <SectionCard
+          title="Recovery codes"
+          description="Store these somewhere safe — shown once, each code works once."
+        >
+          <div className="grid grid-cols-2 gap-2 font-mono text-xs sm:grid-cols-3">
+            {recoveryCodes.map((c) => (
+              <div key={c} className="rounded bg-muted px-2 py-1.5 text-center">
+                {c}
+              </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Store these codes somewhere safe. Each code works once.
-          </p>
-        </div>
+        </SectionCard>
       )}
-    </SectionCard>
+
+      <SectionCard
+        title="Disable two-factor"
+        description="Requires your password and a current code or recovery code."
+      >
+        <form
+          onSubmit={disableForm.handleSubmit((v) => disable.mutate(v))}
+          className="grid gap-3 sm:grid-cols-2"
+        >
+          <div className="space-y-1.5">
+            <Label>Password</Label>
+            <Input type="password" {...disableForm.register("password")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Code</Label>
+            <Input {...disableForm.register("code")} />
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="destructive" disabled={disable.isPending}>
+              {disable.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Disable
+              two-factor
+            </Button>
+          </div>
+        </form>
+      </SectionCard>
+
+      <SectionCard
+        title="Regenerate recovery codes"
+        description="Invalidates all existing recovery codes."
+      >
+        <form
+          onSubmit={regenForm.handleSubmit((v) => regenerate.mutate(v))}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <div className="space-y-1.5">
+            <Label>Current code</Label>
+            <Input className="w-32" {...regenForm.register("code")} />
+          </div>
+          <Button type="submit" variant="outline" disabled={regenerate.isPending}>
+            {regenerate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Regenerate
+          </Button>
+        </form>
+      </SectionCard>
+    </div>
   );
 }
 
 function SessionsSection() {
-  const [sessions, setSessions] = useState([
-    { id: "s1", device: "MacBook Pro · Chrome", ip: "203.0.113.24", city: "Bengaluru", current: true, when: "Active now" },
-    { id: "s2", device: "iPhone 15 · Safari", ip: "203.0.113.88", city: "Bengaluru", current: false, when: "2h ago" },
-    { id: "s3", device: "Windows · Firefox", ip: "198.51.100.14", city: "Delhi", current: false, when: "Yesterday" },
-  ]);
+  const qc = useQueryClient();
+  const {
+    data: sessions,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["auth", "sessions"],
+    queryFn: () => authService.listSessions(),
+  });
+  const revoke = useMutation({
+    mutationFn: (id: string) => authService.revokeSession(id),
+    onSuccess: () => {
+      toast.success("Session revoked");
+      qc.invalidateQueries({ queryKey: ["auth", "sessions"] });
+    },
+    onError: (e) => toast.error((e as unknown as AppError).message || "Failed to revoke session"),
+  });
+  const revokeAll = useMutation({
+    mutationFn: () => authService.logoutAllSessions(),
+    onSuccess: () => {
+      toast.success("All other sessions signed out");
+      qc.invalidateQueries({ queryKey: ["auth", "sessions"] });
+    },
+    onError: (e) =>
+      toast.error((e as unknown as AppError).message || "Failed to sign out sessions"),
+  });
+
   return (
     <SectionCard title="Active sessions" description="Devices currently signed in to your account.">
-      <ul className="divide-y">
-        {sessions.map((s) => (
-          <li key={s.id} className="flex items-center justify-between gap-3 py-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                {s.device}
-                {s.current && <Badge variant="secondary">This device</Badge>}
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load sessions.</p>
+      ) : isLoading || !sessions ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <ul className="divide-y">
+          {sessions.map((s) => (
+            <li key={s.id} className="flex items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  {s.deviceName || "Unknown device"}
+                  {s.isCurrent && <Badge variant="secondary">This device</Badge>}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {s.ipAddress} · {s.location ?? "—"} · last active{" "}
+                  {new Date(s.lastActivityAt).toLocaleString()}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">{s.userAgent}</div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {s.city} · {s.ip} · {s.when}
-              </div>
-            </div>
-            {!s.current && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSessions((x) => x.filter((v) => v.id !== s.id));
-                  toast.success("Session revoked");
-                }}
-              >
-                Revoke
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+              {!s.isCurrent && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={revoke.isPending}
+                  onClick={() => revoke.mutate(s.id)}
+                >
+                  Revoke
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       <Button
         variant="outline"
         size="sm"
-        onClick={() => {
-          setSessions((x) => x.filter((v) => v.current));
-          toast.success("All other sessions signed out");
-        }}
+        disabled={revokeAll.isPending}
+        onClick={() => revokeAll.mutate()}
       >
         Sign out all other sessions
       </Button>
@@ -466,7 +663,11 @@ function NotificationsSection() {
   const toggle = (k: keyof typeof prefs) => (v: boolean) => setPrefs((p) => ({ ...p, [k]: v }));
   const rows: { key: keyof typeof prefs; label: string; hint: string }[] = [
     { key: "productEmail", label: "Product updates", hint: "New features and release notes" },
-    { key: "securityEmail", label: "Security alerts", hint: "Sign-ins, key rotations, critical events" },
+    {
+      key: "securityEmail",
+      label: "Security alerts",
+      hint: "Sign-ins, key rotations, critical events",
+    },
     { key: "weeklyDigest", label: "Weekly digest", hint: "Summary of usage every Monday" },
     { key: "smsCritical", label: "Critical SMS", hint: "SMS for outages and revoked access" },
     { key: "inApp", label: "In-app notifications", hint: "Show in the notification bell" },
@@ -514,7 +715,10 @@ function ApiTokensSection() {
             if (!name.trim()) return;
             const tok =
               "cg_pat_" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-            setTokens((x) => [{ id: tok.slice(0, 8), name, created: "Just now", lastUsed: "—" }, ...x]);
+            setTokens((x) => [
+              { id: tok.slice(0, 8), name, created: "Just now", lastUsed: "—" },
+              ...x,
+            ]);
             setNewToken(tok);
             setName("");
           }}
@@ -527,7 +731,9 @@ function ApiTokensSection() {
         <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
           <div className="text-xs font-medium">Copy your token now — it won't be shown again.</div>
           <div className="mt-2 flex items-center gap-2">
-            <code className="flex-1 truncate rounded bg-background px-2 py-1.5 text-xs">{newToken}</code>
+            <code className="flex-1 truncate rounded bg-background px-2 py-1.5 text-xs">
+              {newToken}
+            </code>
             <Button
               variant="outline"
               size="sm"
@@ -608,10 +814,34 @@ function PreferencesSection() {
   const [density, setDensity] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
-  const rows: { key: string; label: string; hint: string; value: boolean; onChange: (v: boolean) => void }[] = [
-    { key: "density", label: "Compact density", hint: "Reduce padding across tables and cards.", value: density, onChange: setDensity },
-    { key: "motion", label: "Reduce motion", hint: "Minimize animations and transitions.", value: reduceMotion, onChange: setReduceMotion },
-    { key: "contrast", label: "High contrast", hint: "Boost contrast for improved legibility.", value: highContrast, onChange: setHighContrast },
+  const rows: {
+    key: string;
+    label: string;
+    hint: string;
+    value: boolean;
+    onChange: (v: boolean) => void;
+  }[] = [
+    {
+      key: "density",
+      label: "Compact density",
+      hint: "Reduce padding across tables and cards.",
+      value: density,
+      onChange: setDensity,
+    },
+    {
+      key: "motion",
+      label: "Reduce motion",
+      hint: "Minimize animations and transitions.",
+      value: reduceMotion,
+      onChange: setReduceMotion,
+    },
+    {
+      key: "contrast",
+      label: "High contrast",
+      hint: "Boost contrast for improved legibility.",
+      value: highContrast,
+      onChange: setHighContrast,
+    },
   ];
   return (
     <SectionCard
@@ -633,31 +863,42 @@ function PreferencesSection() {
 }
 
 function LoginHistorySection() {
-  const events = [
-    { when: "Just now", device: "MacBook Pro · Chrome", ip: "203.0.113.24", city: "Bengaluru", outcome: "success" },
-    { when: "2h ago", device: "iPhone 15 · Safari", ip: "203.0.113.88", city: "Bengaluru", outcome: "success" },
-    { when: "Yesterday, 09:12", device: "Windows · Firefox", ip: "198.51.100.14", city: "Delhi", outcome: "success" },
-    { when: "Jul 12, 22:41", device: "Unknown · curl", ip: "45.9.13.71", city: "Amsterdam", outcome: "failed" },
-    { when: "Jul 09, 18:07", device: "iPad · Safari", ip: "203.0.113.90", city: "Bengaluru", outcome: "success" },
-  ];
+  const { user } = useAuth();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["auth", "login-history", user?.email],
+    queryFn: () => rbacService.listLoginAttempts({ email: user!.email, page: 1, pageSize: 25 }),
+    enabled: !!user?.email,
+  });
+
   return (
     <SectionCard title="Login history" description="Recent sign-in attempts on your account.">
-      <ul className="divide-y">
-        {events.map((e, i) => (
-          <li key={i} className="flex items-center justify-between gap-3 py-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium">{e.device}</div>
-              <div className="text-xs text-muted-foreground">
-                {e.city} · {e.ip} · {e.when}
+      {isError ? (
+        <p className="text-sm text-destructive">
+          Failed to load login history (this view requires audit-log read access).
+        </p>
+      ) : isLoading || !data ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No recent login attempts.</p>
+      ) : (
+        <ul className="divide-y">
+          {data.items.map((e) => (
+            <li key={e.id} className="flex items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">
+                  {e.userAgent ?? "Unknown device"}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {e.ipAddress} · {new Date(e.createdAt).toLocaleString()}
+                </div>
               </div>
-            </div>
-            <Badge variant={e.outcome === "success" ? "secondary" : "destructive"}>
-              {e.outcome === "success" ? "Success" : "Failed"}
-            </Badge>
-          </li>
-        ))}
-      </ul>
+              <Badge variant={e.success ? "secondary" : "destructive"}>
+                {e.success ? "Success" : (e.failureReason ?? "Failed")}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
     </SectionCard>
   );
 }
-

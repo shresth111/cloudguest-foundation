@@ -59,3 +59,24 @@ export interface LoginCredentials {
   remember?: boolean;
   mfaCode?: string;
 }
+
+/** A real, self-service-only active session (see `/auth/sessions`) --
+ * `deviceId` is a server-derived ip+user-agent hash, not a device
+ * fingerprint; `location` is always null today (no geo-IP wired). */
+export interface AuthSelfSession {
+  id: string;
+  deviceId: string;
+  deviceName: string | null;
+  ipAddress: string;
+  userAgent: string;
+  location: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+  expiresAt: string;
+  lastActivityAt: string;
+}
+
+export interface MfaEnrollResult {
+  secret: string;
+  provisioningUri: string;
+}

@@ -1,276 +1,549 @@
+import { api } from "@/services/api";
+import { routerService } from "@/services/router.service";
 import type {
-  RbacUser,
-  RbacRole,
-  RbacDepartment,
-  RbacUserGroup,
-  RbacInvitation,
-  RbacSession,
-  RbacLoginEvent,
-  RbacLocationNode,
+  AssignRolePayload,
+  CloneRolePayload,
+  CreateRolePayload,
+  CreateUserPayload,
+  InviteUserPayload,
+  InviteUserResult,
+  LoginAttemptListQuery,
+  LoginAttemptLog,
+  PaginatedResult,
+  Permission,
+  PermissionGroup,
   RbacKpis,
-  RbacPasswordPolicy,
-  RbacMfaState,
-  RbacPermissions,
-  PermissionAction,
+  RbacUser,
+  Role,
+  ScopeType,
+  UpdateRolePayload,
+  UpdateUserPayload,
+  UserDetail,
+  UserListQuery,
+  UserRoleAssignment,
 } from "@/types/rbac";
-import { PERMISSION_ACTIONS, RBAC_MODULES } from "@/types/rbac";
 
-const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
-const uid = () => Math.random().toString(36).slice(2, 10);
+// ============================================================================
+// Backend wire shapes
+// ============================================================================
 
-const ORGS: Array<[string, string]> = [
-  ["ORG-01000", "Nimbus Hospitality"],
-  ["ORG-01001", "Vertex Retail"],
-  ["ORG-01002", "Halo Group"],
-  ["ORG-01003", "Orbit Holdings"],
-];
-
-const LOCATION_TREE: RbacLocationNode[] = [
-  {
-    id: "ORG-01000",
-    name: "Nimbus Hospitality",
-    children: [
-      { id: "LOC-DEL", name: "Hotel Delhi" },
-      { id: "LOC-BOM", name: "Hotel Mumbai" },
-      { id: "LOC-GOA", name: "Hotel Goa" },
-      { id: "LOC-JAI", name: "Hotel Jaipur" },
-    ],
-  },
-  {
-    id: "ORG-01001",
-    name: "Vertex Retail",
-    children: [
-      { id: "LOC-NYC", name: "Vertex NYC Central" },
-      { id: "LOC-CHI", name: "Vertex Chicago" },
-    ],
-  },
-];
-
-const DEPARTMENTS: RbacDepartment[] = [
-  { id: "dep-it", name: "IT", members: 12 },
-  { id: "dep-net", name: "Network", members: 8 },
-  { id: "dep-ops", name: "Operations", members: 20 },
-  { id: "dep-mkt", name: "Marketing", members: 7 },
-  { id: "dep-fin", name: "Finance", members: 5 },
-  { id: "dep-rec", name: "Reception", members: 14 },
-  { id: "dep-mgt", name: "Management", members: 4 },
-  { id: "dep-sup", name: "Support", members: 9 },
-];
-
-function allTrue(): RbacPermissions {
-  const out: RbacPermissions = {};
-  for (const m of RBAC_MODULES) {
-    out[m.key] = Object.fromEntries(PERMISSION_ACTIONS.map((a) => [a, true])) as Record<PermissionAction, boolean>;
-  }
-  return out;
-}
-function readOnly(): RbacPermissions {
-  const out: RbacPermissions = {};
-  for (const m of RBAC_MODULES) out[m.key] = { view: true, export: true };
-  return out;
-}
-function subset(view: Partial<Record<PermissionAction, boolean>>, modules: string[]): RbacPermissions {
-  const out: RbacPermissions = {};
-  for (const k of modules) (out as Record<string, typeof view>)[k] = { ...view };
-  return out;
+interface BackendUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string;
+  username: string;
+  phone: string | null;
+  profile_photo: string | null;
+  designation: string | null;
+  department: string | null;
+  employee_id: string | null;
+  timezone: string;
+  language: string;
+  status: string;
+  is_active: boolean;
+  is_verified: boolean;
+  data_masking_enabled: boolean;
+  last_login_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-const ROLES: RbacRole[] = [
-  { id: "role-super", name: "Super Admin", description: "Full platform access.", isSystem: true, usersAssigned: 3, status: "active", createdAt: Date.now() - 8.64e7 * 90, permissions: allTrue() },
-  { id: "role-plat", name: "Platform Admin", description: "Platform-wide administration.", isSystem: true, usersAssigned: 6, status: "active", createdAt: Date.now() - 8.64e7 * 80, permissions: allTrue() },
-  { id: "role-org", name: "Organization Admin", description: "Manage a single organization.", isSystem: true, usersAssigned: 22, status: "active", createdAt: Date.now() - 8.64e7 * 60, permissions: subset({ view: true, create: true, edit: true, delete: true, export: true, configure: true }, ["dashboard","locations","routers","guests","portal","monitoring","analytics","billing","white_label","audit","settings"]) },
-  { id: "role-hotel", name: "Hotel Manager", description: "Manages one hotel property.", isSystem: true, usersAssigned: 40, status: "active", createdAt: Date.now() - 8.64e7 * 50, permissions: subset({ view: true, edit: true, export: true }, ["dashboard","locations","routers","guests","portal","monitoring","analytics"]) },
-  { id: "role-branch", name: "Branch Manager", description: "Manages a single branch.", isSystem: true, usersAssigned: 32, status: "active", createdAt: Date.now() - 8.64e7 * 45, permissions: subset({ view: true, edit: true }, ["dashboard","locations","routers","guests","portal","monitoring"]) },
-  { id: "role-net", name: "Network Administrator", description: "Network and infrastructure control.", isSystem: true, usersAssigned: 18, status: "active", createdAt: Date.now() - 8.64e7 * 40, permissions: subset({ view: true, create: true, edit: true, configure: true }, ["routers","monitoring","settings","integrations","api"]) },
-  { id: "role-it", name: "IT Administrator", description: "IT operations and support.", isSystem: true, usersAssigned: 15, status: "active", createdAt: Date.now() - 8.64e7 * 35, permissions: subset({ view: true, edit: true, configure: true }, ["routers","monitoring","settings","integrations","support","audit"]) },
-  { id: "role-recept", name: "Receptionist", description: "Front-desk guest handling.", isSystem: true, usersAssigned: 55, status: "active", createdAt: Date.now() - 8.64e7 * 30, permissions: subset({ view: true, create: true }, ["guests","portal"]) },
-  { id: "role-mkt", name: "Marketing Manager", description: "Portal branding and campaigns.", isSystem: true, usersAssigned: 12, status: "active", createdAt: Date.now() - 8.64e7 * 25, permissions: subset({ view: true, create: true, edit: true, publish: true }, ["portal","white_label","analytics"]) },
-  { id: "role-bill", name: "Billing Manager", description: "Billing and subscriptions.", isSystem: true, usersAssigned: 6, status: "active", createdAt: Date.now() - 8.64e7 * 22, permissions: subset({ view: true, create: true, edit: true, approve: true, export: true }, ["billing","analytics","organizations"]) },
-  { id: "role-sup", name: "Support Engineer", description: "Tenant-level support.", isSystem: true, usersAssigned: 10, status: "active", createdAt: Date.now() - 8.64e7 * 18, permissions: subset({ view: true, edit: true }, ["dashboard","routers","guests","monitoring","support","audit"]) },
-  { id: "role-ro", name: "Read Only User", description: "View-only access.", isSystem: true, usersAssigned: 24, status: "active", createdAt: Date.now() - 8.64e7 * 10, permissions: readOnly() },
-];
+interface BackendUserListResponse {
+  items: BackendUser[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
 
-const AVATARS = ["#0EA5E9", "#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6"];
-const FIRST = ["Ava", "Liam", "Priya", "Diego", "Yuki", "Noah", "Aisha", "Zara", "Mateo", "Kai", "Elena", "Rohan", "Anya", "Omar", "Sofia", "Ethan"];
-const LAST = ["Chen", "Patel", "Reyes", "Kim", "Nakamura", "Silva", "Khan", "Ortega", "Rossi", "Sato", "Novak", "Iyer", "Volkov", "Ali", "Costa", "Park"];
-const LANGS = ["en", "hi", "fr", "es"];
-const TZS = ["UTC", "America/New_York", "Europe/London", "Asia/Kolkata", "Asia/Singapore"];
+interface BackendOrganizationMembershipSummary {
+  organization_id: string;
+  organization_name: string;
+  status: string;
+  is_primary_contact: boolean;
+  invited_at: string | null;
+  joined_at: string | null;
+}
 
-const USERS: RbacUser[] = Array.from({ length: 48 }).map((_, i) => {
-  const org = ORGS[i % ORGS.length];
-  const role = ROLES[i % ROLES.length];
-  const dep = DEPARTMENTS[i % DEPARTMENTS.length];
-  const fn = FIRST[i % FIRST.length];
-  const ln = LAST[(i * 3) % LAST.length];
+interface BackendRoleSummary {
+  id: string;
+  name: string;
+  slug: string;
+  scope_type: ScopeType;
+  organization_id: string | null;
+}
+
+interface BackendUserDetailResponse {
+  user: BackendUser;
+  organizations: BackendOrganizationMembershipSummary[];
+  roles: BackendRoleSummary[];
+}
+
+interface BackendInviteUserResponse {
+  user: BackendUser;
+  temporary_password: string;
+}
+
+interface BackendPermission {
+  id: string;
+  permission_group_id: string;
+  key: string;
+  action: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+}
+
+interface BackendPermissionGroup {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+}
+
+interface BackendRole {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_system_role: boolean;
+  is_template: boolean;
+  is_active: boolean;
+  scope_type: ScopeType;
+  organization_id: string | null;
+  parent_role_id: string | null;
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendUserRoleAssignment {
+  id: string;
+  user_id: string;
+  role_id: string;
+  scope_type: ScopeType;
+  organization_id: string | null;
+  location_id: string | null;
+  router_id: string | null;
+  granted_at: string;
+  granted_by: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+}
+
+interface BackendLoginAttemptLog {
+  id: string;
+  user_id: string | null;
+  email: string;
+  ip_address: string;
+  user_agent: string | null;
+  success: boolean;
+  failure_reason: string | null;
+  created_at: string;
+}
+
+interface BackendLoginAttemptListResponse {
+  items: BackendLoginAttemptLog[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+// ============================================================================
+// Converters
+// ============================================================================
+
+function toUser(u: BackendUser): RbacUser {
   return {
-    id: `USR-${(1000 + i).toString()}`,
-    firstName: fn,
-    lastName: ln,
-    email: `${fn.toLowerCase()}.${ln.toLowerCase()}@${org[1].split(" ")[0].toLowerCase()}.io`,
-    mobile: `+1 555 010 ${(2200 + i).toString().padStart(4, "0")}`,
-    organizationId: org[0],
-    organizationName: org[1],
-    locationIds: i % 5 === 0 ? [] : [LOCATION_TREE[i % 2].children![i % LOCATION_TREE[i % 2].children!.length].id],
-    departmentId: dep.id,
-    departmentName: dep.name,
-    designation: ["Manager", "Engineer", "Analyst", "Lead", "Specialist"][i % 5],
-    roleId: role.id,
-    roleName: role.name,
-    status: (i % 11 === 0 ? "disabled" : i % 13 === 0 ? "invited" : i % 17 === 0 ? "locked" : "active") as RbacUser["status"],
-    lastLoginAt: Date.now() - i * 3.6e6,
-    mfaEnabled: i % 3 !== 0,
-    language: LANGS[i % LANGS.length],
-    timezone: TZS[i % TZS.length],
-    avatarColor: AVATARS[i % AVATARS.length],
-    createdAt: Date.now() - i * 8.64e7,
-  };
-});
-
-const GROUPS: RbacUserGroup[] = [
-  { id: "grp-1", name: "Front Desk NA", description: "North America reception team", memberIds: USERS.slice(0, 6).map((u) => u.id), roleId: "role-recept" },
-  { id: "grp-2", name: "Global Network Ops", description: "Tier-2 network engineering", memberIds: USERS.slice(6, 11).map((u) => u.id), roleId: "role-net" },
-  { id: "grp-3", name: "Marketing Growth", description: "Campaigns and portal experience", memberIds: USERS.slice(11, 14).map((u) => u.id), roleId: "role-mkt" },
-];
-
-const INVITES: RbacInvitation[] = [
-  { id: "inv-1", email: "priya.sharma@nimbus.io", roleId: "role-hotel", roleName: "Hotel Manager", organizationName: "Nimbus Hospitality", status: "pending", invitedBy: "Ava Chen", invitedAt: Date.now() - 6 * 3.6e6, expiresAt: Date.now() + 6 * 8.64e7 },
-  { id: "inv-2", email: "diego.reyes@vertex.io", roleId: "role-branch", roleName: "Branch Manager", organizationName: "Vertex Retail", status: "pending", invitedBy: "Liam Patel", invitedAt: Date.now() - 26 * 3.6e6, expiresAt: Date.now() + 4 * 8.64e7 },
-  { id: "inv-3", email: "yuki.nakamura@halo.io", roleId: "role-sup", roleName: "Support Engineer", organizationName: "Halo Group", status: "accepted", invitedBy: "Ava Chen", invitedAt: Date.now() - 4 * 8.64e7, expiresAt: Date.now() + 3 * 8.64e7 },
-  { id: "inv-4", email: "omar.khan@orbit.io", roleId: "role-ro", roleName: "Read Only User", organizationName: "Orbit Holdings", status: "expired", invitedBy: "Noah Silva", invitedAt: Date.now() - 22 * 8.64e7, expiresAt: Date.now() - 8 * 8.64e7 },
-];
-
-const SESSIONS: RbacSession[] = USERS.slice(0, 12).map((u, i) => ({
-  id: `SES-${uid()}`,
-  userId: u.id,
-  userName: `${u.firstName} ${u.lastName}`,
-  device: ["MacBook Pro", "iPhone 15", "Windows 11", "iPad Pro", "Pixel 8"][i % 5],
-  browser: ["Chrome 129", "Safari 17", "Firefox 130", "Edge 128"][i % 4],
-  os: ["macOS 14", "iOS 17", "Windows 11", "Android 14"][i % 4],
-  ipAddress: `10.42.${i}.${100 + i}`,
-  location: ["San Francisco", "Mumbai", "London", "Tokyo", "Dubai"][i % 5],
-  loginAt: Date.now() - i * 45 * 60_000,
-  current: i === 0,
-}));
-
-const LOGIN_HISTORY: RbacLoginEvent[] = Array.from({ length: 80 }).map((_, i) => {
-  const u = USERS[i % USERS.length];
-  const outcome: RbacLoginEvent["outcome"] = i % 9 === 0 ? "failed" : "success";
-  return {
-    id: `LGE-${1000 + i}`,
-    userId: u.id,
-    userName: `${u.firstName} ${u.lastName}`,
-    loginAt: Date.now() - i * 45 * 60_000,
-    logoutAt: outcome === "success" ? Date.now() - (i * 45 - 30) * 60_000 : undefined,
-    browser: ["Chrome 129", "Safari 17", "Firefox 130", "Edge 128"][i % 4],
-    device: ["MacBook Pro", "iPhone 15", "Windows 11"][i % 3],
-    os: ["macOS 14", "iOS 17", "Windows 11"][i % 3],
-    ipAddress: `10.42.${i % 40}.${20 + (i % 200)}`,
-    mfaUsed: i % 4 !== 0,
-    outcome,
-    reason: outcome === "failed" ? ["Wrong password", "MFA denied", "Unknown device"][i % 3] : undefined,
-  };
-});
-
-let PASSWORD_POLICY: RbacPasswordPolicy = {
-  minLength: 12,
-  requireUppercase: true,
-  requireNumber: true,
-  requireSymbol: true,
-  expiryDays: 90,
-  historyCount: 5,
-  lockoutAttempts: 5,
-  lockoutMinutes: 30,
-};
-
-let MFA_STATE: RbacMfaState = {
-  enabled: true,
-  methods: ["authenticator", "email"],
-  lastVerifiedAt: Date.now() - 6 * 3.6e6,
-  backupCodesRemaining: 6,
-};
-
-function computeKpis(): RbacKpis {
-  return {
-    totalUsers: USERS.length,
-    activeUsers: USERS.filter((u) => u.status === "active").length,
-    disabledUsers: USERS.filter((u) => u.status === "disabled").length,
-    totalRoles: ROLES.length,
-    customRoles: ROLES.filter((r) => !r.isSystem).length,
-    pendingInvites: INVITES.filter((i) => i.status === "pending").length,
-    activeSessions: SESSIONS.length,
-    failedLogins24h: LOGIN_HISTORY.filter((e) => e.outcome === "failed" && Date.now() - e.loginAt < 86_400_000).length,
+    id: u.id,
+    firstName: u.first_name,
+    lastName: u.last_name,
+    fullName: u.full_name,
+    email: u.email,
+    username: u.username,
+    phone: u.phone,
+    profilePhoto: u.profile_photo,
+    designation: u.designation,
+    department: u.department,
+    employeeId: u.employee_id,
+    timezone: u.timezone,
+    language: u.language,
+    status: u.status,
+    isActive: u.is_active,
+    isVerified: u.is_verified,
+    dataMaskingEnabled: u.data_masking_enabled,
+    lastLoginAt: u.last_login_at,
+    createdAt: u.created_at,
+    updatedAt: u.updated_at,
   };
 }
+
+function toRoleSummary(r: BackendRoleSummary) {
+  return {
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    scopeType: r.scope_type,
+    organizationId: r.organization_id,
+  };
+}
+
+function toUserDetail(d: BackendUserDetailResponse): UserDetail {
+  return {
+    user: toUser(d.user),
+    organizations: d.organizations.map((o) => ({
+      organizationId: o.organization_id,
+      organizationName: o.organization_name,
+      status: o.status,
+      isPrimaryContact: o.is_primary_contact,
+      invitedAt: o.invited_at,
+      joinedAt: o.joined_at,
+    })),
+    roles: d.roles.map(toRoleSummary),
+  };
+}
+
+function toPermission(p: BackendPermission): Permission {
+  return {
+    id: p.id,
+    permissionGroupId: p.permission_group_id,
+    key: p.key,
+    action: p.action,
+    name: p.name,
+    description: p.description,
+    isActive: p.is_active,
+  };
+}
+
+function toPermissionGroup(g: BackendPermissionGroup): PermissionGroup {
+  return {
+    id: g.id,
+    key: g.key,
+    name: g.name,
+    description: g.description,
+    sortOrder: g.sort_order,
+  };
+}
+
+function toRole(r: BackendRole): Role {
+  return {
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    description: r.description,
+    isSystemRole: r.is_system_role,
+    isTemplate: r.is_template,
+    isActive: r.is_active,
+    scopeType: r.scope_type,
+    organizationId: r.organization_id,
+    parentRoleId: r.parent_role_id,
+    permissions: r.permissions,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function toUserRoleAssignment(a: BackendUserRoleAssignment): UserRoleAssignment {
+  return {
+    id: a.id,
+    userId: a.user_id,
+    roleId: a.role_id,
+    scopeType: a.scope_type,
+    organizationId: a.organization_id,
+    locationId: a.location_id,
+    routerId: a.router_id,
+    grantedAt: a.granted_at,
+    grantedBy: a.granted_by,
+    expiresAt: a.expires_at,
+    isActive: a.is_active,
+  };
+}
+
+function toLoginAttemptLog(l: BackendLoginAttemptLog): LoginAttemptLog {
+  return {
+    id: l.id,
+    userId: l.user_id,
+    email: l.email,
+    ipAddress: l.ip_address,
+    userAgent: l.user_agent,
+    success: l.success,
+    failureReason: l.failure_reason,
+    createdAt: l.created_at,
+  };
+}
+
+// ============================================================================
+// Service
+// ============================================================================
 
 export const rbacService = {
-  async getKpis() { await delay(150); return computeKpis(); },
-  async getUsers() { await delay(200); return [...USERS]; },
-  async getRoles() { await delay(200); return [...ROLES]; },
-  async getDepartments() { await delay(120); return [...DEPARTMENTS]; },
-  async getGroups() { await delay(150); return [...GROUPS]; },
-  async getInvitations() { await delay(120); return [...INVITES]; },
-  async getSessions() { await delay(150); return [...SESSIONS]; },
-  async getLoginHistory() { await delay(180); return [...LOGIN_HISTORY]; },
-  async getLocationTree() { await delay(80); return LOCATION_TREE; },
-  async getOrganizations() { await delay(50); return ORGS.map(([id, name]) => ({ id, name })); },
-  async getPasswordPolicy() { await delay(100); return PASSWORD_POLICY; },
-  async savePasswordPolicy(next: RbacPasswordPolicy) { await delay(300); PASSWORD_POLICY = next; return next; },
-  async getMfaState() { await delay(100); return MFA_STATE; },
-  async setMfa(next: Partial<RbacMfaState>) { await delay(250); MFA_STATE = { ...MFA_STATE, ...next }; return MFA_STATE; },
+  // -- Users ----------------------------------------------------------------
 
-  async createUser(input: Omit<RbacUser, "id" | "createdAt" | "avatarColor" | "organizationName" | "departmentName" | "roleName" | "mfaEnabled" | "status">) {
-    await delay(400);
-    const org = ORGS.find((o) => o[0] === input.organizationId)!;
-    const dep = DEPARTMENTS.find((d) => d.id === input.departmentId)!;
-    const role = ROLES.find((r) => r.id === input.roleId)!;
-    const user: RbacUser = {
-      ...input,
-      id: `USR-${1000 + USERS.length}`,
-      organizationName: org[1],
-      departmentName: dep.name,
-      roleName: role.name,
-      status: "invited",
-      mfaEnabled: false,
-      avatarColor: AVATARS[USERS.length % AVATARS.length],
-      createdAt: Date.now(),
+  async listUsers(q: UserListQuery): Promise<PaginatedResult<RbacUser>> {
+    const { data } = await api.get<BackendUserListResponse>("/users", {
+      params: {
+        search: q.search || undefined,
+        is_active: q.isActive,
+        page: q.page,
+        page_size: q.pageSize,
+      },
+    });
+    return {
+      items: data.items.map(toUser),
+      page: data.page,
+      pageSize: data.page_size,
+      totalItems: data.total_items,
+      totalPages: data.total_pages,
+      hasNext: data.has_next,
+      hasPrevious: data.has_previous,
     };
-    USERS.unshift(user);
-    role.usersAssigned += 1;
-    return user;
   },
-  async updateUser(id: string, patch: Partial<RbacUser>) {
-    await delay(300);
-    const idx = USERS.findIndex((u) => u.id === id);
-    if (idx < 0) throw new Error("User not found");
-    USERS[idx] = { ...USERS[idx], ...patch };
-    return USERS[idx];
-  },
-  async deleteUser(id: string) { await delay(300); const idx = USERS.findIndex((u) => u.id === id); if (idx >= 0) USERS.splice(idx, 1); return true; },
-  async resetPassword(id: string) { await delay(400); return { ok: true, id }; },
-  async resetMfa(id: string) { await delay(400); const u = USERS.find((x) => x.id === id); if (u) u.mfaEnabled = false; return { ok: true }; },
-  async setUserStatus(id: string, status: RbacUser["status"]) { await delay(200); const u = USERS.find((x) => x.id === id); if (u) u.status = status; return u; },
-  async bulkUpdateStatus(ids: string[], status: RbacUser["status"]) { await delay(300); ids.forEach((id) => { const u = USERS.find((x) => x.id === id); if (u) u.status = status; }); return ids.length; },
 
-  async saveRole(role: RbacRole) {
-    await delay(300);
-    const idx = ROLES.findIndex((r) => r.id === role.id);
-    if (idx >= 0) ROLES[idx] = role; else ROLES.unshift({ ...role, id: `role-${uid()}`, createdAt: Date.now(), usersAssigned: 0, isSystem: false });
-    return role;
+  async getUserDetail(id: string): Promise<UserDetail> {
+    const { data } = await api.get<BackendUserDetailResponse>(`/users/${id}`);
+    return toUserDetail(data);
   },
-  async duplicateRole(id: string) { await delay(250); const src = ROLES.find((r) => r.id === id); if (!src) throw new Error("Role not found"); const copy: RbacRole = { ...src, id: `role-${uid()}`, name: `${src.name} (Copy)`, isSystem: false, usersAssigned: 0, createdAt: Date.now(), status: "active" }; ROLES.unshift(copy); return copy; },
-  async archiveRole(id: string) { await delay(200); const r = ROLES.find((x) => x.id === id); if (r && !r.isSystem) r.status = "archived"; return r; },
-  async deleteRole(id: string) { await delay(200); const idx = ROLES.findIndex((r) => r.id === id); if (idx >= 0 && !ROLES[idx].isSystem) ROLES.splice(idx, 1); return true; },
 
-  async createInvitation(email: string, roleId: string) {
-    await delay(300);
-    const role = ROLES.find((r) => r.id === roleId)!;
-    const inv: RbacInvitation = { id: `inv-${uid()}`, email, roleId, roleName: role.name, organizationName: ORGS[0][1], status: "pending", invitedBy: "You", invitedAt: Date.now(), expiresAt: Date.now() + 7 * 8.64e7 };
-    INVITES.unshift(inv);
-    return inv;
+  async createUser(payload: CreateUserPayload): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>("/users", {
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      email: payload.email,
+      username: payload.username,
+      temporary_password: payload.temporaryPassword,
+      phone: payload.phone,
+      designation: payload.designation,
+      department: payload.department,
+      employee_id: payload.employeeId,
+      timezone: payload.timezone,
+      language: payload.language,
+      organization_id: payload.organizationId,
+      initial_role_id: payload.initialRoleId,
+    });
+    return toUser(data);
   },
-  async resendInvitation(id: string) { await delay(250); return { ok: true, id }; },
-  async cancelInvitation(id: string) { await delay(200); const idx = INVITES.findIndex((i) => i.id === id); if (idx >= 0) INVITES.splice(idx, 1); return true; },
 
-  async terminateSession(id: string) { await delay(200); const idx = SESSIONS.findIndex((s) => s.id === id); if (idx >= 0) SESSIONS.splice(idx, 1); return true; },
-  async terminateAllSessions() { await delay(300); const kept = SESSIONS.filter((s) => s.current); SESSIONS.length = 0; SESSIONS.push(...kept); return true; },
+  async inviteUser(payload: InviteUserPayload): Promise<InviteUserResult> {
+    const { data } = await api.post<BackendInviteUserResponse>("/users/invite", {
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      email: payload.email,
+      username: payload.username,
+      phone: payload.phone,
+      designation: payload.designation,
+      department: payload.department,
+      employee_id: payload.employeeId,
+      timezone: payload.timezone,
+      language: payload.language,
+      organization_id: payload.organizationId,
+      initial_role_id: payload.initialRoleId,
+    });
+    return { user: toUser(data.user), temporaryPassword: data.temporary_password };
+  },
+
+  async updateUser(id: string, payload: UpdateUserPayload): Promise<RbacUser> {
+    const { data } = await api.put<BackendUser>(`/users/${id}`, {
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      phone: payload.phone,
+      profile_photo: payload.profilePhoto,
+      designation: payload.designation,
+      department: payload.department,
+      employee_id: payload.employeeId,
+      timezone: payload.timezone,
+      language: payload.language,
+      is_verified: payload.isVerified,
+      data_masking_enabled: payload.dataMaskingEnabled,
+    });
+    return toUser(data);
+  },
+
+  async activateUser(id: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/activate`);
+    return toUser(data);
+  },
+
+  async deactivateUser(id: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/deactivate`);
+    return toUser(data);
+  },
+
+  // -- Permissions / Permission Groups (read-only, seeded) -------------------
+
+  async listPermissionGroups(): Promise<PermissionGroup[]> {
+    const { data } = await api.get<BackendPermissionGroup[]>("/permission-groups");
+    return data.map(toPermissionGroup);
+  },
+
+  async listPermissions(permissionGroupId?: string): Promise<Permission[]> {
+    const { data } = await api.get<BackendPermission[]>("/permissions", {
+      params: { permission_group_id: permissionGroupId },
+    });
+    return data.map(toPermission);
+  },
+
+  // -- Roles ------------------------------------------------------------------
+
+  async listRoles(): Promise<Role[]> {
+    const { data } = await api.get<BackendRole[]>("/roles");
+    return data.map(toRole);
+  },
+
+  async createRole(payload: CreateRolePayload): Promise<Role> {
+    const { data } = await api.post<BackendRole>("/roles", {
+      name: payload.name,
+      slug: payload.slug,
+      description: payload.description,
+      scope_type: payload.scopeType,
+      organization_id: payload.organizationId,
+      parent_role_id: payload.parentRoleId,
+      is_template: payload.isTemplate ?? false,
+      permission_keys: payload.permissionKeys,
+      allowed_scope_types: payload.allowedScopeTypes ?? [],
+    });
+    return toRole(data);
+  },
+
+  async updateRole(id: string, payload: UpdateRolePayload): Promise<Role> {
+    const { data } = await api.put<BackendRole>(`/roles/${id}`, {
+      name: payload.name,
+      description: payload.description,
+      is_template: payload.isTemplate,
+      parent_role_id: payload.parentRoleId,
+    });
+    return toRole(data);
+  },
+
+  async deleteRole(id: string): Promise<void> {
+    await api.delete(`/roles/${id}`);
+  },
+
+  async cloneRole(id: string, payload: CloneRolePayload): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/clone`, {
+      new_name: payload.newName,
+      new_slug: payload.newSlug,
+      target_organization_id: payload.targetOrganizationId,
+    });
+    return toRole(data);
+  },
+
+  async activateRole(id: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/activate`);
+    return toRole(data);
+  },
+
+  async deactivateRole(id: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/deactivate`);
+    return toRole(data);
+  },
+
+  async attachRolePermission(roleId: string, permissionKey: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${roleId}/permissions`, {
+      permission_key: permissionKey,
+    });
+    return toRole(data);
+  },
+
+  async detachRolePermission(roleId: string, permissionKey: string): Promise<Role> {
+    const { data } = await api.delete<BackendRole>(
+      `/roles/${roleId}/permissions/${encodeURIComponent(permissionKey)}`,
+    );
+    return toRole(data);
+  },
+
+  // -- Role assignment (scoped, per user) ------------------------------------
+
+  async listUserRoleAssignments(userId: string): Promise<UserRoleAssignment[]> {
+    const { data } = await api.get<{ items: BackendUserRoleAssignment[] }>(
+      `/users/${userId}/roles`,
+    );
+    return data.items.map(toUserRoleAssignment);
+  },
+
+  async assignRole(userId: string, payload: AssignRolePayload): Promise<UserRoleAssignment> {
+    const { data } = await api.post<BackendUserRoleAssignment>(`/users/${userId}/roles`, {
+      role_id: payload.roleId,
+      scope_type: payload.scopeType,
+      organization_id: payload.organizationId,
+      location_id: payload.locationId,
+      router_id: payload.routerId,
+      expires_at: payload.expiresAt,
+    });
+    return toUserRoleAssignment(data);
+  },
+
+  async revokeRoleAssignment(userId: string, assignmentId: string): Promise<void> {
+    await api.delete(`/users/${userId}/roles/${assignmentId}`);
+  },
+
+  async getUserPermissions(userId: string): Promise<string[]> {
+    const { data } = await api.get<{ user_id: string; permissions: string[] }>(
+      `/users/${userId}/permissions`,
+    );
+    return data.permissions;
+  },
+
+  // -- Login attempts (admin-facing, via controller-logs) --------------------
+
+  async listLoginAttempts(q: LoginAttemptListQuery): Promise<PaginatedResult<LoginAttemptLog>> {
+    const { data } = await api.get<BackendLoginAttemptListResponse>(
+      "/controller-logs/authentication/admin",
+      {
+        params: {
+          email: q.email || undefined,
+          success: q.success,
+          page: q.page,
+          page_size: q.pageSize,
+        },
+      },
+    );
+    return {
+      items: data.items.map(toLoginAttemptLog),
+      page: data.page,
+      pageSize: data.page_size,
+      totalItems: data.total_items,
+      totalPages: data.total_pages,
+      hasNext: data.has_next,
+      hasPrevious: data.has_previous,
+    };
+  },
+
+  // -- Organizations/locations/routers (reuses the already-migrated Router
+  // service's own fan-out fetchers for pickers) ------------------------------
+
+  async organizations(): Promise<{ id: string; name: string }[]> {
+    return routerService.organizations();
+  },
+
+  async locations(): Promise<{ id: string; name: string; organizationId: string }[]> {
+    return routerService.locations();
+  },
+
+  // -- KPIs (derived from real list totals, no fabricated counters) ---------
+
+  async getKpis(): Promise<RbacKpis> {
+    const [totalPage, activePage, inactivePage, roles, failedLoginsPage] = await Promise.all([
+      rbacService.listUsers({ page: 1, pageSize: 1 }),
+      rbacService.listUsers({ page: 1, pageSize: 1, isActive: true }),
+      rbacService.listUsers({ page: 1, pageSize: 1, isActive: false }),
+      rbacService.listRoles(),
+      rbacService.listLoginAttempts({ page: 1, pageSize: 1, success: false }),
+    ]);
+    return {
+      totalUsers: totalPage.totalItems,
+      activeUsers: activePage.totalItems,
+      inactiveUsers: inactivePage.totalItems,
+      totalRoles: roles.length,
+      customRoles: roles.filter((r) => !r.isSystemRole).length,
+      failedLogins: failedLoginsPage.totalItems,
+    };
+  },
 };

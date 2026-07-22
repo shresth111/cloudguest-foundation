@@ -1,8 +1,10 @@
 import { api } from "@/services/api";
 import type {
+  AuthSelfSession,
   AuthSession,
   AuthTokens,
   LoginCredentials,
+  MfaEnrollResult,
   OrganizationMembership,
   RoleAssignment,
   User,
@@ -113,6 +115,34 @@ function toOrganizations(orgs: BackendOrganizationMembership[]): OrganizationMem
   }));
 }
 
+interface BackendSelfSession {
+  id: string;
+  device_id: string;
+  device_name: string | null;
+  ip_address: string;
+  user_agent: string;
+  location: string | null;
+  is_current: boolean;
+  created_at: string;
+  expires_at: string;
+  last_activity_at: string;
+}
+
+function toSelfSession(s: BackendSelfSession): AuthSelfSession {
+  return {
+    id: s.id,
+    deviceId: s.device_id,
+    deviceName: s.device_name,
+    ipAddress: s.ip_address,
+    userAgent: s.user_agent,
+    location: s.location,
+    isCurrent: s.is_current,
+    createdAt: s.created_at,
+    expiresAt: s.expires_at,
+    lastActivityAt: s.last_activity_at,
+  };
+}
+
 function toSession(res: BackendLoginResponse): AuthSession {
   return {
     user: toUser(res.user),
@@ -150,9 +180,7 @@ export const authService = {
   },
 
   async myPermissions(): Promise<string[]> {
-    const { data } = await api.get<{ user_id: string; permissions: string[] }>(
-      "/me/permissions",
-    );
+    const { data } = await api.get<{ user_id: string; permissions: string[] }>("/me/permissions");
     return data.permissions;
   },
 
@@ -166,5 +194,56 @@ export const authService = {
 
   async verifyEmail(token: string): Promise<void> {
     await api.post("/auth/verify-email", { token });
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await api.post("/auth/change-password", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  },
+
+  // -- Sessions (self-service only -- no admin endpoint exists to view
+  // another user's sessions) -------------------------------------------------
+
+  async listSessions(): Promise<AuthSelfSession[]> {
+    const { data } = await api.get<{ sessions: BackendSelfSession[]; total: number }>(
+      "/auth/sessions",
+    );
+    return data.sessions.map(toSelfSession);
+  },
+
+  async revokeSession(sessionId: string): Promise<void> {
+    await api.delete(`/auth/sessions/${sessionId}`);
+  },
+
+  async logoutAllSessions(): Promise<void> {
+    await api.delete("/auth/logout-all");
+  },
+
+  // -- MFA (self-service TOTP only) ------------------------------------------
+
+  async enrollMfa(): Promise<MfaEnrollResult> {
+    const { data } = await api.post<{ secret: string; provisioning_uri: string }>(
+      "/auth/mfa/enroll",
+    );
+    return { secret: data.secret, provisioningUri: data.provisioning_uri };
+  },
+
+  async verifyMfa(code: string): Promise<string[]> {
+    const { data } = await api.post<{ recovery_codes: string[] }>("/auth/mfa/verify", { code });
+    return data.recovery_codes;
+  },
+
+  async disableMfa(password: string, code: string): Promise<void> {
+    await api.post("/auth/mfa/disable", { password, code });
+  },
+
+  async regenerateMfaRecoveryCodes(code: string): Promise<string[]> {
+    const { data } = await api.post<{ recovery_codes: string[] }>(
+      "/auth/mfa/recovery-codes/regenerate",
+      { code },
+    );
+    return data.recovery_codes;
   },
 };

@@ -1,83 +1,153 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { useSaveRole, useRbacRoles } from "@/hooks/useRbac";
-import { PERMISSION_ACTIONS, RBAC_MODULES, type PermissionAction, type RbacModule, type RbacPermissions, type RbacRole } from "@/types/rbac";
+import {
+  useAttachRolePermission,
+  useCreateRole,
+  useDetachRolePermission,
+  useRbacOrganizations,
+  useRbacPermissionGroups,
+  useRbacPermissions,
+  useUpdateRole,
+} from "@/hooks/useRbac";
+import { roleSchema, type RoleFormValues } from "@/lib/rbac-schemas";
+import { SCOPE_TYPE_LABEL, type Role, type ScopeType } from "@/types/rbac";
+import type { AppError } from "@/services/api";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  role?: RbacRole | null;
+  role?: Role | null;
 }
 
-const EMPTY_PERMS = (): RbacPermissions => Object.fromEntries(RBAC_MODULES.map((m) => [m.key, {}])) as RbacPermissions;
+const DEFAULTS: RoleFormValues = {
+  name: "",
+  slug: "",
+  description: "",
+  scopeType: "organization",
+  organizationId: "",
+  isTemplate: false,
+  permissionKeys: [],
+};
+
+const SCOPE_OPTIONS: ScopeType[] = ["global", "organization", "location", "router", "device"];
 
 export function RoleFormDialog({ open, onOpenChange, role }: Props) {
-  const { data: existing } = useRbacRoles();
-  const save = useSaveRole();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<"active" | "archived">("active");
-  const [permissions, setPermissions] = useState<RbacPermissions>(EMPTY_PERMS());
-  const [copyFrom, setCopyFrom] = useState<string>("");
+  const { data: organizations = [] } = useRbacOrganizations();
+  const { data: permissionGroups = [] } = useRbacPermissionGroups();
+  const { data: permissions = [] } = useRbacPermissions();
+  const create = useCreateRole();
+  const update = useUpdateRole();
+  const attach = useAttachRolePermission();
+  const detach = useDetachRolePermission();
 
-  useEffect(() => {
-    if (open) {
-      setName(role?.name ?? "");
-      setDescription(role?.description ?? "");
-      setStatus(role?.status ?? "active");
-      setPermissions(role?.permissions ?? EMPTY_PERMS());
-      setCopyFrom("");
+  const defaults: RoleFormValues = role
+    ? {
+        name: role.name,
+        slug: role.slug,
+        description: role.description ?? "",
+        scopeType: role.scopeType,
+        organizationId: role.organizationId ?? "",
+        isTemplate: role.isTemplate,
+        permissionKeys: role.permissions,
+      }
+    : DEFAULTS;
+
+  const form = useForm<RoleFormValues>({
+    resolver: zodResolver(roleSchema),
+    defaultValues: defaults,
+    values: defaults,
+    mode: "onBlur",
+  });
+
+  const selected = new Set(form.watch("permissionKeys"));
+  const locked = !!role?.isSystemRole;
+
+  const groupedPermissions = useMemo(() => {
+    const byGroup = new Map<string, typeof permissions>();
+    for (const p of permissions) {
+      const list = byGroup.get(p.permissionGroupId) ?? [];
+      list.push(p);
+      byGroup.set(p.permissionGroupId, list);
     }
-  }, [open, role]);
+    return permissionGroups
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((g) => ({ group: g, items: byGroup.get(g.id) ?? [] }))
+      .filter((g) => g.items.length > 0);
+  }, [permissions, permissionGroups]);
 
-  const toggle = (m: RbacModule, a: PermissionAction) => {
-    setPermissions((prev) => ({ ...prev, [m]: { ...(prev[m] ?? {}), [a]: !prev[m]?.[a] } }));
+  const togglePermission = (key: string, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(key);
+    else next.delete(key);
+    form.setValue("permissionKeys", [...next]);
   };
-  const toggleModule = (m: RbacModule, on: boolean) => {
-    setPermissions((prev) => ({ ...prev, [m]: Object.fromEntries(PERMISSION_ACTIONS.map((a) => [a, on])) as never }));
-  };
-  const toggleAction = (a: PermissionAction, on: boolean) => {
-    setPermissions((prev) => {
-      const next = { ...prev };
-      for (const m of RBAC_MODULES) next[m.key] = { ...(next[m.key] ?? {}), [a]: on };
-      return next;
-    });
-  };
-  const selectAll = (on: boolean) => {
-    setPermissions(on ? Object.fromEntries(RBAC_MODULES.map((m) => [m.key, Object.fromEntries(PERMISSION_ACTIONS.map((a) => [a, true]))])) as never : EMPTY_PERMS());
-  };
-  const applyCopy = (id: string) => {
-    const src = existing?.find((r) => r.id === id);
-    if (src) { setPermissions(structuredClone(src.permissions)); setCopyFrom(id); toast.success(`Copied permissions from ${src.name}`); }
+  const toggleGroup = (keys: string[], on: boolean) => {
+    const next = new Set(selected);
+    keys.forEach((k) => (on ? next.add(k) : next.delete(k)));
+    form.setValue("permissionKeys", [...next]);
   };
 
-  const totalOn = useMemo(() => Object.values(permissions).reduce((sum, mod) => sum + Object.values(mod ?? {}).filter(Boolean).length, 0), [permissions]);
-
-  const submit = async () => {
-    if (!name.trim()) { toast.error("Role name is required"); return; }
-    const payload: RbacRole = {
-      id: role?.id ?? "",
-      name: name.trim(),
-      description,
-      isSystem: role?.isSystem ?? false,
-      usersAssigned: role?.usersAssigned ?? 0,
-      permissions,
-      status,
-      createdAt: role?.createdAt ?? Date.now(),
-    };
-    try { await save.mutateAsync(payload); toast.success(role ? "Role updated" : "Role created"); onOpenChange(false); }
-    catch { toast.error("Could not save role"); }
-  };
+  async function submit(v: RoleFormValues) {
+    try {
+      if (role) {
+        await update.mutateAsync({
+          id: role.id,
+          payload: {
+            name: v.name,
+            description: v.description || null,
+            isTemplate: v.isTemplate,
+          },
+        });
+        const before = new Set(role.permissions);
+        const after = new Set(v.permissionKeys);
+        const toAdd = v.permissionKeys.filter((k) => !before.has(k));
+        const toRemove = role.permissions.filter((k) => !after.has(k));
+        for (const key of toAdd) await attach.mutateAsync({ roleId: role.id, permissionKey: key });
+        for (const key of toRemove)
+          await detach.mutateAsync({ roleId: role.id, permissionKey: key });
+        toast.success("Role updated");
+      } else {
+        await create.mutateAsync({
+          name: v.name,
+          slug: v.slug,
+          description: v.description || null,
+          scopeType: v.scopeType,
+          organizationId: v.organizationId || null,
+          isTemplate: v.isTemplate,
+          permissionKeys: v.permissionKeys,
+        });
+        toast.success("Role created");
+      }
+      onOpenChange(false);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not save role");
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,96 +156,159 @@ export function RoleFormDialog({ open, onOpenChange, role }: Props) {
           <DialogTitle>{role ? "Edit role" : "Create role"}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4">
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_200px]">
+        {locked && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-600">
+            This is a system role — its name, scope, and permissions are immutable. Clone it from
+            the Roles list to create a customizable copy.
+          </p>
+        )}
+
+        <form onSubmit={form.handleSubmit(submit)} className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
             <div className="space-y-1.5">
               <Label>Role name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Regional Support Lead" />
+              <Input
+                {...form.register("name")}
+                disabled={locked}
+                placeholder="e.g. Regional Support Lead"
+              />
+              {form.formState.errors.name && (
+                <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+              )}
             </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as never)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Copy from</Label>
-              <Select value={copyFrom} onValueChange={applyCopy}>
-                <SelectTrigger><SelectValue placeholder="Choose role…" /></SelectTrigger>
-                <SelectContent>
-                  {existing?.filter((r) => r.id !== role?.id).map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {!role && (
+              <div className="space-y-1.5">
+                <Label>Slug</Label>
+                <Input {...form.register("slug")} placeholder="regional-support-lead" />
+                {form.formState.errors.slug && (
+                  <p className="text-xs text-destructive">{form.formState.errors.slug.message}</p>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Short summary shown across the platform." />
+            <Textarea {...form.register("description")} disabled={locked} rows={2} />
+          </div>
+
+          {!role && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Scope type</Label>
+                <Controller
+                  control={form.control}
+                  name="scopeType"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SCOPE_OPTIONS.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {SCOPE_TYPE_LABEL[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Owning organization (optional — global if blank)</Label>
+                <Controller
+                  control={form.control}
+                  name="organizationId"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Global" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {organizations.map((o) => (
+                          <SelectItem key={o.id} value={o.id}>
+                            {o.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Template</p>
+              <p className="text-xs text-muted-foreground">
+                Allow this role to be cloned by others as a starting point.
+              </p>
+            </div>
+            <Controller
+              control={form.control}
+              name="isTemplate"
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} disabled={locked} />
+              )}
+            />
           </div>
 
           <div className="rounded-lg border">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium">Permission matrix</p>
-                <Badge variant="outline">{totalOn} granted</Badge>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => selectAll(true)}>Select all</Button>
-                <Button size="sm" variant="outline" onClick={() => selectAll(false)}>Clear all</Button>
+                <p className="text-sm font-medium">Permissions</p>
+                <Badge variant="outline">{selected.size} granted</Badge>
               </div>
             </div>
-            <ScrollArea className="max-h-[420px]">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-background">
-                  <tr className="border-b">
-                    <th className="p-2 text-start font-medium">Module</th>
-                    {PERMISSION_ACTIONS.map((a) => (
-                      <th key={a} className="p-2 text-center font-medium">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="capitalize">{a}</span>
-                          <Checkbox
-                            checked={RBAC_MODULES.every((m) => !!permissions[m.key]?.[a])}
-                            onCheckedChange={(v) => toggleAction(a, !!v)}
-                            aria-label={`Toggle all ${a}`}
-                          />
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {RBAC_MODULES.map((m) => {
-                    const modAll = PERMISSION_ACTIONS.every((a) => !!permissions[m.key]?.[a]);
-                    return (
-                      <tr key={m.key} className="border-b hover:bg-muted/40">
-                        <td className="p-2">
-                          <div className="flex items-center gap-2">
-                            <Switch checked={modAll} onCheckedChange={(v) => toggleModule(m.key, v)} aria-label={`Toggle all ${m.label}`} />
-                            <span className="font-medium">{m.label}</span>
-                          </div>
-                        </td>
-                        {PERMISSION_ACTIONS.map((a) => (
-                          <td key={a} className="p-2 text-center">
-                            <Checkbox checked={!!permissions[m.key]?.[a]} onCheckedChange={() => toggle(m.key, a)} aria-label={`${m.label} ${a}`} />
-                          </td>
+            <ScrollArea className="max-h-[380px]">
+              <div className="divide-y">
+                {groupedPermissions.map(({ group, items }) => {
+                  const keys = items.map((p) => p.key);
+                  const allOn = keys.every((k) => selected.has(k));
+                  return (
+                    <div key={group.id} className="p-3">
+                      <div className="mb-2 flex items-center gap-2">
+                        <Switch
+                          checked={allOn}
+                          onCheckedChange={(v) => toggleGroup(keys, v)}
+                          disabled={locked}
+                          aria-label={`Toggle all ${group.name}`}
+                        />
+                        <span className="text-sm font-medium">{group.name}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+                        {items.map((p) => (
+                          <label key={p.key} className="flex items-center gap-1.5 text-xs">
+                            <Checkbox
+                              checked={selected.has(p.key)}
+                              onCheckedChange={(v) => togglePermission(p.key, !!v)}
+                              disabled={locked}
+                            />
+                            <span className="capitalize">{p.action}</span>
+                          </label>
                         ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </ScrollArea>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={save.isPending}>{save.isPending ? "Saving…" : role ? "Save changes" : "Create role"}</Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={locked || create.isPending || update.isPending}>
+              {create.isPending || update.isPending
+                ? "Saving…"
+                : role
+                  ? "Save changes"
+                  : "Create role"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

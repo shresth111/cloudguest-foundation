@@ -1,180 +1,259 @@
-export type RbacUserStatus = "active" | "disabled" | "invited" | "locked";
+export type ScopeType = "global" | "organization" | "location" | "router" | "device";
+
+export const SCOPE_TYPE_LABEL: Record<ScopeType, string> = {
+  global: "Global",
+  organization: "Organization",
+  location: "Location",
+  router: "Router",
+  device: "Device",
+};
+
+// ============================================================================
+// Users
+// ============================================================================
 
 export interface RbacUser {
   id: string;
   firstName: string;
   lastName: string;
+  fullName: string;
   email: string;
-  mobile: string;
+  username: string;
+  phone: string | null;
+  profilePhoto: string | null;
+  designation: string | null;
+  department: string | null;
+  employeeId: string | null;
+  timezone: string;
+  language: string;
+  status: string;
+  isActive: boolean;
+  isVerified: boolean;
+  dataMaskingEnabled: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserOrganizationMembership {
   organizationId: string;
   organizationName: string;
-  locationIds: string[];
-  departmentId: string;
-  departmentName: string;
-  designation: string;
-  roleId: string;
-  roleName: string;
-  status: RbacUserStatus;
-  lastLoginAt?: number;
-  mfaEnabled: boolean;
-  language: string;
-  timezone: string;
-  avatarColor: string;
-  createdAt: number;
+  status: string;
+  isPrimaryContact: boolean;
+  invitedAt: string | null;
+  joinedAt: string | null;
 }
 
-export type PermissionAction =
-  | "view"
-  | "create"
-  | "edit"
-  | "delete"
-  | "export"
-  | "import"
-  | "approve"
-  | "publish"
-  | "configure";
-
-export const PERMISSION_ACTIONS: PermissionAction[] = [
-  "view", "create", "edit", "delete", "export", "import", "approve", "publish", "configure",
-];
-
-export type RbacModule =
-  | "dashboard"
-  | "organizations"
-  | "locations"
-  | "routers"
-  | "guests"
-  | "portal"
-  | "monitoring"
-  | "analytics"
-  | "billing"
-  | "white_label"
-  | "ai_assistant"
-  | "support"
-  | "audit"
-  | "settings"
-  | "api"
-  | "integrations";
-
-export const RBAC_MODULES: { key: RbacModule; label: string }[] = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "organizations", label: "Organizations" },
-  { key: "locations", label: "Locations" },
-  { key: "routers", label: "Routers" },
-  { key: "guests", label: "Guest WiFi" },
-  { key: "portal", label: "Captive Portal" },
-  { key: "monitoring", label: "Monitoring" },
-  { key: "analytics", label: "Analytics" },
-  { key: "billing", label: "Billing" },
-  { key: "white_label", label: "White Label" },
-  { key: "ai_assistant", label: "AI Assistant" },
-  { key: "support", label: "Support" },
-  { key: "audit", label: "Audit Logs" },
-  { key: "settings", label: "Platform Settings" },
-  { key: "api", label: "API" },
-  { key: "integrations", label: "Integrations" },
-];
-
-export type RbacPermissions = Partial<Record<RbacModule, Partial<Record<PermissionAction, boolean>>>>;
-
-export type RoleStatus = "active" | "archived";
-
-export interface RbacRole {
+export interface RoleSummary {
   id: string;
   name: string;
-  description: string;
-  isSystem: boolean;
-  usersAssigned: number;
-  permissions: RbacPermissions;
-  status: RoleStatus;
-  createdAt: number;
+  slug: string;
+  scopeType: ScopeType;
+  organizationId: string | null;
 }
 
-export interface RbacDepartment {
-  id: string;
-  name: string;
-  members: number;
+export interface UserDetail {
+  user: RbacUser;
+  organizations: UserOrganizationMembership[];
+  roles: RoleSummary[];
 }
 
-export interface RbacUserGroup {
-  id: string;
-  name: string;
-  description: string;
-  memberIds: string[];
-  roleId: string;
+export interface UserListQuery {
+  search?: string;
+  isActive?: boolean;
+  page: number;
+  pageSize: number;
 }
 
-export interface RbacInvitation {
-  id: string;
+export interface CreateUserPayload {
+  firstName: string;
+  lastName: string;
   email: string;
-  roleId: string;
-  roleName: string;
-  organizationName: string;
-  status: "pending" | "accepted" | "expired";
-  invitedBy: string;
-  invitedAt: number;
-  expiresAt: number;
+  username: string;
+  temporaryPassword: string;
+  phone?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  employeeId?: string | null;
+  timezone?: string;
+  language?: string;
+  organizationId?: string | null;
+  initialRoleId?: string | null;
 }
 
-export interface RbacSession {
+export interface InviteUserPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  username: string;
+  phone?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  employeeId?: string | null;
+  timezone?: string;
+  language?: string;
+  organizationId?: string | null;
+  initialRoleId?: string | null;
+}
+
+export interface InviteUserResult {
+  user: RbacUser;
+  temporaryPassword: string;
+}
+
+export interface UpdateUserPayload {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+  profilePhoto?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  employeeId?: string | null;
+  timezone?: string;
+  language?: string;
+  isVerified?: boolean;
+  dataMaskingEnabled?: boolean;
+}
+
+// ============================================================================
+// Permissions / Permission Groups (read-only, seeded)
+// ============================================================================
+
+export interface Permission {
   id: string;
-  userId: string;
-  userName: string;
-  device: string;
-  browser: string;
-  os: string;
-  ipAddress: string;
-  location: string;
-  loginAt: number;
-  current: boolean;
+  permissionGroupId: string;
+  key: string;
+  action: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
 }
 
-export interface RbacLoginEvent {
+export interface PermissionGroup {
   id: string;
-  userId: string;
-  userName: string;
-  loginAt: number;
-  logoutAt?: number;
-  browser: string;
-  device: string;
-  os: string;
-  ipAddress: string;
-  mfaUsed: boolean;
-  outcome: "success" | "failed";
-  reason?: string;
+  key: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
 }
 
-export interface RbacLocationNode {
+// ============================================================================
+// Roles
+// ============================================================================
+
+export interface Role {
   id: string;
   name: string;
-  children?: RbacLocationNode[];
+  slug: string;
+  description: string | null;
+  isSystemRole: boolean;
+  isTemplate: boolean;
+  isActive: boolean;
+  scopeType: ScopeType;
+  organizationId: string | null;
+  parentRoleId: string | null;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface CreateRolePayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+  scopeType: ScopeType;
+  organizationId?: string | null;
+  parentRoleId?: string | null;
+  isTemplate?: boolean;
+  permissionKeys: string[];
+  allowedScopeTypes?: ScopeType[];
+}
+
+export interface UpdateRolePayload {
+  name?: string;
+  description?: string | null;
+  isTemplate?: boolean;
+  parentRoleId?: string | null;
+}
+
+export interface CloneRolePayload {
+  newName: string;
+  newSlug: string;
+  targetOrganizationId?: string | null;
+}
+
+// ============================================================================
+// Role assignments (scoped, per user)
+// ============================================================================
+
+export interface UserRoleAssignment {
+  id: string;
+  userId: string;
+  roleId: string;
+  scopeType: ScopeType;
+  organizationId: string | null;
+  locationId: string | null;
+  routerId: string | null;
+  grantedAt: string;
+  grantedBy: string | null;
+  expiresAt: string | null;
+  isActive: boolean;
+}
+
+export interface AssignRolePayload {
+  roleId: string;
+  scopeType: ScopeType;
+  organizationId?: string | null;
+  locationId?: string | null;
+  routerId?: string | null;
+  expiresAt?: string | null;
+}
+
+// ============================================================================
+// Login attempts (admin-facing, via controller-logs authentication/admin)
+// ============================================================================
+
+export interface LoginAttemptLog {
+  id: string;
+  userId: string | null;
+  email: string;
+  ipAddress: string;
+  userAgent: string | null;
+  success: boolean;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+export interface LoginAttemptListQuery {
+  email?: string;
+  success?: boolean;
+  page: number;
+  pageSize: number;
+}
+
+// ============================================================================
+// Pagination (shared shape)
+// ============================================================================
+
+export interface PaginatedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+// ============================================================================
+// KPIs (all derived from real list totals -- no fabricated counters)
+// ============================================================================
 
 export interface RbacKpis {
   totalUsers: number;
   activeUsers: number;
-  disabledUsers: number;
+  inactiveUsers: number;
   totalRoles: number;
   customRoles: number;
-  pendingInvites: number;
-  activeSessions: number;
-  failedLogins24h: number;
-}
-
-export interface RbacPasswordPolicy {
-  minLength: number;
-  requireUppercase: boolean;
-  requireNumber: boolean;
-  requireSymbol: boolean;
-  expiryDays: number;
-  historyCount: number;
-  lockoutAttempts: number;
-  lockoutMinutes: number;
-}
-
-export interface RbacMfaState {
-  enabled: boolean;
-  methods: Array<"email" | "sms" | "authenticator">;
-  lastVerifiedAt?: number;
-  backupCodesRemaining: number;
+  failedLogins: number;
 }
