@@ -23,9 +23,6 @@ export type ModuleId =
   | "notifications"
   | "exports"
   | "help"
-  | "vouchers"
-  | "smart-id"
-  | "whitelist"
   | "campaigns"
   | "devices"
   | "network-monitoring"
@@ -63,8 +60,6 @@ export type ModuleId =
   | "network-dns"
   // Guest management group
   | "guests-live"
-  | "guests-sessions"
-  | "guests-blocklist"
   // Policy group
   | "policy-location"
   | "policy-user"

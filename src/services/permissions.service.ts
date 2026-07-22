@@ -37,7 +37,7 @@ const READ_ONLY: ModulePermission = { view: true, export: true };
 
 const NEW_IA_MODULES: ModuleId[] = [
   "network-aps", "network-wan", "network-lan", "network-dhcp", "network-dns",
-  "guests-live", "guests-sessions", "guests-blocklist",
+  "guests-live",
   "policy-location", "policy-user", "policy-group",
   "policy-auth", "policy-bandwidth", "policy-network",
   "analytics-executive", "analytics-network", "analytics-guest",
@@ -64,7 +64,7 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     // FE-025: Platform Console is Super-Admin ONLY. No operational modules.
     ...PLATFORM_CONSOLE,
     // Extras kept accessible via deep-link for platform admin work
-    "organizations", "locations", "vouchers",
+    "organizations", "locations",
   ],
   org_admin: [
     "dashboard", "location-master", "infrastructure", "voucher-master",
@@ -72,7 +72,7 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
     "routers", "guests", "portals", "monitoring", "analytics",
     "billing", "branding", "marketplace", "rbac",
     "integrations", "api-keys", "notifications", "exports", "help",
-    "vouchers", "campaigns", "devices", "whitelist", "captive-portal",
+    "campaigns", "devices", "captive-portal",
     "vlan", "dscp", "firewall", "isp-routing",
     "workspace", "workspace-locations", "workspace-routers", "workspace-guests",
     "workspace-staff", "workspace-analytics", "workspace-reports",
@@ -83,8 +83,8 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   location_manager: [
     "dashboard", "location-master", "voucher-master",
     "locations", "routers", "guests", "portals",
-    "monitoring", "notifications", "help", "vouchers", "devices",
-    "vlan", "guests-live", "guests-sessions", "guests-blocklist",
+    "monitoring", "notifications", "help", "devices",
+    "vlan", "guests-live",
     "policy-location", "policy-user",
     "analytics-executive", "analytics-guest",
     "alerts", "documentation", "support-contact",
@@ -175,11 +175,6 @@ const ICON_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "network-dns": "Server",
   // Guest management
   "guests-live": "Users",
-  "guests-sessions": "Clock",
-  "smart-id": "QrCode",
-  vouchers: "Ticket",
-  whitelist: "ListChecks",
-  "guests-blocklist": "Ban",
   guests: "Users",
   // Policies
   "policy-location": "MapPinned",
@@ -258,11 +253,6 @@ const LABEL_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "network-dhcp": "DHCP",
   "network-dns": "DNS",
   "guests-live": "Live Guests",
-  "guests-sessions": "Sessions",
-  "smart-id": "Smart ID",
-  vouchers: "Voucher",
-  whitelist: "Whitelist",
-  "guests-blocklist": "Blocklist",
   guests: "Guests",
   "policy-location": "Location Policies",
   "policy-user": "User Policies",
@@ -334,11 +324,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "network-dhcp": "/network/dhcp",
   "network-dns": "/network/dns",
   "guests-live": "/guests",
-  "guests-sessions": "/guests/sessions",
-  "smart-id": "/guests/smart-id",
-  vouchers: "/guests/voucher",
-  whitelist: "/guests/whitelist",
-  "guests-blocklist": "/guests/blocklist",
   guests: "/guests",
   "policy-location": "/policies/location",
   "policy-user": "/policies/user",
@@ -441,8 +426,7 @@ const MODULE_GROUP: Partial<Record<ModuleId, GroupId>> = {
   "isp-routing": "network", "network-wan": "network", "network-lan": "network",
   dscp: "network", firewall: "network", "network-dhcp": "network", "network-dns": "network",
   // Guest management
-  "guests-live": "guests", "guests-sessions": "guests", "smart-id": "guests",
-  vouchers: "guests", whitelist: "guests", "guests-blocklist": "guests",
+  "guests-live": "guests",
   // Policies
   "policy-user": "policies", "policy-group": "policies",
   "policy-auth": "policies", "policy-bandwidth": "policies", "policy-network": "policies",
@@ -469,7 +453,7 @@ const MODULE_ORDER: ModuleId[] = [
   "routers", "network-aps", "vlan", "isp-routing", "network-wan", "network-lan",
   "dscp", "firewall", "network-dhcp", "network-dns",
   // Guests
-  "guests-live", "guests-sessions", "smart-id", "vouchers", "whitelist", "guests-blocklist",
+  "guests-live",
   // Policies
   "policy-user", "policy-group",
   "policy-auth", "policy-bandwidth", "policy-network",

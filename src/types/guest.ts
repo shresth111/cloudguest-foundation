@@ -1,155 +1,71 @@
-export type LoginMethod = "otp_mobile" | "otp_email" | "voucher" | "pms" | "social" | "click_through";
-export type GuestType = "visitor" | "customer" | "hotel_guest" | "employee" | "student" | "vip" | "contractor";
-export type GuestStatus = "online" | "offline" | "blocked" | "expired";
-export type DeviceType = "mobile" | "laptop" | "tablet" | "desktop" | "iot" | "other";
-export type DeviceStatus = "online" | "offline" | "blocked";
-export type SignalStrength = "excellent" | "good" | "fair" | "poor";
+export type GuestAuthMethod = "otp_sms" | "otp_email" | "voucher" | "username_password";
 
-export const LOGIN_METHOD_LABEL: Record<LoginMethod, string> = {
-  otp_mobile: "Mobile OTP",
+export const GUEST_AUTH_METHOD_LABEL: Record<GuestAuthMethod, string> = {
+  otp_sms: "Mobile OTP",
   otp_email: "Email OTP",
   voucher: "Voucher",
-  pms: "PMS",
-  social: "Social",
-  click_through: "Click-through",
+  username_password: "Username/Password",
 };
 
-export const GUEST_TYPE_LABEL: Record<GuestType, string> = {
-  visitor: "Visitor",
-  customer: "Customer",
-  hotel_guest: "Hotel Guest",
-  employee: "Employee",
-  student: "Student",
-  vip: "VIP",
-  contractor: "Contractor",
+export type GuestSessionStatus = "active" | "disconnected" | "expired" | "terminated" | "paused";
+
+export const GUEST_SESSION_STATUS_LABEL: Record<GuestSessionStatus, string> = {
+  active: "Active",
+  disconnected: "Disconnected",
+  expired: "Expired",
+  terminated: "Terminated",
+  paused: "Paused",
 };
 
-export const DEVICE_TYPE_LABEL: Record<DeviceType, string> = {
-  mobile: "Mobile",
-  laptop: "Laptop",
-  tablet: "Tablet",
-  desktop: "Desktop",
-  iot: "IoT",
-  other: "Other",
-};
+export interface Guest {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  locationId: string | null;
+  locationName: string | null;
+  identifier: string;
+  displayName: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  totalVisitCount: number;
+  isBlocked: boolean;
+  blockedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface GuestSession {
   id: string;
   guestId: string;
-  guestName: string;
-  mobile: string;
-  email: string;
-  loginMethod: LoginMethod;
-  guestType: GuestType;
-  organizationId: string;
-  organizationName: string;
-  locationId: string;
-  locationName: string;
+  guestIdentifier: string;
+  deviceId: string | null;
   routerId: string;
   routerName: string;
-  apName: string;
-  deviceId: string;
-  deviceName: string;
-  deviceType: DeviceType;
-  macAddress: string;
-  ipAddress: string;
-  connectedSince: string;
-  sessionEnd?: string;
-  durationMinutes: number;
-  downloadMb: number;
-  uploadMb: number;
-  signal: SignalStrength;
-  status: GuestStatus;
-  disconnectReason?: string;
-}
-
-export interface GuestDevice {
-  id: string;
-  guestId: string;
-  name: string;
-  type: DeviceType;
-  mac: string;
-  vendor: string;
-  os: string;
-  browser: string;
-  firstSeen: string;
-  lastSeen: string;
-  status: DeviceStatus;
-}
-
-export interface Guest {
-  id: string;
-  name: string;
-  email: string;
-  mobile: string;
-  organizationId: string;
-  organizationName: string;
   locationId: string;
   locationName: string;
-  guestType: GuestType;
-  loginMethod: LoginMethod;
-  lastLogin: string;
-  totalVisits: number;
-  totalSessions: number;
-  totalDataMb: number;
-  status: GuestStatus;
+  organizationId: string;
+  organizationName: string;
+  authMethod: GuestAuthMethod;
+  voucherId: string | null;
+  status: GuestSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  lastActivityAt: string;
+  ipAddress: string | null;
+  bytesUploaded: number;
+  bytesDownloaded: number;
+  dataLimitMb: number | null;
+  sessionTimeoutMinutes: number | null;
+  disconnectReason: string | null;
   createdAt: string;
-}
-
-export interface BlacklistEntry {
-  id: string;
-  guestId?: string;
-  guestName: string;
-  mac: string;
-  mobile: string;
-  email: string;
-  reason: string;
-  blockedAt: string;
-  expiresAt?: string;
-}
-
-export interface WhitelistEntry {
-  id: string;
-  guestId?: string;
-  guestName: string;
-  mac: string;
-  mobile: string;
-  email: string;
-  note: string;
-  addedAt: string;
-}
-
-export interface AccessPolicy {
-  id: string;
-  name: string;
-  guestType: GuestType;
-  internetTimeLimitMin: number;
-  dailyLimitMb: number;
-  speedLimitKbps: number;
-  downloadLimitMb: number;
-  uploadLimitMb: number;
-  deviceLimit: number;
-  sessionTimeoutMin: number;
-  idleTimeoutMin: number;
-  updatedAt: string;
-}
-
-export interface LoginMethodConfig {
-  method: LoginMethod;
-  enabled: boolean;
-  description: string;
 }
 
 export interface SessionListQuery {
   search?: string;
-  status?: GuestStatus | "all";
-  loginMethod?: LoginMethod | "all";
+  status?: GuestSessionStatus | "all";
   locationId?: string | "all";
-  deviceType?: DeviceType | "all";
   page: number;
   pageSize: number;
-  sortBy?: keyof GuestSession;
-  sortDir?: "asc" | "desc";
 }
 
 export interface SessionListResult {
@@ -157,25 +73,163 @@ export interface SessionListResult {
   total: number;
 }
 
-export interface GuestKpis {
-  totalGuests: number;
-  activeGuests: number;
-  onlineUsers: number;
-  todaysLogins: number;
-  otpLogins: number;
-  voucherLogins: number;
-  socialLogins: number;
-  pmsLogins: number;
-  avgSessionMin: number;
-  totalBandwidthGb: number;
+export interface GuestListQuery {
+  search?: string;
+  isBlocked?: boolean | "all";
+  page: number;
+  pageSize: number;
 }
 
-export interface GuestAnalyticsData {
-  dailyGuests: { date: string; guests: number; sessions: number }[];
-  loginMethodDist: { method: string; value: number }[];
-  returningVsNew: { name: string; value: number }[];
-  deviceTypes: { name: string; value: number }[];
-  topLocations: { name: string; guests: number }[];
-  peakHours: { hour: string; logins: number }[];
-  bandwidth: { date: string; downloadGb: number; uploadGb: number }[];
+export interface GuestListResult {
+  rows: Guest[];
+  total: number;
+}
+
+/** Only ever needed on a punitive/manual action. */
+export interface ReconnectPayload {
+  routerId: string;
+  locationId: string;
+  deviceMac?: string;
+  ipAddress?: string;
+}
+
+export type AccessRuleType = "vip" | "temporary" | "blocklist" | "whitelist";
+
+export const ACCESS_RULE_TYPE_LABEL: Record<AccessRuleType, string> = {
+  vip: "VIP",
+  temporary: "Temporary",
+  blocklist: "Blocklist",
+  whitelist: "Whitelist",
+};
+
+interface AccessRuleBase {
+  id: string;
+  organizationId: string;
+  locationId: string | null;
+  ruleType: AccessRuleType;
+  reason: string | null;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuestAccessRule extends AccessRuleBase {
+  kind: "identifier";
+  identifier: string;
+}
+
+export interface DeviceAccessRule extends AccessRuleBase {
+  kind: "device";
+  macAddress: string;
+}
+
+export type AnyAccessRule = GuestAccessRule | DeviceAccessRule;
+
+export interface CreateAccessRulePayload {
+  kind: "identifier" | "device";
+  organizationId: string;
+  locationId?: string;
+  identifier?: string;
+  macAddress?: string;
+  ruleType: AccessRuleType;
+  reason?: string;
+  expiresAt?: string;
+}
+
+export interface AccessCheckQuery {
+  organizationId: string;
+  locationId?: string;
+  identifier?: string;
+  macAddress?: string;
+}
+
+export interface AccessCheckResult {
+  allowed: boolean;
+  ruleType: AccessRuleType | null;
+  matchedRuleId: string | null;
+  reason: string | null;
+}
+
+export type GuestTeamStatus = "active" | "expired" | "revoked";
+
+export const GUEST_TEAM_STATUS_LABEL: Record<GuestTeamStatus, string> = {
+  active: "Active",
+  expired: "Expired",
+  revoked: "Revoked",
+};
+
+export interface GuestTeam {
+  id: string;
+  organizationId: string;
+  locationId: string | null;
+  name: string;
+  teamCode: string;
+  status: GuestTeamStatus;
+  maxMembers: number | null;
+  sharedDataLimitMb: number | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuestTeamSummary {
+  memberCount: number;
+  activeSessionCount: number;
+  totalBandwidthBytes: number;
+  sharedDataLimitMb: number | null;
+  remainingSharedQuotaMb: number | null;
+  quotaExceeded: boolean;
+}
+
+export interface GuestTeamMember {
+  guestId: string;
+  identifier: string;
+  joinedAt: string;
+  isActive: boolean;
+}
+
+export interface CreateGuestTeamPayload {
+  organizationId: string;
+  locationId?: string;
+  name: string;
+  maxMembers?: number;
+  sharedDataLimitMb?: number;
+  expiresAt?: string;
+}
+
+export interface GuestTeamRevokeResult {
+  team: GuestTeam;
+  memberCount: number;
+  terminatedSessionIds: string[];
+  failedMemberIds: string[];
+}
+
+export interface GuestAnalyticsSummary {
+  visitors: number;
+  uniqueGuests: number;
+  returningGuests: number;
+  averageSessionDurationSeconds: number;
+  totalBandwidthBytes: number;
+}
+
+export interface TopLocationItem {
+  locationId: string;
+  locationName: string;
+  sessionCount: number;
+}
+
+export interface TopDeviceItem {
+  deviceId: string;
+  macAddress: string;
+  sessionCount: number;
+  uniqueGuestCount: number;
+}
+
+export interface OtpSuccessRate {
+  totalAttempts: number;
+  successfulAttempts: number;
+  successRate: number;
 }

@@ -97,11 +97,6 @@ import { Route as AuthenticatedNetworkDnsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedNetworkDhcpRouteImport } from './routes/_authenticated/network.dhcp'
 import { Route as AuthenticatedNetworkAccessPointsRouteImport } from './routes/_authenticated/network.access-points'
 import { Route as AuthenticatedLocationsLocationIdRouteImport } from './routes/_authenticated/locations.$locationId'
-import { Route as AuthenticatedGuestsWhitelistRouteImport } from './routes/_authenticated/guests.whitelist'
-import { Route as AuthenticatedGuestsVoucherRouteImport } from './routes/_authenticated/guests.voucher'
-import { Route as AuthenticatedGuestsSmartIdRouteImport } from './routes/_authenticated/guests.smart-id'
-import { Route as AuthenticatedGuestsSessionsRouteImport } from './routes/_authenticated/guests.sessions'
-import { Route as AuthenticatedGuestsBlocklistRouteImport } from './routes/_authenticated/guests.blocklist'
 import { Route as AuthenticatedGuestsGuestIdRouteImport } from './routes/_authenticated/guests.$guestId'
 import { Route as AuthenticatedAnalyticsNetworkRouteImport } from './routes/_authenticated/analytics.network'
 import { Route as AuthenticatedAnalyticsIspRouteImport } from './routes/_authenticated/analytics.isp'
@@ -607,36 +602,6 @@ const AuthenticatedLocationsLocationIdRoute =
     path: '/locations/$locationId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedGuestsWhitelistRoute =
-  AuthenticatedGuestsWhitelistRouteImport.update({
-    id: '/guests/whitelist',
-    path: '/guests/whitelist',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedGuestsVoucherRoute =
-  AuthenticatedGuestsVoucherRouteImport.update({
-    id: '/guests/voucher',
-    path: '/guests/voucher',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedGuestsSmartIdRoute =
-  AuthenticatedGuestsSmartIdRouteImport.update({
-    id: '/guests/smart-id',
-    path: '/guests/smart-id',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedGuestsSessionsRoute =
-  AuthenticatedGuestsSessionsRouteImport.update({
-    id: '/guests/sessions',
-    path: '/guests/sessions',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedGuestsBlocklistRoute =
-  AuthenticatedGuestsBlocklistRouteImport.update({
-    id: '/guests/blocklist',
-    path: '/guests/blocklist',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedGuestsGuestIdRoute =
   AuthenticatedGuestsGuestIdRouteImport.update({
     id: '/guests/$guestId',
@@ -729,11 +694,6 @@ export interface FileRoutesByFullPath {
   '/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
-  '/guests/blocklist': typeof AuthenticatedGuestsBlocklistRoute
-  '/guests/sessions': typeof AuthenticatedGuestsSessionsRoute
-  '/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
-  '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
-  '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
@@ -831,11 +791,6 @@ export interface FileRoutesByTo {
   '/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
   '/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
-  '/guests/blocklist': typeof AuthenticatedGuestsBlocklistRoute
-  '/guests/sessions': typeof AuthenticatedGuestsSessionsRoute
-  '/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
-  '/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
-  '/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
   '/network/dns': typeof AuthenticatedNetworkDnsRoute
@@ -936,11 +891,6 @@ export interface FileRoutesById {
   '/_authenticated/analytics/isp': typeof AuthenticatedAnalyticsIspRoute
   '/_authenticated/analytics/network': typeof AuthenticatedAnalyticsNetworkRoute
   '/_authenticated/guests/$guestId': typeof AuthenticatedGuestsGuestIdRoute
-  '/_authenticated/guests/blocklist': typeof AuthenticatedGuestsBlocklistRoute
-  '/_authenticated/guests/sessions': typeof AuthenticatedGuestsSessionsRoute
-  '/_authenticated/guests/smart-id': typeof AuthenticatedGuestsSmartIdRoute
-  '/_authenticated/guests/voucher': typeof AuthenticatedGuestsVoucherRoute
-  '/_authenticated/guests/whitelist': typeof AuthenticatedGuestsWhitelistRoute
   '/_authenticated/locations/$locationId': typeof AuthenticatedLocationsLocationIdRouteWithChildren
   '/_authenticated/network/access-points': typeof AuthenticatedNetworkAccessPointsRoute
   '/_authenticated/network/dhcp': typeof AuthenticatedNetworkDhcpRoute
@@ -1042,11 +992,6 @@ export interface FileRouteTypes {
     | '/analytics/isp'
     | '/analytics/network'
     | '/guests/$guestId'
-    | '/guests/blocklist'
-    | '/guests/sessions'
-    | '/guests/smart-id'
-    | '/guests/voucher'
-    | '/guests/whitelist'
     | '/locations/$locationId'
     | '/network/access-points'
     | '/network/dhcp'
@@ -1144,11 +1089,6 @@ export interface FileRouteTypes {
     | '/analytics/isp'
     | '/analytics/network'
     | '/guests/$guestId'
-    | '/guests/blocklist'
-    | '/guests/sessions'
-    | '/guests/smart-id'
-    | '/guests/voucher'
-    | '/guests/whitelist'
     | '/network/access-points'
     | '/network/dhcp'
     | '/network/dns'
@@ -1248,11 +1188,6 @@ export interface FileRouteTypes {
     | '/_authenticated/analytics/isp'
     | '/_authenticated/analytics/network'
     | '/_authenticated/guests/$guestId'
-    | '/_authenticated/guests/blocklist'
-    | '/_authenticated/guests/sessions'
-    | '/_authenticated/guests/smart-id'
-    | '/_authenticated/guests/voucher'
-    | '/_authenticated/guests/whitelist'
     | '/_authenticated/locations/$locationId'
     | '/_authenticated/network/access-points'
     | '/_authenticated/network/dhcp'
@@ -1951,41 +1886,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsLocationIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/guests/whitelist': {
-      id: '/_authenticated/guests/whitelist'
-      path: '/guests/whitelist'
-      fullPath: '/guests/whitelist'
-      preLoaderRoute: typeof AuthenticatedGuestsWhitelistRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/guests/voucher': {
-      id: '/_authenticated/guests/voucher'
-      path: '/guests/voucher'
-      fullPath: '/guests/voucher'
-      preLoaderRoute: typeof AuthenticatedGuestsVoucherRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/guests/smart-id': {
-      id: '/_authenticated/guests/smart-id'
-      path: '/guests/smart-id'
-      fullPath: '/guests/smart-id'
-      preLoaderRoute: typeof AuthenticatedGuestsSmartIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/guests/sessions': {
-      id: '/_authenticated/guests/sessions'
-      path: '/guests/sessions'
-      fullPath: '/guests/sessions'
-      preLoaderRoute: typeof AuthenticatedGuestsSessionsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/guests/blocklist': {
-      id: '/_authenticated/guests/blocklist'
-      path: '/guests/blocklist'
-      fullPath: '/guests/blocklist'
-      preLoaderRoute: typeof AuthenticatedGuestsBlocklistRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/guests/$guestId': {
       id: '/_authenticated/guests/$guestId'
       path: '/guests/$guestId'
@@ -2142,11 +2042,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAnalyticsIspRoute: typeof AuthenticatedAnalyticsIspRoute
   AuthenticatedAnalyticsNetworkRoute: typeof AuthenticatedAnalyticsNetworkRoute
   AuthenticatedGuestsGuestIdRoute: typeof AuthenticatedGuestsGuestIdRoute
-  AuthenticatedGuestsBlocklistRoute: typeof AuthenticatedGuestsBlocklistRoute
-  AuthenticatedGuestsSessionsRoute: typeof AuthenticatedGuestsSessionsRoute
-  AuthenticatedGuestsSmartIdRoute: typeof AuthenticatedGuestsSmartIdRoute
-  AuthenticatedGuestsVoucherRoute: typeof AuthenticatedGuestsVoucherRoute
-  AuthenticatedGuestsWhitelistRoute: typeof AuthenticatedGuestsWhitelistRoute
   AuthenticatedLocationsLocationIdRoute: typeof AuthenticatedLocationsLocationIdRouteWithChildren
   AuthenticatedNetworkAccessPointsRoute: typeof AuthenticatedNetworkAccessPointsRoute
   AuthenticatedNetworkDhcpRoute: typeof AuthenticatedNetworkDhcpRoute
@@ -2213,11 +2108,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAnalyticsIspRoute: AuthenticatedAnalyticsIspRoute,
   AuthenticatedAnalyticsNetworkRoute: AuthenticatedAnalyticsNetworkRoute,
   AuthenticatedGuestsGuestIdRoute: AuthenticatedGuestsGuestIdRoute,
-  AuthenticatedGuestsBlocklistRoute: AuthenticatedGuestsBlocklistRoute,
-  AuthenticatedGuestsSessionsRoute: AuthenticatedGuestsSessionsRoute,
-  AuthenticatedGuestsSmartIdRoute: AuthenticatedGuestsSmartIdRoute,
-  AuthenticatedGuestsVoucherRoute: AuthenticatedGuestsVoucherRoute,
-  AuthenticatedGuestsWhitelistRoute: AuthenticatedGuestsWhitelistRoute,
   AuthenticatedLocationsLocationIdRoute:
     AuthenticatedLocationsLocationIdRouteWithChildren,
   AuthenticatedNetworkAccessPointsRoute: AuthenticatedNetworkAccessPointsRoute,

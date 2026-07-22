@@ -1,131 +1,231 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { guestService } from "@/services/guest.service";
-import type { BlacklistEntry, LoginMethod, SessionListQuery, WhitelistEntry } from "@/types/guest";
+import type {
+  AccessCheckQuery,
+  CreateAccessRulePayload,
+  CreateGuestTeamPayload,
+  GuestListQuery,
+  ReconnectPayload,
+  SessionListQuery,
+} from "@/types/guest";
 
 export const guestKeys = {
   root: ["guests"] as const,
-  kpis: ["guests", "kpis"] as const,
-  analytics: ["guests", "analytics"] as const,
-  list: ["guests", "list"] as const,
+  list: (q: GuestListQuery) => ["guests", "list", q] as const,
   detail: (id: string) => ["guests", "detail", id] as const,
   sessions: (q: SessionListQuery) => ["guests", "sessions", q] as const,
   sessionsFor: (id: string) => ["guests", "sessions-for", id] as const,
-  devicesFor: (id: string) => ["guests", "devices-for", id] as const,
-  blacklist: ["guests", "blacklist"] as const,
-  whitelist: ["guests", "whitelist"] as const,
-  policies: ["guests", "policies"] as const,
-  loginMethods: ["guests", "login-methods"] as const,
+  accessRules: ["guests", "access-rules"] as const,
+  teams: ["guests", "teams"] as const,
+  team: (id: string) => ["guests", "teams", id] as const,
+  analyticsSummary: ["guests", "analytics", "summary"] as const,
+  analyticsTopLocations: ["guests", "analytics", "top-locations"] as const,
+  analyticsTopDevices: ["guests", "analytics", "top-devices"] as const,
+  analyticsOtpSuccessRate: ["guests", "analytics", "otp-success-rate"] as const,
 };
 
-export function useGuestKpis() {
-  return useQuery({ queryKey: guestKeys.kpis, queryFn: () => guestService.kpis() });
-}
-export function useGuestAnalytics() {
-  return useQuery({ queryKey: guestKeys.analytics, queryFn: () => guestService.analytics() });
-}
-export function useGuestList() {
-  return useQuery({ queryKey: guestKeys.list, queryFn: () => guestService.listGuests() });
-}
-export function useGuest(id: string) {
-  return useQuery({ queryKey: guestKeys.detail(id), queryFn: () => guestService.getGuest(id), enabled: !!id });
-}
-export function useSessions(q: SessionListQuery) {
-  return useQuery({ queryKey: guestKeys.sessions(q), queryFn: () => guestService.listSessions(q) });
-}
-export function useGuestSessions(id: string) {
-  return useQuery({ queryKey: guestKeys.sessionsFor(id), queryFn: () => guestService.sessionsForGuest(id), enabled: !!id });
-}
-export function useGuestDevices(id: string) {
-  return useQuery({ queryKey: guestKeys.devicesFor(id), queryFn: () => guestService.devicesForGuest(id), enabled: !!id });
-}
-export function useBlacklist() {
-  return useQuery({ queryKey: guestKeys.blacklist, queryFn: () => guestService.listBlacklist() });
-}
-export function useWhitelist() {
-  return useQuery({ queryKey: guestKeys.whitelist, queryFn: () => guestService.listWhitelist() });
-}
-export function usePolicies() {
-  return useQuery({ queryKey: guestKeys.policies, queryFn: () => guestService.listPolicies() });
-}
-export function useLoginMethods() {
-  return useQuery({ queryKey: guestKeys.loginMethods, queryFn: () => guestService.listLoginMethods() });
+export function useGuestList(query: GuestListQuery) {
+  return useQuery({ queryKey: guestKeys.list(query), queryFn: () => guestService.list(query) });
 }
 
-export function useDisconnectSessions() {
+export function useGuest(id: string) {
+  return useQuery({
+    queryKey: guestKeys.detail(id),
+    queryFn: () => guestService.get(id),
+    enabled: !!id,
+  });
+}
+
+export function useSessions(query: SessionListQuery) {
+  return useQuery({
+    queryKey: guestKeys.sessions(query),
+    queryFn: () => guestService.listSessions(query),
+  });
+}
+
+export function useGuestSessions(id: string) {
+  return useQuery({
+    queryKey: guestKeys.sessionsFor(id),
+    queryFn: () => guestService.sessionsForGuest(id),
+    enabled: !!id,
+  });
+}
+
+export function useAccessRules() {
+  return useQuery({
+    queryKey: guestKeys.accessRules,
+    queryFn: () => guestService.listAccessRules(),
+  });
+}
+
+export function useGuestTeams() {
+  return useQuery({ queryKey: guestKeys.teams, queryFn: () => guestService.listTeams() });
+}
+
+export function useGuestTeam(id: string) {
+  return useQuery({
+    queryKey: guestKeys.team(id),
+    queryFn: () => guestService.getTeam(id),
+    enabled: !!id,
+  });
+}
+
+export function useAnalyticsSummary() {
+  return useQuery({
+    queryKey: guestKeys.analyticsSummary,
+    queryFn: () => guestService.analyticsSummary(),
+  });
+}
+
+export function useAnalyticsTopLocations() {
+  return useQuery({
+    queryKey: guestKeys.analyticsTopLocations,
+    queryFn: () => guestService.analyticsTopLocations(),
+  });
+}
+
+export function useAnalyticsTopDevices() {
+  return useQuery({
+    queryKey: guestKeys.analyticsTopDevices,
+    queryFn: () => guestService.analyticsTopDevices(),
+  });
+}
+
+export function useAnalyticsOtpSuccessRate() {
+  return useQuery({
+    queryKey: guestKeys.analyticsOtpSuccessRate,
+    queryFn: () => guestService.analyticsOtpSuccessRate(),
+  });
+}
+
+export function useBlockGuest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: string[]) => guestService.disconnectSessions(ids),
+    mutationFn: ({ guestId, reason }: { guestId: string; reason: string }) =>
+      guestService.block(guestId, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
   });
 }
+
+export function useUnblockGuest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (guestId: string) => guestService.unblock(guestId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+  });
+}
+
+export function useReconnectGuest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guestId, payload }: { guestId: string; payload: ReconnectPayload }) =>
+      guestService.reconnect(guestId, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+  });
+}
+
+export function useDisconnectSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, reason }: { sessionId: string; reason?: string }) =>
+      guestService.disconnectSession(sessionId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+  });
+}
+
+export function useTerminateSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, reason }: { sessionId: string; reason?: string }) =>
+      guestService.terminateSession(sessionId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+  });
+}
+
+export function usePauseSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, reason }: { sessionId: string; reason?: string }) =>
+      guestService.pauseSession(sessionId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+  });
+}
+
+export function useResumeSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => guestService.resumeSession(sessionId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+  });
+}
+
 export function useExtendSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, minutes }: { id: string; minutes: number }) => guestService.extendSession(id, minutes),
+    mutationFn: ({
+      sessionId,
+      additionalMinutes,
+    }: {
+      sessionId: string;
+      additionalMinutes: number;
+    }) => guestService.extendSession(sessionId, additionalMinutes),
     onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
   });
 }
-export function useBlockGuests() {
+
+export function useCreateAccessRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, reason }: { ids: string[]; reason: string }) => guestService.blockGuests(ids, reason),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+    mutationFn: (payload: CreateAccessRulePayload) => guestService.createAccessRule(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.accessRules }),
   });
 }
-export function useResetGuestAccess() {
+
+export function useDeactivateAccessRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => guestService.resetGuestAccess(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.root }),
+    mutationFn: ({ kind, ruleId }: { kind: "identifier" | "device"; ruleId: string }) =>
+      guestService.deactivateAccessRule(kind, ruleId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.accessRules }),
   });
 }
-export function useSendMessage() {
-  return useMutation({
-    mutationFn: ({ id, channel, body }: { id: string; channel: "sms" | "email"; body: string }) =>
-      guestService.sendMessage(id, channel, body),
-  });
-}
-export function useAddBlacklist() {
+
+export function useDeleteAccessRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (entry: Omit<BlacklistEntry, "id" | "blockedAt">) => guestService.addBlacklist(entry),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.blacklist }),
+    mutationFn: ({ kind, ruleId }: { kind: "identifier" | "device"; ruleId: string }) =>
+      guestService.deleteAccessRule(kind, ruleId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.accessRules }),
   });
 }
-export function useRemoveBlacklist() {
-  const qc = useQueryClient();
+
+export function useCheckAccess() {
   return useMutation({
-    mutationFn: (ids: string[]) => guestService.removeBlacklist(ids),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.blacklist }),
+    mutationFn: (query: AccessCheckQuery) => guestService.checkAccess(query),
   });
 }
-export function useAddWhitelist() {
+
+export function useCreateGuestTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (entry: Omit<WhitelistEntry, "id" | "addedAt">) => guestService.addWhitelist(entry),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.whitelist }),
+    mutationFn: (payload: CreateGuestTeamPayload) => guestService.createTeam(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.teams }),
   });
 }
-export function useRemoveWhitelist() {
+
+export function useRemoveTeamMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: string[]) => guestService.removeWhitelist(ids),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.whitelist }),
+    mutationFn: ({ teamId, guestId }: { teamId: string; guestId: string }) =>
+      guestService.removeTeamMember(teamId, guestId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.teams }),
   });
 }
-export function useToggleLoginMethod() {
+
+export function useRevokeGuestTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ method, enabled }: { method: LoginMethod; enabled: boolean }) =>
-      guestService.toggleLoginMethod(method, enabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.loginMethods }),
-  });
-}
-export function useUpdatePolicy() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) =>
-      guestService.updatePolicy(id, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.policies }),
+    mutationFn: (teamId: string) => guestService.revokeTeam(teamId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: guestKeys.teams }),
   });
 }
