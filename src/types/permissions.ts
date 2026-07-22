@@ -82,7 +82,14 @@ export type ModuleId =
   // FE-025 Platform Console
   | "nas-management"
   | "feature-catalog"
-  | "plans-billing";
+  | "plans-billing"
+  // Newly wired backend domains with no prior frontend surface
+  // ("campaigns" and "mac-auth" already existed above with no nav slot)
+  | "queue-management"
+  | "port-forwarding"
+  | "guest-access"
+  | "guest-teams"
+  | "hotspot";
 
 /** Standard per-module actions supported by the permission engine. */
 export type PermissionAction =
