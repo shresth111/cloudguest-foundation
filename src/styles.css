@@ -142,6 +142,67 @@
   --sidebar-ring: oklch(0.68 0.17 265);
 }
 
+/**
+ * Customer workspace theme -- deep navy + electric cyan, applied only to
+ * /workspace/* (see src/routes/_authenticated.tsx, which conditionally
+ * wraps the app shell in this class). Overrides the exact same custom
+ * properties :root/.dark already define, so every existing Tailwind
+ * utility (bg-primary, bg-card, bg-sidebar, border-border, ...) picks
+ * these up automatically for anything rendered inside the workspace --
+ * no component changes needed. Independent of the light/dark toggle:
+ * this class wins regardless of whether .dark is also present.
+ */
+.workspace-theme {
+  --background: oklch(0.14 0.035 258);
+  --foreground: oklch(0.97 0.01 240);
+  --card: oklch(0.19 0.04 258);
+  --card-foreground: oklch(0.97 0.01 240);
+  --popover: oklch(0.19 0.04 258);
+  --popover-foreground: oklch(0.97 0.01 240);
+  --primary: oklch(0.78 0.16 220);
+  --primary-foreground: oklch(0.12 0.03 258);
+  --secondary: oklch(0.24 0.045 258);
+  --secondary-foreground: oklch(0.95 0.01 240);
+  --muted: oklch(0.22 0.04 258);
+  --muted-foreground: oklch(0.68 0.03 235);
+  --accent: oklch(0.3 0.06 220);
+  --accent-foreground: oklch(0.95 0.01 240);
+  --destructive: oklch(0.68 0.2 25);
+  --destructive-foreground: oklch(0.99 0.005 250);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.78 0.16 220);
+  --chart-1: oklch(0.78 0.16 220);
+  --chart-2: oklch(0.72 0.15 190);
+  --chart-3: oklch(0.75 0.16 145);
+  --chart-4: oklch(0.78 0.17 70);
+  --chart-5: oklch(0.72 0.2 20);
+  --sidebar: oklch(0.11 0.03 258);
+  --sidebar-foreground: oklch(0.93 0.01 240);
+  --sidebar-primary: oklch(0.78 0.16 220);
+  --sidebar-primary-foreground: oklch(0.12 0.03 258);
+  --sidebar-accent: oklch(0.22 0.045 258);
+  --sidebar-accent-foreground: oklch(0.95 0.01 240);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.78 0.16 220);
+  --shadow-glow: 0 0 0 1px oklch(0.78 0.16 220 / 0.2), 0 20px 40px -16px oklch(0.78 0.16 220 / 0.5);
+  color-scheme: dark;
+}
+
+/** Opt-in glow effect for primary CTA buttons within the workspace theme --
+ * a deliberate accent, not applied to every button, matching VerbaFlo's
+ * treatment of its own primary CTAs. */
+.btn-glow {
+  box-shadow: var(--shadow-glow);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.btn-glow:hover {
+  box-shadow:
+    0 0 0 1px oklch(0.78 0.16 220 / 0.35),
+    0 24px 48px -16px oklch(0.78 0.16 220 / 0.65);
+  transform: translateY(-1px);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

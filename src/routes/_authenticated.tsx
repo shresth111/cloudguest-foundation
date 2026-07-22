@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import { QuickActionsFab } from "@/components/system/QuickActionsFab";
@@ -40,7 +41,7 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className={cn("flex min-h-screen w-full", inWorkspace && "workspace-theme")}>
         <AppSidebar />
         <SidebarInset className="flex min-w-0 flex-1 flex-col">
           <TopNavbar onToggleActivityFeed={() => setActivityOpen((v) => !v)} />
