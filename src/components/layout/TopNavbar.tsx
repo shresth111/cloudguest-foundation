@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { LifeBuoy, Plus, MapPin, Router as RouterIcon, UserPlus, Ticket, Zap, Activity, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +61,13 @@ function QuickActionsMenu() {
 export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // SpaceContextChip calls useWorkspace(), which throws outside
+  // WorkspaceProvider -- that provider only wraps /workspace/* (see
+  // src/routes/_authenticated/workspace.tsx), while TopNavbar itself
+  // renders on every authenticated page. Mirrors AppSidebar.tsx's own
+  // inWorkspace check for the same console-vs-workspace layout split.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const inWorkspace = pathname === "/workspace" || pathname.startsWith("/workspace/");
 
   return (
     <>
@@ -72,7 +79,7 @@ export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
         </div>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <OrganizationSwitcher />
-          <SpaceContextChip />
+          {inWorkspace && <SpaceContextChip />}
           <GlobalSearch />
           <Button
             variant="ghost"
