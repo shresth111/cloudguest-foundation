@@ -24,7 +24,7 @@ import {
   useGuestTeams,
   useRevokeGuestTeam,
 } from "@/hooks/useGuestTeam";
-import type { GuestTeamStatus } from "@/types/guest-team";
+import type { GuestTeamStatus } from "@/types/guest";
 import type { AppError } from "@/services/api";
 
 function statusVariant(s: GuestTeamStatus): "default" | "secondary" | "destructive" | "outline" {

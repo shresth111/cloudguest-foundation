@@ -1,50 +1,26 @@
-import { api } from "@/services/api";
 import type { AuthMethod, Policy, PolicyKpis, PolicyScope, PolicyStatus } from "@/types/policy";
+import {
+  createPolicyWithRules,
+  deactivatePolicy,
+  fetchPolicyDetail,
+  latestVersion,
+  listPolicyDetails,
+  statusOf,
+  updatePolicyRules,
+  type BackendPolicyDetail,
+} from "@/services/policy-engine";
 
 // PolicyType.ACCESS is backend's generic, dependency-free policy type --
 // GenericPolicyRules accepts any JSON object with no typed schema (see
 // backend/app/domains/policy/constants.py's module docstring). The full
 // composite Policy shape this UI edits (bandwidth/quota/device/authMethods/
 // timeWindow/targets) has no dedicated backend type of its own, so it is
-// persisted whole as one version's `rules` blob under this type.
+// persisted whole as one version's `rules` blob under this type. The
+// create->version->publish->deactivate plumbing itself lives in
+// policy-engine.ts, shared with authn-policy.service.ts/
+// bandwidth-policy.service.ts/routing-policy.service.ts -- this file only
+// owns the composite rules mapping specific to PolicyType.ACCESS.
 const POLICY_TYPE = "access";
-
-interface BackendPolicy {
-  id: string;
-  organization_id: string | null;
-  policy_type: string;
-  name: string;
-  description: string | null;
-  is_active: boolean;
-  current_version_id: string | null;
-  created_by_user_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface BackendPolicyVersion {
-  id: string;
-  policy_id: string;
-  version_number: number;
-  status: "draft" | "published";
-  rules: Record<string, unknown>;
-  published_at: string | null;
-  created_at: string;
-}
-
-interface BackendPolicyDetail extends BackendPolicy {
-  versions: BackendPolicyVersion[];
-}
-
-interface BackendPolicyListResponse {
-  items: BackendPolicy[];
-  page: number;
-  page_size: number;
-  total_items: number;
-  total_pages: number;
-  has_next: boolean;
-  has_previous: boolean;
-}
 
 type PolicyRules = Pick<
   Policy,
@@ -61,21 +37,10 @@ type PolicyRules = Pick<
   | "vlanIds"
 >;
 
-function latestVersion(detail: BackendPolicyDetail): BackendPolicyVersion | undefined {
-  return [...detail.versions].sort((a, b) => b.version_number - a.version_number)[0];
-}
-
 function toPolicy(detail: BackendPolicyDetail): Policy {
   const version = latestVersion(detail);
   const rules = (version?.rules ?? {}) as Partial<PolicyRules>;
-  // Backend has no "reactivate" endpoint (only /deactivate), so an
-  // is_active=false policy has no path back to active -- it always reads
-  // as archived here, honestly reflecting that real constraint.
-  const status: PolicyStatus = !detail.is_active
-    ? "archived"
-    : version?.status === "published"
-      ? "active"
-      : "draft";
+  const status: PolicyStatus = statusOf(detail);
   return {
     id: detail.id,
     scope: rules.scope ?? "location",
@@ -119,31 +84,23 @@ function targetCount(p: Policy): number {
   return p.groupIds.length;
 }
 
-async function fetchDetail(id: string): Promise<BackendPolicyDetail> {
-  const { data } = await api.get<BackendPolicyDetail>(`/policies/${id}`);
-  return data;
-}
-
 // These pages have no organization selector -- they browse and manage
-// policies platform-wide, so calls deliberately omit X-Organization-Id.
-// CurrentOrganization then resolves to null server-side (see
-// backend/app/domains/rbac/dependencies.py), which is what makes list
+// policies platform-wide, so calls (via policy-engine.ts) deliberately omit
+// X-Organization-Id. CurrentOrganization then resolves to null server-side
+// (see backend/app/domains/rbac/dependencies.py), which is what makes list
 // return every organization's policies and create produce a platform-wide
 // policy definition; RequirePermission still gates who may call these at
 // all.
 export const policyService = {
   async list(scope?: PolicyScope): Promise<Policy[]> {
-    const { data } = await api.get<BackendPolicyListResponse>("/policies", {
-      params: { policy_type: POLICY_TYPE, page: 1, page_size: 100 },
-    });
-    const details = await Promise.all(data.items.map((item) => fetchDetail(item.id)));
+    const details = await listPolicyDetails(POLICY_TYPE);
     const policies = details.map(toPolicy);
     return scope ? policies.filter((p) => p.scope === scope) : policies;
   },
 
   async get(id: string): Promise<Policy | undefined> {
     try {
-      return toPolicy(await fetchDetail(id));
+      return toPolicy(await fetchPolicyDetail(id));
     } catch {
       return undefined;
     }
@@ -160,43 +117,35 @@ export const policyService = {
   },
 
   async create(input: Omit<Policy, "id" | "createdAt" | "updatedAt">): Promise<Policy> {
-    const { data: policy } = await api.post<BackendPolicy>("/policies", {
-      policy_type: POLICY_TYPE,
+    const detail = await createPolicyWithRules({
+      policyType: POLICY_TYPE,
       name: input.name,
       description: input.description ?? null,
+      rules: toRules(input),
+      publish: input.status !== "draft",
     });
-    const { data: version } = await api.post<BackendPolicyVersion>(
-      `/policies/${policy.id}/versions`,
-      { rules: toRules(input) },
-    );
-    if (input.status !== "draft") {
-      await api.post(`/policies/${policy.id}/versions/${version.id}/publish`);
-    }
     if (input.status === "archived") {
-      await api.post(`/policies/${policy.id}/deactivate`);
+      await deactivatePolicy(detail.id);
+      return toPolicy(await fetchPolicyDetail(detail.id));
     }
-    return toPolicy(await fetchDetail(policy.id));
+    return toPolicy(detail);
   },
 
   async update(id: string, patch: Partial<Policy>): Promise<Policy> {
-    const current = toPolicy(await fetchDetail(id));
+    const current = toPolicy(await fetchPolicyDetail(id));
     const merged: Policy = { ...current, ...patch };
-    const { data: version } = await api.post<BackendPolicyVersion>(
-      `/policies/${id}/versions`,
-      { rules: toRules(merged) },
-    );
-    if (merged.status !== "draft") {
-      await api.post(`/policies/${id}/versions/${version.id}/publish`);
-    }
-    if (merged.status === "archived" && current.status !== "archived") {
-      await api.post(`/policies/${id}/deactivate`);
-    }
-    return toPolicy(await fetchDetail(id));
+    const detail = await updatePolicyRules({
+      id,
+      rules: toRules(merged),
+      publish: merged.status !== "draft",
+      archive: merged.status === "archived" && current.status !== "archived",
+    });
+    return toPolicy(detail);
   },
 
   async remove(id: string): Promise<void> {
     // Policy has no hard delete -- deactivate is the real, honest
     // equivalent (see backend/app/domains/policy/router.py).
-    await api.post(`/policies/${id}/deactivate`);
+    await deactivatePolicy(id);
   },
 };

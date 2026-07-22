@@ -32,7 +32,7 @@ import {
   useGuestAccessOrganizations,
   useGuestAccessRules,
 } from "@/hooks/useGuestAccess";
-import type { AccessRuleType } from "@/types/guest-access";
+import type { AccessRuleType } from "@/types/guest";
 import type { AppError } from "@/services/api";
 
 const RULE_TYPES: { id: AccessRuleType; label: string }[] = [
