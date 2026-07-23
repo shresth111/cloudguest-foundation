@@ -4,12 +4,13 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, LogOut, Bell, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
   CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
-  Eye, EyeOff, KeyRound, MapPinned, ShieldCheck,
+  KeyRound, MapPinned, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,12 +97,9 @@ function CustomerDashboardPage() {
             <span className="hidden sm:inline text-xs text-muted-foreground capitalize">{activeLocation?.status}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => { setMasked((m) => !m); toast.success(masked ? "Data unmasked" : "Data masked"); }}
-              className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex mr-1"
-            >
-              {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
-            </button>
+            <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
+            <BookDemoButton />
+            <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9"><Search className="h-4 w-4" /></Button>
             <div className="relative">
               <Button variant="ghost" size="icon" className="h-9 w-9 relative" onClick={() => setNotif(!notif)}><Bell className="h-4 w-4" /><span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive" /></Button>

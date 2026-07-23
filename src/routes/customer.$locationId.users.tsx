@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LogOut, Bell, Search, Menu, XCircle, Eye, EyeOff, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned, ShieldCheck,
+  LogOut, Bell, Search, Menu, XCircle, Eye, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned, ShieldCheck,
   Users, Wifi, WifiOff, Clock, X, Download, Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
 
 export const Route = createFileRoute("/customer/$locationId/users")({
 
@@ -65,12 +66,9 @@ function CustomerUsersPage() {
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold">Users · {activeLocation?.name ?? ""}</p></div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => { setMasked((m) => !m); toast.success(masked ? "Data unmasked" : "Data masked"); }}
-              className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex mr-1"
-            >
-              {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
-            </button>
+            <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
+            <BookDemoButton />
+            <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}><RotateCw className="h-4 w-4" /></Button>
             <div className="relative">
               <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">

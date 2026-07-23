@@ -22,7 +22,7 @@ import {
   IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import {
-  BasicDashboardView, BasicUsersView, BasicDevicesView, BasicAuditView,
+  BasicDashboardView, BasicUsersView, BasicDevicesView, BasicAuditView, NetworkHardwareView,
 } from "@/components/customer/BasicFeatureViews";
 
 export {
@@ -35,7 +35,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
   switch (id) {
     case "dashboard": return <BasicDashboardView locationId={ctx.locationId} />;
     case "users": return <BasicUsersView />;
-    case "devices": return <BasicDevicesView />;
+    case "devices": return <div className="space-y-4"><NetworkHardwareView locationId={ctx.locationId} /><BasicDevicesView /></div>;
     case "audit": return <BasicAuditView />;
     case "tickets": return <TicketsPage />;
     case "reports": return <UserReports />;

@@ -5,13 +5,17 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle, Printer, Router, Camera, HardDrive, Plus, Trash2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
 
 export function BasicDashboardView({ locationId }: { locationId?: string }) {
   void locationId;
@@ -143,6 +147,116 @@ export function BasicDevicesView() {
           </TableBody>
         </Table>
       </CardContent>
+    </Card>
+  );
+}
+
+const DEVICE_TYPE_ICON: Record<DeviceType, typeof Wifi> = {
+  "Access Point": Wifi, Printer, Router, Camera, Other: HardDrive,
+};
+
+const emptyHardwareForm = { name: "", mac: "", type: "Access Point" as DeviceType, floor: FLOORS[FLOORS.length - 1] };
+
+/** Manual setup for network hardware (Access Points, Printers, etc), scoped
+ * to whichever location's dashboard this is rendered inside -- a device
+ * added here only ever shows up in that location's monitoring, never mixed
+ * with another location's floors. Up/down status is then derived from the
+ * MAC on the monitoring side; this form only records identity, type, and
+ * physical floor. */
+export function NetworkHardwareView({ locationId }: { locationId?: string }) {
+  const { devices: allDevices, addDevice, removeDevice } = useDeviceStore();
+  const devices = allDevices.filter((d) => d.locationId === locationId);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyHardwareForm);
+
+  const macValid = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(form.mac.trim());
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationId) { toast.error("Select a location first."); return; }
+    if (!macValid) { toast.error("Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF"); return; }
+    if (allDevices.some((d) => d.mac.toUpperCase() === form.mac.trim().toUpperCase())) { toast.error("A device with this MAC is already set up."); return; }
+    addDevice(locationId, form.name.trim(), form.mac.trim().toUpperCase(), form.type, form.floor);
+    toast.success(`${form.type} added on ${form.floor}`);
+    setForm(emptyHardwareForm);
+    setOpen(false);
+  };
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="text-base">Network Hardware</CardTitle>
+          <CardDescription>Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them.</CardDescription>
+        </div>
+        <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add Device</Button>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader><TableRow><TableHead>Device</TableHead><TableHead>MAC</TableHead><TableHead>Floor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {devices.length === 0 ? (
+              <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No hardware set up yet. Add one by MAC address to start monitoring it.</TableCell></TableRow>
+            ) : devices.map((d) => {
+              const Icon = DEVICE_TYPE_ICON[d.type];
+              return (
+                <TableRow key={d.id}>
+                  <TableCell><span className="inline-flex items-center gap-2 text-sm font-medium"><Icon title={d.type} className="h-4 w-4 text-primary" />{d.name}<span className="font-normal text-xs text-muted-foreground">({d.type})</span></span></TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{d.mac}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold", d.status === "up" ? "text-emerald-600" : "text-rose-600")}>
+                      <span className={cn("h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : "bg-rose-500")} />
+                      {d.status === "up" ? "Up" : "Down"} · {formatSince(d.statusChangedAt)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button onClick={() => { removeDevice(d.id); toast.success(`${d.name} removed`); }} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
+                      <Trash2 className="h-3 w-3" />Remove
+                    </button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Network Hardware</DialogTitle>
+            <DialogDescription>Enter the device's MAC address, type, and the floor it's installed on.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2"><Label htmlFor="hw-name">Device name</Label><Input id="hw-name" placeholder="e.g. AP Lobby North" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label htmlFor="hw-mac">MAC address</Label>
+              <Input id="hw-mac" placeholder="AA:BB:CC:DD:EE:FF" value={form.mac} onChange={(e) => setForm({ ...form, mac: e.target.value })} className="font-mono" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Device type</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as DeviceType })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{DEVICE_TYPES.map((t) => { const Icon = DEVICE_TYPE_ICON[t]; return <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><Icon className="h-3.5 w-3.5 text-primary" />{t}</span></SelectItem>; })}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Floor</Label>
+                <Select value={form.floor} onValueChange={(v) => setForm({ ...form, floor: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{FLOORS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit">Add Device</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Search, Star, MapPin, Wifi, Router, Clock, ArrowRight, RotateCw, LogOut, Bell, Settings, Moon, Activity, Radio, Eye, RefreshCw } from "lucide-react";
+import { Search, Star, MapPin, Wifi, Router, Printer, Camera, HardDrive, Clock, ArrowRight, RotateCw, LogOut, Bell, Settings, Moon, Activity, Radio, Eye, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
-import { useIspStore } from "@/stores/ispStore";
+import { useDeviceStore, FLOORS, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/customer/")({
@@ -19,31 +19,24 @@ export const Route = createFileRoute("/customer/")({
 });
 
 const PLANS = ["Enterprise", "Growth", "Starter", "Growth", "Enterprise", "Starter", "Growth", "Enterprise"];
-const FLOORS = ["5F", "4F", "3F", "2F", "1F", "GF"];
 
-interface MonitoredDevice { id: string; name: string; mac: string; type: string; floor: string; status: "up" | "down"; lastSeen: string; cpuUsage: number | null; }
-// Seeded once a router is configured and MAC addresses are added manually
-// from the dashboard (Access Point / Printer / etc, with a floor). Empty
-// until then -- these five are what a freshly-configured GF looks like.
-const SEED_DEVICES: MonitoredDevice[] = [
-  { id: "1", name: "AP TP Link 7", mac: "3C:64:CF:CE:2D:38", type: "Access Point", floor: "GF", status: "up", lastSeen: "00 h 01 m", cpuUsage: 18 },
-  { id: "2", name: "EAP225-8C-90-2D-6D-53-26", mac: "8C:90:2D:6D:53:26", type: "Access Point", floor: "GF", status: "down", lastSeen: "Never", cpuUsage: null },
-  { id: "3", name: "EAP225-B0-19-21-73-E2-CA", mac: "B0:19:21:73:E2:CA", type: "Access Point", floor: "GF", status: "up", lastSeen: "00 h 01 m", cpuUsage: 34 },
-  { id: "4", name: "EAP225-B0-19-21-74-0A-90", mac: "B0:19:21:74:0A:90", type: "Access Point", floor: "GF", status: "up", lastSeen: "00 h 01 m", cpuUsage: 62 },
-  { id: "5", name: "EAP225-B0-19-21-74-0A-68", mac: "B0:19:21:74:0A:68", type: "Access Point", floor: "GF", status: "up", lastSeen: "00 h 01 m", cpuUsage: 27 },
-];
+const DEVICE_TYPE_ICON: Record<DeviceType, typeof Wifi> = {
+  "Access Point": Wifi, Printer, Router, Camera, Other: HardDrive,
+};
 
 function CustomerHomePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { setActiveLocation } = useCustomerStore();
   const { data: locations, isLoading, refetch } = useCustomerLocations();
-  const { configs: ispConfigs } = useIspStore();
+  const { devices: allDevices } = useDeviceStore();
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("cg-favs") ?? "[]"); } catch { return []; } });
   const [menu, setMenu] = useState(false);
-  const [devices] = useState(SEED_DEVICES);
   const [deviceSearch, setDeviceSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<DeviceType | null>(null);
+  const [floorFilter, setFloorFilter] = useState<string | null>(null);
+  const [deviceLocationId, setDeviceLocationId] = useState("");
   const [secondsAgo, setSecondsAgo] = useState(0);
 
   useEffect(() => {
@@ -57,7 +50,14 @@ function CustomerHomePage() {
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
   const doRefetch = () => { refetch(); setSecondsAgo(0); };
 
-  const filteredDevices = devices.filter((d) => !deviceSearch || d.name.toLowerCase().includes(deviceSearch.toLowerCase()) || d.mac.toLowerCase().includes(deviceSearch.toLowerCase()));
+  // Each location has its own hardware -- default the monitoring panel to the first
+  // location once locations load, rather than mixing every location's devices together.
+  const effectiveDeviceLocationId = deviceLocationId || locations?.[0]?.id || "";
+  const devices = allDevices.filter((d) => d.locationId === effectiveDeviceLocationId);
+  const filteredDevices = devices
+    .filter((d) => !deviceSearch || d.name.toLowerCase().includes(deviceSearch.toLowerCase()) || d.mac.toLowerCase().includes(deviceSearch.toLowerCase()))
+    .filter((d) => !typeFilter || d.type === typeFilter)
+    .filter((d) => !floorFilter || d.floor === floorFilter);
   const downCount = devices.filter((d) => d.status === "down").length;
 
   return (
@@ -136,7 +136,7 @@ function CustomerHomePage() {
           </div>
         )}
 
-        {/* Network Status — live ISP up/down per business unit, driven by ISP Details config */}
+        {/* Network Status — live ISP up/down per location, straight from each location's own record */}
         <div className="mt-10">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /><h2 className="text-lg font-semibold">Network Status</h2></div>
@@ -148,25 +148,20 @@ function CustomerHomePage() {
           </div>
           <div className="overflow-x-auto rounded-2xl border bg-card shadow-sm">
             <table className="w-full min-w-[640px] text-sm">
-              <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-4 py-2.5">Business Unit</th><th className="px-4 py-2.5">Plan</th><th className="px-4 py-2.5">WAN Links</th><th className="px-4 py-2.5">Live Status</th></tr></thead>
+              <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-4 py-2.5">Location</th><th className="px-4 py-2.5">ISP</th><th className="px-4 py-2.5">Bandwidth</th><th className="px-4 py-2.5">Live Status</th></tr></thead>
               <tbody>
-                {Object.values(ispConfigs).map((cfg, i) => {
-                  const anyDown = cfg.lines.some((l) => l.status === "down");
+                {(locations ?? []).map((loc) => {
+                  const down = loc.status === "offline";
+                  const degraded = loc.status === "degraded";
                   return (
-                    <tr key={cfg.businessUnit} className="border-b last:border-0 hover:bg-accent/50">
-                      <td className="px-4 py-2.5 font-medium">{cfg.businessUnit}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{PLANS[i % PLANS.length]}</td>
+                    <tr key={loc.id} className="border-b last:border-0 hover:bg-accent/50">
+                      <td className="px-4 py-2.5 font-medium">{loc.name}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{loc.isp}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{loc.bandwidth}</td>
                       <td className="px-4 py-2.5">
-                        <div className="flex flex-wrap gap-1.5">
-                          {cfg.lines.map((l) => (
-                            <span key={l.wan} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", l.status === "up" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400")}>{l.wan} · {l.provider || "N/A"} · {l.status === "up" ? "UP" : "DOWN"}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold", anyDown ? "text-rose-600" : "text-emerald-600")}>
-                          <span className="relative flex h-2 w-2">{!anyDown && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />}<span className={cn("relative inline-flex h-2 w-2 rounded-full", anyDown ? "bg-rose-500" : "bg-emerald-500")} /></span>
-                          {anyDown ? "Attention needed" : "All links live"}
+                        <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold", down ? "text-rose-600" : degraded ? "text-amber-600" : "text-emerald-600")}>
+                          <span className="relative flex h-2 w-2">{!down && <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", degraded ? "bg-amber-500" : "bg-emerald-500")} />}<span className={cn("relative inline-flex h-2 w-2 rounded-full", down ? "bg-rose-500" : degraded ? "bg-amber-500" : "bg-emerald-500")} /></span>
+                          {down ? "Offline" : degraded ? "Degraded" : "All links live"}
                         </span>
                       </td>
                     </tr>
@@ -177,64 +172,128 @@ function CustomerHomePage() {
           </div>
         </div>
 
-        {/* Device Monitoring — floor-wise up/down, populated once devices are added from a location dashboard */}
+        {/* Device Monitoring — floor-wise up/down for one location at a time; each
+            location has its own hardware, so this reads whichever location is selected below. */}
         <div className="mt-10 mb-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2"><Radio className="h-4 w-4 text-primary" /><h2 className="text-lg font-semibold">Device Monitoring</h2></div>
-            <p className="text-xs text-muted-foreground">Shows up/down status of each monitored device.</p>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground">Location</label>
+              <select
+                value={effectiveDeviceLocationId}
+                onChange={(e) => setDeviceLocationId(e.target.value)}
+                className="h-8 rounded-lg border bg-background px-2 text-xs font-medium"
+              >
+                {(locations ?? []).map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
             {FLOORS.map((f) => {
               const onFloor = devices.filter((d) => d.floor === f);
               const down = onFloor.filter((d) => d.status === "down").length;
+              const typesHere = Array.from(new Set(onFloor.map((d) => d.type)));
+              const floorActive = floorFilter === f;
               return (
-                <div key={f} className="rounded-xl border bg-card p-3 text-center shadow-sm">
+                <button
+                  key={f}
+                  type="button"
+                  title={onFloor.length > 0 ? `Filter: floor ${f}` : undefined}
+                  disabled={onFloor.length === 0}
+                  onClick={() => setFloorFilter(floorActive ? null : f)}
+                  className={cn(
+                    "rounded-xl border p-3 text-center shadow-sm transition-all",
+                    onFloor.length > 0 ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : "cursor-default opacity-60",
+                    floorActive ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "bg-card",
+                  )}
+                >
                   <p className="text-sm font-bold">{f}</p>
-                  <p className={cn("text-xs", down > 0 ? "text-rose-600 font-medium" : "text-muted-foreground")}>{down} of {onFloor.length} down</p>
-                </div>
+                  {typesHere.length > 0 && (
+                    <div className="mt-1 flex items-center justify-center gap-1">
+                      {typesHere.map((t) => {
+                        const Icon = DEVICE_TYPE_ICON[t];
+                        const active = typeFilter === t;
+                        return (
+                          <span
+                            key={t}
+                            role="button"
+                            tabIndex={0}
+                            title={`Filter: ${t}`}
+                            onClick={(e) => { e.stopPropagation(); setTypeFilter(active ? null : t); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setTypeFilter(active ? null : t); } }}
+                            className={cn("rounded-full p-1 transition-all hover:scale-125 hover:bg-primary/10 hover:text-primary", active ? "bg-primary/15 text-primary" : "text-muted-foreground")}
+                          >
+                            <Icon className="h-3 w-3" />
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className={cn("mt-1 text-xs", down > 0 ? "text-rose-600 font-medium" : "text-muted-foreground")}>{down > 0 ? `${down} of ${onFloor.length} down` : onFloor.length > 0 ? `${onFloor.length} online` : "No devices"}</p>
+                </button>
               );
             })}
           </div>
 
           <div className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{downCount} of {devices.length} devices down</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">{downCount} of {devices.length} devices down</p>
+                {typeFilter && (
+                  <button onClick={() => setTypeFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/20">
+                    {typeFilter} <span className="text-primary/60">×</span>
+                  </button>
+                )}
+                {floorFilter && (
+                  <button onClick={() => setFloorFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/20">
+                    Floor {floorFilter} <span className="text-primary/60">×</span>
+                  </button>
+                )}
+              </div>
               <div className="relative"><Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Search device or MAC…" value={deviceSearch} onChange={(e) => setDeviceSearch(e.target.value)} className="h-8 w-56 pl-8 text-xs" /></div>
             </div>
             <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2">#</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">MAC ID</th><th className="px-3 py-2">Device</th><th className="px-3 py-2">Floor</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">CPU Usage</th><th className="px-3 py-2">Last Seen</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
+              <table className="w-full min-w-[820px] text-sm">
+                <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2">#</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">MAC ID</th><th className="px-3 py-2">Device</th><th className="px-3 py-2">Floor</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Status Since</th><th className="px-3 py-2">CPU Usage</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
                 <tbody>
                   {filteredDevices.length === 0 ? (
-                    <tr><td colSpan={9} className="py-8 text-center text-xs text-muted-foreground">No devices match your search.</td></tr>
-                  ) : filteredDevices.map((d, i) => (
-                    <tr key={d.id} className="border-b last:border-0 hover:bg-accent/50">
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
-                      <td className="px-3 py-2 text-xs font-medium">{d.name}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{d.mac}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{d.type}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{d.floor}</td>
-                      <td className="px-3 py-2">
-                        <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold", d.status === "up" ? "text-emerald-600" : "text-rose-600")}>
-                          <span className="relative flex h-1.5 w-1.5">{d.status === "up" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />}<span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : "bg-rose-500")} /></span>
-                          {d.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        {d.cpuUsage === null ? (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", d.cpuUsage >= 80 ? "bg-rose-500" : d.cpuUsage >= 50 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${d.cpuUsage}%` }} /></div>
-                            <span className="text-xs tabular-nums text-muted-foreground">{d.cpuUsage}%</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{d.lastSeen}</td>
-                      <td className="px-3 py-2 text-right"><button onClick={() => toast.success(`History for ${d.name}`)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"><Eye className="h-3 w-3" />View</button></td>
-                    </tr>
-                  ))}
+                    <tr><td colSpan={9} className="py-8 text-center text-xs text-muted-foreground">{devices.length === 0 ? "No hardware set up for this location yet — add one from its Devices page." : "No devices match your search."}</td></tr>
+                  ) : filteredDevices.map((d, i) => {
+                    const TypeIcon = DEVICE_TYPE_ICON[d.type];
+                    const cpu = deriveCpu(d.mac, d.status);
+                    return (
+                      <tr key={d.id} className="border-b last:border-0 hover:bg-accent/50">
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-2 text-xs font-medium">{d.name}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{d.mac}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">
+                          <button type="button" title={`Filter: ${d.type}`} onClick={() => setTypeFilter(typeFilter === d.type ? null : d.type)} className="group inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-primary/10 hover:text-primary">
+                            <TypeIcon className="h-3.5 w-3.5 text-primary transition-transform group-hover:scale-125" />{d.type}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{d.floor}</td>
+                        <td className="px-3 py-2">
+                          <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold", d.status === "up" ? "text-emerald-600" : "text-rose-600")}>
+                            <span className="relative flex h-1.5 w-1.5">{d.status === "up" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />}<span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : "bg-rose-500")} /></span>
+                            {d.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{d.status === "up" ? "Up" : "Down"} · {formatSince(d.statusChangedAt)}</td>
+                        <td className="px-3 py-2">
+                          {cpu === null ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", cpu >= 80 ? "bg-rose-500" : cpu >= 50 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${cpu}%` }} /></div>
+                              <span className="text-xs tabular-nums text-muted-foreground">{cpu}%</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right"><button onClick={() => toast.success(`History for ${d.name}`)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"><Eye className="h-3 w-3" />View</button></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

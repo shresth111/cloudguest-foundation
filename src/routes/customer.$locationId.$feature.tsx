@@ -31,6 +31,8 @@ import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
+import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -40,7 +42,7 @@ import { toast } from "sonner";
 import {
   LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
-  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye, EyeOff, KeyRound, MapPinned,
+  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, KeyRound, MapPinned,
   Clock, Server, Globe, Terminal, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
 } from "lucide-react";
 
@@ -176,12 +178,9 @@ function FeaturePage() {
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature} · {activeLocation?.name ?? ""}</p></div>
 
-          <button
-            onClick={() => { setMasked((m) => !m); toast.success(masked ? "Data unmasked" : "Data masked"); }}
-            className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex"
-          >
-            {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
-          </button>
+          <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex" />
+          <BookDemoButton className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
+          <OtpMaskToggle masked={masked} setMasked={setMasked} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
 
           <div className="relative">
             <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
@@ -213,7 +212,7 @@ function FeaturePage() {
             {feature === "vouchers" && <VouchersPage />}
             {feature === "policies" && <PoliciesHub />}
             {feature === "whitelist" && <WhiteList />}
-            {feature === "devices" && <DevicesView />}
+            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView /></div>}
             {feature === "teams" && <ManageTeamsPage />}
             {feature === "agents" && <AgentsPage />}
             {feature === "advanced" && <AdvancedPage />}
