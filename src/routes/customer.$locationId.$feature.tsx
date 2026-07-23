@@ -29,6 +29,7 @@ import UserReports from "@/components/features/UserReports";
 import SmartIdPage from "@/components/features/SmartIdPage";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
@@ -240,6 +241,7 @@ function FeaturePage() {
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
       <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
+      <AssistantWidget />
     </div>
   );
 }

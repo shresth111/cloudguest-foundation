@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import AssistantWidget from "@/components/features/AssistantWidget";
 import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, maskEmail } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -207,6 +208,7 @@ function CustomerDashboardPage() {
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
       <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
+      <AssistantWidget />
     </div>
   );
 }
