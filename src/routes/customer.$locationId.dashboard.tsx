@@ -64,9 +64,6 @@ function CustomerDashboardPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
           {sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Portal"}</p></div>}
         </div>
-        <div className="px-2 pt-2">
-          <button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>All locations</span>}</button>
-        </div>
         <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">
           {filteredNavs.map((item) => {
             const Icon = item.icon;

@@ -35,7 +35,7 @@ import {
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
-  ArrowLeft, LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
+  LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
   AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye, EyeOff, KeyRound, MapPinned,
   Clock, Server, Globe, Terminal, Gauge, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
@@ -160,7 +160,6 @@ function FeaturePage() {
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
       <aside className={cn("fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto", sidebar ? "w-60" : "w-0 lg:w-16 overflow-hidden", mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
         <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>{sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? feature}</p></div>}</div>
-        <div className="px-2 pt-2"><button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>Locations</span>}</button></div>
         <nav className="flex-1 space-y-3 px-2 py-2 overflow-y-auto">{navGroups.map(g => (
           <div key={g.group} className="space-y-0.5">
             {sidebar && <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{g.group}</p>}
