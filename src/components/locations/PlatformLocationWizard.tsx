@@ -77,7 +77,7 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
-  router: { name: string; serialNumber: string; macAddress: string; model: string };
+  router: { name: string; serialNumber: string; macAddress: string; model: string; managementIpAddress: string };
   planId: string;
   featureOverrides: Record<string, FeatureOverrideState>;
 }
@@ -86,7 +86,7 @@ const DEFAULT_STATE: WizardState = {
   org: { mode: "existing", name: "", slug: "", contactEmail: "" },
   location: { name: "", slug: "", propertyType: "", addressLine1: "", city: "", stateProvince: "", postalCode: "", country: "", timezone: "UTC" },
   owner: { firstName: "", lastName: "", email: "" },
-  router: { name: "", serialNumber: "", macAddress: "", model: "" },
+  router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
   planId: "",
   featureOverrides: {},
 };
@@ -213,7 +213,7 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
         timezone: state.location.timezone,
       },
       owner: state.owner,
-      router: state.router,
+      router: { ...state.router, managementIpAddress: state.router.managementIpAddress || undefined },
       planId: state.planId,
       featureOverrides: Object.entries(state.featureOverrides)
         .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
@@ -555,6 +555,11 @@ function RouterStep({
           <Input value={state.macAddress} onChange={(e) => setState({ ...state, macAddress: e.target.value })} placeholder="AA:BB:CC:DD:EE:01" className="font-mono" />
           <ErrorText msg={errors["router.macAddress"]} />
         </div>
+        <div className="md:col-span-2">
+          <Label>Management IP (optional)</Label>
+          <Input value={state.managementIpAddress} onChange={(e) => setState({ ...state, managementIpAddress: e.target.value })} placeholder="20.219.19.32" className="font-mono" />
+          <p className="mt-1 text-xs text-muted-foreground">The router's real, reachable IP -- lets the platform actually connect to it (e.g. a MikroTik CHR/hardware device). Leave blank for a records-only entry.</p>
+        </div>
       </div>
     </div>
   );
@@ -749,7 +754,7 @@ function ReviewStep({
         <SummaryRow label="Location" value={state.location.name || "—"} />
         <SummaryRow label="Property" value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`} />
         <SummaryRow label="Owner" value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`} />
-        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})`} />
+        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`} />
         <SummaryRow label="Plan" value={planLabel} />
         <SummaryRow
           label="Custom features"
