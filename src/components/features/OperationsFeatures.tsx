@@ -738,8 +738,43 @@ export function IspRoutingView() {
 }
 
 /* ---------- Debugging Tools ---------- */
+const DNS_SERVERS: Record<string, string> = { google: "Google 8.8.8.8", cf: "Cloudflare 1.1.1.1" };
+const IP_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
+
 export function DebuggingView() {
-  const [logs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
+  const pushLog = (line: string) => setLogs((l) => [...l.slice(-49), `[${new Date().toLocaleTimeString()}] ${line}`]);
+
+  const [domain, setDomain] = useState("");
+  const [dnsServer, setDnsServer] = useState("google");
+  const [dnsRunning, setDnsRunning] = useState(false);
+  const [dnsResult, setDnsResult] = useState<{ domain: string; ip: string; latencyMs: number; ok: boolean } | null>(null);
+
+  const runDnsLookup = () => {
+    const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    if (!clean || !clean.includes(".")) { toast.error("Enter a valid domain, e.g. google.com"); return; }
+    setDnsRunning(true);
+    setDnsResult(null);
+    pushLog(`DNS lookup: ${clean} via ${DNS_SERVERS[dnsServer]}…`);
+    setTimeout(() => {
+      const octet = () => Math.floor(Math.random() * 254) + 1;
+      const ip = `${octet()}.${octet()}.${octet()}.${octet()}`;
+      const latencyMs = Math.floor(Math.random() * 80) + 15;
+      setDnsResult({ domain: clean, ip, latencyMs, ok: true });
+      pushLog(`${clean} resolved to ${ip} (${latencyMs}ms via ${DNS_SERVERS[dnsServer]})`);
+      setDnsRunning(false);
+      toast.success(`${clean} resolved to ${ip}`);
+    }, 900);
+  };
+
+  const [sessionIp, setSessionIp] = useState("");
+  const resetSession = () => {
+    if (!IP_RE.test(sessionIp.trim())) { toast.error("Enter a valid IP address, e.g. 10.0.1.42"); return; }
+    pushLog(`Session reset requested for ${sessionIp.trim()} — forcing re-authentication.`);
+    toast.success(`Session reset for ${sessionIp.trim()}`);
+    setSessionIp("");
+  };
+
   return (
     <div className="space-y-6">
       <FeatureHeader title="Debugging Tools" description="Trouble connecting or opening a site? Debug it right here." />
@@ -750,11 +785,17 @@ export function DebuggingView() {
             <CardDescription>Check if a website resolves on any ISP.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="Domain name" className="h-9" />
+            <Input placeholder="Domain name" value={domain} onChange={(e) => setDomain(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runDnsLookup()} className="h-9" />
             <div className="flex gap-2">
-              <Select defaultValue="google"><SelectTrigger className="h-9"><SelectValue placeholder="DNS server" /></SelectTrigger><SelectContent><SelectItem value="google">Google 8.8.8.8</SelectItem><SelectItem value="cf">Cloudflare 1.1.1.1</SelectItem></SelectContent></Select>
-              <Button size="sm" onClick={() => toast.success("Lookup started")}>Test</Button>
+              <Select value={dnsServer} onValueChange={setDnsServer}><SelectTrigger className="h-9"><SelectValue placeholder="DNS server" /></SelectTrigger><SelectContent><SelectItem value="google">Google 8.8.8.8</SelectItem><SelectItem value="cf">Cloudflare 1.1.1.1</SelectItem></SelectContent></Select>
+              <Button size="sm" disabled={dnsRunning} onClick={runDnsLookup}>{dnsRunning ? "Testing…" : "Test"}</Button>
             </div>
+            {dnsResult && (
+              <div className="flex items-center justify-between rounded-lg border bg-emerald-50 px-3 py-2 text-xs dark:bg-emerald-500/10">
+                <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />{dnsResult.domain} → {dnsResult.ip}</span>
+                <span className="text-muted-foreground">{dnsResult.latencyMs}ms</span>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -763,8 +804,8 @@ export function DebuggingView() {
             <CardDescription>Force a guest back to the login page.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="User IP address" className="h-9 font-mono" />
-            <Button size="sm" variant="outline" onClick={() => toast.success("Session reset")}>Reset session</Button>
+            <Input placeholder="User IP address" value={sessionIp} onChange={(e) => setSessionIp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && resetSession()} className="h-9 font-mono" />
+            <Button size="sm" variant="outline" onClick={resetSession}>Reset session</Button>
           </CardContent>
         </Card>
       </div>
@@ -772,7 +813,7 @@ export function DebuggingView() {
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Terminal className="h-4 w-4 text-primary" /> Controller Logs</CardTitle></CardHeader>
         <CardContent>
           <div className="h-56 overflow-auto rounded-xl border bg-[oklch(0.16_0.02_236)] p-4 font-mono text-xs text-emerald-300/90">
-            {logs.length === 0 ? <span className="text-white/40">No logs to display… streaming live.</span> : logs.map((l, i) => <div key={i}>{l}</div>)}
+            {logs.length === 0 ? <span className="text-white/40">No logs to display… run a DNS lookup or session reset above.</span> : logs.map((l, i) => <div key={i}>{l}</div>)}
           </div>
         </CardContent>
       </Card>
