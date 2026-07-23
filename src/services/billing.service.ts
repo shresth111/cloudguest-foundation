@@ -695,6 +695,16 @@ export const billingService = {
       acc[tier] = (acc[tier] ?? 0) + 1;
       return acc;
     }, {});
+    // MRR per tier from each active subscription's own plan amount -- real
+    // spend, not the `dashboard.customers` snapshot's lifetime_revenue
+    // (that's cumulative-to-date, not a recurring-per-tier figure this
+    // by-tier revenue bar is meant to show).
+    const planTierRevenue = subscriptions
+      .filter((s) => s.status === "active")
+      .reduce<Record<string, number>>((acc, s) => {
+        acc[s.tier] = (acc[s.tier] ?? 0) + s.amount;
+        return acc;
+      }, {});
 
     return {
       kpis: {
@@ -723,7 +733,7 @@ export const billingService = {
         planDistribution: (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map((tier) => ({
           tier,
           count: planTierCounts[tier] ?? 0,
-          revenue: 0,
+          revenue: Math.round(planTierRevenue[tier] ?? 0),
         })),
         subscriptionDistribution: Object.entries(dashboard.subscriptions.counts_by_status).map(([status, count]) => ({
           status: SUBSCRIPTION_STATUS_MAP[status] ?? "active",

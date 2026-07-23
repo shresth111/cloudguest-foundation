@@ -80,7 +80,7 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.planDistribution ?? []}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="tier" tick={AXIS_STYLE} />
+            <XAxis dataKey="tier" tick={AXIS_STYLE} interval={0} />
             <YAxis tick={AXIS_STYLE} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
