@@ -932,7 +932,7 @@ export const billingService = {
   // (validators.compute_tax_breakdown); this is the platform operator's
   // rate catalog, not a per-invoice control.
   async listTaxRates(): Promise<TaxRate[]> {
-    const { data } = await api.get<BackendListResponse<BackendTaxRate>>("/tax-rates", {
+    const { data } = await api.get<BackendListResponse<BackendTaxRate>>("/billing/tax-rates", {
       params: { page_size: 100 },
     });
     return data.items.map(toTaxRate);
@@ -940,7 +940,7 @@ export const billingService = {
 
   async saveTaxRate(input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<TaxRate> {
     if (input.id) {
-      const { data } = await api.put<BackendTaxRate>(`/tax-rates/${input.id}`, {
+      const { data } = await api.put<BackendTaxRate>(`/billing/tax-rates/${input.id}`, {
         name: input.name,
         tax_type: input.taxType,
         rate_percentage: input.ratePercentage,
@@ -949,7 +949,7 @@ export const billingService = {
       });
       return toTaxRate(data);
     }
-    const { data } = await api.post<BackendTaxRate>("/tax-rates", {
+    const { data } = await api.post<BackendTaxRate>("/billing/tax-rates", {
       name: input.name,
       tax_type: input.taxType,
       rate_percentage: input.ratePercentage,
