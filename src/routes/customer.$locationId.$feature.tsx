@@ -33,6 +33,8 @@ import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
+import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
+import { isDemo } from "@/services/customer.service";
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -208,15 +210,15 @@ function FeaturePage() {
             {feature === "users" && <UsersView locationId={locationId} />}
             {feature === "reports" && <UserReports />}
             {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
-            {feature === "portal" && <PortalPage />}
+            {feature === "portal" && <PortalPage locationId={locationId} />}
             {feature === "vouchers" && <VouchersPage locationId={locationId} />}
             {feature === "policies" && <PoliciesHub />}
             {feature === "whitelist" && <WhiteList />}
-            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView /></div>}
+            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} /></div>}
             {feature === "teams" && <ManageTeamsPage />}
             {feature === "agents" && <AgentsPage />}
             {feature === "advanced" && <AdvancedPage />}
-            {feature === "audit" && <AuditView />}
+            {feature === "audit" && <AuditView locationId={locationId} />}
             {feature === "tickets" && <TicketsPage />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <BusinessHoursView />}
@@ -290,23 +292,37 @@ function ReportsView() {
 }
 
 // ── Devices ───────────────────────────────────────────────
-function DevicesView() {
-  const devices = [
-    {m:"00:1A:2B:3C:4D:5E",i:"10.0.1.42",d:"iPhone 15",fs:"Today",ls:"Just now"},
-    {m:"AA:BB:CC:DD:EE:FF",i:"10.0.1.87",d:"MacBook Pro",fs:"Yesterday",ls:"2 min ago"},
-    {m:"11:22:33:44:55:66",i:"10.0.2.15",d:"Galaxy S24",fs:"Today",ls:"5 min ago"},
-    {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
-  ];
-  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>{devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
+const DEMO_DEVICES = [
+  {m:"00:1A:2B:3C:4D:5E",i:"10.0.1.42",d:"iPhone 15",fs:"Today",ls:"Just now"},
+  {m:"AA:BB:CC:DD:EE:FF",i:"10.0.1.87",d:"MacBook Pro",fs:"Yesterday",ls:"2 min ago"},
+  {m:"11:22:33:44:55:66",i:"10.0.2.15",d:"Galaxy S24",fs:"Today",ls:"5 min ago"},
+  {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
+];
+
+function DevicesView({ locationId }: { locationId: string }) {
+  const { data, isLoading } = useCustomerFeatureData("devices", locationId);
+  const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (isDemo() ? DEMO_DEVICES : []);
+  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>
+    {isLoading ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+    : devices.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No connected devices yet.</TableCell></TableRow>
+    : devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}
+  </TableBody></Table></CardContent></Card>);
 }
 
 // ── Audit ─────────────────────────────────────────────────
-function AuditView() {
-  const items = [
-    {a:"Guest login via OTP",w:"guest@email.com",t:"2 min ago"},{a:"Voucher batch created",w:"reception",t:"18 min ago"},
-    {a:"Router restart completed",w:"system",t:"1 hour ago"},{a:"Portal branding updated",w:"manager",t:"3 hours ago"},
-    {a:"Bandwidth policy changed",w:"admin",t:"5 hours ago"},{a:"New location provisioned",w:"system",t:"1 day ago"},
-  ];
-  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">{items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}</CardContent></Card>);
+const DEMO_AUDIT = [
+  {a:"Guest login via OTP",w:"guest@email.com",t:"2 min ago"},{a:"Voucher batch created",w:"reception",t:"18 min ago"},
+  {a:"Router restart completed",w:"system",t:"1 hour ago"},{a:"Portal branding updated",w:"manager",t:"3 hours ago"},
+  {a:"Bandwidth policy changed",w:"admin",t:"5 hours ago"},{a:"New location provisioned",w:"system",t:"1 day ago"},
+];
+
+function AuditView({ locationId }: { locationId: string }) {
+  const { data, isLoading } = useCustomerFeatureData("audit", locationId);
+  const items = data?.audit?.length ? data.audit.map((e) => ({ a: e.action, w: e.user, t: e.time })) : (isDemo() ? DEMO_AUDIT : []);
+  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">
+    {isLoading ? <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+    : items.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">No audit entries yet.</p>
+    : items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}
+  </CardContent></Card>);
 }
 

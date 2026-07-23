@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,15 +9,47 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { isDemo } from "@/services/customer.service";
+import { portalService } from "@/services/portal.service";
+import { organizationService } from "@/services/organization.service";
+import type { PortalLoginMethod } from "@/types/portal";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
+const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"], ["email_otp", "Email OTP"], ["voucher", "Voucher"], ["social", "Social Login"]];
 
-export function PortalPage() {
+export function PortalPage({ locationId }: { locationId?: string }) {
+  const demo = isDemo();
   const [primary, setPrimary] = useState("#1B57F5");
   const [msg, setMsg] = useState("Welcome! Connect to enjoy free WiFi");
-  const [authMethods, setAuthMethods] = useState(["otp", "sms", "voucher"]);
+  const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
   const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://zipwifi.io/welcome", terms: "By connecting you agree to fair-use terms." });
   const [logo, setLogo] = useState<string | null>(null);
+  const [portalId, setPortalId] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
+        const org = orgs.rows[0];
+        if (!org) return;
+        setOrgId(org.id);
+        const res = await portalService.list({ organizationId: org.id, page: 1, pageSize: 1, sort: { key: "updatedAt", dir: "desc" } });
+        const p = res.items[0];
+        if (!p) return;
+        setPortalId(p.id);
+        setMsg(p.seo.metaDescription || msg);
+        setPrimary(p.branding.primaryColor);
+        setForm((f) => ({ ...f, redirectUrl: p.login.redirectUrl || f.redirectUrl, lang: p.languages.join(", "), terms: p.consent.termsUrl || f.terms }));
+        setAuthMethods(p.loginMethods);
+        if (p.branding.logoUrl) setLogo(p.branding.logoUrl);
+      } catch {
+        // Real fetch failed -- leave the form at its sensible defaults above.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, locationId]);
 
   const toggleAuth = (m: string) => {
     setAuthMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -29,6 +61,28 @@ export function PortalPage() {
     const url = URL.createObjectURL(file);
     setLogo(url);
     toast.success("Logo uploaded");
+  };
+
+  const saveConfig = async () => {
+    if (demo) { toast.success("Portal configuration saved"); return; }
+    if (!orgId) { toast.error("No organization found for this session."); return; }
+    try {
+      const patch = {
+        branding: { primaryColor: primary } as any,
+        login: { redirectUrl: form.redirectUrl } as any,
+        loginMethods: authMethods as PortalLoginMethod[],
+        seo: { metaDescription: msg } as any,
+      };
+      if (portalId) {
+        await portalService.update(portalId, patch);
+      } else {
+        const created = await portalService.create({ name: "Guest Portal", organizationId: orgId, locationId: locationId ?? "", ...patch });
+        setPortalId(created.id);
+      }
+      toast.success("Portal configuration saved");
+    } catch {
+      toast.error("Could not save — check the connection and try again.");
+    }
   };
 
   return (
@@ -79,7 +133,7 @@ export function PortalPage() {
             <div className="space-y-1.5"><Label>Redirect URL</Label><Input value={form.redirectUrl} onChange={e => setForm({...form, redirectUrl: e.target.value})} className="h-9" /></div>
           </div>
 
-          <div className="space-y-1.5"><Label>Auth Methods</Label><div className="flex flex-wrap gap-2">{[["otp","OTP"],["sms","SMS"],["voucher","Voucher"],["social","Social Login"]].map(([k,v]) => (
+          <div className="space-y-1.5"><Label>Auth Methods</Label><div className="flex flex-wrap gap-2">{AUTH_OPTIONS.map(([k,v]) => (
             <motion.div key={k} whileTap={{ scale: 0.96 }} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${authMethods.includes(k) ? "border-primary/50 bg-primary/5" : ""}`}>
               <Switch checked={authMethods.includes(k)} onCheckedChange={() => toggleAuth(k)} />
               <span className="text-xs">{v}</span>
@@ -87,7 +141,7 @@ export function PortalPage() {
           ))}</div></div>
 
           <div className="space-y-1.5"><Label>Terms &amp; Conditions</Label><Textarea rows={2} value={form.terms} onChange={e => setForm({...form, terms: e.target.value})} /></div>
-          <Button className="w-full sm:w-auto" onClick={() => toast.success("Portal configuration saved")}>Save Configuration</Button>
+          <Button className="w-full sm:w-auto" onClick={saveConfig}>Save Configuration</Button>
         </CardContent>
       </Card>
 
