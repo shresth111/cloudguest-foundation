@@ -1,7 +1,7 @@
 /**
- * Modernist primitives for the Master (Super Admin) dashboard: flat,
- * zero-radius, 2px rules, flush-left labels, Archivo. Kept separate from
- * the Aurora Teal console primitives so the two surfaces never bleed.
+ * Clean Enterprise primitives for the Master (Super Admin) dashboard:
+ * rounded corners, subtle 1px borders, soft shadows, Inter. Kept separate
+ * from the Aurora Teal console primitives so the two surfaces never bleed.
  */
 import type { ComponentType, ReactNode } from "react";
 import { X } from "lucide-react";
@@ -27,17 +27,17 @@ export function MDrawer({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l-2 border-border bg-card shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b-2 border-border p-5">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-5">
           <div>
-            <h3 className="text-lg font-extrabold uppercase tracking-tight">{title}</h3>
+            <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
             {subtitle && <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-5">{children}</div>
-        {footer && <div className="border-t-2 border-border p-4">{footer}</div>}
+        {footer && <div className="border-t border-border p-4">{footer}</div>}
       </div>
     </div>
   );
@@ -62,14 +62,14 @@ export function MDialog({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className={cn("relative my-auto w-full border-2 border-border bg-card shadow-2xl", wide ? "max-w-2xl" : "max-w-lg")}>
-        <div className="flex items-center justify-between border-b-2 border-border p-5">
-          <h3 className="text-lg font-extrabold uppercase tracking-tight">{title}</h3>
-          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className={cn("relative my-auto w-full rounded-xl border border-border bg-card shadow-2xl", wide ? "max-w-2xl" : "max-w-lg")}>
+        <div className="flex items-center justify-between border-b border-border p-5">
+          <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <div className="p-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t-2 border-border p-4">{footer}</div>}
+        {footer && <div className="flex justify-end gap-2 border-t border-border p-4">{footer}</div>}
       </div>
     </div>
   );
@@ -78,16 +78,16 @@ export function MDialog({
 /* Modernist labelled field. */
 export function MField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
+    <label className="block space-y-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
   );
 }
 
-/* Zero-radius input/select base class. */
+/* Rounded input/select base class. */
 export const M_INPUT =
-  "w-full border-2 border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary";
+  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 /* Placeholder panel for screens slated for the next build pass. */
 export function MStubPanel({
@@ -102,22 +102,22 @@ export function MStubPanel({
   points: string[];
 }) {
   return (
-    <div className="border-2 border-border bg-card p-8">
-      <div className="flex items-center gap-3 border-b-2 border-border pb-4">
-        <span className="flex h-11 w-11 items-center justify-center bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></span>
+    <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
+      <div className="flex items-center gap-3 border-b border-border pb-4">
+        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></span>
         <div>
-          <p className="text-base font-extrabold uppercase tracking-tight">{title}</p>
+          <p className="text-base font-semibold tracking-tight">{title}</p>
           <p className="text-sm text-muted-foreground">{blurb}</p>
         </div>
       </div>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">
         {points.map((p) => (
-          <li key={p} className="flex items-start gap-2 border-2 border-border p-3 text-sm">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-primary" /> {p}
+          <li key={p} className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm">
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> {p}
           </li>
         ))}
       </ul>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next build pass · wired to its API</p>
+      <p className="mt-4 text-xs font-medium text-muted-foreground">Next build pass · wired to its API</p>
     </div>
   );
 }
@@ -136,12 +136,12 @@ export function MSectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-end justify-between gap-3 border-b-2 border-border pb-3", className)}>
+    <div className={cn("flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3", className)}>
       <div>
         {eyebrow && (
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">{eyebrow}</div>
         )}
-        <h2 className="text-xl font-bold uppercase tracking-tight text-foreground">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -163,43 +163,44 @@ export function MStat({
   accent?: boolean;
 }) {
   return (
-    <div className={cn("border-2 border-border bg-card p-4", accent && "border-primary")}>
+    <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", accent && "ring-1 ring-primary/30")}>
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
         {Icon && <Icon className="h-4 w-4 text-primary" />}
       </div>
-      <div className="mt-2 text-3xl font-extrabold tracking-tight text-foreground tabular-nums">{value}</div>
+      <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">{value}</div>
       {delta && <div className="mt-1 text-xs font-medium text-muted-foreground">{delta}</div>}
     </div>
   );
 }
 
 const TAG_STYLES: Record<string, string> = {
-  active: "border-emerald-600 text-emerald-700 dark:text-emerald-400",
-  online: "border-emerald-600 text-emerald-700 dark:text-emerald-400",
-  paid: "border-emerald-600 text-emerald-700 dark:text-emerald-400",
-  resolved: "border-emerald-600 text-emerald-700 dark:text-emerald-400",
-  trial: "border-amber-600 text-amber-700 dark:text-amber-400",
-  pending: "border-amber-600 text-amber-700 dark:text-amber-400",
-  due: "border-amber-600 text-amber-700 dark:text-amber-400",
-  degraded: "border-amber-600 text-amber-700 dark:text-amber-400",
-  high: "border-amber-600 text-amber-700 dark:text-amber-400",
-  normal: "border-border text-muted-foreground",
-  suspended: "border-primary text-primary",
-  offline: "border-primary text-primary",
-  overdue: "border-primary text-primary",
-  open: "border-primary text-primary",
-  urgent: "border-primary text-primary",
+  active: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  online: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  paid: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  resolved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  trial: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  pending: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  due: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  degraded: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  high: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  normal: "bg-muted text-muted-foreground",
+  brand: "bg-primary/10 text-primary",
+  suspended: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+  offline: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+  overdue: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+  open: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+  urgent: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
 };
 
-/* Uppercase, zero-radius status/priority tag with a 1.5px border. */
+/* Pill-shaped status/priority tag, soft tinted background. */
 export function MTag({ label, tone }: { label: string; tone?: string }) {
   const key = (tone ?? label).toLowerCase();
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 border-[1.5px] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-        TAG_STYLES[key] ?? "border-border text-muted-foreground",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+        TAG_STYLES[key] ?? "bg-muted text-muted-foreground",
       )}
     >
       {label}
@@ -207,7 +208,7 @@ export function MTag({ label, tone }: { label: string; tone?: string }) {
   );
 }
 
-/* Segmented control -- flat, flush, 2px outer border, primary active fill. */
+/* Segmented control -- rounded pill group, primary active fill. */
 export function MSeg<T extends string>({
   options,
   value,
@@ -218,17 +219,16 @@ export function MSeg<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex border-2 border-border">
-      {options.map((o, i) => (
+    <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
+      {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
           className={cn(
-            "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-            i > 0 && "border-l-2 border-border",
+            "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
             value === o.value
-              ? "bg-primary text-primary-foreground"
-              : "bg-card text-muted-foreground hover:text-foreground",
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           {o.label}
@@ -238,7 +238,7 @@ export function MSeg<T extends string>({
   );
 }
 
-/* Primary/secondary Modernist button (flush-left label). */
+/* Primary/secondary button, rounded, soft shadow on primary. */
 export function MButton({
   children,
   variant = "primary",
@@ -248,10 +248,10 @@ export function MButton({
   return (
     <button
       className={cn(
-        "inline-flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors [&_svg]:h-4 [&_svg]:w-4",
-        variant === "primary" && "bg-primary text-primary-foreground hover:opacity-90",
-        variant === "outline" && "border-2 border-border bg-card text-foreground hover:border-primary",
-        variant === "ghost" && "text-muted-foreground hover:text-foreground",
+        "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors [&_svg]:h-4 [&_svg]:w-4",
+        variant === "primary" && "bg-primary text-primary-foreground shadow-sm hover:opacity-90",
+        variant === "outline" && "border border-border bg-card text-foreground hover:border-primary hover:bg-accent",
+        variant === "ghost" && "text-muted-foreground hover:bg-accent hover:text-foreground",
         className,
       )}
       {...props}
@@ -261,13 +261,13 @@ export function MButton({
   );
 }
 
-/* Data table wrapper with Modernist 2px header rule. */
+/* Data table wrapper with rounded card frame. */
 export function MTable({ head, children }: { head: ReactNode; children: ReactNode }) {
   return (
-    <div className="overflow-x-auto border-2 border-border bg-card">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
-          <tr className="border-b-2 border-border text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {head}
           </tr>
         </thead>

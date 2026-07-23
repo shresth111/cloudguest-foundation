@@ -59,26 +59,26 @@ export function MasterShell({ title, children }: { title: string; children: Reac
   return (
     <div className={cn("master-theme", dark && "dark")}>
       <div className="flex min-h-screen bg-background text-foreground">
-        {mobile && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setMobile(false)} />}
+        {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
 
         {/* Sidebar */}
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r-2 border-border bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
             mobile ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          <div className="flex h-16 items-center gap-3 border-b-2 border-border px-5">
-            <div className="flex h-9 w-9 items-center justify-center bg-primary text-primary-foreground">
-              <span className="text-sm font-extrabold">CG</span>
+          <div className="flex h-16 items-center gap-3 border-b border-border px-5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+              <span className="text-sm font-bold">CG</span>
             </div>
             <div className="leading-tight">
-              <p className="text-sm font-extrabold uppercase tracking-tight">CloudGuest</p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Master Console</p>
+              <p className="text-sm font-semibold tracking-tight">CloudGuest</p>
+              <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
             </div>
             <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}><X className="h-5 w-5" /></button>
           </div>
-          <nav className="flex-1 overflow-y-auto py-3">
+          <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
             {nav.map((item) => {
               const active = isActive(item.to);
               const Icon = item.icon;
@@ -88,10 +88,10 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                   to={item.to}
                   onClick={() => setMobile(false)}
                   className={cn(
-                    "flex items-center gap-3 border-l-2 px-5 py-2.5 text-[13px] font-semibold transition-colors",
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
                     active
-                      ? "border-primary bg-accent text-foreground"
-                      : "border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -100,47 +100,47 @@ export function MasterShell({ title, children }: { title: string; children: Reac
               );
             })}
           </nav>
-          <div className="border-t-2 border-border px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="border-t border-border px-5 py-3 text-[11px] font-medium text-muted-foreground">
             Platform Operator
           </div>
         </aside>
 
         {/* Main */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b-2 border-border bg-background/90 px-4 backdrop-blur sm:px-6">
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
             <button className="lg:hidden" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
-            <h1 className="text-base font-extrabold uppercase tracking-tight">{title}</h1>
+            <h1 className="text-base font-semibold tracking-tight">{title}</h1>
             <div className="ml-auto flex items-center gap-1.5">
-              <div className="hidden items-center gap-2 border-2 border-border bg-card px-3 py-1.5 md:flex">
+              <div className="hidden items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 md:flex">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <input
                   placeholder="Search platform…"
                   className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
               </div>
-              <button className="relative border-2 border-transparent p-2 text-muted-foreground hover:text-foreground" aria-label="Notifications">
+              <button className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Notifications">
                 <Bell className="h-4.5 w-4.5" />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 bg-primary" />
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
               </button>
               <button
                 onClick={() => setDark((d) => !d)}
-                className="border-2 border-transparent p-2 text-muted-foreground hover:text-foreground"
+                className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Toggle theme"
               >
                 {dark ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
               </button>
               <div className="relative">
-                <button onClick={() => setMenu((m) => !m)} className="flex h-9 w-9 items-center justify-center border-2 border-border bg-card text-xs font-bold">
+                <button onClick={() => setMenu((m) => !m)} className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
                   {(user?.firstName?.[0] ?? "S")}{(user?.lastName?.[0] ?? "A")}
                 </button>
                 {menu && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 border-2 border-border bg-popover p-1 shadow-lg">
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1 shadow-lg">
                     <div className="px-3 py-2">
-                      <p className="text-sm font-bold">{user?.name ?? "Super Admin"}</p>
+                      <p className="text-sm font-semibold">{user?.name ?? "Super Admin"}</p>
                       <p className="text-xs text-muted-foreground">{user?.email ?? "operator@cloudguest.io"}</p>
                     </div>
-                    <div className="my-1 border-t-2 border-border" />
-                    <button onClick={handleLogout} className="flex w-full items-center gap-2 px-3 py-2 text-sm font-semibold text-primary hover:bg-accent">
+                    <div className="my-1 border-t border-border" />
+                    <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-accent">
                       <LogOut className="h-4 w-4" /> Sign out
                     </button>
                   </div>

@@ -21,7 +21,7 @@ function ControlButton({ icon: Icon, label, onClick }: { icon: typeof Power; lab
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 border-2 border-border bg-background px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground transition-colors hover:border-primary"
+      className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:border-primary hover:bg-accent"
     >
       <Icon className="h-4 w-4 text-primary" /> {label}
     </button>
@@ -58,7 +58,7 @@ function RouterFleetScreen() {
             { value: "offline", label: "Offline" },
           ]}
         />
-        <div className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, IP, customer…" className="w-60 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
         </div>
@@ -68,7 +68,7 @@ function RouterFleetScreen() {
         {rows.map((r) => (
           <MTr key={r.id} onClick={() => setSel(r)}>
             <MTd>
-              <p className="font-bold">{r.name}</p>
+              <p className="font-semibold">{r.name}</p>
               <p className="font-mono text-xs text-muted-foreground">{r.ip} · {r.location}</p>
             </MTd>
             <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
@@ -96,13 +96,13 @@ function RouterFleetScreen() {
         {sel && (
           <div className="space-y-5">
             <div className="grid grid-cols-3 gap-2">
-              <div className="border-2 border-border p-2.5 text-center"><p className="text-[10px] font-bold uppercase text-muted-foreground">Clients</p><p className="text-lg font-extrabold tabular-nums">{sel.clients}</p></div>
-              <div className="border-2 border-border p-2.5 text-center"><p className="text-[10px] font-bold uppercase text-muted-foreground">Uptime</p><p className="text-lg font-extrabold tabular-nums">{sel.uptime}</p></div>
-              <div className="border-2 border-border p-2.5 text-center"><p className="text-[10px] font-bold uppercase text-muted-foreground">Firmware</p><p className="text-lg font-extrabold">{sel.firmware}</p></div>
+              <div className="rounded-lg border border-border p-2.5 text-center"><p className="text-[11px] font-medium text-muted-foreground">Clients</p><p className="text-lg font-semibold tabular-nums">{sel.clients}</p></div>
+              <div className="rounded-lg border border-border p-2.5 text-center"><p className="text-[11px] font-medium text-muted-foreground">Uptime</p><p className="text-lg font-semibold tabular-nums">{sel.uptime}</p></div>
+              <div className="rounded-lg border border-border p-2.5 text-center"><p className="text-[11px] font-medium text-muted-foreground">Firmware</p><p className="text-lg font-semibold">{sel.firmware}</p></div>
             </div>
 
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Power &amp; Firmware</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Power &amp; Firmware</p>
               <div className="grid grid-cols-2 gap-2">
                 <ControlButton icon={RotateCcw} label="Restart" onClick={() => act(`${sel.name}: restart queued`)} />
                 <ControlButton icon={Power} label="Reboot" onClick={() => act(`${sel.name}: reboot queued`)} />
@@ -112,7 +112,7 @@ function RouterFleetScreen() {
             </div>
 
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Network</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Network</p>
               <div className="grid grid-cols-2 gap-2">
                 <ControlButton icon={Network} label="VLAN & DHCP" onClick={() => act("Opening VLAN & DHCP")} />
                 <ControlButton icon={Shield} label="Firewall" onClick={() => act("Opening firewall rules")} />

@@ -29,12 +29,12 @@ function BillingScreen() {
 
       <div className="grid gap-3 md:grid-cols-3">
         {PLANS.map((p) => (
-          <div key={p.name} className={"border-2 bg-card p-5 " + (p.featured ? "border-primary" : "border-border")}>
+          <div key={p.name} className={"rounded-xl border bg-card p-5 shadow-sm " + (p.featured ? "border-primary ring-1 ring-primary/15" : "border-border")}>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-extrabold uppercase tracking-wide">{p.name}</p>
-              {p.featured && <MTag label="Popular" tone="suspended" />}
+              <p className="text-sm font-semibold">{p.name}</p>
+              {p.featured && <MTag label="Popular" tone="brand" />}
             </div>
-            <p className="mt-3"><span className="text-3xl font-extrabold tracking-tight">{p.price}</span><span className="text-sm text-muted-foreground">{p.per}</span></p>
+            <p className="mt-3"><span className="text-3xl font-semibold tracking-tight">{p.price}</span><span className="text-sm text-muted-foreground">{p.per}</span></p>
             <ul className="mt-4 space-y-2">
               {p.features.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-sm"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> {f}</li>
@@ -46,7 +46,7 @@ function BillingScreen() {
       </div>
 
       <div>
-        <p className="mb-2 text-sm font-bold uppercase tracking-wide">Recent Invoices</p>
+        <p className="mb-2 text-sm font-semibold">Recent Invoices</p>
         <MTable head={<><MTh>Invoice</MTh><MTh>Customer</MTh><MTh>Plan</MTh><MTh>Amount</MTh><MTh className="hidden sm:table-cell">Date</MTh><MTh>Status</MTh></>}>
           {INVOICES.map((inv) => (
             <MTr key={inv.id}>

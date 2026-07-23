@@ -41,10 +41,10 @@ function PlatformOverview() {
 
       {/* Charts */}
       <div className="grid gap-3 lg:grid-cols-3">
-        <div className="border-2 border-border bg-card p-4 lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between border-b-2 border-border pb-2">
-            <p className="text-sm font-bold uppercase tracking-wide">Platform Sessions · 24h</p>
-            <span className="text-xs font-semibold text-muted-foreground">peak 3,520</span>
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-2">
+          <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
+            <p className="text-sm font-semibold">Platform Sessions · 24h</p>
+            <span className="text-xs font-medium text-muted-foreground">peak 3,520</span>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={SESSIONS_24H} margin={{ left: -18, right: 6, top: 6, bottom: 0 }}>
@@ -58,17 +58,17 @@ function PlatformOverview() {
               <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} interval={3} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={44} />
               <Tooltip
-                contentStyle={{ borderRadius: 0, border: "2px solid var(--border)", background: "var(--popover)", fontSize: 12 }}
-                labelStyle={{ fontWeight: 700 }}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--popover)", fontSize: 12, boxShadow: "0 4px 16px -4px rgb(0 0 0 / 0.12)" }}
+                labelStyle={{ fontWeight: 600 }}
               />
               <Area type="monotone" dataKey="sessions" stroke="var(--primary)" strokeWidth={2} fill="url(#sess)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="border-2 border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between border-b-2 border-border pb-2">
-            <p className="text-sm font-bold uppercase tracking-wide">Tenants by Region</p>
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
+            <p className="text-sm font-semibold">Tenants by Region</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={REGIONS} margin={{ left: -22, right: 6, top: 6, bottom: 0 }}>
@@ -77,9 +77,9 @@ function PlatformOverview() {
               <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={44} allowDecimals={false} />
               <Tooltip
                 cursor={{ fill: "var(--accent)" }}
-                contentStyle={{ borderRadius: 0, border: "2px solid var(--border)", background: "var(--popover)", fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--popover)", fontSize: 12, boxShadow: "0 4px 16px -4px rgb(0 0 0 / 0.12)" }}
               />
-              <Bar dataKey="tenants" fill="var(--primary)" />
+              <Bar dataKey="tenants" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -89,8 +89,8 @@ function PlatformOverview() {
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-bold uppercase tracking-wide">Recently Active Customers</p>
-            <Link to="/master/customers" className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-primary">
+            <p className="text-sm font-semibold">Recently Active Customers</p>
+            <Link to="/master/customers" className="inline-flex items-center gap-1 text-xs font-medium text-primary">
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -98,7 +98,7 @@ function PlatformOverview() {
             {recent.map((c) => (
               <MTr key={c.id}>
                 <MTd>
-                  <p className="font-bold">{c.name}</p>
+                  <p className="font-semibold">{c.name}</p>
                   <p className="text-xs text-muted-foreground">{c.type} · {c.region}</p>
                 </MTd>
                 <MTd className="text-sm">{c.plan}</MTd>
@@ -112,8 +112,8 @@ function PlatformOverview() {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-bold uppercase tracking-wide">System Incidents</p>
-          <div className="border-2 border-border bg-card">
+          <p className="mb-2 text-sm font-semibold">System Incidents</p>
+          <div className="rounded-xl border border-border bg-card shadow-sm">
             {incidents.map((t) => (
               <div key={t.id} className="flex items-start gap-3 border-b border-border/70 p-3.5 last:border-0">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />

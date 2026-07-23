@@ -29,7 +29,7 @@ function LocationsScreen() {
         actions={<MButton variant="primary" onClick={() => setAddOpen(true)}><Plus /> Create Location</MButton>}
       />
 
-      <div className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code, client, region…" className="w-full max-w-sm bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
       </div>

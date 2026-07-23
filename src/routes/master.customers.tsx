@@ -50,7 +50,7 @@ function CustomersScreen() {
             { value: "suspended", label: "Suspended" },
           ]}
         />
-        <div className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" className="w-56 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
         </div>
@@ -60,7 +60,7 @@ function CustomersScreen() {
         {rows.map((c) => (
           <MTr key={c.id} onClick={() => setSelected(c)}>
             <MTd>
-              <p className="font-bold">{c.name}</p>
+              <p className="font-semibold">{c.name}</p>
               <p className="text-xs text-muted-foreground">{c.type} · {c.region}</p>
             </MTd>
             <MTd className="hidden md:table-cell">
@@ -99,17 +99,17 @@ function CustomersScreen() {
         {selected && (
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-3">
-              <div className="border-2 border-border p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Plan</p><p className="mt-1 text-lg font-extrabold">{selected.plan}</p></div>
-              <div className="border-2 border-border p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Status</p><div className="mt-1.5"><MTag label={selected.status} /></div></div>
-              <div className="border-2 border-border p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Locations</p><p className="mt-1 text-lg font-extrabold tabular-nums">{selected.locations}</p></div>
-              <div className="border-2 border-border p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">MRR</p><p className="mt-1 text-lg font-extrabold tabular-nums">${selected.mrr}</p></div>
+              <div className="rounded-lg border border-border p-3"><p className="text-xs font-medium text-muted-foreground">Plan</p><p className="mt-1 text-lg font-semibold">{selected.plan}</p></div>
+              <div className="rounded-lg border border-border p-3"><p className="text-xs font-medium text-muted-foreground">Status</p><div className="mt-1.5"><MTag label={selected.status} /></div></div>
+              <div className="rounded-lg border border-border p-3"><p className="text-xs font-medium text-muted-foreground">Locations</p><p className="mt-1 text-lg font-semibold tabular-nums">{selected.locations}</p></div>
+              <div className="rounded-lg border border-border p-3"><p className="text-xs font-medium text-muted-foreground">MRR</p><p className="mt-1 text-lg font-semibold tabular-nums">${selected.mrr}</p></div>
             </div>
             <div className="space-y-2">
               <p className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-primary" /> {selected.email}</p>
               <p className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-primary" /> {selected.phone}</p>
             </div>
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Provisioned Modules</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Provisioned Modules</p>
               <div className="flex flex-wrap gap-1.5">
                 {selected.modules.map((m) => <MTag key={m} label={m} tone="normal" />)}
               </div>
@@ -148,14 +148,14 @@ function CustomersScreen() {
           </MField>
         </div>
         <div className="mt-4">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Enabled Modules</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Enabled Modules</p>
           <div className="flex flex-wrap gap-1.5">
             {MODULES.map((m) => (
               <button
                 key={m}
                 onClick={() => toggleMod(m)}
                 className={
-                  "border-[1.5px] px-2 py-1 text-[11px] font-bold uppercase tracking-wide " +
+                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors " +
                   (mods.includes(m) ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary")
                 }
               >

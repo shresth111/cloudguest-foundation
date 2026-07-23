@@ -70,8 +70,8 @@ function NasScreen() {
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* Generator inputs */}
-        <div className="border-2 border-border bg-card p-5">
-          <p className="mb-4 flex items-center gap-2 border-b-2 border-border pb-2 text-sm font-bold uppercase tracking-wide">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="mb-4 flex items-center gap-2 border-b border-border pb-2 text-sm font-semibold">
             <Cpu className="h-4 w-4 text-primary" /> NAS ID Generator
           </p>
           <div className="space-y-3">
@@ -90,8 +90,8 @@ function NasScreen() {
         </div>
 
         {/* Generated identity */}
-        <div className="border-2 border-primary bg-card p-5">
-          <p className="mb-4 flex items-center gap-2 border-b-2 border-border pb-2 text-sm font-bold uppercase tracking-wide">
+        <div className="rounded-xl border border-primary/40 bg-card p-5 shadow-sm ring-1 ring-primary/10">
+          <p className="mb-4 flex items-center gap-2 border-b border-border pb-2 text-sm font-semibold">
             <KeyRound className="h-4 w-4 text-primary" /> Generated Identity
           </p>
           <dl className="space-y-3 text-sm">
@@ -102,9 +102,9 @@ function NasScreen() {
               { k: "WireGuard mgmt IP", v: gen.wg, mono: true },
             ].map((r) => (
               <div key={r.k} className="flex items-center justify-between gap-3 border-b border-border/70 pb-2">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{r.k}</dt>
+                <dt className="text-xs font-medium text-muted-foreground">{r.k}</dt>
                 <dd className="flex items-center gap-2">
-                  <span className={r.mono ? "font-mono text-xs" : "font-bold"}>{r.v}</span>
+                  <span className={r.mono ? "font-mono text-xs" : "font-semibold"}>{r.v}</span>
                   <button onClick={() => copy(r.v, r.k)} className="text-muted-foreground hover:text-primary"><Copy className="h-3.5 w-3.5" /></button>
                 </dd>
               </div>
@@ -114,9 +114,9 @@ function NasScreen() {
       </div>
 
       {/* RouterOS config */}
-      <div className="border-2 border-border bg-card">
-        <div className="flex items-center justify-between border-b-2 border-border p-4">
-          <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide"><Shield className="h-4 w-4 text-primary" /> MikroTik RouterOS Config</p>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b border-border p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Shield className="h-4 w-4 text-primary" /> MikroTik RouterOS Config</p>
           <MButton variant="outline" onClick={() => copy(routerOsConfig, "RouterOS config")}><Copy /> Copy</MButton>
         </div>
         <pre className="overflow-x-auto bg-[oklch(0.16_0.004_50)] p-4 font-mono text-[11px] leading-relaxed text-emerald-300/90">{routerOsConfig}</pre>
@@ -124,7 +124,7 @@ function NasScreen() {
 
       {/* Cluster nodes */}
       <div>
-        <p className="mb-2 text-sm font-bold uppercase tracking-wide">RADIUS Cluster Nodes</p>
+        <p className="mb-2 text-sm font-semibold">RADIUS Cluster Nodes</p>
         <MTable head={<><MTh>Host</MTh><MTh>Region</MTh><MTh>Auth/s</MTh><MTh>Latency</MTh><MTh>Status</MTh></>}>
           {NAS_NODES.map((n) => (
             <MTr key={n.id}>
