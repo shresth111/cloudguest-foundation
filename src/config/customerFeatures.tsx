@@ -39,7 +39,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "audit": return <BasicAuditView />;
     case "tickets": return <TicketsPage />;
     case "reports": return <UserReports />;
-    case "campaigns": return <CampaignsPage />;
+    case "campaigns": return <CampaignsPage locationId={ctx.locationId} />;
     case "portal": return <PortalPage />;
     case "vouchers": return <VouchersPage />;
     case "policies": return <PoliciesHub />;

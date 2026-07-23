@@ -207,7 +207,7 @@ function FeaturePage() {
             {feature === "dashboard" && <DashboardView locationId={locationId} />}
             {feature === "users" && <UsersView locationId={locationId} />}
             {feature === "reports" && <UserReports />}
-            {feature === "campaigns" && <CampaignsPage />}
+            {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
             {feature === "portal" && <PortalPage />}
             {feature === "vouchers" && <VouchersPage />}
             {feature === "policies" && <PoliciesHub />}

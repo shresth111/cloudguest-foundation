@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,9 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { isDemo } from "@/services/customer.service";
+import { campaignService } from "@/services/campaign.service";
+import type { CampaignType } from "@/types/campaign";
 
 interface Campaign { id: string; name: string; type: string; status: string; businessUnit: string; startDate: string; endDate: string; impressions: number; conversions: number; }
 const TYPES = ["SURVEY", "BANNER", "REDIRECT"];
@@ -22,15 +25,19 @@ const SURVEY_QUESTIONS = [
   { q: "How do you rate our cleanliness?", options: ["Excellent", "Good", "Average", "Could be better"] },
 ];
 
+const DEMO_SEED: Campaign[] = [
+  { id: "1", name: "Summer Promo", type: "BANNER", status: "active", businessUnit: "Marina Bay Hotel", startDate: "2026-06-01", endDate: "2026-08-31", impressions: 2841, conversions: 423 },
+  { id: "2", name: "Guest Feedback", type: "SURVEY", status: "draft", businessUnit: "Downtown CoWork", startDate: "2026-07-01", endDate: "2026-09-30", impressions: 0, conversions: 0 },
+  { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", businessUnit: "Eastside Cafe", startDate: "2026-05-15", endDate: "2026-07-15", impressions: 1520, conversions: 198 },
+];
+
 const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", endDate: "" };
 const emptyFilters = { businessUnit: "", type: "", startDate: "" };
 
-export function CampaignsPage() {
-  const [items, setItems] = useState<Campaign[]>([
-    { id: "1", name: "Summer Promo", type: "BANNER", status: "active", businessUnit: "Marina Bay Hotel", startDate: "2026-06-01", endDate: "2026-08-31", impressions: 2841, conversions: 423 },
-    { id: "2", name: "Guest Feedback", type: "SURVEY", status: "draft", businessUnit: "Downtown CoWork", startDate: "2026-07-01", endDate: "2026-09-30", impressions: 0, conversions: 0 },
-    { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", businessUnit: "Eastside Cafe", startDate: "2026-05-15", endDate: "2026-07-15", impressions: 1520, conversions: 198 },
-  ]);
+export function CampaignsPage({ locationId }: { locationId?: string }) {
+  const demo = isDemo();
+  const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
+  const [loading, setLoading] = useState(!demo);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -38,26 +45,82 @@ export function CampaignsPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [redirectUrl, setRedirectUrl] = useState("https://zipwifi.io/welcome");
 
+  useEffect(() => {
+    if (demo) return;
+    let cancelled = false;
+    setLoading(true);
+    campaignService.list({ locationId, page: 1, pageSize: 50 })
+      .then((res) => {
+        if (cancelled) return;
+        setItems(res.rows.map((c) => ({
+          id: c.id, name: c.name, type: c.campaignType.toUpperCase(), status: c.status,
+          businessUnit: "", startDate: c.startsAt?.slice(0, 10) ?? "", endDate: c.endsAt?.slice(0, 10) ?? "",
+          impressions: 0, conversions: 0,
+        })));
+      })
+      .catch(() => { if (!cancelled) setItems(DEMO_SEED); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [demo, locationId]);
+
   const openCreate = (type: string) => { setForm({ ...emptyForm, type }); setErrs({}); setShowCreate(true); };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const e: Record<string, string> = {};
     if (!form.name) e.name = "Campaign name is required.";
     if (!form.startDate) e.startDate = "Required.";
     if (!form.endDate) e.endDate = "Required.";
     if (form.startDate && form.endDate && form.endDate < form.startDate) e.endDate = "End date must be after start date.";
-    if (!form.businessUnit) e.businessUnit = "Select a business unit.";
+    if (demo && !form.businessUnit) e.businessUnit = "Select a business unit.";
     setErrs(e); if (Object.keys(e).length) return;
 
-    setItems([{ id: String(Date.now()), name: form.name, type: form.type, status: "draft", businessUnit: form.businessUnit, startDate: form.startDate, endDate: form.endDate, impressions: 0, conversions: 0 }, ...items]);
-    setForm(emptyForm);
-    setShowCreate(false);
-    toast.success("Campaign created");
+    if (demo) {
+      setItems([{ id: String(Date.now()), name: form.name, type: form.type, status: "draft", businessUnit: form.businessUnit, startDate: form.startDate, endDate: form.endDate, impressions: 0, conversions: 0 }, ...items]);
+      setForm(emptyForm);
+      setShowCreate(false);
+      toast.success("Campaign created");
+      return;
+    }
+
+    try {
+      const created = await campaignService.create({
+        locationId, name: form.name, campaignType: form.type.toLowerCase() as CampaignType,
+        startsAt: form.startDate ? new Date(form.startDate).toISOString() : null,
+        endsAt: form.endDate ? new Date(form.endDate).toISOString() : null,
+      });
+      setItems([{ id: created.id, name: created.name, type: created.campaignType.toUpperCase(), status: created.status, businessUnit: "", startDate: form.startDate, endDate: form.endDate, impressions: 0, conversions: 0 }, ...items]);
+      setForm(emptyForm);
+      setShowCreate(false);
+      toast.success("Campaign created");
+    } catch {
+      toast.error("Could not create the campaign — check the connection and try again.");
+    }
   };
 
-  const updateStatus = (id: string, status: string) => {
+  const updateStatus = async (id: string, status: string) => {
+    const prev = items;
     setItems(items.map(i => i.id === id ? { ...i, status } : i));
-    toast.success(`Campaign ${status}`);
+    if (demo) { toast.success(`Campaign ${status}`); return; }
+    try {
+      if (status === "paused") await campaignService.pause(id);
+      else if (status === "active") await campaignService.resume(id);
+      else if (status === "scheduled") await campaignService.schedule(id);
+      else if (status === "ended") await campaignService.end(id);
+      toast.success(`Campaign ${status}`);
+    } catch {
+      setItems(prev);
+      toast.error("Could not update the campaign on the server.");
+    }
+  };
+
+  const removeCampaign = async (id: string) => {
+    const prev = items;
+    setItems(items.filter(i => i.id !== id));
+    toast.success("Campaign deleted");
+    if (!demo) {
+      try { await campaignService.remove(id); }
+      catch { setItems(prev); toast.error("Could not delete on the server."); }
+    }
   };
 
   const filtered = items.filter((c) =>
@@ -189,11 +252,13 @@ export function CampaignsPage() {
                   {errs.endDate && <p className="mt-1 text-xs text-destructive">{errs.endDate}</p>}
                 </div>
               </div>
-              <div>
-                <Label>Business Unit <span className="text-destructive">*</span></Label>
-                <Select value={form.businessUnit} onValueChange={v => setForm({ ...form, businessUnit: v })}><SelectTrigger><SelectValue placeholder="Choose business unit" /></SelectTrigger><SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select>
-                {errs.businessUnit && <p className="mt-1 text-xs text-destructive">{errs.businessUnit}</p>}
-              </div>
+              {demo && (
+                <div>
+                  <Label>Business Unit <span className="text-destructive">*</span></Label>
+                  <Select value={form.businessUnit} onValueChange={v => setForm({ ...form, businessUnit: v })}><SelectTrigger><SelectValue placeholder="Choose business unit" /></SelectTrigger><SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select>
+                  {errs.businessUnit && <p className="mt-1 text-xs text-destructive">{errs.businessUnit}</p>}
+                </div>
+              )}
               <div><Label>Campaign Type <span className="text-destructive">*</span></Label><Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="flex justify-end gap-2 mt-5"><Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button><Button onClick={handleCreate}>Create</Button></div>
@@ -208,7 +273,9 @@ export function CampaignsPage() {
         <Card className="border-0 shadow-sm"><CardContent className="p-0">
           <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Impressions</TableHead><TableHead>Conversions</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
+            ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">No campaigns match your search.</TableCell></TableRow>
             ) : filtered.map(c => (
               <TableRow key={c.id} className="border-b">
@@ -219,7 +286,7 @@ export function CampaignsPage() {
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => updateStatus(c.id, c.status === "active" ? "paused" : "active")}>{c.status === "active" ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</Button>
                   <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(c.id); toast.success("Campaign ID copied"); }}><Copy className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { setItems(items.filter(i => i.id !== c.id)); toast.success("Campaign deleted"); }}><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCampaign(c.id)}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
