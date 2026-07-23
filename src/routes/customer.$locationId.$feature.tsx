@@ -26,17 +26,106 @@ import BlockUsers from "@/components/features/BlockUsers";
 import CreateGroup from "@/components/features/CreateGroup";
 import UserReports from "@/components/features/UserReports";
 import SmartIdPage from "@/components/features/SmartIdPage";
-import ManageAlerts from "@/components/features/ManageAlerts";
-import { IspDetailsPage, TopUpDataPage, BusinessHoursPage, NotificationPage, AuditLogPage, AdminLogsPage,
-  MacAuthorizationPage, PortForwardingPage, DhcpPoolPage, VlanManagementPage, VoipPriorityPage, IspRoutingPage,
-  DebuggingToolsPage, HotspotSettingsPage, RaasDashboardPage, RaasManageUsersPage, RaasReportsPage } from "@/components/features/MissingModules";
+import {
+  AlertsView, BusinessHoursView, NotificationView, TopUpView, IspDetailsView,
+  AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
+  IspRoutingView, DebuggingView, HotspotView, RaasDashboardView, RaasUsersView,
+  RaasReportsView, GenericFeatureView,
+} from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
   ArrowLeft, LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
   AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye,
+  Clock, Server, Globe, Terminal, Gauge, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
 } from "lucide-react";
-import { CUSTOMER_NAVS, getCustomerLoginRole } from "@/lib/customerNav";
+
+type NavRole = "owner" | "agent";
+interface NavItemDef { id: string; label: string; icon: React.ComponentType<{ className?: string }>; roles: NavRole[] }
+interface NavGroupDef { group: string; items: NavItemDef[] }
+
+// Full customer feature set, provisioned per location from the super
+// dashboard and gated by the signed-in role (owner sees all, agent a
+// read/operate subset). Grouped for scanability at 30+ items.
+const NAV_GROUPS: NavGroupDef[] = [
+  {
+    group: "Overview",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
+      { id: "users", label: "Users", icon: Users, roles: ["owner", "agent"] },
+      { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["owner", "agent"] },
+      { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
+      { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
+    ],
+  },
+  {
+    group: "Engagement",
+    items: [
+      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
+      { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
+      { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
+    ],
+  },
+  {
+    group: "Access & Policy",
+    items: [
+      { id: "policies", label: "Policies", icon: ShieldCheck, roles: ["owner"] },
+      { id: "whitelist", label: "Whitelist", icon: Shield, roles: ["owner"] },
+      { id: "mac-auth", label: "MAC Auth", icon: Fingerprint, roles: ["owner"] },
+      { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Devices & Team",
+    items: [
+      { id: "devices", label: "Devices", icon: Monitor, roles: ["owner", "agent"] },
+      { id: "teams", label: "Teams", icon: UsersRound, roles: ["owner"] },
+      { id: "agents", label: "Agents", icon: Bot, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Network",
+    items: [
+      { id: "networking", label: "Networking", icon: Network, roles: ["owner"] },
+      { id: "hotspot", label: "Hotspot", icon: Wifi, roles: ["owner"] },
+      { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
+      { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
+      { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
+      { id: "voip", label: "VOIP Priority", icon: Signal, roles: ["owner"] },
+      { id: "isp-routing", label: "ISP Routing", icon: ArrowRightLeft, roles: ["owner"] },
+      { id: "isp-details", label: "ISP Details", icon: Globe, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Operations",
+    items: [
+      { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
+      { id: "topup", label: "Top Up", icon: Gauge, roles: ["owner", "agent"] },
+      { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
+      { id: "debugging", label: "Debugging", icon: Terminal, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "RaaS",
+    items: [
+      { id: "raas-dashboard", label: "RaaS Dashboard", icon: Server, roles: ["owner"] },
+      { id: "raas-users", label: "RaaS Users", icon: UsersRound, roles: ["owner"] },
+      { id: "raas-reports", label: "RaaS Reports", icon: FileText, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Logs & Support",
+    items: [
+      { id: "audit", label: "Audit Log", icon: ScrollText, roles: ["owner", "agent"] },
+      { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner", "agent"] },
+      { id: "help", label: "Help", icon: LifeBuoy, roles: ["owner", "agent"] },
+    ],
+  },
+];
+
+const ALL_NAV_ITEMS: NavItemDef[] = NAV_GROUPS.flatMap((g) => g.items);
+
+function getRole(): string { if (typeof window === "undefined") return "owner"; return localStorage.getItem("cg_login_role") || "owner"; }
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
 
@@ -48,7 +137,7 @@ function FeaturePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
-  const loginRole = getCustomerLoginRole();
+  const loginRole = getRole();
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -56,7 +145,10 @@ function FeaturePage() {
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
 
-  const filteredNavs = CUSTOMER_NAVS.filter(n => n.roles.includes(loginRole));
+  const role = (loginRole === "agent" ? "agent" : "owner") as NavRole;
+  const navGroups = NAV_GROUPS
+    .map((g) => ({ group: g.group, items: g.items.filter((n) => n.roles.includes(role)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -64,8 +156,19 @@ function FeaturePage() {
       <aside className={cn("fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto", sidebar ? "w-60" : "w-0 lg:w-16 overflow-hidden", mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
         <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm"><Wifi className="h-4 w-4" /></div>{sidebar && <div><p className="text-sm font-semibold">BhaiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? feature}</p></div>}</div>
         <div className="px-2 pt-2"><button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>Locations</span>}</button></div>
-        <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">{filteredNavs.map(item => (
-          <button key={item.id} onClick={() => handleNav(item.id)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm w-full text-left transition-all", item.id === feature ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>{sidebar && <span className="truncate">{item.label}</span>}</button>
+        <nav className="flex-1 space-y-3 px-2 py-2 overflow-y-auto">{navGroups.map(g => (
+          <div key={g.group} className="space-y-0.5">
+            {sidebar && <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{g.group}</p>}
+            {g.items.map(item => {
+              const Icon = item.icon;
+              const active = item.id === feature;
+              return (
+                <button key={item.id} onClick={() => handleNav(item.id)} title={item.label} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-left transition-all", active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground", !sidebar && "justify-center")}>
+                  <Icon className="h-4 w-4 shrink-0" />{sidebar && <span className="truncate">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         ))}</nav>
         <div className="border-t p-2 hidden lg:block"><button onClick={() => setSidebar(!sidebar)} className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent">{sidebar ? "◄" : "►"}</button></div>
       </aside>
@@ -92,28 +195,29 @@ function FeaturePage() {
             {feature === "whitelist" && <WhiteList />}
             {feature === "devices" && <DevicesView />}
             {feature === "teams" && <TeamsPage />}
-            {feature === "alerts" && <ManageAlerts />}
             {feature === "agents" && <AgentsPage />}
             {feature === "networking" && <NetworkingPage />}
             {feature === "advanced" && <AdvancedPage />}
-            {feature === "business-hours" && <BusinessHoursPage />}
-            {feature === "notification" && <NotificationPage />}
-            {feature === "topup" && <TopUpDataPage />}
-            {feature === "isp-details" && <IspDetailsPage />}
-            {feature === "audit" && <AuditLogPage />}
-            {feature === "admin-logs" && <AdminLogsPage />}
-            {feature === "mac-auth" && <MacAuthorizationPage />}
-            {feature === "port-forwarding" && <PortForwardingPage />}
-            {feature === "dhcp" && <DhcpPoolPage />}
-            {feature === "vlans" && <VlanManagementPage />}
-            {feature === "voip" && <VoipPriorityPage />}
-            {feature === "isp-routing" && <IspRoutingPage />}
-            {feature === "debugging" && <DebuggingToolsPage />}
-            {feature === "hotspot" && <HotspotSettingsPage />}
-            {feature === "raas-dashboard" && <RaasDashboardPage />}
-            {feature === "raas-users" && <RaasManageUsersPage />}
-            {feature === "raas-reports" && <RaasReportsPage />}
+            {feature === "audit" && <AuditView />}
             {feature === "help" && <HelpView />}
+            {feature === "alerts" && <AlertsView />}
+            {feature === "business-hours" && <BusinessHoursView />}
+            {feature === "notification" && <NotificationView />}
+            {feature === "topup" && <TopUpView />}
+            {feature === "isp-details" && <IspDetailsView />}
+            {feature === "admin-logs" && <AdminLogsView />}
+            {feature === "mac-auth" && <MacAuthView />}
+            {feature === "port-forwarding" && <PortForwardingView />}
+            {feature === "dhcp" && <DhcpView />}
+            {feature === "vlans" && <VlansView />}
+            {feature === "voip" && <VoipView />}
+            {feature === "isp-routing" && <IspRoutingView />}
+            {feature === "debugging" && <DebuggingView />}
+            {feature === "hotspot" && <HotspotView />}
+            {feature === "raas-dashboard" && <RaasDashboardView />}
+            {feature === "raas-users" && <RaasUsersView />}
+            {feature === "raas-reports" && <RaasReportsView />}
+            {!ALL_NAV_ITEMS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
           </div>
         </main>
       </div>
@@ -182,6 +286,16 @@ function DevicesView() {
     {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
   ];
   return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>{devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
+}
+
+// ── Audit ─────────────────────────────────────────────────
+function AuditView() {
+  const items = [
+    {a:"Guest login via OTP",w:"guest@email.com",t:"2 min ago"},{a:"Voucher batch created",w:"reception",t:"18 min ago"},
+    {a:"Router restart completed",w:"system",t:"1 hour ago"},{a:"Portal branding updated",w:"manager",t:"3 hours ago"},
+    {a:"Bandwidth policy changed",w:"admin",t:"5 hours ago"},{a:"New location provisioned",w:"system",t:"1 day ago"},
+  ];
+  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">{items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}</CardContent></Card>);
 }
 
 // ── Help ──────────────────────────────────────────────────
