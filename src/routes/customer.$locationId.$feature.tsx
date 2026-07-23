@@ -224,7 +224,7 @@ function FeaturePage() {
             {feature === "notification" && <NotificationView />}
             {feature === "isp-details" && <IspDetailsView />}
             {feature === "admin-logs" && <AdminLogsView />}
-            {feature === "mac-auth" && <MacAuthView />}
+            {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
             {feature === "port-forwarding" && <PortForwardingView />}
             {feature === "dhcp" && <DhcpView />}
             {feature === "vlans" && <VlansView />}

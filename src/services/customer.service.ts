@@ -38,6 +38,7 @@ export interface CustomerFeatureData {
   portal?: { status: string; theme: string; authMethods: string[]; languages: string[] };
   audit?: { action: string; user: string; time: string; status: string }[];
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
+  macAuth?: { id: string; mac: string; type: string; expiresAt: string | null; comment: string | null; enabled: boolean }[];
 }
 
 /* ── Demo Data ─────────────────────────────────────────────── */
@@ -66,9 +67,24 @@ const DEMO_NAV: NavItem[] = [
 
 /* ── Helpers ───────────────────────────────────────────────── */
 
-function isDemo(): boolean {
+export function isDemo(): boolean {
   if (typeof window === "undefined") return false;
   return localStorage.getItem("cloudguest_token") === "demo-access-token";
+}
+
+let cachedOrgId: string | null = null;
+/** Resolves the current session's organization id for endpoints that
+ * require X-Organization-Id (e.g. MAC authorization -- see
+ * backend/app/domains/mac_authorization/service.py's OrganizationRequiredError).
+ * Callers already run inside getFeatureData's try/catch, so a throw here
+ * just falls back to demo data like any other failure. */
+async function resolveOrgId(): Promise<string> {
+  if (cachedOrgId) return cachedOrgId;
+  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", { params: { page_size: 1 } });
+  const id = data.items[0]?.id;
+  if (!id) throw new Error("No organization found for the current session");
+  cachedOrgId = id;
+  return id;
 }
 
 function timeAgo(d: string): string {
@@ -227,6 +243,14 @@ export const customerService = {
           const { data } = await api.get<{ items: { mac_address: string; ip_address: string; hostname: string | null; connected_at: string; last_seen_at: string }[] }>("/connected-devices", { params: { location_id: locationId, page_size: 10 } }).catch(() => ({ data: { items: [] } }));
           return { devices: (data?.items ?? []).map((d) => ({ mac: d.mac_address, ip: d.ip_address, device: d.hostname ?? "Unknown", firstSeen: timeAgo(d.connected_at), lastSeen: timeAgo(d.last_seen_at) })) };
         }
+        case "mac-auth": {
+          const orgId = await resolveOrgId();
+          const { data } = await api.get<{ items: { id: string; mac_address: string; authorization_type: string; expires_at: string | null; comment: string | null; is_enabled: boolean }[] }>(
+            "/mac-authorization/entries",
+            { params: { location_id: locationId, page: 1, page_size: 50 }, headers: { "X-Organization-Id": orgId } },
+          );
+          return { macAuth: data.items.map((e) => ({ id: e.id, mac: e.mac_address, type: e.authorization_type, expiresAt: e.expires_at, comment: e.comment, enabled: e.is_enabled })) };
+        }
         default: return {};
       }
     } catch { return getDemoFeatureData(feature); }
@@ -243,6 +267,11 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
     case "portal": return { portal: { status: "Live", theme: "Enterprise Blue", authMethods: ["Email OTP", "SMS", "Voucher"], languages: ["EN", "HI", "AR"] } };
     case "audit": return { audit: [{ action: "Guest login via OTP", user: "guest@email.com", time: "2 min ago", status: "success" }, { action: "Voucher created", user: "reception", time: "18 min ago", status: "info" }, { action: "Router restart", user: "system", time: "1h ago", status: "success" }, { action: "Portal updated", user: "manager", time: "3h ago", status: "info" }] };
     case "devices": return { devices: [{ mac: "00:1A:2B:3C:4D:5E", ip: "10.0.1.42", device: "iPhone 15", firstSeen: "Today", lastSeen: "Just now" }, { mac: "AA:BB:CC:DD:EE:FF", ip: "10.0.1.87", device: "MacBook Pro", firstSeen: "Today", lastSeen: "2 min ago" }] };
+    case "mac-auth": return { macAuth: [
+      { id: "1", mac: "7C:70:DB:B5:76:92", type: "permanent", expiresAt: null, comment: "Front desk tablet", enabled: true },
+      { id: "2", mac: "9E:CB:12:2C:02:52", type: "temporary", expiresAt: new Date(Date.now() + 86400000 * 3).toISOString(), comment: "Contractor laptop", enabled: true },
+      { id: "3", mac: "C2:7C:20:00:F2:24", type: "permanent", expiresAt: null, comment: null, enabled: false },
+    ] };
     default: return {};
   }
 }

@@ -6,7 +6,7 @@
  * pick up the Aurora Teal identity automatically. Mock data only -- these
  * are the seam a per-location backend call replaces.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Activity, AlertTriangle, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
@@ -27,9 +27,13 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
 import NetworkCrudTable, { validators } from "@/components/features/NetworkCrudTable";
 import { useIspStore, type IspConfig, type IspLine } from "@/stores/ispStore";
+import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
+import { isDemo } from "@/services/customer.service";
+import { macAuthorizationService } from "@/services/mac-authorization.service";
 import { cn } from "@/lib/utils";
 
 /* ---------- shared building blocks ---------- */
@@ -484,37 +488,98 @@ export function AdminLogsView() {
 }
 
 /* ---------- MAC Authorization ---------- */
-export function MacAuthView() {
+interface MacAuthEntry { id: string; mac: string; type: string; expiresAt: string | null; comment: string | null; enabled: boolean }
+
+export function MacAuthView({ locationId }: { locationId?: string }) {
+  const { data, isLoading } = useCustomerFeatureData("mac-auth", locationId ?? "");
+  const [entries, setEntries] = useState<MacAuthEntry[]>([]);
+  const [synced, setSynced] = useState(false);
+  useEffect(() => {
+    if (data?.macAuth && !synced) { setEntries(data.macAuth); setSynced(true); }
+  }, [data, synced]);
+
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ mac: "", type: "permanent", comment: "" });
+  const macValid = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(form.mac.trim());
+
+  const addEntry = async () => {
+    if (!macValid) { toast.error("Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF"); return; }
+    const payload = { macAddress: form.mac.trim().toUpperCase(), authorizationType: form.type as "permanent" | "temporary", comment: form.comment || null, isEnabled: true };
+    try {
+      if (!isDemo() && locationId) {
+        const created = await macAuthorizationService.create({ ...payload, locationId });
+        setEntries((e) => [{ id: created.id, mac: created.macAddress, type: created.authorizationType, expiresAt: created.expiresAt, comment: created.comment, enabled: created.isEnabled }, ...e]);
+      } else {
+        setEntries((e) => [{ id: String(Date.now()), mac: payload.macAddress, type: payload.type, expiresAt: null, comment: payload.comment, enabled: true }, ...e]);
+      }
+      toast.success("MAC address authorized");
+      setForm({ mac: "", type: "permanent", comment: "" });
+      setOpen(false);
+    } catch {
+      toast.error("Could not save — check the connection and try again.");
+    }
+  };
+
+  const toggleEntry = async (entry: MacAuthEntry) => {
+    setEntries((es) => es.map((e) => e.id === entry.id ? { ...e, enabled: !e.enabled } : e));
+    if (!isDemo()) {
+      try { await macAuthorizationService.update(entry.id, { isEnabled: !entry.enabled }); }
+      catch { toast.error("Could not update on the server."); setEntries((es) => es.map((e) => e.id === entry.id ? { ...e, enabled: entry.enabled } : e)); }
+    }
+  };
+
+  const removeEntry = async (entry: MacAuthEntry) => {
+    setEntries((es) => es.filter((e) => e.id !== entry.id));
+    toast.success("Entry removed");
+    if (!isDemo()) {
+      try { await macAuthorizationService.remove(entry.id); }
+      catch { toast.error("Could not remove on the server."); setEntries((es) => [entry, ...es]); }
+    }
+  };
+
   return (
-    <NetworkCrudTable
-      title="MAC Authorization"
-      description="Bypass hotspot authentication on a few devices."
-      tableTitle="Connected Devices"
-      tableSubtitle="This lists out all the active devices connected to the Network."
-      columns={[
-        { key: "mobile", label: "Mobile No." },
-        { key: "hostname", label: "Hostname" },
-        { key: "mac", label: "MAC" },
-        { key: "ip", label: "IP" },
-        { key: "status", label: "Status" },
-        { key: "bypassed", label: "Bypassed" },
-        { key: "comments", label: "Comments" },
-      ]}
-      seed={[
-        { mobile: "XXXXXXX98647", hostname: "TF-260223175821", mac: "7C:70:DB:B5:76:92", ip: "172.16.18.22", status: "Not Static", bypassed: "Not Bypassed", comments: "N/A" },
-        { mobile: "XXXXXXX89195", hostname: "M2012K11AI", mac: "9E:CB:12:2C:02:52", ip: "172.16.19.252", status: "Not Static", bypassed: "Not Bypassed", comments: "N/A" },
-        { mobile: "XXXXXXX86534", hostname: "CMF-by-Nothing-Phone-1", mac: "C2:7C:20:00:F2:24", ip: "172.16.19.221", status: "Not Static", bypassed: "Not Bypassed", comments: "N/A" },
-      ]}
-      fields={[
-        { key: "ip", label: "Free IP Address", type: "text", placeholder: "10.0.1.50", validate: validators.requiredIp },
-        { key: "mac", label: "MAC Address", type: "text", placeholder: "AA:BB:CC:DD:EE:FF", validate: validators.required("MAC address") },
-        { key: "deviceType", label: "Device Type", type: "select", options: ["Phone", "Laptop", "Tablet", "IoT", "Printer"], validate: validators.required("device type") },
-        { key: "floor", label: "Floor", type: "select", options: ["Ground Floor", "1st Floor", "2nd Floor", "3rd Floor"], validate: validators.required("floor") },
-        { key: "deviceName", label: "Device Name", type: "text", placeholder: "Reception iPad", validate: validators.required("device name") },
-        { key: "monitor", label: "Monitor", type: "switch", helper: "Monitor Device" },
-      ]}
-      addLabel="Add Static"
-    />
+    <div className="space-y-6">
+      <FeatureHeader title="MAC Authorization" description="Bypass hotspot authentication on a few devices." action={<Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add MAC</Button>} />
+      <Card>
+        <CardHeader><CardTitle className="text-base">Authorized Devices</CardTitle><CardDescription>Devices allowed onto the network without going through the captive portal.</CardDescription></CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader><TableRow><TableHead>MAC Address</TableHead><TableHead>Type</TableHead><TableHead>Expires</TableHead><TableHead>Comment</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+              ) : entries.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">No MAC addresses authorized yet.</TableCell></TableRow>
+              ) : entries.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-mono text-xs">{e.mac}</TableCell>
+                  <TableCell className="text-xs capitalize">{e.type}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : "Never"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{e.comment || "—"}</TableCell>
+                  <TableCell><Switch checked={e.enabled} onCheckedChange={() => toggleEntry(e)} /></TableCell>
+                  <TableCell className="text-right"><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => removeEntry(e)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Add MAC Address</DialogTitle><DialogDescription>Authorize a device to skip the captive portal.</DialogDescription></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>MAC Address</Label><Input placeholder="AA:BB:CC:DD:EE:FF" value={form.mac} onChange={(e) => setForm({ ...form, mac: e.target.value })} className="font-mono" /></div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="permanent">Permanent</SelectItem><SelectItem value="temporary">Temporary</SelectItem></SelectContent></Select>
+            </div>
+            <div className="space-y-2"><Label>Comment (optional)</Label><Input placeholder="e.g. Front desk tablet" value={form.comment} onChange={(e) => setForm({ ...form, comment: e.target.value })} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={addEntry}>Add</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
