@@ -13,6 +13,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 const PILL_CLASS = "hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex";
 
+/** Redacts an email's local part, e.g. "john.doe@email.com" -> "jo••••••@email.com". */
+export function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at <= 1) return email;
+  return `${email.slice(0, 2)}${"•".repeat(Math.max(3, at - 2))}${email.slice(at)}`;
+}
+
 /** Data-masking toggle gated behind an OTP step -- revealing (or re-hiding)
  * guest data requires verifying a 6-digit code first, same as a real
  * sensitive-action confirmation would. */

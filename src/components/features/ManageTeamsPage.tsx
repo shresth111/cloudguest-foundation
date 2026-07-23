@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
@@ -60,6 +61,24 @@ export default function ManageTeamsPage() {
   // Setup Teams form
   const [bu, setBu] = useState(""); const [teamName, setTeamName] = useState(""); const [sharedUsers, setSharedUsers] = useState("");
   const [errs, setErrs] = useState<Record<string, string>>({});
+
+  // Manage Team dialog
+  const [manageTeam, setManageTeam] = useState<Team | null>(null);
+  const [manageDraft, setManageDraft] = useState({ name: "", businessUnit: "", members: "" });
+
+  const openManage = (t: Team) => {
+    setManageTeam(t);
+    setManageDraft({ name: t.name, businessUnit: t.businessUnit, members: String(t.members) });
+  };
+
+  const saveManage = () => {
+    if (!manageTeam) return;
+    if (!manageDraft.name.trim()) { toast.error("Enter a team name."); return; }
+    const members = Math.max(0, parseInt(manageDraft.members) || 0);
+    setTeams((p) => p.map((t) => t.id === manageTeam.id ? { ...t, name: manageDraft.name.trim(), businessUnit: manageDraft.businessUnit, members } : t));
+    toast.success(`${manageDraft.name} updated`);
+    setManageTeam(null);
+  };
 
   const createTeam = () => {
     const e: Record<string, string> = {};
@@ -131,7 +150,7 @@ export default function ManageTeamsPage() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Quota used</span><span>{t.quota}%</span></div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.quota}%` }} /></div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => toast.success(`${t.name} updated`)}>Manage</Button>
+                    <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => openManage(t)}>Manage</Button>
                     <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => { setTeams((p) => p.filter((x) => x.id !== t.id)); toast.success("Team revoked"); }}>Revoke</Button>
                   </div>
                 </CardContent>
@@ -210,6 +229,35 @@ export default function ManageTeamsPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={!!manageTeam} onOpenChange={(open) => !open && setManageTeam(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Team</DialogTitle>
+            <DialogDescription>Update this team's name, business unit, or member count.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Team Name</label>
+              <input value={manageDraft.name} onChange={(e) => setManageDraft((p) => ({ ...p, name: e.target.value }))} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Business Unit</label>
+              <select value={manageDraft.businessUnit} onChange={(e) => setManageDraft((p) => ({ ...p, businessUnit: e.target.value }))} className={inputCls}>
+                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Members</label>
+              <input type="number" min={0} value={manageDraft.members} onChange={(e) => setManageDraft((p) => ({ ...p, members: e.target.value }))} className={inputCls} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManageTeam(null)}>Cancel</Button>
+            <Button onClick={saveManage}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

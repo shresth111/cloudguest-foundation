@@ -660,17 +660,26 @@ export function IspRoutingView() {
   const ISPS = ["Airtel", "Tata Communications", "Jio", "ACT Fibernet", "BSNL"];
   const [mode, setMode] = useState<"vlan" | "ip">("ip");
   const [ip, setIp] = useState(""); const [isp, setIsp] = useState("");
-  const [routes, setRoutes] = useState<{ ip: string; isp: string; enabled: boolean }[]>([]);
+  const [ipRoutes, setIpRoutes] = useState<{ ip: string; isp: string; enabled: boolean }[]>([]);
+  const [vlanRoutes, setVlanRoutes] = useState<{ ip: string; isp: string; enabled: boolean }[]>([]);
   const [err, setErr] = useState("");
 
   const addRoute = () => {
-    if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { setErr("Enter IP Address"); return; }
+    if (mode === "ip") {
+      if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { setErr("Enter a valid IP Address"); return; }
+    } else {
+      if (!ip || !/^\d{1,4}$/.test(ip) || +ip < 1 || +ip > 4094) { setErr("Enter a valid VLAN ID (1-4094)"); return; }
+    }
     if (!isp) { setErr("Select an ISP"); return; }
     setErr("");
+    const setRoutes = mode === "ip" ? setIpRoutes : setVlanRoutes;
     setRoutes((r) => [{ ip, isp, enabled: true }, ...r]);
     setIp(""); setIsp("");
     toast.success("Route added");
   };
+
+  const routes = mode === "ip" ? ipRoutes : vlanRoutes;
+  const setRoutes = mode === "ip" ? setIpRoutes : setVlanRoutes;
 
   return (
     <div className="space-y-6">
@@ -681,7 +690,7 @@ export function IspRoutingView() {
 
       <div className="inline-flex rounded-xl border bg-muted/40 p-1">
         {(["vlan", "ip"] as const).map((m) => (
-          <button key={m} onClick={() => setMode(m)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          <button key={m} onClick={() => { setMode(m); setIp(""); setIsp(""); setErr(""); }} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             {m === "vlan" ? "Route VLAN" : "Route IP Address"}
           </button>
         ))}
@@ -691,8 +700,8 @@ export function IspRoutingView() {
         <CardContent className="p-5">
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <div>
-              <Label className="mb-1.5 block text-sm">{mode === "ip" ? "IP Address" : "VLAN"} *</Label>
-              <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder={mode === "ip" ? "Enter IP Address" : "Choose VLAN"} className="h-9" />
+              <Label className="mb-1.5 block text-sm">{mode === "ip" ? "IP Address" : "VLAN ID"} *</Label>
+              <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder={mode === "ip" ? "Enter IP Address" : "Enter VLAN ID (1-4094)"} className="h-9" />
             </div>
             <div>
               <Label className="mb-1.5 block text-sm">ISPs *</Label>
@@ -705,10 +714,10 @@ export function IspRoutingView() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Current IP Address ISP Routing</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{mode === "ip" ? "Current IP Address ISP Routing" : "Current VLAN ISP Routing"}</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><TableHead>IP Address</TableHead><TableHead>ISP Name</TableHead><TableHead>Action</TableHead><TableHead>Enable/Disable Routing</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>{mode === "ip" ? "IP Address" : "VLAN ID"}</TableHead><TableHead>ISP Name</TableHead><TableHead>Action</TableHead><TableHead>Enable/Disable Routing</TableHead></TableRow></TableHeader>
             <TableBody>
               {routes.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">No data available in table</TableCell></TableRow>

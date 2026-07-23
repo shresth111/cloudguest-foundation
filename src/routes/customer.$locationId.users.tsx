@@ -18,7 +18,7 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, maskEmail } from "@/components/features/HeaderControls";
 
 export const Route = createFileRoute("/customer/$locationId/users")({
 
@@ -131,7 +131,7 @@ function CustomerUsersPage() {
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           <Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-[11px] font-semibold text-primary">{u.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
-                          <div className="min-w-0"><p className="truncate text-sm font-medium">{u.name}</p><p className="truncate text-xs text-muted-foreground">{u.email}</p></div>
+                          <div className="min-w-0"><p className="truncate text-sm font-medium">{u.name}</p><p className="truncate text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></div>
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs hidden sm:table-cell">{u.mac}</TableCell>
@@ -173,7 +173,7 @@ function CustomerUsersPage() {
               <div className="flex items-center justify-between border-b p-5">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-11 w-11"><AvatarFallback className="bg-primary/10 font-semibold text-primary">{detailUser.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
-                  <div><p className="font-semibold">{detailUser.name}</p><p className="text-xs text-muted-foreground">{detailUser.email}</p></div>
+                  <div><p className="font-semibold">{detailUser.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(detailUser.email) : detailUser.email}</p></div>
                 </div>
                 <button onClick={() => setDetailUser(null)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
               </div>

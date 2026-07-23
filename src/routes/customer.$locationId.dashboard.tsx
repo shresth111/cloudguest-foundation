@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, maskEmail } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -186,7 +186,7 @@ function CustomerDashboardPage() {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
                   <CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Time</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead></TableRow></TableHeader>
-                  <TableBody>{(d.recentUsers.length === 0 ? [{ id: "0", name: "No users", email: "", device: "", time: "", status: "offline" }] : d.recentUsers).map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></CardContent>
+                  <TableBody>{(d.recentUsers.length === 0 ? [{ id: "0", name: "No users", email: "", device: "", time: "", status: "offline" }] : d.recentUsers).map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></CardContent>
                 </Card>
                 <Card className="border-0 shadow-sm">
                   <CardHeader><CardTitle className="text-sm">Recent Alerts</CardTitle></CardHeader>
