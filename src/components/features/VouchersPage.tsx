@@ -10,17 +10,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-interface Voucher { code: string; plan: string; status: string; used: number; }
+interface Voucher { code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; }
+const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 
 export function VouchersPage() {
   const [items, setItems] = useState<Voucher[]>([
-    { code: "VCH-8821", plan: "1h", status: "active", used: 3 },
-    { code: "VCH-8822", plan: "24h", status: "active", used: 12 },
-    { code: "VCH-8823", plan: "1h", status: "active", used: 1 },
-    { code: "VCH-8824", plan: "3d", status: "unused", used: 0 },
+    { code: "VCH-8821", plan: "1h", status: "active", used: 3, businessUnit: "Marina Bay Hotel", redeemedAt: "Marina Bay Hotel" },
+    { code: "VCH-8822", plan: "24h", status: "active", used: 12, businessUnit: "Downtown CoWork", redeemedAt: "Downtown CoWork" },
+    { code: "VCH-8823", plan: "1h", status: "active", used: 1, businessUnit: "Eastside Cafe", redeemedAt: "Eastside Cafe" },
+    { code: "VCH-8824", plan: "3d", status: "unused", used: 0, businessUnit: "Airport Lounge T3", redeemedAt: null },
   ]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", quantity: 10, validMin: 60, prefix: "VCH", dataLimit: 0, maxUses: 1, codeLen: 8 });
+  const [form, setForm] = useState({ name: "", businessUnit: UNITS[0], quantity: 10, validMin: 60, prefix: "VCH", dataLimit: 0, maxUses: 1, codeLen: 8 });
   const [planOpts] = useState([{v:"1h",l:"1 Hour"},{v:"24h",l:"24 Hours"},{v:"3d",l:"3 Days"},{v:"7d",l:"7 Days"}]);
 
   const handleGenerate = () => {
@@ -29,11 +30,11 @@ export function VouchersPage() {
     for (let i = 0; i < count; i++) {
       const num = String(items.length + i + 1).padStart(4, "0");
       const plan = form.validMin >= 10080 ? "7d" : form.validMin >= 4320 ? "3d" : form.validMin >= 1440 ? "24h" : "1h";
-      newItems.push({ code: `${form.prefix}-${num}`, plan, status: "active", used: 0 });
+      newItems.push({ code: `${form.prefix}-${num}`, plan, status: "active", used: 0, businessUnit: form.businessUnit, redeemedAt: null });
     }
     setItems([...newItems, ...items]);
     setOpen(false);
-    toast.success(`${count} vouchers generated`);
+    toast.success(`${count} vouchers generated for ${form.businessUnit}`);
   };
 
   const formatPlan = (p: string) => planOpts.find(o => o.v === p)?.l || p;
@@ -50,6 +51,7 @@ export function VouchersPage() {
               <DialogHeader><DialogTitle>Generate Voucher Batch</DialogTitle></DialogHeader>
               <div className="grid grid-cols-2 gap-3 py-2">
                 <div className="col-span-2"><Label>Batch Name</Label><Input placeholder="e.g. Summer Promo 2026" value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
+                <div className="col-span-2"><Label>Business Unit</Label><Select value={form.businessUnit} onValueChange={v => setForm({...form,businessUnit:v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label>Quantity</Label><Input type="number" min={1} max={100} value={form.quantity} onChange={e => setForm({...form,quantity:parseInt(e.target.value)||1})} /></div>
                 <div><Label>Validity (min)</Label><Input type="number" min={1} value={form.validMin} onChange={e => setForm({...form,validMin:parseInt(e.target.value)||60})} /></div>
                 <div><Label>Code Prefix</Label><Input value={form.prefix} onChange={e => setForm({...form,prefix:e.target.value})} /></div>
@@ -64,13 +66,15 @@ export function VouchersPage() {
       </div>
 
       <Card className="border-0 shadow-sm"><CardContent className="p-0">
-        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">Code</TableHead><TableHead className="text-xs font-medium">Plan</TableHead><TableHead className="text-xs font-medium">Status</TableHead><TableHead className="text-xs font-medium">Used</TableHead><TableHead className="text-right text-xs font-medium">Actions</TableHead></TableRow></TableHeader>
+        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">Code</TableHead><TableHead className="text-xs font-medium">Business Unit</TableHead><TableHead className="text-xs font-medium">Plan</TableHead><TableHead className="text-xs font-medium">Status</TableHead><TableHead className="text-xs font-medium">Used</TableHead><TableHead className="text-xs font-medium">Redeemed At</TableHead><TableHead className="text-right text-xs font-medium">Actions</TableHead></TableRow></TableHeader>
         <TableBody>{items.map(v => (
           <TableRow key={v.code} className="border-b">
             <TableCell className="font-mono text-xs">{v.code}</TableCell>
+            <TableCell className="text-xs text-muted-foreground">{v.businessUnit}</TableCell>
             <TableCell><Select defaultValue={v.plan} onValueChange={val => toast.success(`Plan: ${formatPlan(val)}`)}><SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger><SelectContent>{planOpts.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent></Select></TableCell>
             <TableCell><Badge variant={v.status === "active" ? "default" : "secondary"} className="capitalize">{v.status}</Badge></TableCell>
             <TableCell className="text-sm">{v.used}</TableCell>
+            <TableCell className="text-xs text-muted-foreground">{v.redeemedAt ?? "—"}</TableCell>
             <TableCell className="text-right">
               <Button variant="ghost" size="icon" className="h-7 w-7"><Eye className="h-3.5 w-3.5" /></Button>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setItems(items.filter(x => x.code !== v.code)); toast.success("Revoked"); }}><Trash2 className="h-3.5 w-3.5" /></Button>

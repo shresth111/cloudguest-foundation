@@ -28,6 +28,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
+import NetworkCrudTable, { validators } from "@/components/features/NetworkCrudTable";
 import { cn } from "@/lib/utils";
 
 /* ---------- shared building blocks ---------- */
@@ -320,142 +321,151 @@ export function AdminLogsView() {
 
 /* ---------- MAC Authorization ---------- */
 export function MacAuthView() {
-  const macs = [
-    { mac: "00:1A:2B:3C:4D:5E", device: "Reception iPad", status: "active", note: "Front desk" },
-    { mac: "AA:BB:CC:DD:EE:FF", device: "Manager MacBook", status: "active", note: "Auto-connect" },
-    { mac: "11:22:33:44:55:66", device: "POS terminal", status: "blocked", note: "Retired" },
-  ];
   return (
-    <div className="space-y-6">
-      <FeatureHeader title="MAC Authorization" description="Allowlist or block devices by hardware address for automatic access." action={<Button size="sm"><Plus className="h-4 w-4" /> Add MAC</Button>} />
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-2">
-            <Input placeholder="AA:BB:CC:DD:EE:FF" className="h-9 max-w-xs font-mono" />
-            <Input placeholder="Device label" className="h-9 max-w-xs" />
-            <Button size="sm" onClick={() => toast.success("Device authorized")}>Authorize</Button>
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>MAC</TableHead><TableHead>Device</TableHead><TableHead>Note</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-            <TableBody>
-              {macs.map((m) => (
-                <TableRow key={m.mac}>
-                  <TableCell className="font-mono text-xs">{m.mac}</TableCell>
-                  <TableCell className="font-medium">{m.device}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{m.note}</TableCell>
-                  <TableCell><StatusPill status={m.status} /></TableCell>
-                  <TableCell className="text-right"><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Trash2 className="h-4 w-4" /></Button></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+    <NetworkCrudTable
+      title="MAC Authorization"
+      description="Bypass hotspot authentication on a few devices."
+      tableTitle="Connected Devices"
+      tableSubtitle="This lists out all the active devices connected to the Network."
+      columns={[
+        { key: "mobile", label: "Mobile No." },
+        { key: "hostname", label: "Hostname" },
+        { key: "mac", label: "MAC" },
+        { key: "ip", label: "IP" },
+        { key: "status", label: "Status" },
+        { key: "bypassed", label: "Bypassed" },
+        { key: "comments", label: "Comments" },
+      ]}
+      seed={[
+        { mobile: "XXXXXXX98647", hostname: "TF-260223175821", mac: "7C:70:DB:B5:76:92", ip: "172.16.18.22", status: "Not Static", bypassed: "Not Bypassed", comments: "N/A" },
+        { mobile: "XXXXXXX89195", hostname: "M2012K11AI", mac: "9E:CB:12:2C:02:52", ip: "172.16.19.252", status: "Not Static", bypassed: "Not Bypassed", comments: "N/A" },
+        { mobile: "XXXXXXX86534", hostname: "CMF-by-Nothing-Phone-1", mac: "C2:7C:20:00:F2:24", ip: "172.16.19.221", status: "Not Static", bypassed: "Not Bypassed", comments: "N/A" },
+      ]}
+      fields={[
+        { key: "ip", label: "Free IP Address", type: "text", placeholder: "10.0.1.50", validate: validators.requiredIp },
+        { key: "mac", label: "MAC Address", type: "text", placeholder: "AA:BB:CC:DD:EE:FF", validate: validators.required("MAC address") },
+        { key: "deviceType", label: "Device Type", type: "select", options: ["Phone", "Laptop", "Tablet", "IoT", "Printer"], validate: validators.required("device type") },
+        { key: "floor", label: "Floor", type: "select", options: ["Ground Floor", "1st Floor", "2nd Floor", "3rd Floor"], validate: validators.required("floor") },
+        { key: "deviceName", label: "Device Name", type: "text", placeholder: "Reception iPad", validate: validators.required("device name") },
+        { key: "monitor", label: "Monitor", type: "switch", helper: "Monitor Device" },
+      ]}
+      addLabel="Add Static"
+    />
   );
 }
 
 /* ---------- Port Forwarding ---------- */
 export function PortForwardingView() {
-  const rules = [
-    { name: "CCTV NVR", ext: "8080", int: "10.0.1.50:80", proto: "TCP", status: "enabled" },
-    { name: "POS server", ext: "5432", int: "10.0.1.20:5432", proto: "TCP", status: "enabled" },
-    { name: "Remote desktop", ext: "3389", int: "10.0.2.11:3389", proto: "TCP", status: "disabled" },
-  ];
   return (
-    <div className="space-y-6">
-      <FeatureHeader title="Port Forwarding" description="Expose internal services on the WAN through mapped ports." action={<Button size="sm"><Plus className="h-4 w-4" /> New rule</Button>} />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>External</TableHead><TableHead>Internal</TableHead><TableHead>Protocol</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {rules.map((r) => (
-                <TableRow key={r.name}>
-                  <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell className="font-mono text-xs">:{r.ext}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.int}</TableCell>
-                  <TableCell><Badge variant="outline">{r.proto}</Badge></TableCell>
-                  <TableCell><StatusPill status={r.status} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+    <NetworkCrudTable
+      title="Port Forwarding"
+      description="Port forwarding (sometimes called PAT — Port Address Translation)."
+      tableTitle="Port Forwarded Devices"
+      tableSubtitle="This lists out all the active Port Forwarded devices on the Network."
+      columns={[
+        { key: "dstAddress", label: "Dst. Address" },
+        { key: "toAddress", label: "To Address" },
+        { key: "dstPort", label: "Dst. Port" },
+        { key: "toPort", label: "To Port" },
+        { key: "comment", label: "Comment" },
+        { key: "protocol", label: "Protocol" },
+        { key: "status", label: "Status" },
+      ]}
+      seed={[]}
+      fields={[
+        { key: "dstAddress", label: "Dst. Address", type: "text", placeholder: "10.0.1.1", validate: validators.requiredIp },
+        { key: "dstPort", label: "Dst. Port", type: "text", placeholder: "8080", validate: validators.requiredPort },
+        { key: "protocol", label: "Protocol Type", type: "select", options: ["TCP", "UDP", "TCP/UDP"], validate: validators.required("protocol") },
+        { key: "comment", label: "Comment", type: "text", placeholder: "CCTV NVR", validate: validators.required("comment") },
+        { key: "toAddress", label: "To Address", type: "text", placeholder: "10.0.1.50", validate: validators.requiredIp },
+        { key: "toPort", label: "To Port", type: "text", placeholder: "80", validate: validators.requiredPort },
+        { key: "bypass", label: "Bypass", type: "switch", helper: "Bypass Device" },
+      ]}
+      addLabel="Add Port Forwarding"
+    />
   );
 }
 
 /* ---------- DHCP Pool ---------- */
 export function DhcpView() {
-  const pools = [
-    { name: "Guest", range: "10.0.10.2 – 10.0.10.254", lease: "2h", used: "142/253" },
-    { name: "Staff", range: "10.0.20.2 – 10.0.20.254", lease: "12h", used: "38/253" },
-    { name: "IoT", range: "10.0.30.2 – 10.0.30.254", lease: "24h", used: "17/253" },
-  ];
   return (
-    <div className="space-y-6">
-      <FeatureHeader title="DHCP Pools" description="Address pools handed out to devices per VLAN, with lease times." action={<Button size="sm"><Plus className="h-4 w-4" /> Add pool</Button>} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {pools.map((p) => (
-          <Card key={p.name}>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold">{p.name}</p>
-                <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" /> {p.lease}</Badge>
-              </div>
-              <p className="mt-2 font-mono text-xs text-muted-foreground">{p.range}</p>
-              <p className="mt-3 text-sm"><span className="font-semibold text-primary">{p.used}</span> leases used</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+    <NetworkCrudTable
+      title="DHCP Pool"
+      description="Address pools handed out to devices per VLAN, with lease times."
+      caution="These are advanced settings — please be sure you know what you're doing here and its impact on the network connectivity of your users."
+      tableTitle="Current DHCP Pools"
+      columns={[
+        { key: "cidr", label: "CIDR" },
+        { key: "dhcp", label: "DHCP" },
+        { key: "range", label: "Range" },
+        { key: "interface", label: "Interface" },
+      ]}
+      seed={[
+        { cidr: "172.16.40.1/24", dhcp: "dhcp_pool2", range: "172.16.40.2-172.16.40.254", interface: "IOT_Devices" },
+        { cidr: "172.16.30.1/24", dhcp: "Hosteller_Staff", range: "172.16.30.2-172.16.30.254", interface: "Hosteller_Staff" },
+        { cidr: "172.16.20.1/21", dhcp: "default-dhcp", range: "172.16.16.2-172.16.23.249", interface: "ZIPWiFi-LAN" },
+      ]}
+      fields={[
+        { key: "dhcp", label: "Pool Name", type: "text", placeholder: "dhcp_pool2", validate: validators.required("pool name") },
+        { key: "interface", label: "Interface Name", type: "text", placeholder: "IOT_Devices", validate: validators.required("interface name") },
+        { key: "network", label: "Network", type: "text", placeholder: "172.16.40.1", validate: validators.requiredIp },
+        { key: "subnet", label: "Subnet Mask", type: "select", options: ["/21", "/22", "/23", "/24", "/25"], validate: validators.required("subnet mask") },
+      ]}
+      addLabel="Add DHCP Pool"
+    />
   );
 }
 
 /* ---------- VLANs ---------- */
 export function VlansView() {
-  const vlans = [
-    { id: "10", name: "Guest", subnet: "10.0.10.0/24", status: "active" },
-    { id: "20", name: "Staff", subnet: "10.0.20.0/24", status: "active" },
-    { id: "30", name: "IoT", subnet: "10.0.30.0/24", status: "active" },
-    { id: "99", name: "Management", subnet: "10.0.99.0/24", status: "active" },
-  ];
   return (
-    <div className="space-y-6">
-      <FeatureHeader title="VLANs" description="Segment the network to isolate guest, staff and IoT traffic." action={<Button size="sm"><Plus className="h-4 w-4" /> Add VLAN</Button>} />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>VLAN ID</TableHead><TableHead>Name</TableHead><TableHead>Subnet</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {vlans.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono text-sm">{v.id}</TableCell>
-                  <TableCell className="font-medium">{v.name}</TableCell>
-                  <TableCell className="font-mono text-xs">{v.subnet}</TableCell>
-                  <TableCell><StatusPill status={v.status} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+    <NetworkCrudTable
+      title="Manage VLANs"
+      description="Segment the network to isolate guest, staff and IoT traffic."
+      caution="These are advanced settings — please be sure you know what you're doing here and its impact on the network connectivity of your users."
+      tableTitle="Current VLANs"
+      tableSubtitle="This lists out all the VLANs setup on the Network."
+      columns={[
+        { key: "addressSubnet", label: "Address/Subnet" },
+        { key: "gateway", label: "Gateway" },
+        { key: "vlanName", label: "Vlan-Name" },
+        { key: "vlanId", label: "VlanId" },
+      ]}
+      seed={[
+        { addressSubnet: "172.16.40.1/24", gateway: "172.16.40.0", vlanName: "IOT_Devices", vlanId: "30" },
+        { addressSubnet: "172.16.30.1/24", gateway: "172.16.30.0", vlanName: "Hosteller_Staff", vlanId: "20" },
+      ]}
+      fields={[
+        { key: "gateway", label: "Gateway", type: "text", placeholder: "172.16.40.0", validate: validators.requiredIp },
+        { key: "subnet", label: "Subnet Mask", type: "select", options: ["/21", "/22", "/23", "/24", "/25"], validate: validators.required("subnet mask") },
+        { key: "vlanId", label: "VLAN ID", type: "text", placeholder: "30", validate: validators.required("VLAN ID") },
+        { key: "hotspot", label: "Hotspot", type: "select", options: ["Guest WiFi", "Staff WiFi", "IoT Network"], validate: validators.required("hotspot") },
+        { key: "vlanName", label: "VLAN Name", type: "text", placeholder: "IOT_Devices", validate: validators.required("VLAN name") },
+        { key: "portType", label: "Port Type", type: "select", options: ["Access", "Trunk"], validate: validators.required("port type") },
+      ]}
+      addLabel="Add VLAN"
+    />
   );
 }
 
 /* ---------- VOIP Priority ---------- */
 export function VoipView() {
+  const [enabled, setEnabled] = useState(true);
   return (
     <div className="space-y-6">
-      <FeatureHeader title="VOIP Priority" description="Prioritize voice traffic (QoS/DSCP) so calls stay clear under load." action={<Button size="sm" onClick={() => toast.success("QoS applied")}>Apply</Button>} />
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">VOIP Priority</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Caution: these are advanced settings — please be sure you know what you're doing here and its impact on the network connectivity of your users.</p>
+      </div>
+      <Card>
+        <CardHeader><CardTitle className="text-base">VOIP Priority</CardTitle><CardDescription>Traffic shaping rules for voice. Enabling this will apply QoS for voice and will prioritize the voice data packets.</CardDescription></CardHeader>
+        <CardContent>
+          <label className="flex items-center gap-3">
+            <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); toast.success(v ? "VOIP Priority enabled" : "VOIP Priority disabled"); }} />
+            <span className="text-sm font-medium">Enable / Disable VOIP Priority</span>
+          </label>
+        </CardContent>
+      </Card>
       <KpiRow items={[
         { label: "Active calls", value: "12", tone: "primary", icon: Signal },
         { label: "Jitter", value: "8 ms", tone: "success", icon: Activity },
@@ -483,27 +493,67 @@ export function VoipView() {
 
 /* ---------- ISP Routing ---------- */
 export function IspRoutingView() {
-  const routes = [
-    { dest: "streaming.*", isp: "Airtel", note: "Offload video" },
-    { dest: "*.gov.in", isp: "Tata Communications", note: "Primary" },
-    { dest: "voip.provider.com", isp: "Tata Communications", note: "Low latency" },
-  ];
+  const ISPS = ["Airtel", "Tata Communications", "Jio", "ACT Fibernet", "BSNL"];
+  const [mode, setMode] = useState<"vlan" | "ip">("ip");
+  const [ip, setIp] = useState(""); const [isp, setIsp] = useState("");
+  const [routes, setRoutes] = useState<{ ip: string; isp: string; enabled: boolean }[]>([]);
+  const [err, setErr] = useState("");
+
+  const addRoute = () => {
+    if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { setErr("Enter IP Address"); return; }
+    if (!isp) { setErr("Select an ISP"); return; }
+    setErr("");
+    setRoutes((r) => [{ ip, isp, enabled: true }, ...r]);
+    setIp(""); setIsp("");
+    toast.success("Route added");
+  };
+
   return (
     <div className="space-y-6">
-      <FeatureHeader title="ISP Routing" description="Policy-based routing: send specific traffic over a chosen uplink." action={<Button size="sm"><Plus className="h-4 w-4" /> Add route</Button>} />
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">ISP Routing</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Route individual VLAN or user's traffic to a different ISP.</p>
+      </div>
+
+      <div className="inline-flex rounded-xl border bg-muted/40 p-1">
+        {(["vlan", "ip"] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            {m === "vlan" ? "Route VLAN" : "Route IP Address"}
+          </button>
+        ))}
+      </div>
+
       <Card>
+        <CardContent className="p-5">
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <Label className="mb-1.5 block text-sm">{mode === "ip" ? "IP Address" : "VLAN"} *</Label>
+              <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder={mode === "ip" ? "Enter IP Address" : "Choose VLAN"} className="h-9" />
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-sm">ISPs *</Label>
+              <Select value={isp} onValueChange={setIsp}><SelectTrigger className="h-9"><SelectValue placeholder="Choose ISP" /></SelectTrigger><SelectContent>{ISPS.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
+            </div>
+            <Button className="h-9 self-end" onClick={addRoute}><Plus className="h-4 w-4" /> Add Route</Button>
+          </div>
+          {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Current IP Address ISP Routing</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><TableHead>Destination</TableHead><TableHead>Via ISP</TableHead><TableHead>Note</TableHead><TableHead /></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>IP Address</TableHead><TableHead>ISP Name</TableHead><TableHead>Action</TableHead><TableHead>Enable/Disable Routing</TableHead></TableRow></TableHeader>
             <TableBody>
-              {routes.map((r) => (
-                <TableRow key={r.dest}>
-                  <TableCell className="font-mono text-xs">{r.dest}</TableCell>
-                  <TableCell className="font-medium">
-                    <span className="inline-flex items-center gap-1.5"><ArrowRightLeft className="h-3.5 w-3.5 text-primary" />{r.isp}</span>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{r.note}</TableCell>
-                  <TableCell className="text-right"><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Trash2 className="h-4 w-4" /></Button></TableCell>
+              {routes.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">No data available in table</TableCell></TableRow>
+              ) : routes.map((r, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-mono text-xs">{r.ip}</TableCell>
+                  <TableCell className="font-medium"><span className="inline-flex items-center gap-1.5"><ArrowRightLeft className="h-3.5 w-3.5 text-primary" />{r.isp}</span></TableCell>
+                  <TableCell><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setRoutes((rt) => rt.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                  <TableCell><Switch checked={r.enabled} onCheckedChange={(v) => setRoutes((rt) => rt.map((x, j) => j === i ? { ...x, enabled: v } : x))} /></TableCell>
                 </TableRow>
               ))}
             </TableBody>

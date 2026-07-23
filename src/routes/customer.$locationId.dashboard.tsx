@@ -4,11 +4,12 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, LogOut, Bell, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
   CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
-  Eye, EyeOff, KeyRound, MapPinned,
+  Eye, EyeOff, KeyRound, MapPinned, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
+import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ function CustomerDashboardPage() {
   const [notif, setNotif] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
+  const [tfaOpen, setTfaOpen] = useState(false);
 
   if (activeLocationId !== locationId) return <div className="flex min-h-screen items-center justify-center"><Button variant="outline" onClick={() => navigate({ to: "/customer" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></div>;
 
@@ -114,6 +116,7 @@ function CustomerDashboardPage() {
                   <div className="border-t my-1" />
                   <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
                   <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+                  <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
                   <div className="border-t my-1" />
                   <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
                 </div>
@@ -205,6 +208,7 @@ function CustomerDashboardPage() {
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
+      <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
     </div>
   );
 }

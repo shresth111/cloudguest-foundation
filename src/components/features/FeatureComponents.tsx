@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Network, CalendarClock, RotateCcw } from "lucide-react";
 
 interface Policy { id: string; name: string; type: string; status: string; enabled: boolean; }
 interface WhitelistEntry { id: string; mac: string; name: string; type: string; status: string; }
@@ -68,13 +68,30 @@ export function NetworkingPage() {
     {id:"3",name:"DNS",status:"active",detail:"8 records, 2 zones"}, {id:"4",name:"Firewall",status:"active",detail:"12 rules enabled"},
     {id:"5",name:"Hotspot",status:"active",detail:"Enabled on 2 SSIDs"}, {id:"6",name:"ISP",status:"warning",detail:"Primary + Backup configured"},
   ];
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{items.map(item => (
-    <Card key={item.id} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5">
-      <div className="flex items-center justify-between mb-2"><p className="font-semibold text-sm">{item.name}</p><Badge variant={item.status==="active"?"default":"secondary"} className="capitalize text-[10px]">{item.status}</Badge></div>
-      <p className="text-xs text-muted-foreground">{item.detail}</p>
-      <Button size="sm" variant="outline" className="h-7 text-xs mt-3" onClick={()=>toast.success(`${item.name} settings opened`)}>Configure</Button>
-    </CardContent></Card>
-  ))}</div>);
+  const [rebooting, setRebooting] = useState(false);
+  const reboot = () => {
+    setRebooting(true);
+    toast.promise(new Promise((res) => setTimeout(res, 2000)), { loading: "Rebooting network…", success: "Network rebooted", error: "Reboot failed" });
+    setTimeout(() => setRebooting(false), 2000);
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-5">
+          <span className="flex items-center gap-2 text-sm"><Network className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Total Networks:</span> <span className="font-semibold">2</span></span>
+          <span className="flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Plan Expiry:</span> <span className="font-semibold">11-Nov-2026</span></span>
+        </div>
+        <Button size="sm" variant="outline" disabled={rebooting} onClick={reboot}><RotateCcw className={`h-4 w-4 ${rebooting ? "animate-spin" : ""}`} />Reboot</Button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{items.map(item => (
+        <Card key={item.id} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5">
+          <div className="flex items-center justify-between mb-2"><p className="font-semibold text-sm">{item.name}</p><Badge variant={item.status==="active"?"default":"secondary"} className="capitalize text-[10px]">{item.status}</Badge></div>
+          <p className="text-xs text-muted-foreground">{item.detail}</p>
+          <Button size="sm" variant="outline" className="h-7 text-xs mt-3" onClick={()=>toast.success(`${item.name} settings opened`)}>Configure</Button>
+        </CardContent></Card>
+      ))}</div>
+    </div>
+  );
 }
 
 export function AdvancedPage() {

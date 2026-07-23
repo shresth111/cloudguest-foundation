@@ -5,7 +5,7 @@
  */
 import type { ComponentType } from "react";
 import {
-  LayoutDashboard, Users, BarChart3, FileText, Bell, Megaphone, Palette, Ticket,
+  LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Fingerprint, Clock, Monitor, UsersRound, Bot, Network, Wifi,
   Server, Share2, Signal, ArrowRightLeft, Globe, Settings2, Gauge, Terminal,
   ScrollText, LifeBuoy,
@@ -26,7 +26,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, core: true },
       { id: "users", label: "Users", icon: Users },
-      { id: "analytics", label: "Analytics", icon: BarChart3 },
       { id: "reports", label: "Reports", icon: FileText },
       { id: "alerts", label: "Alerts", icon: Bell },
     ],
@@ -79,19 +78,11 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     ],
   },
   {
-    group: "RaaS",
+    group: "Support & Logs",
     items: [
-      { id: "raas-dashboard", label: "RaaS Dashboard", icon: Server },
-      { id: "raas-users", label: "RaaS Users", icon: UsersRound },
-      { id: "raas-reports", label: "RaaS Reports", icon: FileText },
-    ],
-  },
-  {
-    group: "Logs & Support",
-    items: [
+      { id: "tickets", label: "Support Tickets", icon: LifeBuoy, core: true },
       { id: "audit", label: "Audit Log", icon: ScrollText },
       { id: "admin-logs", label: "Admin Logs", icon: ScrollText },
-      { id: "help", label: "Help", icon: LifeBuoy, core: true },
     ],
   },
 ];

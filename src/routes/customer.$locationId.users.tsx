@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
-  LogOut, Bell, Search, Menu, XCircle, Eye, EyeOff, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned,
+  LogOut, Bell, Search, Menu, XCircle, Eye, EyeOff, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
@@ -16,6 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
+import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 
 export const Route = createFileRoute("/customer/$locationId/users")({
 
@@ -37,6 +38,7 @@ function CustomerUsersPage() {
   const [notif, setNotif] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
+  const [tfaOpen, setTfaOpen] = useState(false);
   const PAGE_SIZE = 8;
 
   const { data, isLoading, refetch } = useCustomerUsers(locationId, { search: search || undefined, status: statusTab !== "all" ? statusTab : undefined, page: page + 1, pageSize: PAGE_SIZE });
@@ -80,6 +82,7 @@ function CustomerUsersPage() {
                 <div className="border-t my-1" />
                 <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
                 <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+                <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
                 <div className="border-t my-1" />
                 <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
               </div>)}
@@ -110,6 +113,7 @@ function CustomerUsersPage() {
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
+      <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
     </div>
   );
 }

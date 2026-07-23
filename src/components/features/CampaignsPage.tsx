@@ -1,20 +1,20 @@
 import { useState } from "react";
-import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles } from "lucide-react";
+import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 
-interface Campaign { id: string; name: string; type: string; status: string; impressions: number; conversions: number; }
+interface Campaign { id: string; name: string; type: string; status: string; businessUnit: string; startDate: string; endDate: string; impressions: number; conversions: number; }
 const TYPES = ["SURVEY", "BANNER", "REDIRECT"];
 const STATUSES = ["draft", "scheduled", "active", "paused", "ended"];
+const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 
 const SURVEY_QUESTIONS = [
   { q: "Rate our food quality?", options: ["Excellent", "Good", "Average", "Could be better"] },
@@ -22,24 +22,35 @@ const SURVEY_QUESTIONS = [
   { q: "How do you rate our cleanliness?", options: ["Excellent", "Good", "Average", "Could be better"] },
 ];
 
+const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", endDate: "" };
+const emptyFilters = { businessUnit: "", type: "", startDate: "" };
+
 export function CampaignsPage() {
   const [items, setItems] = useState<Campaign[]>([
-    { id: "1", name: "Summer Promo", type: "BANNER", status: "active", impressions: 2841, conversions: 423 },
-    { id: "2", name: "Guest Feedback", type: "SURVEY", status: "draft", impressions: 0, conversions: 0 },
-    { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", impressions: 1520, conversions: 198 },
+    { id: "1", name: "Summer Promo", type: "BANNER", status: "active", businessUnit: "Marina Bay Hotel", startDate: "2026-06-01", endDate: "2026-08-31", impressions: 2841, conversions: 423 },
+    { id: "2", name: "Guest Feedback", type: "SURVEY", status: "draft", businessUnit: "Downtown CoWork", startDate: "2026-07-01", endDate: "2026-09-30", impressions: 0, conversions: 0 },
+    { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", businessUnit: "Eastside Cafe", startDate: "2026-05-15", endDate: "2026-07-15", impressions: 1520, conversions: 198 },
   ]);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", type: "SURVEY", description: "" });
-  const [search, setSearch] = useState("");
+  const [form, setForm] = useState(emptyForm);
+  const [errs, setErrs] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState(emptyFilters);
   const [showSearch, setShowSearch] = useState(false);
   const [redirectUrl, setRedirectUrl] = useState("https://zipwifi.io/welcome");
 
-  const openCreate = (type: string) => { setForm((f) => ({ ...f, type })); setShowCreate(true); };
+  const openCreate = (type: string) => { setForm({ ...emptyForm, type }); setErrs({}); setShowCreate(true); };
 
   const handleCreate = () => {
-    if (!form.name) return;
-    setItems([...items, { id: String(Date.now()), name: form.name, type: form.type, status: "draft", impressions: 0, conversions: 0 }]);
-    setForm({ name: "", type: "SURVEY", description: "" });
+    const e: Record<string, string> = {};
+    if (!form.name) e.name = "Campaign name is required.";
+    if (!form.startDate) e.startDate = "Required.";
+    if (!form.endDate) e.endDate = "Required.";
+    if (form.startDate && form.endDate && form.endDate < form.startDate) e.endDate = "End date must be after start date.";
+    if (!form.businessUnit) e.businessUnit = "Select a business unit.";
+    setErrs(e); if (Object.keys(e).length) return;
+
+    setItems([{ id: String(Date.now()), name: form.name, type: form.type, status: "draft", businessUnit: form.businessUnit, startDate: form.startDate, endDate: form.endDate, impressions: 0, conversions: 0 }, ...items]);
+    setForm(emptyForm);
     setShowCreate(false);
     toast.success("Campaign created");
   };
@@ -49,20 +60,36 @@ export function CampaignsPage() {
     toast.success(`Campaign ${status}`);
   };
 
-  const filtered = items.filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = items.filter((c) =>
+    (!filters.businessUnit || c.businessUnit === filters.businessUnit) &&
+    (!filters.type || c.type === filters.type) &&
+    (!filters.startDate || c.startDate >= filters.startDate)
+  );
+  const filtersActive = filters.businessUnit || filters.type || filters.startDate;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-lg font-semibold">Campaign</h2><p className="text-sm text-muted-foreground">Reach, survey, and re-engage guests over your WiFi.</p></div>
-        <div className="flex items-center gap-2">
-          {showSearch ? (
-            <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input autoFocus placeholder="Search campaign…" value={search} onChange={(e) => setSearch(e.target.value)} onBlur={() => !search && setShowSearch(false)} className="h-9 w-48 pl-8" /></div>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setShowSearch(true)}><Search className="mr-2 h-4 w-4" />Search Campaign</Button>
-          )}
+        <div className="relative flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowSearch((v) => !v)}><Search className="mr-2 h-4 w-4" />Search Campaign{filtersActive && <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}</Button>
           <Button onClick={() => openCreate("SURVEY")}><Plus className="mr-2 h-4 w-4" />Create Campaign</Button>
+
+          {showSearch && (
+            <div className="absolute right-0 top-full z-30 mt-2 w-80 rounded-2xl border bg-card p-5 shadow-xl">
+              <div className="mb-3 flex items-center justify-between">
+                <div><p className="text-sm font-semibold">Search Campaign</p><p className="text-xs text-muted-foreground">Search, edit, activate or deactivate any campaign for any Business Unit.</p></div>
+                <button onClick={() => setShowSearch(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="space-y-3">
+                <div><Label className="text-xs">Business Unit</Label><Select value={filters.businessUnit || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All business units" /></SelectTrigger><SelectContent><SelectItem value="__all">All business units</SelectItem>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label className="text-xs">Campaign Type</Label><Select value={filters.type || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, type: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All types" /></SelectTrigger><SelectContent><SelectItem value="__all">All types</SelectItem>{TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label className="text-xs">Campaign Start Date</Label><Input type="date" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} className="h-9" /></div>
+              </div>
+              <div className="mt-4 flex justify-end gap-2"><Button size="sm" variant="ghost" onClick={() => setFilters(emptyFilters)}>Clear</Button><Button size="sm" onClick={() => setShowSearch(false)}>Apply</Button></div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -140,15 +167,36 @@ export function CampaignsPage() {
       </Card>
 
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowCreate(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold mb-4">New Campaign</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setShowCreate(false)}>
+          <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold">Create Campaign</h3>
+            <p className="mb-4 text-xs text-muted-foreground">This helps you to create different types of campaigns.</p>
             <div className="space-y-3">
-              <div><Label>Name</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Summer Sale" /></div>
-              <div><Label>Type</Label><Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+              <div>
+                <Label>Campaign Name <span className="text-destructive">*</span></Label>
+                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Campaign Name" />
+                {errs.name && <p className="mt-1 text-xs text-destructive">{errs.name}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Campaign Start Date <span className="text-destructive">*</span></Label>
+                  <Input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
+                  {errs.startDate && <p className="mt-1 text-xs text-destructive">{errs.startDate}</p>}
+                </div>
+                <div>
+                  <Label>Campaign End Date <span className="text-destructive">*</span></Label>
+                  <Input type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} />
+                  {errs.endDate && <p className="mt-1 text-xs text-destructive">{errs.endDate}</p>}
+                </div>
+              </div>
+              <div>
+                <Label>Business Unit <span className="text-destructive">*</span></Label>
+                <Select value={form.businessUnit} onValueChange={v => setForm({ ...form, businessUnit: v })}><SelectTrigger><SelectValue placeholder="Choose business unit" /></SelectTrigger><SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select>
+                {errs.businessUnit && <p className="mt-1 text-xs text-destructive">{errs.businessUnit}</p>}
+              </div>
+              <div><Label>Campaign Type <span className="text-destructive">*</span></Label><Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
             </div>
-            <div className="flex justify-end gap-2 mt-4"><Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button><Button onClick={handleCreate}>Create</Button></div>
+            <div className="flex justify-end gap-2 mt-5"><Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button><Button onClick={handleCreate}>Create</Button></div>
           </div>
         </div>
       )}

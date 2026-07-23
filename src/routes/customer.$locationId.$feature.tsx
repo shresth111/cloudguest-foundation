@@ -19,7 +19,8 @@ import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
-import { TeamsPage, NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import { NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import LocationPolicies from "@/components/features/LocationPolicies";
 import BlockUsers from "@/components/features/BlockUsers";
@@ -27,15 +28,16 @@ import CreateGroup from "@/components/features/CreateGroup";
 import UserReports from "@/components/features/UserReports";
 import SmartIdPage from "@/components/features/SmartIdPage";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
+import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import TicketsPage from "@/components/features/TicketsPage";
 import {
   AlertsView, BusinessHoursView, NotificationView, TopUpView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
-  IspRoutingView, DebuggingView, HotspotView, RaasDashboardView, RaasUsersView,
-  RaasReportsView, GenericFeatureView,
+  IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
-  LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
+  LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
   AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye, EyeOff, KeyRound, MapPinned,
   Clock, Server, Globe, Terminal, Gauge, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
@@ -54,7 +56,6 @@ const NAV_GROUPS: NavGroupDef[] = [
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
       { id: "users", label: "Users", icon: Users, roles: ["owner", "agent"] },
-      { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["owner", "agent"] },
       { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
       { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
     ],
@@ -107,19 +108,11 @@ const NAV_GROUPS: NavGroupDef[] = [
     ],
   },
   {
-    group: "RaaS",
+    group: "Support & Logs",
     items: [
-      { id: "raas-dashboard", label: "RaaS Dashboard", icon: Server, roles: ["owner"] },
-      { id: "raas-users", label: "RaaS Users", icon: UsersRound, roles: ["owner"] },
-      { id: "raas-reports", label: "RaaS Reports", icon: FileText, roles: ["owner"] },
-    ],
-  },
-  {
-    group: "Logs & Support",
-    items: [
+      { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
       { id: "audit", label: "Audit Log", icon: ScrollText, roles: ["owner", "agent"] },
       { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner", "agent"] },
-      { id: "help", label: "Help", icon: LifeBuoy, roles: ["owner", "agent"] },
     ],
   },
 ];
@@ -145,6 +138,7 @@ function FeaturePage() {
   const [notif, setNotif] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
+  const [tfaOpen, setTfaOpen] = useState(false);
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
@@ -202,6 +196,7 @@ function FeaturePage() {
               <div className="border-t my-1" />
               <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
               <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+              <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
               <div className="border-t my-1" />
               <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
             </div>)}
@@ -212,7 +207,6 @@ function FeaturePage() {
           <div className="mx-auto max-w-7xl">
             {feature === "dashboard" && <DashboardView locationId={locationId} />}
             {feature === "users" && <UsersView locationId={locationId} />}
-            {feature === "analytics" && <AnalyticsView />}
             {feature === "reports" && <UserReports />}
             {feature === "campaigns" && <CampaignsPage />}
             {feature === "portal" && <PortalPage />}
@@ -220,12 +214,12 @@ function FeaturePage() {
             {feature === "policies" && <PoliciesHub />}
             {feature === "whitelist" && <WhiteList />}
             {feature === "devices" && <DevicesView />}
-            {feature === "teams" && <TeamsPage />}
+            {feature === "teams" && <ManageTeamsPage />}
             {feature === "agents" && <AgentsPage />}
             {feature === "networking" && <NetworkingPage />}
             {feature === "advanced" && <AdvancedPage />}
             {feature === "audit" && <AuditView />}
-            {feature === "help" && <HelpView />}
+            {feature === "tickets" && <TicketsPage />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <BusinessHoursView />}
             {feature === "notification" && <NotificationView />}
@@ -240,14 +234,12 @@ function FeaturePage() {
             {feature === "isp-routing" && <IspRoutingView />}
             {feature === "debugging" && <DebuggingView />}
             {feature === "hotspot" && <HotspotView />}
-            {feature === "raas-dashboard" && <RaasDashboardView />}
-            {feature === "raas-users" && <RaasUsersView />}
-            {feature === "raas-reports" && <RaasReportsView />}
             {!ALL_NAV_ITEMS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
           </div>
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
+      <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
     </div>
   );
 }
@@ -294,11 +286,6 @@ function UsersView({ locationId }: { locationId: string }) {
   </div>);
 }
 
-// ── Analytics ─────────────────────────────────────────────
-function AnalyticsView() {
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[{l:"Total Sessions",v:"1,892"},{l:"Unique Guests",v:"847"},{l:"Return Rate",v:"34%"},{l:"Avg Duration",v:"28 min"}].map(k=>(<Card key={k.l} className="shadow-sm border-0"><CardContent className="p-5"><p className="text-xs font-medium text-muted-foreground uppercase">{k.l}</p><p className="text-2xl font-bold mt-1">{k.v}</p></CardContent></Card>))}</div>);
-}
-
 // ── Reports ───────────────────────────────────────────────
 function ReportsView() {
   return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report"},{n:"Bandwidth Report"},{n:"Revenue Report"},{n:"Router Report"},{n:"Voucher Report"},{n:"Portal Report"}].map(r=>(<Card key={r.n} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{r.n}</p><p className="text-xs text-muted-foreground mt-1">Last generated 3d ago</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>PDF</Button><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>CSV</Button></div></CardContent></Card>))}</div>);
@@ -325,7 +312,3 @@ function AuditView() {
   return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">{items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}</CardContent></Card>);
 }
 
-// ── Help ──────────────────────────────────────────────────
-function HelpView() {
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Documentation",d:"Guides and API reference"},{n:"FAQs",d:"Frequently asked questions"},{n:"Video Tutorials",d:"Step-by-step guides"},{n:"Raise Ticket",d:"Contact support"},{n:"Live Chat",d:"Chat with engineer"},{n:"Contact",d:"Email and phone"}].map(h=>(<Card key={h.n} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{h.n}</p><p className="text-xs text-muted-foreground mt-1">{h.d}</p><Button size="sm" variant="outline" className="h-7 text-xs mt-3" onClick={()=>toast.success(`Opening ${h.n}`)}>Open</Button></CardContent></Card>))}</div>);
-}

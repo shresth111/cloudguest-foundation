@@ -14,6 +14,7 @@ import {
 import { FEATURE_GROUPS, FEATURE_BY_ID, renderFeature } from "@/config/customerFeatures";
 import { useAgentPermissions } from "@/stores/agentPermissionStore";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
+import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 
 export const Route = createFileRoute("/agent/")({
   component: AgentDashboard,
@@ -36,6 +37,7 @@ function AgentDashboard() {
   const [feature, setFeature] = useState(firstFeature);
   const [mobile, setMobile] = useState(false);
   const [changePwOpen, setChangePwOpen] = useState(false);
+  const [tfaOpen, setTfaOpen] = useState(false);
 
   const active = granted.has(feature) ? feature : firstFeature;
   const activeLabel = FEATURE_BY_ID[active]?.label ?? "Dashboard";
@@ -123,6 +125,7 @@ function AgentDashboard() {
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setChangePwOpen(true)}><KeyRound className="mr-2 h-4 w-4" /> Change password</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTfaOpen(true)}><ShieldCheck className="mr-2 h-4 w-4" /> 2FA settings</DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive"><LogOut className="mr-2 h-4 w-4" /> Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -134,6 +137,7 @@ function AgentDashboard() {
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
+      <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
     </div>
   );
 }

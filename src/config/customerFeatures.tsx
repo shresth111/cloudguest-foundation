@@ -9,19 +9,19 @@ import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
-import { TeamsPage, NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import { NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import UserReports from "@/components/features/UserReports";
 import { AgentsPage } from "@/components/features/AgentsPage";
+import TicketsPage from "@/components/features/TicketsPage";
 import {
   AlertsView, BusinessHoursView, NotificationView, TopUpView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
-  IspRoutingView, DebuggingView, HotspotView, RaasDashboardView, RaasUsersView,
-  RaasReportsView, GenericFeatureView,
+  IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import {
-  BasicDashboardView, BasicUsersView, BasicAnalyticsView, BasicDevicesView,
-  BasicAuditView, BasicHelpView,
+  BasicDashboardView, BasicUsersView, BasicDevicesView, BasicAuditView,
 } from "@/components/customer/BasicFeatureViews";
 
 export {
@@ -34,17 +34,16 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
   switch (id) {
     case "dashboard": return <BasicDashboardView locationId={ctx.locationId} />;
     case "users": return <BasicUsersView />;
-    case "analytics": return <BasicAnalyticsView />;
     case "devices": return <BasicDevicesView />;
     case "audit": return <BasicAuditView />;
-    case "help": return <BasicHelpView />;
+    case "tickets": return <TicketsPage />;
     case "reports": return <UserReports />;
     case "campaigns": return <CampaignsPage />;
     case "portal": return <PortalPage />;
     case "vouchers": return <VouchersPage />;
     case "policies": return <PoliciesHub />;
     case "whitelist": return <WhiteList />;
-    case "teams": return <TeamsPage />;
+    case "teams": return <ManageTeamsPage />;
     case "agents": return <AgentsPage />;
     case "networking": return <NetworkingPage />;
     case "advanced": return <AdvancedPage />;
@@ -62,9 +61,6 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "isp-routing": return <IspRoutingView />;
     case "debugging": return <DebuggingView />;
     case "hotspot": return <HotspotView />;
-    case "raas-dashboard": return <RaasDashboardView />;
-    case "raas-users": return <RaasUsersView />;
-    case "raas-reports": return <RaasReportsView />;
     default: return <GenericFeatureView feature={id} />;
   }
 }
