@@ -17,7 +17,7 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBrandingConfig = {
   companyName: "CloudGuest",
   logoUrl: null,
   faviconUrl: null,
-  primaryColor: "oklch(0.52 0.18 265)",
-  secondaryColor: "oklch(0.97 0.008 255)",
-  accentColor: "oklch(0.955 0.015 260)",
+  primaryColor: "oklch(0.52 0.115 208)",
+  secondaryColor: "oklch(0.955 0.012 216)",
+  accentColor: "oklch(0.945 0.022 202)",
 };

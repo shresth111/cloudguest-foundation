@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { BrandTitle } from "@/components/brand/BrandTitle";
 import {
@@ -33,11 +34,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 py-2">
+        <div className="flex items-center gap-2.5 px-2 py-2">
           <BrandLogo size="h-8 w-8" />
-          <div className="flex flex-col">
-            <BrandTitle className="text-sm" />
-            <span className="text-xs text-muted-foreground">Guest WiFi Platform</span>
+          <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
+            <BrandTitle className="text-sm text-sidebar-foreground" />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-sidebar-foreground/50">
+              Guest WiFi Platform
+            </span>
           </div>
         </div>
       </SidebarHeader>
@@ -46,13 +49,15 @@ export function AppSidebar() {
         {isLoading && groups.length === 0 ? (
           <div className="space-y-2 p-2">
             {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded-md" />
+              <Skeleton key={i} className="h-8 w-full rounded-md bg-sidebar-accent/60" />
             ))}
           </div>
         ) : (
           groups.map((g) => (
             <SidebarGroup key={g.id}>
-              <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
+                {g.label}
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {[...g.items]
@@ -69,8 +74,9 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         {user && (
-          <div className="px-2 py-2 text-xs text-muted-foreground">
-            Signed in as <span className="font-medium text-foreground">{primaryRoleLabel(roles)}</span>
+          <div className="px-2 py-2 text-xs text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+            Signed in as{" "}
+            <span className="font-medium text-sidebar-foreground">{primaryRoleLabel(roles)}</span>
           </div>
         )}
       </SidebarFooter>
@@ -110,12 +116,21 @@ function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: strin
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+      <SidebarMenuButton
+        asChild
+        isActive={active}
+        tooltip={item.label}
+        className={cn(
+          "relative transition-colors",
+          active &&
+            "bg-sidebar-accent/70 font-medium text-sidebar-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-sidebar-primary before:shadow-[0_0_12px_var(--sidebar-primary)] [&>a>svg]:text-sidebar-primary",
+        )}
+      >
         <Link to={to} className="flex items-center gap-2">
           <Icon className="h-4 w-4" />
           <span className="flex-1 truncate">{item.label}</span>
           {typeof item.counter === "number" && item.counter > 0 && (
-            <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
+            <span className="ml-auto rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[10px] font-medium text-sidebar-accent-foreground">
               {item.counter > 99 ? "99+" : item.counter}
             </span>
           )}
