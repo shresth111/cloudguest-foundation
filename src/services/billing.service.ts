@@ -651,6 +651,23 @@ export const billingService = {
           severity: "warning",
         });
       });
+    subscriptions
+      .filter((s) => s.status === "active")
+      .filter((s) => {
+        const t = new Date(s.expiryDate).getTime();
+        return t - now < 14 * 86_400_000;
+      })
+      .forEach((s) => {
+        const daysLeft = Math.ceil((new Date(s.expiryDate).getTime() - now) / 86_400_000);
+        reminders.push({
+          id: `exp_${s.id}`,
+          type: "expiry",
+          title: daysLeft <= 0 ? `${s.planName} plan expired` : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          organizationName: s.organizationName,
+          dueAt: s.expiryDate,
+          severity: daysLeft <= 3 ? "critical" : "warning",
+        });
+      });
 
     const planTierCounts = dashboard.customers.items.reduce<Record<string, number>>((acc, c) => {
       const plan = backendPlans.find((p) => p.id === c.plan_id);
@@ -750,6 +767,17 @@ export const billingService = {
     await api.post(
       `/licenses/${ctx.sub.license_id}/upgrade`,
       { new_plan_id: next.id },
+      { headers: { "X-Organization-Id": ctx.org.id } },
+    );
+    return true;
+  },
+
+  async setAutoRenew(id: string, autoRenew: boolean) {
+    const ctx = await findSubscriptionContext(id);
+    if (!ctx) return false;
+    await api.patch(
+      `/subscriptions/${id}/renewal-settings`,
+      { auto_renew: autoRenew },
       { headers: { "X-Organization-Id": ctx.org.id } },
     );
     return true;

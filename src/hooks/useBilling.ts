@@ -42,6 +42,14 @@ export function useUpgradeSubscription() {
   return useMutation({ mutationFn: (id: string) => billingService.upgradeSubscription(id), onSuccess: () => invalidate(qc) });
 }
 
+export function useSetAutoRenew() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; autoRenew: boolean }) => billingService.setAutoRenew(input.id, input.autoRenew),
+    onSuccess: () => invalidate(qc),
+  });
+}
+
 export function useDowngradeSubscription() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (id: string) => billingService.downgradeSubscription(id), onSuccess: () => invalidate(qc) });
