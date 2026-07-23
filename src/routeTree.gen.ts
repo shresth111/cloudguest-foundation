@@ -13,6 +13,7 @@ import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PortalRouteImport } from './routes/portal'
+import { Route as MasterLoginRouteImport } from './routes/master-login'
 import { Route as MasterRouteImport } from './routes/master'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -162,6 +163,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasterLoginRoute = MasterLoginRouteImport.update({
+  id: '/master-login',
+  path: '/master-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MasterRoute = MasterRouteImport.update({
@@ -901,6 +907,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
+  '/master-login': typeof MasterLoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
@@ -1034,6 +1041,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/master-login': typeof MasterLoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
   '/verify-otp': typeof VerifyOtpRoute
@@ -1167,6 +1175,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
+  '/master-login': typeof MasterLoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
@@ -1304,6 +1313,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/master'
+    | '/master-login'
     | '/portal'
     | '/reset-password'
     | '/session-expired'
@@ -1437,6 +1447,7 @@ export interface FileRouteTypes {
     | '/'
     | '/forgot-password'
     | '/login'
+    | '/master-login'
     | '/reset-password'
     | '/session-expired'
     | '/verify-otp'
@@ -1569,6 +1580,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/master'
+    | '/master-login'
     | '/portal'
     | '/reset-password'
     | '/session-expired'
@@ -1706,6 +1718,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MasterRoute: typeof MasterRouteWithChildren
+  MasterLoginRoute: typeof MasterLoginRoute
   PortalRoute: typeof PortalRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
@@ -1744,6 +1757,13 @@ declare module '@tanstack/react-router' {
       path: '/portal'
       fullPath: '/portal'
       preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/master-login': {
+      id: '/master-login'
+      path: '/master-login'
+      fullPath: '/master-login'
+      preLoaderRoute: typeof MasterLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/master': {
@@ -3002,6 +3022,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MasterRoute: MasterRouteWithChildren,
+  MasterLoginRoute: MasterLoginRoute,
   PortalRoute: PortalRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,

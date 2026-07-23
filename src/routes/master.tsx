@@ -10,7 +10,7 @@ export const Route = createFileRoute("/master")({
   ssr: false,
   beforeLoad: ({ context, location }) => {
     if (context.auth?.status === "anonymous") {
-      throw redirect({ to: "/login", search: { redirect: location.href } });
+      throw redirect({ to: "/master-login", search: { redirect: location.href } });
     }
   },
   component: () => <Outlet />,
