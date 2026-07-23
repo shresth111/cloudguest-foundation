@@ -14,8 +14,8 @@ import type { PlatformBrandingConfig } from "@/types/platform-branding";
  * settings panel; all three consume the service, not this file, directly.
  */
 export const DEFAULT_PLATFORM_BRANDING: PlatformBrandingConfig = {
-  companyName: "CloudGuest",
-  logoUrl: null,
+  companyName: "ZIP WiFi",
+  logoUrl: "/brand/mark-compact-blue.svg",
   faviconUrl: null,
   primaryColor: "oklch(0.52 0.115 208)",
   secondaryColor: "oklch(0.955 0.012 216)",

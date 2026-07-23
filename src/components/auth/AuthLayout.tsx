@@ -38,7 +38,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         />
         <div className="relative z-10 flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
-            <BrandIcon className="h-5 w-5" />
+            <BrandIcon className="h-5 w-5 brightness-0 invert" />
           </div>
           <BrandTitle className="text-lg text-white" />
         </div>

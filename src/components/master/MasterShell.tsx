@@ -69,11 +69,11 @@ export function MasterShell({ title, children }: { title: string; children: Reac
           )}
         >
           <div className="flex h-16 items-center gap-3 border-b border-border px-5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <span className="text-sm font-bold">CG</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm">
+              <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
             </div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight">CloudGuest</p>
+              <p className="text-sm font-semibold tracking-tight">ZIP WiFi</p>
               <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
             </div>
             <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}><X className="h-5 w-5" /></button>
