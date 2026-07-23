@@ -5,7 +5,7 @@
  * renamed, re-permissioned, or deleted. Backed by the shared
  * agentPermissionStore so the /agent surface reflects changes immediately.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2, ShieldCheck, Eye, ExternalLink, Check, Lock, Users2, UserCog2 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +18,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FEATURE_GROUPS, ALL_FEATURES } from "@/config/customerFeatureCatalog";
 import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { rbacService } from "@/services/rbac.service";
+import { organizationService } from "@/services/organization.service";
+import type { Role as RbacRole } from "@/types/rbac";
+
+/** Real users/roles shown in place of the local demo store once logged in
+ * for real -- see the module docstring above for why role *permission
+ * editing* (the checkbox grid) stays local-only regardless: real RBAC
+ * grants fine-grained permission keys, not this catalog's feature ids, and
+ * mapping one onto the other isn't a safe short adaptation like the other
+ * wired pages got. */
+interface RealAgent { id: string; name: string; email: string; mobile: string; status: "active" | "inactive" | "pending"; roleId: string; roleName: string }
 
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
@@ -43,28 +55,95 @@ function passwordStrength(pw: string): { label: string; pct: number; color: stri
 
 export function AgentsPage() {
   const navigate = useNavigate();
-  const { agents, roles, addAgent, updateAgent, removeAgent, setCurrentAgent, addRole, updateRoleFeatures, renameRole, removeRole } = useAgentPermissions();
+  const demo = useIsDemo();
+  const { agents: storeAgents, roles, addAgent, updateAgent: updateStoreAgent, removeAgent: removeStoreAgent, setCurrentAgent, addRole, updateRoleFeatures, renameRole, removeRole } = useAgentPermissions();
   const [tab, setTab] = useState<"agents" | "roles">("agents");
 
-  const [selectedId, setSelectedId] = useState<string | null>(agents[0]?.id ?? null);
+  const [realAgents, setRealAgents] = useState<RealAgent[]>([]);
+  const [realRoles, setRealRoles] = useState<RbacRole[]>([]);
+  const [orgId, setOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
+        const org = orgs.rows[0];
+        if (!org) return;
+        setOrgId(org.id);
+        const [users, roleList] = await Promise.all([
+          rbacService.listUsers({ page: 1, pageSize: 50 }),
+          rbacService.listRoles(),
+        ]);
+        setRealRoles(roleList);
+        setRealAgents(users.items.map((u) => ({ id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: u.isActive ? "active" : "inactive", roleId: "", roleName: "—" })));
+      } catch {
+        // Leave real lists empty -- the "no agents yet" state is accurate.
+      }
+    })();
+  }, [demo]);
+
+  const agents = demo ? storeAgents : realAgents.map((a) => ({ ...a, dataMasking: false, locations: [] as string[] }));
+  const roleOptions = demo ? roles.map((r) => ({ id: r.id, name: r.name })) : realRoles.map((r) => ({ id: r.id, name: r.name }));
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", mobile: "", password: "", roleId: roles[0]?.id ?? "", locations: [] as string[] });
+  const [form, setForm] = useState({ name: "", email: "", mobile: "", password: "", roleId: "", locations: [] as string[] });
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(roles[0]?.id ?? null);
   const [newRoleName, setNewRoleName] = useState("");
   const [addingRole, setAddingRole] = useState(false);
 
-  const selected = agents.find((a) => a.id === selectedId) ?? null;
+  const selected = agents.find((a) => a.id === selectedId) ?? agents[0] ?? null;
   const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null;
   const strength = passwordStrength(form.password);
 
-  const create = () => {
-    if (!form.name || !form.email || !form.password || !form.roleId) { toast.error("Fill in name, email, password and role."); return; }
-    const id = addAgent({ name: form.name, email: form.email, mobile: form.mobile, status: "pending", dataMasking: true, roleId: form.roleId, locations: form.locations });
-    setForm({ name: "", email: "", mobile: "", password: "", roleId: roles[0]?.id ?? "", locations: [] });
-    setCreating(false);
-    setSelectedId(id);
-    toast.success("Agent created");
+  const create = async () => {
+    if (!form.name || !form.email || (demo && !form.password) || !form.roleId) { toast.error(`Fill in name, email${demo ? ", password" : ""} and role.`); return; }
+    if (demo) {
+      const id = addAgent({ name: form.name, email: form.email, mobile: form.mobile, status: "pending", dataMasking: true, roleId: form.roleId, locations: form.locations });
+      setForm({ name: "", email: "", mobile: "", password: "", roleId: roleOptions[0]?.id ?? "", locations: [] });
+      setCreating(false);
+      setSelectedId(id);
+      toast.success("Agent created");
+      return;
+    }
+    if (!orgId) { toast.error("No organization found for this session."); return; }
+    try {
+      const [firstName, ...rest] = form.name.trim().split(" ");
+      const invited = await rbacService.inviteUser({
+        firstName, lastName: rest.join(" ") || firstName, email: form.email,
+        username: form.email.split("@")[0], phone: form.mobile || null,
+        organizationId: orgId, initialRoleId: form.roleId,
+      });
+      setRealAgents((p) => [{ id: invited.user.id, name: invited.user.fullName, email: invited.user.email, mobile: invited.user.phone ?? "", status: "pending", roleId: form.roleId, roleName: roleOptions.find((r) => r.id === form.roleId)?.name ?? "—" }, ...p]);
+      setForm({ name: "", email: "", mobile: "", password: "", roleId: roleOptions[0]?.id ?? "", locations: [] });
+      setCreating(false);
+      setSelectedId(invited.user.id);
+      toast.success("Agent invited");
+    } catch {
+      toast.error("Could not invite the agent — check the connection and try again.");
+    }
+  };
+
+  const updateAgent = (id: string, patch: { status?: "active" | "inactive" | "pending"; dataMasking?: boolean; roleId?: string; locations?: string[] }) => {
+    if (demo) { updateStoreAgent(id, patch); return; }
+    setRealAgents((p) => p.map((a) => a.id === id ? { ...a, ...patch } : a));
+    (async () => {
+      try {
+        if (patch.status === "active") await rbacService.activateUser(id);
+        else if (patch.status === "inactive") await rbacService.deactivateUser(id);
+        if (patch.dataMasking !== undefined) await rbacService.updateUser(id, { dataMaskingEnabled: patch.dataMasking });
+      } catch {
+        toast.error("Could not update on the server.");
+      }
+    })();
+  };
+
+  const removeAgent = (id: string) => {
+    if (demo) { removeStoreAgent(id); return; }
+    setRealAgents((p) => p.filter((a) => a.id !== id));
+    rbacService.deactivateUser(id).catch(() => toast.error("Could not deactivate on the server."));
   };
 
   const toggleLocation = (loc: string) => {
@@ -215,31 +294,37 @@ export function AgentsPage() {
                 <CardContent className="space-y-3 p-4">
                   <div><label className={labelCls}>Name</label><Input placeholder="Enter Agent Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" /></div>
                   <div><label className={labelCls}>Email</label><Input placeholder="Enter Agent Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-9" /></div>
-                  <div>
-                    <label className={labelCls}>Password</label>
-                    <Input type="password" placeholder="Choose Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="h-9" />
-                    {form.password && (
-                      <div className="mt-1.5">
-                        <div className="h-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full transition-all", strength.color)} style={{ width: `${strength.pct}%` }} /></div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">Password strength: {strength.label}</p>
-                      </div>
-                    )}
-                  </div>
+                  {demo && (
+                    <div>
+                      <label className={labelCls}>Password</label>
+                      <Input type="password" placeholder="Choose Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="h-9" />
+                      {form.password && (
+                        <div className="mt-1.5">
+                          <div className="h-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full transition-all", strength.color)} style={{ width: `${strength.pct}%` }} /></div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">Password strength: {strength.label}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!demo && <p className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">A temporary password will be generated and the agent invited by email.</p>}
                   <div><label className={labelCls}>Mobile No.</label><Input placeholder="Enter Agent's Mobile Number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })} className="h-9" /></div>
                   <div>
                     <label className={labelCls}>Agent Role</label>
                     <select value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })} className={inputCls}>
-                      {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      <option value="">Choose a role</option>
+                      {roleOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className={labelCls}>Select Locations</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {LOCATIONS.map((loc) => (
-                        <button key={loc} type="button" onClick={() => toggleLocation(loc)} className={cn("rounded-full border px-2.5 py-1 text-xs font-medium transition-colors", form.locations.includes(loc) ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent")}>{loc}</button>
-                      ))}
+                  {demo && (
+                    <div>
+                      <label className={labelCls}>Select Locations</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {LOCATIONS.map((loc) => (
+                          <button key={loc} type="button" onClick={() => toggleLocation(loc)} className={cn("rounded-full border px-2.5 py-1 text-xs font-medium transition-colors", form.locations.includes(loc) ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent")}>{loc}</button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" className="h-8 flex-1" onClick={create}>Create</Button>
                     <Button size="sm" variant="ghost" className="h-8" onClick={() => setCreating(false)}>Cancel</Button>
@@ -249,8 +334,9 @@ export function AgentsPage() {
             )}
 
             <div className="space-y-2">
+              {agents.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">No agents yet.</p>}
               {agents.map((a) => {
-                const role = roles.find((r) => r.id === a.roleId);
+                const role = roleOptions.find((r) => r.id === a.roleId);
                 return (
                   <button
                     key={a.id}
@@ -286,7 +372,7 @@ export function AgentsPage() {
                 <div className="flex flex-wrap items-center gap-4">
                   <label className="flex items-center gap-2 text-sm"><Switch checked={selected.status === "active"} onCheckedChange={(v) => updateAgent(selected.id, { status: v ? "active" : "inactive" })} /> Active</label>
                   <label className="flex items-center gap-2 text-sm"><Switch checked={selected.dataMasking} onCheckedChange={(v) => updateAgent(selected.id, { dataMasking: v })} /> Data masking</label>
-                  <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}><Eye className="h-4 w-4" /> Preview as agent <ExternalLink className="h-3.5 w-3.5" /></Button>
+                  {demo && <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}><Eye className="h-4 w-4" /> Preview as agent <ExternalLink className="h-3.5 w-3.5" /></Button>}
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { removeAgent(selected.id); setSelectedId(null); }}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
@@ -296,24 +382,35 @@ export function AgentsPage() {
                   <div>
                     <label className={labelCls}>Agent Role</label>
                     <select value={selected.roleId} onChange={(e) => updateAgent(selected.id, { roleId: e.target.value })} className={inputCls}>
-                      {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      <option value="">No role</option>
+                      {roleOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className={labelCls}>Select Locations</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {LOCATIONS.map((loc) => {
-                        const on = selected.locations.includes(loc);
-                        return (
-                          <button key={loc} onClick={() => updateAgent(selected.id, { locations: on ? selected.locations.filter((l) => l !== loc) : [...selected.locations, loc] })} className={cn("rounded-full border px-2.5 py-1 text-xs font-medium transition-colors", on ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent")}>{loc}</button>
-                        );
-                      })}
+                  {demo && (
+                    <div>
+                      <label className={labelCls}>Select Locations</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {LOCATIONS.map((loc) => {
+                          const on = selected.locations.includes(loc);
+                          return (
+                            <button key={loc} onClick={() => updateAgent(selected.id, { locations: on ? selected.locations.filter((l) => l !== loc) : [...selected.locations, loc] })} className={cn("rounded-full border px-2.5 py-1 text-xs font-medium transition-colors", on ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent")}>{loc}</button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
-              <Card className="rounded-2xl">
+              {!demo && (
+                <Card className="rounded-2xl">
+                  <CardContent className="p-5 text-sm text-muted-foreground">
+                    This agent's real permissions are governed by the platform's RBAC roles and permission keys, not this catalog's feature list — manage fine-grained access from the role itself.
+                  </CardContent>
+                </Card>
+              )}
+
+              {demo && <Card className="rounded-2xl">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-primary" /> Permissions from role: {roles.find((r) => r.id === selected.roleId)?.name}</CardTitle>
                   <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setTab("roles")}>Edit role permissions</Button>
@@ -342,7 +439,7 @@ export function AgentsPage() {
                     );
                   })}
                 </CardContent>
-              </Card>
+              </Card>}
             </div>
           ) : (
             <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">Select or create an agent to manage access.</div>
