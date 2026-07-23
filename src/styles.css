@@ -167,6 +167,11 @@
  * this class wins regardless of whether .dark is also present.
  */
 .workspace-theme {
+  /* `color` is inherited, and the base layer already resolved it once at
+   * <body> using :root's foreground -- redeclare it here so descendants
+   * that rely on inherited color (no explicit text-* class) pick up this
+   * scope's --foreground instead of leaking the page-level one. */
+  color: var(--foreground);
   --background: oklch(0.14 0.035 258);
   --foreground: oklch(0.97 0.01 240);
   --card: oklch(0.19 0.04 258);
@@ -274,6 +279,7 @@
  * bg-sidebar, ...) re-themes automatically.
  */
 .master-theme {
+  color: var(--foreground);
   --radius: 0.625rem;
   --background: oklch(0.981 0.004 255);
   --foreground: oklch(0.21 0.03 258);
