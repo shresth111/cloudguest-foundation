@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   Loader2, FileBarChart, Download,
@@ -358,15 +359,28 @@ export default function UserReports() {
             const active = label === category;
             return (
               <button key={label} onClick={() => setCategory(label)} aria-current={active ? "page" : undefined}
-                className={`flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
-                  active ? "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-100" : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
-                }`}>{label}</button>
+                className={`relative flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
+                  active ? "bg-primary/5 text-primary" : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
+                }`}>
+                {label}
+                {active && <motion.span layoutId="report-tab-underline" className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" transition={{ type: "spring", bounce: 0.2, duration: 0.4 }} />}
+              </button>
             );
           })}
         </div>
       </div>
 
-      <ReportPanel key={category} reportTypes={cfg.reportTypes} csvPrefix={cfg.csvPrefix} />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={category}
+          initial={{ opacity: 0, x: 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -12 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          <ReportPanel reportTypes={cfg.reportTypes} csvPrefix={cfg.csvPrefix} />
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
