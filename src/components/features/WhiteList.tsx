@@ -1,6 +1,10 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { guestService } from "@/services/guest.service";
+import { organizationService } from "@/services/organization.service";
+import type { AnyAccessRule } from "@/types/guest";
 
 // ── helpers ─────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -42,24 +46,60 @@ type FormData = {
 };
 type Errors = Partial<Record<keyof FormData, string>>;
 
+// Fixed (not Date.now()-relative) so the server-rendered HTML and the
+// client's hydration pass always agree -- a relative computation baked
+// into a module-level constant evaluates at two different wall-clock
+// moments (server module load vs. client bundle load) and hydration-
+// mismatches the instant those two moments land in different minutes.
 const SEED: Entry[] = [
-  { id: "s1", tab: "number", identifier: "9876543210", name: "Ravi Sharma", email: "ravi@example.com", businessUnit: "Marina Bay Hotel", startDate: new Date(Date.now() - 86400000).toISOString().slice(0, 16), endDate: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 16) },
-  { id: "s2", tab: "number", identifier: "8765432109", name: "Priya Kapoor", email: "priya@example.com", businessUnit: "Downtown CoWork", startDate: new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 16), endDate: new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16) },
-  { id: "s3", tab: "device", identifier: "AA:BB:CC:DD:EE:FF", name: "Office Printer", email: "it@example.com", businessUnit: "Airport Lounge T3", startDate: new Date(Date.now() - 86400000 * 30).toISOString().slice(0, 16), endDate: new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 16) },
+  { id: "s1", tab: "number", identifier: "9876543210", name: "Ravi Sharma", email: "ravi@example.com", businessUnit: "Marina Bay Hotel", startDate: "2026-07-22T10:00", endDate: "2026-07-26T10:00" },
+  { id: "s2", tab: "number", identifier: "8765432109", name: "Priya Kapoor", email: "priya@example.com", businessUnit: "Downtown CoWork", startDate: "2026-07-21T09:00", endDate: "2026-07-30T09:00" },
+  { id: "s3", tab: "device", identifier: "AA:BB:CC:DD:EE:FF", name: "Office Printer", email: "it@example.com", businessUnit: "Airport Lounge T3", startDate: "2026-06-23T08:00", endDate: "2026-07-21T08:00" },
 ];
 
 const PAGE_SIZE = 5;
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 
-export default function WhiteList() {
+function toEntry(r: AnyAccessRule): Entry {
+  return {
+    id: r.id,
+    tab: r.kind === "device" ? "device" : "number",
+    identifier: r.kind === "device" ? r.macAddress : r.identifier,
+    name: r.reason ?? "—",
+    email: "",
+    businessUnit: "",
+    startDate: r.createdAt.slice(0, 16),
+    endDate: r.expiresAt ? r.expiresAt.slice(0, 16) : "",
+  };
+}
+
+export default function WhiteList({ locationId }: { locationId?: string } = {}) {
+  const demo = useIsDemo();
   const [tab, setTab] = useState<Tab>("number");
-  const [entries, setEntries] = useState<Entry[]>(SEED);
+  const [entries, setEntries] = useState<Entry[]>(demo ? SEED : []);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [f, setF] = useState<FormData>({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
   const [errs, setErrs] = useState<Errors>({});
   const [toast, setToast] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
+        const org = orgs.rows[0];
+        if (!org) return;
+        setOrgId(org.id);
+        const rules = await guestService.listAccessRules();
+        setEntries(rules.filter((r) => r.ruleType === "whitelist").map(toEntry));
+      } catch {
+        // Leave entries empty -- the "no whitelist entries" state is accurate.
+      }
+    })();
+  }, [demo, locationId]);
 
   // ── filtered + paginated ──────────────────────────────────────
   const filtered = useMemo(() => {
@@ -90,33 +130,50 @@ export default function WhiteList() {
   const setField = (k: keyof FormData, v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(p => { const n = { ...p }; delete n[k]; return n; }); };
 
   // ── submit ────────────────────────────────────────────────────
-  const handleSubmit = (ev: React.FormEvent) => {
+  const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     const v = validate();
     setErrs(v);
     if (Object.keys(v).length) return;
 
-    // TODO: replace with API call
-    const entry: Entry = {
-      id: `e${Date.now()}`,
-      tab,
-      identifier: tab === "number" ? f.mobile : f.mac.toUpperCase(),
-      name: f.name,
-      email: f.email,
-      businessUnit: f.businessUnit,
-      startDate: f.startDate,
-      endDate: f.endDate,
-    };
-    setEntries(p => [entry, ...p]);
-    setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
-    setPage(0);
-    setToast(tab === "number" ? "Number allowed." : "Device allowed.");
-    setTimeout(() => setToast(null), 2500);
+    const identifier = tab === "number" ? f.mobile : f.mac.toUpperCase();
+    if (demo) {
+      const entry: Entry = { id: `e${Date.now()}`, tab, identifier, name: f.name, email: f.email, businessUnit: f.businessUnit, startDate: f.startDate, endDate: f.endDate };
+      setEntries(p => [entry, ...p]);
+      setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
+      setPage(0);
+      setToast(tab === "number" ? "Number allowed." : "Device allowed.");
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+    if (!orgId) { setToast("No organization found for this session."); setTimeout(() => setToast(null), 2500); return; }
+    try {
+      const rule = await guestService.createAccessRule({
+        kind: tab === "number" ? "identifier" : "device",
+        organizationId: orgId, locationId,
+        identifier: tab === "number" ? identifier : undefined,
+        macAddress: tab === "device" ? identifier : undefined,
+        ruleType: "whitelist", reason: f.name, expiresAt: f.endDate || undefined,
+      });
+      setEntries(p => [toEntry(rule), ...p]);
+      setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
+      setPage(0);
+      setToast(tab === "number" ? "Number allowed." : "Device allowed.");
+      setTimeout(() => setToast(null), 2500);
+    } catch {
+      setToast("Could not save — check the connection and try again.");
+      setTimeout(() => setToast(null), 2500);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    // TODO: replace with API call
+  const handleDelete = async (id: string) => {
+    const prev = entries;
+    const removed = entries.find((e) => e.id === id);
     setEntries(p => p.filter(e => e.id !== id));
+    if (!demo && removed) {
+      try { await guestService.deleteAccessRule(removed.tab === "device" ? "device" : "identifier", id); }
+      catch { setEntries(prev); }
+    }
   };
 
   // ── helpers ───────────────────────────────────────────────────

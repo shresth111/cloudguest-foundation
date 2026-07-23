@@ -38,13 +38,15 @@ function Tooltip({ text }: { text: string }) {
 type SortKey = "name" | "mobile" | "businessUnit" | "blockedOn";
 
 export default function BlockUsers() {
+  // Fixed dates, not Date.now()-relative -- see WhiteList.tsx's SEED
+  // comment for why a relative computation here hydration-mismatches.
   const [blocked, setBlocked] = useState<BlockedUser[]>([
-    { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Marina Bay Hotel", blockedOn: new Date(Date.now() - 86400000 * 3).toISOString(), status: "Blocked" },
-    { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Downtown CoWork", blockedOn: new Date(Date.now() - 86400000 * 5).toISOString(), status: "Blocked" },
-    { id: "b3", name: "Priya Kapoor", mobile: "+919900001111", businessUnit: "Marina Bay Hotel", blockedOn: new Date(Date.now() - 86400000 * 1).toISOString(), status: "Blocked" },
-    { id: "b4", name: "Amit Patel", mobile: "+919722233344", businessUnit: "Eastside Cafe", blockedOn: new Date(Date.now() - 86400000 * 10).toISOString(), status: "Unblocked" },
-    { id: "b5", name: "Sana Khan", mobile: "+919833344455", businessUnit: "Airport Lounge T3", blockedOn: new Date(Date.now() - 86400000 * 2).toISOString(), status: "Blocked" },
-    { id: "b6", name: "John Doe", mobile: "+919655566677", businessUnit: "Downtown CoWork", blockedOn: new Date(Date.now() - 86400000 * 7).toISOString(), status: "Blocked" },
+    { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Marina Bay Hotel", blockedOn: "2026-07-20T10:00:00.000Z", status: "Blocked" },
+    { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Downtown CoWork", blockedOn: "2026-07-18T10:00:00.000Z", status: "Blocked" },
+    { id: "b3", name: "Priya Kapoor", mobile: "+919900001111", businessUnit: "Marina Bay Hotel", blockedOn: "2026-07-22T10:00:00.000Z", status: "Blocked" },
+    { id: "b4", name: "Amit Patel", mobile: "+919722233344", businessUnit: "Eastside Cafe", blockedOn: "2026-07-13T10:00:00.000Z", status: "Unblocked" },
+    { id: "b5", name: "Sana Khan", mobile: "+919833344455", businessUnit: "Airport Lounge T3", blockedOn: "2026-07-21T10:00:00.000Z", status: "Blocked" },
+    { id: "b6", name: "John Doe", mobile: "+919655566677", businessUnit: "Downtown CoWork", blockedOn: "2026-07-16T10:00:00.000Z", status: "Blocked" },
   ]);
 
   const [textarea, setTextarea] = useState("");
