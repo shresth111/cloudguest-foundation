@@ -38,6 +38,12 @@ interface BackendListResponse<T> {
   total_items: number;
 }
 
+interface BackendPagedListResponse<T> extends BackendListResponse<T> {
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
 interface BackendLocation {
   id: string;
   name: string;
@@ -83,6 +89,18 @@ async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
   return data.items;
 }
 
+/**
+ * NOTE: deliberately never sends an `X-Organization-Id` header here. The
+ * backend's `CurrentOrganization` dependency treats a present header as "act
+ * as a member of this org" and 403s unless the caller has an *active*
+ * `organization_members` row for it -- which a Super Admin (a global RBAC
+ * role, not a per-org membership) generally does not have. Omitting the
+ * header makes `CurrentOrganization` resolve to `None`, which every one of
+ * these services' underlying methods (see `guest/service.py`) treats as
+ * "no tenant scoping, return/act on everything the permission allows" --
+ * exactly the super-admin console's intent. Confirmed live: the header
+ * variant 403s on this deployment's demo org, the header-less variant works.
+ */
 async function fetchAllLocations(): Promise<
   Array<{ id: string; name: string; organizationId: string; organizationName: string }>
 > {
@@ -91,7 +109,7 @@ async function fetchAllLocations(): Promise<
     orgs.map(async (org) => {
       const { data } = await api.get<BackendListResponse<BackendLocation>>(
         `/organizations/${org.id}/locations`,
-        { params: { page_size: 100 }, headers: { "X-Organization-Id": org.id } },
+        { params: { page_size: 100 } },
       );
       return data.items.map((l) => ({
         id: l.id,
@@ -112,40 +130,24 @@ async function fetchAllLocations(): Promise<
     .flatMap((r) => r.value);
 }
 
-async function fetchLocationNas(loc: {
-  id: string;
-  name: string;
-  organizationId: string;
-  organizationName: string;
-}): Promise<NasClient[]> {
-  const { data } = await api.get<BackendListResponse<BackendNasClient>>(
-    `/locations/${loc.id}/nas`,
-    {
-      params: { page_size: 100 },
-      headers: { "X-Organization-Id": loc.organizationId },
-    },
-  );
-  // Delete is a soft delete server-side (status flips to "deleted", the row
-  // is never removed) -- the list endpoint keeps returning it forever, so
-  // filter it out here rather than showing a dead registration indefinitely.
-  return data.items
-    .filter((n) => n.status !== "deleted")
-    .map((n) => toNasClient(n, loc.name, loc.organizationName));
-}
-
 /**
- * There is no backend endpoint to list every NAS across every location at
- * once -- only `GET /locations/{id}/nas` (location-scoped). Fans out one
- * call per location and concatenates client-side, same pattern (and same
- * graceful `allSettled` degradation for locations the caller can't reach)
- * as `router.service.ts`'s own `fetchAllRouters`.
+ * `GET /radius/nas` (unprefixed by location) genuinely lists every NAS
+ * client the caller's permissions allow -- confirmed live (200, paginated
+ * envelope) with no `X-Organization-Id` header. Paginates through in
+ * 100-item pages rather than fanning out per location/org.
  */
-async function fetchAllNas(): Promise<NasClient[]> {
-  const locations = await fetchAllLocations();
-  const settled = await Promise.allSettled(locations.map((loc) => fetchLocationNas(loc)));
-  return settled
-    .filter((r): r is PromiseFulfilledResult<NasClient[]> => r.status === "fulfilled")
-    .flatMap((r) => r.value);
+async function fetchAllNasRaw(): Promise<BackendNasClient[]> {
+  const items: BackendNasClient[] = [];
+  let page = 1;
+  for (;;) {
+    const { data } = await api.get<BackendPagedListResponse<BackendNasClient>>("/radius/nas", {
+      params: { page, page_size: 100 },
+    });
+    items.push(...data.items);
+    if (!data.has_next) break;
+    page += 1;
+  }
+  return items;
 }
 
 export const nasService = {
@@ -153,11 +155,27 @@ export const nasService = {
     const locations = await fetchAllLocations();
     const loc = locations.find((l) => l.id === locationId);
     if (!loc) return [];
-    return fetchLocationNas(loc);
+    const { data } = await api.get<BackendListResponse<BackendNasClient>>(
+      `/locations/${locationId}/nas`,
+      { params: { page_size: 100 } },
+    );
+    // Delete is a soft delete server-side (status flips to "deleted", the row
+    // is never removed) -- the list endpoint keeps returning it forever, so
+    // filter it out here rather than showing a dead registration indefinitely.
+    return data.items
+      .filter((n) => n.status !== "deleted")
+      .map((n) => toNasClient(n, loc.name, loc.organizationName));
   },
 
   async listAll(): Promise<NasClient[]> {
-    return fetchAllNas();
+    const [raw, locations] = await Promise.all([fetchAllNasRaw(), fetchAllLocations()]);
+    const byLocationId = new Map(locations.map((l) => [l.id, l]));
+    return raw
+      .filter((n) => n.status !== "deleted")
+      .map((n) => {
+        const loc = byLocationId.get(n.location_id);
+        return toNasClient(n, loc?.name ?? "", loc?.organizationName ?? "");
+      });
   },
 
   async get(nasId: string): Promise<NasClient | null> {
@@ -184,21 +202,28 @@ export const nasService = {
     }
   },
 
+  /**
+   * `locationId` is kept as a parameter for API-compatibility with the
+   * existing (unwired-but-real) `NasDevicesPanel`/`useCreateNas` consumer,
+   * but the backend actually resolves organization/location from
+   * `router_id` server-side (`RadiusService.register_nas` denormalizes both
+   * from the router at registration time) -- it's used here only to resolve
+   * a friendly location/org name for the returned reveal, with the
+   * response's own `location_id` as a fallback source of truth.
+   */
   async create(locationId: string, payload: CreateNasPayload): Promise<NasClientSecretReveal> {
+    const { data } = await api.post<BackendNasSecretReveal>("/radius/nas", {
+      router_id: payload.routerId,
+      nas_identifier: payload.nasIdentifier,
+      shared_secret: payload.sharedSecret,
+      name: payload.name,
+      description: payload.description,
+      ip_address: payload.ipAddress,
+    });
     const locations = await fetchAllLocations();
-    const loc = locations.find((l) => l.id === locationId);
-    const { data } = await api.post<BackendNasSecretReveal>(
-      "/radius/nas",
-      {
-        router_id: payload.routerId,
-        nas_identifier: payload.nasIdentifier,
-        shared_secret: payload.sharedSecret,
-        name: payload.name,
-        description: payload.description,
-        ip_address: payload.ipAddress,
-      },
-      { headers: { "X-Organization-Id": loc?.organizationId } },
-    );
+    const loc =
+      locations.find((l) => l.id === data.location_id) ??
+      locations.find((l) => l.id === locationId);
     return toNasSecretReveal(data, loc?.name ?? "", loc?.organizationName ?? "");
   },
 
