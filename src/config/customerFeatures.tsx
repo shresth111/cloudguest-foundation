@@ -37,7 +37,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "users": return <BasicUsersView />;
     case "devices": return <div className="space-y-4"><NetworkHardwareView locationId={ctx.locationId} /><BasicDevicesView /></div>;
     case "audit": return <BasicAuditView />;
-    case "tickets": return <TicketsPage />;
+    case "tickets": return <TicketsPage locationId={ctx.locationId} />;
     case "reports": return <UserReports />;
     case "campaigns": return <CampaignsPage locationId={ctx.locationId} />;
     case "portal": return <PortalPage locationId={ctx.locationId} />;

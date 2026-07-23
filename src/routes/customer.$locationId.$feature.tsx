@@ -219,7 +219,7 @@ function FeaturePage() {
             {feature === "agents" && <AgentsPage />}
             {feature === "advanced" && <AdvancedPage />}
             {feature === "audit" && <AuditView locationId={locationId} />}
-            {feature === "tickets" && <TicketsPage />}
+            {feature === "tickets" && <TicketsPage locationId={locationId} />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <BusinessHoursView />}
             {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
