@@ -547,10 +547,30 @@ async function fetchAllCoupons(): Promise<BackendCoupon[]> {
 // Aggregate snapshot -- kpis/revenue/reminders come from the real
 // /billing/dashboard/super-admin composite; subscriptions/payments/
 // invoices/usage are fanned out per organization (see helpers above).
-// gateways/scheduledReports/generateReport/generateInvoice/sendReminder
-// have no backend equivalent (no connectable-gateway registry, no
-// scheduled-report or ad-hoc report-generation endpoints exist in
-// backend/app/domains/billing) -- left mocked below, unchanged.
+// gateways/sendReminder have no backend equivalent in
+// backend/app/domains/billing (no connectable-gateway registry, no
+// reminder-dispatch endpoint) -- left mocked below, unchanged.
+//
+// Correction from an earlier pass of this file: a real, generic Report
+// Engine *does* exist -- backend/app/domains/analytics/report_router.py
+// (POST /reports, /reports/templates, /reports/schedule), not under the
+// billing domain at all, which is why it was missed the first time this
+// comment was written. generateReport's "revenue" case now calls it for
+// real (see that method below). It is NOT fully wired for every use here:
+//   - BillingReportCenter's other 8 report types (guest/router/network/
+//     organization/location need an organization_id or location_id this
+//     report center has no picker for; audit/billing/monitoring have no
+//     matching ReportType at all) stay mocked in generateReport below.
+//   - scheduledReports/listScheduledReports/createScheduledReport/
+//     toggleScheduledReport/deleteScheduledReport stay mocked: the real
+//     ScheduledReport is mandatorily ORGANIZATION-scoped and requires a
+//     pre-existing ReportTemplate id, but this billing page (both
+//     src/routes/_authenticated/billing.index.tsx and master.billing.tsx)
+//     manages every organization at once with no org/template picker in
+//     its UI -- a real data-model mismatch, not a missing endpoint. Wiring
+//     it properly needs a product decision (add an org+template picker to
+//     this panel, or scope the whole panel to one org) rather than a
+//     mechanical service-layer change.
 // ============================================================================
 
 let gatewaysStore = [
@@ -930,8 +950,24 @@ export const billingService = {
     scheduledReports = scheduledReports.filter((r) => r.id !== id);
     return true;
   },
-  // No generic ad-hoc report-generation endpoint exists -- kept mocked.
   async generateReport(type: string, format: BillingReportFormat) {
+    // Real Report Engine (POST /reports, see the module comment above) --
+    // REVENUE is the one ReportType this platform-wide report center can
+    // generate without an organization/location picker (Business
+    // Analytics, what REVENUE composes, is inherently GLOBAL-scoped), so
+    // the "Revenue report" card downloads a real, backend-rendered file.
+    // export_format's values (pdf/excel/csv) match ExportFormat 1:1.
+    if (type === "revenue") {
+      const response = await api.post("/reports", { report_type: "revenue", export_format: format }, { responseType: "blob" });
+      const blob = response.data as Blob;
+      const url = URL.createObjectURL(blob);
+      const disposition = String((response.headers as Record<string, string>)?.["content-disposition"] ?? "");
+      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? `revenue-report-${Date.now()}.${format === "excel" ? "xlsx" : format}`;
+      return { url, fileName, size: `${Math.max(1, Math.round(blob.size / 1024))} KB` };
+    }
+    // The other 8 report-center cards have no matching real, callable
+    // report for this platform-wide page (see the module comment above)
+    // -- kept mocked.
     await delay(600);
     return { fileName: `${type}-report-${Date.now()}.${format}`, size: `${Math.round(200 + Math.random() * 1800)} KB` };
   },

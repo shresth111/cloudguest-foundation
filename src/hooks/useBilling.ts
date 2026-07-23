@@ -140,3 +140,11 @@ export function useSaveTaxRate() {
 export function useDownloadInvoice() {
   return useMutation({ mutationFn: (id: string) => billingService.generateInvoice(id) });
 }
+
+// No reminder-dispatch endpoint exists in backend/app/domains/billing --
+// billingService.sendReminder is intentionally still mocked (see its own
+// comment); this hook just routes RemindersPanel's "Send" button through
+// that one existing mock instead of a bare, unbacked toast.
+export function useSendReminder() {
+  return useMutation({ mutationFn: (id: string) => billingService.sendReminder(id) });
+}

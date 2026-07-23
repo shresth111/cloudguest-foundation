@@ -20,7 +20,7 @@ import { RemindersPanel } from "@/components/billing/RemindersPanel";
 import { BillingQuickActions } from "@/components/billing/BillingQuickActions";
 import { BillingReportCenter } from "@/components/billing/BillingReportCenter";
 import { ScheduledBillingReportsPanel } from "@/components/billing/ScheduledBillingReportsPanel";
-import { useBillingSnapshot } from "@/hooks/useBilling";
+import { useBillingSnapshot, useGenerateBillingReport } from "@/hooks/useBilling";
 
 export const Route = createFileRoute("/_authenticated/billing/")({
   component: BillingPage,
@@ -31,13 +31,32 @@ function BillingPage() {
   const [creating, setCreating] = useState(false);
   const qc = useQueryClient();
   const snap = useBillingSnapshot();
+  const genReport = useGenerateBillingReport();
   const state = { isLoading: snap.isLoading, isError: snap.isError, onRetry: () => snap.refetch() };
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["billing"] });
     toast.success("Billing refreshed");
   };
-  const exportAll = () => toast.success("Billing report export queued");
+  // Real Report Engine call (see billingService.generateReport) -- renders
+  // and downloads an actual platform-wide revenue PDF via POST /reports.
+  const exportAll = () => {
+    genReport.mutate(
+      { type: "revenue", format: "pdf" },
+      {
+        onSuccess: (res) => {
+          if ("url" in res && res.url) {
+            const a = document.createElement("a");
+            a.href = res.url;
+            a.download = res.fileName;
+            a.click();
+          }
+          toast.success(`${res.fileName} downloaded`);
+        },
+        onError: () => toast.error("Failed to export the billing report"),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -52,8 +71,8 @@ function BillingPage() {
           <Button size="sm" variant="outline" onClick={refresh}>
             <RefreshCw className="mr-2 h-4 w-4" /> Refresh
           </Button>
-          <Button size="sm" onClick={exportAll}>
-            <Download className="mr-2 h-4 w-4" /> Export
+          <Button size="sm" onClick={exportAll} disabled={genReport.isPending}>
+            <Download className="mr-2 h-4 w-4" /> {genReport.isPending ? "Exporting…" : "Export"}
           </Button>
         </div>
       </div>
