@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-  Wifi, Menu, LogOut, EyeOff, ChevronsUpDown, ShieldCheck, Inbox,
+  Menu, LogOut, EyeOff, ChevronsUpDown, ShieldCheck, Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -57,9 +57,9 @@ function AgentDashboard() {
       {/* Sidebar -- only granted features */}
       <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r bg-background transition-transform lg:static lg:translate-x-0", mobile ? "translate-x-0" : "-translate-x-full")}>
         <div className="flex h-16 items-center gap-3 border-b px-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm"><Wifi className="h-4 w-4" /></div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">BhaiFi</p>
+            <p className="truncate text-sm font-semibold">ZIP WiFi</p>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Agent Workspace</p>
           </div>
         </div>

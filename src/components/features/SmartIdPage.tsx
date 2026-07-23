@@ -119,14 +119,14 @@ export default function SmartIdPage() {
             <CardHeader><CardTitle className="text-sm">Portal Login Preview</CardTitle></CardHeader>
             <CardContent>
               <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-white p-6 max-w-sm mx-auto">
-                <div className="text-center mb-4"><div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-orange-500 text-white text-lg font-bold">W</div><p className="text-sm font-semibold mt-2 text-slate-800">Connect to WiFi</p></div>
+                <div className="text-center mb-4"><div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary p-2"><img src="/brand/mark-compact-white.svg" alt="" className="h-full w-full" /></div><p className="text-sm font-semibold mt-2 text-slate-800">Connect to WiFi</p></div>
                 <div className="space-y-2">
                   {methods.filter(m => m.enabled).map(m => (
                     <button key={m.id} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-left text-sm hover:bg-slate-50 transition-colors"><m.icon className="h-4 w-4 text-slate-500" /><span>{m.label}</span><span className="ml-auto text-xs text-slate-400">→</span></button>
                   ))}
                 </div>
                 {pinMode && <button className="mt-2 flex w-full items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-left text-sm hover:bg-slate-50"><Key className="h-4 w-4 text-slate-500" /><span>Login with PIN</span></button>}
-                <p className="text-center text-[10px] text-slate-400 mt-4">Powered by BhaiFi</p>
+                <p className="text-center text-[10px] text-slate-400 mt-4">Powered by ZIP WiFi</p>
               </div>
             </CardContent>
           </Card>

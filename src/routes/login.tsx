@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Wifi, Loader2, Eye, EyeOff, ShieldCheck, UserRound } from "lucide-react";
+import { Loader2, Eye, EyeOff, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,8 +49,8 @@ function LoginPage() {
     <div className="flex min-h-screen">
       <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-12 text-primary-foreground overflow-hidden">
         <div className="flex items-center gap-3 relative z-10">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><Wifi className="h-6 w-6" /></div>
-          <div><p className="text-xl font-bold">BhaiFi</p><p className="text-sm text-primary-foreground/70">Guest WiFi, managed.</p></div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" /></div>
+          <div><p className="text-xl font-bold">ZIP WiFi</p><p className="text-sm text-primary-foreground/70">Guest WiFi, managed.</p></div>
         </div>
         <div className="relative z-10 max-w-md space-y-6">
           <h2 className="text-4xl font-bold leading-tight tracking-tight">Your network across every location. One dashboard. Zero blind spots.</h2>
@@ -59,14 +59,14 @@ function LoginPage() {
             {[{ v: "10K+", l: "Networks" }, { v: "99.9%", l: "Uptime" }, { v: "24/7", l: "Support" }].map((s) => (<div key={s.l}><p className="text-2xl font-bold">{s.v}</p><p className="text-xs text-primary-foreground/60">{s.l}</p></div>))}
           </div>
         </div>
-        <p className="relative z-10 text-sm text-primary-foreground/60">© 2026 BhaiFi. All rights reserved.</p>
+        <p className="relative z-10 text-sm text-primary-foreground/60">© 2026 ZIP WiFi. All rights reserved.</p>
         <div className="pointer-events-none absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
       </div>
 
       <div className="flex w-full lg:w-1/2 items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 mb-8"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Wifi className="h-5 w-5" /></div><p className="text-lg font-bold">BhaiFi</p></div>
+          <div className="lg:hidden flex items-center gap-2 mb-8"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div><p className="text-lg font-bold">ZIP WiFi</p></div>
           <div className="mb-8"><h1 className="text-2xl font-bold tracking-tight">Sign in</h1><p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p></div>
 
           {/* Role Selector */}

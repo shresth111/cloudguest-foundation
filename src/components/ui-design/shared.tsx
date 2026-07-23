@@ -9,7 +9,7 @@ export function PageHeader({ title, breadcrumb }: { title: string; breadcrumb?: 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{title}</h1>
-      {breadcrumb && <p className="text-xs text-slate-400">YOU ARE HERE : <span className="text-orange-500">BhaiFi</span> / {breadcrumb}</p>}
+      {breadcrumb && <p className="text-xs text-slate-400">YOU ARE HERE : <span className="text-primary">ZIP WiFi</span> / {breadcrumb}</p>}
     </div>
   );
 }

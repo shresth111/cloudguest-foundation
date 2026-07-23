@@ -55,8 +55,8 @@ function CustomerDashboardPage() {
         mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
       )}>
         <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm"><Wifi className="h-4 w-4" /></div>
-          {sidebar && <div><p className="text-sm font-semibold">BhaiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Portal"}</p></div>}
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
+          {sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Portal"}</p></div>}
         </div>
         <div className="px-2 pt-2">
           <button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>All locations</span>}</button>

@@ -110,6 +110,7 @@ export const Route = createRootRouteWithContext<{
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon-180.png" },
     ],
   }),
   shellComponent: RootShell,

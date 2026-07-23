@@ -53,7 +53,7 @@ export function PortalPage() {
                 <p className="font-semibold">{msg}</p>
                 <p className="text-xs text-muted-foreground">Connect to enjoy free WiFi</p>
                 <div className="space-y-2 max-w-xs mx-auto"><Input placeholder="Mobile number" className="h-9" /><Button className="h-9 w-full" style={{background: primary}}>Continue</Button></div>
-                <p className="text-[10px] text-muted-foreground">Powered by BhaiFi</p>
+                <p className="text-[10px] text-muted-foreground">Powered by ZIP WiFi</p>
               </div>
             </div>
           </CardContent>

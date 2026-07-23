@@ -36,11 +36,11 @@ function CustomerHomePage() {
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm">
-              <Wifi className="h-4 w-4" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm">
+              <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">BhaiFi</p>
+              <p className="text-sm font-semibold">ZIP WiFi</p>
               <p className="text-[10px] text-muted-foreground">Customer Portal</p>
             </div>
           </div>

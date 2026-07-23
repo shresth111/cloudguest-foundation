@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, LogOut, Bell, Search, Menu, Wifi, XCircle, Eye, ChevronLeft, ChevronRight, RotateCw,
+  ArrowLeft, LogOut, Bell, Search, Menu, XCircle, Eye, ChevronLeft, ChevronRight, RotateCw,
 } from "lucide-react";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ function CustomerUsersPage() {
     <div className="flex min-h-screen bg-muted/30">
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
       <aside className={cn("fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto", sidebar ? "w-60" : "w-0 lg:w-16 overflow-hidden", mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
-        <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm"><Wifi className="h-4 w-4" /></div>{sidebar && <div><p className="text-sm font-semibold">BhaiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Users"}</p></div>}</div>
+        <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>{sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Users"}</p></div>}</div>
         <div className="px-2 pt-2"><button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>All locations</span>}</button></div>
         <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">{filteredNavs.map((item) => (<button key={item.id} onClick={() => handleNav(item.id)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm w-full text-left transition-all", item.id === "users" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>{sidebar && <span className="truncate">{item.label}</span>}</button>))}</nav>
         <div className="border-t p-2 hidden lg:block"><button onClick={() => setSidebar(!sidebar)} className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent">{sidebar ? "◄" : "►"}</button></div>

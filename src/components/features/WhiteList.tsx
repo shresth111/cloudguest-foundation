@@ -133,7 +133,7 @@ export default function WhiteList() {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">WhiteList</h1>
         </div>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          YOU ARE HERE : <span className="text-orange-500">BhaiFi</span> / WhiteList
+          YOU ARE HERE : <span className="text-primary">ZIP WiFi</span> / WhiteList
         </p>
       </div>
 
