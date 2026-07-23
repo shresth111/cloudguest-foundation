@@ -401,6 +401,49 @@
   }
 }
 
+/**
+ * Sign-in page aurora motion: slow, organic blob drift + a gentle grid pan
+ * and float for decorative badges. Kept to transform/background-position
+ * only (no layout thrash) and fully disabled under reduced-motion.
+ */
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translate(-4%, -6%) scale(1); }
+  50% { transform: translate(6%, 8%) scale(1.18); }
+}
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translate(4%, 4%) scale(1); }
+  50% { transform: translate(-8%, -5%) scale(1.12); }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translate(0, 6%) scale(1); }
+  50% { transform: translate(7%, -8%) scale(1.08); }
+}
+@keyframes grid-pan {
+  0% { background-position: 0 0; }
+  100% { background-position: 48px 48px; }
+}
+@keyframes float-badge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+.aurora-blob-1 { animation: aurora-drift-1 22s ease-in-out infinite; }
+.aurora-blob-2 { animation: aurora-drift-2 26s ease-in-out infinite; }
+.aurora-blob-3 { animation: aurora-drift-3 19s ease-in-out infinite; }
+.aurora-grid { animation: grid-pan 14s linear infinite; }
+.float-badge { animation: float-badge 6s ease-in-out infinite; }
+.glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse {
+    animation: none !important;
+  }
+}
+
 @utility glass-panel {
   background: color-mix(in oklab, var(--color-card) 70%, transparent);
   backdrop-filter: blur(12px) saturate(140%);
