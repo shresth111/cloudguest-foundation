@@ -1,8 +1,16 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   AlertTriangle, HelpCircle, Plus, ChevronDown, Search, Pencil, Trash2,
   ChevronLeft, ChevronRight, Loader2, X,
 } from "lucide-react";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
+
+const BANDWIDTH_KBPS: Record<string, number> = { "512 Kbps": 512, "1 Mbps": 1024, "2 Mbps": 2048, "5 Mbps": 5120, "10 Mbps": 10240 };
+function kbpsToLabel(kbps: number): string {
+  const found = Object.entries(BANDWIDTH_KBPS).find(([, v]) => v === kbps);
+  return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
+}
 
 // ── constants ───────────────────────────────────────────────────
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
@@ -90,7 +98,8 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
 }
 
 // ── component ────────────────────────────────────────────────────
-export default function LocationPolicies() {
+export default function LocationPolicies({ locationId }: { locationId?: string } = {}) {
+  const demo = useIsDemo();
   // ── state ─────────────────────────────────────────────────────
   const [f, setF] = useState<PolicyForm>({
     businessUnit: "", bandwidth: "", sessionTimeout: "", dailyLimit: "No Limit",
@@ -102,13 +111,27 @@ export default function LocationPolicies() {
   const [dlUnit, setDlUnit] = useState("GB");
   const [dlResets, setDlResets] = useState("Daily");
   const [saving, setSaving] = useState(false);
-  const [policies, setPolicies] = useState<Policy[]>(SEED);
+  const [policies, setPolicies] = useState<Policy[]>(demo ? SEED : []);
+  const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(10);
   const [toast, setToast] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const real = await bandwidthPolicyService.list();
+        setPolicies(real.map((p) => ({ id: p.id, businessUnit: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", dailyLimit: "No Limit", idleTimeout: "", devicesPerUser: "", dataLimit: null })));
+        setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
+      } catch {
+        // Leave policies empty -- the "no policies yet" state is accurate.
+      }
+    })();
+  }, [demo, locationId]);
 
   // ── derived ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -151,29 +174,51 @@ export default function LocationPolicies() {
   };
 
   // ── save ──────────────────────────────────────────────────────
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
-    // TODO: replace with API call
-    setTimeout(() => {
-      const dataLimit = dataLimitOpen ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets } : null;
-      const existing = policies.findIndex((p) => p.businessUnit === f.businessUnit);
-      if (existing >= 0) {
-        setPolicies((prev) => prev.map((p, i) => i === existing ? { ...p, ...f, dataLimit } : p));
-      } else {
-        setPolicies((prev) => [{ id: `p${Date.now()}`, ...f, dataLimit }, ...prev]);
-      }
-      setSaving(false);
+    const dataLimit = dataLimitOpen ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets } : null;
+
+    if (demo) {
+      setTimeout(() => {
+        const existing = policies.findIndex((p) => p.businessUnit === f.businessUnit);
+        if (existing >= 0) setPolicies((prev) => prev.map((p, i) => i === existing ? { ...p, ...f, dataLimit } : p));
+        else setPolicies((prev) => [{ id: `p${Date.now()}`, ...f, dataLimit }, ...prev]);
+        setSaving(false);
+        setToast("Policies updated.");
+        setTimeout(() => setToast(null), 2500);
+      }, 600);
+      return;
+    }
+
+    try {
+      const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
+      const existingId = realIds[f.businessUnit];
+      const saved = await bandwidthPolicyService.save({ id: existingId, name: f.businessUnit, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps });
+      setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
+      const row: Policy = { id: saved.id, ...f, dataLimit };
+      setPolicies((prev) => {
+        const existing = prev.findIndex((p) => p.id === saved.id);
+        return existing >= 0 ? prev.map((p, i) => i === existing ? row : p) : [row, ...prev];
+      });
       setToast("Policies updated.");
       setTimeout(() => setToast(null), 2500);
-    }, 600);
+    } catch {
+      setToast("Could not save — check the connection and try again.");
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ── delete ────────────────────────────────────────────────────
   const handleDelete = (id: string) => {
     if (confirming === id) {
-      // TODO: replace with API call
-      setPolicies((prev) => prev.filter((p) => p.id !== id));
+      const prev = policies;
+      setPolicies((p) => p.filter((x) => x.id !== id));
+      if (!demo) {
+        bandwidthPolicyService.remove(id).catch(() => { setPolicies(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+      }
       setConfirming(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
     } else {

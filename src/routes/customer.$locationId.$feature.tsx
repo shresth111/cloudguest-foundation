@@ -212,7 +212,7 @@ function FeaturePage() {
             {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
             {feature === "portal" && <PortalPage locationId={locationId} />}
             {feature === "vouchers" && <VouchersPage locationId={locationId} />}
-            {feature === "policies" && <PoliciesHub />}
+            {feature === "policies" && <PoliciesHub locationId={locationId} />}
             {feature === "whitelist" && <WhiteList locationId={locationId} />}
             {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} /></div>}
             {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
