@@ -7,7 +7,7 @@ import type { ComponentType } from "react";
 import {
   LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Fingerprint, Clock, Monitor, UsersRound, Bot, Network, Wifi,
-  Server, Share2, Signal, ArrowRightLeft, Globe, Settings2, Gauge, Terminal,
+  Server, Share2, Signal, ArrowRightLeft, Globe, Settings2, Terminal,
   ScrollText, LifeBuoy,
 } from "lucide-react";
 
@@ -45,6 +45,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "whitelist", label: "Whitelist", icon: Shield },
       { id: "mac-auth", label: "MAC Auth", icon: Fingerprint },
       { id: "business-hours", label: "Business Hours", icon: Clock },
+      { id: "background-image", label: "Background Image", icon: Palette },
     ],
   },
   {
@@ -58,7 +59,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
   {
     group: "Network",
     items: [
-      { id: "networking", label: "Networking", icon: Network },
       { id: "hotspot", label: "Hotspot", icon: Wifi },
       { id: "dhcp", label: "DHCP Pool", icon: Server },
       { id: "vlans", label: "VLANs", icon: Network },
@@ -72,7 +72,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Operations",
     items: [
       { id: "advanced", label: "Advanced", icon: Settings2 },
-      { id: "topup", label: "Top Up", icon: Gauge },
       { id: "notification", label: "Notification", icon: Bell },
       { id: "debugging", label: "Debugging", icon: Terminal },
     ],

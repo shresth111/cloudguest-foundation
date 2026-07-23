@@ -37,7 +37,7 @@ export const LOCATIONS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe"
 const SEED_ROLES: AgentRole[] = [
   { id: READ_ONLY_ROLE_ID, name: "Read-Only", features: ["policies", "whitelist"], locked: true },
   { id: "role-front-desk", name: "Front Desk", features: ["users", "vouchers", "devices", "alerts", "reports"] },
-  { id: "role-net-eng", name: "Network Engineer", features: ["networking", "hotspot", "dhcp", "vlans", "port-forwarding", "voip", "isp-routing", "isp-details", "devices", "alerts", "debugging"] },
+  { id: "role-net-eng", name: "Network Engineer", features: ["hotspot", "dhcp", "vlans", "port-forwarding", "voip", "isp-routing", "isp-details", "devices", "alerts", "debugging"] },
   { id: "role-marketing", name: "Marketing", features: ["campaigns", "portal", "reports"] },
 ];
 

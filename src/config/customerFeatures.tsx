@@ -9,14 +9,15 @@ import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
-import { NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import { AdvancedPage } from "@/components/features/FeatureComponents";
 import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import UserReports from "@/components/features/UserReports";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import TicketsPage from "@/components/features/TicketsPage";
+import BrandAssetPage from "@/components/features/BrandAssetPage";
 import {
-  AlertsView, BusinessHoursView, NotificationView, TopUpView, IspDetailsView,
+  AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
   IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
@@ -49,8 +50,8 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "advanced": return <AdvancedPage />;
     case "alerts": return <AlertsView />;
     case "business-hours": return <BusinessHoursView />;
+    case "background-image": return <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />;
     case "notification": return <NotificationView />;
-    case "topup": return <TopUpView />;
     case "isp-details": return <IspDetailsView />;
     case "admin-logs": return <AdminLogsView />;
     case "mac-auth": return <MacAuthView />;

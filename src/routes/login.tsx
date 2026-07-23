@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Loader2, Eye, EyeOff, ShieldCheck, UserRound } from "lucide-react";
+import { Loader2, Eye, EyeOff, ShieldCheck, UserRound, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
@@ -52,6 +53,8 @@ function LoginPage() {
   const [role, setRole] = useState<LoginRole>("owner");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", message: "" });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +74,25 @@ function LoginPage() {
     } finally { setLoading(false); }
   };
 
+  const handleDemoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!demoForm.name || !demoForm.email) { toast.error("Please share your name and email."); return; }
+    toast.success("Thanks! Our team will reach out to schedule your demo.");
+    setDemoForm({ name: "", email: "", company: "", message: "" });
+    setDemoOpen(false);
+  };
+
   return (
+    <>
+    <motion.button
+      onClick={() => setDemoOpen(true)}
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
+      className="btn-glow fixed right-5 top-5 z-50 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 backdrop-blur transition-colors hover:bg-primary/90"
+    >
+      <CalendarClock className="h-4 w-4" /> Book a Demo
+    </motion.button>
     <div className="flex min-h-screen">
       {/* Left: brand hero */}
       <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-12 text-primary-foreground overflow-hidden">
@@ -197,5 +218,44 @@ function LoginPage() {
         </motion.div>
       </div>
     </div>
+
+    <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Book a Demo</DialogTitle>
+          <DialogDescription>Tell us a bit about your business and our team will reach out to schedule a walkthrough.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleDemoSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="demo-name">Full name</Label>
+            <Input id="demo-name" placeholder="Jane Doe" value={demoForm.name} onChange={(e) => setDemoForm({ ...demoForm, name: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="demo-email">Work email</Label>
+            <Input id="demo-email" type="email" placeholder="jane@company.com" value={demoForm.email} onChange={(e) => setDemoForm({ ...demoForm, email: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="demo-company">Company</Label>
+            <Input id="demo-company" placeholder="Acme Hotels" value={demoForm.company} onChange={(e) => setDemoForm({ ...demoForm, company: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="demo-message">What are you looking for? (optional)</Label>
+            <textarea
+              id="demo-message"
+              placeholder="Tell us about your locations, network size, or specific needs…"
+              value={demoForm.message}
+              onChange={(e) => setDemoForm({ ...demoForm, message: e.target.value })}
+              rows={3}
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDemoOpen(false)}>Cancel</Button>
+            <Button type="submit">Request Demo</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

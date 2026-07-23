@@ -19,7 +19,7 @@ import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
-import { NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import { AdvancedPage } from "@/components/features/FeatureComponents";
 import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import LocationPolicies from "@/components/features/LocationPolicies";
@@ -30,8 +30,9 @@ import SmartIdPage from "@/components/features/SmartIdPage";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import TicketsPage from "@/components/features/TicketsPage";
+import BrandAssetPage from "@/components/features/BrandAssetPage";
 import {
-  AlertsView, BusinessHoursView, NotificationView, TopUpView, IspDetailsView,
+  AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
   IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
@@ -40,7 +41,7 @@ import {
   LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
   AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye, EyeOff, KeyRound, MapPinned,
-  Clock, Server, Globe, Terminal, Gauge, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
+  Clock, Server, Globe, Terminal, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
 } from "lucide-react";
 
 type NavRole = "owner" | "agent";
@@ -75,6 +76,7 @@ const NAV_GROUPS: NavGroupDef[] = [
       { id: "whitelist", label: "Whitelist", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "MAC Auth", icon: Fingerprint, roles: ["owner"] },
       { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
+      { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
     ],
   },
   {
@@ -88,7 +90,6 @@ const NAV_GROUPS: NavGroupDef[] = [
   {
     group: "Network",
     items: [
-      { id: "networking", label: "Networking", icon: Network, roles: ["owner"] },
       { id: "hotspot", label: "Hotspot", icon: Wifi, roles: ["owner"] },
       { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
       { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
@@ -102,7 +103,6 @@ const NAV_GROUPS: NavGroupDef[] = [
     group: "Operations",
     items: [
       { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
-      { id: "topup", label: "Top Up", icon: Gauge, roles: ["owner", "agent"] },
       { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
       { id: "debugging", label: "Debugging", icon: Terminal, roles: ["owner"] },
     ],
@@ -216,14 +216,13 @@ function FeaturePage() {
             {feature === "devices" && <DevicesView />}
             {feature === "teams" && <ManageTeamsPage />}
             {feature === "agents" && <AgentsPage />}
-            {feature === "networking" && <NetworkingPage />}
             {feature === "advanced" && <AdvancedPage />}
             {feature === "audit" && <AuditView />}
             {feature === "tickets" && <TicketsPage />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <BusinessHoursView />}
+            {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
             {feature === "notification" && <NotificationView />}
-            {feature === "topup" && <TopUpView />}
             {feature === "isp-details" && <IspDetailsView />}
             {feature === "admin-logs" && <AdminLogsView />}
             {feature === "mac-auth" && <MacAuthView />}

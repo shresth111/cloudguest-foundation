@@ -6,7 +6,7 @@
  * pick up the Aurora Teal identity automatically. Mock data only -- these
  * are the seam a per-location backend call replaces.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Activity, AlertTriangle, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
 import NetworkCrudTable, { validators } from "@/components/features/NetworkCrudTable";
+import { useIspStore, type IspConfig, type IspLine } from "@/stores/ispStore";
 import { cn } from "@/lib/utils";
 
 /* ---------- shared building blocks ---------- */
@@ -248,32 +249,195 @@ export function TopUpView() {
 }
 
 /* ---------- ISP Details ---------- */
+const PROVIDERS = ["Airtel", "Jio", "Tata Communications", "ACT Fibernet", "BSNL", "Skynet Broadband", "Unknown"];
+const CONNECTION_TYPES = ["Broadband", "Leased Line", "Fiber", "4G/5G Backup"];
+const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+
+function emptyLine(wan: string): IspLine {
+  return { wan, provider: "", connectionType: "Broadband", bandwidthMbps: 0, thresholdMbps: 0, status: "up", emailAlert: false, smsAlert: false };
+}
+
+/* ---------- Network Health analytics (per-business-unit ISP up/down timeline) ---------- */
+
+function seededRand(seed: number) {
+  let s = seed % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+}
+
+type HealthStatus = "up" | "down" | "reboot" | "none";
+
+const HEALTH_COLOR: Record<HealthStatus, string> = {
+  up: "bg-emerald-500", down: "bg-rose-500", reboot: "bg-amber-500", none: "bg-muted",
+};
+const HEALTH_LABEL: Record<HealthStatus, string> = {
+  up: "Network Up", down: "Network Down", reboot: "Reboot", none: "No Data",
+};
+
+/** Manually driven by the ISP config saved above -- a line currently marked
+ * "down" biases today's most recent hours to down so the chart reflects the
+ * configuration instead of drifting independently. */
+function NetworkHealthChart({ businessUnit, anyLineDown }: { businessUnit: string; anyLineDown: boolean }) {
+  const [hover, setHover] = useState<{ day: string; hour: number; status: HealthStatus } | null>(null);
+
+  const { days, uptimePct } = useMemo(() => {
+    const seed = Array.from(businessUnit).reduce((a, c) => a + c.charCodeAt(0), 7);
+    const rand = seededRand(seed);
+    const today = new Date();
+    const nowHour = today.getHours();
+    const rows: { label: string; hours: HealthStatus[] }[] = [];
+    let upCount = 0, totalCount = 0;
+
+    for (let d = 6; d >= 0; d--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - d);
+      const isToday = d === 0;
+      const label = isToday ? "Today" : `${String(date.getDate()).padStart(2, "0")} ${date.toLocaleDateString("en-US", { month: "short" })} '${String(date.getFullYear()).slice(2)}`;
+      const hours: HealthStatus[] = [];
+      for (let h = 0; h < 24; h++) {
+        if (isToday && h > nowHour) { hours.push("none"); continue; }
+        let status: HealthStatus = "up";
+        const r = rand();
+        if (isToday && anyLineDown && h >= nowHour - 1) status = "down";
+        else if (r < 0.035) status = "down";
+        else if (r < 0.045) status = "reboot";
+        hours.push(status);
+        totalCount++;
+        if (status === "up") upCount++;
+      }
+      rows.push({ label, hours });
+    }
+    const uptimePct = totalCount ? ((upCount / totalCount) * 100).toFixed(2) : "0.00";
+    return { days: rows, uptimePct };
+  }, [businessUnit, anyLineDown]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Network Health</CardTitle>
+        <CardDescription>This graph shows the network up/down time for each ISP.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="overflow-x-auto">
+          <div className="min-w-[720px]">
+            {days.map((day) => (
+              <div key={day.label} className="flex items-center gap-2 py-0.5">
+                <span className="w-16 shrink-0 text-[11px] text-muted-foreground">{day.label}</span>
+                <div className="flex flex-1 gap-[2px]">
+                  {day.hours.map((status, h) => (
+                    <div
+                      key={h}
+                      onMouseEnter={() => setHover({ day: day.label, hour: h, status })}
+                      onMouseLeave={() => setHover(null)}
+                      className={cn("h-4 flex-1 cursor-pointer rounded-[2px] transition-transform hover:scale-y-125", HEALTH_COLOR[status])}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="ml-[72px] mt-1 flex justify-between text-[10px] text-muted-foreground">
+              {["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "23:00"].map((t) => <span key={t}>{t}</span>)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex h-6 items-center">
+          {hover ? (
+            <div className="rounded-lg border bg-popover px-3 py-1 text-xs shadow-sm">
+              <span className="font-medium">{hover.day}, {String(hover.hour).padStart(2, "0")}:00</span>
+              <span className="text-muted-foreground"> — {HEALTH_LABEL[hover.status]}</span>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">Hover a bar for hourly detail.</span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 border-t pt-3 text-xs">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-muted" />No Data</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Network Up</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />Network Down</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />Reboot</span>
+          <span className="ml-auto font-semibold text-foreground">All Interfaces | {uptimePct}% uptime</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function IspDetailsView() {
-  const isps = [
-    { name: "Tata Communications", plan: "1 Gbps Leased", ip: "103.21.44.2", status: "active", role: "Primary" },
-    { name: "Airtel", plan: "500 Mbps FTTH", ip: "122.15.8.90", status: "active", role: "Failover" },
-    { name: "Jio", plan: "300 Mbps", ip: "49.36.12.7", status: "degraded", role: "Backup" },
-  ];
+  const { configs, saveConfig } = useIspStore();
+  const [businessUnit, setBusinessUnit] = useState(UNITS[0]);
+  const draft: IspConfig = configs[businessUnit] ?? { businessUnit, totalInterfaces: 1, emailOnFluctuation: false, lines: [emptyLine("WAN1")] };
+  const [form, setForm] = useState<IspConfig>(draft);
+
+  const selectUnit = (u: string) => { setBusinessUnit(u); setForm(configs[u] ?? { businessUnit: u, totalInterfaces: 1, emailOnFluctuation: false, lines: [emptyLine("WAN1")] }); };
+  const setTotalInterfaces = (n: number) => {
+    const lines = Array.from({ length: n }, (_, i) => form.lines[i] ?? emptyLine(`WAN${i + 1}`));
+    setForm({ ...form, totalInterfaces: n, lines });
+  };
+  const updateLine = (i: number, patch: Partial<IspLine>) => setForm({ ...form, lines: form.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+
+  const save = () => { saveConfig({ ...form, businessUnit }); toast.success(`ISP details saved for ${businessUnit}`); };
+
   return (
     <div className="space-y-6">
-      <FeatureHeader title="ISP Details" description="Uplinks configured for this location, with roles and live status." action={<Button size="sm"><Plus className="h-4 w-4" /> Add ISP</Button>} />
+      <FeatureHeader title="ISP Details" description="Configure your ISP details, manage ISP alerts and add load balancing/failover details." />
+
       <Card>
+        <CardContent className="space-y-5 p-5">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div><Label className="mb-1.5 block text-sm">Business Unit *</Label><Select value={businessUnit} onValueChange={selectUnit}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label className="mb-1.5 block text-sm">Total Interfaces *</Label><Select value={String(form.totalInterfaces)} onValueChange={(v) => setTotalInterfaces(+v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
+            <div className="flex items-end"><label className="flex items-center gap-2 text-sm"><Switch checked={form.emailOnFluctuation} onCheckedChange={(v) => setForm({ ...form, emailOnFluctuation: v })} />Email when ISP speed fluctuates</label></div>
+          </div>
+
+          {form.lines.map((line, i) => (
+            <div key={line.wan} className="rounded-xl border p-4">
+              <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <span className={`h-2 w-2 rounded-full ${line.status === "up" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                ISP{i + 1} Details <span className="text-xs font-normal text-muted-foreground">({line.wan})</span>
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div><Label className="mb-1 block text-xs">Internet Provider *</Label><Select value={line.provider} onValueChange={(v) => updateLine(i, { provider: v })}><SelectTrigger className="h-9"><SelectValue placeholder="Choose provider" /></SelectTrigger><SelectContent>{PROVIDERS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label className="mb-1 block text-xs">Connection Type *</Label><Select value={line.connectionType} onValueChange={(v) => updateLine(i, { connectionType: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{CONNECTION_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label className="mb-1 block text-xs">Bandwidth (Mbps) *</Label><Input type="number" min={0} value={line.bandwidthMbps} onChange={(e) => updateLine(i, { bandwidthMbps: +e.target.value || 0 })} className="h-9" /></div>
+                <div><Label className="mb-1 block text-xs">Threshold (Mbps) *</Label><Input type="number" min={0} value={line.thresholdMbps} onChange={(e) => updateLine(i, { thresholdMbps: +e.target.value || 0 })} className="h-9" /></div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-5">
+                <label className="flex items-center gap-2 text-xs"><Switch checked={line.emailAlert} onCheckedChange={(v) => updateLine(i, { emailAlert: v })} />Email notification when down</label>
+                <label className="flex items-center gap-2 text-xs"><Switch checked={line.smsAlert} onCheckedChange={(v) => updateLine(i, { smsAlert: v })} />SMS notification when down</label>
+                <label className="ml-auto flex items-center gap-2 text-xs"><Switch checked={line.status === "up"} onCheckedChange={(v) => updateLine(i, { status: v ? "up" : "down" })} />{line.status === "up" ? "Up" : "Down"} (demo toggle)</label>
+              </div>
+            </div>
+          ))}
+
+          <div className="flex justify-center"><Button onClick={save}>Save ISP Details</Button></div>
+        </CardContent>
+      </Card>
+
+      <NetworkHealthChart businessUnit={businessUnit} anyLineDown={form.lines.some((l) => l.status === "down")} />
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Current ISP Routing</CardTitle><CardDescription>This shows the ISP configuration for every business unit.</CardDescription></CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Provider</TableHead><TableHead>Plan</TableHead>
-                <TableHead>Public IP</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow><TableHead>Business Name</TableHead><TableHead>WANs</TableHead><TableHead>ISPs</TableHead><TableHead>Type</TableHead><TableHead>Bandwidth (Mbps)</TableHead><TableHead>Threshold (Mbps)</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
             <TableBody>
-              {isps.map((i) => (
-                <TableRow key={i.name}>
-                  <TableCell className="font-medium">{i.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{i.plan}</TableCell>
-                  <TableCell className="font-mono text-xs">{i.ip}</TableCell>
-                  <TableCell><Badge variant="outline">{i.role}</Badge></TableCell>
-                  <TableCell><StatusPill status={i.status} /></TableCell>
+              {Object.values(configs).map((cfg) => (
+                <TableRow key={cfg.businessUnit}>
+                  <TableCell className="font-medium">{cfg.businessUnit}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.wan).join(", ")}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.provider || "N/A").join(", ")}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.connectionType).join(", ")}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.bandwidthMbps).join(", ")}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.thresholdMbps).join(", ")}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1.5">
+                      {cfg.lines.map((l) => (
+                        <span key={l.wan} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${l.status === "up" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"}`}>{l.wan} {l.status === "up" ? "UP" : "DOWN"}</span>
+                      ))}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
