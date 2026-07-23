@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AgentRouteImport } from './routes/agent'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MasterRouteImport } from './routes/master'
@@ -26,6 +27,7 @@ import { Route as AuthenticatedError500RouteImport } from './routes/_authenticat
 import { Route as AuthenticatedErrorMaintenanceRouteImport } from './routes/_authenticated/error-maintenance'
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as AgentIndexRouteImport } from './routes/agent.index'
 import { Route as CustomerIndexRouteImport } from './routes/customer.index'
 import { Route as MasterIndexRouteImport } from './routes/master.index'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
@@ -151,6 +153,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentRoute = AgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -227,6 +234,11 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AgentIndexRoute = AgentIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AgentRoute,
 } as any)
 const CustomerIndexRoute = CustomerIndexRouteImport.update({
   id: '/customer/',
@@ -885,6 +897,7 @@ const AuthenticatedLocationsLocationIdNasNasIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agent': typeof AgentRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
@@ -921,6 +934,7 @@ export interface FileRoutesByFullPath {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/agent/': typeof AgentIndexRoute
   '/customer/': typeof CustomerIndexRoute
   '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
@@ -1050,6 +1064,7 @@ export interface FileRoutesByTo {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/agent': typeof AgentIndexRoute
   '/customer': typeof CustomerIndexRoute
   '/master': typeof MasterIndexRoute
   '/portal': typeof PortalIndexRoute
@@ -1148,6 +1163,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/agent': typeof AgentRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
@@ -1184,6 +1200,7 @@ export interface FileRoutesById {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/agent/': typeof AgentIndexRoute
   '/customer/': typeof CustomerIndexRoute
   '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
@@ -1283,6 +1300,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agent'
     | '/forgot-password'
     | '/login'
     | '/master'
@@ -1319,6 +1337,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/agent/'
     | '/customer/'
     | '/master/'
     | '/portal/'
@@ -1448,6 +1467,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/agent'
     | '/customer'
     | '/master'
     | '/portal'
@@ -1545,6 +1565,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/agent'
     | '/forgot-password'
     | '/login'
     | '/master'
@@ -1581,6 +1602,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/agent/'
     | '/customer/'
     | '/master/'
     | '/portal/'
@@ -1680,6 +1702,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AgentRoute: typeof AgentRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MasterRoute: typeof MasterRouteWithChildren
@@ -1707,6 +1730,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agent': {
+      id: '/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AgentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -1813,6 +1843,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspace'
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/agent/': {
+      id: '/agent/'
+      path: '/'
+      fullPath: '/agent/'
+      preLoaderRoute: typeof AgentIndexRouteImport
+      parentRoute: typeof AgentRoute
     }
     '/customer/': {
       id: '/customer/'
@@ -2870,6 +2907,16 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface AgentRouteChildren {
+  AgentIndexRoute: typeof AgentIndexRoute
+}
+
+const AgentRouteChildren: AgentRouteChildren = {
+  AgentIndexRoute: AgentIndexRoute,
+}
+
+const AgentRouteWithChildren = AgentRoute._addFileChildren(AgentRouteChildren)
+
 interface MasterRouteChildren {
   MasterAnalyticsRoute: typeof MasterAnalyticsRoute
   MasterAuditRoute: typeof MasterAuditRoute
@@ -2951,6 +2998,7 @@ const PortalRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AgentRoute: AgentRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MasterRoute: MasterRouteWithChildren,

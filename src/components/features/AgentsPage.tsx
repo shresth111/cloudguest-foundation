@@ -1,154 +1,164 @@
+/**
+ * Owner-side agent & permission manager. The customer business owner creates
+ * agents (employees) and grants each a subset of features; those grants drive
+ * the agent's dynamic dashboard at /agent. Backed by the shared
+ * agentPermissionStore so the /agent surface reflects changes immediately.
+ */
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Plus, Trash2, ShieldCheck, Eye, ExternalLink, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { FEATURE_GROUPS, CORE_FEATURE_IDS, ALL_FEATURES } from "@/config/customerFeatureCatalog";
+import { useAgentPermissions, type AgentRecord } from "@/stores/agentPermissionStore";
 
-interface Agent { id: string; name: string; email: string; role: string; status: string; updatedAt: string; }
-interface Role { id: string; name: string; permissionCount: number; }
-
-const ROLES: Role[] = [
-  { id: "r1", name: "Network Engineer", permissionCount: 18 },
-  { id: "r2", name: "Support Agent", permissionCount: 12 },
-  { id: "r3", name: "Location Manager", permissionCount: 24 },
-  { id: "r4", name: "Guest Operator", permissionCount: 8 },
-  { id: "r5", name: "Read Only", permissionCount: 4 },
-];
-
-const PERMISSIONS = [
-  { module: "Dashboard", actions: ["view"] },
-  { module: "Users", actions: ["view", "disconnect"] },
-  { module: "Analytics", actions: ["view", "export"] },
-  { module: "Reports", actions: ["view", "generate", "export"] },
-  { module: "Vouchers", actions: ["view", "create", "revoke"] },
-  { module: "Devices", actions: ["view", "block", "unblock"] },
-  { module: "Audit", actions: ["view"] },
-  { module: "Campaigns", actions: ["view", "create", "delete"] },
-  { module: "Portal", actions: ["view", "configure"] },
-  { module: "Policies", actions: ["view", "create", "edit"] },
-  { module: "Whitelist", actions: ["view", "add", "remove"] },
-  { module: "Teams", actions: ["view", "create"] },
-  { module: "Networking", actions: ["view", "configure"] },
-  { module: "Advanced", actions: ["view", "configure"] },
-];
+const GRANTABLE = ALL_FEATURES.filter((f) => !f.core).length;
 
 export function AgentsPage() {
-  const [agents, setAgents] = useState<Agent[]>([
-    { id: "1", name: "John Support", email: "john@bhaifi.com", role: "Support Agent", status: "active", updatedAt: "2 days ago" },
-    { id: "2", name: "Sarah Tech", email: "sarah@bhaifi.com", role: "Network Engineer", status: "active", updatedAt: "5 days ago" },
-    { id: "3", name: "Mike Ops", email: "mike@bhaifi.com", role: "Location Manager", status: "inactive", updatedAt: "2 weeks ago" },
-  ]);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ name: "", email: "", role: "Support Agent" });
-  const [showPermissions, setShowPermissions] = useState<string | null>(null);
-  const [selectedPerms, setSelectedPerms] = useState<Record<string, string[]>>({});
+  const navigate = useNavigate();
+  const { agents, addAgent, updateAgent, setAgentFeatures, removeAgent, setCurrentAgent } = useAgentPermissions();
+  const [selectedId, setSelectedId] = useState<string | null>(agents[0]?.id ?? null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "" });
 
-  const handleInvite = () => {
-    if (!inviteForm.name || !inviteForm.email) return;
-    setAgents([...agents, { id: String(Date.now()), ...inviteForm, status: "pending", updatedAt: "Just now" }]);
-    setInviteForm({ name: "", email: "", role: "Support Agent" });
-    setShowInvite(false);
+  const selected = agents.find((a) => a.id === selectedId) ?? null;
+
+  const create = () => {
+    if (!form.name || !form.email) return;
+    const id = addAgent({ name: form.name, email: form.email, status: "pending", dataMasking: true, features: ["users", "vouchers"] });
+    setForm({ name: "", email: "" });
+    setCreating(false);
+    setSelectedId(id);
+    toast.success("Agent created");
   };
 
-  const togglePerm = (agentId: string, module: string, action: string) => {
-    const current = selectedPerms[agentId] || [];
-    const key = `${module}.${action}`;
-    setSelectedPerms({
-      ...selectedPerms,
-      [agentId]: current.includes(key) ? current.filter(k => k !== key) : [...current, key],
-    });
+  const toggleFeature = (agent: AgentRecord, id: string) => {
+    const has = agent.features.includes(id);
+    setAgentFeatures(agent.id, has ? agent.features.filter((f) => f !== id) : [...agent.features, id]);
+  };
+
+  const previewAs = (id: string) => {
+    setCurrentAgent(id);
+    navigate({ to: "/agent" });
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Agent Management</h2>
-          <p className="text-sm text-muted-foreground">Invite agents and assign role-based permissions</p>
+    <div className="grid gap-5 lg:grid-cols-[300px_1fr]">
+      {/* Agent list */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Agents</h3>
+          <Button size="sm" variant="outline" className="h-8" onClick={() => setCreating((v) => !v)}><Plus className="h-4 w-4" /> Add</Button>
         </div>
-        <Button onClick={() => setShowInvite(true)}><Plus className="mr-2 h-4 w-4" />Invite Agent</Button>
+
+        {creating && (
+          <Card className="rounded-2xl border-primary/40">
+            <CardContent className="space-y-2 p-4">
+              <Input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" />
+              <Input placeholder="name@company.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-9" />
+              <div className="flex gap-2">
+                <Button size="sm" className="h-8 flex-1" onClick={create}>Create</Button>
+                <Button size="sm" variant="ghost" className="h-8" onClick={() => setCreating(false)}>Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="space-y-2">
+          {agents.map((a) => {
+            const granted = a.features.filter((f) => !CORE_FEATURE_IDS.includes(f)).length;
+            return (
+              <button
+                key={a.id}
+                onClick={() => setSelectedId(a.id)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
+                  selectedId === a.id ? "border-primary bg-primary/5" : "hover:bg-accent",
+                )}
+              >
+                <Avatar className="h-9 w-9"><AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{a.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{a.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{granted}/{GRANTABLE} features</p>
+                </div>
+                <Badge variant={a.status === "active" ? "default" : a.status === "pending" ? "secondary" : "outline"} className="text-[10px] capitalize">{a.status}</Badge>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {showInvite && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowInvite(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold mb-4">Invite New Agent</h3>
-            <div className="space-y-3">
-              <div><Label>Full Name</Label><Input value={inviteForm.name} onChange={e => setInviteForm({ ...inviteForm, name: e.target.value })} placeholder="John Doe" /></div>
-              <div><Label>Email</Label><Input value={inviteForm.email} onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })} placeholder="john@company.com" /></div>
-              <div><Label>Role</Label><Select value={inviteForm.role} onValueChange={v => setInviteForm({ ...inviteForm, role: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ROLES.map(r => <SelectItem key={r.id} value={r.name}>{r.name} ({r.permissionCount} permissions)</SelectItem>)}</SelectContent>
-              </Select></div>
+      {/* Permission editor */}
+      {selected ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-11 w-11"><AvatarFallback className="bg-primary/10 font-semibold text-primary">{selected.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
+              <div>
+                <p className="font-semibold">{selected.name}</p>
+                <p className="text-xs text-muted-foreground">{selected.email}</p>
+              </div>
             </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
-              <Button onClick={handleInvite}>Send Invitation</Button>
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-sm"><Switch checked={selected.status === "active"} onCheckedChange={(v) => updateAgent(selected.id, { status: v ? "active" : "inactive" })} /> Active</label>
+              <label className="flex items-center gap-2 text-sm"><Switch checked={selected.dataMasking} onCheckedChange={(v) => updateAgent(selected.id, { dataMasking: v })} /> Data masking</label>
+              <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}><Eye className="h-4 w-4" /> Preview as agent <ExternalLink className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { removeAgent(selected.id); setSelectedId(null); }}><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>
-        </div>
-      )}
 
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="divide-y">
-          {agents.map(agent => (
-            <div key={agent.id} className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar><AvatarFallback className="bg-primary/10 text-primary">{agent.name.split(" ").map(n => n[0]).join("")}</AvatarFallback></Avatar>
-                  <div>
-                    <p className="font-medium">{agent.name}</p>
-                    <p className="text-xs text-muted-foreground">{agent.email} · {agent.role}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={agent.status === "active" ? "default" : "secondary"}>{agent.status}</Badge>
-                  <Button variant="outline" size="sm" onClick={() => setShowPermissions(showPermissions === agent.id ? null : agent.id)}>
-                    Permissions
-                  </Button>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setAgents(agents.filter(a => a.id !== agent.id))}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+          <Card className="rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-primary" /> Feature permissions</CardTitle>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setAgentFeatures(selected.id, ALL_FEATURES.filter((f) => !f.core).map((f) => f.id))}>Grant all</Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setAgentFeatures(selected.id, [])}>Clear</Button>
               </div>
-              {showPermissions === agent.id && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="text-sm font-medium mb-2">Module Permissions</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {PERMISSIONS.map(p => (
-                      <div key={p.module} className="flex items-center gap-2 rounded-lg border p-2">
-                        <Switch
-                          checked={selectedPerms[agent.id]?.some(k => k.startsWith(p.module.toLowerCase()))}
-                          onCheckedChange={() => togglePerm(agent.id, p.module.toLowerCase(), "view")}
-                        />
-                        <span className="text-xs">{p.module}</span>
-                      </div>
-                    ))}
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {FEATURE_GROUPS.map((g) => (
+                <div key={g.group}>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{g.group}</p>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {g.items.map((item) => {
+                      const Icon = item.icon;
+                      const on = item.core || selected.features.includes(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          disabled={item.core}
+                          onClick={() => toggleFeature(selected, item.id)}
+                          className={cn(
+                            "flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm transition-colors",
+                            on ? "border-primary/50 bg-primary/5" : "hover:bg-accent",
+                            item.core && "opacity-70",
+                          )}
+                        >
+                          <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", on ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}><Icon className="h-4 w-4" /></span>
+                          <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+                          {item.core ? (
+                            <Badge variant="outline" className="text-[9px]">Core</Badge>
+                          ) : (
+                            <span className={cn("grid h-5 w-5 place-items-center rounded-md border", on ? "border-primary bg-primary text-primary-foreground" : "border-border")}>{on && <Check className="h-3.5 w-3.5" />}</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
+              ))}
+            </CardContent>
+          </Card>
         </div>
-      </div>
-
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="text-sm font-semibold mb-3">Suggested Roles</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ROLES.map(role => (
-            <div key={role.id} className="rounded-lg border p-3 hover:border-primary/50 transition-colors cursor-pointer">
-              <p className="font-medium text-sm">{role.name}</p>
-              <p className="text-xs text-muted-foreground">{role.permissionCount} permissions</p>
-              <Button size="sm" variant="outline" className="mt-2 h-7 text-xs">Assign</Button>
-            </div>
-          ))}
-        </div>
-      </div>
+      ) : (
+        <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">Select or create an agent to manage permissions.</div>
+      )}
     </div>
   );
 }
