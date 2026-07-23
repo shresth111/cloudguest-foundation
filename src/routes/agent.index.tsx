@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-  Menu, LogOut, EyeOff, ChevronsUpDown, ShieldCheck, Inbox,
+  Menu, LogOut, EyeOff, ChevronsUpDown, ShieldCheck, Inbox, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FEATURE_GROUPS, FEATURE_BY_ID, renderFeature } from "@/config/customerFeatures";
 import { useAgentPermissions } from "@/stores/agentPermissionStore";
+import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 
 export const Route = createFileRoute("/agent/")({
   component: AgentDashboard,
@@ -34,6 +35,7 @@ function AgentDashboard() {
   const firstFeature = groups[0]?.items[0]?.id ?? "dashboard";
   const [feature, setFeature] = useState(firstFeature);
   const [mobile, setMobile] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   const active = granted.has(feature) ? feature : firstFeature;
   const activeLabel = FEATURE_BY_ID[active]?.label ?? "Dashboard";
@@ -120,6 +122,7 @@ function AgentDashboard() {
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setChangePwOpen(true)}><KeyRound className="mr-2 h-4 w-4" /> Change password</DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive"><LogOut className="mr-2 h-4 w-4" /> Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -130,6 +133,7 @@ function AgentDashboard() {
           <div className="mx-auto max-w-7xl">{renderFeature(active)}</div>
         </main>
       </div>
+      <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
     </div>
   );
 }

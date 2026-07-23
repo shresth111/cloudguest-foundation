@@ -13,7 +13,7 @@ export function PortalPage() {
   const [primary, setPrimary] = useState("#6366f1");
   const [msg, setMsg] = useState("Welcome! Connect to enjoy free WiFi");
   const [authMethods, setAuthMethods] = useState(["otp","sms","voucher"]);
-  const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://bhaifi.com/welcome", terms: "By connecting you agree to fair-use terms." });
+  const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://zipwifi.io/welcome", terms: "By connecting you agree to fair-use terms." });
 
   const toggleAuth = (m: string) => {
     setAuthMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -64,7 +64,7 @@ export function PortalPage() {
             <div className="grid h-32 w-32 place-items-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
               <Wifi className="h-16 w-16 text-primary/40" />
             </div>
-            <p className="text-xs text-muted-foreground">portal.bhaifi.com</p>
+            <p className="text-xs text-muted-foreground">portal.zipwifi.io</p>
             <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" />Download QR</Button>
           </CardContent>
         </Card>

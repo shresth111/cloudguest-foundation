@@ -4,7 +4,6 @@ import {
   ChevronLeft, ChevronRight, Trash2, RotateCcw, Undo2,
 } from "lucide-react";
 
-const TABS = ["Block User", "WhiteList", "Smart ID", "PIN", "Voucher", "Online Users", "Device Whitelist"];
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
@@ -36,10 +35,9 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-interface Props { onNavigate?: (key: string) => void; }
 type SortKey = "name" | "mobile" | "businessUnit" | "blockedOn";
 
-export default function BlockUsers({ onNavigate }: Props) {
+export default function BlockUsers() {
   const [blocked, setBlocked] = useState<BlockedUser[]>([
     { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Marina Bay Hotel", blockedOn: new Date(Date.now() - 86400000 * 3).toISOString(), status: "Blocked" },
     { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Downtown CoWork", blockedOn: new Date(Date.now() - 86400000 * 5).toISOString(), status: "Blocked" },
@@ -223,20 +221,6 @@ export default function BlockUsers({ onNavigate }: Props) {
       )}
 
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Block Users</h1>
-
-      <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">
-        <div className="flex min-w-[600px]">
-          {TABS.map((label) => {
-            const active = label === "Block User";
-            return (
-              <button key={label} onClick={() => onNavigate?.(label)} aria-current={active ? "page" : undefined}
-                className={`flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
-                  active ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-400" : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
-                }`}>{label}</button>
-            );
-          })}
-        </div>
-      </div>
 
       <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">

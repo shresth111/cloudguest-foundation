@@ -4,8 +4,11 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, LogOut, Bell, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
   CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
+  Eye, EyeOff, KeyRound, MapPinned,
 } from "lucide-react";
+import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
+import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,11 +39,14 @@ function CustomerDashboardPage() {
   const [menu, setMenu] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [notif, setNotif] = useState(false);
+  const [masked, setMasked] = useState(true);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   if (activeLocationId !== locationId) return <div className="flex min-h-screen items-center justify-center"><Button variant="outline" onClick={() => navigate({ to: "/customer" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></div>;
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
   const filteredNavs = customerNavsForRole(getCustomerLoginRole());
 
   return (
@@ -91,6 +97,12 @@ function CustomerDashboardPage() {
             <span className="hidden sm:inline text-xs text-muted-foreground capitalize">{activeLocation?.status}</span>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setMasked((m) => !m); toast.success(masked ? "Data unmasked" : "Data masked"); }}
+              className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex mr-1"
+            >
+              {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
+            </button>
             <Button variant="ghost" size="icon" className="h-9 w-9"><Search className="h-4 w-4" /></Button>
             <div className="relative">
               <Button variant="ghost" size="icon" className="h-9 w-9 relative" onClick={() => setNotif(!notif)}><Bell className="h-4 w-4" /><span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive" /></Button>
@@ -102,6 +114,9 @@ function CustomerDashboardPage() {
               {menu && (
                 <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
                   <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
+                  <div className="border-t my-1" />
+                  <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
+                  <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
                   <div className="border-t my-1" />
                   <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
                 </div>
@@ -192,6 +207,7 @@ function CustomerDashboardPage() {
           )}
         </main>
       </div>
+      <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
     </div>
   );
 }

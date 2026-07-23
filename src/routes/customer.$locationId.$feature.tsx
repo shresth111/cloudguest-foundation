@@ -26,6 +26,7 @@ import BlockUsers from "@/components/features/BlockUsers";
 import CreateGroup from "@/components/features/CreateGroup";
 import UserReports from "@/components/features/UserReports";
 import SmartIdPage from "@/components/features/SmartIdPage";
+import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import {
   AlertsView, BusinessHoursView, NotificationView, TopUpView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -36,7 +37,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
-  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye,
+  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye, EyeOff, KeyRound, MapPinned,
   Clock, Server, Globe, Terminal, Gauge, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
 } from "lucide-react";
 
@@ -141,9 +142,13 @@ function FeaturePage() {
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [notif, setNotif] = useState(false);
+  const [masked, setMasked] = useState(true);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
 
   const role = (loginRole === "agent" ? "agent" : "owner") as NavRole;
   const navGroups = NAV_GROUPS
@@ -177,8 +182,30 @@ function FeaturePage() {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 backdrop-blur-xl px-4 sm:px-6">
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature} · {activeLocation?.name ?? ""}</p></div>
+
+          <button
+            onClick={() => { setMasked((m) => !m); toast.success(masked ? "Data unmasked" : "Data masked"); }}
+            className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex"
+          >
+            {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
+          </button>
+
+          <div className="relative">
+            <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
+              <Bell className="h-4.5 w-4.5" /><span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+            </button>
+            {notif && <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border bg-popover p-2 shadow-xl z-50"><p className="px-2 py-1 text-xs font-medium text-muted-foreground">No new notifications</p></div>}
+          </div>
+
           <div className="relative"><button onClick={() => setMenu(!menu)}><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
-            {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50"><div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div><div className="border-t my-1" /><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button></div>)}
+            {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
+              <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
+              <div className="border-t my-1" />
+              <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
+              <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+              <div className="border-t my-1" />
+              <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
+            </div>)}
           </div>
         </header>
 
@@ -221,6 +248,7 @@ function FeaturePage() {
           </div>
         </main>
       </div>
+      <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
     </div>
   );
 }

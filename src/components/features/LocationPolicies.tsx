@@ -5,10 +5,6 @@ import {
 } from "lucide-react";
 
 // ── constants ───────────────────────────────────────────────────
-const TABS = [
-  "Location Policies", "Top Up Data", "Business Hours", "Notification",
-  "Background Image", "Logo Image", "Manage Alerts", "ISP Details",
-];
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const BANDWIDTH = ["Unlimited", "512 Kbps", "1 Mbps", "2 Mbps", "5 Mbps", "10 Mbps"];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
@@ -94,9 +90,7 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
 }
 
 // ── component ────────────────────────────────────────────────────
-interface Props { onNavigate?: (key: string) => void; }
-
-export default function LocationPolicies({ onNavigate }: Props) {
+export default function LocationPolicies() {
   // ── state ─────────────────────────────────────────────────────
   const [f, setF] = useState<PolicyForm>({
     businessUnit: "", bandwidth: "", sessionTimeout: "", dailyLimit: "No Limit",
@@ -205,35 +199,12 @@ export default function LocationPolicies({ onNavigate }: Props) {
       {/* title */}
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Location Policies</h1>
 
-      {/* tab bar */}
-      <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">
-        <div className="flex min-w-[700px]">
-          {TABS.map((label) => {
-            const active = label === "Location Policies";
-            return (
-              <button
-                key={label}
-                onClick={() => onNavigate?.(label)}
-                aria-current={active ? "page" : undefined}
-                className={`flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
-                  active
-                    ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-400"
-                    : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* warning banner */}
       <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
         <p className="text-sm text-amber-800 dark:text-amber-200">
           These settings apply to every guest at this location the moment you save. Check the impact before updating,
-          or contact <a href="mailto:support@bhaifi.com" className="font-medium text-orange-600 underline dark:text-orange-400">support@bhaifi.com</a> for help.
+          or contact <a href="mailto:support@zipwifi.io" className="font-medium text-orange-600 underline dark:text-orange-400">support@zipwifi.io</a> for help.
         </p>
       </div>
 

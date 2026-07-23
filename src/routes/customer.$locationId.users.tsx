@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, LogOut, Bell, Search, Menu, XCircle, Eye, ChevronLeft, ChevronRight, RotateCw,
+  ArrowLeft, LogOut, Bell, Search, Menu, XCircle, Eye, EyeOff, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned,
 } from "lucide-react";
+import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
+import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 
 export const Route = createFileRoute("/customer/$locationId/users")({
 
@@ -32,6 +34,9 @@ function CustomerUsersPage() {
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [notif, setNotif] = useState(false);
+  const [masked, setMasked] = useState(true);
+  const [changePwOpen, setChangePwOpen] = useState(false);
   const PAGE_SIZE = 8;
 
   const { data, isLoading, refetch } = useCustomerUsers(locationId, { search: search || undefined, status: statusTab !== "all" ? statusTab : undefined, page: page + 1, pageSize: PAGE_SIZE });
@@ -39,6 +44,7 @@ function CustomerUsersPage() {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
   const filteredNavs = customerNavsForRole(getCustomerLoginRole());
 
   return (
@@ -56,9 +62,28 @@ function CustomerUsersPage() {
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold">Users · {activeLocation?.name ?? ""}</p></div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setMasked((m) => !m); toast.success(masked ? "Data unmasked" : "Data masked"); }}
+              className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex mr-1"
+            >
+              {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
+            </button>
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}><RotateCw className="h-4 w-4" /></Button>
+            <div className="relative">
+              <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
+                <Bell className="h-4.5 w-4.5" /><span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+              </button>
+              {notif && <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border bg-popover p-2 shadow-xl z-50"><p className="px-2 py-1 text-xs font-medium text-muted-foreground">No new notifications</p></div>}
+            </div>
             <div className="relative"><button onClick={() => setMenu(!menu)} className="ml-2"><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
-              {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50"><div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div><div className="border-t my-1" /><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button></div>)}
+              {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
+                <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
+                <div className="border-t my-1" />
+                <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
+                <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+                <div className="border-t my-1" />
+                <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
+              </div>)}
             </div>
           </div>
         </header>
@@ -85,6 +110,7 @@ function CustomerUsersPage() {
           </div>
         </main>
       </div>
+      <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
     </div>
   );
 }

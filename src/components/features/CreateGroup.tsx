@@ -4,7 +4,6 @@ import {
   ChevronLeft, ChevronRight, Loader2, User, Network,
 } from "lucide-react";
 
-const TABS = ["Create Group", "Map Group", "Map User", "Modify Group", "Top Up User Data", "Clone Group"];
 const STEPS = [
   { num: 1, label: "Create group", icon: Plus, caption: "" },
   { num: 2, label: "Map group", icon: Network, caption: "Not started" },
@@ -73,9 +72,7 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
   );
 }
 
-interface Props { onNavigate?: (key: string) => void; }
-
-export default function CreateGroup({ onNavigate }: Props) {
+export default function CreateGroup() {
   const [groups, setGroups] = useState<Group[]>([
     { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12 },
     { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8 },
@@ -151,25 +148,10 @@ export default function CreateGroup({ onNavigate }: Props) {
       {toast && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900">
           <span>{toast}</span>
-          {step1Done && <button onClick={() => onNavigate?.("Map Group")} className="font-medium text-orange-400 underline hover:text-orange-300">Map it now</button>}
         </div>
       )}
 
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Create Group</h1>
-
-      <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">
-        <div className="flex min-w-[500px]">
-          {TABS.map((label) => {
-            const active = label === "Create Group";
-            return (
-              <button key={label} onClick={() => onNavigate?.(label)} aria-current={active ? "page" : undefined}
-                className={`flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
-                  active ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-400" : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
-                }`}>{label}</button>
-            );
-          })}
-        </div>
-      </div>
 
       <ol className="flex items-center gap-0" aria-label="Progress">
         {STEPS.map((s, i) => (
