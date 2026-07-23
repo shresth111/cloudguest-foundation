@@ -85,7 +85,7 @@ export const ticketService = {
    * Master (super-admin) dashboard's cross-tenant view. */
   async listAllOrgs(params?: { status?: TicketStatus; priority?: TicketPriority; search?: string }): Promise<SupportTicket[]> {
     const { data } = await api.get<BackendTicketListResponse>("/support-tickets", {
-      params: { page_size: 200, ...params },
+      params: { page_size: 100, ...params },
     });
     return data.items.map(toTicket);
   },

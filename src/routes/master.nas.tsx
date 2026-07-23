@@ -70,7 +70,7 @@ function NasScreen() {
     try {
       const [nas, routerList] = await Promise.all([
         nasService.listAll(),
-        routerService.list({ page: 1, pageSize: 200 }),
+        routerService.list({ page: 1, pageSize: 100 }),
       ]);
       setNasClients(nas);
       setRouters(routerList.rows);

@@ -39,7 +39,7 @@ function LocationsScreen() {
     try {
       const [locs, orgList] = await Promise.all([
         locationService.listAll(),
-        organizationService.list({ page: 1, pageSize: 200 }),
+        organizationService.list({ page: 1, pageSize: 100 }),
       ]);
       setLocations(locs);
       setOrgs(orgList.rows.map((o) => ({ id: o.id, name: o.name })));

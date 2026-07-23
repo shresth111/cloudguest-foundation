@@ -37,7 +37,7 @@ function CustomersScreen() {
     setLoading(true);
     try {
       const [{ rows: orgs }, locations, snapshot] = await Promise.all([
-        organizationService.list({ page: 1, pageSize: 200 }),
+        organizationService.list({ page: 1, pageSize: 100 }),
         locationService.listAll(),
         billingService.getSnapshot().catch(() => null),
       ]);

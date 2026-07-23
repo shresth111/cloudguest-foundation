@@ -28,7 +28,7 @@ function TicketsScreen() {
     try {
       const [rows, { rows: orgs }] = await Promise.all([
         ticketService.listAllOrgs(),
-        organizationService.list({ page: 1, pageSize: 200 }),
+        organizationService.list({ page: 1, pageSize: 100 }),
       ]);
       setTickets(rows);
       setOrgNames(new Map(orgs.map((o) => [o.id, o.name])));
