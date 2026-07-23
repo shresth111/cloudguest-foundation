@@ -74,6 +74,8 @@ import { Route as AuthenticatedAuditTimelineIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
+import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
+import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
 import { Route as CustomerLocationIdFeatureRouteImport } from './routes/customer.$locationId.$feature'
 import { Route as AuthenticatedWorkspaceStaffRouteImport } from './routes/_authenticated/workspace.staff'
 import { Route as AuthenticatedWorkspaceRoutersRouteImport } from './routes/_authenticated/workspace.routers'
@@ -483,6 +485,17 @@ const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   path: '/$method',
   getParentRoute: () => PortalAuthRoute,
 } as any)
+const CustomerLocationIdUsersRoute = CustomerLocationIdUsersRouteImport.update({
+  id: '/customer/$locationId/users',
+  path: '/customer/$locationId/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerLocationIdDashboardRoute =
+  CustomerLocationIdDashboardRouteImport.update({
+    id: '/customer/$locationId/dashboard',
+    path: '/customer/$locationId/dashboard',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const CustomerLocationIdFeatureRoute =
   CustomerLocationIdFeatureRouteImport.update({
     id: '/customer/$locationId/$feature',
@@ -877,6 +890,8 @@ export interface FileRoutesByFullPath {
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
+  '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
+  '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
@@ -992,6 +1007,8 @@ export interface FileRoutesByTo {
   '/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
+  '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
+  '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
@@ -1113,6 +1130,8 @@ export interface FileRoutesById {
   '/_authenticated/workspace/routers': typeof AuthenticatedWorkspaceRoutersRoute
   '/_authenticated/workspace/staff': typeof AuthenticatedWorkspaceStaffRoute
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
+  '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
+  '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
@@ -1234,6 +1253,8 @@ export interface FileRouteTypes {
     | '/workspace/routers'
     | '/workspace/staff'
     | '/customer/$locationId/$feature'
+    | '/customer/$locationId/dashboard'
+    | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/analytics/'
     | '/api-keys/'
@@ -1349,6 +1370,8 @@ export interface FileRouteTypes {
     | '/workspace/routers'
     | '/workspace/staff'
     | '/customer/$locationId/$feature'
+    | '/customer/$locationId/dashboard'
+    | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/analytics'
     | '/api-keys'
@@ -1469,6 +1492,8 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/routers'
     | '/_authenticated/workspace/staff'
     | '/customer/$locationId/$feature'
+    | '/customer/$locationId/dashboard'
+    | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/_authenticated/analytics/'
     | '/_authenticated/api-keys/'
@@ -1521,6 +1546,8 @@ export interface RootRouteChildren {
   VerifyOtpRoute: typeof VerifyOtpRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
+  CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
+  CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1979,6 +2006,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/auth/$method'
       preLoaderRoute: typeof PortalAuthMethodRouteImport
       parentRoute: typeof PortalAuthRoute
+    }
+    '/customer/$locationId/users': {
+      id: '/customer/$locationId/users'
+      path: '/customer/$locationId/users'
+      fullPath: '/customer/$locationId/users'
+      preLoaderRoute: typeof CustomerLocationIdUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$locationId/dashboard': {
+      id: '/customer/$locationId/dashboard'
+      path: '/customer/$locationId/dashboard'
+      fullPath: '/customer/$locationId/dashboard'
+      preLoaderRoute: typeof CustomerLocationIdDashboardRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/customer/$locationId/$feature': {
       id: '/customer/$locationId/$feature'
@@ -2660,6 +2701,8 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyOtpRoute: VerifyOtpRoute,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
+  CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
+  CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

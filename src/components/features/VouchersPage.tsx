@@ -1,0 +1,88 @@
+import { useState } from "react";
+import { Plus, Trash2, Download, Printer, Mail, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
+
+interface Voucher { code: string; plan: string; status: string; used: number; }
+
+export function VouchersPage() {
+  const [items, setItems] = useState<Voucher[]>([
+    { code: "VCH-8821", plan: "1h", status: "active", used: 3 },
+    { code: "VCH-8822", plan: "24h", status: "active", used: 12 },
+    { code: "VCH-8823", plan: "1h", status: "active", used: 1 },
+    { code: "VCH-8824", plan: "3d", status: "unused", used: 0 },
+  ]);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", quantity: 10, validMin: 60, prefix: "VCH", dataLimit: 0, maxUses: 1, codeLen: 8 });
+  const [planOpts] = useState([{v:"1h",l:"1 Hour"},{v:"24h",l:"24 Hours"},{v:"3d",l:"3 Days"},{v:"7d",l:"7 Days"}]);
+
+  const handleGenerate = () => {
+    const count = Math.min(form.quantity, 100);
+    const newItems: Voucher[] = [];
+    for (let i = 0; i < count; i++) {
+      const num = String(items.length + i + 1).padStart(4, "0");
+      const plan = form.validMin >= 10080 ? "7d" : form.validMin >= 4320 ? "3d" : form.validMin >= 1440 ? "24h" : "1h";
+      newItems.push({ code: `${form.prefix}-${num}`, plan, status: "active", used: 0 });
+    }
+    setItems([...newItems, ...items]);
+    setOpen(false);
+    toast.success(`${count} vouchers generated`);
+  };
+
+  const formatPlan = (p: string) => planOpts.find(o => o.v === p)?.l || p;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div><h2 className="text-lg font-semibold">Voucher Batches</h2><p className="text-sm text-muted-foreground">{items.length} vouchers</p></div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => toast.success("Bulk import started")}>Import CSV</Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button><Plus className="mr-1 h-4 w-4" />Generate</Button></DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader><DialogTitle>Generate Voucher Batch</DialogTitle></DialogHeader>
+              <div className="grid grid-cols-2 gap-3 py-2">
+                <div className="col-span-2"><Label>Batch Name</Label><Input placeholder="e.g. Summer Promo 2026" value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
+                <div><Label>Quantity</Label><Input type="number" min={1} max={100} value={form.quantity} onChange={e => setForm({...form,quantity:parseInt(e.target.value)||1})} /></div>
+                <div><Label>Validity (min)</Label><Input type="number" min={1} value={form.validMin} onChange={e => setForm({...form,validMin:parseInt(e.target.value)||60})} /></div>
+                <div><Label>Code Prefix</Label><Input value={form.prefix} onChange={e => setForm({...form,prefix:e.target.value})} /></div>
+                <div><Label>Code Length</Label><Input type="number" min={4} max={16} value={form.codeLen} onChange={e => setForm({...form,codeLen:parseInt(e.target.value)||8})} /></div>
+                <div><Label>Data Limit (MB)</Label><Input type="number" min={0} value={form.dataLimit} onChange={e => setForm({...form,dataLimit:parseInt(e.target.value)||0})} /></div>
+                <div><Label>Max Uses</Label><Input type="number" min={1} value={form.maxUses} onChange={e => setForm({...form,maxUses:parseInt(e.target.value)||1})} /></div>
+              </div>
+              <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={handleGenerate}>Generate {form.quantity} Vouchers</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Card className="border-0 shadow-sm"><CardContent className="p-0">
+        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">Code</TableHead><TableHead className="text-xs font-medium">Plan</TableHead><TableHead className="text-xs font-medium">Status</TableHead><TableHead className="text-xs font-medium">Used</TableHead><TableHead className="text-right text-xs font-medium">Actions</TableHead></TableRow></TableHeader>
+        <TableBody>{items.map(v => (
+          <TableRow key={v.code} className="border-b">
+            <TableCell className="font-mono text-xs">{v.code}</TableCell>
+            <TableCell><Select defaultValue={v.plan} onValueChange={val => toast.success(`Plan: ${formatPlan(val)}`)}><SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger><SelectContent>{planOpts.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent></Select></TableCell>
+            <TableCell><Badge variant={v.status === "active" ? "default" : "secondary"} className="capitalize">{v.status}</Badge></TableCell>
+            <TableCell className="text-sm">{v.used}</TableCell>
+            <TableCell className="text-right">
+              <Button variant="ghost" size="icon" className="h-7 w-7"><Eye className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setItems(items.filter(x => x.code !== v.code)); toast.success("Revoked"); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+            </TableCell>
+          </TableRow>
+        ))}</TableBody></Table></div></CardContent></Card>
+
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => toast.success("CSV exported")}><Download className="mr-1.5 h-3.5 w-3.5" />CSV</Button>
+        <Button variant="outline" size="sm" onClick={() => toast.success("Print job queued")}><Printer className="mr-1.5 h-3.5 w-3.5" />Print</Button>
+        <Button variant="outline" size="sm" onClick={() => toast.success("Email sent")}><Mail className="mr-1.5 h-3.5 w-3.5" />Email</Button>
+      </div>
+    </div>
+  );
+}
