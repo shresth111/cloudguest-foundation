@@ -11,6 +11,8 @@ import type {
   ScheduledBillingReport,
   Subscription,
   SubscriptionStatus,
+  TaxRate,
+  TaxType,
   UsageRow,
 } from "@/types/billing";
 import type {
@@ -58,6 +60,30 @@ interface BackendPlan {
   features: BackendPlanFeature[];
   created_at: string;
   updated_at: string;
+}
+
+interface BackendTaxRate {
+  id: string;
+  name: string;
+  tax_type: string;
+  rate_percentage: string | number;
+  country_code: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function toTaxRate(t: BackendTaxRate): TaxRate {
+  return {
+    id: t.id,
+    name: t.name,
+    taxType: (t.tax_type as TaxType) ?? "gst",
+    ratePercentage: n(t.rate_percentage),
+    countryCode: t.country_code,
+    isActive: t.is_active,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+  };
 }
 
 interface BackendSubscription {
@@ -249,6 +275,7 @@ function toPlan(p: BackendPlan): Plan {
     id: p.id,
     name: p.name,
     tier: planTier(p.plan_type),
+    currency: p.currency,
     monthlyPrice: monthly,
     annualPrice: annual,
     includedLocations: featureLimit(p.features, "max_locations"),
@@ -764,6 +791,7 @@ export const billingService = {
       const { data } = await api.put<BackendPlan>(`/plans/${input.id}`, {
         name: input.name,
         base_price: input.monthlyPrice,
+        currency: input.currency || "INR",
         features,
       });
       return toPlan(data);
@@ -774,7 +802,7 @@ export const billingService = {
       plan_type: input.tier,
       billing_cycle: "monthly",
       base_price: input.monthlyPrice,
-      currency: "USD",
+      currency: input.currency || "INR",
       is_active: true,
       is_public: true,
       sort_order: 0,
@@ -897,6 +925,38 @@ export const billingService = {
   async sendReminder(id: string, _frequency?: ReportFrequency) {
     await delay(200);
     return { ok: true, id };
+  },
+
+  // GST / tax rate configuration -- real /tax-rates CRUD. The backend
+  // computes the actual CGST/SGST/IGST split per-invoice from these rows
+  // (validators.compute_tax_breakdown); this is the platform operator's
+  // rate catalog, not a per-invoice control.
+  async listTaxRates(): Promise<TaxRate[]> {
+    const { data } = await api.get<BackendListResponse<BackendTaxRate>>("/tax-rates", {
+      params: { page_size: 100 },
+    });
+    return data.items.map(toTaxRate);
+  },
+
+  async saveTaxRate(input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<TaxRate> {
+    if (input.id) {
+      const { data } = await api.put<BackendTaxRate>(`/tax-rates/${input.id}`, {
+        name: input.name,
+        tax_type: input.taxType,
+        rate_percentage: input.ratePercentage,
+        country_code: input.countryCode,
+        is_active: input.isActive,
+      });
+      return toTaxRate(data);
+    }
+    const { data } = await api.post<BackendTaxRate>("/tax-rates", {
+      name: input.name,
+      tax_type: input.taxType,
+      rate_percentage: input.ratePercentage,
+      country_code: input.countryCode,
+      is_active: input.isActive,
+    });
+    return toTaxRate(data);
   },
 };
 

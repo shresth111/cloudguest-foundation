@@ -11,6 +11,7 @@ import { CreateSubscriptionDialog } from "@/components/billing/CreateSubscriptio
 import { PlanManagement } from "@/components/billing/PlanManagement";
 import { PaymentTable } from "@/components/billing/PaymentTable";
 import { InvoiceManagement } from "@/components/billing/InvoiceManagement";
+import { TaxRateManagement } from "@/components/billing/TaxRateManagement";
 import { CouponManagement } from "@/components/billing/CouponManagement";
 import { UsageBillingPanel } from "@/components/billing/UsageBillingPanel";
 import { PaymentGatewaysPanel } from "@/components/billing/PaymentGatewaysPanel";
@@ -66,6 +67,7 @@ function BillingPage() {
           <TabsTrigger value="plans">Plans</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="tax-rates">GST / Tax rates</TabsTrigger>
           <TabsTrigger value="coupons">Coupons</TabsTrigger>
           <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="gateways">Gateways</TabsTrigger>
@@ -116,6 +118,10 @@ function BillingPage() {
 
         <TabsContent value="invoices" className="mt-4">
           <InvoiceManagement data={snap.data?.invoices} {...state} />
+        </TabsContent>
+
+        <TabsContent value="tax-rates" className="mt-4">
+          <TaxRateManagement />
         </TabsContent>
 
         <TabsContent value="coupons" className="mt-4">

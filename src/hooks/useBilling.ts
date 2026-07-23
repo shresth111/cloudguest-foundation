@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { billingService } from "@/services/billing.service";
-import type { BillingReportFormat, Coupon, PaymentGateway, Plan, ScheduledBillingReport } from "@/types/billing";
+import type { BillingReportFormat, Coupon, PaymentGateway, Plan, ScheduledBillingReport, TaxRate } from "@/types/billing";
 
 const KEY = ["billing", "snapshot"] as const;
 
@@ -115,4 +115,20 @@ export function useGenerateBillingReport() {
   return useMutation({
     mutationFn: (input: { type: string; format: BillingReportFormat }) => billingService.generateReport(input.type, input.format),
   });
+}
+
+export function useTaxRates() {
+  return useQuery({ queryKey: ["billing", "tax-rates"], queryFn: () => billingService.listTaxRates() });
+}
+
+export function useSaveTaxRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }) => billingService.saveTaxRate(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["billing", "tax-rates"] }),
+  });
+}
+
+export function useDownloadInvoice() {
+  return useMutation({ mutationFn: (id: string) => billingService.generateInvoice(id) });
 }

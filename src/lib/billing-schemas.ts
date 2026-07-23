@@ -18,6 +18,7 @@ export type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 export const planSchema = z.object({
   name: z.string().min(2, "Name is required"),
   tier: z.enum(["starter", "professional", "enterprise", "custom"]),
+  currency: z.enum(["INR", "USD"]),
   monthlyPrice: z.coerce.number().min(0),
   annualPrice: z.coerce.number().min(0),
   includedLocations: z.coerce.number().int().min(1),
@@ -46,6 +47,15 @@ export const couponSchema = z
     path: ["discountValue"],
   });
 export type CouponFormValues = z.infer<typeof couponSchema>;
+
+export const taxRateSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  taxType: z.enum(["gst", "vat", "sales_tax", "none"]),
+  ratePercentage: z.coerce.number().min(0).max(100),
+  countryCode: z.string().length(2, "2-letter ISO country code").toUpperCase(),
+  isActive: z.boolean(),
+});
+export type TaxRateFormValues = z.infer<typeof taxRateSchema>;
 
 export const scheduledReportSchema = z.object({
   name: z.string().min(2),

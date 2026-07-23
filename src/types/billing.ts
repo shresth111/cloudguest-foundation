@@ -22,6 +22,7 @@ export interface Plan {
   id: string;
   name: string;
   tier: PlanTier;
+  currency: string;
   monthlyPrice: number;
   annualPrice: number;
   includedLocations: number;
@@ -151,6 +152,19 @@ export interface RevenueAnalytics {
   subscriptionDistribution: { status: SubscriptionStatus; count: number }[];
   paymentSuccessRate: { label: string; success: number; failed: number }[];
   churnRate: { label: string; value: number }[];
+}
+
+export type TaxType = "gst" | "vat" | "sales_tax" | "none";
+
+export interface TaxRate {
+  id: string;
+  name: string;
+  taxType: TaxType;
+  ratePercentage: number;
+  countryCode: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Reminder {
