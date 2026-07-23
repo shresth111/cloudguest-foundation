@@ -44,7 +44,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "vouchers": return <VouchersPage locationId={ctx.locationId} />;
     case "policies": return <PoliciesHub />;
     case "whitelist": return <WhiteList />;
-    case "teams": return <ManageTeamsPage />;
+    case "teams": return <ManageTeamsPage locationId={ctx.locationId} />;
     case "agents": return <AgentsPage />;
     case "networking": return <NetworkingPage />;
     case "advanced": return <AdvancedPage />;

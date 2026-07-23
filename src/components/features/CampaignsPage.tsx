@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { isDemo } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { campaignService } from "@/services/campaign.service";
 import type { CampaignType } from "@/types/campaign";
 
@@ -35,7 +35,7 @@ const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", e
 const emptyFilters = { businessUnit: "", type: "", startDate: "" };
 
 export function CampaignsPage({ locationId }: { locationId?: string }) {
-  const demo = isDemo();
+  const demo = useIsDemo();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
   const [loading, setLoading] = useState(!demo);
   const [showCreate, setShowCreate] = useState(false);

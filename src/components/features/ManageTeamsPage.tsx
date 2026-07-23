@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Users, UserCog, Upload, UploadCloud, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { guestService } from "@/services/guest.service";
+import { organizationService } from "@/services/organization.service";
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 
 interface Team { id: string; name: string; businessUnit: string; members: number; quota: number; status: "active" }
+
+const DEMO_TEAMS: Team[] = [
+  { id: "1", name: "Sales Team", businessUnit: "Marina Bay Hotel", members: 12, quota: 85, status: "active" },
+  { id: "2", name: "Executive VIP", businessUnit: "Downtown CoWork", members: 5, quota: 42, status: "active" },
+  { id: "3", name: "Contractors", businessUnit: "Eastside Cafe", members: 8, quota: 100, status: "active" },
+];
 
 const TABS = [
   { id: "setup", label: "Setup Teams", icon: Users },
@@ -50,13 +59,27 @@ function QuickNotes({ items }: { items: string[] }) {
   );
 }
 
-export default function ManageTeamsPage() {
+export default function ManageTeamsPage({ locationId }: { locationId?: string } = {}) {
+  const demo = useIsDemo();
   const [tab, setTab] = useState<TabId>("setup");
-  const [teams, setTeams] = useState<Team[]>([
-    { id: "1", name: "Sales Team", businessUnit: "Marina Bay Hotel", members: 12, quota: 85, status: "active" },
-    { id: "2", name: "Executive VIP", businessUnit: "Downtown CoWork", members: 5, quota: 42, status: "active" },
-    { id: "3", name: "Contractors", businessUnit: "Eastside Cafe", members: 8, quota: 100, status: "active" },
-  ]);
+  const [teams, setTeams] = useState<Team[]>(demo ? DEMO_TEAMS : []);
+  const [orgId, setOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
+        const org = orgs.rows[0];
+        if (!org) return;
+        setOrgId(org.id);
+        const rows = await guestService.listTeams();
+        setTeams(rows.map((t) => ({ id: t.id, name: t.name, businessUnit: "", members: t.maxMembers ?? 0, quota: 0, status: "active" as const })));
+      } catch {
+        // Leave teams empty -- the "no teams yet" state is accurate.
+      }
+    })();
+  }, [demo, locationId]);
 
   // Setup Teams form
   const [bu, setBu] = useState(""); const [teamName, setTeamName] = useState(""); const [sharedUsers, setSharedUsers] = useState("");
@@ -80,16 +103,39 @@ export default function ManageTeamsPage() {
     setManageTeam(null);
   };
 
-  const createTeam = () => {
+  const createTeam = async () => {
     const e: Record<string, string> = {};
-    if (!bu) e.bu = "Select a business unit.";
+    if (demo && !bu) e.bu = "Select a business unit.";
     if (!teamName) e.teamName = "Enter a team name.";
     if (sharedUsers === "" || parseInt(sharedUsers) < 0) e.sharedUsers = "Enter shared users count, or 0 for unlimited.";
     setErrs(e); if (Object.keys(e).length) return;
 
-    setTeams((t) => [{ id: String(Date.now()), name: teamName, businessUnit: bu, members: 0, quota: 0, status: "active" }, ...t]);
-    setTeamName(""); setSharedUsers("");
-    toast.success("Team created");
+    if (demo) {
+      setTeams((t) => [{ id: String(Date.now()), name: teamName, businessUnit: bu, members: 0, quota: 0, status: "active" }, ...t]);
+      setTeamName(""); setSharedUsers("");
+      toast.success("Team created");
+      return;
+    }
+    if (!orgId) { toast.error("No organization found for this session."); return; }
+    try {
+      const max = parseInt(sharedUsers) || 0;
+      const created = await guestService.createTeam({ organizationId: orgId, locationId: locationId ?? undefined, name: teamName, maxMembers: max > 0 ? max : undefined });
+      setTeams((t) => [{ id: created.id, name: created.name, businessUnit: "", members: created.maxMembers ?? 0, quota: 0, status: "active" }, ...t]);
+      setTeamName(""); setSharedUsers("");
+      toast.success("Team created");
+    } catch {
+      toast.error("Could not create the team — check the connection and try again.");
+    }
+  };
+
+  const revokeTeam = async (t: Team) => {
+    const prev = teams;
+    setTeams((p) => p.filter((x) => x.id !== t.id));
+    toast.success("Team revoked");
+    if (!demo) {
+      try { await guestService.revokeTeam(t.id); }
+      catch { setTeams(prev); toast.error("Could not revoke on the server."); }
+    }
   };
 
   // Update User Details form
@@ -151,7 +197,7 @@ export default function ManageTeamsPage() {
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.quota}%` }} /></div>
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => openManage(t)}>Manage</Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => { setTeams((p) => p.filter((x) => x.id !== t.id)); toast.success("Team revoked"); }}>Revoke</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => revokeTeam(t)}>Revoke</Button>
                   </div>
                 </CardContent>
               </Card>

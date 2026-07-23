@@ -34,7 +34,7 @@ import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
-import { isDemo } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -215,7 +215,7 @@ function FeaturePage() {
             {feature === "policies" && <PoliciesHub />}
             {feature === "whitelist" && <WhiteList />}
             {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} /></div>}
-            {feature === "teams" && <ManageTeamsPage />}
+            {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
             {feature === "agents" && <AgentsPage />}
             {feature === "advanced" && <AdvancedPage />}
             {feature === "audit" && <AuditView locationId={locationId} />}
@@ -301,7 +301,8 @@ const DEMO_DEVICES = [
 
 function DevicesView({ locationId }: { locationId: string }) {
   const { data, isLoading } = useCustomerFeatureData("devices", locationId);
-  const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (isDemo() ? DEMO_DEVICES : []);
+  const demo = useIsDemo();
+  const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (demo ? DEMO_DEVICES : []);
   return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>
     {isLoading ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
     : devices.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No connected devices yet.</TableCell></TableRow>
@@ -318,7 +319,8 @@ const DEMO_AUDIT = [
 
 function AuditView({ locationId }: { locationId: string }) {
   const { data, isLoading } = useCustomerFeatureData("audit", locationId);
-  const items = data?.audit?.length ? data.audit.map((e) => ({ a: e.action, w: e.user, t: e.time })) : (isDemo() ? DEMO_AUDIT : []);
+  const demo = useIsDemo();
+  const items = data?.audit?.length ? data.audit.map((e) => ({ a: e.action, w: e.user, t: e.time })) : (demo ? DEMO_AUDIT : []);
   return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">
     {isLoading ? <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
     : items.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">No audit entries yet.</p>

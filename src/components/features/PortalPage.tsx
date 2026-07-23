@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { isDemo } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
 import { organizationService } from "@/services/organization.service";
 import type { PortalLoginMethod } from "@/types/portal";
@@ -18,7 +18,7 @@ const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef444
 const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"], ["email_otp", "Email OTP"], ["voucher", "Voucher"], ["social", "Social Login"]];
 
 export function PortalPage({ locationId }: { locationId?: string }) {
-  const demo = isDemo();
+  const demo = useIsDemo();
   const [primary, setPrimary] = useState("#1B57F5");
   const [msg, setMsg] = useState("Welcome! Connect to enjoy free WiFi");
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);

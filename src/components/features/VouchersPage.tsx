@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { isDemo } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { voucherService } from "@/services/voucher.service";
 import { organizationService } from "@/services/organization.service";
 
@@ -29,7 +29,7 @@ const DEMO_SEED: Voucher[] = [
 interface BatchRow { id: string; code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; organizationId: string }
 
 export function VouchersPage({ locationId }: { locationId?: string }) {
-  const demo = isDemo();
+  const demo = useIsDemo();
   const [items, setItems] = useState<Voucher[]>(demo ? DEMO_SEED : []);
   const [batches, setBatches] = useState<BatchRow[]>([]);
   const [loading, setLoading] = useState(!demo);
