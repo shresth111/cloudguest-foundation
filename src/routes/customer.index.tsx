@@ -82,9 +82,11 @@ function CustomerHomePage() {
             {filtered.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-muted-foreground"><MapPin className="mb-4 h-12 w-12 opacity-30" /><p>No locations found</p></div>
             ) : filtered.map((loc, i) => (
-              <motion.button key={loc.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+              <motion.div key={loc.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                role="button" tabIndex={0}
                 onClick={() => handleSelect(loc)}
-                className="group relative rounded-2xl border bg-card p-5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(loc); } }}
+                className="group relative cursor-pointer rounded-2xl border bg-card p-5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
               >
                 <button onClick={(e) => { e.stopPropagation(); toggleFav(loc.id); }} className="absolute right-4 top-4 text-muted-foreground hover:text-amber-500 transition-colors">
                   <Star className={cn("h-4 w-4", favorites.includes(loc.id) && "fill-amber-500 text-amber-500")} />
@@ -99,7 +101,7 @@ function CustomerHomePage() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{loc.isp}</span><span className="flex items-center gap-1"><Clock className="h-3 w-3" />{loc.lastSync}</span></div>
                 </div>
                 <div className="mt-3 flex items-center justify-end text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">Open dashboard <ArrowRight className="ml-1 h-3 w-3" /></div>
-              </motion.button>
+              </motion.div>
             ))}
           </div>
         )}

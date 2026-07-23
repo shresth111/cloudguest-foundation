@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/common/EmptyState";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -44,12 +46,12 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-const STATUS_TONE: Record<CampaignStatus, "default" | "secondary" | "outline" | "destructive"> = {
-  draft: "secondary",
-  scheduled: "outline",
-  active: "default",
-  paused: "outline",
-  ended: "destructive",
+const STATUS_TONE: Record<CampaignStatus, string> = {
+  draft: "bg-muted text-muted-foreground border-transparent",
+  scheduled: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-transparent",
+  active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-transparent",
+  paused: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-transparent",
+  ended: "bg-red-500/10 text-red-600 dark:text-red-400 border-transparent",
 };
 
 export function CampaignManagement() {
@@ -108,7 +110,7 @@ export function CampaignManagement() {
         <StatCard label="Drafts" value={kpis?.draft ?? 0} icon={FileEdit} tone="warning" />
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border-border/70 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All campaigns</CardTitle>
           <div className="relative w-72 max-w-full">
@@ -116,7 +118,15 @@ export function CampaignManagement() {
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="pl-8" />
           </div>
         </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
+        <CardContent className={cn(!isLoading && filtered.length === 0 ? "p-6" : "overflow-x-auto p-0")}>
+          {!isLoading && filtered.length === 0 ? (
+            <EmptyState
+              icon={Megaphone}
+              title="No campaigns yet"
+              description="Create your first campaign to show surveys, banners or redirects to guests at login."
+              action={{ label: "New campaign", onClick: () => setCreating(true) }}
+            />
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -129,12 +139,13 @@ export function CampaignManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
-              )}
-              {!isLoading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">No campaigns yet.</TableCell></TableRow>
-              )}
+              {isLoading && Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-5 w-full max-w-32" /></TableCell>
+                  ))}
+                </TableRow>
+              ))}
               {filtered.map((c) => (
                 <TableRow key={c.id} className="group">
                   <TableCell className="font-medium">{c.name}</TableCell>
@@ -142,7 +153,7 @@ export function CampaignManagement() {
                   <TableCell className="text-sm text-muted-foreground">{locationName(c.locationId)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{c.displayRule.replace(/_/g, " ")}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_TONE[c.status]} className="capitalize">{c.status}</Badge>
+                    <Badge variant="outline" className={cn("capitalize", STATUS_TONE[c.status])}>{c.status}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -187,6 +198,7 @@ export function CampaignManagement() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 

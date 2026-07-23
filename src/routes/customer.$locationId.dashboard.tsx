@@ -3,10 +3,9 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, LogOut, Bell, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
-  CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw,
-  LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
-  Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, Menu,
+  CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
 } from "lucide-react";
+import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,15 +18,6 @@ import { useCustomerDashboard, useCustomerUsers } from "@/hooks/useCustomerDashb
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
-
-const NAVS = [
-  { id: "dashboard", icon: LayoutDashboard }, { id: "users", icon: Users }, { id: "analytics", icon: BarChart3 },
-  { id: "reports", icon: FileText }, { id: "campaigns", icon: Megaphone }, { id: "portal", icon: Palette },
-  { id: "vouchers", icon: Ticket }, { id: "policies", icon: ShieldCheck }, { id: "whitelist", icon: Shield },
-  { id: "devices", icon: Monitor }, { id: "teams", icon: UsersRound }, { id: "agents", icon: Bot },
-  { id: "networking", icon: Network }, { id: "advanced", icon: Settings2 }, { id: "audit", icon: ScrollText },
-  { id: "help", icon: LifeBuoy },
-];
 
 export const Route = createFileRoute("/customer/$locationId/dashboard")({
 
@@ -51,6 +41,7 @@ function CustomerDashboardPage() {
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const filteredNavs = customerNavsForRole(getCustomerLoginRole());
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -71,14 +62,14 @@ function CustomerDashboardPage() {
           <button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>All locations</span>}</button>
         </div>
         <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">
-          {NAVS.map((item) => {
+          {filteredNavs.map((item) => {
             const Icon = item.icon;
             return (
               <button key={item.id} onClick={() => handleNav(item.id)}
                 className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all w-full text-left", item.id === "dashboard" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground")}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                {sidebar && <span className="truncate capitalize">{item.id}</span>}
+                {sidebar && <span className="truncate">{item.label}</span>}
               </button>
             );
           })}

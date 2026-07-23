@@ -26,33 +26,17 @@ import BlockUsers from "@/components/features/BlockUsers";
 import CreateGroup from "@/components/features/CreateGroup";
 import UserReports from "@/components/features/UserReports";
 import SmartIdPage from "@/components/features/SmartIdPage";
+import ManageAlerts from "@/components/features/ManageAlerts";
+import { IspDetailsPage, TopUpDataPage, BusinessHoursPage, NotificationPage, AuditLogPage, AdminLogsPage,
+  MacAuthorizationPage, PortForwardingPage, DhcpPoolPage, VlanManagementPage, VoipPriorityPage, IspRoutingPage,
+  DebuggingToolsPage, HotspotSettingsPage, RaasDashboardPage, RaasManageUsersPage, RaasReportsPage } from "@/components/features/MissingModules";
 import { toast } from "sonner";
 import {
   ArrowLeft, LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
   AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye,
 } from "lucide-react";
-
-const NAVS = [
-  { id: "dashboard", label: "Dashboard", roles: ["owner","agent"] },
-  { id: "users", label: "Users", roles: ["owner","agent"] },
-  { id: "analytics", label: "Analytics", roles: ["owner","agent"] },
-  { id: "reports", label: "Reports", roles: ["owner","agent"] },
-  { id: "campaigns", label: "Campaigns", roles: ["owner"] },
-  { id: "portal", label: "Portal", roles: ["owner"] },
-  { id: "vouchers", label: "Vouchers", roles: ["owner","agent"] },
-  { id: "policies", label: "Policies", roles: ["owner"] },
-  { id: "whitelist", label: "Whitelist", roles: ["owner"] },
-  { id: "devices", label: "Devices", roles: ["owner","agent"] },
-  { id: "teams", label: "Teams", roles: ["owner"] },
-  { id: "agents", label: "Agents", roles: ["owner"] },
-  { id: "networking", label: "Networking", roles: ["owner"] },
-  { id: "advanced", label: "Advanced", roles: ["owner"] },
-  { id: "audit", label: "Audit", roles: ["owner","agent"] },
-  { id: "help", label: "Help", roles: ["owner","agent"] },
-];
-
-function getRole(): string { if (typeof window === "undefined") return "owner"; return localStorage.getItem("cg_login_role") || "owner"; }
+import { CUSTOMER_NAVS, getCustomerLoginRole } from "@/lib/customerNav";
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
 
@@ -64,7 +48,7 @@ function FeaturePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
-  const loginRole = getRole();
+  const loginRole = getCustomerLoginRole();
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -72,7 +56,7 @@ function FeaturePage() {
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
 
-  const filteredNavs = NAVS.filter(n => n.roles.includes(loginRole as any));
+  const filteredNavs = CUSTOMER_NAVS.filter(n => n.roles.includes(loginRole));
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -108,10 +92,27 @@ function FeaturePage() {
             {feature === "whitelist" && <WhiteList />}
             {feature === "devices" && <DevicesView />}
             {feature === "teams" && <TeamsPage />}
+            {feature === "alerts" && <ManageAlerts />}
             {feature === "agents" && <AgentsPage />}
             {feature === "networking" && <NetworkingPage />}
             {feature === "advanced" && <AdvancedPage />}
-            {feature === "audit" && <AuditView />}
+            {feature === "business-hours" && <BusinessHoursPage />}
+            {feature === "notification" && <NotificationPage />}
+            {feature === "topup" && <TopUpDataPage />}
+            {feature === "isp-details" && <IspDetailsPage />}
+            {feature === "audit" && <AuditLogPage />}
+            {feature === "admin-logs" && <AdminLogsPage />}
+            {feature === "mac-auth" && <MacAuthorizationPage />}
+            {feature === "port-forwarding" && <PortForwardingPage />}
+            {feature === "dhcp" && <DhcpPoolPage />}
+            {feature === "vlans" && <VlanManagementPage />}
+            {feature === "voip" && <VoipPriorityPage />}
+            {feature === "isp-routing" && <IspRoutingPage />}
+            {feature === "debugging" && <DebuggingToolsPage />}
+            {feature === "hotspot" && <HotspotSettingsPage />}
+            {feature === "raas-dashboard" && <RaasDashboardPage />}
+            {feature === "raas-users" && <RaasManageUsersPage />}
+            {feature === "raas-reports" && <RaasReportsPage />}
             {feature === "help" && <HelpView />}
           </div>
         </main>
@@ -181,16 +182,6 @@ function DevicesView() {
     {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
   ];
   return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>{devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
-}
-
-// ── Audit ─────────────────────────────────────────────────
-function AuditView() {
-  const items = [
-    {a:"Guest login via OTP",w:"guest@email.com",t:"2 min ago"},{a:"Voucher batch created",w:"reception",t:"18 min ago"},
-    {a:"Router restart completed",w:"system",t:"1 hour ago"},{a:"Portal branding updated",w:"manager",t:"3 hours ago"},
-    {a:"Bandwidth policy changed",w:"admin",t:"5 hours ago"},{a:"New location provisioned",w:"system",t:"1 day ago"},
-  ];
-  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">{items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}</CardContent></Card>);
 }
 
 // ── Help ──────────────────────────────────────────────────

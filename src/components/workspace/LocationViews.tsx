@@ -3,8 +3,12 @@ import { Building2, MapPin, Router as RouterIcon, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
+
+const CARD_HOVER =
+  "rounded-2xl border-border/70 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md";
 
 export function LocationGrid() {
   const { setActiveLocationId } = useWorkspace();
