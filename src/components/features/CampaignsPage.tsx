@@ -146,7 +146,13 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                 <button onClick={() => setShowSearch(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
               </div>
               <div className="space-y-3">
-                <div><Label className="text-xs">Business Unit</Label><Select value={filters.businessUnit || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All business units" /></SelectTrigger><SelectContent><SelectItem value="__all">All business units</SelectItem>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>
+                {/* UNITS is demo-only seed data -- real campaigns don't carry
+                    a businessUnit (this page is already scoped to one
+                    location via its own locationId prop), so this filter
+                    would just never match anything for a real session. Same
+                    demo-only gating as the create form's Business Unit field
+                    below. */}
+                {demo && <div><Label className="text-xs">Business Unit</Label><Select value={filters.businessUnit || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All business units" /></SelectTrigger><SelectContent><SelectItem value="__all">All business units</SelectItem>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>}
                 <div><Label className="text-xs">Campaign Type</Label><Select value={filters.type || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, type: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All types" /></SelectTrigger><SelectContent><SelectItem value="__all">All types</SelectItem>{TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label className="text-xs">Campaign Start Date</Label><Input type="date" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} className="h-9" /></div>
               </div>

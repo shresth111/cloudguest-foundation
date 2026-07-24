@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type { AnyAccessRule } from "@/types/guest";
@@ -76,11 +76,18 @@ function toEntry(r: AnyAccessRule): Entry {
 
 export default function WhiteList({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // UNITS is demo-only seed data (fake hotel names) -- a real customer only
+  // has their own locations, so the "Business Unit" picker below must offer
+  // those instead. Same real-vs-demo split as TicketsPage.tsx's
+  // units/realUnits.
+  const { data: locations } = useCustomerLocations();
+  const realUnits = useMemo(() => (locations ?? []).map((l) => l.name), [locations]);
+  const units = demo ? UNITS : realUnits;
   const [tab, setTab] = useState<Tab>("number");
   const [entries, setEntries] = useState<Entry[]>(demo ? SEED : []);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [f, setF] = useState<FormData>({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
+  const [f, setF] = useState<FormData>({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: demo ? UNITS[0] : "", startDate: "", endDate: "" });
   const [errs, setErrs] = useState<Errors>({});
   const [toast, setToast] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -102,6 +109,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
     })();
   }, [demo, locationId]);
+
+  // Default the picker to the location this page is already scoped to,
+  // once its real name is known (mirrors TicketsPage.tsx's equivalent effect).
+  useEffect(() => {
+    if (!demo && !f.businessUnit && locationId && locations) {
+      const match = locations.find((l) => l.id === locationId);
+      if (match) setF((p) => ({ ...p, businessUnit: match.name }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, locations, locationId]);
 
   // ── filtered + paginated ──────────────────────────────────────
   const filtered = useMemo(() => {
@@ -158,7 +175,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         ruleType: "whitelist", reason: f.name, expiresAt: f.endDate || undefined,
       });
       setEntries(p => [toEntry(rule), ...p]);
-      setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
+      setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: units[0] ?? "", startDate: "", endDate: "" });
       setPage(0);
       setToast(tab === "number" ? "Number allowed." : "Device allowed.");
       setTimeout(() => setToast(null), 2500);
@@ -235,7 +252,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           <div>
             <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
             <select value={f.businessUnit} onChange={e => setField("businessUnit", e.target.value)} className={inputCls}>
-              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              {units.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
 

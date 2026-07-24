@@ -185,7 +185,7 @@ function MasterLoginPage() {
             </form>
 
             <div className="mt-6 space-y-1 text-center">
-              <p className="text-xs text-muted-foreground">Demo: admin@example.com / test</p>
+              {/* No demo-credential hint here: unlike /login, this fake local-only bypass caused real login confusion on the admin console. */}
               <p className="text-xs text-muted-foreground">
                 Not an operator? <Link to="/login" className="font-medium text-primary hover:underline">Sign in to your workspace</Link>
               </p>

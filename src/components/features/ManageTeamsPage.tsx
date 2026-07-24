@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
 
@@ -61,6 +61,12 @@ function QuickNotes({ items }: { items: string[] }) {
 
 export default function ManageTeamsPage({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // UNITS is demo-only seed data (fake hotel names) -- a real customer only
+  // has their own locations, so every "Business Unit" picker below must
+  // offer those instead. Same real-vs-demo split as WhiteList.tsx's
+  // units/realUnits.
+  const { data: locations } = useCustomerLocations();
+  const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
   const [tab, setTab] = useState<TabId>("setup");
   const [teams, setTeams] = useState<Team[]>(demo ? DEMO_TEAMS : []);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -169,7 +175,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-              <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose business unit</option>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+              <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
               {errs.bu && <p className="mt-1 text-xs text-destructive">{errs.bu}</p>}
             </div>
             <div>
@@ -213,7 +219,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-              <select value={udBu} onChange={(e) => setUdBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+              <select value={udBu} onChange={(e) => setUdBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
             </div>
             <div>
               <label className={labelCls}>Mobile No. <span className="text-destructive">*</span></label>
@@ -236,7 +242,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-                <select value={teamsBu} onChange={(e) => setTeamsBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                <select value={teamsBu} onChange={(e) => setTeamsBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
               </div>
               <CsvDropzone file={teamsCsv} onFile={setTeamsCsv} />
               <div className="flex justify-center">
@@ -261,7 +267,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-                <select value={mapBu} onChange={(e) => setMapBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                <select value={mapBu} onChange={(e) => setMapBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
               </div>
               <CsvDropzone file={mapCsv} onFile={setMapCsv} />
               <div className="flex justify-center">
@@ -290,7 +296,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             <div>
               <label className={labelCls}>Business Unit</label>
               <select value={manageDraft.businessUnit} onChange={(e) => setManageDraft((p) => ({ ...p, businessUnit: e.target.value }))} className={inputCls}>
-                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                {units.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
             <div>

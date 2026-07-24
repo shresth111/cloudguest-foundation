@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerDashboard, useCustomerUsers } from "@/hooks/useCustomerDashboard";
+import { useCustomerDashboard, useCustomerLocations, useCustomerUsers } from "@/hooks/useCustomerDashboard";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
@@ -34,9 +34,23 @@ function CustomerDashboardPage() {
   const { locationId } = Route.useParams();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { activeLocation, activeLocationId } = useCustomerStore();
+  const { activeLocation, activeLocationId, setActiveLocation } = useCustomerStore();
   const { data: d, isLoading, refetch } = useCustomerDashboard(locationId);
   const { data: uData } = useCustomerUsers(locationId, { page: 1, pageSize: 6 });
+  // The store's activeLocationId is only populated by clicking a location
+  // card on /customer (see customer.index.tsx's handleSelect) -- a direct
+  // deep link/bookmark/refresh of this URL arrives with it unset or
+  // pointing at a different location. Previously that hard-blocked the
+  // whole page behind a bare "Back" button even though every fetch here
+  // (useCustomerDashboard/useCustomerUsers) is already keyed off the URL's
+  // own locationId, not the store. Resync the store from the same
+  // locations list /customer itself uses instead of blocking.
+  const { data: locationsList, isLoading: locationsLoading } = useCustomerLocations();
+  useEffect(() => {
+    if (activeLocationId === locationId) return;
+    const match = locationsList?.find((l) => l.id === locationId);
+    if (match) setActiveLocation(match.id, match);
+  }, [locationId, activeLocationId, locationsList, setActiveLocation]);
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -46,7 +60,19 @@ function CustomerDashboardPage() {
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
 
-  if (activeLocationId !== locationId) return <div className="flex min-h-screen items-center justify-center"><Button variant="outline" onClick={() => navigate({ to: "/customer" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></div>;
+  if (activeLocationId !== locationId) {
+    if (locationsLoading) return <div className="flex min-h-screen items-center justify-center"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+    const found = locationsList?.some((l) => l.id === locationId);
+    if (!found) return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-muted-foreground">
+        <p>Location not found or you don't have access to it.</p>
+        <Button variant="outline" onClick={() => navigate({ to: "/customer" })}><ArrowLeft className="mr-2 h-4 w-4" />Back to locations</Button>
+      </div>
+    );
+    // Found but the store hasn't caught up with the effect above yet --
+    // render nothing for this one tick rather than a flash of "Back".
+    return null;
+  }
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };

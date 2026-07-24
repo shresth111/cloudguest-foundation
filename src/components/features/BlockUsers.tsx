@@ -3,7 +3,7 @@ import {
   AlertTriangle, HelpCircle, X, Search, ChevronUp, ChevronDown,
   ChevronLeft, ChevronRight, Trash2, RotateCcw, Undo2,
 } from "lucide-react";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type { AnyAccessRule } from "@/types/guest";
@@ -54,6 +54,11 @@ function toBlockedUser(r: AnyAccessRule): BlockedUser {
 
 export default function BlockUsers({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // UNITS is demo-only seed data (fake hotel names) -- a real customer only
+  // has their own locations. Same real-vs-demo split as WhiteList.tsx's
+  // units/realUnits.
+  const { data: locations } = useCustomerLocations();
+  const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
   // Fixed dates, not Date.now()-relative -- see WhiteList.tsx's SEED
   // comment for why a relative computation here hydration-mismatches.
   const [blocked, setBlocked] = useState<BlockedUser[]>(demo ? [
@@ -83,7 +88,18 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   }, [demo, locationId]);
 
   const [textarea, setTextarea] = useState("");
-  const [bu, setBu] = useState("Marina Bay Hotel");
+  const [bu, setBu] = useState(demo ? "Marina Bay Hotel" : "");
+
+  // Default "Applies to" to the location this page is already scoped to,
+  // once its real name is known (mirrors WhiteList.tsx's equivalent effect).
+  useEffect(() => {
+    if (!demo && !bu && locationId && locations) {
+      const match = locations.find((l) => l.id === locationId);
+      if (match) setBu(match.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, locations, locationId]);
+
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -166,14 +182,20 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // ── filtered & sorted ─────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    let items = blocked.filter((b) => b.businessUnit === bu && (!q || b.name?.toLowerCase().includes(q) || b.mobile.includes(q) || b.businessUnit.toLowerCase().includes(q) || b.status.toLowerCase().includes(q)));
+    // Real entries don't carry a per-row businessUnit (toBlockedUser always
+    // sets ""; this page is already scoped to one location via its own
+    // locationId prop) -- only demo's multi-location seed data has a
+    // meaningful businessUnit to filter by. Applying the demo-only
+    // `b.businessUnit === bu` match in real mode would always evaluate to
+    // `"" === "<some location name>"`, i.e. false, hiding every real row.
+    let items = blocked.filter((b) => (!demo || b.businessUnit === bu) && (!q || b.name?.toLowerCase().includes(q) || b.mobile.includes(q) || b.businessUnit.toLowerCase().includes(q) || b.status.toLowerCase().includes(q)));
     items.sort((a, b) => {
       const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
       const cmp = typeof av === "string" ? av.localeCompare(bv as string) : String(av).localeCompare(String(bv));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return items;
-  }, [blocked, bu, search, sortKey, sortDir]);
+  }, [blocked, bu, demo, search, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
@@ -296,7 +318,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Block User</h2>
           <div>
             <label htmlFor="bu-select" className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Applies to</label>
-            <select id="bu-select" value={bu} onChange={(e) => { setBu(e.target.value); setPage(0); }} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+            <select id="bu-select" value={bu} onChange={(e) => { setBu(e.target.value); setPage(0); }} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
           </div>
         </div>
 

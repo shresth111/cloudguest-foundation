@@ -3,7 +3,7 @@ import {
   AlertTriangle, HelpCircle, Plus, ChevronDown, Search, Pencil, Trash2,
   ChevronLeft, ChevronRight, Loader2, X,
 } from "lucide-react";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 
@@ -101,6 +101,12 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
 // ── component ────────────────────────────────────────────────────
 export default function LocationPolicies({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // UNITS is demo-only seed data (fake hotel names) -- a real customer only
+  // has their own locations, so the "Business Unit" picker below (whose
+  // value becomes the saved bandwidth policy's own name) must offer those
+  // instead. Same real-vs-demo split as WhiteList.tsx's units/realUnits.
+  const { data: locations } = useCustomerLocations();
+  const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
   // ── state ─────────────────────────────────────────────────────
   const [f, setF] = useState<PolicyForm>({
     businessUnit: "", bandwidth: "", sessionTimeout: "", dailyLimit: "No Limit",
@@ -262,7 +268,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         <h2 className="mb-5 text-lg font-semibold text-slate-800 dark:text-slate-100">Location Policies</h2>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Select id="bu" label="Business Unit" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={UNITS} placeholder="Choose Business Unit" err={errs.businessUnit} />
+          <Select id="bu" label="Business Unit" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose Business Unit" err={errs.businessUnit} />
           <Select id="bw" label="Bandwidth" required value={f.bandwidth} onChange={(v) => setField("bandwidth", v)} options={BANDWIDTH} placeholder="Choose Bandwidth" tooltip="Maximum speed per guest device." err={errs.bandwidth} />
           <Select id="st" label="Session Timeout" required value={f.sessionTimeout} onChange={(v) => setField("sessionTimeout", v)} options={SESSION_TIMEOUT} placeholder="Choose Session Timeout" tooltip="Forces a guest to re-authenticate after this time." err={errs.sessionTimeout} />
           <Select id="dl" label="Maximum Daily Session Limit" value={f.dailyLimit} onChange={(v) => setField("dailyLimit", v)} options={DAILY_LIMIT} placeholder="Choose Limit" tooltip="Total session time allowed per guest per day." />

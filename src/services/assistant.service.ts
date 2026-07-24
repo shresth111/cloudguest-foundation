@@ -59,13 +59,18 @@ function toConversation(c: BackendConversation): AssistantConversation {
 }
 
 let cachedOrgId: string | null = null;
+// GET /organizations is the platform-wide admin listing (GLOBAL scope
+// only) -- an ordinary customer/org-owner session 403s on it. Resolved via
+// /me/organizations (membership-scoped) instead, same fix as
+// customer.service.ts's resolveOrgId / mac-authorization.service.ts's
+// resolveOrganizationId.
 async function resolveOrgId(): Promise<string> {
   if (cachedOrgId) return cachedOrgId;
-  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", { params: { page_size: 1 } });
-  const id = data.items[0]?.id;
-  if (!id) throw new Error("No organization found for the current session");
-  cachedOrgId = id;
-  return id;
+  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrgId = membership.organization_id;
+  return cachedOrgId;
 }
 
 export const assistantService = {

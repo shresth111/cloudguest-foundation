@@ -212,6 +212,11 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
     if (!form.businessUnit) e.businessUnit = "Select a location.";
     if (!form.subject) e.subject = "Enter a subject.";
     if (!form.category) e.category = "Select a category.";
+    // The backend requires a >= 5 character description (see
+    // support_ticket schemas' CreateTicketRequest) -- validate the same
+    // constraint client-side rather than letting the request 422 with a
+    // generic "Could not raise the ticket" toast and no indication why.
+    if (!demo && form.description.trim().length < 5) e.description = "Add at least 5 characters describing the issue.";
     setErrs(e);
     if (Object.keys(e).length) return;
 
@@ -432,8 +437,9 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Description</label>
+                <label className={labelCls}>Description {!demo && <span className="text-destructive">*</span>}</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Add any extra detail that will help support triage this." className={inputCls} />
+                {errs.description && <p className="mt-1 text-xs text-destructive">{errs.description}</p>}
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
