@@ -1,4 +1,5 @@
 import { api, type AppError } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   CreateRouterPayload,
   ProvisioningToken,
@@ -9,6 +10,25 @@ import type {
   WireGuardPeer,
   WireGuardTunnelSecrets,
 } from "@/types/router";
+
+// Same demo-session gap already fixed in location.service.ts/
+// organization.service.ts/billing.service.ts -- the Master Console's demo
+// sign-in issues a token the real backend never accepts, so every real call
+// this file makes (routed through fetchAllOrganizations() below) 401ed.
+// That left both Router Fleet (master.routers.tsx, which used to skip this
+// service entirely and show an always-the-same hardcoded fleet regardless
+// of account -- see that route's own comment) and the real Device Console's
+// router picker (master.console.tsx, which does call routerService.list())
+// with nothing to show under a demo session.
+const DEMO_ORGS: { id: string; name: string }[] = [
+  { id: "org-001", name: "Acme Corp" },
+  { id: "org-002", name: "Blue Cedar Cafes" },
+];
+
+const DEMO_ROUTERS: RouterDevice[] = [
+  { id: "router-demo-1", locationId: "loc-demo-001", locationName: "Downtown Branch", organizationId: "org-001", organizationName: "Acme Corp", name: "HT001-CORE", serialNumber: "SN-DEMO-001", macAddress: "AA:BB:CC:DD:EE:01", model: "RB5009UG+S+", vendor: "MikroTik", routerOsVersion: "7.14", managementIpAddress: "10.20.0.1", publicIpAddress: "203.0.113.10", status: "online", lastSeenAt: new Date().toISOString(), lastHealthCheckAt: new Date().toISOString(), healthStatus: "healthy", hasApiCredentials: true, settings: {}, createdAt: new Date(Date.now() - 90 * 86400000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: "router-demo-2", locationId: "loc-demo-002", locationName: "Airport Kiosk", organizationId: "org-002", organizationName: "Blue Cedar Cafes", name: "BCC-KIOSK-01", serialNumber: "SN-DEMO-002", macAddress: "AA:BB:CC:DD:EE:02", model: "hAP ax²", vendor: "MikroTik", routerOsVersion: "7.13", managementIpAddress: "10.20.0.2", publicIpAddress: "203.0.113.11", status: "online", lastSeenAt: new Date().toISOString(), lastHealthCheckAt: new Date().toISOString(), healthStatus: "healthy", hasApiCredentials: true, settings: {}, createdAt: new Date(Date.now() - 30 * 86400000).toISOString(), updatedAt: new Date().toISOString() },
+];
 
 interface BackendRouter {
   id: string;
@@ -120,6 +140,7 @@ function toWireGuardSecrets(p: BackendWireGuardTunnelSecrets): WireGuardTunnelSe
 }
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
+  if (isDemo()) return DEMO_ORGS;
   const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
     params: { page_size: 100 },
   });
@@ -168,6 +189,7 @@ async function fetchAllLocations(): Promise<
  * reach) as `location.service.ts`'s own `fetchAllLocations`.
  */
 async function fetchAllRouters(): Promise<RouterDevice[]> {
+  if (isDemo()) return DEMO_ROUTERS;
   const locations = await fetchAllLocations();
   const settled = await Promise.allSettled(
     locations.map(async (loc) => {

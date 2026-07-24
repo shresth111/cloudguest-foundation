@@ -65,47 +65,86 @@ const DEMO_COUPONS: Coupon[] = [
   { id: "coupon-demo-2", code: "LAUNCH500", discountType: "fixed", discountValue: 500, expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(), maxUsage: 50, used: 50, status: "active" },
 ];
 
-const DEMO_BILLING_SNAPSHOT: BillingSnapshot = {
-  kpis: { mrr: 129940, arr: 1559280, activeSubscriptions: 2, trialOrganizations: 0, expiringPlans: 0, overduePayments: 0, totalRevenue: 259880, collectionRate: 100, arpo: 64970 },
-  subscriptions: [
-    { id: "sub-demo-1", organizationId: "org-001", organizationName: "Acme Corp", planId: "plan-demo-growth", planName: "Growth", tier: "professional", billingCycle: "monthly", startDate: new Date(Date.now() - 90 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 20 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 20 * 86400000).toISOString(), status: "active", amount: 2999, autoRenewal: true, paymentStatus: "paid", locations: 5, routers: 10, maxGuests: 2500 },
-    { id: "sub-demo-2", organizationId: "org-002", organizationName: "Blue Cedar Cafes", planId: "plan-demo-starter", planName: "Starter", tier: "starter", billingCycle: "monthly", startDate: new Date(Date.now() - 30 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 5 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 5 * 86400000).toISOString(), status: "active", amount: 999, autoRenewal: true, paymentStatus: "paid", locations: 1, routers: 2, maxGuests: 500 },
-  ],
-  payments: [
-    { id: "pay-demo-1", invoiceNumber: "INV-DEMO-0001", organizationId: "org-001", organizationName: "Acme Corp", amount: 2999, tax: 540, discount: 0, gateway: "razorpay", transactionId: "txn_demo_1", status: "paid", paidAt: new Date(Date.now() - 5 * 86400000).toISOString() },
-    { id: "pay-demo-2", invoiceNumber: "INV-DEMO-0002", organizationId: "org-002", organizationName: "Blue Cedar Cafes", amount: 999, tax: 180, discount: 100, gateway: "razorpay", transactionId: "txn_demo_2", status: "paid", paidAt: new Date(Date.now() - 25 * 86400000).toISOString() },
-  ],
-  invoices: [
-    { id: "inv-demo-1", invoiceNumber: "INV-DEMO-0001", organizationName: "Acme Corp", type: "tax_invoice", amount: 2999, tax: 540, total: 3539, issuedAt: new Date(Date.now() - 5 * 86400000).toISOString(), dueAt: new Date(Date.now() + 25 * 86400000).toISOString(), status: "paid" },
-    { id: "inv-demo-2", invoiceNumber: "INV-DEMO-0002", organizationName: "Blue Cedar Cafes", type: "tax_invoice", amount: 999, tax: 180, total: 1079, issuedAt: new Date(Date.now() - 25 * 86400000).toISOString(), dueAt: new Date(Date.now() + 5 * 86400000).toISOString(), status: "paid" },
-  ],
-  coupons: DEMO_COUPONS,
-  usage: [
-    { organizationId: "org-001", organizationName: "Acme Corp", locationsUsed: 3, locationsLimit: 5, routersUsed: 6, routersLimit: 10, guestSessions: 1840, smsOtp: 620, emailOtp: 410, storageUsedGb: 12, storageLimitGb: 50, apiCalls: 8400 },
-    { organizationId: "org-002", organizationName: "Blue Cedar Cafes", locationsUsed: 1, locationsLimit: 1, routersUsed: 2, routersLimit: 2, guestSessions: 340, smsOtp: 90, emailOtp: 60, storageUsedGb: 2, storageLimitGb: 10, apiCalls: 0 },
-  ],
-  gateways: [
-    { id: "razorpay", name: "Razorpay", connected: true, lastTransactionAt: new Date(Date.now() - 5 * 86400000).toISOString(), mode: "test" },
-    { id: "stripe", name: "Stripe", connected: false, mode: "test" },
-  ],
-  revenue: {
-    trend: Array.from({ length: 6 }, (_, i) => ({ label: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString("en-US", { month: "short" }), revenue: 90000 + i * 8000, growth: i === 0 ? 0 : 8 })),
-    planDistribution: [
-      { tier: "starter", count: 1, revenue: 999 },
-      { tier: "professional", count: 1, revenue: 2999 },
+const DEMO_SUBSCRIPTIONS: Subscription[] = [
+  { id: "sub-demo-1", organizationId: "org-001", organizationName: "Acme Corp", planId: "plan-demo-growth", planName: "Growth", tier: "professional", billingCycle: "monthly", startDate: new Date(Date.now() - 90 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 20 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 20 * 86400000).toISOString(), status: "active", amount: 2999, autoRenewal: true, paymentStatus: "paid", locations: 5, routers: 10, maxGuests: 2500 },
+  { id: "sub-demo-2", organizationId: "org-002", organizationName: "Blue Cedar Cafes", planId: "plan-demo-starter", planName: "Starter", tier: "starter", billingCycle: "monthly", startDate: new Date(Date.now() - 30 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 5 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 5 * 86400000).toISOString(), status: "active", amount: 999, autoRenewal: true, paymentStatus: "paid", locations: 1, routers: 2, maxGuests: 500 },
+];
+
+const DEMO_PAYMENTS: Payment[] = [
+  { id: "pay-demo-1", invoiceNumber: "INV-DEMO-0001", organizationId: "org-001", organizationName: "Acme Corp", amount: 2999, tax: 540, discount: 0, gateway: "razorpay", transactionId: "txn_demo_1", status: "paid", paidAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+  { id: "pay-demo-2", invoiceNumber: "INV-DEMO-0002", organizationId: "org-002", organizationName: "Blue Cedar Cafes", amount: 999, tax: 180, discount: 100, gateway: "razorpay", transactionId: "txn_demo_2", status: "paid", paidAt: new Date(Date.now() - 25 * 86400000).toISOString() },
+];
+
+const DEMO_INVOICES: Invoice[] = [
+  { id: "inv-demo-1", invoiceNumber: "INV-DEMO-0001", organizationName: "Acme Corp", type: "tax_invoice", amount: 2999, tax: 540, total: 3539, issuedAt: new Date(Date.now() - 5 * 86400000).toISOString(), dueAt: new Date(Date.now() + 25 * 86400000).toISOString(), status: "paid" },
+  { id: "inv-demo-2", invoiceNumber: "INV-DEMO-0002", organizationName: "Blue Cedar Cafes", type: "tax_invoice", amount: 999, tax: 180, total: 1079, issuedAt: new Date(Date.now() - 25 * 86400000).toISOString(), dueAt: new Date(Date.now() + 5 * 86400000).toISOString(), status: "paid" },
+];
+
+const DEMO_USAGE: UsageRow[] = [
+  { organizationId: "org-001", organizationName: "Acme Corp", locationsUsed: 3, locationsLimit: 5, routersUsed: 6, routersLimit: 10, guestSessions: 1840, smsOtp: 620, emailOtp: 410, storageUsedGb: 12, storageLimitGb: 50, apiCalls: 8400 },
+  { organizationId: "org-002", organizationName: "Blue Cedar Cafes", locationsUsed: 1, locationsLimit: 1, routersUsed: 2, routersLimit: 2, guestSessions: 340, smsOtp: 90, emailOtp: 60, storageUsedGb: 2, storageLimitGb: 10, apiCalls: 0 },
+];
+
+/**
+ * Builds the demo BillingSnapshot fresh from `DEMO_PLANS`/`DEMO_COUPONS`/
+ * `DEMO_SUBSCRIPTIONS` on every call, not a frozen object -- this used to
+ * be a single `const` snapshot, so "New plan"/"New subscription"/coupon
+ * writes each returned a fake success (toast + closed dialog) but the very
+ * next fetch (this same demo path) handed back the *original* unchanged
+ * object. From the operator's side that reads as "the button doesn't
+ * work" -- confirmed live: subscription count stayed "2 of 2" after
+ * successfully "creating" a third one. `savePlan`/`deletePlan`/
+ * `saveCoupon`/`deleteCoupon`/`createSubscription`'s demo branches below
+ * now mutate these arrays in place, so this reflects it on the next read,
+ * same as the real backend would (just in-memory for the session instead
+ * of persisted, which is the honest, expected boundary of a demo account).
+ */
+function buildDemoSnapshot(): BillingSnapshot {
+  const active = DEMO_SUBSCRIPTIONS.filter((s) => s.status === "active");
+  const mrr = active.reduce((sum, s) => sum + (s.billingCycle === "annual" ? s.amount / 12 : s.amount), 0);
+  const paidPayments = DEMO_PAYMENTS.filter((p) => p.status === "paid");
+  return {
+    kpis: {
+      mrr: Math.round(mrr),
+      arr: Math.round(mrr * 12),
+      activeSubscriptions: active.length,
+      trialOrganizations: DEMO_SUBSCRIPTIONS.filter((s) => s.status === "trial").length,
+      expiringPlans: DEMO_SUBSCRIPTIONS.filter((s) => {
+        const t = new Date(s.renewalDate).getTime() - Date.now();
+        return t > 0 && t < 14 * 86400000;
+      }).length,
+      overduePayments: DEMO_SUBSCRIPTIONS.filter((s) => s.status === "past_due").length,
+      totalRevenue: Math.round(DEMO_PAYMENTS.reduce((sum, p) => sum + p.amount, 0)),
+      collectionRate: DEMO_PAYMENTS.length ? Math.round((paidPayments.length / DEMO_PAYMENTS.length) * 100) : 100,
+      arpo: active.length ? Math.round(mrr / active.length) : 0,
+    },
+    subscriptions: DEMO_SUBSCRIPTIONS,
+    payments: DEMO_PAYMENTS,
+    invoices: DEMO_INVOICES,
+    coupons: DEMO_COUPONS,
+    usage: DEMO_USAGE,
+    gateways: [
+      { id: "razorpay", name: "Razorpay", connected: true, lastTransactionAt: new Date(Date.now() - 5 * 86400000).toISOString(), mode: "test" },
+      { id: "stripe", name: "Stripe", connected: false, mode: "test" },
     ],
-    subscriptionDistribution: [
-      { status: "active", count: 2 },
-      { status: "trial", count: 0 },
-      { status: "past_due", count: 0 },
-      { status: "canceled", count: 0 },
-    ],
-    paymentSuccessRate: [{ label: "This month", success: 2, failed: 0 }],
-    churnRate: [{ label: "Current", value: 0 }],
-  },
-  reminders: [],
-  plans: DEMO_PLANS,
-};
+    revenue: {
+      trend: Array.from({ length: 6 }, (_, i) => ({ label: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString("en-US", { month: "short" }), revenue: 90000 + i * 8000, growth: i === 0 ? 0 : 8 })),
+      planDistribution: DEMO_PLANS.map((p) => ({
+        tier: p.tier,
+        count: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).length,
+        revenue: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).reduce((sum, s) => sum + s.amount, 0),
+      })).filter((d) => d.count > 0),
+      subscriptionDistribution: (["active", "trial", "past_due", "canceled"] as const).map((status) => ({
+        status,
+        count: DEMO_SUBSCRIPTIONS.filter((s) => s.status === status).length,
+      })),
+      paymentSuccessRate: [{ label: "This month", success: paidPayments.length, failed: DEMO_PAYMENTS.length - paidPayments.length }],
+      churnRate: [{ label: "Current", value: 0 }],
+    },
+    reminders: [],
+    plans: DEMO_PLANS,
+  };
+}
 
 interface BackendListResponse<T> {
   items: T[];
@@ -733,7 +772,7 @@ async function findSubscriptionContext(
 
 export const billingService = {
   async getSnapshot(): Promise<BillingSnapshot> {
-    if (isDemo()) return DEMO_BILLING_SNAPSHOT;
+    if (isDemo()) return buildDemoSnapshot();
     const [dashboard, orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchDashboard(),
       fetchAllOrganizations(),
@@ -894,7 +933,7 @@ export const billingService = {
       const plan = DEMO_PLANS.find((p) => p.id === input.planId);
       const coupon = input.couponCode ? DEMO_COUPONS.find((c) => c.code === input.couponCode) : undefined;
       const now = new Date().toISOString();
-      return {
+      const created: Subscription = {
         id: `sub-demo-${Date.now()}`,
         organizationId: input.organizationId,
         organizationName: org?.name ?? "Demo Organization",
@@ -914,6 +953,11 @@ export const billingService = {
         maxGuests: plan?.includedGuests ?? 0,
         discount: coupon?.discountValue,
       };
+      // Actually persist it -- see buildDemoSnapshot()'s doc comment for why
+      // (a fake success that vanishes on the next read reads as "the button
+      // doesn't work" from the operator's side).
+      DEMO_SUBSCRIPTIONS.unshift(created);
+      return created;
     }
     const [orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchAllOrganizations(),
@@ -992,7 +1036,17 @@ export const billingService = {
   },
 
   async savePlan(input: Omit<Plan, "id"> & { id?: string }) {
-    if (isDemo()) return { ...input, id: input.id ?? `plan-demo-${Date.now()}` };
+    if (isDemo()) {
+      if (input.id) {
+        const i = DEMO_PLANS.findIndex((p) => p.id === input.id);
+        const updated: Plan = { ...input, id: input.id };
+        if (i >= 0) DEMO_PLANS[i] = updated;
+        return updated;
+      }
+      const created: Plan = { ...input, id: `plan-demo-${Date.now()}` };
+      DEMO_PLANS.push(created);
+      return created;
+    }
     const features = [
       { feature_key: "max_locations", feature_type: "limit", limit_value: input.includedLocations },
       { feature_key: "max_routers", feature_type: "limit", limit_value: input.includedRouters },
@@ -1033,14 +1087,28 @@ export const billingService = {
   },
 
   async deletePlan(id: string) {
-    if (isDemo()) return true;
+    if (isDemo()) {
+      const i = DEMO_PLANS.findIndex((p) => p.id === id);
+      if (i >= 0) DEMO_PLANS.splice(i, 1);
+      return true;
+    }
     // No hard delete on the backend -- deactivate is the real equivalent.
     await api.delete(`/plans/${id}`);
     return true;
   },
 
   async saveCoupon(input: Omit<Coupon, "id" | "used"> & { id?: string }) {
-    if (isDemo()) return { ...input, id: input.id ?? `coupon-demo-${Date.now()}`, used: 0 };
+    if (isDemo()) {
+      if (input.id) {
+        const i = DEMO_COUPONS.findIndex((c) => c.id === input.id);
+        const updated: Coupon = { ...input, id: input.id, used: DEMO_COUPONS[i]?.used ?? 0 };
+        if (i >= 0) DEMO_COUPONS[i] = updated;
+        return updated;
+      }
+      const created: Coupon = { ...input, id: `coupon-demo-${Date.now()}`, used: 0 };
+      DEMO_COUPONS.push(created);
+      return created;
+    }
     if (input.id) {
       const { data } = await api.put<BackendCoupon>(`/coupons/${input.id}`, {
         discount_type: input.discountType === "fixed" ? "flat" : "percentage",
@@ -1065,7 +1133,11 @@ export const billingService = {
   },
 
   async deleteCoupon(id: string) {
-    if (isDemo()) return true;
+    if (isDemo()) {
+      const i = DEMO_COUPONS.findIndex((c) => c.id === id);
+      if (i >= 0) DEMO_COUPONS.splice(i, 1);
+      return true;
+    }
     // No hard delete on the backend -- deactivate is the real equivalent.
     await api.delete(`/coupons/${id}`);
     return true;
