@@ -54,7 +54,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
 
   const nav = MASTER_NAV.filter((n) => !n.cap || caps.has(n.cap));
   const isActive = (to: string) => (to === "/master" ? pathname === "/master" : pathname.startsWith(to));
-  const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleLogout = async () => { await logout(); navigate({ to: "/master-login", replace: true }); };
 
   return (
     <div className={cn("master-theme", dark && "dark")}>
