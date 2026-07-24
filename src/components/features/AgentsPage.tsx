@@ -135,15 +135,20 @@ export function AgentsPage() {
         if (patch.dataMasking !== undefined) await rbacService.updateUser(id, { dataMaskingEnabled: patch.dataMasking });
         if (patch.roleId && patch.roleId !== prevRole && orgId) {
           // Selecting a role in this dropdown replaces whatever role this
-          // agent held in this org, it doesn't add a second one -- revoke
-          // any existing org-scoped assignment(s) first.
+          // agent held in this org, it doesn't add a second one. Assign the
+          // new role BEFORE revoking the old one -- not the other way
+          // around: if the caller is changing their *own* role, revoking
+          // first can strip the very roles.assign/users.read permission the
+          // next step needs, self-locking them out before the new role is
+          // even in place. Assigning first means the permission check for
+          // that call still sees the (soon-to-be-old) role active.
           const existing = await rbacService.listUserRoleAssignments(id, orgId);
+          await rbacService.assignRole(id, { roleId: patch.roleId, scopeType: "organization" as ScopeType, organizationId: orgId }, orgId);
           await Promise.all(
             existing
               .filter((a) => a.isActive && a.organizationId === orgId)
               .map((a) => rbacService.revokeRoleAssignment(id, a.id, orgId)),
           );
-          await rbacService.assignRole(id, { roleId: patch.roleId, scopeType: "organization" as ScopeType, organizationId: orgId }, orgId);
           toast.success("Role updated");
         }
       } catch {
