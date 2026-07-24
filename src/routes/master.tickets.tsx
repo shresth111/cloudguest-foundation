@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { LifeBuoy, Clock, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { LifeBuoy, Clock, CheckCircle2, AlertTriangle, Loader2, Send, ShieldCheck, User } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import { MSectionHeader, MStat, MSeg, MTag, MTable, MTh, MTd, MTr, MDrawer, MButton, MField, M_INPUT } from "@/components/master/MasterKit";
 import { organizationService } from "@/services/organization.service";
 import { ticketService } from "@/services/ticket.service";
-import { TICKET_PRIORITY_LABEL, TICKET_STATUS_LABEL, type SupportTicket, type TicketStatus } from "@/types/support-ticket";
+import { useSupportTicketsSocket } from "@/hooks/useSupportTicketRealtime";
+import { TICKET_PRIORITY_LABEL, TICKET_STATUS_LABEL, type SupportTicket, type TicketReply, type TicketStatus } from "@/types/support-ticket";
 
 export const Route = createFileRoute("/master/tickets")({
   component: TicketsScreen,
@@ -22,6 +23,13 @@ function TicketsScreen() {
   const [selected, setSelected] = useState<SupportTicket | null>(null);
   const [saving, setSaving] = useState(false);
   const [resolution, setResolution] = useState("");
+
+  const [replies, setReplies] = useState<TicketReply[]>([]);
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selected?.id ?? null;
 
   async function refetch() {
     setLoading(true);
@@ -56,6 +64,101 @@ function TicketsScreen() {
   useEffect(() => {
     if (selected) setResolution(selected.resolutionNotes ?? "");
   }, [selected]);
+
+  useEffect(() => {
+    if (!selected) {
+      setReplies([]);
+      return;
+    }
+    let cancelled = false;
+    setRepliesLoading(true);
+    ticketService
+      .listReplies(selected.id)
+      .then((rows) => {
+        if (!cancelled) setReplies(rows);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not load the reply thread.");
+      })
+      .finally(() => {
+        if (!cancelled) setRepliesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id]);
+
+  function upsertReply(reply: TicketReply) {
+    setReplies((prev) => (prev.some((r) => r.id === reply.id) ? prev : [...prev, reply]));
+  }
+
+  // The Master console's own connection: no organizationId -> the
+  // cross-tenant, every-organization live feed (mirrors
+  // ticketService.listAllOrgs()'s identical no-header call).
+  useSupportTicketsSocket(null, (message) => {
+    if (message.type === "reply_created") {
+      const payload = message.payload;
+      if (payload.ticket_id === selectedIdRef.current) {
+        upsertReply({
+          id: payload.id,
+          ticketId: payload.ticket_id,
+          authorUserId: payload.author_user_id,
+          authorName: payload.author_name,
+          authorEmail: payload.author_email,
+          isStaffReply: payload.is_staff_reply,
+          message: payload.message,
+          createdAt: payload.created_at,
+        });
+      }
+      if (!payload.is_staff_reply) {
+        toast.message("New reply from customer", { description: payload.message.slice(0, 80) });
+      }
+    } else if (message.type === "ticket_updated") {
+      const payload = message.payload;
+      setTickets((prev) =>
+        prev.map((t) =>
+          t.id === payload.ticket_id
+            ? {
+                ...t,
+                status: payload.status,
+                priority: payload.priority,
+                assignedToUserId: payload.assigned_to_user_id,
+                resolutionNotes: payload.resolution_notes,
+                resolvedAt: payload.resolved_at,
+                updatedAt: payload.updated_at,
+              }
+            : t,
+        ),
+      );
+      setSelected((prev) =>
+        prev && prev.id === payload.ticket_id
+          ? {
+              ...prev,
+              status: payload.status,
+              priority: payload.priority,
+              assignedToUserId: payload.assigned_to_user_id,
+              resolutionNotes: payload.resolution_notes,
+              resolvedAt: payload.resolved_at,
+              updatedAt: payload.updated_at,
+            }
+          : prev,
+      );
+    }
+  });
+
+  async function sendReply() {
+    if (!selected || !replyText.trim()) return;
+    setSendingReply(true);
+    try {
+      const reply = await ticketService.addReply(selected.id, replyText.trim());
+      upsertReply(reply);
+      setReplyText("");
+    } catch {
+      toast.error("Could not send the reply.");
+    } finally {
+      setSendingReply(false);
+    }
+  }
 
   async function updateStatus(t: SupportTicket, status: TicketStatus) {
     setSaving(true);
@@ -170,6 +273,47 @@ function TicketsScreen() {
                 placeholder="What was done to resolve this?"
               />
             </MField>
+
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Reply thread</p>
+              <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3">
+                {repliesLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading replies…
+                  </div>
+                ) : replies.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">No replies yet — be the first to respond.</p>
+                ) : (
+                  replies.map((r) => (
+                    <div key={r.id} className={`rounded-lg border p-2.5 text-sm ${r.isStaffReply ? "border-primary/30 bg-primary/5" : "border-border bg-card"}`}>
+                      <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        {r.isStaffReply ? <ShieldCheck className="h-3 w-3 text-primary" /> : <User className="h-3 w-3" />}
+                        <span>{r.authorName}</span>
+                        <span className="opacity-60">· {new Date(r.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p className="whitespace-pre-wrap text-foreground">{r.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <textarea
+                  className={`${M_INPUT} min-h-16 flex-1`}
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Reply to the customer…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      sendReply();
+                    }
+                  }}
+                />
+                <MButton variant="primary" disabled={sendingReply || !replyText.trim()} onClick={sendReply}>
+                  {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </MButton>
+              </div>
+            </div>
           </div>
         )}
       </MDrawer>

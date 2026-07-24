@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { LifeBuoy, Plus, MessageSquare, CheckCircle2, X, Loader2 } from "lucide-react";
+import { LifeBuoy, Plus, MessageSquare, CheckCircle2, X, Loader2, Send, ShieldCheck, User, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
-import { ticketService } from "@/services/ticket.service";
-import type { SupportTicket, TicketPriority } from "@/types/support-ticket";
+import { ticketService, resolveOrgId } from "@/services/ticket.service";
+import { useSupportTicketsSocket } from "@/hooks/useSupportTicketRealtime";
+import type { SupportTicket, TicketPriority, TicketReply } from "@/types/support-ticket";
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const PRIORITIES: TicketPriority[] = ["low", "medium", "high", "urgent"];
@@ -54,6 +55,14 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
   const [form, setForm] = useState({ businessUnit: "", subject: "", category: "", priority: "medium" as TicketPriority, description: "" });
   const [errs, setErrs] = useState<Record<string, string>>({});
 
+  // Reply thread (real mode only) -- keyed by ticket id.
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
+  const [repliesByTicket, setRepliesByTicket] = useState<Record<string, TicketReply[]>>({});
+  const [repliesLoading, setRepliesLoading] = useState<Record<string, boolean>>({});
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [sendingReply, setSendingReply] = useState<Record<string, boolean>>({});
+
   const realUnits = useMemo(() => (locations ?? []).map((l) => l.name), [locations]);
   const units = demo ? UNITS : realUnits;
 
@@ -74,6 +83,105 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
     refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo]);
+
+  useEffect(() => {
+    if (demo) {
+      setOrgId(null);
+      return;
+    }
+    let cancelled = false;
+    resolveOrgId()
+      .then((id) => {
+        if (!cancelled) setOrgId(id);
+      })
+      .catch(() => {
+        /* no organization context yet -- realtime simply stays off */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demo]);
+
+  function loadReplies(ticketId: string) {
+    setRepliesLoading((prev) => ({ ...prev, [ticketId]: true }));
+    ticketService
+      .listReplies(ticketId, { asCustomer: true })
+      .then((rows) => {
+        setRepliesByTicket((prev) => ({ ...prev, [ticketId]: rows }));
+      })
+      .catch(() => toast.error("Could not load the reply thread."))
+      .finally(() => setRepliesLoading((prev) => ({ ...prev, [ticketId]: false })));
+  }
+
+  function toggleThread(ticketId: string) {
+    setExpandedTicketId((prev) => {
+      const next = prev === ticketId ? null : ticketId;
+      if (next && !repliesByTicket[next]) loadReplies(next);
+      return next;
+    });
+  }
+
+  function upsertReply(ticketId: string, reply: TicketReply) {
+    setRepliesByTicket((prev) => {
+      const existing = prev[ticketId] ?? [];
+      if (existing.some((r) => r.id === reply.id)) return prev;
+      return { ...prev, [ticketId]: [...existing, reply] };
+    });
+  }
+
+  async function sendReply(ticketId: string) {
+    const message = (replyDrafts[ticketId] ?? "").trim();
+    if (!message) return;
+    setSendingReply((prev) => ({ ...prev, [ticketId]: true }));
+    try {
+      const reply = await ticketService.addReply(ticketId, message, { asCustomer: true });
+      upsertReply(ticketId, reply);
+      setReplyDrafts((prev) => ({ ...prev, [ticketId]: "" }));
+    } catch {
+      toast.error("Could not send the reply.");
+    } finally {
+      setSendingReply((prev) => ({ ...prev, [ticketId]: false }));
+    }
+  }
+
+  // The customer dashboard's own tenant-scoped connection -- only this
+  // organization's ticket/reply events, mirrors ticketService.list()'s own
+  // X-Organization-Id-scoped REST call.
+  useSupportTicketsSocket(orgId, (msg) => {
+    if (msg.type === "reply_created") {
+      const payload = msg.payload;
+      upsertReply(payload.ticket_id, {
+        id: payload.id,
+        ticketId: payload.ticket_id,
+        authorUserId: payload.author_user_id,
+        authorName: payload.author_name,
+        authorEmail: payload.author_email,
+        isStaffReply: payload.is_staff_reply,
+        message: payload.message,
+        createdAt: payload.created_at,
+      });
+      if (payload.is_staff_reply) {
+        toast.message("Support replied", { description: payload.message.slice(0, 80) });
+      }
+    } else if (msg.type === "ticket_updated") {
+      const payload = msg.payload;
+      setRealTickets((prev) =>
+        prev.map((t) =>
+          t.id === payload.ticket_id
+            ? {
+                ...t,
+                status: payload.status,
+                priority: payload.priority,
+                assignedToUserId: payload.assigned_to_user_id,
+                resolutionNotes: payload.resolution_notes,
+                resolvedAt: payload.resolved_at,
+                updatedAt: payload.updated_at,
+              }
+            : t,
+        ),
+      );
+    }
+  }, { enabled: !demo && !!orgId });
 
   useEffect(() => {
     if (!demo && !form.businessUnit && locationId && locations) {
@@ -226,10 +334,61 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
                       {t.description && <p className="mt-1.5 text-xs text-muted-foreground">{t.description}</p>}
                       {t.resolutionNotes && <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-400">Resolution: {t.resolutionNotes}</p>}
                     </div>
-                    {t.status !== "resolved" && t.status !== "closed" && (
-                      <button onClick={() => markResolved(t.id)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Mark resolved</button>
-                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      {t.status !== "resolved" && t.status !== "closed" && (
+                        <button onClick={() => markResolved(t.id)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Mark resolved</button>
+                      )}
+                      <button onClick={() => toggleThread(t.id)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {(repliesByTicket[t.id]?.length ?? 0) > 0 ? `Replies (${repliesByTicket[t.id]!.length})` : "Replies"}
+                        {expandedTicketId === t.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
+
+                  {expandedTicketId === t.id && (
+                    <div className="mt-3 border-t pt-3">
+                      <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border bg-muted/30 p-3">
+                        {repliesLoading[t.id] ? (
+                          <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading replies…</div>
+                        ) : (repliesByTicket[t.id]?.length ?? 0) === 0 ? (
+                          <p className="py-4 text-center text-xs text-muted-foreground">No replies yet.</p>
+                        ) : (
+                          repliesByTicket[t.id]!.map((r) => (
+                            <div key={r.id} className={cn("rounded-lg border p-2.5 text-sm", r.isStaffReply ? "border-primary/30 bg-primary/5" : "border-border bg-card")}>
+                              <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                {r.isStaffReply ? <ShieldCheck className="h-3 w-3 text-primary" /> : <User className="h-3 w-3" />}
+                                <span>{r.isStaffReply ? `${r.authorName} · CloudGuest Support` : r.authorName}</span>
+                                <span className="opacity-60">· {new Date(r.createdAt).toLocaleString()}</span>
+                              </div>
+                              <p className="whitespace-pre-wrap text-foreground">{r.message}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <textarea
+                          className={cn(inputCls, "min-h-14 flex-1")}
+                          value={replyDrafts[t.id] ?? ""}
+                          onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          placeholder="Write a reply…"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                              e.preventDefault();
+                              sendReply(t.id);
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => sendReply(t.id)}
+                          disabled={sendingReply[t.id] || !(replyDrafts[t.id] ?? "").trim()}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                        >
+                          {sendingReply[t.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

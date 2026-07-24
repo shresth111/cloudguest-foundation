@@ -1,8 +1,9 @@
-import { api } from "@/services/api";
+import { api, TOKEN_STORAGE_KEY } from "@/services/api";
 import type {
   CreateTicketPayload,
   SupportTicket,
   TicketPriority,
+  TicketReply,
   TicketStatus,
   UpdateTicketPayload,
 } from "@/types/support-ticket";
@@ -59,6 +60,30 @@ function toTicket(t: BackendTicket): SupportTicket {
   };
 }
 
+interface BackendTicketReply {
+  id: string;
+  ticket_id: string;
+  author_user_id: string;
+  author_name: string;
+  author_email: string;
+  is_staff_reply: boolean;
+  message: string;
+  created_at: string;
+}
+
+function toReply(r: BackendTicketReply): TicketReply {
+  return {
+    id: r.id,
+    ticketId: r.ticket_id,
+    authorUserId: r.author_user_id,
+    authorName: r.author_name,
+    authorEmail: r.author_email,
+    isStaffReply: r.is_staff_reply,
+    message: r.message,
+    createdAt: r.created_at,
+  };
+}
+
 interface MyOrganizationMembership {
   organization_id: string;
   status: "invited" | "active" | "suspended" | "removed";
@@ -79,7 +104,7 @@ let cachedOrgId: string | null = null;
  * the customer's real org, not the wrongly-resolved one) -- see
  * app.domains.support_tickets.service.TicketService._assert_location_in_organization.
  */
-async function resolveOrgId(): Promise<string> {
+export async function resolveOrgId(): Promise<string> {
   if (cachedOrgId) return cachedOrgId;
   const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
@@ -134,4 +159,57 @@ export const ticketService = {
     });
     return toTicket(data);
   },
+
+  /** The reply thread for one ticket, oldest first. ``asCustomer: true``
+   * sends ``X-Organization-Id`` (the customer dashboard's own ticket --
+   * mirrors ``list()``'s identical header); omitted/false makes the
+   * no-header Master-console call (mirrors ``update()``'s identical
+   * "no header -> platform-level caller" call shape). */
+  async listReplies(ticketId: string, opts?: { asCustomer?: boolean }): Promise<TicketReply[]> {
+    const headers = opts?.asCustomer ? { "X-Organization-Id": await resolveOrgId() } : undefined;
+    const { data } = await api.get<{ items: BackendTicketReply[] }>(
+      `/support-tickets/${ticketId}/replies`,
+      { headers },
+    );
+    return data.items.map(toReply);
+  },
+
+  async addReply(
+    ticketId: string,
+    message: string,
+    opts?: { asCustomer?: boolean },
+  ): Promise<TicketReply> {
+    const headers = opts?.asCustomer ? { "X-Organization-Id": await resolveOrgId() } : undefined;
+    const { data } = await api.post<BackendTicketReply>(
+      `/support-tickets/${ticketId}/replies`,
+      { message },
+      { headers },
+    );
+    return toReply(data);
+  },
 };
+
+/** Builds the ``WS /support-tickets/ws`` URL -- the browser-native
+ * ``WebSocket`` API has no way to set an ``Authorization`` header, so the
+ * access token travels as a ``?token=`` query param instead (read from the
+ * same ``localStorage`` key ``api.ts``'s request interceptor already
+ * reads it from), exactly mirroring how every REST call already
+ * authenticates. ``organizationId`` -- when supplied -- is the WebSocket
+ * equivalent of the ``X-Organization-Id`` header (a real header can't be
+ * set on a WebSocket handshake either): pass the customer's own
+ * organization id for the customer dashboard's tenant-scoped connection,
+ * or omit it entirely for the Master console's cross-tenant connection
+ * (see ``app.domains.support_tickets.router``'s own module docstring for
+ * the backend half of this). */
+export function buildTicketsWebSocketUrl(organizationId?: string): string {
+  const httpBase = api.defaults.baseURL || "/api/v1";
+  const resolvedBase = httpBase.startsWith("/")
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}${httpBase}`
+    : httpBase;
+  const wsBase = resolvedBase.replace(/^http/, "ws");
+  const token = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+  const params = new URLSearchParams();
+  if (token) params.set("token", token);
+  if (organizationId) params.set("organization_id", organizationId);
+  return `${wsBase}/support-tickets/ws?${params.toString()}`;
+}
