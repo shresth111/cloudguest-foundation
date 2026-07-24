@@ -64,7 +64,30 @@ export function OtpMaskToggle({ masked, setMasked, className }: { masked: boolea
   );
 }
 
-export function PlanExpiryBadge({ expiry = "11-Nov-2026", className }: { expiry?: string; className?: string }) {
+/** Formats an ISO date string (e.g. a subscription's `current_period_end`)
+ * as "24-Aug-2026" to match this badge's display convention. */
+export function formatPlanExpiry(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : `${String(d.getDate()).padStart(2, "0")}-${d.toLocaleString("en-US", { month: "short" })}-${d.getFullYear()}`;
+}
+
+/**
+ * Renders the real subscription renewal date -- callers must pass the
+ * actual `current_period_end` from `GET /billing/dashboard/me` (see
+ * `useMyBillingDashboard`), already formatted via `formatPlanExpiry`.
+ *
+ * This used to default `expiry` to a hardcoded "11-Nov-2026" and every call
+ * site rendered it unconditionally, so *every* account -- demo or real --
+ * showed the same fake renewal date regardless of what plan/subscription
+ * was actually provisioned for it. There is no honest fallback for a real
+ * account's real subscription date, so when it hasn't loaded yet (or the
+ * session has no resolvable organization) this renders nothing rather than
+ * a fabricated one.
+ */
+export function PlanExpiryBadge({ expiry, className }: { expiry?: string | null; className?: string }) {
+  if (!expiry) return null;
   return (
     <span className={className ?? PILL_CLASS} title="Current plan renewal date">
       <Clock className="h-3 w-3" /> Plan expires {expiry}

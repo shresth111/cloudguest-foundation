@@ -16,9 +16,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
+import { isDemo } from "@/services/customer.service";
+import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, maskEmail } from "@/components/features/HeaderControls";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry, maskEmail } from "@/components/features/HeaderControls";
 
 export const Route = createFileRoute("/customer/$locationId/users")({
 
@@ -31,6 +33,8 @@ function CustomerUsersPage() {
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
   const disconnect = useDisconnectSession();
+  const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState("all");
   const [page, setPage] = useState(0);
@@ -66,7 +70,7 @@ function CustomerUsersPage() {
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold">Users · {activeLocation?.name ?? ""}</p></div>
           <div className="flex items-center gap-1">
-            <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
+            <PlanExpiryBadge expiry={planExpiry} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
             <BookDemoButton />
             <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}><RotateCw className="h-4 w-4" /></Button>

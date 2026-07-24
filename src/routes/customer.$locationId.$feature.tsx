@@ -33,7 +33,9 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry } from "@/components/features/HeaderControls";
+import { isDemo } from "@/services/customer.service";
+import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import {
@@ -137,6 +139,8 @@ function FeaturePage() {
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
   const loginRole = getRole();
+  const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -181,7 +185,7 @@ function FeaturePage() {
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature} · {activeLocation?.name ?? ""}</p></div>
 
-          <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex" />
+          <PlanExpiryBadge expiry={planExpiry} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex" />
           <BookDemoButton className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
           <OtpMaskToggle masked={masked} setMasked={setMasked} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
 

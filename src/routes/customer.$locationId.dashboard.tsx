@@ -11,7 +11,7 @@ import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, maskEmail } from "@/components/features/HeaderControls";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry, maskEmail } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerDashboard, useCustomerLocations, useCustomerUsers } from "@/hooks/useCustomerDashboard";
+import { isDemo } from "@/services/customer.service";
+import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
@@ -37,6 +39,8 @@ function CustomerDashboardPage() {
   const { activeLocation, activeLocationId, setActiveLocation } = useCustomerStore();
   const { data: d, isLoading, refetch } = useCustomerDashboard(locationId);
   const { data: uData } = useCustomerUsers(locationId, { page: 1, pageSize: 6 });
+  const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
   // The store's activeLocationId is only populated by clicking a location
   // card on /customer (see customer.index.tsx's handleSelect) -- a direct
   // deep link/bookmark/refresh of this URL arrives with it unset or
@@ -124,7 +128,7 @@ function CustomerDashboardPage() {
             <span className="hidden sm:inline text-xs text-muted-foreground capitalize">{activeLocation?.status}</span>
           </div>
           <div className="flex items-center gap-1">
-            <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
+            <PlanExpiryBadge expiry={planExpiry} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
             <BookDemoButton />
             <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9"><Search className="h-4 w-4" /></Button>
