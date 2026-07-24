@@ -54,18 +54,23 @@ function toCampaign(c: BackendCampaign): Campaign {
 
 // Campaigns are organization-scoped (X-Organization-Id) with an optional
 // location_id filter -- this page has no org selector, so it resolves to
-// the caller's first/only organization, same convention as
-// src/services/settings.service.ts's resolveOrganizationId.
+// the caller's first/only organization.
+//
+// GET /organizations is the platform-wide admin listing -- it requires
+// organizations.read at GLOBAL scope, which an ordinary customer/org-owner
+// session doesn't hold (only at ORGANIZATION scope, for their own org), so
+// it 403s and silently broke every method on this service for a real
+// customer session (see customer.service.ts's resolveOrgId doc comment for
+// the full explanation -- same fix applied here, first fixed in
+// ticket.service.ts's resolveOrgId).
 let cachedOrganizationId: string | null = null;
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", {
-    params: { page_size: 1 },
-  });
-  const id = data.items[0]?.id;
-  if (!id) throw new Error("No organization found for the current session");
-  cachedOrganizationId = id;
-  return id;
+  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrganizationId = membership.organization_id;
+  return cachedOrganizationId;
 }
 
 export const campaignService = {
