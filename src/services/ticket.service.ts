@@ -59,14 +59,33 @@ function toTicket(t: BackendTicket): SupportTicket {
   };
 }
 
+interface MyOrganizationMembership {
+  organization_id: string;
+  status: "invited" | "active" | "suspended" | "removed";
+}
+
 let cachedOrgId: string | null = null;
+/** Resolves the *current user's own* organization id via `/me/organizations`
+ * -- the membership-scoped endpoint (no `organizations.read` permission
+ * required, returns only organizations this user actually belongs to).
+ *
+ * Previously this called the platform-wide `GET /organizations` (admin-only
+ * cross-tenant listing, ordered newest-first) and took `items[0]` -- on any
+ * database with more than one organization that silently tags the ticket
+ * with a *different* organization than the one the customer actually
+ * belongs to (whichever org was created most recently platform-wide), which
+ * then fails `TicketService._assert_location_in_organization` on the
+ * backend the moment a real location is selected (the location belongs to
+ * the customer's real org, not the wrongly-resolved one) -- see
+ * app.domains.support_tickets.service.TicketService._assert_location_in_organization.
+ */
 async function resolveOrgId(): Promise<string> {
   if (cachedOrgId) return cachedOrgId;
-  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", { params: { page_size: 1 } });
-  const id = data.items[0]?.id;
-  if (!id) throw new Error("No organization found for the current session");
-  cachedOrgId = id;
-  return id;
+  const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrgId = membership.organization_id;
+  return cachedOrgId;
 }
 
 export const ticketService = {
