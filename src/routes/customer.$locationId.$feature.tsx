@@ -217,7 +217,7 @@ function FeaturePage() {
             {feature === "whitelist" && <WhiteList locationId={locationId} />}
             {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} /></div>}
             {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
-            {feature === "agents" && <AgentsPage />}
+            {feature === "agents" && <AgentsPage locationId={locationId} />}
             {feature === "advanced" && <AdvancedPage />}
             {feature === "audit" && <AuditView locationId={locationId} />}
             {feature === "tickets" && <TicketsPage locationId={locationId} />}

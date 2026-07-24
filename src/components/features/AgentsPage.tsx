@@ -54,7 +54,7 @@ function passwordStrength(pw: string): { label: string; pct: number; color: stri
   return { ...lvl, pct: pw ? (score / 5) * 100 : 0 };
 }
 
-export function AgentsPage() {
+export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   const navigate = useNavigate();
   const demo = useIsDemo();
   const { user: currentUser } = useAuth();
@@ -85,6 +85,19 @@ export function AgentsPage() {
 
   const agents = demo ? storeAgents : realAgents.map((a) => ({ ...a, dataMasking: false, locations: [] as string[] }));
   const roleOptions = demo ? roles.map((r) => ({ id: r.id, name: r.name })) : realRoles.map((r) => ({ id: r.id, name: r.name }));
+
+  /** A role can only be assigned at the single scope it was created for
+   * (see Role.scopeType) -- e.g. "Helpdesk" is location-scoped, "Organization
+   * Owner" is organization-scoped; the backend 400s ("Role 'X' cannot be
+   * assigned at 'organization' scope") if you send the wrong one. Real
+   * roles carry their own scopeType; this resolves the right
+   * organizationId/locationId pair to send for whichever role got picked. */
+  function scopeArgsForRole(roleId: string): { scopeType: ScopeType; organizationId?: string; locationId?: string } {
+    const role = realRoles.find((r) => r.id === roleId);
+    const scopeType = role?.scopeType ?? "organization";
+    if (scopeType === "location" && locationId) return { scopeType, locationId };
+    return { scopeType: "organization" as ScopeType, organizationId: orgId ?? undefined };
+  }
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -117,11 +130,20 @@ export function AgentsPage() {
     if (!orgId) { toast.error("No organization found for this session."); return; }
     try {
       const [firstName, ...rest] = form.name.trim().split(" ");
+      const roleScope = scopeArgsForRole(form.roleId);
+      // POST /users/invite's initial_role_id only ever assigns at
+      // ORGANIZATION scope (backend constraint) -- pass it there only when
+      // that's actually the role's scope; otherwise invite with no role and
+      // assign it as a separate call so a location-scoped role (e.g.
+      // "Helpdesk") lands correctly instead of 400ing.
       const invited = await rbacService.inviteUser({
         firstName, lastName: rest.join(" ") || firstName, email: form.email,
         username: form.email.split("@")[0], phone: form.mobile || null,
-        organizationId: orgId, initialRoleId: form.roleId,
+        organizationId: orgId, initialRoleId: roleScope.scopeType === "organization" ? form.roleId : undefined,
       });
+      if (roleScope.scopeType !== "organization") {
+        await rbacService.assignRole(invited.user.id, { roleId: form.roleId, ...roleScope }, orgId);
+      }
       setRealAgents((p) => [{ id: invited.user.id, name: invited.user.fullName, email: invited.user.email, mobile: invited.user.phone ?? "", status: "pending", roleId: form.roleId, roleName: roleOptions.find((r) => r.id === form.roleId)?.name ?? "—" }, ...p]);
       setForm({ name: "", email: "", mobile: "", password: "", roleId: roleOptions[0]?.id ?? "", locations: [] });
       setCreating(false);
@@ -151,10 +173,10 @@ export function AgentsPage() {
           // even in place. Assigning first means the permission check for
           // that call still sees the (soon-to-be-old) role active.
           const existing = await rbacService.listUserRoleAssignments(id, orgId);
-          await rbacService.assignRole(id, { roleId: patch.roleId, scopeType: "organization" as ScopeType, organizationId: orgId }, orgId);
+          await rbacService.assignRole(id, { roleId: patch.roleId, ...scopeArgsForRole(patch.roleId) }, orgId);
           await Promise.all(
             existing
-              .filter((a) => a.isActive && a.organizationId === orgId)
+              .filter((a) => a.isActive && (a.organizationId === orgId || a.locationId === locationId))
               .map((a) => rbacService.revokeRoleAssignment(id, a.id, orgId)),
           );
           toast.success("Role updated");
