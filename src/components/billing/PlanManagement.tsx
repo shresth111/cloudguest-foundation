@@ -147,7 +147,6 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           tier: plan.tier,
           currency: plan.currency === "INR" || plan.currency === "USD" ? plan.currency : "INR",
           monthlyPrice: plan.monthlyPrice,
-          annualPrice: plan.annualPrice,
           includedLocations: plan.includedLocations,
           includedRouters: plan.includedRouters,
           includedGuests: plan.includedGuests,
@@ -163,7 +162,6 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           tier: "starter",
           currency: "INR",
           monthlyPrice: 0,
-          annualPrice: 0,
           includedLocations: 1,
           includedRouters: 1,
           includedGuests: 100,
@@ -177,7 +175,13 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
   });
 
   const onSubmit = (values: PlanFormValues) => {
-    save.mutate({ ...values, id: plan?.id }, {
+    // The real backend Plan model (PlanCreateRequest/PlanUpdateRequest --
+    // backend/app/domains/billing/schemas.py) has one base_price and one
+    // billing_cycle per plan, never a separate monthly *and* annual price.
+    // annualPrice is display-only here -- always 12x the monthly price
+    // (see toPlan()'s read-side computation, which this mirrors), never a
+    // real, independently-priced annual tier.
+    save.mutate({ ...values, annualPrice: values.monthlyPrice * 12, id: plan?.id }, {
       onSuccess: () => {
         toast.success(plan ? "Plan updated" : "Plan created");
         onOpenChange(false);
@@ -199,7 +203,16 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           </div>
           <div>
             <Label>Tier</Label>
-            <Select value={form.watch("tier")} onValueChange={(v) => form.setValue("tier", v as PlanTier)}>
+            {/* The real backend has no way to change a plan's tier after
+                creation (PlanUpdateRequest carries no plan_type field) --
+                this used to stay editable and silently do nothing on
+                save for an existing plan. Locked to what the plan was
+                created with; only choosable for a brand-new plan. */}
+            <Select
+              value={form.watch("tier")}
+              onValueChange={(v) => form.setValue("tier", v as PlanTier)}
+              disabled={!!plan}
+            >
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="starter">Starter</SelectItem>
@@ -208,6 +221,7 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
+            {plan && <p className="mt-1 text-xs text-muted-foreground">Tier can't be changed after a plan is created.</p>}
           </div>
           <div>
             <Label>Support level</Label>
@@ -232,8 +246,18 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
             </Select>
           </div>
           <div />
-          <div><Label>Monthly price</Label><Input type="number" className="mt-1" {...form.register("monthlyPrice", { valueAsNumber: true })} /></div>
-          <div><Label>Annual price</Label><Input type="number" className="mt-1" {...form.register("annualPrice", { valueAsNumber: true })} /></div>
+          <div>
+            <Label>Monthly price</Label>
+            <Input type="number" className="mt-1" {...form.register("monthlyPrice", { valueAsNumber: true })} />
+          </div>
+          <div>
+            <Label>Annual price</Label>
+            {/* Not editable -- see onSubmit's comment. Always 12x the
+                monthly price, same as the read-only plan cards show. */}
+            <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">
+              {formatMoney((form.watch("monthlyPrice") || 0) * 12, form.watch("currency"))} / year
+            </p>
+          </div>
           <div><Label>Locations</Label><Input type="number" className="mt-1" {...form.register("includedLocations", { valueAsNumber: true })} /></div>
           <div><Label>Routers</Label><Input type="number" className="mt-1" {...form.register("includedRouters", { valueAsNumber: true })} /></div>
           <div><Label>Guests</Label><Input type="number" className="mt-1" {...form.register("includedGuests", { valueAsNumber: true })} /></div>

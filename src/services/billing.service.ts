@@ -790,7 +790,18 @@ export const billingService = {
     return orgs.map((o) => ({ id: o.id, name: o.name }));
   },
 
-  async createSubscription(input: Omit<Subscription, "id" | "organizationName" | "planName" | "tier" | "startDate" | "renewalDate" | "expiryDate" | "status" | "amount" | "paymentStatus">) {
+  // Real POST /subscriptions (backend/app/domains/billing/schemas.py's
+  // SubscriptionCreateRequest) only ever accepts organization_id, plan_id,
+  // coupon_code -- billing cycle, locations/routers/guest limits, discount,
+  // tax and auto-renewal are all derived server-side from the selected Plan
+  // (or the coupon, or a separate renewal-settings call), never accepted at
+  // creation. The create dialog used to collect all of those anyway and
+  // silently discard everything but organizationId/planId -- and, worse,
+  // "applied" a coupon by matching its free-text Notes field against every
+  // coupon's id/code, with no actual "Apply" control or validation feedback
+  // in the UI. `couponCode` here is the real, dedicated field the dialog's
+  // own "Apply" button now validates client-side before submit.
+  async createSubscription(input: { organizationId: string; planId: string; couponCode?: string }) {
     const [orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchAllOrganizations(),
       fetchAllPlans(),
@@ -798,7 +809,9 @@ export const billingService = {
     ]);
     const org = orgs.find((o) => o.id === input.organizationId);
     const plan = backendPlans.find((p) => p.id === input.planId);
-    const coupon = backendCoupons.find((c) => c.id === input.notes || c.code === input.notes);
+    const coupon = input.couponCode
+      ? backendCoupons.find((c) => c.code.toUpperCase() === input.couponCode!.toUpperCase())
+      : undefined;
     const { data } = await api.post<BackendSubscription>(
       "/subscriptions",
       {

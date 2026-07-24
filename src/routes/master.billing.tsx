@@ -119,7 +119,7 @@ function BillingScreen() {
         </TabsContent>
       </Tabs>
 
-      <CreateSubscriptionDialog open={creating} onOpenChange={setCreating} plans={snap.data?.plans ?? []} />
+      <CreateSubscriptionDialog open={creating} onOpenChange={setCreating} plans={snap.data?.plans ?? []} coupons={snap.data?.coupons ?? []} />
     </MasterShell>
   );
 }
