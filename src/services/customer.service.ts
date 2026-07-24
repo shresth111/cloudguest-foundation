@@ -1,5 +1,4 @@
 import { api } from "@/services/api";
-import { routerService } from "@/services/router.service";
 import { guestService } from "@/services/guest.service";
 import { ORGS_STORAGE_KEY } from "@/context/AuthContext";
 import type { OrganizationMembership } from "@/types/auth";
@@ -13,6 +12,14 @@ import type { OrganizationMembership } from "@/types/auth";
 interface RawRouterStatus { status: string; }
 interface RawGuestSessionStatus { status: string; bytes_downloaded?: number; bytes_uploaded?: number; }
 interface RawLocationSummary { id: string; name: string; city: string; }
+interface RawGuestSession {
+  id: string;
+  status: string;
+  started_at: string;
+  device_id: string | null;
+  bytes_downloaded?: number;
+  user_agent?: string | null;
+}
 
 export interface NavItem { id: string; label: string; module: string; }
 
@@ -250,29 +257,37 @@ export const customerService = {
         recentAlerts: [{ type: "warning" as const, msg: "Router GW-02 signal degradation", time: "2 min ago" }, { type: "success" as const, msg: "ISP failover completed", time: "8 min ago" }, { type: "error" as const, msg: "Bandwidth threshold at Mumbai HQ", time: "15 min ago" }, { type: "info" as const, msg: "Firmware update for GW-05", time: "22 min ago" }],
       };
     }
-    // Real API composition
+    // Real API composition. Deliberately not routerService.list()/
+    // guestService.listSessions() -- both unconditionally fan out across
+    // every organization (fetchAllLocations()/fanOutPerOrg(), the same
+    // GLOBAL-only pattern fixed in listLocations() above) even when given
+    // a specific locationId. Hitting the location-scoped endpoints
+    // directly, with the org id this session actually holds, avoids that
+    // 403 entirely.
+    const orgId = await resolveOrgId();
+    const orgHeaders = { headers: { "X-Organization-Id": orgId } };
     const [rR, sR, aR, hR] = await Promise.allSettled([
-      routerService.list({ locationId, page: 1, pageSize: 100 }),
-      guestService.listSessions({ locationId, page: 1, pageSize: 100 }),
-      api.get<{ items: { severity: string; title: string; created_at: string }[] }>("/alerts", { params: { page_size: 10 } }),
-      api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization"),
+      api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: { severity: string; title: string; created_at: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
+      api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization", orgHeaders),
     ]);
-    const routers = rR.status === "fulfilled" ? rR.value.rows : [];
-    const sessions = sR.status === "fulfilled" ? sR.value.rows : [];
+    const routers = rR.status === "fulfilled" ? rR.value.data?.items ?? [] : [];
+    const sessions = sR.status === "fulfilled" ? sR.value.data?.items ?? [] : [];
     const alerts = aR.status === "fulfilled" ? aR.value.data?.items ?? [] : [];
     const health = hR.status === "fulfilled" ? hR.value.data ?? null : null;
     const onR = routers.filter((r) => r.status === "online").length;
     const tR = routers.length || 1;
     const today = new Date().toISOString().slice(0, 10);
     const hourly = new Array(24).fill(0);
-    sessions.forEach((s) => { if (s.startedAt) hourly[new Date(s.startedAt).getHours()]++; });
+    sessions.forEach((s) => { if (s.started_at) hourly[new Date(s.started_at).getHours()]++; });
     return {
       health: { systemHealth: `${Math.round((onR / tR) * 100)}%`, routersOnline: `${onR}/${routers.length}`, isp: health ? "Active" : "Unknown", networkLoad: `${Math.min(100, Math.round(sessions.length / 5))}%` },
-      kpis: { onlineUsers: sessions.filter((s) => s.status === "active").length, activeSessions: sessions.length, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.startedAt?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytesDownloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.startedAt?.startsWith(today)).length, slaUptime: 99.9 },
+      kpis: { onlineUsers: sessions.filter((s) => s.status === "active").length, activeSessions: sessions.length, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length, slaUptime: 99.9 },
       usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
-      deviceDistribution: deviceDistributionFrom(sessions),
+      deviceDistribution: deviceDistributionFrom(sessions.map((s) => ({ userAgent: s.user_agent ?? null }))),
       hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
-      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: s.guestIdentifier || "Guest", email: s.guestIdentifier, device: s.deviceId ?? "", time: timeAgo(s.startedAt), status: s.status === "active" ? "online" as const : "offline" as const })),
+      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: "Guest", email: "", device: s.device_id ?? "", time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const })),
       recentAlerts: alerts.slice(0, 5).map((a) => ({ type: a.severity === "critical" ? "error" as const : "warning" as const, msg: a.title, time: timeAgo(a.created_at) })),
     };
   },
