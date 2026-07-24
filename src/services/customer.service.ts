@@ -106,9 +106,10 @@ export const customerService = {
     if (isDemo()) return DEMO_NAV;
     try {
       const { data } = await api.get<{ items: { id: string; label: string; module: string }[] }>("/dashboard/sidebar");
-      if (data?.items?.length) return data.items.map((i) => ({ id: i.id, label: i.label, module: i.module }));
-    } catch {}
-    return DEMO_NAV;
+      return data?.items?.map((i) => ({ id: i.id, label: i.label, module: i.module })) ?? [];
+    } catch {
+      return [];
+    }
   },
 
   /* ── Location Switcher ─────────────────────────────────── */
@@ -178,8 +179,10 @@ export const customerService = {
         .filter((r): r is PromiseFulfilledResult<CustomerLocationSummary> => r.status === "fulfilled")
         .map((r) => r.value);
 
-      return results.length > 0 ? results : DEMO_LOCATIONS;
-    } catch { return DEMO_LOCATIONS; }
+      return results;
+    } catch {
+      return [];
+    }
   },
 
   /* ── Executive Dashboard ───────────────────────────────── */
