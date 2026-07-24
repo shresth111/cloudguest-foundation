@@ -2,7 +2,9 @@ import { api } from "@/services/api";
 import { locationService } from "@/services/location.service";
 import { routerService } from "@/services/router.service";
 import { guestService } from "@/services/guest.service";
+import { ORGS_STORAGE_KEY } from "@/context/AuthContext";
 import type { Location } from "@/types/location";
+import type { OrganizationMembership } from "@/types/auth";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -78,19 +80,32 @@ export function isDemo(): boolean {
   return localStorage.getItem("cloudguest_token") === "demo-access-token";
 }
 
+interface MyOrganizationMembership {
+  id: string;
+  organization_id: string;
+  status: string;
+}
+
 let cachedOrgId: string | null = null;
 /** Resolves the current session's organization id for endpoints that
  * require X-Organization-Id (e.g. MAC authorization -- see
  * backend/app/domains/mac_authorization/service.py's OrganizationRequiredError).
  * Callers already run inside getFeatureData's try/catch, so a throw here
- * just falls back to demo data like any other failure. */
+ * just falls back to demo data like any other failure.
+ *
+ * Uses /me/organizations (membership-scoped) rather than the platform-wide
+ * GET /organizations -- an ordinary customer/org-owner session doesn't hold
+ * the elevated permission that endpoint requires and gets a 403, which is
+ * exactly what silently broke listLocations() below (see
+ * ticket.service.ts's resolveOrgId for the identical fix, applied there
+ * first). */
 async function resolveOrgId(): Promise<string> {
   if (cachedOrgId) return cachedOrgId;
-  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", { params: { page_size: 1 } });
-  const id = data.items[0]?.id;
-  if (!id) throw new Error("No organization found for the current session");
-  cachedOrgId = id;
-  return id;
+  const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrgId = membership.organization_id;
+  return cachedOrgId;
 }
 
 /** Buckets session user-agent strings into the OS categories the dashboard
@@ -154,8 +169,17 @@ export const customerService = {
   async listLocations(): Promise<CustomerLocationSummary[]> {
     if (isDemo()) return DEMO_LOCATIONS;
     try {
-      const { data: orgData } = await api.get<{ items: { id: string; name: string }[] }>("/organizations", { params: { page_size: 100 } });
-      const orgs = orgData?.items ?? [];
+      // /organizations is the platform-wide admin listing -- an ordinary
+      // customer/org-owner session gets a 403 (no organizations.read at
+      // GLOBAL scope), which silently emptied this whole page. The login
+      // response already carries every org the session belongs to,
+      // including its name (persisted by AuthContext), so there's no need
+      // to re-fetch it at all -- and no membership-scoped equivalent of
+      // GET /organizations/{id} exists to fall back on (it also requires
+      // GLOBAL scope, same bug, different endpoint).
+      const stored = localStorage.getItem(ORGS_STORAGE_KEY);
+      const memberships: OrganizationMembership[] = stored ? JSON.parse(stored) : [];
+      const orgs = memberships.map((m) => ({ id: m.organizationId, name: m.organizationName }));
 
       const perOrg = await Promise.allSettled(
         orgs.map(async (org) => {
