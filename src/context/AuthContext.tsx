@@ -10,9 +10,15 @@ export const ORGS_STORAGE_KEY = "cloudguest_organizations";
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
 /** The minimal slice of auth state pushed into TanStack Router's context so
- * `beforeLoad` guards can read it outside React. */
+ * `beforeLoad` guards can read it outside React. `roles` is included
+ * specifically so the `/master` guard can check for a GLOBAL-scope role
+ * (see that route's own comment) -- checking `status === "authenticated"`
+ * alone only proves the visitor is logged in as *someone*, not that
+ * they're a platform operator; any real customer/org-owner account is
+ * "authenticated" too. */
 export interface RouterAuthContext {
   status: AuthStatus;
+  roles: RoleAssignment[];
 }
 
 interface AuthContextValue {

@@ -41,7 +41,7 @@ function CountUp({ target, decimals = 0 }: { target: number; decimals?: number }
 }
 
 function MasterLoginPage() {
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
   const [email, setEmail] = useState("");
@@ -54,8 +54,22 @@ function MasterLoginPage() {
     if (!email || !password) { toast.error("Please enter email and password"); return; }
     setLoading(true);
     try {
+      const session = await login({ email, password });
+      // Valid credentials only prove *someone* logged in, not that they're
+      // a platform operator -- a perfectly real customer/org-owner account
+      // (e.g. a location owner created via the provisioning wizard) has
+      // valid credentials too, just an organization-scoped role, never
+      // "global". Without this check this form logged such accounts
+      // straight into the Master Console (see /master route's own guard,
+      // the actual security boundary this mirrors for a friendlier,
+      // immediate error here instead of a silent bounce back).
+      const isOperator = session.roles.some((r) => r.scopeType === "global");
+      if (!isOperator) {
+        await logout();
+        toast.error("This account doesn't have platform operator access.");
+        return;
+      }
       localStorage.setItem("cg_login_role", "super-admin");
-      await login({ email, password });
       toast.success("Welcome back, Super Admin!");
       setTimeout(() => {
         navigate({ to: redirect || "/master", replace: true });

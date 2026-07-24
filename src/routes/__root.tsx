@@ -157,13 +157,13 @@ function RootComponent() {
  * `beforeLoad` guards (which run outside React) can read it, and
  * re-runs those guards whenever it changes. */
 function AuthRouterContextSync() {
-  const { status } = useAuth();
+  const { status, roles } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    router.update({ context: { ...router.options.context, auth: { status } } });
+    router.update({ context: { ...router.options.context, auth: { status, roles } } });
     void router.invalidate();
-  }, [status, router]);
+  }, [status, roles, router]);
 
   return null;
 }
