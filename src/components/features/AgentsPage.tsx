@@ -22,15 +22,23 @@ import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { useAuth } from "@/context/AuthContext";
 import { rbacService } from "@/services/rbac.service";
 import { resolveOrgId } from "@/services/customer.service";
-import type { Role as RbacRole, ScopeType } from "@/types/rbac";
+import type { Permission, PermissionGroup, Role as RbacRole, ScopeType } from "@/types/rbac";
+import { SCOPE_TYPE_LABEL } from "@/types/rbac";
 
 /** Real users/roles shown in place of the local demo store once logged in
- * for real -- see the module docstring above for why role *permission
- * editing* (the checkbox grid) stays local-only regardless: real RBAC
- * grants fine-grained permission keys, not this catalog's feature ids, and
- * mapping one onto the other isn't a safe short adaptation like the other
- * wired pages got. */
+ * for real. Role *permission editing* (the checkbox grid) is real too, but
+ * driven by the real RBAC permission catalog (`rbacService.listPermissionGroups`
+ * / `listPermissions`, fine-grained keys like "campaigns.read") rather than
+ * this file's local `FEATURE_GROUPS`/`ALL_FEATURES` catalog -- the two
+ * vocabularies don't map 1:1, so the demo catalog is only ever used for the
+ * `demo` branch below, never for real accounts. */
 interface RealAgent { id: string; name: string; email: string; mobile: string; status: "active" | "inactive" | "pending"; roleId: string; roleName: string }
+
+function slugify(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "") || "role";
+}
+
+interface RoleDraft { name: string; description: string; permissionKeys: Set<string> }
 
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
@@ -64,6 +72,8 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   const [realAgents, setRealAgents] = useState<RealAgent[]>([]);
   const [realRoles, setRealRoles] = useState<RbacRole[]>([]);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [realPermissionGroups, setRealPermissionGroups] = useState<PermissionGroup[]>([]);
+  const [realPermissions, setRealPermissions] = useState<Permission[]>([]);
 
   useEffect(() => {
     if (demo) return;
@@ -71,12 +81,16 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const [users, roleList] = await Promise.all([
+        const [users, roleList, groups, perms] = await Promise.all([
           rbacService.listUsers({ page: 1, pageSize: 50 }, org),
           rbacService.listRoles(org),
+          rbacService.listPermissionGroups(org),
+          rbacService.listPermissions(undefined, org),
         ]);
         setRealRoles(roleList);
         setRealAgents(users.items.map((u) => ({ id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: u.isActive ? "active" : "inactive", roleId: "", roleName: "—" })));
+        setRealPermissionGroups(groups.slice().sort((a, b) => a.sortOrder - b.sortOrder));
+        setRealPermissions(perms.filter((p) => p.isActive));
       } catch {
         // Leave real lists empty -- the "no agents yet" state is accurate.
       }
@@ -106,6 +120,118 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(roles[0]?.id ?? null);
   const [newRoleName, setNewRoleName] = useState("");
   const [addingRole, setAddingRole] = useState(false);
+
+  // -- Real (non-demo) role editor: driven by the real permission catalog,
+  // not the local store/feature catalog above. See the module docstring.
+  const [selectedRealRoleId, setSelectedRealRoleId] = useState<string | null>(null);
+  const [roleDraft, setRoleDraft] = useState<RoleDraft | null>(null);
+  const [savingRole, setSavingRole] = useState(false);
+  const [creatingRealRole, setCreatingRealRole] = useState(false);
+  const [newRealRole, setNewRealRole] = useState<{ name: string; scopeType: ScopeType; permissionKeys: Set<string> }>({ name: "", scopeType: "organization", permissionKeys: new Set() });
+  const [creatingRealRoleBusy, setCreatingRealRoleBusy] = useState(false);
+
+  const selectedRealRole = realRoles.find((r) => r.id === selectedRealRoleId) ?? null;
+
+  // Default to the first role once the real list loads (mirrors the demo
+  // store, which has this synchronously at mount since it isn't async).
+  useEffect(() => {
+    if (!demo && !selectedRealRoleId && realRoles.length > 0) setSelectedRealRoleId(realRoles[0].id);
+  }, [demo, realRoles, selectedRealRoleId]);
+
+  // Re-seed the draft from the canonical role whenever the *selection*
+  // changes -- deliberately not on every realRoles update, so an in-flight
+  // edit isn't clobbered by an unrelated list refresh.
+  useEffect(() => {
+    if (!selectedRealRoleId) { setRoleDraft(null); return; }
+    const role = realRoles.find((r) => r.id === selectedRealRoleId);
+    if (role) setRoleDraft({ name: role.name, description: role.description ?? "", permissionKeys: new Set(role.permissions) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRealRoleId]);
+
+  const roleDirty = !!(selectedRealRole && roleDraft && (
+    roleDraft.name !== selectedRealRole.name
+    || roleDraft.description !== (selectedRealRole.description ?? "")
+    || roleDraft.permissionKeys.size !== selectedRealRole.permissions.length
+    || !selectedRealRole.permissions.every((k) => roleDraft.permissionKeys.has(k))
+  ));
+
+  function toggleDraftPermission(key: string) {
+    if (!roleDraft || selectedRealRole?.isSystemRole) return;
+    setRoleDraft((d) => {
+      if (!d) return d;
+      const next = new Set(d.permissionKeys);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return { ...d, permissionKeys: next };
+    });
+  }
+
+  const saveRealRole = async () => {
+    if (!selectedRealRole || !roleDraft) return;
+    setSavingRole(true);
+    try {
+      const updated = await rbacService.updateRole(selectedRealRole.id, {
+        name: roleDraft.name.trim() || selectedRealRole.name,
+        description: roleDraft.description,
+        permissionKeys: Array.from(roleDraft.permissionKeys),
+      }, orgId ?? undefined);
+      setRealRoles((p) => p.map((r) => (r.id === updated.id ? updated : r)));
+      toast.success("Role saved");
+    } catch {
+      toast.error("Could not save the role — check the connection and try again.");
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const revertRoleDraft = () => {
+    if (!selectedRealRole) return;
+    setRoleDraft({ name: selectedRealRole.name, description: selectedRealRole.description ?? "", permissionKeys: new Set(selectedRealRole.permissions) });
+  };
+
+  // No delete-role affordance here: confirmed live against the local
+  // backend that DELETE /roles/{id} 403s for Organization Owner
+  // ("'roles.delete' is required at organization scope") -- the seeded
+  // system role only grants roles.{create,read,update,assign} (see
+  // seed.py's ROLES module OPERATE-level grant, which deliberately
+  // excludes MANAGE/DELETE). Surfacing a delete button that always
+  // fails would recreate exactly the "looks like it works but doesn't"
+  // problem this fix exists to remove -- an org owner who wants a role
+  // gone should deactivate it (rename to make that obvious, or just stop
+  // assigning it) rather than delete it, until/unless that permission
+  // grant changes.
+
+  const createRealRole = async () => {
+    if (!newRealRole.name.trim()) { toast.error("Give the role a name."); return; }
+    if (!orgId) { toast.error("No organization found for this session."); return; }
+    if (newRealRole.scopeType === "location" && !locationId) { toast.error("Open this page from a specific location to create a location-scoped role."); return; }
+    setCreatingRealRoleBusy(true);
+    try {
+      const role = await rbacService.createRole({
+        name: newRealRole.name.trim(),
+        slug: `${slugify(newRealRole.name)}-${Math.random().toString(36).slice(2, 6)}`,
+        scopeType: newRealRole.scopeType,
+        organizationId: orgId,
+        permissionKeys: Array.from(newRealRole.permissionKeys),
+      }, orgId);
+      setRealRoles((p) => [role, ...p]);
+      setSelectedRealRoleId(role.id);
+      setCreatingRealRole(false);
+      setNewRealRole({ name: "", scopeType: "organization", permissionKeys: new Set() });
+      toast.success("Role created");
+    } catch {
+      toast.error("Could not create the role — check the connection and try again.");
+    } finally {
+      setCreatingRealRoleBusy(false);
+    }
+  };
+
+  function toggleNewRolePermission(key: string) {
+    setNewRealRole((r) => {
+      const next = new Set(r.permissionKeys);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return { ...r, permissionKeys: next };
+    });
+  }
 
   const selected = agents.find((a) => a.id === selectedId) ?? agents[0] ?? null;
   const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null;
@@ -233,7 +359,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
         </button>
       </div>
 
-      {tab === "roles" && (
+      {tab === "roles" && demo && (
         <div className="space-y-3">
           <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">Default Agent Role is a Read-Only role &amp; can't be modified. Its permissions are limited to Dashboard, Fair Usage Policy &amp; Whitelisting by default.</p>
           <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
@@ -317,6 +443,147 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         </div>
                       </div>
                     ))}
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">Select or create a role to edit its permissions.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "roles" && !demo && (
+        <div className="space-y-3">
+          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">Roles here are real RBAC roles — permissions are the platform's fine-grained permission keys (e.g. <code className="rounded bg-background px-1 py-0.5">campaigns.read</code>), grouped below by module. A role's scope (Organization vs Location) is fixed at creation and can't be changed later. Edits aren't saved until you hit <strong>Save changes</strong>.</p>
+          <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Roles</h3>
+                <Button size="sm" variant="outline" className="h-8" onClick={() => setCreatingRealRole((v) => !v)}><Plus className="h-4 w-4" /> Add New Role</Button>
+              </div>
+
+              {creatingRealRole && (
+                <Card className="rounded-2xl border-primary/40"><CardContent className="space-y-2 p-4">
+                  <Input placeholder="Role name" value={newRealRole.name} onChange={(e) => setNewRealRole((r) => ({ ...r, name: e.target.value }))} className="h-9" />
+                  <div>
+                    <label className={labelCls}>Scope</label>
+                    <select
+                      value={newRealRole.scopeType}
+                      onChange={(e) => setNewRealRole((r) => ({ ...r, scopeType: e.target.value as ScopeType }))}
+                      className={inputCls}
+                    >
+                      <option value="organization">{SCOPE_TYPE_LABEL.organization} — assignable anywhere in your organization</option>
+                      <option value="location" disabled={!locationId}>{SCOPE_TYPE_LABEL.location} — assignable at this location only{!locationId ? " (open from a location)" : ""}</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" className="h-8 flex-1" onClick={createRealRole} disabled={creatingRealRoleBusy}>{creatingRealRoleBusy ? "Creating…" : "Create"}</Button>
+                    <Button size="sm" variant="ghost" className="h-8" onClick={() => setCreatingRealRole(false)}>Cancel</Button>
+                  </div>
+                  {realPermissionGroups.length > 0 && (
+                    <div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border p-2.5">
+                      {realPermissionGroups.map((g) => {
+                        const items = realPermissions.filter((p) => p.permissionGroupId === g.id);
+                        if (items.length === 0) return null;
+                        return (
+                          <div key={g.id}>
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.name}</p>
+                            <div className="grid gap-1 sm:grid-cols-2">
+                              {items.map((p) => {
+                                const on = newRealRole.permissionKeys.has(p.key);
+                                return (
+                                  <button key={p.id} type="button" onClick={() => toggleNewRolePermission(p.key)} className={cn("flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs", on ? "border-primary/50 bg-primary/5" : "hover:bg-accent")}>
+                                    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded border", on ? "border-primary bg-primary text-primary-foreground" : "border-border")}>{on && <Check className="h-3 w-3" />}</span>
+                                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent></Card>
+              )}
+
+              <div className="space-y-2">
+                {realRoles.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">No roles yet.</p>}
+                {realRoles.map((r) => (
+                  <button key={r.id} onClick={() => setSelectedRealRoleId(r.id)} className={cn("flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors", selectedRealRoleId === r.id ? "border-primary bg-primary/5" : "hover:bg-accent")}>
+                    <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", r.isSystemRole ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>{r.isSystemRole ? <Lock className="h-4 w-4" /> : <UserCog2 className="h-4 w-4" />}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{r.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{r.permissions.length} permissions · {SCOPE_TYPE_LABEL[r.scopeType]}{r.isSystemRole ? " · system" : ""}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {selectedRealRole && roleDraft ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", selectedRealRole.isSystemRole ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>{selectedRealRole.isSystemRole ? <Lock className="h-5 w-5" /> : <UserCog2 className="h-5 w-5" />}</span>
+                    <div className="min-w-0">
+                      {selectedRealRole.isSystemRole ? (
+                        <p className="font-semibold">{selectedRealRole.name}</p>
+                      ) : (
+                        <input value={roleDraft.name} onChange={(e) => setRoleDraft((d) => d && { ...d, name: e.target.value })} className="w-full rounded-lg border border-transparent bg-transparent px-1 font-semibold outline-none hover:border-input focus:border-primary" />
+                      )}
+                      <p className="px-1 text-xs text-muted-foreground">{SCOPE_TYPE_LABEL[selectedRealRole.scopeType]} scope{selectedRealRole.isSystemRole ? " · system role, locked" : ""}</p>
+                    </div>
+                  </div>
+                  {!selectedRealRole.isSystemRole && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setRoleDraft((d) => d && { ...d, permissionKeys: new Set(realPermissions.map((p) => p.key)) })}>Select All</Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setRoleDraft((d) => d && { ...d, permissionKeys: new Set() })}>Deselect All</Button>
+                      {roleDirty && <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={revertRoleDraft}>Revert</Button>}
+                      <Button size="sm" className="h-8 text-xs" onClick={saveRealRole} disabled={!roleDirty || savingRole}>{savingRole ? "Saving…" : "Save changes"}</Button>
+                    </div>
+                  )}
+                </div>
+
+                {roleDirty && !selectedRealRole.isSystemRole && (
+                  <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">You have unsaved changes — hit Save changes to apply them.</p>
+                )}
+
+                <Card className="rounded-2xl">
+                  <CardHeader><CardTitle className="text-base">Select Permissions</CardTitle></CardHeader>
+                  <CardContent className="space-y-5">
+                    {realPermissionGroups.map((g) => {
+                      const items = realPermissions.filter((p) => p.permissionGroupId === g.id);
+                      if (items.length === 0) return null;
+                      return (
+                        <div key={g.id}>
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{g.name}</p>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {items.map((p) => {
+                              const on = roleDraft.permissionKeys.has(p.key);
+                              const disabled = selectedRealRole.isSystemRole;
+                              return (
+                                <button
+                                  key={p.id}
+                                  disabled={disabled}
+                                  onClick={() => toggleDraftPermission(p.key)}
+                                  title={p.description ?? p.key}
+                                  className={cn(
+                                    "flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm transition-colors",
+                                    on ? "border-primary/50 bg-primary/5" : "hover:bg-accent",
+                                    disabled && "cursor-not-allowed opacity-60",
+                                  )}
+                                >
+                                  <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
+                                  <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border", on ? "border-primary bg-primary text-primary-foreground" : "border-border")}>{on && <Check className="h-3.5 w-3.5" />}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 </Card>
               </div>

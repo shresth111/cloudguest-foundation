@@ -399,14 +399,21 @@ export const rbacService = {
 
   // -- Permissions / Permission Groups (read-only, seeded) -------------------
 
-  async listPermissionGroups(): Promise<PermissionGroup[]> {
-    const { data } = await api.get<BackendPermissionGroup[]>("/permission-groups");
+  // `organizationId` optional -- same GLOBAL-vs-ORGANIZATION scope story as
+  // listRoles()/listUsers(): permissions.read is only held at ORGANIZATION
+  // scope for a customer/org-owner session, and these endpoints infer
+  // GLOBAL scope whenever X-Organization-Id is absent.
+  async listPermissionGroups(organizationId?: string): Promise<PermissionGroup[]> {
+    const { data } = await api.get<BackendPermissionGroup[]>("/permission-groups", {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return data.map(toPermissionGroup);
   },
 
-  async listPermissions(permissionGroupId?: string): Promise<Permission[]> {
+  async listPermissions(permissionGroupId?: string, organizationId?: string): Promise<Permission[]> {
     const { data } = await api.get<BackendPermission[]>("/permissions", {
       params: { permission_group_id: permissionGroupId },
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return data.map(toPermission);
   },
@@ -427,33 +434,56 @@ export const rbacService = {
     return data.map(toRole);
   },
 
-  async createRole(payload: CreateRolePayload): Promise<Role> {
-    const { data } = await api.post<BackendRole>("/roles", {
-      name: payload.name,
-      slug: payload.slug,
-      description: payload.description,
-      scope_type: payload.scopeType,
-      organization_id: payload.organizationId,
-      parent_role_id: payload.parentRoleId,
-      is_template: payload.isTemplate ?? false,
-      permission_keys: payload.permissionKeys,
-      allowed_scope_types: payload.allowedScopeTypes ?? [],
-    });
+  // `organizationId` optional -- same GLOBAL-vs-ORGANIZATION scope story as
+  // listRoles(): roles.create is only held at ORGANIZATION scope for a
+  // customer/org-owner session, and POST /roles infers GLOBAL scope
+  // whenever X-Organization-Id is absent even though organization_id is
+  // already in the body.
+  async createRole(payload: CreateRolePayload, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(
+      "/roles",
+      {
+        name: payload.name,
+        slug: payload.slug,
+        description: payload.description,
+        scope_type: payload.scopeType,
+        organization_id: payload.organizationId,
+        parent_role_id: payload.parentRoleId,
+        is_template: payload.isTemplate ?? false,
+        permission_keys: payload.permissionKeys,
+        allowed_scope_types: payload.allowedScopeTypes ?? [],
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
     return toRole(data);
   },
 
-  async updateRole(id: string, payload: UpdateRolePayload): Promise<Role> {
-    const { data } = await api.put<BackendRole>(`/roles/${id}`, {
-      name: payload.name,
-      description: payload.description,
-      is_template: payload.isTemplate,
-      parent_role_id: payload.parentRoleId,
-    });
+  // `organizationId` optional, same story -- roles.update is only held at
+  // ORGANIZATION scope for a customer/org-owner session. `permissionKeys`,
+  // when passed, is a full replacement of the role's permission set and
+  // rides on this same `roles.update` permission rather than the separate
+  // attach/detach-one-permission endpoints' `roles.manage` (which an
+  // Organization Owner does not hold by default -- see the backend's
+  // RoleUpdateRequest doc comment).
+  async updateRole(id: string, payload: UpdateRolePayload, organizationId?: string): Promise<Role> {
+    const { data } = await api.put<BackendRole>(
+      `/roles/${id}`,
+      {
+        name: payload.name,
+        description: payload.description,
+        is_template: payload.isTemplate,
+        parent_role_id: payload.parentRoleId,
+        permission_keys: payload.permissionKeys,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
     return toRole(data);
   },
 
-  async deleteRole(id: string): Promise<void> {
-    await api.delete(`/roles/${id}`);
+  async deleteRole(id: string, organizationId?: string): Promise<void> {
+    await api.delete(`/roles/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
   async cloneRole(id: string, payload: CloneRolePayload): Promise<Role> {
