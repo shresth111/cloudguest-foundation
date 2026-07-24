@@ -1,9 +1,7 @@
 import { api } from "@/services/api";
-import { locationService } from "@/services/location.service";
 import { routerService } from "@/services/router.service";
 import { guestService } from "@/services/guest.service";
 import { ORGS_STORAGE_KEY } from "@/context/AuthContext";
-import type { Location } from "@/types/location";
 import type { OrganizationMembership } from "@/types/auth";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -14,6 +12,7 @@ import type { OrganizationMembership } from "@/types/auth";
  * full normalization + org-wide fan-out helpers. */
 interface RawRouterStatus { status: string; }
 interface RawGuestSessionStatus { status: string; bytes_downloaded?: number; bytes_uploaded?: number; }
+interface RawLocationSummary { id: string; name: string; city: string; }
 
 export interface NavItem { id: string; label: string; module: string; }
 
@@ -181,14 +180,22 @@ export const customerService = {
       const memberships: OrganizationMembership[] = stored ? JSON.parse(stored) : [];
       const orgs = memberships.map((m) => ({ id: m.organizationId, name: m.organizationName }));
 
+      // Deliberately not locationService.list({ organizationId }) -- even
+      // with an organizationId given, it unconditionally calls the same
+      // GLOBAL-only fetchAllOrganizations() just to resolve a display name
+      // we already have from `orgs` above. Hitting the org-scoped endpoint
+      // directly avoids that call (and its 403) entirely.
       const perOrg = await Promise.allSettled(
         orgs.map(async (org) => {
-          const locs = await locationService.list({ organizationId: org.id, page: 1, pageSize: 50 });
-          return (locs?.rows ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
+          const { data } = await api.get<{ items: RawLocationSummary[] }>(
+            `/organizations/${org.id}/locations`,
+            { params: { page_size: 50 }, headers: { "X-Organization-Id": org.id } },
+          );
+          return (data?.items ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
         }),
       );
       const locOrgPairs = perOrg
-        .filter((r): r is PromiseFulfilledResult<{ loc: Location; orgId: string; orgName: string }[]> => r.status === "fulfilled")
+        .filter((r): r is PromiseFulfilledResult<{ loc: RawLocationSummary; orgId: string; orgName: string }[]> => r.status === "fulfilled")
         .flatMap((r) => r.value);
 
       const enriched = await Promise.allSettled(
