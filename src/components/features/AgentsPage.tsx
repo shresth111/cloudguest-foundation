@@ -20,7 +20,7 @@ import { FEATURE_GROUPS, ALL_FEATURES } from "@/config/customerFeatureCatalog";
 import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { rbacService } from "@/services/rbac.service";
-import { organizationService } from "@/services/organization.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { Role as RbacRole } from "@/types/rbac";
 
 /** Real users/roles shown in place of the local demo store once logged in
@@ -67,13 +67,11 @@ export function AgentsPage() {
     if (demo) return;
     (async () => {
       try {
-        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-        const org = orgs.rows[0];
-        if (!org) return;
-        setOrgId(org.id);
+        const org = await resolveOrgId();
+        setOrgId(org);
         const [users, roleList] = await Promise.all([
-          rbacService.listUsers({ page: 1, pageSize: 50 }),
-          rbacService.listRoles(),
+          rbacService.listUsers({ page: 1, pageSize: 50 }, org),
+          rbacService.listRoles(org),
         ]);
         setRealRoles(roleList);
         setRealAgents(users.items.map((u) => ({ id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: u.isActive ? "active" : "inactive", roleId: "", roleName: "—" })));

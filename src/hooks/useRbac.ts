@@ -113,7 +113,7 @@ export const useRbacPermissions = (groupId?: string) =>
 // -- Roles ----------------------------------------------------------------
 
 export const useRbacRoles = () =>
-  useQuery({ queryKey: rbacKeys.roles, queryFn: rbacService.listRoles });
+  useQuery({ queryKey: rbacKeys.roles, queryFn: () => rbacService.listRoles() });
 
 export function useCreateRole() {
   const qc = useQueryClient();

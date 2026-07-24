@@ -287,7 +287,9 @@ function toLoginAttemptLog(l: BackendLoginAttemptLog): LoginAttemptLog {
 export const rbacService = {
   // -- Users ----------------------------------------------------------------
 
-  async listUsers(q: UserListQuery): Promise<PaginatedResult<RbacUser>> {
+  /** `organizationId` is optional -- see `listRoles()`'s doc comment, same
+   * GLOBAL-vs-ORGANIZATION scope story applies to GET /users. */
+  async listUsers(q: UserListQuery, organizationId?: string): Promise<PaginatedResult<RbacUser>> {
     const { data } = await api.get<BackendUserListResponse>("/users", {
       params: {
         search: q.search || undefined,
@@ -295,6 +297,7 @@ export const rbacService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return {
       items: data.items.map(toUser),
@@ -392,8 +395,17 @@ export const rbacService = {
 
   // -- Roles ------------------------------------------------------------------
 
-  async listRoles(): Promise<Role[]> {
-    const { data } = await api.get<BackendRole[]>("/roles");
+  /** `organizationId` is optional -- platform/Master callers (no org
+   * context) omit it and see every role at GLOBAL scope, same as before.
+   * An org-scoped caller (e.g. a customer's own Manage Agents page) must
+   * pass its own org id: roles.read is only held at ORGANIZATION scope for
+   * that kind of session, and GET /roles infers GLOBAL scope whenever
+   * X-Organization-Id is absent -- omitting it 403'd for every non-platform
+   * caller. */
+  async listRoles(organizationId?: string): Promise<Role[]> {
+    const { data } = await api.get<BackendRole[]>("/roles", {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return data.map(toRole);
   },
 

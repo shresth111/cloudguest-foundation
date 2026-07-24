@@ -106,7 +106,7 @@ let cachedOrgId: string | null = null;
  * exactly what silently broke listLocations() below (see
  * ticket.service.ts's resolveOrgId for the identical fix, applied there
  * first). */
-async function resolveOrgId(): Promise<string> {
+export async function resolveOrgId(): Promise<string> {
   if (cachedOrgId) return cachedOrgId;
   const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
