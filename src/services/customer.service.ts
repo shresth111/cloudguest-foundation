@@ -1,5 +1,4 @@
 import { api } from "@/services/api";
-import { guestService } from "@/services/guest.service";
 import { ORGS_STORAGE_KEY } from "@/context/AuthContext";
 import type { OrganizationMembership } from "@/types/auth";
 
@@ -16,6 +15,8 @@ interface RawGuestSession {
   id: string;
   status: string;
   started_at: string;
+  ended_at?: string | null;
+  ip_address?: string | null;
   device_id: string | null;
   bytes_downloaded?: number;
   user_agent?: string | null;
@@ -306,15 +307,21 @@ export const customerService = {
       return { users: f.slice((page - 1) * pageSize, page * pageSize), total: f.length, page, pageSize };
     }
     try {
-      const res = await guestService.listSessions({ locationId, page, pageSize });
-      let users = res.rows.map((s) => ({
-        id: s.id, name: s.guestIdentifier || "Guest", email: s.guestIdentifier, device: s.deviceId ?? "", mac: s.deviceId ?? "",
-        ip: s.ipAddress ?? "", duration: s.startedAt && s.endedAt ? `${Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000)} min` : "Active",
-        download: `${Math.round((s.bytesDownloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
+      // Same GLOBAL-only fan-out this file's other real-data methods already
+      // route around -- see listLocations()/getDashboard()'s comments.
+      const orgId = await resolveOrgId();
+      const { data } = await api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
+        params: { location_id: locationId, page, page_size: pageSize },
+        headers: { "X-Organization-Id": orgId },
+      });
+      let users = (data?.items ?? []).map((s) => ({
+        id: s.id, name: "Guest", email: "", device: s.device_id ?? "", mac: s.device_id ?? "",
+        ip: s.ip_address ?? "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
+        download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
       }));
       if (search) { const q = search.toLowerCase(); users = users.filter((u) => u.name.toLowerCase().includes(q)); }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
-      return { users, total: res.total ?? users.length, page, pageSize };
+      return { users, total: data?.total_items ?? users.length, page, pageSize };
     } catch { return { users: [], total: 0, page, pageSize }; }
   },
 
