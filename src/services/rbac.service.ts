@@ -473,27 +473,38 @@ export const rbacService = {
 
   // -- Role assignment (scoped, per user) ------------------------------------
 
-  async listUserRoleAssignments(userId: string): Promise<UserRoleAssignment[]> {
+  // `organizationId` optional on all three -- same GLOBAL-vs-ORGANIZATION
+  // scope story as listRoles()/listUsers() above: users.read/roles.assign
+  // are only held at ORGANIZATION scope for a customer/org-owner session,
+  // and these endpoints infer GLOBAL whenever X-Organization-Id is absent.
+  async listUserRoleAssignments(userId: string, organizationId?: string): Promise<UserRoleAssignment[]> {
     const { data } = await api.get<{ items: BackendUserRoleAssignment[] }>(
       `/users/${userId}/roles`,
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return data.items.map(toUserRoleAssignment);
   },
 
-  async assignRole(userId: string, payload: AssignRolePayload): Promise<UserRoleAssignment> {
-    const { data } = await api.post<BackendUserRoleAssignment>(`/users/${userId}/roles`, {
-      role_id: payload.roleId,
-      scope_type: payload.scopeType,
-      organization_id: payload.organizationId,
-      location_id: payload.locationId,
-      router_id: payload.routerId,
-      expires_at: payload.expiresAt,
-    });
+  async assignRole(userId: string, payload: AssignRolePayload, organizationId?: string): Promise<UserRoleAssignment> {
+    const { data } = await api.post<BackendUserRoleAssignment>(
+      `/users/${userId}/roles`,
+      {
+        role_id: payload.roleId,
+        scope_type: payload.scopeType,
+        organization_id: payload.organizationId,
+        location_id: payload.locationId,
+        router_id: payload.routerId,
+        expires_at: payload.expiresAt,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
     return toUserRoleAssignment(data);
   },
 
-  async revokeRoleAssignment(userId: string, assignmentId: string): Promise<void> {
-    await api.delete(`/users/${userId}/roles/${assignmentId}`);
+  async revokeRoleAssignment(userId: string, assignmentId: string, organizationId?: string): Promise<void> {
+    await api.delete(`/users/${userId}/roles/${assignmentId}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
   async getUserPermissions(userId: string): Promise<string[]> {

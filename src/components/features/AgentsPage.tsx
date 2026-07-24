@@ -21,7 +21,7 @@ import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { rbacService } from "@/services/rbac.service";
 import { resolveOrgId } from "@/services/customer.service";
-import type { Role as RbacRole } from "@/types/rbac";
+import type { Role as RbacRole, ScopeType } from "@/types/rbac";
 
 /** Real users/roles shown in place of the local demo store once logged in
  * for real -- see the module docstring above for why role *permission
@@ -126,12 +126,26 @@ export function AgentsPage() {
 
   const updateAgent = (id: string, patch: { status?: "active" | "inactive" | "pending"; dataMasking?: boolean; roleId?: string; locations?: string[] }) => {
     if (demo) { updateStoreAgent(id, patch); return; }
-    setRealAgents((p) => p.map((a) => a.id === id ? { ...a, ...patch } : a));
+    const prevRole = realAgents.find((a) => a.id === id)?.roleId;
+    setRealAgents((p) => p.map((a) => a.id === id ? { ...a, ...patch, roleName: patch.roleId ? roleOptions.find((r) => r.id === patch.roleId)?.name ?? "—" : a.roleName } : a));
     (async () => {
       try {
         if (patch.status === "active") await rbacService.activateUser(id);
         else if (patch.status === "inactive") await rbacService.deactivateUser(id);
         if (patch.dataMasking !== undefined) await rbacService.updateUser(id, { dataMaskingEnabled: patch.dataMasking });
+        if (patch.roleId && patch.roleId !== prevRole && orgId) {
+          // Selecting a role in this dropdown replaces whatever role this
+          // agent held in this org, it doesn't add a second one -- revoke
+          // any existing org-scoped assignment(s) first.
+          const existing = await rbacService.listUserRoleAssignments(id, orgId);
+          await Promise.all(
+            existing
+              .filter((a) => a.isActive && a.organizationId === orgId)
+              .map((a) => rbacService.revokeRoleAssignment(id, a.id, orgId)),
+          );
+          await rbacService.assignRole(id, { roleId: patch.roleId, scopeType: "organization" as ScopeType, organizationId: orgId }, orgId);
+          toast.success("Role updated");
+        }
       } catch {
         toast.error("Could not update on the server.");
       }
