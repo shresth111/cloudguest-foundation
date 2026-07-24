@@ -41,8 +41,8 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="label" tick={AXIS_STYLE} />
-            <YAxis tick={AXIS_STYLE} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => `$${v.toLocaleString()}`} />
+            <YAxis tick={AXIS_STYLE} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => `₹${v.toLocaleString()}`} />
             <Area type="monotone" dataKey="revenue" stroke={CHART_COLORS[0]} fill="url(#rev-fill)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>

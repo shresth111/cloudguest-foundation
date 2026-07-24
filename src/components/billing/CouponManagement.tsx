@@ -68,7 +68,7 @@ export function CouponManagement({ data, isLoading, isError, onRetry }: Props) {
                   {data.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono">{c.code}</TableCell>
-                      <TableCell>{c.discountType === "percentage" ? `${c.discountValue}%` : `$${c.discountValue}`}</TableCell>
+                      <TableCell>{c.discountType === "percentage" ? `${c.discountValue}%` : `₹${c.discountValue}`}</TableCell>
                       <TableCell>{dateFmt.format(new Date(c.expiryDate))}</TableCell>
                       <TableCell className="min-w-[160px]">
                         <div className="flex items-center gap-2">
