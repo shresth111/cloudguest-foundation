@@ -2,9 +2,12 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Loader2, FileBarChart, Download, Printer, FileDown,
+  Loader2, FileBarChart, Download, Printer, FileDown, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/services/api";
+import { resolveOrgId } from "@/services/customer.service";
+import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 
 const CATEGORIES = ["User Report", "Voucher Report", "Campaign Report", "Data Report", "OTP SMS Report"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -137,21 +140,114 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
   });
 }
 
+// ── real reports for a real account ──────────────────────────────────
+// Every report type above used Math.random() unconditionally, for every
+// account, demo or real -- a real customer running "User Sessions By Date
+// Range" for their own business saw entirely fabricated names, mobile
+// numbers and data totals with no real backend call anywhere. Two report
+// types are genuinely, honestly buildable from data the backend actually
+// exposes to this session (GET /guest-sessions' bytes_uploaded/
+// bytes_downloaded per real location -- see customer.service.ts's
+// RawGuestSession): both "Data Report" sub-reports, which need no
+// per-guest identity at all. Every other report type needs either
+// per-guest PII the guest-sessions list doesn't expose (name/mobile --
+// see customer.service.ts's own getUsers(), which hardcodes
+// name: "Guest", email: "" for the same reason) or engagement/redemption
+// event data (campaign opens/clicks, individual voucher redemptions, OTP
+// delivery logs, team rosters) with no backing endpoint anywhere in this
+// codebase's real data paths. Those stay honestly unavailable for real
+// accounts rather than fabricated -- see UNAVAILABLE_REASON below.
+const REAL_REPORT_TYPES = new Set(["data-consumption", "data-by-location"]);
+
+const UNAVAILABLE_REASON: Record<string, string> = {
+  "user-data": "Per-guest identity (name/mobile) isn't exposed by the real session data this account can access.",
+  "user-sessions": "Per-guest identity (name/mobile) isn't exposed by the real session data this account can access.",
+  "user-presence": "Per-guest identity isn't exposed by the real session data this account can access.",
+  "top-users": "Per-guest identity isn't exposed by the real session data this account can access.",
+  "daywise-data": "Aggregated day-wise totals need the same per-guest breakdown the backend doesn't expose yet -- see Data Report for real day-wise totals.",
+  "daywise-unique": "Unique user/device counts aren't tracked per day in the real backend yet.",
+  "team-report": "Guest teams aren't tied to usage totals in the real backend yet.",
+  "voucher-usage": "Individual voucher redemption events aren't exposed by the real backend yet -- only batch-level counts are.",
+  "top-vouchers": "Individual voucher redemption events aren't exposed by the real backend yet.",
+  "campaign-performance": "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
+  "campaign-daywise": "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
+  "top-campaigns": "Campaign reach/click metrics aren't tracked in the real backend yet.",
+  "otp-delivery": "Per-message OTP delivery status/latency isn't logged in the real backend yet.",
+  "sms-daywise": "Per-message SMS delivery status isn't logged in the real backend yet.",
+};
+
+interface RealGuestSession { started_at: string; ended_at?: string | null; bytes_uploaded?: number; bytes_downloaded?: number }
+
+async function fetchRealSessions(orgId: string, locationId: string, from: string, to: string): Promise<RealGuestSession[]> {
+  const { data } = await api.get<{ items: RealGuestSession[] }>("/guest-sessions", {
+    params: { location_id: locationId, page_size: 500 },
+    headers: { "X-Organization-Id": orgId },
+  });
+  const fromT = new Date(from).getTime();
+  const toT = new Date(to).getTime() + 86400000;
+  return (data?.items ?? []).filter((s) => {
+    const t = new Date(s.started_at).getTime();
+    return t >= fromT && t < toT;
+  });
+}
+
+async function realDataConsumption(orgId: string, locationId: string, from: string, to: string, ratePerGb?: number): Promise<Row[]> {
+  const sessions = await fetchRealSessions(orgId, locationId, from, to);
+  const byDay = new Map<string, { up: number; down: number }>();
+  for (const s of sessions) {
+    const day = s.started_at.slice(0, 10);
+    const bucket = byDay.get(day) ?? { up: 0, down: 0 };
+    bucket.up += s.bytes_uploaded ?? 0;
+    bucket.down += s.bytes_downloaded ?? 0;
+    byDay.set(day, bucket);
+  }
+  return Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { up, down }]) => {
+      const upGB = up / 1e9;
+      const downGB = down / 1e9;
+      const totalGB = upGB + downGB;
+      return { date, uploadGB: upGB, downloadGB: downGB, totalGB, peakMbps: 0, cost: ratePerGb ? totalGB * ratePerGb : null };
+    });
+}
+
+async function realDataByLocation(orgId: string, locations: { id: string; name: string }[], from: string, to: string, ratePerGb?: number): Promise<Row[]> {
+  const settled = await Promise.allSettled(locations.map((l) => fetchRealSessions(orgId, l.id, from, to)));
+  return locations.map((l, i) => {
+    const sessions = settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<RealGuestSession[]>).value : [];
+    const totalBytes = sessions.reduce((sum, s) => sum + (s.bytes_uploaded ?? 0) + (s.bytes_downloaded ?? 0), 0);
+    const totalData = totalBytes / 1e6; // MB, matches fmtBytes()
+    const avgPerUser = sessions.length ? totalData / sessions.length : 0;
+    return { businessUnit: l.name, totalData, avgPerUser, peakHour: "—", cost: ratePerGb ? (totalData / 1000) * ratePerGb : null };
+  });
+}
+
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
 function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; csvPrefix: string }) {
+  // UNITS ("Marina Bay Hotel" etc.) is demo-only seed data -- a real
+  // customer only has their own real locations, same real-vs-demo split
+  // WhiteList.tsx/TicketsPage.tsx already use for their own "Business
+  // Unit" pickers.
+  const demo = useIsDemo();
+  const { data: customerLocations } = useCustomerLocations();
+  const realUnits = useMemo(() => (customerLocations ?? []).map((l) => l.name), [customerLocations]);
+  const locationsByName = useMemo(() => new Map((customerLocations ?? []).map((l) => [l.name, l])), [customerLocations]);
+  const units = demo ? UNITS : realUnits;
+
   const [bu, setBu] = useState(""); const [reportType, setReportType] = useState("");
   const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [singleDate, setSingleDate] = useState(""); const [team, setTeam] = useState("");
   const [campaignType, setCampaignType] = useState(""); const [ratePerGb, setRatePerGb] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false); const [comboFilter, setComboFilter] = useState(""); const [activeIdx, setActiveIdx] = useState(0); const comboRef = useRef<HTMLDivElement>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false); const [rows, setRows] = useState<Row[] | null>(null);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const [searchTxt, setSearchTxt] = useState(""); const [sortKey, setSortKey] = useState<string>("rank"); const [sortDir, setSortDir] = useState<"asc" | "desc">("asc"); const [page, setPage] = useState(0);
   const runCount = useRef(0);
 
   // Reset all per-report state when the category (and therefore its report list) changes.
   useEffect(() => {
     setBu(""); setReportType(""); setFrom(""); setTo(""); setSingleDate(""); setTeam(""); setCampaignType(""); setRatePerGb("");
-    setErrs({}); setRows(null); setSearchTxt(""); setPage(0);
+    setErrs({}); setRows(null); setUnavailable(null); setSearchTxt(""); setPage(0);
   }, [reportTypes]);
 
   const rt = reportTypes.find((r) => r.id === reportType);
@@ -221,11 +317,30 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
 
     runCount.current += 1; const mark = runCount.current;
     setRunning(true);
-    // TODO: replace with API call
-    const data = await mockRun(reportType, campaignType, ratePerGb ? parseFloat(ratePerGb) : undefined);
+    setUnavailable(null);
+    const rate = ratePerGb ? parseFloat(ratePerGb) : undefined;
+    let data: Row[] = [];
+    let reason: string | null = null;
+    try {
+      if (demo) {
+        data = await mockRun(reportType, campaignType, rate);
+      } else if (REAL_REPORT_TYPES.has(reportType)) {
+        const orgId = await resolveOrgId();
+        if (reportType === "data-consumption") {
+          const loc = locationsByName.get(bu);
+          data = loc ? await realDataConsumption(orgId, loc.id, from, to, rate) : [];
+        } else {
+          data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
+        }
+      } else {
+        reason = UNAVAILABLE_REASON[reportType] ?? "This report isn't available for real accounts yet.";
+      }
+    } catch {
+      reason = "Could not load this report -- check the connection and try again.";
+    }
     if (mark !== runCount.current) return;
-    setRows(data); setRunning(false); setPage(0); setSearchTxt("");
-  }, [bu, reportType, from, to, singleDate, team, campaignType, ratePerGb, needsRange, needsSingle, needsTeam, needsCampaignType, needsRate]);
+    setRows(data); setUnavailable(reason); setRunning(false); setPage(0); setSearchTxt("");
+  }, [demo, bu, reportType, from, to, singleDate, team, campaignType, ratePerGb, needsRange, needsSingle, needsTeam, needsCampaignType, needsRate, locationsByName, customerLocations]);
 
   const exportCsv = () => {
     if (!rows || !rows.length) return;
@@ -255,7 +370,7 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label htmlFor="ur-bu" className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-            <select id="ur-bu" value={bu} onChange={(e) => { setBu(e.target.value); setRows(null); setErrs((p) => { const n = { ...p }; delete n.bu; return n; }); }} className={inputCls}><option value="">Choose business unit</option>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+            <select id="ur-bu" value={bu} onChange={(e) => { setBu(e.target.value); setRows(null); setErrs((p) => { const n = { ...p }; delete n.bu; return n; }); }} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
             <Err k="bu" />
           </div>
 
@@ -329,7 +444,14 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground"><FileBarChart className="mb-3 h-10 w-10 opacity-40" /><p className="text-sm">Choose a report type and press Search to see results.</p></div>
         )}
         {running && <div className="space-y-3 animate-pulse">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-muted" />)}</div>}
-        {!running && rows !== null && rows.length === 0 && (
+        {!running && rows !== null && rows.length === 0 && unavailable && (
+          <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+            <Info className="mb-3 h-10 w-10 opacity-40" />
+            <p className="text-sm font-medium text-foreground">Not available yet</p>
+            <p className="mt-1 max-w-sm text-xs">{unavailable}</p>
+          </div>
+        )}
+        {!running && rows !== null && rows.length === 0 && !unavailable && (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground"><p className="text-sm font-medium">No data for this report.</p><p className="mt-1 text-xs">Try a wider date range or a different location.</p></div>
         )}
         {!running && rows && rows.length > 0 && (
