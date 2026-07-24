@@ -42,6 +42,7 @@ import { Route as MasterNasRouteImport } from './routes/master.nas'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
 import { Route as MasterCustomersRouteImport } from './routes/master.customers'
+import { Route as MasterConsoleRouteImport } from './routes/master.console'
 import { Route as MasterBillingRouteImport } from './routes/master.billing'
 import { Route as MasterAuditRouteImport } from './routes/master.audit'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
@@ -307,6 +308,11 @@ const MasterHealthRoute = MasterHealthRouteImport.update({
 const MasterCustomersRoute = MasterCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterConsoleRoute = MasterConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterBillingRoute = MasterBillingRouteImport.update({
@@ -923,6 +929,7 @@ export interface FileRoutesByFullPath {
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
+  '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
@@ -1055,6 +1062,7 @@ export interface FileRoutesByTo {
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
+  '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
@@ -1191,6 +1199,7 @@ export interface FileRoutesById {
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
+  '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
@@ -1329,6 +1338,7 @@ export interface FileRouteTypes {
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
+    | '/master/console'
     | '/master/customers'
     | '/master/health'
     | '/master/locations'
@@ -1461,6 +1471,7 @@ export interface FileRouteTypes {
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
+    | '/master/console'
     | '/master/customers'
     | '/master/health'
     | '/master/locations'
@@ -1596,6 +1607,7 @@ export interface FileRouteTypes {
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
+    | '/master/console'
     | '/master/customers'
     | '/master/health'
     | '/master/locations'
@@ -1960,6 +1972,13 @@ declare module '@tanstack/react-router' {
       path: '/customers'
       fullPath: '/master/customers'
       preLoaderRoute: typeof MasterCustomersRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/console': {
+      id: '/master/console'
+      path: '/console'
+      fullPath: '/master/console'
+      preLoaderRoute: typeof MasterConsoleRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/billing': {
@@ -2941,6 +2960,7 @@ interface MasterRouteChildren {
   MasterAnalyticsRoute: typeof MasterAnalyticsRoute
   MasterAuditRoute: typeof MasterAuditRoute
   MasterBillingRoute: typeof MasterBillingRoute
+  MasterConsoleRoute: typeof MasterConsoleRoute
   MasterCustomersRoute: typeof MasterCustomersRoute
   MasterHealthRoute: typeof MasterHealthRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
@@ -2955,6 +2975,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterAnalyticsRoute: MasterAnalyticsRoute,
   MasterAuditRoute: MasterAuditRoute,
   MasterBillingRoute: MasterBillingRoute,
+  MasterConsoleRoute: MasterConsoleRoute,
   MasterCustomersRoute: MasterCustomersRoute,
   MasterHealthRoute: MasterHealthRoute,
   MasterLocationsRoute: MasterLocationsRoute,

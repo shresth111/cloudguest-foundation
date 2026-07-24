@@ -103,6 +103,20 @@ function toTimelineEntry(e: BackendTimelineEntry): ProvisionTimelineEntry {
   };
 }
 
+interface BackendConsoleCommandResult {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exit_status: number;
+}
+
+export interface ConsoleCommandResult {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitStatus: number;
+}
+
 export const provisioningService = {
   async discover(routerId: string): Promise<DeviceDiscoveryResult> {
     const { data } = await api.post<BackendDeviceDiscoveryResult>("/provision/discover", {
@@ -176,5 +190,21 @@ export const provisioningService = {
       `/provision/${jobId}/timeline`,
     );
     return data.entries.map(toTimelineEntry);
+  },
+
+  /** The Winbox-terminal-equivalent raw command path -- gated server-side
+   * by its own `device_console.execute` permission (Super Admin / Network
+   * Administrator only), never `provisioning_engine.execute`. */
+  async executeConsoleCommand(routerId: string, command: string): Promise<ConsoleCommandResult> {
+    const { data } = await api.post<BackendConsoleCommandResult>("/provision/console", {
+      router_id: routerId,
+      command,
+    });
+    return {
+      command: data.command,
+      stdout: data.stdout,
+      stderr: data.stderr,
+      exitStatus: data.exit_status,
+    };
   },
 };
