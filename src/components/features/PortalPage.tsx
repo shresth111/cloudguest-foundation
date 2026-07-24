@@ -11,7 +11,7 @@ import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw } from
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
-import { organizationService } from "@/services/organization.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { PortalLoginMethod } from "@/types/portal";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
@@ -31,11 +31,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     if (demo) return;
     (async () => {
       try {
-        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-        const org = orgs.rows[0];
-        if (!org) return;
-        setOrgId(org.id);
-        const res = await portalService.list({ organizationId: org.id, page: 1, pageSize: 1, sort: { key: "updatedAt", dir: "desc" } });
+        // /me/organizations (membership-scoped) instead of the
+        // platform-wide GET /organizations -- an ordinary customer/
+        // org-owner session doesn't hold organizations.read at GLOBAL
+        // scope and 403s on that endpoint (see customer.service.ts's
+        // resolveOrgId doc comment for the full explanation).
+        const org = await resolveOrgId();
+        setOrgId(org);
+        const res = await portalService.list({ organizationId: org, page: 1, pageSize: 1, sort: { key: "updatedAt", dir: "desc" } });
         const p = res.items[0];
         if (!p) return;
         setPortalId(p.id);
