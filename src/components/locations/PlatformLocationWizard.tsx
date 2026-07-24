@@ -9,6 +9,7 @@ import {
   MapPin,
   Router as RouterIcon,
   Sparkles,
+  SlidersHorizontal,
   UserCog,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -53,8 +54,14 @@ const STEPS = [
   { key: "owner", title: "Owner", desc: "Location owner account", icon: UserCog },
   { key: "router", title: "Router", desc: "First device", icon: RouterIcon },
   { key: "plan", title: "Plan", desc: "Assign a subscription plan", icon: Sparkles },
+  { key: "features", title: "Features", desc: "Customize beyond the plan defaults", icon: SlidersHorizontal },
   { key: "review", title: "Review", desc: "Confirm & provision", icon: Check },
 ] as const;
+
+interface FeatureOverrideState {
+  isEnabled?: boolean;
+  limitValue?: number;
+}
 
 interface WizardState {
   org: { mode: "existing" | "new"; existingId?: string; name: string; slug: string; contactEmail: string };
@@ -70,16 +77,18 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
-  router: { name: string; serialNumber: string; macAddress: string; model: string };
+  router: { name: string; serialNumber: string; macAddress: string; model: string; managementIpAddress: string };
   planId: string;
+  featureOverrides: Record<string, FeatureOverrideState>;
 }
 
 const DEFAULT_STATE: WizardState = {
   org: { mode: "existing", name: "", slug: "", contactEmail: "" },
   location: { name: "", slug: "", propertyType: "", addressLine1: "", city: "", stateProvince: "", postalCode: "", country: "", timezone: "UTC" },
   owner: { firstName: "", lastName: "", email: "" },
-  router: { name: "", serialNumber: "", macAddress: "", model: "" },
+  router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
   planId: "",
+  featureOverrides: {},
 };
 
 interface Props {
@@ -94,6 +103,15 @@ interface BackendPlan {
   plan_type: string;
   base_price: string;
   currency: string;
+}
+
+interface BackendFeature {
+  key: string;
+  name: string;
+  description: string | null;
+  category: string;
+  type: "boolean" | "limit";
+  default_enabled: boolean;
 }
 
 export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Props) {
@@ -113,6 +131,14 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
     queryFn: async () => {
       const { data } = await api.get<{ items: BackendPlan[] }>("/plans", { params: { is_active: true } });
       return data.items;
+    },
+    enabled: open,
+  });
+  const features = useQuery({
+    queryKey: ["features", "catalog"],
+    queryFn: async () => {
+      const { data } = await api.get<{ features: BackendFeature[] }>("/features");
+      return data.features;
     },
     enabled: open,
   });
@@ -187,8 +213,11 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
         timezone: state.location.timezone,
       },
       owner: state.owner,
-      router: state.router,
+      router: { ...state.router, managementIpAddress: state.router.managementIpAddress || undefined },
       planId: state.planId,
+      featureOverrides: Object.entries(state.featureOverrides)
+        .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
+        .map(([featureKey, v]) => ({ featureKey, isEnabled: v.isEnabled, limitValue: v.limitValue })),
     };
     try {
       const r = await provision.mutateAsync(payload);
@@ -272,6 +301,14 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
                   <PlanStep value={state.planId} onChange={(v) => set("planId", v)} plans={planOptions} loading={plans.isLoading} error={errors.planId} />
                 )}
                 {step === 5 && (
+                  <FeaturesStep
+                    value={state.featureOverrides}
+                    onChange={(v) => set("featureOverrides", v)}
+                    features={features.data ?? []}
+                    loading={features.isLoading}
+                  />
+                )}
+                {step === 6 && (
                   <ReviewStep state={state} orgs={orgOptions} plans={planOptions} result={result} provisioning={provision.isPending} />
                 )}
               </div>
@@ -518,6 +555,11 @@ function RouterStep({
           <Input value={state.macAddress} onChange={(e) => setState({ ...state, macAddress: e.target.value })} placeholder="AA:BB:CC:DD:EE:01" className="font-mono" />
           <ErrorText msg={errors["router.macAddress"]} />
         </div>
+        <div className="md:col-span-2">
+          <Label>Management IP (optional)</Label>
+          <Input value={state.managementIpAddress} onChange={(e) => setState({ ...state, managementIpAddress: e.target.value })} placeholder="20.219.19.32" className="font-mono" />
+          <p className="mt-1 text-xs text-muted-foreground">The router's real, reachable IP -- lets the platform actually connect to it (e.g. a MikroTik CHR/hardware device). Leave blank for a records-only entry.</p>
+        </div>
       </div>
     </div>
   );
@@ -565,6 +607,92 @@ function PlanStep({
         </div>
       )}
       <ErrorText msg={error} />
+    </div>
+  );
+}
+
+function FeaturesStep({
+  value, onChange, features, loading,
+}: {
+  value: Record<string, FeatureOverrideState>;
+  onChange: (v: Record<string, FeatureOverrideState>) => void;
+  features: BackendFeature[];
+  loading: boolean;
+}) {
+  const categories = Array.from(new Set(features.map((f) => f.category)));
+
+  function toggle(key: string, defaultEnabled: boolean) {
+    const current = value[key];
+    const next = { ...value };
+    if (current?.isEnabled === undefined) {
+      next[key] = { ...current, isEnabled: !defaultEnabled };
+    } else {
+      delete next[key];
+    }
+    onChange(next);
+  }
+
+  function setLimit(key: string, raw: string) {
+    const next = { ...value };
+    if (raw === "") {
+      delete next[key];
+    } else {
+      next[key] = { ...next[key], limitValue: Number(raw) };
+    }
+    onChange(next);
+  }
+
+  return (
+    <div>
+      <StepHeader title="Customize features (optional)" description="Overrides applied on top of the selected plan's defaults, for this customer only. Leave everything alone to just use the plan as-is." />
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading feature catalog…</p>
+      ) : (
+        <div className="space-y-5">
+          {categories.map((cat) => (
+            <div key={cat}>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat}</div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {features.filter((f) => f.category === cat).map((f) => {
+                  const override = value[f.key];
+                  if (f.type === "limit") {
+                    return (
+                      <div key={f.key} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
+                        <Label className="text-xs">{f.description || f.name}</Label>
+                        <Input
+                          type="number"
+                          className="h-7 w-24 text-xs"
+                          placeholder="Plan default"
+                          value={override?.limitValue ?? ""}
+                          onChange={(e) => setLimit(f.key, e.target.value)}
+                        />
+                      </div>
+                    );
+                  }
+                  const effective = override?.isEnabled ?? f.default_enabled;
+                  const isOverridden = override?.isEnabled !== undefined;
+                  return (
+                    <button
+                      type="button"
+                      key={f.key}
+                      onClick={() => toggle(f.key, f.default_enabled)}
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors",
+                        isOverridden ? "border-primary bg-primary/5" : "border-border",
+                      )}
+                    >
+                      <span className="text-xs">{f.description || f.name}</span>
+                      <Badge variant={effective ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                        {effective ? "On" : "Off"}{isOverridden && " (custom)"}
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -626,8 +754,12 @@ function ReviewStep({
         <SummaryRow label="Location" value={state.location.name || "—"} />
         <SummaryRow label="Property" value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`} />
         <SummaryRow label="Owner" value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`} />
-        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})`} />
+        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`} />
         <SummaryRow label="Plan" value={planLabel} />
+        <SummaryRow
+          label="Custom features"
+          value={Object.keys(state.featureOverrides).length ? `${Object.keys(state.featureOverrides).length} overridden` : "None (plan defaults)"}
+        />
       </div>
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
     </div>

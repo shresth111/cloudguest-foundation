@@ -17,7 +17,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { planSchema, type PlanFormValues } from "@/lib/billing-schemas";
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function formatMoney(amount: number, currency: string) {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 
 const TIER_ICON: Record<PlanTier, typeof Sparkles> = {
   starter: Sparkles,
@@ -59,11 +65,11 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
                   </div>
                   <div className="mt-3">
                     <div className="text-3xl font-semibold tracking-tight">
-                      {p.tier === "custom" ? "Contact us" : money.format(p.monthlyPrice)}
+                      {p.tier === "custom" ? "Contact us" : formatMoney(p.monthlyPrice, p.currency)}
                     </div>
                     {p.tier !== "custom" && (
                       <p className="text-xs text-muted-foreground">
-                        or {money.format(p.annualPrice)} / year
+                        or {formatMoney(p.annualPrice, p.currency)} / year
                       </p>
                     )}
                   </div>
@@ -139,6 +145,7 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
       ? {
           name: plan.name,
           tier: plan.tier,
+          currency: plan.currency === "INR" || plan.currency === "USD" ? plan.currency : "INR",
           monthlyPrice: plan.monthlyPrice,
           annualPrice: plan.annualPrice,
           includedLocations: plan.includedLocations,
@@ -154,6 +161,7 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
       : {
           name: "",
           tier: "starter",
+          currency: "INR",
           monthlyPrice: 0,
           annualPrice: 0,
           includedLocations: 1,
@@ -213,6 +221,17 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>Currency</Label>
+            <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v as "INR" | "USD")}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INR">INR (₹) — GST applies</SelectItem>
+                <SelectItem value="USD">USD ($)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div />
           <div><Label>Monthly price</Label><Input type="number" className="mt-1" {...form.register("monthlyPrice", { valueAsNumber: true })} /></div>
           <div><Label>Annual price</Label><Input type="number" className="mt-1" {...form.register("annualPrice", { valueAsNumber: true })} /></div>
           <div><Label>Locations</Label><Input type="number" className="mt-1" {...form.register("includedLocations", { valueAsNumber: true })} /></div>

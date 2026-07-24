@@ -1,5 +1,19 @@
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { customerService } from "@/services/customer.service";
+import { customerService, isDemo } from "@/services/customer.service";
+
+/** SSR-safe demo-mode flag. isDemo() reads localStorage, which doesn't
+ * exist during server render -- calling it directly during render (e.g. in
+ * a useState initializer or JSX conditional) makes the server's output
+ * disagree with the client's hydration pass and React discards the tree.
+ * Defaults to true (demo, the common path for this app) so server and
+ * client agree on the first render, then corrects itself via effect once
+ * mounted client-side. */
+export function useIsDemo(): boolean {
+  const [demo, setDemo] = useState(true);
+  useEffect(() => { setDemo(isDemo()); }, []);
+  return demo;
+}
 
 export const customerKeys = {
   permissions: ["customer", "permissions"] as const,

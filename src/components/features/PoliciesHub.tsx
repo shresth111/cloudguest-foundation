@@ -18,7 +18,7 @@ const USER_SUB_TABS = [
   { id: "smartid", label: "Smart ID", icon: Smartphone },
 ];
 
-export default function PoliciesHub() {
+export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
   const [tab, setTab] = useState("location");
   const [userTab, setUserTab] = useState("block");
 
@@ -66,11 +66,11 @@ export default function PoliciesHub() {
       )}
 
       {/* Content */}
-      {tab === "location" && <LocationPolicies />}
-      {tab === "user" && userTab === "block" && <BlockUsers />}
-      {tab === "user" && userTab === "whitelist" && <WhiteList />}
+      {tab === "location" && <LocationPolicies locationId={locationId} />}
+      {tab === "user" && userTab === "block" && <BlockUsers locationId={locationId} />}
+      {tab === "user" && userTab === "whitelist" && <WhiteList locationId={locationId} />}
       {tab === "user" && userTab === "smartid" && <SmartIdPage />}
-      {tab === "group" && <CreateGroup />}
+      {tab === "group" && <CreateGroup locationId={locationId} />}
     </div>
   );
 }

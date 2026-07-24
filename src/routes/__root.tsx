@@ -85,14 +85,14 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "CloudGuest — Enterprise Guest WiFi Management" },
+      { title: "ZIP WiFi — Enterprise Guest WiFi Management" },
       {
         name: "description",
         content:
-          "CloudGuest is the enterprise platform for managing guest WiFi across locations — with roles, analytics, and real-time insight.",
+          "ZIP WiFi is the enterprise platform for managing guest WiFi across locations — with roles, analytics, and real-time insight.",
       },
-      { name: "author", content: "CloudGuest" },
-      { property: "og:title", content: "CloudGuest — Enterprise Guest WiFi Management" },
+      { name: "author", content: "ZIP WiFi" },
+      { property: "og:title", content: "ZIP WiFi — Enterprise Guest WiFi Management" },
       {
         property: "og:description",
         content:
@@ -107,9 +107,10 @@ export const Route = createRootRouteWithContext<{
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon-180.png" },
     ],
   }),
   shellComponent: RootShell,

@@ -1,0 +1,125 @@
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MasterShell } from "@/components/master/MasterShell";
+import { MSectionHeader } from "@/components/master/MasterKit";
+import { BillingKpiGrid } from "@/components/billing/BillingKpiGrid";
+import { SubscriptionTable } from "@/components/billing/SubscriptionTable";
+import { CreateSubscriptionDialog } from "@/components/billing/CreateSubscriptionDialog";
+import { PlanManagement } from "@/components/billing/PlanManagement";
+import { PaymentTable } from "@/components/billing/PaymentTable";
+import { InvoiceManagement } from "@/components/billing/InvoiceManagement";
+import { TaxRateManagement } from "@/components/billing/TaxRateManagement";
+import { CouponManagement } from "@/components/billing/CouponManagement";
+import { UsageBillingPanel } from "@/components/billing/UsageBillingPanel";
+import { RevenueAnalyticsPanel } from "@/components/billing/RevenueAnalyticsPanel";
+import { RemindersPanel } from "@/components/billing/RemindersPanel";
+import { useBillingSnapshot } from "@/hooks/useBilling";
+
+export const Route = createFileRoute("/master/billing")({
+  component: BillingScreen,
+});
+
+function BillingScreen() {
+  const [tab, setTab] = useState("overview");
+  const [creating, setCreating] = useState(false);
+  const qc = useQueryClient();
+  const snap = useBillingSnapshot();
+  const state = { isLoading: snap.isLoading, isError: snap.isError, onRetry: () => snap.refetch() };
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["billing"] });
+    toast.success("Billing refreshed");
+  };
+
+  return (
+    <MasterShell title="Subscriptions & Billing">
+      <MSectionHeader
+        eyebrow="Revenue"
+        title="Subscriptions & Billing"
+        actions={
+          <Button size="sm" variant="outline" onClick={refresh}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+          </Button>
+        }
+      />
+
+      <BillingKpiGrid data={snap.data?.kpis} {...state} />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
+          <TabsTrigger value="plans">Plans</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="tax-rates">GST / Tax rates</TabsTrigger>
+          <TabsTrigger value="coupons">Coupons</TabsTrigger>
+          <TabsTrigger value="usage">Usage</TabsTrigger>
+          <TabsTrigger value="analytics">Revenue analytics</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+            <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />
+            <RemindersPanel data={snap.data?.reminders} {...state} />
+          </div>
+          <SubscriptionTable
+            data={snap.data?.subscriptions}
+            {...state}
+            onRefresh={refresh}
+            onCreate={() => setCreating(true)}
+          />
+        </TabsContent>
+
+        <TabsContent value="subscriptions" className="mt-4">
+          <SubscriptionTable
+            data={snap.data?.subscriptions}
+            {...state}
+            onRefresh={refresh}
+            onCreate={() => setCreating(true)}
+          />
+        </TabsContent>
+
+        <TabsContent value="plans" className="mt-4">
+          <PlanManagement plans={snap.data?.plans ?? []} />
+        </TabsContent>
+
+        <TabsContent value="payments" className="mt-4">
+          <PaymentTable data={snap.data?.payments} {...state} />
+        </TabsContent>
+
+        <TabsContent value="invoices" className="mt-4">
+          <InvoiceManagement data={snap.data?.invoices} {...state} />
+        </TabsContent>
+
+        <TabsContent value="tax-rates" className="mt-4">
+          <TaxRateManagement />
+        </TabsContent>
+
+        <TabsContent value="coupons" className="mt-4">
+          <CouponManagement data={snap.data?.coupons} {...state} />
+        </TabsContent>
+
+        <TabsContent value="usage" className="mt-4">
+          <UsageBillingPanel data={snap.data?.usage} {...state} />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="mt-4">
+          <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />
+        </TabsContent>
+
+        <TabsContent value="reminders" className="mt-4">
+          <RemindersPanel data={snap.data?.reminders} {...state} />
+        </TabsContent>
+      </Tabs>
+
+      <CreateSubscriptionDialog open={creating} onOpenChange={setCreating} plans={snap.data?.plans ?? []} />
+    </MasterShell>
+  );
+}

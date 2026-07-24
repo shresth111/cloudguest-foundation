@@ -22,6 +22,7 @@ export interface Plan {
   id: string;
   name: string;
   tier: PlanTier;
+  currency: string;
   monthlyPrice: number;
   annualPrice: number;
   includedLocations: number;
@@ -153,6 +154,19 @@ export interface RevenueAnalytics {
   churnRate: { label: string; value: number }[];
 }
 
+export type TaxType = "gst" | "vat" | "sales_tax" | "none";
+
+export interface TaxRate {
+  id: string;
+  name: string;
+  taxType: TaxType;
+  ratePercentage: number;
+  countryCode: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Reminder {
   id: string;
   type: "expiry" | "invoice_due" | "payment_failed" | "trial_ending";
@@ -183,4 +197,29 @@ export interface BillingSnapshot {
   revenue: RevenueAnalytics;
   reminders: Reminder[];
   plans: Plan[];
+}
+
+/** One organization's own usage-vs-limit reading, used by the tenant-facing
+ * (not Super Admin) Subscription/Billing pages. */
+export interface MyUsageMetric {
+  key: string;
+  label: string;
+  used: number;
+  limit: number;
+  unit?: string;
+}
+
+/** The tenant-facing "my billing" summary -- backed by the real, org-scoped
+ * `GET /billing/dashboard/me` endpoint (see billingService.getMyBillingDashboard).
+ * Distinct from BillingSnapshot, which is the platform-wide Super Admin view
+ * and requires a GLOBAL-scoped role an ordinary organization user does not have. */
+export interface MyBillingSummary {
+  plan: Plan;
+  billingCycle: BillingCycle;
+  status: SubscriptionStatus;
+  renewalDate: string;
+  autoRenewal: boolean;
+  usage: MyUsageMetric[];
+  recentInvoices: Invoice[];
+  recentPayments: Payment[];
 }

@@ -39,6 +39,7 @@ export interface GuestSession {
   guestId: string;
   guestIdentifier: string;
   deviceId: string | null;
+  userAgent: string | null;
   routerId: string;
   routerName: string;
   locationId: string;

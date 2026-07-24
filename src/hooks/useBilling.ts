@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { billingService } from "@/services/billing.service";
-import type { BillingReportFormat, Coupon, PaymentGateway, Plan, ScheduledBillingReport } from "@/types/billing";
+import type { BillingReportFormat, Coupon, PaymentGateway, Plan, ScheduledBillingReport, TaxRate } from "@/types/billing";
 
 const KEY = ["billing", "snapshot"] as const;
 
@@ -40,6 +40,14 @@ export function useCancelSubscription() {
 export function useUpgradeSubscription() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (id: string) => billingService.upgradeSubscription(id), onSuccess: () => invalidate(qc) });
+}
+
+export function useSetAutoRenew() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; autoRenew: boolean }) => billingService.setAutoRenew(input.id, input.autoRenew),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useDowngradeSubscription() {
@@ -115,4 +123,40 @@ export function useGenerateBillingReport() {
   return useMutation({
     mutationFn: (input: { type: string; format: BillingReportFormat }) => billingService.generateReport(input.type, input.format),
   });
+}
+
+export function useTaxRates() {
+  return useQuery({ queryKey: ["billing", "tax-rates"], queryFn: () => billingService.listTaxRates() });
+}
+
+export function useSaveTaxRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }) => billingService.saveTaxRate(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["billing", "tax-rates"] }),
+  });
+}
+
+export function useDownloadInvoice() {
+  return useMutation({ mutationFn: (id: string) => billingService.generateInvoice(id) });
+}
+
+// Tenant-facing "my billing" summary (real GET /billing/dashboard/me) --
+// used by the Subscription center and workspace Billing pages, which are a
+// different, org-scoped audience than useBillingSnapshot's Super Admin view.
+export function useMyBillingDashboard(organizationId: string | undefined, organizationName: string | undefined) {
+  return useQuery({
+    queryKey: ["billing", "me", organizationId],
+    queryFn: () => billingService.getMyBillingDashboard(organizationId!, organizationName ?? ""),
+    enabled: !!organizationId,
+    staleTime: 30_000,
+  });
+}
+
+// No reminder-dispatch endpoint exists in backend/app/domains/billing --
+// billingService.sendReminder is intentionally still mocked (see its own
+// comment); this hook just routes RemindersPanel's "Send" button through
+// that one existing mock instead of a bare, unbacked toast.
+export function useSendReminder() {
+  return useMutation({ mutationFn: (id: string) => billingService.sendReminder(id) });
 }

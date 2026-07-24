@@ -1,10 +1,20 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   HelpCircle, X, Plus, ChevronDown, Search, Pencil, Copy, Trash2,
   ChevronLeft, ChevronRight, Loader2, User, Network,
 } from "lucide-react";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 
-const TABS = ["Create Group", "Map Group", "Map User", "Modify Group", "Top Up User Data", "Clone Group"];
+// Only the bandwidth rate has a real backend equivalent (bandwidthPolicyService) --
+// session/idle timeout, daily limit, devices-per-user, login hours, and data
+// limit have no policy-engine field yet. See LocationPolicies.tsx's identical note.
+const BANDWIDTH_KBPS: Record<string, number> = { "512 Kbps": 512, "1 Mbps": 1024, "2 Mbps": 2048, "5 Mbps": 5120, "10 Mbps": 10240 };
+function kbpsToLabel(kbps: number): string {
+  const found = Object.entries(BANDWIDTH_KBPS).find(([, v]) => v === kbps);
+  return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
+}
+
 const STEPS = [
   { num: 1, label: "Create group", icon: Plus, caption: "" },
   { num: 2, label: "Map group", icon: Network, caption: "Not started" },
@@ -73,14 +83,27 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
   );
 }
 
-interface Props { onNavigate?: (key: string) => void; }
+const DEMO_GROUPS: Group[] = [
+  { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12 },
+  { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8 },
+  { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5 },
+];
 
-export default function CreateGroup({ onNavigate }: Props) {
-  const [groups, setGroups] = useState<Group[]>([
-    { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12 },
-    { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8 },
-    { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5 },
-  ]);
+export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
+  const demo = useIsDemo();
+  const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const real = await bandwidthPolicyService.list();
+        setGroups(real.map((p) => ({ id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0 })));
+      } catch {
+        // Leave groups empty -- the "no groups yet" state is accurate.
+      }
+    })();
+  }, [demo, locationId]);
 
   const [name, setName] = useState(""); const [bw, setBw] = useState(""); const [st, setSt] = useState("");
   const [it, setIt] = useState(""); const [dp, setDp] = useState(""); const [dl, setDl] = useState("No Limit");
@@ -111,24 +134,50 @@ export default function CreateGroup({ onNavigate }: Props) {
     setErrs(e); return !Object.keys(e).length;
   };
 
-  const handleCreate = () => {
+  const resetForm = () => {
+    setName(""); setBw(""); setSt(""); setIt(""); setDp(""); setDl("No Limit"); setLoginOn(false); setLoginDays(["Mon","Tue","Wed","Thu","Fri"]); setLoginFrom("09:00"); setLoginTo("18:00"); setDlOpen(false); setDlQuota("");
+  };
+
+  const handleCreate = async () => {
     if (!validate()) return; setSaving(true);
-    setTimeout(() => {
-      const dataLimit = dlOpen ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets } : null;
-      const loginHours = loginOn ? { days: [...loginDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)), from: loginFrom, to: loginTo } : null;
-      setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
-      setSaving(false); setStep1Done(true); setPage(0);
-      setName(""); setBw(""); setSt(""); setIt(""); setDp(""); setDl("No Limit"); setLoginOn(false); setLoginDays(["Mon","Tue","Wed","Thu","Fri"]); setLoginFrom("09:00"); setLoginTo("18:00"); setDlOpen(false); setDlQuota("");
+    const dataLimit = dlOpen ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets } : null;
+    const loginHours = loginOn ? { days: [...loginDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)), from: loginFrom, to: loginTo } : null;
+
+    if (demo) {
+      setTimeout(() => {
+        setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+        setSaving(false); setStep1Done(true); setPage(0);
+        resetForm();
+        setToast("Group created.");
+        setTimeout(() => setToast(null), 3500);
+      }, 500);
+      return;
+    }
+
+    try {
+      const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
+      const saved = await bandwidthPolicyService.save({ name, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps });
+      setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+      setStep1Done(true); setPage(0);
+      resetForm();
       setToast("Group created.");
       setTimeout(() => setToast(null), 3500);
-      // TODO: replace with API call
-    }, 500);
+    } catch {
+      setToast("Could not create the group — check the connection and try again.");
+      setTimeout(() => setToast(null), 3500);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = (id: string) => {
     if (confirmingId === id) {
-      setGroups((prev) => prev.filter((g) => g.id !== id)); setConfirmingId(null);
+      const prev = groups;
+      setGroups((p) => p.filter((g) => g.id !== id)); setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      if (!demo) {
+        bandwidthPolicyService.remove(id).catch(() => { setGroups(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+      }
     } else { setConfirmingId(id); if (confirmTimer.current) clearTimeout(confirmTimer.current); confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000); }
   };
 
@@ -151,25 +200,10 @@ export default function CreateGroup({ onNavigate }: Props) {
       {toast && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900">
           <span>{toast}</span>
-          {step1Done && <button onClick={() => onNavigate?.("Map Group")} className="font-medium text-orange-400 underline hover:text-orange-300">Map it now</button>}
         </div>
       )}
 
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Create Group</h1>
-
-      <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">
-        <div className="flex min-w-[500px]">
-          {TABS.map((label) => {
-            const active = label === "Create Group";
-            return (
-              <button key={label} onClick={() => onNavigate?.(label)} aria-current={active ? "page" : undefined}
-                className={`flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
-                  active ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-400" : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
-                }`}>{label}</button>
-            );
-          })}
-        </div>
-      </div>
 
       <ol className="flex items-center gap-0" aria-label="Progress">
         {STEPS.map((s, i) => (

@@ -1,10 +1,13 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   AlertTriangle, HelpCircle, X, Search, ChevronUp, ChevronDown,
   ChevronLeft, ChevronRight, Trash2, RotateCcw, Undo2,
 } from "lucide-react";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { guestService } from "@/services/guest.service";
+import { organizationService } from "@/services/organization.service";
+import type { AnyAccessRule } from "@/types/guest";
 
-const TABS = ["Block User", "WhiteList", "Smart ID", "PIN", "Voucher", "Online Users", "Device Whitelist"];
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
@@ -36,18 +39,48 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-interface Props { onNavigate?: (key: string) => void; }
 type SortKey = "name" | "mobile" | "businessUnit" | "blockedOn";
 
-export default function BlockUsers({ onNavigate }: Props) {
-  const [blocked, setBlocked] = useState<BlockedUser[]>([
-    { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Marina Bay Hotel", blockedOn: new Date(Date.now() - 86400000 * 3).toISOString(), status: "Blocked" },
-    { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Downtown CoWork", blockedOn: new Date(Date.now() - 86400000 * 5).toISOString(), status: "Blocked" },
-    { id: "b3", name: "Priya Kapoor", mobile: "+919900001111", businessUnit: "Marina Bay Hotel", blockedOn: new Date(Date.now() - 86400000 * 1).toISOString(), status: "Blocked" },
-    { id: "b4", name: "Amit Patel", mobile: "+919722233344", businessUnit: "Eastside Cafe", blockedOn: new Date(Date.now() - 86400000 * 10).toISOString(), status: "Unblocked" },
-    { id: "b5", name: "Sana Khan", mobile: "+919833344455", businessUnit: "Airport Lounge T3", blockedOn: new Date(Date.now() - 86400000 * 2).toISOString(), status: "Blocked" },
-    { id: "b6", name: "John Doe", mobile: "+919655566677", businessUnit: "Downtown CoWork", blockedOn: new Date(Date.now() - 86400000 * 7).toISOString(), status: "Blocked" },
-  ]);
+function toBlockedUser(r: AnyAccessRule): BlockedUser {
+  return {
+    id: r.id,
+    name: r.reason ?? null,
+    mobile: r.kind === "device" ? r.macAddress : r.identifier,
+    businessUnit: "",
+    blockedOn: r.createdAt,
+    status: r.isActive ? "Blocked" : "Unblocked",
+  };
+}
+
+export default function BlockUsers({ locationId }: { locationId?: string } = {}) {
+  const demo = useIsDemo();
+  // Fixed dates, not Date.now()-relative -- see WhiteList.tsx's SEED
+  // comment for why a relative computation here hydration-mismatches.
+  const [blocked, setBlocked] = useState<BlockedUser[]>(demo ? [
+    { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Marina Bay Hotel", blockedOn: "2026-07-20T10:00:00.000Z", status: "Blocked" },
+    { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Downtown CoWork", blockedOn: "2026-07-18T10:00:00.000Z", status: "Blocked" },
+    { id: "b3", name: "Priya Kapoor", mobile: "+919900001111", businessUnit: "Marina Bay Hotel", blockedOn: "2026-07-22T10:00:00.000Z", status: "Blocked" },
+    { id: "b4", name: "Amit Patel", mobile: "+919722233344", businessUnit: "Eastside Cafe", blockedOn: "2026-07-13T10:00:00.000Z", status: "Unblocked" },
+    { id: "b5", name: "Sana Khan", mobile: "+919833344455", businessUnit: "Airport Lounge T3", blockedOn: "2026-07-21T10:00:00.000Z", status: "Blocked" },
+    { id: "b6", name: "John Doe", mobile: "+919655566677", businessUnit: "Downtown CoWork", blockedOn: "2026-07-16T10:00:00.000Z", status: "Blocked" },
+  ] : []);
+  const [orgId, setOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
+        const org = orgs.rows[0];
+        if (!org) return;
+        setOrgId(org.id);
+        const rules = await guestService.listAccessRules();
+        setBlocked(rules.filter((r) => r.ruleType === "blocklist").map(toBlockedUser));
+      } catch {
+        // Leave blocked empty -- the "no blocked numbers" state is accurate.
+      }
+    })();
+  }, [demo, locationId]);
 
   const [textarea, setTextarea] = useState("");
   const [bu, setBu] = useState("Marina Bay Hotel");
@@ -147,19 +180,37 @@ export default function BlockUsers({ onNavigate }: Props) {
   const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   // ── block ─────────────────────────────────────────────────────
-  const handleBlock = () => {
+  const handleBlock = async () => {
     const now = new Date().toISOString();
-    const newBlocked = parsed.valid.map((m) => ({ id: `b${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: null, mobile: m, businessUnit: bu, blockedOn: now, status: "Blocked" as const }));
-    // TODO: replace with API call
-    setUndoPayload(newBlocked);
-    setBlocked((prev) => [...newBlocked, ...prev]);
-    setTextarea("");
-    setPage(0);
-    setShowModal(false);
-    setToast(`${newBlocked.length} numbers blocked.`);
-    if (undoRef.current) clearTimeout(undoRef.current);
-    undoRef.current = setTimeout(() => setUndoPayload(null), 6000);
-    setTimeout(() => setToast(null), 6500);
+    if (demo) {
+      const newBlocked = parsed.valid.map((m) => ({ id: `b${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: null, mobile: m, businessUnit: bu, blockedOn: now, status: "Blocked" as const }));
+      setUndoPayload(newBlocked);
+      setBlocked((prev) => [...newBlocked, ...prev]);
+      setTextarea("");
+      setPage(0);
+      setShowModal(false);
+      setToast(`${newBlocked.length} numbers blocked.`);
+      if (undoRef.current) clearTimeout(undoRef.current);
+      undoRef.current = setTimeout(() => setUndoPayload(null), 6000);
+      setTimeout(() => setToast(null), 6500);
+      return;
+    }
+    if (!orgId) { setToast("No organization found for this session."); setTimeout(() => setToast(null), 2500); return; }
+    try {
+      const created = await Promise.all(parsed.valid.map((m) =>
+        guestService.createAccessRule({ kind: "identifier", organizationId: orgId, locationId, identifier: m, ruleType: "blocklist" }),
+      ));
+      const newBlocked = created.map(toBlockedUser);
+      setBlocked((prev) => [...newBlocked, ...prev]);
+      setTextarea("");
+      setPage(0);
+      setShowModal(false);
+      setToast(`${newBlocked.length} numbers blocked.`);
+      setTimeout(() => setToast(null), 6500);
+    } catch {
+      setToast("Could not block — check the connection and try again.");
+      setTimeout(() => setToast(null), 2500);
+    }
   };
 
   const handleUndo = () => {
@@ -174,17 +225,33 @@ export default function BlockUsers({ onNavigate }: Props) {
   };
 
   // ── unblock / delete ──────────────────────────────────────────
-  const toggleStatus = (id: string) => {
-    // TODO: replace with API call
+  const toggleStatus = async (id: string) => {
     setBlocked((prev) => prev.map((b) => b.id === id ? { ...b, status: b.status === "Blocked" ? "Unblocked" : "Blocked" } : b));
+    if (demo) return;
+    const row = blocked.find((b) => b.id === id);
+    if (!row) return;
+    try {
+      if (row.status === "Blocked") {
+        await guestService.deactivateAccessRule("identifier", id);
+      } else if (orgId) {
+        const created = await guestService.createAccessRule({ kind: "identifier", organizationId: orgId, locationId, identifier: row.mobile, ruleType: "blocklist" });
+        setBlocked((prev) => prev.map((b) => b.id === id ? toBlockedUser(created) : b));
+      }
+    } catch {
+      setToast("Could not update on the server.");
+      setTimeout(() => setToast(null), 2500);
+    }
   };
 
   const handleDelete = (id: string) => {
     if (confirmingId === id) {
-      // TODO: replace with API call
-      setBlocked((prev) => prev.filter((b) => b.id !== id));
+      const prev = blocked;
+      setBlocked((p) => p.filter((b) => b.id !== id));
       setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      if (!demo) {
+        guestService.deleteAccessRule("identifier", id).catch(() => { setBlocked(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+      }
     } else {
       setConfirmingId(id);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
@@ -223,20 +290,6 @@ export default function BlockUsers({ onNavigate }: Props) {
       )}
 
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Block Users</h1>
-
-      <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">
-        <div className="flex min-w-[600px]">
-          {TABS.map((label) => {
-            const active = label === "Block User";
-            return (
-              <button key={label} onClick={() => onNavigate?.(label)} aria-current={active ? "page" : undefined}
-                className={`flex-1 border-r border-slate-200 px-3 py-2.5 text-center text-sm font-medium transition-colors last:border-r-0 dark:border-slate-600 ${
-                  active ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-400" : "bg-slate-50 text-slate-600 hover:bg-white dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700"
-                }`}>{label}</button>
-            );
-          })}
-        </div>
-      </div>
 
       <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">

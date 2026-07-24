@@ -4,8 +4,14 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, LogOut, Bell, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
   CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
+  KeyRound, MapPinned, ShieldCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
+import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
+import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import AssistantWidget from "@/components/features/AssistantWidget";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, maskEmail } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,11 +42,15 @@ function CustomerDashboardPage() {
   const [menu, setMenu] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [notif, setNotif] = useState(false);
+  const [masked, setMasked] = useState(true);
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [tfaOpen, setTfaOpen] = useState(false);
 
   if (activeLocationId !== locationId) return <div className="flex min-h-screen items-center justify-center"><Button variant="outline" onClick={() => navigate({ to: "/customer" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></div>;
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
   const filteredNavs = customerNavsForRole(getCustomerLoginRole());
 
   return (
@@ -55,11 +65,8 @@ function CustomerDashboardPage() {
         mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
       )}>
         <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm"><Wifi className="h-4 w-4" /></div>
-          {sidebar && <div><p className="text-sm font-semibold">BhaiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Portal"}</p></div>}
-        </div>
-        <div className="px-2 pt-2">
-          <button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>All locations</span>}</button>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
+          {sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Portal"}</p></div>}
         </div>
         <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">
           {filteredNavs.map((item) => {
@@ -91,6 +98,9 @@ function CustomerDashboardPage() {
             <span className="hidden sm:inline text-xs text-muted-foreground capitalize">{activeLocation?.status}</span>
           </div>
           <div className="flex items-center gap-1">
+            <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
+            <BookDemoButton />
+            <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9"><Search className="h-4 w-4" /></Button>
             <div className="relative">
               <Button variant="ghost" size="icon" className="h-9 w-9 relative" onClick={() => setNotif(!notif)}><Bell className="h-4 w-4" /><span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive" /></Button>
@@ -102,6 +112,10 @@ function CustomerDashboardPage() {
               {menu && (
                 <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
                   <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
+                  <div className="border-t my-1" />
+                  <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
+                  <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+                  <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
                   <div className="border-t my-1" />
                   <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
                 </div>
@@ -173,7 +187,7 @@ function CustomerDashboardPage() {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
                   <CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Time</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead></TableRow></TableHeader>
-                  <TableBody>{(d.recentUsers.length === 0 ? [{ id: "0", name: "No users", email: "", device: "", time: "", status: "offline" }] : d.recentUsers).map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></CardContent>
+                  <TableBody>{(d.recentUsers.length === 0 ? [{ id: "0", name: "No users", email: "", device: "", time: "", status: "offline" }] : d.recentUsers).map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></CardContent>
                 </Card>
                 <Card className="border-0 shadow-sm">
                   <CardHeader><CardTitle className="text-sm">Recent Alerts</CardTitle></CardHeader>
@@ -192,6 +206,9 @@ function CustomerDashboardPage() {
           )}
         </main>
       </div>
+      <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
+      <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
+      <AssistantWidget />
     </div>
   );
 }

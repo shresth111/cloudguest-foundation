@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
 import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
 import type { AuthSession, LoginCredentials, OrganizationMembership, RoleAssignment, User } from "@/types/auth";
 
 const ROLES_STORAGE_KEY = "cloudguest_roles";
-const ORGS_STORAGE_KEY = "cloudguest_organizations";
+export const ORGS_STORAGE_KEY = "cloudguest_organizations";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -54,6 +55,7 @@ function clearStoredSession() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<RoleAssignment[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
@@ -106,6 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (creds: LoginCredentials) => {
+    // Switching identities mid-session (e.g. testing multiple accounts in
+    // one tab) must not leak the previous account's cached queries --
+    // customerKeys.permissions/sidebar/etc. aren't scoped by user/org id,
+    // so without this a new login can render stale data (wrong features,
+    // wrong locations) until each query's own staleTime happens to elapse.
+    queryClient.clear();
+
     // Demo mode: bypass backend if using test credentials
     if (creds.email === "admin@example.com" && creds.password === "test") {
       const demoSession: AuthSession = {
@@ -163,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions(new Set(myPermissions));
 
     return session;
-  }, []);
+  }, [queryClient]);
 
   const logout = useCallback(async () => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
@@ -173,12 +182,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Best-effort revoke — always clear local session regardless.
     }
     clearStoredSession();
+    queryClient.clear();
     setUser(null);
     setRoles([]);
     setOrganizations([]);
     setPermissions(new Set());
     setStatus("anonymous");
-  }, []);
+  }, [queryClient]);
 
   const can = useCallback((permission: string) => permissions.has(permission), [permissions]);
 

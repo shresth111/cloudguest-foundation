@@ -136,8 +136,14 @@ api.interceptors.response.use(
       | (InternalAxiosRequestConfig & { _retried?: boolean })
       | undefined;
     const isRefreshCall = config?.url?.includes("/auth/refresh");
+    // A failed login attempt (wrong credentials, account doesn't exist on
+    // this environment, etc.) also 401s -- without this exclusion it was
+    // being treated as an expired *existing* session (clearSession +
+    // redirect to /session-expired) instead of letting the login form's
+    // own catch block show "invalid email or password".
+    const isLoginCall = config?.url?.includes("/auth/login");
 
-    if (error.response?.status === 401 && config && !config._retried && !isRefreshCall) {
+    if (error.response?.status === 401 && config && !config._retried && !isRefreshCall && !isLoginCall) {
       const newToken = await refreshAccessToken();
       if (newToken) {
         config._retried = true;

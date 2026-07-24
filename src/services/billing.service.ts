@@ -4,6 +4,7 @@ import type {
   Coupon,
   CouponStatus,
   Invoice,
+  MyBillingSummary,
   Payment,
   PaymentStatus,
   Plan,
@@ -11,6 +12,8 @@ import type {
   ScheduledBillingReport,
   Subscription,
   SubscriptionStatus,
+  TaxRate,
+  TaxType,
   UsageRow,
 } from "@/types/billing";
 import type {
@@ -58,6 +61,30 @@ interface BackendPlan {
   features: BackendPlanFeature[];
   created_at: string;
   updated_at: string;
+}
+
+interface BackendTaxRate {
+  id: string;
+  name: string;
+  tax_type: string;
+  rate_percentage: string | number;
+  country_code: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function toTaxRate(t: BackendTaxRate): TaxRate {
+  return {
+    id: t.id,
+    name: t.name,
+    taxType: (t.tax_type as TaxType) ?? "gst",
+    ratePercentage: n(t.rate_percentage),
+    countryCode: t.country_code,
+    isActive: t.is_active,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+  };
 }
 
 interface BackendSubscription {
@@ -249,6 +276,7 @@ function toPlan(p: BackendPlan): Plan {
     id: p.id,
     name: p.name,
     tier: planTier(p.plan_type),
+    currency: p.currency,
     monthlyPrice: monthly,
     annualPrice: annual,
     includedLocations: featureLimit(p.features, "max_locations"),
@@ -487,6 +515,41 @@ async function fetchAllUsage(orgs: BackendOrg[]): Promise<UsageRow[]> {
 }
 
 // ============================================================================
+// Tenant-facing "my billing" dashboard -- real, org-scoped
+// GET /billing/dashboard/me (backend/app/domains/billing/router.py). Backs
+// the Subscription center (/subscription) and workspace Billing
+// (/workspace/billing) pages, which are a different, ORGANIZATION-scoped
+// audience than the Super Admin snapshot above (billing.read at
+// ScopeType.ORGANIZATION, not the GLOBAL scope getSnapshot()'s endpoints
+// require -- an ordinary organization user cannot call those).
+// ============================================================================
+
+interface BackendCustomerBillingDashboard {
+  plan: BackendPlan;
+  subscription: BackendSubscription;
+  usage: BackendUsageSummary;
+  recent_invoices: BackendInvoice[];
+  recent_payments: BackendPayment[];
+}
+
+async function fetchMyBillingDashboard(organizationId: string): Promise<BackendCustomerBillingDashboard> {
+  const { data } = await api.get<BackendCustomerBillingDashboard>("/billing/dashboard/me", {
+    headers: { "X-Organization-Id": organizationId },
+  });
+  return data;
+}
+
+function myUsage(checks: BackendUsageLimitCheck[]): { key: string; label: string; used: number; limit: number; unit?: string }[] {
+  const storage = usageLimit(checks, "storage_usage_mb");
+  return [
+    { key: "locations", label: "Locations", ...usageLimit(checks, "locations") },
+    { key: "routers", label: "Routers", ...usageLimit(checks, "routers") },
+    { key: "guests", label: "Guests", ...usageLimit(checks, "guests") },
+    { key: "storage", label: "Storage", used: Math.round(storage.used / 1024), limit: Math.round(storage.limit / 1024), unit: "GB" },
+  ];
+}
+
+// ============================================================================
 // Coupons
 // ============================================================================
 
@@ -520,10 +583,30 @@ async function fetchAllCoupons(): Promise<BackendCoupon[]> {
 // Aggregate snapshot -- kpis/revenue/reminders come from the real
 // /billing/dashboard/super-admin composite; subscriptions/payments/
 // invoices/usage are fanned out per organization (see helpers above).
-// gateways/scheduledReports/generateReport/generateInvoice/sendReminder
-// have no backend equivalent (no connectable-gateway registry, no
-// scheduled-report or ad-hoc report-generation endpoints exist in
-// backend/app/domains/billing) -- left mocked below, unchanged.
+// gateways/sendReminder have no backend equivalent in
+// backend/app/domains/billing (no connectable-gateway registry, no
+// reminder-dispatch endpoint) -- left mocked below, unchanged.
+//
+// Correction from an earlier pass of this file: a real, generic Report
+// Engine *does* exist -- backend/app/domains/analytics/report_router.py
+// (POST /reports, /reports/templates, /reports/schedule), not under the
+// billing domain at all, which is why it was missed the first time this
+// comment was written. generateReport's "revenue" case now calls it for
+// real (see that method below). It is NOT fully wired for every use here:
+//   - BillingReportCenter's other 8 report types (guest/router/network/
+//     organization/location need an organization_id or location_id this
+//     report center has no picker for; audit/billing/monitoring have no
+//     matching ReportType at all) stay mocked in generateReport below.
+//   - scheduledReports/listScheduledReports/createScheduledReport/
+//     toggleScheduledReport/deleteScheduledReport stay mocked: the real
+//     ScheduledReport is mandatorily ORGANIZATION-scoped and requires a
+//     pre-existing ReportTemplate id, but this billing page (both
+//     src/routes/_authenticated/billing.index.tsx and master.billing.tsx)
+//     manages every organization at once with no org/template picker in
+//     its UI -- a real data-model mismatch, not a missing endpoint. Wiring
+//     it properly needs a product decision (add an org+template picker to
+//     this panel, or scope the whole panel to one org) rather than a
+//     mechanical service-layer change.
 // ============================================================================
 
 let gatewaysStore = [
@@ -624,6 +707,23 @@ export const billingService = {
           severity: "warning",
         });
       });
+    subscriptions
+      .filter((s) => s.status === "active")
+      .filter((s) => {
+        const t = new Date(s.expiryDate).getTime();
+        return t - now < 14 * 86_400_000;
+      })
+      .forEach((s) => {
+        const daysLeft = Math.ceil((new Date(s.expiryDate).getTime() - now) / 86_400_000);
+        reminders.push({
+          id: `exp_${s.id}`,
+          type: "expiry",
+          title: daysLeft <= 0 ? `${s.planName} plan expired` : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          organizationName: s.organizationName,
+          dueAt: s.expiryDate,
+          severity: daysLeft <= 3 ? "critical" : "warning",
+        });
+      });
 
     const planTierCounts = dashboard.customers.items.reduce<Record<string, number>>((acc, c) => {
       const plan = backendPlans.find((p) => p.id === c.plan_id);
@@ -631,6 +731,16 @@ export const billingService = {
       acc[tier] = (acc[tier] ?? 0) + 1;
       return acc;
     }, {});
+    // MRR per tier from each active subscription's own plan amount -- real
+    // spend, not the `dashboard.customers` snapshot's lifetime_revenue
+    // (that's cumulative-to-date, not a recurring-per-tier figure this
+    // by-tier revenue bar is meant to show).
+    const planTierRevenue = subscriptions
+      .filter((s) => s.status === "active")
+      .reduce<Record<string, number>>((acc, s) => {
+        acc[s.tier] = (acc[s.tier] ?? 0) + s.amount;
+        return acc;
+      }, {});
 
     return {
       kpis: {
@@ -659,7 +769,7 @@ export const billingService = {
         planDistribution: (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map((tier) => ({
           tier,
           count: planTierCounts[tier] ?? 0,
-          revenue: 0,
+          revenue: Math.round(planTierRevenue[tier] ?? 0),
         })),
         subscriptionDistribution: Object.entries(dashboard.subscriptions.counts_by_status).map(([status, count]) => ({
           status: SUBSCRIPTION_STATUS_MAP[status] ?? "active",
@@ -728,6 +838,17 @@ export const billingService = {
     return true;
   },
 
+  async setAutoRenew(id: string, autoRenew: boolean) {
+    const ctx = await findSubscriptionContext(id);
+    if (!ctx) return false;
+    await api.patch(
+      `/subscriptions/${id}/renewal-settings`,
+      { auto_renew: autoRenew },
+      { headers: { "X-Organization-Id": ctx.org.id } },
+    );
+    return true;
+  },
+
   async downgradeSubscription(id: string) {
     const ctx = await findSubscriptionContext(id);
     if (!ctx) return false;
@@ -764,6 +885,7 @@ export const billingService = {
       const { data } = await api.put<BackendPlan>(`/plans/${input.id}`, {
         name: input.name,
         base_price: input.monthlyPrice,
+        currency: input.currency || "INR",
         features,
       });
       return toPlan(data);
@@ -774,7 +896,7 @@ export const billingService = {
       plan_type: input.tier,
       billing_cycle: "monthly",
       base_price: input.monthlyPrice,
-      currency: "USD",
+      currency: input.currency || "INR",
       is_active: true,
       is_public: true,
       sort_order: 0,
@@ -874,8 +996,24 @@ export const billingService = {
     scheduledReports = scheduledReports.filter((r) => r.id !== id);
     return true;
   },
-  // No generic ad-hoc report-generation endpoint exists -- kept mocked.
   async generateReport(type: string, format: BillingReportFormat) {
+    // Real Report Engine (POST /reports, see the module comment above) --
+    // REVENUE is the one ReportType this platform-wide report center can
+    // generate without an organization/location picker (Business
+    // Analytics, what REVENUE composes, is inherently GLOBAL-scoped), so
+    // the "Revenue report" card downloads a real, backend-rendered file.
+    // export_format's values (pdf/excel/csv) match ExportFormat 1:1.
+    if (type === "revenue") {
+      const response = await api.post("/reports", { report_type: "revenue", export_format: format }, { responseType: "blob" });
+      const blob = response.data as Blob;
+      const url = URL.createObjectURL(blob);
+      const disposition = String((response.headers as Record<string, string>)?.["content-disposition"] ?? "");
+      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? `revenue-report-${Date.now()}.${format === "excel" ? "xlsx" : format}`;
+      return { url, fileName, size: `${Math.max(1, Math.round(blob.size / 1024))} KB` };
+    }
+    // The other 8 report-center cards have no matching real, callable
+    // report for this platform-wide page (see the module comment above)
+    // -- kept mocked.
     await delay(600);
     return { fileName: `${type}-report-${Date.now()}.${format}`, size: `${Math.round(200 + Math.random() * 1800)} KB` };
   },
@@ -897,6 +1035,55 @@ export const billingService = {
   async sendReminder(id: string, _frequency?: ReportFrequency) {
     await delay(200);
     return { ok: true, id };
+  },
+
+  // GST / tax rate configuration -- real /tax-rates CRUD. The backend
+  // computes the actual CGST/SGST/IGST split per-invoice from these rows
+  // (validators.compute_tax_breakdown); this is the platform operator's
+  // rate catalog, not a per-invoice control.
+  async listTaxRates(): Promise<TaxRate[]> {
+    const { data } = await api.get<BackendListResponse<BackendTaxRate>>("/billing/tax-rates", {
+      params: { page_size: 100 },
+    });
+    return data.items.map(toTaxRate);
+  },
+
+  async saveTaxRate(input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<TaxRate> {
+    if (input.id) {
+      const { data } = await api.put<BackendTaxRate>(`/billing/tax-rates/${input.id}`, {
+        name: input.name,
+        tax_type: input.taxType,
+        rate_percentage: input.ratePercentage,
+        country_code: input.countryCode,
+        is_active: input.isActive,
+      });
+      return toTaxRate(data);
+    }
+    const { data } = await api.post<BackendTaxRate>("/billing/tax-rates", {
+      name: input.name,
+      tax_type: input.taxType,
+      rate_percentage: input.ratePercentage,
+      country_code: input.countryCode,
+      is_active: input.isActive,
+    });
+    return toTaxRate(data);
+  },
+
+  // Real, org-scoped GET /billing/dashboard/me -- see the module comment
+  // above this section for why this is a separate call from getSnapshot().
+  async getMyBillingDashboard(organizationId: string, organizationName: string): Promise<MyBillingSummary> {
+    const data = await fetchMyBillingDashboard(organizationId);
+    const org: BackendOrg = { id: organizationId, name: organizationName };
+    return {
+      plan: toPlan(data.plan),
+      billingCycle: data.subscription.billing_cycle === "yearly" ? "annual" : "monthly",
+      status: SUBSCRIPTION_STATUS_MAP[data.subscription.status] ?? "active",
+      renewalDate: data.subscription.current_period_end,
+      autoRenewal: data.subscription.auto_renew,
+      usage: myUsage(data.usage.limit_checks),
+      recentInvoices: data.recent_invoices.flatMap((inv) => toInvoice(inv, org)),
+      recentPayments: data.recent_payments.map((p) => toPayment(p, org)),
+    };
   },
 };
 

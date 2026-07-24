@@ -1,11 +1,26 @@
 import { api } from "@/services/api";
-import { locationService } from "@/services/location.service";
-import { routerService } from "@/services/router.service";
-import { guestService } from "@/services/guest.service";
-import type { RouterDevice } from "@/types/router";
-import type { GuestSession } from "@/types/guest";
+import { ORGS_STORAGE_KEY } from "@/context/AuthContext";
+import type { OrganizationMembership } from "@/types/auth";
 
 /* ── Types ─────────────────────────────────────────────────── */
+
+/** Minimal shape read from `/locations/{id}/routers` and `/guest-sessions`
+ * (raw backend snake_case) -- listLocations() hits these directly to enrich
+ * the location picker without pulling in router.service.ts/guest.service.ts's
+ * full normalization + org-wide fan-out helpers. */
+interface RawRouterStatus { status: string; }
+interface RawGuestSessionStatus { status: string; bytes_downloaded?: number; bytes_uploaded?: number; }
+interface RawLocationSummary { id: string; name: string; city: string; }
+interface RawGuestSession {
+  id: string;
+  status: string;
+  started_at: string;
+  ended_at?: string | null;
+  ip_address?: string | null;
+  device_id: string | null;
+  bytes_downloaded?: number;
+  user_agent?: string | null;
+}
 
 export interface NavItem { id: string; label: string; module: string; }
 
@@ -38,6 +53,7 @@ export interface CustomerFeatureData {
   portal?: { status: string; theme: string; authMethods: string[]; languages: string[] };
   audit?: { action: string; user: string; time: string; status: string }[];
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
+  macAuth?: { id: string; mac: string; type: string; expiresAt: string | null; comment: string | null; enabled: boolean }[];
 }
 
 /* ── Demo Data ─────────────────────────────────────────────── */
@@ -66,9 +82,58 @@ const DEMO_NAV: NavItem[] = [
 
 /* ── Helpers ───────────────────────────────────────────────── */
 
-function isDemo(): boolean {
+export function isDemo(): boolean {
   if (typeof window === "undefined") return false;
   return localStorage.getItem("cloudguest_token") === "demo-access-token";
+}
+
+interface MyOrganizationMembership {
+  id: string;
+  organization_id: string;
+  status: string;
+}
+
+let cachedOrgId: string | null = null;
+/** Resolves the current session's organization id for endpoints that
+ * require X-Organization-Id (e.g. MAC authorization -- see
+ * backend/app/domains/mac_authorization/service.py's OrganizationRequiredError).
+ * Callers already run inside getFeatureData's try/catch, so a throw here
+ * just falls back to demo data like any other failure.
+ *
+ * Uses /me/organizations (membership-scoped) rather than the platform-wide
+ * GET /organizations -- an ordinary customer/org-owner session doesn't hold
+ * the elevated permission that endpoint requires and gets a 403, which is
+ * exactly what silently broke listLocations() below (see
+ * ticket.service.ts's resolveOrgId for the identical fix, applied there
+ * first). */
+export async function resolveOrgId(): Promise<string> {
+  if (cachedOrgId) return cachedOrgId;
+  const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrgId = membership.organization_id;
+  return cachedOrgId;
+}
+
+/** Buckets session user-agent strings into the OS categories the dashboard
+ * chart shows. Deliberately simple substring sniffing, not a full UA
+ * parser library -- good enough for a breakdown chart, not for anything
+ * security- or billing-sensitive. */
+function deviceDistributionFrom(sessions: { userAgent: string | null }[]): { name: string; value: number }[] {
+  const counts: Record<string, number> = { iOS: 0, Android: 0, Windows: 0, macOS: 0, Linux: 0, Other: 0 };
+  for (const s of sessions) {
+    const ua = (s.userAgent ?? "").toLowerCase();
+    if (!ua) { counts.Other++; continue; }
+    if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) counts.iOS++;
+    else if (ua.includes("android")) counts.Android++;
+    else if (ua.includes("windows")) counts.Windows++;
+    else if (ua.includes("mac os") || ua.includes("macintosh")) counts.macOS++;
+    else if (ua.includes("linux")) counts.Linux++;
+    else counts.Other++;
+  }
+  return Object.entries(counts)
+    .filter(([, value]) => value > 0)
+    .map(([name, value]) => ({ name, value }));
 }
 
 function timeAgo(d: string): string {
@@ -84,42 +149,100 @@ export const customerService = {
     if (isDemo()) return DEMO_NAV;
     try {
       const { data } = await api.get<{ items: { id: string; label: string; module: string }[] }>("/dashboard/sidebar");
-      if (data?.items?.length) return data.items.map((i) => ({ id: i.id, label: i.label, module: i.module }));
-    } catch {}
-    return DEMO_NAV;
+      return data?.items?.map((i) => ({ id: i.id, label: i.label, module: i.module })) ?? [];
+    } catch {
+      return [];
+    }
   },
 
   /* ── Location Switcher ─────────────────────────────────── */
+  /**
+   * Was a sequential `for (org) { for (loc) { await router; await sessions } }`
+   * loop, where the per-location `routerService.list()` / `guestService.listSessions()`
+   * calls each *internally* re-fan-out across every organization just to
+   * resolve the one location's org id (see router.service.ts's
+   * `fetchAllLocations()`, guest.service.ts's `fanOutPerOrg()`) -- so every
+   * location cost O(orgs) extra requests on top of the O(orgs) already paid
+   * to list locations, and every one of those requests was awaited one at a
+   * time. With N orgs and L locations that's on the order of L*N sequential
+   * round trips, which is what produced the "stuck loading" bug as test orgs
+   * accumulated in the dev DB. Fixed by (1) fetching every org's locations in
+   * parallel, matching location.service.ts's own `fetchAllLocations()`
+   * `allSettled` pattern, and (2) enriching every location in parallel too,
+   * hitting `/locations/{id}/routers` and `/guest-sessions?location_id=` directly
+   * (org id is already known from step 1, so there's no need to re-resolve it)
+   * instead of going through routerService/guestService's expensive fan-out helpers.
+   */
   async listLocations(): Promise<CustomerLocationSummary[]> {
     if (isDemo()) return DEMO_LOCATIONS;
     try {
-      const { data: orgData } = await api.get<{ items: { id: string; name: string }[] }>("/organizations", { params: { page_size: 100 } });
-      const orgs = orgData?.items ?? [];
-      const results: CustomerLocationSummary[] = [];
-      for (const org of orgs) {
-        try {
-          const locs = await locationService.list({ organizationId: org.id, page: 1, pageSize: 50 });
-          for (const loc of (locs?.rows ?? [])) {
-            let routers: RouterDevice[] = [], sessions: GuestSession[] = [];
-            try { const r = await routerService.list({ locationId: loc.id, page: 1, pageSize: 100 }); routers = r.rows; } catch {}
-            try { const s = await guestService.listSessions({ locationId: loc.id, page: 1, pageSize: 50 }); sessions = s.rows; } catch {}
-            const onR = routers.filter((r) => r.status === "online").length;
-            const tR = routers.length || 1;
-            const active = sessions.filter((s) => s.status === "active").length;
-            results.push({
-              id: loc.id, name: loc.name, city: loc.city,
-              status: onR === 0 && tR > 0 ? "offline" : onR < tR ? "degraded" : "online",
-              onlineUsers: active, routerHealth: Math.round((onR / tR) * 100),
-              bandwidth: `${(sessions.reduce((s, se) => s + (se.bytesDownloaded || 0) + (se.bytesUploaded || 0), 0) / 1e6).toFixed(0)} MB`,
-              isp: "Active", lastSync: "Just now",
-              organizationId: org.id, organizationName: org.name,
-              routersTotal: routers.length, routersOnline: onR, sessionsActive: active, sessionsTotal: sessions.length,
-            });
-          }
-        } catch {}
-      }
-      return results.length > 0 ? results : DEMO_LOCATIONS;
-    } catch { return DEMO_LOCATIONS; }
+      // /organizations is the platform-wide admin listing -- an ordinary
+      // customer/org-owner session gets a 403 (no organizations.read at
+      // GLOBAL scope), which silently emptied this whole page. The login
+      // response already carries every org the session belongs to,
+      // including its name (persisted by AuthContext), so there's no need
+      // to re-fetch it at all -- and no membership-scoped equivalent of
+      // GET /organizations/{id} exists to fall back on (it also requires
+      // GLOBAL scope, same bug, different endpoint).
+      const stored = localStorage.getItem(ORGS_STORAGE_KEY);
+      const memberships: OrganizationMembership[] = stored ? JSON.parse(stored) : [];
+      const orgs = memberships.map((m) => ({ id: m.organizationId, name: m.organizationName }));
+
+      // Deliberately not locationService.list({ organizationId }) -- even
+      // with an organizationId given, it unconditionally calls the same
+      // GLOBAL-only fetchAllOrganizations() just to resolve a display name
+      // we already have from `orgs` above. Hitting the org-scoped endpoint
+      // directly avoids that call (and its 403) entirely.
+      const perOrg = await Promise.allSettled(
+        orgs.map(async (org) => {
+          const { data } = await api.get<{ items: RawLocationSummary[] }>(
+            `/organizations/${org.id}/locations`,
+            { params: { page_size: 50 }, headers: { "X-Organization-Id": org.id } },
+          );
+          return (data?.items ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
+        }),
+      );
+      const locOrgPairs = perOrg
+        .filter((r): r is PromiseFulfilledResult<{ loc: RawLocationSummary; orgId: string; orgName: string }[]> => r.status === "fulfilled")
+        .flatMap((r) => r.value);
+
+      const enriched = await Promise.allSettled(
+        locOrgPairs.map(async ({ loc, orgId, orgName }) => {
+          const [routersR, sessionsR] = await Promise.allSettled([
+            api.get<{ items: RawRouterStatus[] }>(`/locations/${loc.id}/routers`, {
+              params: { page_size: 100 },
+              headers: { "X-Organization-Id": orgId },
+            }),
+            api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
+              params: { location_id: loc.id, page_size: 50 },
+              headers: { "X-Organization-Id": orgId },
+            }),
+          ]);
+          const routers = routersR.status === "fulfilled" ? routersR.value.data?.items ?? [] : [];
+          const sessions = sessionsR.status === "fulfilled" ? sessionsR.value.data?.items ?? [] : [];
+          const onR = routers.filter((r) => r.status === "online").length;
+          const tR = routers.length || 1;
+          const active = sessions.filter((s) => s.status === "active").length;
+          const summary: CustomerLocationSummary = {
+            id: loc.id, name: loc.name, city: loc.city,
+            status: onR === 0 && tR > 0 ? "offline" : onR < tR ? "degraded" : "online",
+            onlineUsers: active, routerHealth: Math.round((onR / tR) * 100),
+            bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
+            isp: "Active", lastSync: "Just now",
+            organizationId: orgId, organizationName: orgName,
+            routersTotal: routers.length, routersOnline: onR, sessionsActive: active, sessionsTotal: sessions.length,
+          };
+          return summary;
+        }),
+      );
+      const results = enriched
+        .filter((r): r is PromiseFulfilledResult<CustomerLocationSummary> => r.status === "fulfilled")
+        .map((r) => r.value);
+
+      return results;
+    } catch {
+      return [];
+    }
   },
 
   /* ── Executive Dashboard ───────────────────────────────── */
@@ -135,29 +258,37 @@ export const customerService = {
         recentAlerts: [{ type: "warning" as const, msg: "Router GW-02 signal degradation", time: "2 min ago" }, { type: "success" as const, msg: "ISP failover completed", time: "8 min ago" }, { type: "error" as const, msg: "Bandwidth threshold at Mumbai HQ", time: "15 min ago" }, { type: "info" as const, msg: "Firmware update for GW-05", time: "22 min ago" }],
       };
     }
-    // Real API composition
+    // Real API composition. Deliberately not routerService.list()/
+    // guestService.listSessions() -- both unconditionally fan out across
+    // every organization (fetchAllLocations()/fanOutPerOrg(), the same
+    // GLOBAL-only pattern fixed in listLocations() above) even when given
+    // a specific locationId. Hitting the location-scoped endpoints
+    // directly, with the org id this session actually holds, avoids that
+    // 403 entirely.
+    const orgId = await resolveOrgId();
+    const orgHeaders = { headers: { "X-Organization-Id": orgId } };
     const [rR, sR, aR, hR] = await Promise.allSettled([
-      routerService.list({ locationId, page: 1, pageSize: 100 }),
-      guestService.listSessions({ locationId, page: 1, pageSize: 100 }),
-      api.get<{ items: { severity: string; title: string; created_at: string }[] }>("/alerts", { params: { page_size: 10 } }),
-      api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization"),
+      api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: { severity: string; title: string; created_at: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
+      api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization", orgHeaders),
     ]);
-    const routers = rR.status === "fulfilled" ? rR.value.rows : [];
-    const sessions = sR.status === "fulfilled" ? sR.value.rows : [];
+    const routers = rR.status === "fulfilled" ? rR.value.data?.items ?? [] : [];
+    const sessions = sR.status === "fulfilled" ? sR.value.data?.items ?? [] : [];
     const alerts = aR.status === "fulfilled" ? aR.value.data?.items ?? [] : [];
     const health = hR.status === "fulfilled" ? hR.value.data ?? null : null;
     const onR = routers.filter((r) => r.status === "online").length;
     const tR = routers.length || 1;
     const today = new Date().toISOString().slice(0, 10);
     const hourly = new Array(24).fill(0);
-    sessions.forEach((s) => { if (s.startedAt) hourly[new Date(s.startedAt).getHours()]++; });
+    sessions.forEach((s) => { if (s.started_at) hourly[new Date(s.started_at).getHours()]++; });
     return {
       health: { systemHealth: `${Math.round((onR / tR) * 100)}%`, routersOnline: `${onR}/${routers.length}`, isp: health ? "Active" : "Unknown", networkLoad: `${Math.min(100, Math.round(sessions.length / 5))}%` },
-      kpis: { onlineUsers: sessions.filter((s) => s.status === "active").length, activeSessions: sessions.length, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.startedAt?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytesDownloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.startedAt?.startsWith(today)).length, slaUptime: 99.9 },
-      usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c || Math.floor(Math.random() * 5) })),
-      deviceDistribution: [{ name: "iOS", value: 35 }, { name: "Android", value: 28 }, { name: "Windows", value: 18 }, { name: "macOS", value: 12 }, { name: "Linux", value: 5 }, { name: "Other", value: 2 }],
-      hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c || Math.floor(Math.random() * 10) })),
-      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: s.guestIdentifier || "Guest", email: s.guestIdentifier, device: s.deviceId ?? "", time: timeAgo(s.startedAt), status: s.status === "active" ? "online" as const : "offline" as const })),
+      kpis: { onlineUsers: sessions.filter((s) => s.status === "active").length, activeSessions: sessions.length, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length, slaUptime: 99.9 },
+      usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
+      deviceDistribution: deviceDistributionFrom(sessions.map((s) => ({ userAgent: s.user_agent ?? null }))),
+      hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
+      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: "Guest", email: "", device: s.device_id ?? "", time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const })),
       recentAlerts: alerts.slice(0, 5).map((a) => ({ type: a.severity === "critical" ? "error" as const : "warning" as const, msg: a.title, time: timeAgo(a.created_at) })),
     };
   },
@@ -176,15 +307,21 @@ export const customerService = {
       return { users: f.slice((page - 1) * pageSize, page * pageSize), total: f.length, page, pageSize };
     }
     try {
-      const res = await guestService.listSessions({ locationId, page, pageSize });
-      let users = res.rows.map((s) => ({
-        id: s.id, name: s.guestIdentifier || "Guest", email: s.guestIdentifier, device: s.deviceId ?? "", mac: s.deviceId ?? "",
-        ip: s.ipAddress ?? "", duration: s.startedAt && s.endedAt ? `${Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000)} min` : "Active",
-        download: `${Math.round((s.bytesDownloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
+      // Same GLOBAL-only fan-out this file's other real-data methods already
+      // route around -- see listLocations()/getDashboard()'s comments.
+      const orgId = await resolveOrgId();
+      const { data } = await api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
+        params: { location_id: locationId, page, page_size: pageSize },
+        headers: { "X-Organization-Id": orgId },
+      });
+      let users = (data?.items ?? []).map((s) => ({
+        id: s.id, name: "Guest", email: "", device: s.device_id ?? "", mac: s.device_id ?? "",
+        ip: s.ip_address ?? "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
+        download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
       }));
       if (search) { const q = search.toLowerCase(); users = users.filter((u) => u.name.toLowerCase().includes(q)); }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
-      return { users, total: res.total ?? users.length, page, pageSize };
+      return { users, total: data?.total_items ?? users.length, page, pageSize };
     } catch { return { users: [], total: 0, page, pageSize }; }
   },
 
@@ -227,6 +364,14 @@ export const customerService = {
           const { data } = await api.get<{ items: { mac_address: string; ip_address: string; hostname: string | null; connected_at: string; last_seen_at: string }[] }>("/connected-devices", { params: { location_id: locationId, page_size: 10 } }).catch(() => ({ data: { items: [] } }));
           return { devices: (data?.items ?? []).map((d) => ({ mac: d.mac_address, ip: d.ip_address, device: d.hostname ?? "Unknown", firstSeen: timeAgo(d.connected_at), lastSeen: timeAgo(d.last_seen_at) })) };
         }
+        case "mac-auth": {
+          const orgId = await resolveOrgId();
+          const { data } = await api.get<{ items: { id: string; mac_address: string; authorization_type: string; expires_at: string | null; comment: string | null; is_enabled: boolean }[] }>(
+            "/mac-authorization/entries",
+            { params: { location_id: locationId, page: 1, page_size: 50 }, headers: { "X-Organization-Id": orgId } },
+          );
+          return { macAuth: data.items.map((e) => ({ id: e.id, mac: e.mac_address, type: e.authorization_type, expiresAt: e.expires_at, comment: e.comment, enabled: e.is_enabled })) };
+        }
         default: return {};
       }
     } catch { return getDemoFeatureData(feature); }
@@ -243,6 +388,11 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
     case "portal": return { portal: { status: "Live", theme: "Enterprise Blue", authMethods: ["Email OTP", "SMS", "Voucher"], languages: ["EN", "HI", "AR"] } };
     case "audit": return { audit: [{ action: "Guest login via OTP", user: "guest@email.com", time: "2 min ago", status: "success" }, { action: "Voucher created", user: "reception", time: "18 min ago", status: "info" }, { action: "Router restart", user: "system", time: "1h ago", status: "success" }, { action: "Portal updated", user: "manager", time: "3h ago", status: "info" }] };
     case "devices": return { devices: [{ mac: "00:1A:2B:3C:4D:5E", ip: "10.0.1.42", device: "iPhone 15", firstSeen: "Today", lastSeen: "Just now" }, { mac: "AA:BB:CC:DD:EE:FF", ip: "10.0.1.87", device: "MacBook Pro", firstSeen: "Today", lastSeen: "2 min ago" }] };
+    case "mac-auth": return { macAuth: [
+      { id: "1", mac: "7C:70:DB:B5:76:92", type: "permanent", expiresAt: null, comment: "Front desk tablet", enabled: true },
+      { id: "2", mac: "9E:CB:12:2C:02:52", type: "temporary", expiresAt: new Date(Date.now() + 86400000 * 3).toISOString(), comment: "Contractor laptop", enabled: true },
+      { id: "3", mac: "C2:7C:20:00:F2:24", type: "permanent", expiresAt: null, comment: null, enabled: false },
+    ] };
     default: return {};
   }
 }

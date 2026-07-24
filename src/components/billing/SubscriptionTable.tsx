@@ -33,11 +33,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { PaymentStatusBadge, SubscriptionStatusBadge } from "./BillingBadges";
-import { useCancelSubscription, useDowngradeSubscription, useUpgradeSubscription } from "@/hooks/useBilling";
+import { useCancelSubscription, useDowngradeSubscription, useSetAutoRenew, useUpgradeSubscription } from "@/hooks/useBilling";
 import type { Subscription, SubscriptionStatus } from "@/types/billing";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+function daysUntil(iso: string) {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+}
 
 interface Props {
   data?: Subscription[];
@@ -61,6 +68,7 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
   const cancel = useCancelSubscription();
   const upgrade = useUpgradeSubscription();
   const downgrade = useDowngradeSubscription();
+  const setAutoRenew = useSetAutoRenew();
 
   const filtered = useMemo(() => {
     let rows = data ?? [];
@@ -180,7 +188,7 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
                     <TableHead>Cycle</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => toggleSort("startDate")}>Start</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => toggleSort("renewalDate")}>Renewal</TableHead>
-                    <TableHead>Expiry</TableHead>
+                    <TableHead>Expires in</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right cursor-pointer" onClick={() => toggleSort("amount")}>Amount</TableHead>
                     <TableHead className="text-center">Auto</TableHead>
@@ -189,18 +197,38 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paged.map((s) => (
-                    <TableRow key={s.id} className="hover:bg-muted/50">
+                  {paged.map((s) => {
+                    const days = daysUntil(s.expiryDate);
+                    const expiringSoon = s.status === "active" && days <= 14;
+                    return (
+                    <TableRow key={s.id} className={cn("hover:bg-muted/50", expiringSoon && "bg-amber-500/5")}>
                       <TableCell className="font-medium">{s.organizationName}</TableCell>
                       <TableCell>{s.planName}</TableCell>
                       <TableCell className="capitalize">{s.billingCycle}</TableCell>
                       <TableCell>{dateFmt.format(new Date(s.startDate))}</TableCell>
                       <TableCell>{dateFmt.format(new Date(s.renewalDate))}</TableCell>
-                      <TableCell>{dateFmt.format(new Date(s.expiryDate))}</TableCell>
+                      <TableCell>
+                        {expiringSoon ? (
+                          <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-600">
+                            <AlertTriangle className="mr-1 h-3 w-3" /> {days <= 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">{dateFmt.format(new Date(s.expiryDate))}</span>
+                        )}
+                      </TableCell>
                       <TableCell><SubscriptionStatusBadge status={s.status} /></TableCell>
                       <TableCell className="text-right">{money.format(s.amount)}</TableCell>
                       <TableCell className="text-center">
-                        <Switch checked={s.autoRenewal} onCheckedChange={() => toast.info("Auto renewal updated")} />
+                        <Switch
+                          checked={s.autoRenewal}
+                          disabled={setAutoRenew.isPending}
+                          onCheckedChange={(v) =>
+                            setAutoRenew.mutate(
+                              { id: s.id, autoRenew: v },
+                              { onSuccess: () => toast.success(v ? "Auto-renewal enabled" : "Auto-renewal disabled"), onError: () => toast.error("Could not update auto-renewal") },
+                            )
+                          }
+                        />
                       </TableCell>
                       <TableCell><PaymentStatusBadge status={s.paymentStatus} /></TableCell>
                       <TableCell>
@@ -223,7 +251,7 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );})}
                 </TableBody>
               </Table>
             </div>

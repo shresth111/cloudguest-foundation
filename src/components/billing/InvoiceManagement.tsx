@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { Download, FileText, Mail, Printer } from "lucide-react";
+import { Download, FileText, Loader2, Printer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,8 +10,9 @@ import { PaymentStatusBadge, InvoiceTypeLabel } from "./BillingBadges";
 import type { Invoice } from "@/types/billing";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useDownloadInvoice } from "@/hooks/useBilling";
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 interface Props {
@@ -23,6 +24,23 @@ interface Props {
 
 export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) {
   const [previewing, setPreviewing] = useState<Invoice | null>(null);
+  const download = useDownloadInvoice();
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  function handleDownload(inv: Invoice) {
+    setDownloadingId(inv.id);
+    download.mutate(inv.id, {
+      onSuccess: ({ url, fileName }) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        toast.success(`Downloading ${inv.invoiceNumber} (GST invoice PDF)`);
+      },
+      onError: () => toast.error("Could not download the invoice PDF."),
+      onSettled: () => setDownloadingId(null),
+    });
+  }
 
   return (
     <>
@@ -30,11 +48,8 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle className="text-base">Invoices</CardTitle>
-            <p className="text-xs text-muted-foreground">Tax invoices, credit and debit notes.</p>
+            <p className="text-xs text-muted-foreground">GST tax invoices, credit and debit notes. Generated automatically each billing cycle.</p>
           </div>
-          <Button size="sm" onClick={() => toast.success("Generated new invoice")}>
-            <FileText className="mr-1.5 h-4 w-4" /> Generate invoice
-          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoading ? (
@@ -51,13 +66,13 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
                     <TableHead>Invoice #</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">Tax</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                    <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Issued</TableHead>
                     <TableHead>Due</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-40" />
+                    <TableHead className="w-24" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -74,10 +89,17 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
                       <TableCell><PaymentStatusBadge status={i.status} /></TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setPreviewing(i)}><FileText className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.success("Download started")}><Download className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.success("Print sent")}><Printer className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.success("Invoice emailed")}><Mail className="h-3.5 w-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setPreviewing(i)} title="Preview"><FileText className="h-3.5 w-3.5" /></Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            disabled={downloadingId === i.id}
+                            onClick={() => handleDownload(i)}
+                            title="Download GST invoice PDF"
+                          >
+                            {downloadingId === i.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -116,14 +138,19 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
               </div>
               <div className="mt-6 space-y-1 text-sm">
                 <div className="flex justify-between"><span>Subtotal</span><span>{money.format(previewing.amount)}</span></div>
-                <div className="flex justify-between"><span>Tax</span><span>{money.format(previewing.tax)}</span></div>
+                <div className="flex justify-between"><span>GST</span><span>{money.format(previewing.tax)}</span></div>
                 <div className="flex justify-between border-t pt-2 font-semibold"><span>Total</span><span>{money.format(previewing.total)}</span></div>
               </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                The downloaded PDF shows the full CGST/SGST/IGST split per the buyer's billing state.
+              </p>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => toast.success("Print sent")}><Printer className="mr-1.5 h-4 w-4" /> Print</Button>
-            <Button onClick={() => toast.success("Downloaded PDF")}><Download className="mr-1.5 h-4 w-4" /> Download PDF</Button>
+            <Button variant="outline" onClick={() => window.print()}><Printer className="mr-1.5 h-4 w-4" /> Print</Button>
+            <Button disabled={!!downloadingId} onClick={() => previewing && handleDownload(previewing)}>
+              {downloadingId === previewing?.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Download PDF
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

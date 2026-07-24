@@ -74,6 +74,7 @@ interface BackendGuestSession {
   data_limit_mb: number | null;
   session_timeout_minutes: number | null;
   disconnect_reason: string | null;
+  user_agent: string | null;
   created_at: string;
 }
 
@@ -172,6 +173,7 @@ function toGuestSession(
     guestId: s.guest_id,
     guestIdentifier: "",
     deviceId: s.device_id,
+    userAgent: s.user_agent,
     routerId: s.router_id,
     routerName,
     locationId: s.location_id,

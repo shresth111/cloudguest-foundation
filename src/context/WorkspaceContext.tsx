@@ -69,12 +69,42 @@ interface BackendLocationList {
   items: BackendLocation[];
 }
 
+interface BackendSubscription {
+  status: string;
+  billing_cycle: string;
+  current_period_end: string;
+}
+
+const SUBSCRIPTION_STATUS_MAP: Record<string, ExistingCustomer["subscription"]["status"]> = {
+  trialing: "trial",
+  active: "active",
+  past_due: "active", // grace period -- License stays usable, see renewal_service.py
+  paused: "expired",
+  cancelled: "expired",
+};
+
+// GET /subscriptions/{organization_id} -- real, org-scoped (subscriptions.read,
+// which both Organization Owner/Admin hold). Tolerant of failure: an
+// organization with no subscription row yet (or a caller who somehow lacks
+// even read access) falls back to the org-status-derived guess below rather
+// than breaking the whole workspace query.
+async function fetchOrgSubscription(organizationId: string): Promise<BackendSubscription | null> {
+  try {
+    const { data } = await api.get<BackendSubscription>(`/subscriptions/${organizationId}`, {
+      headers: { "X-Organization-Id": organizationId },
+    });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchActiveCustomer(
   organizationId: string,
   isPrimaryContact: boolean,
   currentUser: { name: string; email: string },
 ): Promise<ExistingCustomer> {
-  const [{ data: org }, { data: locationList }] = await Promise.all([
+  const [{ data: org }, { data: locationList }, subscription] = await Promise.all([
     api.get<BackendOrganization>(`/organizations/${organizationId}`, {
       headers: { "X-Organization-Id": organizationId },
     }),
@@ -82,6 +112,7 @@ async function fetchActiveCustomer(
       params: { page_size: 100 },
       headers: { "X-Organization-Id": organizationId },
     }),
+    fetchOrgSubscription(organizationId),
   ]);
 
   const locations = locationList.items.map((loc) => ({
@@ -100,12 +131,24 @@ async function fetchActiveCustomer(
     organizationId: org.id,
     organizationName: org.name,
     subscription: {
-      // Real field where available (`subscription_tier`); billing cycle/expiry
-      // have no backend source yet — the Billing domain isn't wired here.
+      // `plan` still reads the organization's own `subscription_tier`
+      // field. `billingCycle`/`status`/`expiryDate` now come from the real
+      // Billing domain (GET /subscriptions/{organization_id}) when a
+      // subscription row exists; otherwise fall back to the org-status-only
+      // guess this always used before that endpoint was wired here.
       plan: (org.subscription_tier as ExistingCustomer["subscription"]["plan"]) || "trial",
-      billingCycle: "yearly",
-      status: status === "suspended" ? "expired" : status,
-      expiryDate: "",
+      billingCycle: subscription
+        ? subscription.billing_cycle === "yearly"
+          ? "yearly"
+          : "monthly"
+        : "yearly",
+      status: subscription
+        ? (SUBSCRIPTION_STATUS_MAP[subscription.status] ??
+          (status === "suspended" ? "expired" : status))
+        : status === "suspended"
+          ? "expired"
+          : status,
+      expiryDate: subscription?.current_period_end ?? "",
     },
     owner: {
       name: isPrimaryContact ? currentUser.name : "",

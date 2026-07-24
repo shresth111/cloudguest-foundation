@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Eye, Mail, MoreHorizontal, RotateCcw, Search } from "lucide-react";
+import { MoreHorizontal, RotateCcw, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { useRefundPayment } from "@/hooks/useBilling";
 import type { Payment, PaymentGateway, PaymentStatus } from "@/types/billing";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 interface Props {
@@ -123,10 +123,6 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
                             <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => toast.info(`Viewing invoice ${p.invoiceNumber}`)}><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => toast.success(`Downloading ${p.invoiceNumber}`)}><Download className="mr-2 h-4 w-4" /> Download invoice</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => toast.success(`Invoice emailed to ${p.organizationName}`)}><Mail className="mr-2 h-4 w-4" /> Resend invoice</DropdownMenuItem>
-                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive"
                               disabled={p.status === "refunded"}
@@ -150,7 +146,7 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
         open={!!refunding}
         onOpenChange={(o) => !o && setRefunding(null)}
         title="Refund this payment?"
-        description={`Refund ${refunding ? money.format(refunding.amount) : ""} to ${refunding?.organizationName}. This is a mock action.`}
+        description={`Refund ${refunding ? money.format(refunding.amount) : ""} to ${refunding?.organizationName}. This calls the payment gateway's real refund API and cannot be undone.`}
         confirmLabel="Issue refund"
         destructive
         onConfirm={() => {

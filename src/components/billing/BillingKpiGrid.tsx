@@ -23,7 +23,7 @@ interface Props {
   onRetry?: () => void;
 }
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const fmt = new Intl.NumberFormat();
 
 const toneClass = {

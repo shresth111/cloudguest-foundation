@@ -60,6 +60,9 @@ export function PaymentGatewaysPanel({ data, isLoading, isError, onRetry }: Prop
                   onCheckedChange={() => toggle.mutate(g.id, { onSuccess: () => toast.success(`${g.name} ${g.connected ? "disabled" : "enabled"}`) })}
                 />
               </div>
+              {/* No per-gateway settings/config entity exists on the backend either
+                  (PaymentProvider is just a per-payment string field, see
+                  billingService.toggleGateway's own comment) -- kept mocked. */}
               <Button variant="outline" size="sm" className="w-full" onClick={() => toast.info(`${g.name} settings opened`)}>Configure</Button>
             </CardContent>
           </Card>

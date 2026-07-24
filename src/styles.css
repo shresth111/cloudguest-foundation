@@ -47,22 +47,29 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.04), 0 4px 12px oklch(0 0 0 / 0.04);
-  --shadow-elevated: 0 1px 2px oklch(0 0 0 / 0.06), 0 8px 24px oklch(0 0 0 / 0.08);
-  --shadow-glow: 0 0 0 1px oklch(0.52 0.18 265 / 0.08), 0 20px 40px -20px oklch(0.52 0.18 265 / 0.35);
-  --shadow-ring: 0 0 0 1px oklch(0.52 0.18 265 / 0.14), 0 12px 32px -18px oklch(0.52 0.18 265 / 0.35);
-  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.18 265), oklch(0.62 0.2 250));
-  --gradient-mesh: radial-gradient(1200px 500px at 10% -10%, oklch(0.62 0.2 250 / 0.12), transparent 60%),
-                   radial-gradient(900px 400px at 100% 0%, oklch(0.7 0.16 190 / 0.10), transparent 60%);
-  --gradient-accent: linear-gradient(135deg, oklch(0.7 0.16 190), oklch(0.62 0.2 250));
+  /* Brand: electric cyan/teal -- the ownable "Aurora" accent used for
+   * glows, active states, hero gradients and chart-1. Distinct from
+   * --primary (a deeper, text-safe teal) so bright cyan never has to
+   * carry white body text. */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --shadow-soft: 0 1px 2px oklch(0.2 0.03 235 / 0.05), 0 4px 14px oklch(0.2 0.03 235 / 0.05);
+  --shadow-elevated: 0 1px 2px oklch(0.2 0.03 235 / 0.06), 0 10px 28px -6px oklch(0.2 0.03 235 / 0.1);
+  --shadow-glow: 0 0 0 1px oklch(0.62 0.14 200 / 0.1), 0 18px 40px -20px oklch(0.6 0.15 195 / 0.4);
+  --shadow-ring: 0 0 0 1px oklch(0.6 0.13 200 / 0.16), 0 12px 32px -18px oklch(0.6 0.15 195 / 0.4);
+  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.12 208), oklch(0.68 0.15 190));
+  --gradient-mesh: radial-gradient(1100px 520px at 8% -12%, oklch(0.66 0.14 192 / 0.14), transparent 62%),
+                   radial-gradient(880px 420px at 102% 4%, oklch(0.58 0.14 245 / 0.1), transparent 60%);
+  --gradient-brand: linear-gradient(135deg, oklch(0.7 0.15 190), oklch(0.55 0.13 210) 55%, oklch(0.5 0.14 250));
+  --gradient-accent: linear-gradient(135deg, oklch(0.72 0.15 188), oklch(0.56 0.13 240));
   --gradient-success: linear-gradient(135deg, oklch(0.72 0.15 155), oklch(0.7 0.14 175));
   --gradient-warning: linear-gradient(135deg, oklch(0.78 0.17 70), oklch(0.7 0.19 40));
   --gradient-danger: linear-gradient(135deg, oklch(0.68 0.22 20), oklch(0.6 0.22 355));
-  --color-success: oklch(0.65 0.16 155);
+  --color-success: oklch(0.64 0.15 158);
   --color-success-foreground: oklch(0.99 0.003 250);
   --color-warning: oklch(0.75 0.16 70);
   --color-warning-foreground: oklch(0.2 0.02 260);
-  --color-info: oklch(0.65 0.15 220);
+  --color-info: oklch(0.62 0.13 220);
   --color-info-foreground: oklch(0.99 0.003 250);
   --ease-emphasized: cubic-bezier(0.2, 0.9, 0.15, 1);
   --dur-fast: 140ms;
@@ -73,73 +80,80 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.995 0.002 250);
-  --foreground: oklch(0.18 0.02 260);
+  --background: oklch(0.984 0.005 220);
+  --foreground: oklch(0.22 0.03 235);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 260);
+  --card-foreground: oklch(0.22 0.03 235);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 260);
-  --primary: oklch(0.52 0.18 265);
-  --primary-foreground: oklch(0.99 0.003 250);
-  --secondary: oklch(0.97 0.008 255);
-  --secondary-foreground: oklch(0.22 0.03 260);
-  --muted: oklch(0.965 0.006 255);
-  --muted-foreground: oklch(0.5 0.02 258);
-  --accent: oklch(0.955 0.015 260);
-  --accent-foreground: oklch(0.22 0.03 260);
-  --destructive: oklch(0.6 0.22 27);
-  --destructive-foreground: oklch(0.99 0.003 250);
-  --border: oklch(0.92 0.008 255);
-  --input: oklch(0.94 0.008 255);
-  --ring: oklch(0.52 0.18 265);
-  --chart-1: oklch(0.52 0.18 265);
-  --chart-2: oklch(0.65 0.15 190);
-  --chart-3: oklch(0.7 0.16 145);
-  --chart-4: oklch(0.75 0.17 70);
-  --chart-5: oklch(0.65 0.2 20);
-  --sidebar: oklch(0.985 0.004 255);
-  --sidebar-foreground: oklch(0.22 0.02 260);
-  --sidebar-primary: oklch(0.52 0.18 265);
-  --sidebar-primary-foreground: oklch(0.99 0.003 250);
-  --sidebar-accent: oklch(0.955 0.012 260);
-  --sidebar-accent-foreground: oklch(0.22 0.03 260);
-  --sidebar-border: oklch(0.92 0.008 255);
-  --sidebar-ring: oklch(0.52 0.18 265);
+  --popover-foreground: oklch(0.22 0.03 235);
+  /* Deep, text-safe teal -- white sits on it cleanly for buttons & links. */
+  --primary: oklch(0.52 0.115 208);
+  --primary-foreground: oklch(0.99 0.01 200);
+  --secondary: oklch(0.955 0.012 216);
+  --secondary-foreground: oklch(0.26 0.03 232);
+  --muted: oklch(0.962 0.008 218);
+  --muted-foreground: oklch(0.5 0.025 230);
+  --accent: oklch(0.945 0.022 202);
+  --accent-foreground: oklch(0.3 0.06 210);
+  --destructive: oklch(0.58 0.21 25);
+  --destructive-foreground: oklch(0.99 0.005 250);
+  --border: oklch(0.905 0.012 220);
+  --input: oklch(0.925 0.012 220);
+  --ring: oklch(0.58 0.12 205);
+  /* Bright cyan brand accent (glows, active rail, chart-1 highlights). */
+  --brand: oklch(0.68 0.15 192);
+  --brand-foreground: oklch(0.16 0.03 232);
+  --chart-1: oklch(0.58 0.13 205);
+  --chart-2: oklch(0.7 0.14 189);
+  --chart-3: oklch(0.55 0.15 250);
+  --chart-4: oklch(0.72 0.15 145);
+  --chart-5: oklch(0.75 0.15 70);
+  /* Signature dark teal-navy brand rail against the light content canvas. */
+  --sidebar: oklch(0.235 0.035 232);
+  --sidebar-foreground: oklch(0.85 0.018 218);
+  --sidebar-primary: oklch(0.7 0.14 194);
+  --sidebar-primary-foreground: oklch(0.16 0.03 232);
+  --sidebar-accent: oklch(0.31 0.04 226);
+  --sidebar-accent-foreground: oklch(0.98 0.012 200);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.7 0.14 194);
 }
 
 .dark {
-  --background: oklch(0.16 0.015 260);
-  --foreground: oklch(0.97 0.005 255);
-  --card: oklch(0.2 0.018 262);
-  --card-foreground: oklch(0.97 0.005 255);
-  --popover: oklch(0.2 0.018 262);
-  --popover-foreground: oklch(0.97 0.005 255);
-  --primary: oklch(0.68 0.17 265);
-  --primary-foreground: oklch(0.16 0.015 260);
-  --secondary: oklch(0.26 0.02 262);
-  --secondary-foreground: oklch(0.97 0.005 255);
-  --muted: oklch(0.24 0.018 262);
-  --muted-foreground: oklch(0.68 0.02 258);
-  --accent: oklch(0.28 0.03 265);
-  --accent-foreground: oklch(0.97 0.005 255);
-  --destructive: oklch(0.7 0.19 22);
-  --destructive-foreground: oklch(0.99 0.003 250);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.68 0.17 265);
-  --chart-1: oklch(0.68 0.17 265);
-  --chart-2: oklch(0.72 0.15 190);
-  --chart-3: oklch(0.75 0.16 145);
-  --chart-4: oklch(0.78 0.17 70);
-  --chart-5: oklch(0.72 0.2 20);
-  --sidebar: oklch(0.18 0.016 260);
-  --sidebar-foreground: oklch(0.95 0.005 255);
-  --sidebar-primary: oklch(0.68 0.17 265);
-  --sidebar-primary-foreground: oklch(0.16 0.015 260);
-  --sidebar-accent: oklch(0.26 0.02 262);
-  --sidebar-accent-foreground: oklch(0.97 0.005 255);
+  --background: oklch(0.17 0.02 236);
+  --foreground: oklch(0.96 0.008 220);
+  --card: oklch(0.212 0.025 236);
+  --card-foreground: oklch(0.96 0.008 220);
+  --popover: oklch(0.212 0.025 236);
+  --popover-foreground: oklch(0.96 0.008 220);
+  --primary: oklch(0.74 0.13 197);
+  --primary-foreground: oklch(0.15 0.02 236);
+  --secondary: oklch(0.27 0.03 234);
+  --secondary-foreground: oklch(0.96 0.008 220);
+  --muted: oklch(0.25 0.025 234);
+  --muted-foreground: oklch(0.7 0.022 222);
+  --accent: oklch(0.3 0.05 206);
+  --accent-foreground: oklch(0.96 0.01 200);
+  --destructive: oklch(0.68 0.19 22);
+  --destructive-foreground: oklch(0.99 0.005 250);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.74 0.13 197);
+  --brand: oklch(0.74 0.14 193);
+  --brand-foreground: oklch(0.15 0.02 236);
+  --chart-1: oklch(0.72 0.14 196);
+  --chart-2: oklch(0.76 0.13 186);
+  --chart-3: oklch(0.66 0.15 250);
+  --chart-4: oklch(0.76 0.15 145);
+  --chart-5: oklch(0.78 0.15 70);
+  --sidebar: oklch(0.148 0.024 236);
+  --sidebar-foreground: oklch(0.88 0.012 220);
+  --sidebar-primary: oklch(0.74 0.14 194);
+  --sidebar-primary-foreground: oklch(0.15 0.02 236);
+  --sidebar-accent: oklch(0.26 0.032 232);
+  --sidebar-accent-foreground: oklch(0.98 0.012 200);
   --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.68 0.17 265);
+  --sidebar-ring: oklch(0.74 0.14 194);
 }
 
 /**
@@ -153,6 +167,11 @@
  * this class wins regardless of whether .dark is also present.
  */
 .workspace-theme {
+  /* `color` is inherited, and the base layer already resolved it once at
+   * <body> using :root's foreground -- redeclare it here so descendants
+   * that rely on inherited color (no explicit text-* class) pick up this
+   * scope's --foreground instead of leaking the page-level one. */
+  color: var(--foreground);
   --background: oklch(0.14 0.035 258);
   --foreground: oklch(0.97 0.01 240);
   --card: oklch(0.19 0.04 258);
@@ -250,6 +269,79 @@
   color-scheme: dark;
 }
 
+/**
+ * Master (Super Admin) theme -- Clean Enterprise: Inter throughout, a
+ * blue/indigo brand (#2a78d6, from the shared sequential blue ramp) on a
+ * near-white slate canvas, soft rounded corners and subtle 1px borders --
+ * a Stripe/Linear-like operator console. Applied to /master/* via
+ * MasterShell, independent of the light/dark toggle. Every Tailwind
+ * utility bound to the theme vars (bg-primary, bg-card, border-border,
+ * bg-sidebar, ...) re-themes automatically.
+ */
+.master-theme {
+  color: var(--foreground);
+  --radius: 0.625rem;
+  --background: oklch(0.981 0.004 255);
+  --foreground: oklch(0.21 0.03 258);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.03 258);
+  --primary: oklch(0.52 0.19 260);
+  --primary-foreground: oklch(0.99 0.002 255);
+  --secondary: oklch(0.955 0.008 258);
+  --secondary-foreground: oklch(0.28 0.03 258);
+  --muted: oklch(0.96 0.006 258);
+  --muted-foreground: oklch(0.5 0.02 258);
+  --accent: oklch(0.93 0.03 258);
+  --accent-foreground: oklch(0.32 0.09 260);
+  --destructive: oklch(0.55 0.19 25);
+  --destructive-foreground: oklch(0.99 0.002 255);
+  --border: oklch(0.9 0.008 258);
+  --input: oklch(0.9 0.008 258);
+  --ring: oklch(0.52 0.19 260);
+  --brand: oklch(0.52 0.19 260);
+  --brand-foreground: oklch(0.99 0.002 255);
+  --chart-1: oklch(0.52 0.19 260);
+  --chart-2: oklch(0.68 0.12 258);
+  --chart-3: oklch(0.36 0.13 262);
+  --chart-4: oklch(0.8 0.06 256);
+  --chart-5: oklch(0.28 0.1 264);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.26 0.03 258);
+  --sidebar-primary: oklch(0.52 0.19 260);
+  --sidebar-primary-foreground: oklch(0.99 0.002 255);
+  --sidebar-accent: oklch(0.955 0.008 258);
+  --sidebar-accent-foreground: oklch(0.21 0.03 258);
+  --sidebar-border: oklch(0.92 0.008 258);
+  --sidebar-ring: oklch(0.52 0.19 260);
+}
+.master-theme.dark,
+.master-theme .dark {
+  --background: oklch(0.19 0.02 258);
+  --foreground: oklch(0.92 0.006 258);
+  --card: oklch(0.23 0.02 258);
+  --card-foreground: oklch(0.92 0.006 258);
+  --popover: oklch(0.23 0.02 258);
+  --popover-foreground: oklch(0.92 0.006 258);
+  --primary: oklch(0.64 0.17 260);
+  --primary-foreground: oklch(0.99 0.002 255);
+  --secondary: oklch(0.28 0.02 258);
+  --secondary-foreground: oklch(0.92 0.006 258);
+  --muted: oklch(0.28 0.02 258);
+  --muted-foreground: oklch(0.65 0.015 258);
+  --accent: oklch(0.3 0.05 260);
+  --accent-foreground: oklch(0.9 0.03 258);
+  --border: oklch(0.32 0.02 258);
+  --input: oklch(0.32 0.02 258);
+  --sidebar: oklch(0.16 0.018 258);
+  --sidebar-foreground: oklch(0.86 0.006 258);
+  --sidebar-accent: oklch(0.26 0.02 258);
+  --sidebar-accent-foreground: oklch(0.92 0.006 258);
+  --sidebar-border: oklch(0.3 0.02 258);
+  color-scheme: dark;
+}
+
 /** Opt-in glow effect for primary CTA buttons within the workspace theme --
  * a deliberate accent, not applied to every button, matching VerbaFlo's
  * treatment of its own primary CTAs. */
@@ -259,9 +351,20 @@
 }
 .btn-glow:hover {
   box-shadow:
-    0 0 0 1px oklch(0.78 0.16 220 / 0.35),
-    0 24px 48px -16px oklch(0.78 0.16 220 / 0.65);
+    0 0 0 1px oklch(0.7 0.15 194 / 0.4),
+    0 24px 48px -16px oklch(0.66 0.16 192 / 0.6);
   transform: translateY(-1px);
+}
+
+/* Brand rail: faint top-down sheen + inner hairline so the dark sidebar
+ * reads as a crafted surface rather than a flat block. Scoped to the
+ * shadcn sidebar shell via its data attribute. */
+[data-sidebar="sidebar"] {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--color-brand) 8%, transparent),
+    transparent 22%
+  );
 }
 
 @layer base {
@@ -301,6 +404,49 @@
     background: color-mix(in oklab, var(--color-foreground) 25%, transparent);
     background-clip: padding-box;
     border: 2px solid transparent;
+  }
+}
+
+/**
+ * Sign-in page aurora motion: slow, organic blob drift + a gentle grid pan
+ * and float for decorative badges. Kept to transform/background-position
+ * only (no layout thrash) and fully disabled under reduced-motion.
+ */
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translate(-4%, -6%) scale(1); }
+  50% { transform: translate(6%, 8%) scale(1.18); }
+}
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translate(4%, 4%) scale(1); }
+  50% { transform: translate(-8%, -5%) scale(1.12); }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translate(0, 6%) scale(1); }
+  50% { transform: translate(7%, -8%) scale(1.08); }
+}
+@keyframes grid-pan {
+  0% { background-position: 0 0; }
+  100% { background-position: 48px 48px; }
+}
+@keyframes float-badge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+.aurora-blob-1 { animation: aurora-drift-1 22s ease-in-out infinite; }
+.aurora-blob-2 { animation: aurora-drift-2 26s ease-in-out infinite; }
+.aurora-blob-3 { animation: aurora-drift-3 19s ease-in-out infinite; }
+.aurora-grid { animation: grid-pan 14s linear infinite; }
+.float-badge { animation: float-badge 6s ease-in-out infinite; }
+.glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse {
+    animation: none !important;
   }
 }
 

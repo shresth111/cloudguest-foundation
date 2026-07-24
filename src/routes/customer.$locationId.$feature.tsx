@@ -19,24 +19,112 @@ import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
-import { TeamsPage, NetworkingPage, AdvancedPage } from "@/components/features/FeatureComponents";
+import { AdvancedPage } from "@/components/features/FeatureComponents";
+import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import LocationPolicies from "@/components/features/LocationPolicies";
 import BlockUsers from "@/components/features/BlockUsers";
 import CreateGroup from "@/components/features/CreateGroup";
 import UserReports from "@/components/features/UserReports";
 import SmartIdPage from "@/components/features/SmartIdPage";
-import ManageAlerts from "@/components/features/ManageAlerts";
-import { IspDetailsPage, TopUpDataPage, BusinessHoursPage, NotificationPage, AuditLogPage, AdminLogsPage,
-  MacAuthorizationPage, PortForwardingPage, DhcpPoolPage, VlanManagementPage, VoipPriorityPage, IspRoutingPage,
-  DebuggingToolsPage, HotspotSettingsPage, RaasDashboardPage, RaasManageUsersPage, RaasReportsPage } from "@/components/features/MissingModules";
+import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
+import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
+import AssistantWidget from "@/components/features/AssistantWidget";
+import TicketsPage from "@/components/features/TicketsPage";
+import BrandAssetPage from "@/components/features/BrandAssetPage";
+import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
+import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton } from "@/components/features/HeaderControls";
+import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import {
+  AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
+  AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
+  IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
+} from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
-  ArrowLeft, LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, BarChart3, FileText, Megaphone, Palette, Ticket,
+  LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, FileText, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
-  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, Eye,
+  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, KeyRound, MapPinned,
+  Clock, Server, Globe, Terminal, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
 } from "lucide-react";
-import { CUSTOMER_NAVS, getCustomerLoginRole } from "@/lib/customerNav";
+
+type NavRole = "owner" | "agent";
+interface NavItemDef { id: string; label: string; icon: React.ComponentType<{ className?: string }>; roles: NavRole[] }
+interface NavGroupDef { group: string; items: NavItemDef[] }
+
+// Full customer feature set, provisioned per location from the super
+// dashboard and gated by the signed-in role (owner sees all, agent a
+// read/operate subset). Grouped for scanability at 30+ items.
+const NAV_GROUPS: NavGroupDef[] = [
+  {
+    group: "Overview",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
+      { id: "users", label: "Users", icon: Users, roles: ["owner", "agent"] },
+      { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
+      { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
+    ],
+  },
+  {
+    group: "Engagement",
+    items: [
+      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
+      { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
+      { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
+    ],
+  },
+  {
+    group: "Access & Policy",
+    items: [
+      { id: "policies", label: "Policies", icon: ShieldCheck, roles: ["owner"] },
+      { id: "whitelist", label: "Whitelist", icon: Shield, roles: ["owner"] },
+      { id: "mac-auth", label: "MAC Auth", icon: Fingerprint, roles: ["owner"] },
+      { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
+      { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Devices & Team",
+    items: [
+      { id: "devices", label: "Devices", icon: Monitor, roles: ["owner", "agent"] },
+      { id: "teams", label: "Teams", icon: UsersRound, roles: ["owner"] },
+      { id: "agents", label: "Agents", icon: Bot, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Network",
+    items: [
+      { id: "hotspot", label: "Hotspot", icon: Wifi, roles: ["owner"] },
+      { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
+      { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
+      { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
+      { id: "voip", label: "VOIP Priority", icon: Signal, roles: ["owner"] },
+      { id: "isp-routing", label: "ISP Routing", icon: ArrowRightLeft, roles: ["owner"] },
+      { id: "isp-details", label: "ISP Details", icon: Globe, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Operations",
+    items: [
+      { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
+      { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
+      { id: "debugging", label: "Debugging", icon: Terminal, roles: ["owner"] },
+    ],
+  },
+  {
+    group: "Support & Logs",
+    items: [
+      { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
+      { id: "audit", label: "Audit Log", icon: ScrollText, roles: ["owner", "agent"] },
+      { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner", "agent"] },
+    ],
+  },
+];
+
+const ALL_NAV_ITEMS: NavItemDef[] = NAV_GROUPS.flatMap((g) => g.items);
+
+function getRole(): string { if (typeof window === "undefined") return "owner"; return localStorage.getItem("cg_login_role") || "owner"; }
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
 
@@ -48,24 +136,42 @@ function FeaturePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
-  const loginRole = getCustomerLoginRole();
+  const loginRole = getRole();
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [notif, setNotif] = useState(false);
+  const [masked, setMasked] = useState(true);
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [tfaOpen, setTfaOpen] = useState(false);
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
 
-  const filteredNavs = CUSTOMER_NAVS.filter(n => n.roles.includes(loginRole));
+  const role = (loginRole === "agent" ? "agent" : "owner") as NavRole;
+  const navGroups = NAV_GROUPS
+    .map((g) => ({ group: g.group, items: g.items.filter((n) => n.roles.includes(role)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="flex min-h-screen bg-muted/30">
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
       <aside className={cn("fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto", sidebar ? "w-60" : "w-0 lg:w-16 overflow-hidden", mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
-        <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm"><Wifi className="h-4 w-4" /></div>{sidebar && <div><p className="text-sm font-semibold">BhaiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? feature}</p></div>}</div>
-        <div className="px-2 pt-2"><button onClick={() => navigate({ to: "/customer" })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"><ArrowLeft className="h-3.5 w-3.5" />{sidebar && <span>Locations</span>}</button></div>
-        <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">{filteredNavs.map(item => (
-          <button key={item.id} onClick={() => handleNav(item.id)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm w-full text-left transition-all", item.id === feature ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>{sidebar && <span className="truncate">{item.label}</span>}</button>
+        <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>{sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? feature}</p></div>}</div>
+        <nav className="flex-1 space-y-3 px-2 py-2 overflow-y-auto">{navGroups.map(g => (
+          <div key={g.group} className="space-y-0.5">
+            {sidebar && <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{g.group}</p>}
+            {g.items.map(item => {
+              const Icon = item.icon;
+              const active = item.id === feature;
+              return (
+                <button key={item.id} onClick={() => handleNav(item.id)} title={item.label} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-left transition-all", active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground", !sidebar && "justify-center")}>
+                  <Icon className="h-4 w-4 shrink-0" />{sidebar && <span className="truncate">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         ))}</nav>
         <div className="border-t p-2 hidden lg:block"><button onClick={() => setSidebar(!sidebar)} className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent">{sidebar ? "◄" : "►"}</button></div>
       </aside>
@@ -74,8 +180,28 @@ function FeaturePage() {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 backdrop-blur-xl px-4 sm:px-6">
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature} · {activeLocation?.name ?? ""}</p></div>
+
+          <PlanExpiryBadge className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex" />
+          <BookDemoButton className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
+          <OtpMaskToggle masked={masked} setMasked={setMasked} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
+
+          <div className="relative">
+            <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
+              <Bell className="h-4.5 w-4.5" /><span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+            </button>
+            {notif && <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border bg-popover p-2 shadow-xl z-50"><p className="px-2 py-1 text-xs font-medium text-muted-foreground">No new notifications</p></div>}
+          </div>
+
           <div className="relative"><button onClick={() => setMenu(!menu)}><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
-            {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50"><div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div><div className="border-t my-1" /><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button></div>)}
+            {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
+              <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
+              <div className="border-t my-1" />
+              <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
+              <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
+              <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
+              <div className="border-t my-1" />
+              <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
+            </div>)}
           </div>
         </header>
 
@@ -83,40 +209,39 @@ function FeaturePage() {
           <div className="mx-auto max-w-7xl">
             {feature === "dashboard" && <DashboardView locationId={locationId} />}
             {feature === "users" && <UsersView locationId={locationId} />}
-            {feature === "analytics" && <AnalyticsView />}
             {feature === "reports" && <UserReports />}
-            {feature === "campaigns" && <CampaignsPage />}
-            {feature === "portal" && <PortalPage />}
-            {feature === "vouchers" && <VouchersPage />}
-            {feature === "policies" && <PoliciesHub />}
-            {feature === "whitelist" && <WhiteList />}
-            {feature === "devices" && <DevicesView />}
-            {feature === "teams" && <TeamsPage />}
-            {feature === "alerts" && <ManageAlerts />}
+            {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
+            {feature === "portal" && <PortalPage locationId={locationId} />}
+            {feature === "vouchers" && <VouchersPage locationId={locationId} />}
+            {feature === "policies" && <PoliciesHub locationId={locationId} />}
+            {feature === "whitelist" && <WhiteList locationId={locationId} />}
+            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} /></div>}
+            {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
             {feature === "agents" && <AgentsPage />}
-            {feature === "networking" && <NetworkingPage />}
             {feature === "advanced" && <AdvancedPage />}
-            {feature === "business-hours" && <BusinessHoursPage />}
-            {feature === "notification" && <NotificationPage />}
-            {feature === "topup" && <TopUpDataPage />}
-            {feature === "isp-details" && <IspDetailsPage />}
-            {feature === "audit" && <AuditLogPage />}
-            {feature === "admin-logs" && <AdminLogsPage />}
-            {feature === "mac-auth" && <MacAuthorizationPage />}
-            {feature === "port-forwarding" && <PortForwardingPage />}
-            {feature === "dhcp" && <DhcpPoolPage />}
-            {feature === "vlans" && <VlanManagementPage />}
-            {feature === "voip" && <VoipPriorityPage />}
-            {feature === "isp-routing" && <IspRoutingPage />}
-            {feature === "debugging" && <DebuggingToolsPage />}
-            {feature === "hotspot" && <HotspotSettingsPage />}
-            {feature === "raas-dashboard" && <RaasDashboardPage />}
-            {feature === "raas-users" && <RaasManageUsersPage />}
-            {feature === "raas-reports" && <RaasReportsPage />}
-            {feature === "help" && <HelpView />}
+            {feature === "audit" && <AuditView locationId={locationId} />}
+            {feature === "tickets" && <TicketsPage locationId={locationId} />}
+            {feature === "alerts" && <AlertsView />}
+            {feature === "business-hours" && <BusinessHoursView />}
+            {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
+            {feature === "notification" && <NotificationView />}
+            {feature === "isp-details" && <IspDetailsView />}
+            {feature === "admin-logs" && <AdminLogsView />}
+            {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
+            {feature === "port-forwarding" && <PortForwardingView />}
+            {feature === "dhcp" && <DhcpView />}
+            {feature === "vlans" && <VlansView />}
+            {feature === "voip" && <VoipView />}
+            {feature === "isp-routing" && <IspRoutingView />}
+            {feature === "debugging" && <DebuggingView />}
+            {feature === "hotspot" && <HotspotView />}
+            {!ALL_NAV_ITEMS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
           </div>
         </main>
       </div>
+      <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
+      <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
+      <AssistantWidget />
     </div>
   );
 }
@@ -163,28 +288,45 @@ function UsersView({ locationId }: { locationId: string }) {
   </div>);
 }
 
-// ── Analytics ─────────────────────────────────────────────
-function AnalyticsView() {
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[{l:"Total Sessions",v:"1,892"},{l:"Unique Guests",v:"847"},{l:"Return Rate",v:"34%"},{l:"Avg Duration",v:"28 min"}].map(k=>(<Card key={k.l} className="shadow-sm border-0"><CardContent className="p-5"><p className="text-xs font-medium text-muted-foreground uppercase">{k.l}</p><p className="text-2xl font-bold mt-1">{k.v}</p></CardContent></Card>))}</div>);
-}
-
 // ── Reports ───────────────────────────────────────────────
 function ReportsView() {
   return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report"},{n:"Bandwidth Report"},{n:"Revenue Report"},{n:"Router Report"},{n:"Voucher Report"},{n:"Portal Report"}].map(r=>(<Card key={r.n} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{r.n}</p><p className="text-xs text-muted-foreground mt-1">Last generated 3d ago</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>PDF</Button><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>CSV</Button></div></CardContent></Card>))}</div>);
 }
 
 // ── Devices ───────────────────────────────────────────────
-function DevicesView() {
-  const devices = [
-    {m:"00:1A:2B:3C:4D:5E",i:"10.0.1.42",d:"iPhone 15",fs:"Today",ls:"Just now"},
-    {m:"AA:BB:CC:DD:EE:FF",i:"10.0.1.87",d:"MacBook Pro",fs:"Yesterday",ls:"2 min ago"},
-    {m:"11:22:33:44:55:66",i:"10.0.2.15",d:"Galaxy S24",fs:"Today",ls:"5 min ago"},
-    {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
-  ];
-  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>{devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card>);
+const DEMO_DEVICES = [
+  {m:"00:1A:2B:3C:4D:5E",i:"10.0.1.42",d:"iPhone 15",fs:"Today",ls:"Just now"},
+  {m:"AA:BB:CC:DD:EE:FF",i:"10.0.1.87",d:"MacBook Pro",fs:"Yesterday",ls:"2 min ago"},
+  {m:"11:22:33:44:55:66",i:"10.0.2.15",d:"Galaxy S24",fs:"Today",ls:"5 min ago"},
+  {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
+];
+
+function DevicesView({ locationId }: { locationId: string }) {
+  const { data, isLoading } = useCustomerFeatureData("devices", locationId);
+  const demo = useIsDemo();
+  const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (demo ? DEMO_DEVICES : []);
+  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>
+    {isLoading ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+    : devices.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No connected devices yet.</TableCell></TableRow>
+    : devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}
+  </TableBody></Table></CardContent></Card>);
 }
 
-// ── Help ──────────────────────────────────────────────────
-function HelpView() {
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Documentation",d:"Guides and API reference"},{n:"FAQs",d:"Frequently asked questions"},{n:"Video Tutorials",d:"Step-by-step guides"},{n:"Raise Ticket",d:"Contact support"},{n:"Live Chat",d:"Chat with engineer"},{n:"Contact",d:"Email and phone"}].map(h=>(<Card key={h.n} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{h.n}</p><p className="text-xs text-muted-foreground mt-1">{h.d}</p><Button size="sm" variant="outline" className="h-7 text-xs mt-3" onClick={()=>toast.success(`Opening ${h.n}`)}>Open</Button></CardContent></Card>))}</div>);
+// ── Audit ─────────────────────────────────────────────────
+const DEMO_AUDIT = [
+  {a:"Guest login via OTP",w:"guest@email.com",t:"2 min ago"},{a:"Voucher batch created",w:"reception",t:"18 min ago"},
+  {a:"Router restart completed",w:"system",t:"1 hour ago"},{a:"Portal branding updated",w:"manager",t:"3 hours ago"},
+  {a:"Bandwidth policy changed",w:"admin",t:"5 hours ago"},{a:"New location provisioned",w:"system",t:"1 day ago"},
+];
+
+function AuditView({ locationId }: { locationId: string }) {
+  const { data, isLoading } = useCustomerFeatureData("audit", locationId);
+  const demo = useIsDemo();
+  const items = data?.audit?.length ? data.audit.map((e) => ({ a: e.action, w: e.user, t: e.time })) : (demo ? DEMO_AUDIT : []);
+  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">
+    {isLoading ? <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+    : items.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">No audit entries yet.</p>
+    : items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}
+  </CardContent></Card>);
 }
+
