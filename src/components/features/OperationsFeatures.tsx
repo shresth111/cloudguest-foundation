@@ -32,9 +32,15 @@ import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
 import NetworkCrudTable, { validators } from "@/components/features/NetworkCrudTable";
 import { useIspStore, type IspConfig, type IspLine } from "@/stores/ispStore";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
-import { isDemo } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
+import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
+
+function timeAgo(d: string): string {
+  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+  return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
+}
 
 /* ---------- shared building blocks ---------- */
 
@@ -115,33 +121,72 @@ function KpiRow({ items }: { items: { label: string; value: string; tone?: StatT
 }
 
 /* ---------- Alerts ---------- */
+interface AlertRow { sev: string; title: string; src: string; t: string; status: string }
+
+const DEMO_ALERTS: AlertRow[] = [
+  { sev: "error", title: "Bandwidth threshold exceeded", src: "GW-02 · Marathahalli", t: "4 min ago", status: "open" },
+  { sev: "warning", title: "Signal degradation detected", src: "AP-14 · Lobby", t: "22 min ago", status: "open" },
+  { sev: "success", title: "ISP failover completed", src: "System", t: "1 hour ago", status: "resolved" },
+  { sev: "info", title: "Firmware update available", src: "Router fleet", t: "3 hours ago", status: "open" },
+  { sev: "warning", title: "OTP delivery delayed", src: "Telecom gateway", t: "5 hours ago", status: "open" },
+];
+
+interface RawAlert { severity: string; message: string; triggered_at: string; status: string; router_id: string | null }
+
 export function AlertsView() {
-  const alerts = [
-    { sev: "error", title: "Bandwidth threshold exceeded", src: "GW-02 · Marathahalli", t: "4 min ago" },
-    { sev: "warning", title: "Signal degradation detected", src: "AP-14 · Lobby", t: "22 min ago" },
-    { sev: "success", title: "ISP failover completed", src: "System", t: "1 hour ago" },
-    { sev: "info", title: "Firmware update available", src: "Router fleet", t: "3 hours ago" },
-    { sev: "warning", title: "OTP delivery delayed", src: "Telecom gateway", t: "5 hours ago" },
-  ];
+  const [alerts, setAlerts] = useState<AlertRow[]>(isDemo() ? DEMO_ALERTS : []);
+  const [loading, setLoading] = useState(!isDemo());
+
+  useEffect(() => {
+    if (isDemo()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const orgId = await resolveOrgId();
+        const { data } = await api.get<{ items: RawAlert[] }>("/alerts", {
+          params: { page_size: 50, organization_id: orgId },
+          headers: { "X-Organization-Id": orgId },
+        });
+        if (cancelled) return;
+        setAlerts((data?.items ?? []).map((a) => ({
+          sev: a.severity === "critical" ? "error" : a.severity === "warning" ? "warning" : a.status === "resolved" ? "success" : "info",
+          title: a.message, src: a.router_id ?? "System", t: timeAgo(a.triggered_at), status: a.status,
+        })));
+      } catch {
+        // Leave alerts empty -- the "no alerts" state is accurate.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const icon = (s: string) =>
     s === "error" ? <XCircle className="h-4 w-4 text-rose-500" />
     : s === "warning" ? <AlertTriangle className="h-4 w-4 text-amber-500" />
     : s === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
     : <Activity className="h-4 w-4 text-sky-500" />;
+  const active = alerts.filter((a) => a.status === "open" || a.status === "acknowledged").length;
+  const warnings = alerts.filter((a) => a.sev === "warning").length;
+  const resolved = alerts.filter((a) => a.status === "resolved").length;
   return (
     <div className="space-y-6">
       <FeatureHeader title="Alerts" description="Live operational alerts across routers, ISPs and the captive portal." action={<Button variant="outline" size="sm">Mark all read</Button>} />
       <KpiRow items={[
-        { label: "Active", value: "5", tone: "danger", icon: AlertTriangle },
-        { label: "Warnings", value: "2", tone: "warning", icon: AlertTriangle },
-        { label: "Resolved 24h", value: "18", tone: "success", icon: CheckCircle2 },
-        { label: "Uptime", value: "99.97%", tone: "primary", icon: Activity },
+        { label: "Active", value: String(active), tone: "danger", icon: AlertTriangle },
+        { label: "Warnings", value: String(warnings), tone: "warning", icon: AlertTriangle },
+        { label: "Resolved", value: String(resolved), tone: "success", icon: CheckCircle2 },
+        { label: "Total", value: String(alerts.length), tone: "primary", icon: Activity },
       ]} />
       <Card>
         <CardHeader><CardTitle className="text-base">Recent alerts</CardTitle></CardHeader>
         <CardContent className="divide-y p-0">
-          {alerts.map((a) => (
-            <div key={a.title} className="flex items-start gap-3 px-6 py-3.5">
+          {loading ? (
+            <p className="px-6 py-8 text-center text-xs text-muted-foreground">Loading…</p>
+          ) : alerts.length === 0 ? (
+            <p className="px-6 py-8 text-center text-xs text-muted-foreground">No alerts yet.</p>
+          ) : alerts.map((a, i) => (
+            <div key={i} className="flex items-start gap-3 px-6 py-3.5">
               <span className="mt-0.5 shrink-0">{icon(a.sev)}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground">{a.title}</p>
