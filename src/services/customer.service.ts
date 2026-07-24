@@ -93,6 +93,27 @@ async function resolveOrgId(): Promise<string> {
   return id;
 }
 
+/** Buckets session user-agent strings into the OS categories the dashboard
+ * chart shows. Deliberately simple substring sniffing, not a full UA
+ * parser library -- good enough for a breakdown chart, not for anything
+ * security- or billing-sensitive. */
+function deviceDistributionFrom(sessions: { userAgent: string | null }[]): { name: string; value: number }[] {
+  const counts: Record<string, number> = { iOS: 0, Android: 0, Windows: 0, macOS: 0, Linux: 0, Other: 0 };
+  for (const s of sessions) {
+    const ua = (s.userAgent ?? "").toLowerCase();
+    if (!ua) { counts.Other++; continue; }
+    if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) counts.iOS++;
+    else if (ua.includes("android")) counts.Android++;
+    else if (ua.includes("windows")) counts.Windows++;
+    else if (ua.includes("mac os") || ua.includes("macintosh")) counts.macOS++;
+    else if (ua.includes("linux")) counts.Linux++;
+    else counts.Other++;
+  }
+  return Object.entries(counts)
+    .filter(([, value]) => value > 0)
+    .map(([name, value]) => ({ name, value }));
+}
+
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
   return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
@@ -217,9 +238,9 @@ export const customerService = {
     return {
       health: { systemHealth: `${Math.round((onR / tR) * 100)}%`, routersOnline: `${onR}/${routers.length}`, isp: health ? "Active" : "Unknown", networkLoad: `${Math.min(100, Math.round(sessions.length / 5))}%` },
       kpis: { onlineUsers: sessions.filter((s) => s.status === "active").length, activeSessions: sessions.length, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.startedAt?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytesDownloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.startedAt?.startsWith(today)).length, slaUptime: 99.9 },
-      usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c || Math.floor(Math.random() * 5) })),
-      deviceDistribution: [{ name: "iOS", value: 35 }, { name: "Android", value: 28 }, { name: "Windows", value: 18 }, { name: "macOS", value: 12 }, { name: "Linux", value: 5 }, { name: "Other", value: 2 }],
-      hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c || Math.floor(Math.random() * 10) })),
+      usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
+      deviceDistribution: deviceDistributionFrom(sessions),
+      hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
       recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: s.guestIdentifier || "Guest", email: s.guestIdentifier, device: s.deviceId ?? "", time: timeAgo(s.startedAt), status: s.status === "active" ? "online" as const : "offline" as const })),
       recentAlerts: alerts.slice(0, 5).map((a) => ({ type: a.severity === "critical" ? "error" as const : "warning" as const, msg: a.title, time: timeAgo(a.created_at) })),
     };
