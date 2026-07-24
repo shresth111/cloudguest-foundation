@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { motion } from "framer-motion";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { BrandTitle } from "@/components/brand/BrandTitle";
@@ -25,10 +26,10 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
               "radial-gradient(120% 90% at 12% -8%, oklch(0.66 0.15 192 / 0.55), transparent 55%), radial-gradient(90% 80% at 100% 8%, oklch(0.5 0.14 250 / 0.5), transparent 55%), radial-gradient(80% 70% at 60% 110%, oklch(0.56 0.13 210 / 0.45), transparent 60%)",
           }}
         />
-        {/* Faint grid for depth */}
+        {/* Faint grid for depth, gently panning -- same aurora-grid keyframe src/routes/login.tsx uses. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.15]"
+          className="aurora-grid pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
             backgroundImage:
               "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
@@ -36,13 +37,23 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             maskImage: "radial-gradient(80% 80% at 50% 30%, black, transparent 75%)",
           }}
         />
-        <div className="relative z-10 flex items-center gap-2.5">
+        <motion.div
+          className="relative z-10 flex items-center gap-2.5"
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
             <BrandIcon className="h-5 w-5 brightness-0 invert" />
           </div>
           <BrandTitle className="text-lg text-white" />
-        </div>
-        <div className="relative z-10 max-w-md space-y-5">
+        </motion.div>
+        <motion.div
+          className="relative z-10 max-w-md space-y-5"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+        >
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white/85 ring-1 ring-white/15 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-[oklch(0.78_0.15_190)] shadow-[0_0_8px_oklch(0.78_0.15_190)]" />
             {branding.companyName} Cloud
@@ -54,14 +65,29 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             Provision networks, onboard guests, and monitor every location in real time — with
             role-based access built for global teams.
           </p>
-        </div>
-        <div className="relative z-10 text-xs text-white/55">
+        </motion.div>
+        <motion.div
+          className="relative z-10 text-xs text-white/55"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+        >
           © {new Date().getFullYear()} {branding.companyName}. All rights reserved.
-        </div>
+        </motion.div>
+
+        {/* Slow drifting blobs -- identical aurora-drift keyframes to src/routes/login.tsx,
+            disabled under prefers-reduced-motion via the same global rule. */}
+        <div className="aurora-blob-1 pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
+        <div className="aurora-blob-2 pointer-events-none absolute -bottom-32 -left-28 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
       </div>
 
       <div className="flex items-center justify-center px-6 py-12 sm:px-12">
-        <div className="w-full max-w-md">
+        <motion.div
+          className="w-full max-w-md"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        >
           <div className="mb-8 flex items-center gap-2 lg:hidden">
             <BrandLogo size="h-8 w-8" />
             <BrandTitle className="text-base" />
@@ -72,7 +98,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           </div>
           {children}
           {footer && <div className="mt-6 text-center text-sm text-muted-foreground">{footer}</div>}
-        </div>
+        </motion.div>
       </div>
     </div>
   );
