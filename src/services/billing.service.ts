@@ -4,6 +4,7 @@ import type {
   Coupon,
   CouponStatus,
   Invoice,
+  MyBillingSummary,
   Payment,
   PaymentStatus,
   Plan,
@@ -511,6 +512,41 @@ async function fetchAllUsage(orgs: BackendOrg[]): Promise<UsageRow[]> {
   return settled
     .filter((r): r is PromiseFulfilledResult<UsageRow> => r.status === "fulfilled")
     .map((r) => r.value);
+}
+
+// ============================================================================
+// Tenant-facing "my billing" dashboard -- real, org-scoped
+// GET /billing/dashboard/me (backend/app/domains/billing/router.py). Backs
+// the Subscription center (/subscription) and workspace Billing
+// (/workspace/billing) pages, which are a different, ORGANIZATION-scoped
+// audience than the Super Admin snapshot above (billing.read at
+// ScopeType.ORGANIZATION, not the GLOBAL scope getSnapshot()'s endpoints
+// require -- an ordinary organization user cannot call those).
+// ============================================================================
+
+interface BackendCustomerBillingDashboard {
+  plan: BackendPlan;
+  subscription: BackendSubscription;
+  usage: BackendUsageSummary;
+  recent_invoices: BackendInvoice[];
+  recent_payments: BackendPayment[];
+}
+
+async function fetchMyBillingDashboard(organizationId: string): Promise<BackendCustomerBillingDashboard> {
+  const { data } = await api.get<BackendCustomerBillingDashboard>("/billing/dashboard/me", {
+    headers: { "X-Organization-Id": organizationId },
+  });
+  return data;
+}
+
+function myUsage(checks: BackendUsageLimitCheck[]): { key: string; label: string; used: number; limit: number; unit?: string }[] {
+  const storage = usageLimit(checks, "storage_usage_mb");
+  return [
+    { key: "locations", label: "Locations", ...usageLimit(checks, "locations") },
+    { key: "routers", label: "Routers", ...usageLimit(checks, "routers") },
+    { key: "guests", label: "Guests", ...usageLimit(checks, "guests") },
+    { key: "storage", label: "Storage", used: Math.round(storage.used / 1024), limit: Math.round(storage.limit / 1024), unit: "GB" },
+  ];
 }
 
 // ============================================================================
@@ -1031,6 +1067,23 @@ export const billingService = {
       is_active: input.isActive,
     });
     return toTaxRate(data);
+  },
+
+  // Real, org-scoped GET /billing/dashboard/me -- see the module comment
+  // above this section for why this is a separate call from getSnapshot().
+  async getMyBillingDashboard(organizationId: string, organizationName: string): Promise<MyBillingSummary> {
+    const data = await fetchMyBillingDashboard(organizationId);
+    const org: BackendOrg = { id: organizationId, name: organizationName };
+    return {
+      plan: toPlan(data.plan),
+      billingCycle: data.subscription.billing_cycle === "yearly" ? "annual" : "monthly",
+      status: SUBSCRIPTION_STATUS_MAP[data.subscription.status] ?? "active",
+      renewalDate: data.subscription.current_period_end,
+      autoRenewal: data.subscription.auto_renew,
+      usage: myUsage(data.usage.limit_checks),
+      recentInvoices: data.recent_invoices.flatMap((inv) => toInvoice(inv, org)),
+      recentPayments: data.recent_payments.map((p) => toPayment(p, org)),
+    };
   },
 };
 

@@ -141,6 +141,18 @@ export function useDownloadInvoice() {
   return useMutation({ mutationFn: (id: string) => billingService.generateInvoice(id) });
 }
 
+// Tenant-facing "my billing" summary (real GET /billing/dashboard/me) --
+// used by the Subscription center and workspace Billing pages, which are a
+// different, org-scoped audience than useBillingSnapshot's Super Admin view.
+export function useMyBillingDashboard(organizationId: string | undefined, organizationName: string | undefined) {
+  return useQuery({
+    queryKey: ["billing", "me", organizationId],
+    queryFn: () => billingService.getMyBillingDashboard(organizationId!, organizationName ?? ""),
+    enabled: !!organizationId,
+    staleTime: 30_000,
+  });
+}
+
 // No reminder-dispatch endpoint exists in backend/app/domains/billing --
 // billingService.sendReminder is intentionally still mocked (see its own
 // comment); this hook just routes RemindersPanel's "Send" button through

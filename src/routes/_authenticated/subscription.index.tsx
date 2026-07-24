@@ -1,41 +1,87 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Sparkles, ArrowUpRight, RefreshCw } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Download, Sparkles, RefreshCw } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/system/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
-import { useInvoices, usePlan, useSystemMetrics } from "@/hooks/useSystem";
+import { useAuth } from "@/context/AuthContext";
+import { useDownloadInvoice, useMyBillingDashboard } from "@/hooks/useBilling";
+import { useSystemMetrics } from "@/hooks/useSystem";
 
 export const Route = createFileRoute("/_authenticated/subscription/")({
   component: SubscriptionPage,
 });
 
+function money(amount: number, currency: string) {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function SubscriptionPage() {
-  const plan = usePlan();
-  const invoices = useInvoices();
+  const { organizations } = useAuth();
+  const activeOrg = organizations[0];
+  const billing = useMyBillingDashboard(activeOrg?.organizationId, activeOrg?.organizationName);
   const metrics = useSystemMetrics();
+  const download = useDownloadInvoice();
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  if (plan.isLoading || invoices.isLoading) return <PageSkeleton />;
-  if (plan.isError || !plan.data) return <ErrorState onRetry={() => plan.refetch()} />;
+  if (billing.isLoading) return <PageSkeleton />;
+  if (billing.isError || !billing.data) return <ErrorState onRetry={() => billing.refetch()} />;
 
-  const p = plan.data;
+  const { plan, billingCycle, status, renewalDate, autoRenewal, usage, recentInvoices } =
+    billing.data;
+  const price = billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+
+  function handleDownload(invoiceId: string, invoiceNumber: string) {
+    setDownloadingId(invoiceId);
+    download.mutate(invoiceId, {
+      onSuccess: ({ url, fileName }) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        toast.success(`Downloading ${invoiceNumber} (GST invoice PDF)`);
+      },
+      onError: () => toast.error("Could not download the invoice PDF."),
+      onSettled: () => setDownloadingId(null),
+    });
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Subscription center"
-        description="Manage your plan, monitor usage, and download invoices."
+        description="Your plan, usage, and invoices for this organization."
         actions={
-          <>
-            <Button variant="outline"><RefreshCw className="mr-2 h-4 w-4" />Renew</Button>
-            <Button><ArrowUpRight className="mr-2 h-4 w-4" />Upgrade plan</Button>
-          </>
+          <Button variant="outline" onClick={() => billing.refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
         }
       />
 
@@ -44,37 +90,79 @@ function SubscriptionPage() {
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Current plan</p>
-              <CardTitle className="mt-1 flex items-center gap-2 text-2xl">
-                {p.tier}
+              <CardTitle className="mt-1 flex items-center gap-2 text-2xl capitalize">
+                {plan.name}
                 <Sparkles className="h-5 w-5 text-primary" />
               </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                ${p.price.toLocaleString()} / {p.cycle} · Renews {new Date(p.renewsOn).toLocaleDateString()}
+                {money(price, plan.currency)} / {billingCycle} ·{" "}
+                {status === "active" ? "Renews" : "Ends"}{" "}
+                {new Date(renewalDate).toLocaleDateString()}
               </p>
             </div>
-            <Badge variant="outline" className="capitalize">{p.cycle}</Badge>
+            <div className="flex flex-col items-end gap-2">
+              <Badge variant="outline" className="capitalize">
+                {billingCycle}
+              </Badge>
+              <Badge variant="secondary" className="capitalize">
+                {autoRenewal ? "Auto-renew on" : "Auto-renew off"}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {p.features.map((f) => (
-                <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {f}
+            <div className="grid gap-2 sm:grid-cols-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {plan.includedLocations}{" "}
+                locations
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {plan.includedRouters}{" "}
+                routers
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />{" "}
+                {plan.includedGuests.toLocaleString()} guests / mo
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {plan.storageLimitGb} GB
+                storage
+              </div>
+              {plan.apiAccess && (
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" /> API access
                 </div>
-              ))}
+              )}
+              {plan.whiteLabel && (
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" /> White label
+                </div>
+              )}
+              {plan.pmsIntegration && (
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" /> PMS integration
+                </div>
+              )}
+              {plan.aiFeatures && (
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" /> AI features
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Payment method</CardTitle>
+            <CardTitle className="text-base">Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="rounded-lg border border-border bg-muted/40 p-3">
-              <p className="font-medium">Visa •••• 4242</p>
-              <p className="text-xs text-muted-foreground">Expires 09/2028 · Auto-charged</p>
+              <p className="font-medium capitalize">{status.replace("_", " ")}</p>
+              <p className="text-xs text-muted-foreground">
+                To change plans or billing settings, contact your account owner or CloudGuest
+                support.
+              </p>
             </div>
-            <Button variant="outline" className="w-full">Update card</Button>
           </CardContent>
         </Card>
       </div>
@@ -84,8 +172,8 @@ function SubscriptionPage() {
           <CardTitle className="text-base">Usage this billing cycle</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {p.usage.map((u) => {
-            const pct = Math.round((u.used / u.limit) * 100);
+          {usage.map((u) => {
+            const pct = u.limit > 0 ? Math.round((u.used / u.limit) * 100) : 0;
             return (
               <div key={u.key} className="rounded-lg border border-border p-4">
                 <div className="flex items-center justify-between text-sm">
@@ -94,7 +182,7 @@ function SubscriptionPage() {
                 </div>
                 <Progress value={pct} className="mt-2" />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {u.used.toLocaleString()} / {u.limit.toLocaleString()} {u.unit}
+                  {u.used.toLocaleString()} / {u.limit.toLocaleString()} {u.unit ?? ""}
                 </p>
               </div>
             );
@@ -120,8 +208,20 @@ function SubscriptionPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: "hsl(var(--popover))", borderRadius: 8, border: "1px solid hsl(var(--border))" }} />
-                <Area type="monotone" dataKey="requests" stroke="hsl(var(--primary))" fill="url(#req)" strokeWidth={2} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--popover))",
+                    borderRadius: 8,
+                    border: "1px solid hsl(var(--border))",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="requests"
+                  stroke="hsl(var(--primary))"
+                  fill="url(#req)"
+                  strokeWidth={2}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -131,9 +231,6 @@ function SubscriptionPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Invoices</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => toast.success("Statement queued")}>
-            <Download className="mr-2 h-4 w-4" />Export
-          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -149,19 +246,47 @@ function SubscriptionPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.data?.map((i) => (
+                {recentInvoices.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-sm text-muted-foreground py-6"
+                    >
+                      No invoices yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {recentInvoices.map((i) => (
                   <TableRow key={i.id}>
-                    <TableCell className="font-mono text-sm">{i.number}</TableCell>
-                    <TableCell>${i.amount.toLocaleString()} {i.currency}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{new Date(i.issuedAt).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{new Date(i.dueAt).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-mono text-sm">{i.invoiceNumber}</TableCell>
+                    <TableCell>{money(i.total, plan.currency)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(i.issuedAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(i.dueAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>
-                      {i.status === "paid" && <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20">Paid</Badge>}
-                      {i.status === "open" && <Badge className="bg-sky-500/15 text-sky-600 hover:bg-sky-500/20">Open</Badge>}
+                      {i.status === "paid" && (
+                        <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20">
+                          Paid
+                        </Badge>
+                      )}
+                      {i.status === "pending" && (
+                        <Badge className="bg-sky-500/15 text-sky-600 hover:bg-sky-500/20">
+                          Pending
+                        </Badge>
+                      )}
                       {i.status === "failed" && <Badge variant="destructive">Failed</Badge>}
+                      {i.status === "refunded" && <Badge variant="secondary">Refunded</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => toast.success(`Invoice ${i.number} downloaded`)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={downloadingId === i.id}
+                        onClick={() => handleDownload(i.id, i.invoiceNumber)}
+                      >
                         <Download className="h-4 w-4" />
                       </Button>
                     </TableCell>
