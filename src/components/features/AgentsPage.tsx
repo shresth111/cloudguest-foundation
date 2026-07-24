@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { FEATURE_GROUPS, ALL_FEATURES } from "@/config/customerFeatureCatalog";
 import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useAuth } from "@/context/AuthContext";
 import { rbacService } from "@/services/rbac.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type { Role as RbacRole, ScopeType } from "@/types/rbac";
@@ -56,6 +57,7 @@ function passwordStrength(pw: string): { label: string; pct: number; color: stri
 export function AgentsPage() {
   const navigate = useNavigate();
   const demo = useIsDemo();
+  const { user: currentUser } = useAuth();
   const { agents: storeAgents, roles, addAgent, updateAgent: updateStoreAgent, removeAgent: removeStoreAgent, setCurrentAgent, addRole, updateRoleFeatures, renameRole, removeRole } = useAgentPermissions();
   const [tab, setTab] = useState<"agents" | "roles">("agents");
 
@@ -94,6 +96,12 @@ export function AgentsPage() {
 
   const selected = agents.find((a) => a.id === selectedId) ?? agents[0] ?? null;
   const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null;
+  // Changing your own role here can strip the very roles.assign/users.read
+  // permission this page needs, self-locking you out before a replacement
+  // role is even in place (see updateAgent's ordering fix's comment) --
+  // simplest safe guard is to just not let it happen from this panel.
+  // Someone else with admin access can change it instead.
+  const isSelf = !demo && !!currentUser && selected?.id === currentUser.id;
   const strength = passwordStrength(form.password);
 
   const create = async () => {
@@ -398,10 +406,17 @@ export function AgentsPage() {
                 <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
                   <div>
                     <label className={labelCls}>Agent Role</label>
-                    <select value={selected.roleId} onChange={(e) => updateAgent(selected.id, { roleId: e.target.value })} className={inputCls}>
+                    <select
+                      value={selected.roleId}
+                      disabled={isSelf}
+                      onChange={(e) => updateAgent(selected.id, { roleId: e.target.value })}
+                      className={cn(inputCls, isSelf && "cursor-not-allowed opacity-60")}
+                      title={isSelf ? "You can't change your own role -- ask another admin to change it for you." : undefined}
+                    >
                       <option value="">No role</option>
                       {roleOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
+                    {isSelf && <p className="mt-1 text-xs text-muted-foreground">You can't change your own role here -- ask another admin to do it.</p>}
                   </div>
                   {demo && (
                     <div>
