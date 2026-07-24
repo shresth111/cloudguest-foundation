@@ -29,6 +29,11 @@ function CustomersScreen() {
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Enriched | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // Set when the wizard is opened from an existing customer's own "New
+  // Location" action so it opens pre-scoped to that customer instead of
+  // asking to re-pick it (see PlatformLocationWizard's initialOrganizationId
+  // doc comment) -- undefined for the plain "Add Customer" entry point.
+  const [wizardOrgId, setWizardOrgId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rows, setRows] = useState<Enriched[]>([]);
@@ -92,7 +97,7 @@ function CustomersScreen() {
       <MSectionHeader
         eyebrow="Tenants"
         title="Customers"
-        actions={<MButton variant="primary" onClick={() => setAddOpen(true)}><Plus /> Add Customer</MButton>}
+        actions={<MButton variant="primary" onClick={() => { setWizardOrgId(undefined); setAddOpen(true); }}><Plus /> Add Customer</MButton>}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -148,7 +153,7 @@ function CustomersScreen() {
         footer={
           selected && (
             <div className="grid grid-cols-2 gap-2">
-              <MButton variant="outline" onClick={() => navigate({ to: "/master/locations" })}><MapPin /> New Location</MButton>
+              <MButton variant="outline" onClick={() => { setWizardOrgId(selected.id); setAddOpen(true); }}><MapPin /> New Location</MButton>
               <MButton variant="outline" onClick={() => toast.info("Impersonation isn't available yet.")}><UserCog /> Impersonate</MButton>
               <MButton variant="outline" onClick={() => navigate({ to: "/master/billing" })}><CreditCard /> Edit Plan</MButton>
               <MButton
@@ -192,7 +197,12 @@ function CustomersScreen() {
           it already existed wired into the regular authenticated Locations page
           (see components/locations/PlatformLocationWizard.tsx) but was never
           reachable from the Master (super-admin) dashboard. */}
-      <PlatformLocationWizard open={addOpen} onOpenChange={setAddOpen} onProvisioned={() => refetch()} />
+      <PlatformLocationWizard
+        open={addOpen}
+        onOpenChange={(o) => { setAddOpen(o); if (!o) setWizardOrgId(undefined); }}
+        onProvisioned={() => refetch()}
+        initialOrganizationId={wizardOrgId}
+      />
     </MasterShell>
   );
 }

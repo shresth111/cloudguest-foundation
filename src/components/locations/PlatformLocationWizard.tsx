@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -40,10 +40,21 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
 import { PROPERTY_TYPE_LABEL, type PropertyType, type ProvisionLocationPayload, type ProvisionLocationResult } from "@/types/location";
 import type { AppError } from "@/services/api";
+
+// Same demo-session gap as location.service.ts's fetch helpers (see their
+// comment) -- GET /plans 401s under the Master Console's demo sign-in, which
+// left this wizard's "Plan" step with nothing to pick and the whole wizard
+// stuck (a plan is required to reach Review).
+const DEMO_PLANS: BackendPlan[] = [
+  { id: "plan-demo-starter", name: "Starter", plan_type: "standard", base_price: "999.00", currency: "INR" },
+  { id: "plan-demo-growth", name: "Growth", plan_type: "standard", base_price: "2999.00", currency: "INR" },
+  { id: "plan-demo-enterprise", name: "Enterprise", plan_type: "custom", base_price: "9999.00", currency: "INR" },
+];
 
 const COUNTRIES = ["US", "GB", "IN", "SG", "AE", "DE", "AU", "CA"];
 const TIMEZONES = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin"];
@@ -95,6 +106,14 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProvisioned?: (locationId: string) => void;
+  /** Pre-selects "Existing organization" mode with this org already chosen
+   * -- used when the wizard is opened from a specific customer's own detail
+   * view (see master.customers.tsx's "New Location" action) so adding
+   * another location to a customer you're already looking at doesn't make
+   * you re-find them in the org picker. The customer is unique; a customer
+   * can still have any number of locations, this just skips re-selecting
+   * the customer you already had open. */
+  initialOrganizationId?: string;
 }
 
 interface BackendPlan {
@@ -114,12 +133,25 @@ interface BackendFeature {
   default_enabled: boolean;
 }
 
-export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Props) {
+export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, initialOrganizationId }: Props) {
   const [step, setStep] = useState(0);
   const [state, setState] = useState<WizardState>(DEFAULT_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [result, setResult] = useState<ProvisionLocationResult | null>(null);
   const provision = useProvisionLocation();
+
+  // Re-seed on every open (not just mount) -- the dialog instance is reused
+  // across separate "New Location" clicks for different customers, so a
+  // stale `existingId` from the previous customer must not leak into the
+  // next one.
+  useEffect(() => {
+    if (!open) return;
+    setState(
+      initialOrganizationId
+        ? { ...DEFAULT_STATE, org: { ...DEFAULT_STATE.org, mode: "existing", existingId: initialOrganizationId } }
+        : DEFAULT_STATE,
+    );
+  }, [open, initialOrganizationId]);
 
   const orgs = useQuery({
     queryKey: ["locations", "org-options"],
@@ -129,6 +161,7 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
   const plans = useQuery({
     queryKey: ["billing", "plans", "active"],
     queryFn: async () => {
+      if (isDemo()) return DEMO_PLANS;
       const { data } = await api.get<{ items: BackendPlan[] }>("/plans", { params: { is_active: true } });
       return data.items;
     },
