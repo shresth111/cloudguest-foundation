@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { voucherService } from "@/services/voucher.service";
-import { organizationService } from "@/services/organization.service";
+import { resolveOrgId } from "@/services/customer.service";
 
 interface Voucher { code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; }
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
@@ -42,10 +42,10 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-      const orgId = orgs.rows[0]?.id;
-      if (!orgId) throw new Error("No organization for this session");
-      const res = await voucherService.listBatches(1, 50);
+      // /me/organizations instead of the platform-wide GET /organizations
+      // -- see customer.service.ts's resolveOrgId doc comment.
+      const orgId = await resolveOrgId();
+      const res = await voucherService.listBatches(1, 50, orgId);
       if (cancelled) return;
       setBatches(res.rows.map((b) => ({
         id: b.id, code: b.name, plan: `${b.validityMinutes}m`, status: b.status, used: b.quantity,
@@ -74,9 +74,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
       return;
     }
     try {
-      const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-      const orgId = orgs.rows[0]?.id;
-      if (!orgId) throw new Error("No organization for this session");
+      const orgId = await resolveOrgId();
       const batch = await voucherService.createBatch({
         name: form.name || `Batch ${Date.now()}`, organizationId: orgId, locationId,
         quantity: Math.min(form.quantity, 100), codeLength: form.codeLen, codePrefix: form.prefix,

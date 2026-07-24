@@ -161,13 +161,19 @@ function toStats(s: BackendVoucherBatchStats): VoucherBatchStats {
 }
 
 export const voucherService = {
-  // Platform-wide "Voucher Master" view -- omits X-Organization-Id so
-  // CurrentOrganization resolves to null server-side and every
-  // organization's batches are returned (same convention as
-  // policyService.list -- see backend/app/domains/rbac/dependencies.py).
-  async listBatches(page = 1, pageSize = 25): Promise<VoucherBatchListResult> {
+  // Platform-wide "Voucher Master" view when called with no organizationId
+  // -- omits X-Organization-Id so CurrentOrganization resolves to null
+  // server-side and every organization's batches are returned (same
+  // convention as policyService.list -- see
+  // backend/app/domains/rbac/dependencies.py). That default requires
+  // voucher.read at GLOBAL scope, which an ordinary customer/org-owner
+  // session doesn't hold -- callers who already know their own org (e.g.
+  // the customer Vouchers tab) should pass it so this resolves to
+  // ORGANIZATION scope instead and returns just that org's batches.
+  async listBatches(page = 1, pageSize = 25, organizationId?: string): Promise<VoucherBatchListResult> {
     const { data } = await api.get<BackendVoucherBatchListResponse>("/voucher-batches", {
       params: { page, page_size: pageSize },
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return {
       rows: data.items.map(toBatch),
