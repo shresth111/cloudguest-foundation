@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   BillingSnapshot,
   Coupon,
@@ -21,6 +22,90 @@ import type {
   PaymentGateway,
   ReportFrequency,
 } from "@/types/billing";
+
+// The Master Console's demo sign-in (master-login.tsx's "admin@example.com
+// / test") issues a local-only token the real backend never accepts --
+// every real call this whole Super Admin billing surface makes (dashboard,
+// plans, coupons, subscriptions, payments, invoices, usage) 401ed with no
+// fallback, and because getSnapshot() composes them all via Promise.all,
+// a single 401 failed the *entire* snapshot -- the Plan catalog (and every
+// other tab) stayed empty/stuck loading, and the New Subscription dialog's
+// own Organization/Plan/Coupon pickers (fed from this same snapshot) had
+// nothing to select either. Same demo-session gap already fixed in
+// location.service.ts/organization.service.ts for the rest of the Master
+// Console, applied here for its billing surface.
+const DEMO_BILLING_ORGS: { id: string; name: string }[] = [
+  { id: "org-001", name: "Acme Corp" },
+  { id: "org-002", name: "Blue Cedar Cafes" },
+];
+
+const DEMO_PLANS: Plan[] = [
+  {
+    id: "plan-demo-starter", name: "Starter", tier: "starter", currency: "INR",
+    monthlyPrice: 999, annualPrice: 11988, includedLocations: 1, includedRouters: 2,
+    includedGuests: 500, storageLimitGb: 10, apiAccess: false, whiteLabel: false,
+    pmsIntegration: false, aiFeatures: false, supportLevel: "email",
+  },
+  {
+    id: "plan-demo-growth", name: "Growth", tier: "professional", currency: "INR",
+    monthlyPrice: 2999, annualPrice: 35988, includedLocations: 5, includedRouters: 10,
+    includedGuests: 2500, storageLimitGb: 50, apiAccess: true, whiteLabel: false,
+    pmsIntegration: true, aiFeatures: false, supportLevel: "priority", popular: true,
+  },
+  {
+    id: "plan-demo-enterprise", name: "Enterprise", tier: "enterprise", currency: "INR",
+    monthlyPrice: 9999, annualPrice: 119988, includedLocations: 50, includedRouters: 200,
+    includedGuests: 25000, storageLimitGb: 500, apiAccess: true, whiteLabel: true,
+    pmsIntegration: true, aiFeatures: true, supportLevel: "24x7",
+  },
+];
+
+const DEMO_COUPONS: Coupon[] = [
+  { id: "coupon-demo-1", code: "WELCOME10", discountType: "percentage", discountValue: 10, expiryDate: new Date(Date.now() + 60 * 86400000).toISOString(), maxUsage: 100, used: 12, status: "active" },
+  { id: "coupon-demo-2", code: "LAUNCH500", discountType: "fixed", discountValue: 500, expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(), maxUsage: 50, used: 50, status: "active" },
+];
+
+const DEMO_BILLING_SNAPSHOT: BillingSnapshot = {
+  kpis: { mrr: 129940, arr: 1559280, activeSubscriptions: 2, trialOrganizations: 0, expiringPlans: 0, overduePayments: 0, totalRevenue: 259880, collectionRate: 100, arpo: 64970 },
+  subscriptions: [
+    { id: "sub-demo-1", organizationId: "org-001", organizationName: "Acme Corp", planId: "plan-demo-growth", planName: "Growth", tier: "professional", billingCycle: "monthly", startDate: new Date(Date.now() - 90 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 20 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 20 * 86400000).toISOString(), status: "active", amount: 2999, autoRenewal: true, paymentStatus: "paid", locations: 5, routers: 10, maxGuests: 2500 },
+    { id: "sub-demo-2", organizationId: "org-002", organizationName: "Blue Cedar Cafes", planId: "plan-demo-starter", planName: "Starter", tier: "starter", billingCycle: "monthly", startDate: new Date(Date.now() - 30 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 5 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 5 * 86400000).toISOString(), status: "active", amount: 999, autoRenewal: true, paymentStatus: "paid", locations: 1, routers: 2, maxGuests: 500 },
+  ],
+  payments: [
+    { id: "pay-demo-1", invoiceNumber: "INV-DEMO-0001", organizationId: "org-001", organizationName: "Acme Corp", amount: 2999, tax: 540, discount: 0, gateway: "razorpay", transactionId: "txn_demo_1", status: "paid", paidAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+    { id: "pay-demo-2", invoiceNumber: "INV-DEMO-0002", organizationId: "org-002", organizationName: "Blue Cedar Cafes", amount: 999, tax: 180, discount: 100, gateway: "razorpay", transactionId: "txn_demo_2", status: "paid", paidAt: new Date(Date.now() - 25 * 86400000).toISOString() },
+  ],
+  invoices: [
+    { id: "inv-demo-1", invoiceNumber: "INV-DEMO-0001", organizationName: "Acme Corp", type: "tax_invoice", amount: 2999, tax: 540, total: 3539, issuedAt: new Date(Date.now() - 5 * 86400000).toISOString(), dueAt: new Date(Date.now() + 25 * 86400000).toISOString(), status: "paid" },
+    { id: "inv-demo-2", invoiceNumber: "INV-DEMO-0002", organizationName: "Blue Cedar Cafes", type: "tax_invoice", amount: 999, tax: 180, total: 1079, issuedAt: new Date(Date.now() - 25 * 86400000).toISOString(), dueAt: new Date(Date.now() + 5 * 86400000).toISOString(), status: "paid" },
+  ],
+  coupons: DEMO_COUPONS,
+  usage: [
+    { organizationId: "org-001", organizationName: "Acme Corp", locationsUsed: 3, locationsLimit: 5, routersUsed: 6, routersLimit: 10, guestSessions: 1840, smsOtp: 620, emailOtp: 410, storageUsedGb: 12, storageLimitGb: 50, apiCalls: 8400 },
+    { organizationId: "org-002", organizationName: "Blue Cedar Cafes", locationsUsed: 1, locationsLimit: 1, routersUsed: 2, routersLimit: 2, guestSessions: 340, smsOtp: 90, emailOtp: 60, storageUsedGb: 2, storageLimitGb: 10, apiCalls: 0 },
+  ],
+  gateways: [
+    { id: "razorpay", name: "Razorpay", connected: true, lastTransactionAt: new Date(Date.now() - 5 * 86400000).toISOString(), mode: "test" },
+    { id: "stripe", name: "Stripe", connected: false, mode: "test" },
+  ],
+  revenue: {
+    trend: Array.from({ length: 6 }, (_, i) => ({ label: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString("en-US", { month: "short" }), revenue: 90000 + i * 8000, growth: i === 0 ? 0 : 8 })),
+    planDistribution: [
+      { tier: "starter", count: 1, revenue: 999 },
+      { tier: "professional", count: 1, revenue: 2999 },
+    ],
+    subscriptionDistribution: [
+      { status: "active", count: 2 },
+      { status: "trial", count: 0 },
+      { status: "past_due", count: 0 },
+      { status: "canceled", count: 0 },
+    ],
+    paymentSuccessRate: [{ label: "This month", success: 2, failed: 0 }],
+    churnRate: [{ label: "Current", value: 0 }],
+  },
+  reminders: [],
+  plans: DEMO_PLANS,
+};
 
 interface BackendListResponse<T> {
   items: T[];
@@ -648,6 +733,7 @@ async function findSubscriptionContext(
 
 export const billingService = {
   async getSnapshot(): Promise<BillingSnapshot> {
+    if (isDemo()) return DEMO_BILLING_SNAPSHOT;
     const [dashboard, orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchDashboard(),
       fetchAllOrganizations(),
@@ -786,6 +872,7 @@ export const billingService = {
   },
 
   async listOrganizations() {
+    if (isDemo()) return DEMO_BILLING_ORGS;
     const orgs = await fetchAllOrganizations();
     return orgs.map((o) => ({ id: o.id, name: o.name }));
   },
@@ -802,6 +889,32 @@ export const billingService = {
   // in the UI. `couponCode` here is the real, dedicated field the dialog's
   // own "Apply" button now validates client-side before submit.
   async createSubscription(input: { organizationId: string; planId: string; couponCode?: string }) {
+    if (isDemo()) {
+      const org = DEMO_BILLING_ORGS.find((o) => o.id === input.organizationId);
+      const plan = DEMO_PLANS.find((p) => p.id === input.planId);
+      const coupon = input.couponCode ? DEMO_COUPONS.find((c) => c.code === input.couponCode) : undefined;
+      const now = new Date().toISOString();
+      return {
+        id: `sub-demo-${Date.now()}`,
+        organizationId: input.organizationId,
+        organizationName: org?.name ?? "Demo Organization",
+        planId: input.planId,
+        planName: plan?.name ?? "Demo Plan",
+        tier: plan?.tier ?? "custom",
+        billingCycle: "monthly" as const,
+        startDate: now,
+        renewalDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+        expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+        status: "active" as const,
+        amount: plan?.monthlyPrice ?? 0,
+        autoRenewal: true,
+        paymentStatus: "paid" as const,
+        locations: plan?.includedLocations ?? 0,
+        routers: plan?.includedRouters ?? 0,
+        maxGuests: plan?.includedGuests ?? 0,
+        discount: coupon?.discountValue,
+      };
+    }
     const [orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchAllOrganizations(),
       fetchAllPlans(),
@@ -879,6 +992,7 @@ export const billingService = {
   },
 
   async savePlan(input: Omit<Plan, "id"> & { id?: string }) {
+    if (isDemo()) return { ...input, id: input.id ?? `plan-demo-${Date.now()}` };
     const features = [
       { feature_key: "max_locations", feature_type: "limit", limit_value: input.includedLocations },
       { feature_key: "max_routers", feature_type: "limit", limit_value: input.includedRouters },
@@ -919,12 +1033,14 @@ export const billingService = {
   },
 
   async deletePlan(id: string) {
+    if (isDemo()) return true;
     // No hard delete on the backend -- deactivate is the real equivalent.
     await api.delete(`/plans/${id}`);
     return true;
   },
 
   async saveCoupon(input: Omit<Coupon, "id" | "used"> & { id?: string }) {
+    if (isDemo()) return { ...input, id: input.id ?? `coupon-demo-${Date.now()}`, used: 0 };
     if (input.id) {
       const { data } = await api.put<BackendCoupon>(`/coupons/${input.id}`, {
         discount_type: input.discountType === "fixed" ? "flat" : "percentage",
@@ -949,6 +1065,7 @@ export const billingService = {
   },
 
   async deleteCoupon(id: string) {
+    if (isDemo()) return true;
     // No hard delete on the backend -- deactivate is the real equivalent.
     await api.delete(`/coupons/${id}`);
     return true;
