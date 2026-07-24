@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   AnalyticsKpis,
   AnalyticsSettings,
@@ -80,7 +81,16 @@ interface BackendListResponse<T> {
   items: T[];
 }
 
+// Same demo-session gap already fixed across the rest of the Master
+// Console (location/organization/billing/router.service.ts) -- the demo
+// sign-in's token 401s against every real call this file makes.
+const DEMO_ORGANIZATION_ROWS: OrganizationAnalyticsRow[] = [
+  { id: "org-001", name: "Acme Corp", activeUsers: 340, activeRouters: 6, activeLocations: 5, revenue: 2999, monthlyGrowth: 8 },
+  { id: "org-002", name: "Blue Cedar Cafes", activeUsers: 90, activeRouters: 2, activeLocations: 1, revenue: 999, monthlyGrowth: 3 },
+];
+
 async function fetchOrganizationRows(): Promise<OrganizationAnalyticsRow[]> {
+  if (isDemo()) return DEMO_ORGANIZATION_ROWS;
   const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
     params: { page_size: 12 },
   });
@@ -415,6 +425,26 @@ export const analyticsService = {
   },
 
   async getSnapshot(_range: DateRangePreset = "last30"): Promise<AnalyticsSnapshot> {
+    if (isDemo()) {
+      return {
+        kpis: {
+          totalOrganizations: 2, totalLocations: 6, totalRouters: 8, activeRouters: 8,
+          totalGuests: 2180, activeGuests: 2, totalSessions: 2, avgSessionDuration: 0,
+          dailyLogins: 24, monthlyLogins: 430, revenue: 129940, growthRate: 8,
+        },
+        guests: emptyGuestAnalytics(),
+        network: emptyNetworkAnalytics(),
+        routers: {
+          online: 8, offline: 0, avgCpu: 0, avgMemory: 0, avgTemperature: 0,
+          wanAvailability: 0, wireguardHealth: 0, radiusHealth: 0,
+          performance: [], cpuTrend: [], memoryTrend: [], healthScoreTrend: [],
+        },
+        locations: [],
+        organizations: DEMO_ORGANIZATION_ROWS,
+        devices: emptyDeviceAnalytics(),
+        auth: emptyAuthAnalytics(),
+      };
+    }
     const [{ data: unified }, organizations] = await Promise.all([
       api.get<BackendUnifiedDashboard>("/dashboard/super-admin/unified"),
       fetchOrganizationRows(),
