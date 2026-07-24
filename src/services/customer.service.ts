@@ -270,7 +270,10 @@ export const customerService = {
     const [rR, sR, aR, hR] = await Promise.allSettled([
       api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...orgHeaders }),
       api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
-      api.get<{ items: { severity: string; title: string; created_at: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
+      // Backend's AlertResponse (monitoring/schemas.py) uses `message` +
+      // `triggered_at`, not `title`/`created_at` -- those two field names
+      // don't exist on the real response and silently read as undefined.
+      api.get<{ items: { severity: string; message: string; triggered_at: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
       api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization", orgHeaders),
     ]);
     const routers = rR.status === "fulfilled" ? rR.value.data?.items ?? [] : [];
@@ -289,7 +292,7 @@ export const customerService = {
       deviceDistribution: deviceDistributionFrom(sessions.map((s) => ({ userAgent: s.user_agent ?? null }))),
       hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
       recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: "Guest", email: "", device: s.device_id ?? "", time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const })),
-      recentAlerts: alerts.slice(0, 5).map((a) => ({ type: a.severity === "critical" ? "error" as const : "warning" as const, msg: a.title, time: timeAgo(a.created_at) })),
+      recentAlerts: alerts.slice(0, 5).map((a) => ({ type: a.severity === "critical" ? "error" as const : "warning" as const, msg: a.message, time: timeAgo(a.triggered_at) })),
     };
   },
 
@@ -357,11 +360,19 @@ export const customerService = {
           return { portal: { status: "Live", theme: "Enterprise Blue", authMethods: ["Email OTP", "SMS", "Voucher"], languages: ["EN", "HI", "AR"] } };
         }
         case "audit": {
-          const { data } = await api.get<{ items: { action: string; description: string; actor_user_id: string | null; created_at: string }[] }>("/audit/entries", { params: { page_size: 10 } }).catch(() => ({ data: { items: [] } }));
+          // /audit/entries requires audit_logs.read, resolved to ORGANIZATION
+          // scope via X-Organization-Id -- omitting it (as this did before)
+          // defaults to GLOBAL scope and 403s for a real customer/org-owner
+          // session, same class of bug as resolveOrgId's other call sites.
+          const orgId = await resolveOrgId();
+          const { data } = await api.get<{ items: { action: string; description: string; actor_user_id: string | null; created_at: string }[] }>("/audit/entries", { params: { page_size: 10 }, headers: { "X-Organization-Id": orgId } }).catch(() => ({ data: { items: [] } }));
           return { audit: (data?.items ?? []).map((a) => ({ action: a.description ?? a.action, user: a.actor_user_id ?? "system", time: timeAgo(a.created_at), status: "info" })) };
         }
         case "devices": {
-          const { data } = await api.get<{ items: { mac_address: string; ip_address: string; hostname: string | null; connected_at: string; last_seen_at: string }[] }>("/connected-devices", { params: { location_id: locationId, page_size: 10 } }).catch(() => ({ data: { items: [] } }));
+          // Same fix -- /connected-devices requires connected_devices.read
+          // at ORGANIZATION scope via X-Organization-Id.
+          const orgId = await resolveOrgId();
+          const { data } = await api.get<{ items: { mac_address: string; ip_address: string; hostname: string | null; connected_at: string; last_seen_at: string }[] }>("/connected-devices", { params: { location_id: locationId, page_size: 10 }, headers: { "X-Organization-Id": orgId } }).catch(() => ({ data: { items: [] } }));
           return { devices: (data?.items ?? []).map((d) => ({ mac: d.mac_address, ip: d.ip_address, device: d.hostname ?? "Unknown", firstSeen: timeAgo(d.connected_at), lastSeen: timeAgo(d.last_seen_at) })) };
         }
         case "mac-auth": {
