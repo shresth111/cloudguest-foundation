@@ -334,48 +334,66 @@ export const rbacService = {
     return toUser(data);
   },
 
+  // Same GLOBAL-vs-ORGANIZATION scope story as listRoles() above --
+  // users.create is only held at ORGANIZATION scope for a customer/org-owner
+  // session, and POST /users/invite infers GLOBAL whenever X-Organization-Id
+  // is absent even though organization_id is already in the body.
   async inviteUser(payload: InviteUserPayload): Promise<InviteUserResult> {
-    const { data } = await api.post<BackendInviteUserResponse>("/users/invite", {
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      email: payload.email,
-      username: payload.username,
-      phone: payload.phone,
-      designation: payload.designation,
-      department: payload.department,
-      employee_id: payload.employeeId,
-      timezone: payload.timezone,
-      language: payload.language,
-      organization_id: payload.organizationId,
-      initial_role_id: payload.initialRoleId,
-    });
+    const { data } = await api.post<BackendInviteUserResponse>(
+      "/users/invite",
+      {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        email: payload.email,
+        username: payload.username,
+        phone: payload.phone,
+        designation: payload.designation,
+        department: payload.department,
+        employee_id: payload.employeeId,
+        timezone: payload.timezone,
+        language: payload.language,
+        organization_id: payload.organizationId,
+        initial_role_id: payload.initialRoleId,
+      },
+      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+    );
     return { user: toUser(data.user), temporaryPassword: data.temporary_password };
   },
 
-  async updateUser(id: string, payload: UpdateUserPayload): Promise<RbacUser> {
-    const { data } = await api.put<BackendUser>(`/users/${id}`, {
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      phone: payload.phone,
-      profile_photo: payload.profilePhoto,
-      designation: payload.designation,
-      department: payload.department,
-      employee_id: payload.employeeId,
-      timezone: payload.timezone,
-      language: payload.language,
-      is_verified: payload.isVerified,
-      data_masking_enabled: payload.dataMaskingEnabled,
+  // organizationId optional on all three -- same GLOBAL-vs-ORGANIZATION
+  // scope story as inviteUser()/listRoles() above.
+  async updateUser(id: string, payload: UpdateUserPayload, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.put<BackendUser>(
+      `/users/${id}`,
+      {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        phone: payload.phone,
+        profile_photo: payload.profilePhoto,
+        designation: payload.designation,
+        department: payload.department,
+        employee_id: payload.employeeId,
+        timezone: payload.timezone,
+        language: payload.language,
+        is_verified: payload.isVerified,
+        data_masking_enabled: payload.dataMaskingEnabled,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toUser(data);
+  },
+
+  async activateUser(id: string, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/activate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return toUser(data);
   },
 
-  async activateUser(id: string): Promise<RbacUser> {
-    const { data } = await api.post<BackendUser>(`/users/${id}/activate`);
-    return toUser(data);
-  },
-
-  async deactivateUser(id: string): Promise<RbacUser> {
-    const { data } = await api.post<BackendUser>(`/users/${id}/deactivate`);
+  async deactivateUser(id: string, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return toUser(data);
   },
 

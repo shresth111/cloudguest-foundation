@@ -138,9 +138,9 @@ export function AgentsPage() {
     setRealAgents((p) => p.map((a) => a.id === id ? { ...a, ...patch, roleName: patch.roleId ? roleOptions.find((r) => r.id === patch.roleId)?.name ?? "—" : a.roleName } : a));
     (async () => {
       try {
-        if (patch.status === "active") await rbacService.activateUser(id);
-        else if (patch.status === "inactive") await rbacService.deactivateUser(id);
-        if (patch.dataMasking !== undefined) await rbacService.updateUser(id, { dataMaskingEnabled: patch.dataMasking });
+        if (patch.status === "active") await rbacService.activateUser(id, orgId ?? undefined);
+        else if (patch.status === "inactive") await rbacService.deactivateUser(id, orgId ?? undefined);
+        if (patch.dataMasking !== undefined) await rbacService.updateUser(id, { dataMaskingEnabled: patch.dataMasking }, orgId ?? undefined);
         if (patch.roleId && patch.roleId !== prevRole && orgId) {
           // Selecting a role in this dropdown replaces whatever role this
           // agent held in this org, it doesn't add a second one. Assign the
@@ -168,7 +168,7 @@ export function AgentsPage() {
   const removeAgent = (id: string) => {
     if (demo) { removeStoreAgent(id); return; }
     setRealAgents((p) => p.filter((a) => a.id !== id));
-    rbacService.deactivateUser(id).catch(() => toast.error("Could not deactivate on the server."));
+    rbacService.deactivateUser(id, orgId ?? undefined).catch(() => toast.error("Could not deactivate on the server."));
   };
 
   const toggleLocation = (loc: string) => {
