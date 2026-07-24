@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
+import { resolveOrgId } from "@/services/customer.service";
 
 const BANDWIDTH_KBPS: Record<string, number> = { "512 Kbps": 512, "1 Mbps": 1024, "2 Mbps": 2048, "5 Mbps": 5120, "10 Mbps": 10240 };
 function kbpsToLabel(kbps: number): string {
@@ -119,12 +120,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [toast, setToast] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     if (demo) return;
     (async () => {
       try {
-        const real = await bandwidthPolicyService.list();
+        const org = await resolveOrgId();
+        setOrgId(org);
+        const real = await bandwidthPolicyService.list(org);
         setPolicies(real.map((p) => ({ id: p.id, businessUnit: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", dailyLimit: "No Limit", idleTimeout: "", devicesPerUser: "", dataLimit: null })));
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
       } catch {
@@ -194,7 +198,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     try {
       const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
       const existingId = realIds[f.businessUnit];
-      const saved = await bandwidthPolicyService.save({ id: existingId, name: f.businessUnit, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps });
+      const saved = await bandwidthPolicyService.save({ id: existingId, name: f.businessUnit, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps }, orgId ?? undefined);
       setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
       const row: Policy = { id: saved.id, ...f, dataLimit };
       setPolicies((prev) => {
@@ -217,7 +221,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       const prev = policies;
       setPolicies((p) => p.filter((x) => x.id !== id));
       if (!demo) {
-        bandwidthPolicyService.remove(id).catch(() => { setPolicies(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+        bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => { setPolicies(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
       }
       setConfirming(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);

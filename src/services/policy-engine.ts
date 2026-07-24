@@ -65,16 +65,29 @@ export function statusOf(detail: BackendPolicyDetail): PolicyStatus {
   return version?.status === "published" ? "active" : "draft";
 }
 
-export async function fetchPolicyDetail(id: string): Promise<BackendPolicyDetail> {
-  const { data } = await api.get<BackendPolicyDetail>(`/policies/${id}`);
+// organizationId, when given, is sent as X-Organization-Id so
+// RequirePermission resolves ORGANIZATION scope instead of defaulting to
+// GLOBAL -- a real customer/org-owner session only holds policy.* at
+// ORGANIZATION scope and 403s without it (same class of bug as
+// customer.service.ts's listLocations()). Callers with no known org (the
+// master admin Policy console, via authn-policy.service.ts/
+// routing-policy.service.ts) keep the original platform-wide, no-header
+// behavior, unchanged.
+function orgHeaders(organizationId?: string) {
+  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined;
+}
+
+export async function fetchPolicyDetail(id: string, organizationId?: string): Promise<BackendPolicyDetail> {
+  const { data } = await api.get<BackendPolicyDetail>(`/policies/${id}`, orgHeaders(organizationId));
   return data;
 }
 
-export async function listPolicyDetails(policyType: string): Promise<BackendPolicyDetail[]> {
+export async function listPolicyDetails(policyType: string, organizationId?: string): Promise<BackendPolicyDetail[]> {
   const { data } = await api.get<BackendPolicyListResponse>("/policies", {
     params: { policy_type: policyType, page: 1, page_size: 100 },
+    ...orgHeaders(organizationId),
   });
-  return Promise.all(data.items.map((item) => fetchPolicyDetail(item.id)));
+  return Promise.all(data.items.map((item) => fetchPolicyDetail(item.id, organizationId)));
 }
 
 export async function createPolicyWithRules(args: {
@@ -83,20 +96,22 @@ export async function createPolicyWithRules(args: {
   description: string | null;
   rules: object;
   publish: boolean;
+  organizationId?: string;
 }): Promise<BackendPolicyDetail> {
-  const { data: policy } = await api.post<BackendPolicy>("/policies", {
-    policy_type: args.policyType,
-    name: args.name,
-    description: args.description,
-  });
+  const { data: policy } = await api.post<BackendPolicy>(
+    "/policies",
+    { policy_type: args.policyType, name: args.name, description: args.description },
+    orgHeaders(args.organizationId),
+  );
   const { data: version } = await api.post<BackendPolicyVersion>(
     `/policies/${policy.id}/versions`,
     { rules: args.rules },
+    orgHeaders(args.organizationId),
   );
   if (args.publish) {
-    await api.post(`/policies/${policy.id}/versions/${version.id}/publish`);
+    await api.post(`/policies/${policy.id}/versions/${version.id}/publish`, undefined, orgHeaders(args.organizationId));
   }
-  return fetchPolicyDetail(policy.id);
+  return fetchPolicyDetail(policy.id, args.organizationId);
 }
 
 // Backend has no PATCH /policies/{id} -- name/description are set only at
@@ -108,20 +123,22 @@ export async function updatePolicyRules(args: {
   rules: object;
   publish: boolean;
   archive: boolean;
+  organizationId?: string;
 }): Promise<BackendPolicyDetail> {
   const { data: version } = await api.post<BackendPolicyVersion>(
     `/policies/${args.id}/versions`,
     { rules: args.rules },
+    orgHeaders(args.organizationId),
   );
   if (args.publish) {
-    await api.post(`/policies/${args.id}/versions/${version.id}/publish`);
+    await api.post(`/policies/${args.id}/versions/${version.id}/publish`, undefined, orgHeaders(args.organizationId));
   }
   if (args.archive) {
-    await api.post(`/policies/${args.id}/deactivate`);
+    await api.post(`/policies/${args.id}/deactivate`, undefined, orgHeaders(args.organizationId));
   }
-  return fetchPolicyDetail(args.id);
+  return fetchPolicyDetail(args.id, args.organizationId);
 }
 
-export async function deactivatePolicy(id: string): Promise<void> {
-  await api.post(`/policies/${id}/deactivate`);
+export async function deactivatePolicy(id: string, organizationId?: string): Promise<void> {
+  await api.post(`/policies/${id}/deactivate`, undefined, orgHeaders(organizationId));
 }

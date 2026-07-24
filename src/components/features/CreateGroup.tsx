@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
+import { resolveOrgId } from "@/services/customer.service";
 
 // Only the bandwidth rate has a real backend equivalent (bandwidthPolicyService) --
 // session/idle timeout, daily limit, devices-per-user, login hours, and data
@@ -92,12 +93,15 @@ const DEMO_GROUPS: Group[] = [
 export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
   const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     if (demo) return;
     (async () => {
       try {
-        const real = await bandwidthPolicyService.list();
+        const org = await resolveOrgId();
+        setOrgId(org);
+        const real = await bandwidthPolicyService.list(org);
         setGroups(real.map((p) => ({ id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0 })));
       } catch {
         // Leave groups empty -- the "no groups yet" state is accurate.
@@ -156,7 +160,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
     try {
       const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
-      const saved = await bandwidthPolicyService.save({ name, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps });
+      const saved = await bandwidthPolicyService.save({ name, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps }, orgId ?? undefined);
       setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
       setStep1Done(true); setPage(0);
       resetForm();
@@ -176,7 +180,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setGroups((p) => p.filter((g) => g.id !== id)); setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (!demo) {
-        bandwidthPolicyService.remove(id).catch(() => { setGroups(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+        bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => { setGroups(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
       }
     } else { setConfirmingId(id); if (confirmTimer.current) clearTimeout(confirmTimer.current); confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000); }
   };

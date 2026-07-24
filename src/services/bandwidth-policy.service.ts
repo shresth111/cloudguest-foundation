@@ -57,13 +57,16 @@ function toRules(input: SaveBandwidthPolicyInput): BandwidthRules {
 }
 
 export const bandwidthPolicyService = {
-  async list(): Promise<BandwidthPolicy[]> {
-    const details = await listPolicyDetails(POLICY_TYPE);
+  // organizationId, when given (e.g. the customer Policies tab), scopes
+  // this to ORGANIZATION instead of the GLOBAL-only default -- see
+  // policy-engine.ts's orgHeaders() comment.
+  async list(organizationId?: string): Promise<BandwidthPolicy[]> {
+    const details = await listPolicyDetails(POLICY_TYPE, organizationId);
     return details.map(toBandwidthPolicy);
   },
 
-  async kpis(): Promise<BandwidthPolicyKpis> {
-    const policies = await bandwidthPolicyService.list();
+  async kpis(organizationId?: string): Promise<BandwidthPolicyKpis> {
+    const policies = await bandwidthPolicyService.list(organizationId);
     return {
       total: policies.length,
       active: policies.filter((p) => p.status === "active").length,
@@ -71,13 +74,14 @@ export const bandwidthPolicyService = {
     };
   },
 
-  async save(input: SaveBandwidthPolicyInput): Promise<BandwidthPolicy> {
+  async save(input: SaveBandwidthPolicyInput, organizationId?: string): Promise<BandwidthPolicy> {
     if (input.id) {
       const detail = await updatePolicyRules({
         id: input.id,
         rules: toRules(input),
         publish: input.status !== "draft",
         archive: input.status === "archived",
+        organizationId,
       });
       return toBandwidthPolicy(detail);
     }
@@ -87,11 +91,12 @@ export const bandwidthPolicyService = {
       description: input.description ?? null,
       rules: toRules(input),
       publish: input.status !== "draft",
+      organizationId,
     });
     return toBandwidthPolicy(detail);
   },
 
-  async remove(id: string): Promise<void> {
-    await deactivatePolicy(id);
+  async remove(id: string, organizationId?: string): Promise<void> {
+    await deactivatePolicy(id, organizationId);
   },
 };
