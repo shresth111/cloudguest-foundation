@@ -3,7 +3,7 @@ import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, Chev
 import { cn } from "@/lib/utils";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
-import { organizationService } from "@/services/organization.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AnyAccessRule } from "@/types/guest";
 
 // ── helpers ─────────────────────────────────────────────────────
@@ -89,11 +89,13 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     if (demo) return;
     (async () => {
       try {
-        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-        const org = orgs.rows[0];
-        if (!org) return;
-        setOrgId(org.id);
-        const rules = await guestService.listAccessRules();
+        // /me/organizations (membership-scoped) instead of the
+        // platform-wide GET /organizations, which 403s for an ordinary
+        // customer/org-owner session -- see customer.service.ts's
+        // resolveOrgId doc comment.
+        const org = await resolveOrgId();
+        setOrgId(org);
+        const rules = await guestService.listAccessRules(org);
         setEntries(rules.filter((r) => r.ruleType === "whitelist").map(toEntry));
       } catch {
         // Leave entries empty -- the "no whitelist entries" state is accurate.
@@ -171,7 +173,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     const removed = entries.find((e) => e.id === id);
     setEntries(p => p.filter(e => e.id !== id));
     if (!demo && removed) {
-      try { await guestService.deleteAccessRule(removed.tab === "device" ? "device" : "identifier", id); }
+      try { await guestService.deleteAccessRule(removed.tab === "device" ? "device" : "identifier", id, orgId ?? undefined); }
       catch { setEntries(prev); }
     }
   };

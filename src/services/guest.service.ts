@@ -462,7 +462,24 @@ export const guestService = {
     });
   },
 
-  async listAccessRules(): Promise<AnyAccessRule[]> {
+  // When the caller already knows their organization (e.g. the customer
+  // Whitelist tab), pass it to skip fanOutPerOrg()'s GLOBAL-only
+  // fetchAllOrganizations() call entirely and hit both endpoints directly
+  // with X-Organization-Id -- fanOutPerOrg's fan-out 403s for an ordinary
+  // customer/org-owner session (same class of bug as customer.service.ts's
+  // listLocations() before its fix). Callers with no known org (the
+  // cross-tenant admin Guest Access page) keep the original fan-out.
+  async listAccessRules(organizationId?: string): Promise<AnyAccessRule[]> {
+    if (organizationId) {
+      const headers = { "X-Organization-Id": organizationId };
+      const [identifierRes, deviceRes] = await Promise.allSettled([
+        api.get<BackendListResponse<BackendAccessRule>>("/guest-access/rules", { params: { page_size: 100 }, headers }),
+        api.get<BackendListResponse<BackendDeviceAccessRule>>("/guest-access/device-rules", { params: { page_size: 100 }, headers }),
+      ]);
+      const identifierRules = identifierRes.status === "fulfilled" ? identifierRes.value.data.items.map(toAccessRule) : [];
+      const deviceRules = deviceRes.status === "fulfilled" ? deviceRes.value.data.items.map(toDeviceAccessRule) : [];
+      return [...identifierRules, ...deviceRules];
+    }
     const [identifierRules, deviceRules] = await Promise.all([
       fanOutPerOrg<GuestAccessRule>("/guest-access/rules", (raw) =>
         toAccessRule(raw as BackendAccessRule),
@@ -503,14 +520,18 @@ export const guestService = {
       : toDeviceAccessRule(data as BackendDeviceAccessRule);
   },
 
-  async deactivateAccessRule(kind: "identifier" | "device", ruleId: string): Promise<void> {
+  async deactivateAccessRule(kind: "identifier" | "device", ruleId: string, organizationId?: string): Promise<void> {
     const path = kind === "identifier" ? "/guest-access/rules" : "/guest-access/device-rules";
-    await api.post(`${path}/${ruleId}/deactivate`);
+    await api.post(`${path}/${ruleId}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
-  async deleteAccessRule(kind: "identifier" | "device", ruleId: string): Promise<void> {
+  async deleteAccessRule(kind: "identifier" | "device", ruleId: string, organizationId?: string): Promise<void> {
     const path = kind === "identifier" ? "/guest-access/rules" : "/guest-access/device-rules";
-    await api.delete(`${path}/${ruleId}`);
+    await api.delete(`${path}/${ruleId}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
   async checkAccess(query: AccessCheckQuery): Promise<AccessCheckResult> {
@@ -532,7 +553,19 @@ export const guestService = {
     };
   },
 
-  async listTeams(): Promise<GuestTeam[]> {
+  // organizationId, when known (e.g. the customer Teams tab), skips
+  // fanOutPerOrg()'s GLOBAL-only fetchAllOrganizations() call and hits
+  // /guest-teams directly with X-Organization-Id -- same fix as
+  // listAccessRules() above. Callers with no known org (cross-tenant admin
+  // views) keep the original fan-out.
+  async listTeams(organizationId?: string): Promise<GuestTeam[]> {
+    if (organizationId) {
+      const { data } = await api.get<BackendListResponse<BackendGuestTeam>>("/guest-teams", {
+        params: { page_size: 100 },
+        headers: { "X-Organization-Id": organizationId },
+      });
+      return data.items.map((raw) => toGuestTeam(raw));
+    }
     return fanOutPerOrg<GuestTeam>("/guest-teams", (raw) => toGuestTeam(raw as BackendGuestTeam));
   },
 
@@ -563,10 +596,11 @@ export const guestService = {
     await api.delete(`/guest-teams/${teamId}/members/${guestId}`, { data: { reason } });
   },
 
-  async revokeTeam(teamId: string, reason?: string): Promise<GuestTeamRevokeResult> {
+  async revokeTeam(teamId: string, reason?: string, organizationId?: string): Promise<GuestTeamRevokeResult> {
     const { data } = await api.post<BackendGuestTeamRevokeResponse>(
       `/guest-teams/${teamId}/revoke`,
       { reason },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return {
       team: toGuestTeam(data.team),

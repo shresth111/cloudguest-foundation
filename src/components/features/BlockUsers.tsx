@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
-import { organizationService } from "@/services/organization.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AnyAccessRule } from "@/types/guest";
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
@@ -70,11 +70,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     if (demo) return;
     (async () => {
       try {
-        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-        const org = orgs.rows[0];
-        if (!org) return;
-        setOrgId(org.id);
-        const rules = await guestService.listAccessRules();
+        // /me/organizations instead of the platform-wide GET /organizations
+        // -- see customer.service.ts's resolveOrgId doc comment.
+        const org = await resolveOrgId();
+        setOrgId(org);
+        const rules = await guestService.listAccessRules(org);
         setBlocked(rules.filter((r) => r.ruleType === "blocklist").map(toBlockedUser));
       } catch {
         // Leave blocked empty -- the "no blocked numbers" state is accurate.
@@ -232,7 +232,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     if (!row) return;
     try {
       if (row.status === "Blocked") {
-        await guestService.deactivateAccessRule("identifier", id);
+        await guestService.deactivateAccessRule("identifier", id, orgId ?? undefined);
       } else if (orgId) {
         const created = await guestService.createAccessRule({ kind: "identifier", organizationId: orgId, locationId, identifier: row.mobile, ruleType: "blocklist" });
         setBlocked((prev) => prev.map((b) => b.id === id ? toBlockedUser(created) : b));
@@ -250,7 +250,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (!demo) {
-        guestService.deleteAccessRule("identifier", id).catch(() => { setBlocked(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+        guestService.deleteAccessRule("identifier", id, orgId ?? undefined).catch(() => { setBlocked(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
       }
     } else {
       setConfirmingId(id);

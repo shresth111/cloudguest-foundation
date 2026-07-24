@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { cn } from "@/lib/utils";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
-import { organizationService } from "@/services/organization.service";
+import { resolveOrgId } from "@/services/customer.service";
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 
@@ -69,11 +69,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
     if (demo) return;
     (async () => {
       try {
-        const orgs = await organizationService.list({ page: 1, pageSize: 1 });
-        const org = orgs.rows[0];
-        if (!org) return;
-        setOrgId(org.id);
-        const rows = await guestService.listTeams();
+        // /me/organizations instead of the platform-wide GET /organizations
+        // -- see customer.service.ts's resolveOrgId doc comment.
+        const org = await resolveOrgId();
+        setOrgId(org);
+        const rows = await guestService.listTeams(org);
         setTeams(rows.map((t) => ({ id: t.id, name: t.name, businessUnit: "", members: t.maxMembers ?? 0, quota: 0, status: "active" as const })));
       } catch {
         // Leave teams empty -- the "no teams yet" state is accurate.
@@ -133,7 +133,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
     setTeams((p) => p.filter((x) => x.id !== t.id));
     toast.success("Team revoked");
     if (!demo) {
-      try { await guestService.revokeTeam(t.id); }
+      try { await guestService.revokeTeam(t.id, undefined, orgId ?? undefined); }
       catch { setTeams(prev); toast.error("Could not revoke on the server."); }
     }
   };
