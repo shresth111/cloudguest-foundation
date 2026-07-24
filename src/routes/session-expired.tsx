@@ -20,6 +20,19 @@ function SessionExpiredPage() {
     void logout();
   }, [logout]);
 
+  // api.ts's response interceptor sends *any* session here on a 401 it
+  // can't refresh -- a Master Console session's expired token lands here
+  // exactly the same way a customer's does, `redirect` carrying whichever
+  // page they were on (e.g. "/master/customers"). This used to always
+  // point "Return to sign in" at /login (the customer/org-owner sign-in
+  // page) regardless of that -- so a platform operator whose session
+  // expired mid-console got dropped onto the customer login page instead
+  // of back to /master-login. Route by the same prefix the /master and
+  // /agent route guards themselves key off of, so each surface's session
+  // expiring sends you back to *that* surface's own sign-in, not always
+  // the customer one.
+  const signInTarget = redirect?.startsWith("/master") ? "/master-login" : "/login";
+
   return (
     <AuthLayout title="Your session has expired" subtitle="For your security, please sign in again to continue.">
       <div className="flex flex-col items-center gap-6 rounded-xl border border-border bg-card p-8 text-center">
@@ -31,7 +44,7 @@ function SessionExpiredPage() {
         </p>
         <Button
           className="w-full"
-          onClick={() => navigate({ to: "/login", search: { redirect }, replace: true })}
+          onClick={() => navigate({ to: signInTarget, search: { redirect }, replace: true })}
         >
           Return to sign in
         </Button>
