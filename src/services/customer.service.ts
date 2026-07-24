@@ -2,10 +2,16 @@ import { api } from "@/services/api";
 import { locationService } from "@/services/location.service";
 import { routerService } from "@/services/router.service";
 import { guestService } from "@/services/guest.service";
-import type { RouterDevice } from "@/types/router";
-import type { GuestSession } from "@/types/guest";
+import type { Location } from "@/types/location";
 
 /* ── Types ─────────────────────────────────────────────────── */
+
+/** Minimal shape read from `/locations/{id}/routers` and `/guest-sessions`
+ * (raw backend snake_case) -- listLocations() hits these directly to enrich
+ * the location picker without pulling in router.service.ts/guest.service.ts's
+ * full normalization + org-wide fan-out helpers. */
+interface RawRouterStatus { status: string; }
+interface RawGuestSessionStatus { status: string; bytes_downloaded?: number; bytes_uploaded?: number; }
 
 export interface NavItem { id: string; label: string; module: string; }
 
@@ -106,34 +112,72 @@ export const customerService = {
   },
 
   /* ── Location Switcher ─────────────────────────────────── */
+  /**
+   * Was a sequential `for (org) { for (loc) { await router; await sessions } }`
+   * loop, where the per-location `routerService.list()` / `guestService.listSessions()`
+   * calls each *internally* re-fan-out across every organization just to
+   * resolve the one location's org id (see router.service.ts's
+   * `fetchAllLocations()`, guest.service.ts's `fanOutPerOrg()`) -- so every
+   * location cost O(orgs) extra requests on top of the O(orgs) already paid
+   * to list locations, and every one of those requests was awaited one at a
+   * time. With N orgs and L locations that's on the order of L*N sequential
+   * round trips, which is what produced the "stuck loading" bug as test orgs
+   * accumulated in the dev DB. Fixed by (1) fetching every org's locations in
+   * parallel, matching location.service.ts's own `fetchAllLocations()`
+   * `allSettled` pattern, and (2) enriching every location in parallel too,
+   * hitting `/locations/{id}/routers` and `/guest-sessions?location_id=` directly
+   * (org id is already known from step 1, so there's no need to re-resolve it)
+   * instead of going through routerService/guestService's expensive fan-out helpers.
+   */
   async listLocations(): Promise<CustomerLocationSummary[]> {
     if (isDemo()) return DEMO_LOCATIONS;
     try {
       const { data: orgData } = await api.get<{ items: { id: string; name: string }[] }>("/organizations", { params: { page_size: 100 } });
       const orgs = orgData?.items ?? [];
-      const results: CustomerLocationSummary[] = [];
-      for (const org of orgs) {
-        try {
+
+      const perOrg = await Promise.allSettled(
+        orgs.map(async (org) => {
           const locs = await locationService.list({ organizationId: org.id, page: 1, pageSize: 50 });
-          for (const loc of (locs?.rows ?? [])) {
-            let routers: RouterDevice[] = [], sessions: GuestSession[] = [];
-            try { const r = await routerService.list({ locationId: loc.id, page: 1, pageSize: 100 }); routers = r.rows; } catch {}
-            try { const s = await guestService.listSessions({ locationId: loc.id, page: 1, pageSize: 50 }); sessions = s.rows; } catch {}
-            const onR = routers.filter((r) => r.status === "online").length;
-            const tR = routers.length || 1;
-            const active = sessions.filter((s) => s.status === "active").length;
-            results.push({
-              id: loc.id, name: loc.name, city: loc.city,
-              status: onR === 0 && tR > 0 ? "offline" : onR < tR ? "degraded" : "online",
-              onlineUsers: active, routerHealth: Math.round((onR / tR) * 100),
-              bandwidth: `${(sessions.reduce((s, se) => s + (se.bytesDownloaded || 0) + (se.bytesUploaded || 0), 0) / 1e6).toFixed(0)} MB`,
-              isp: "Active", lastSync: "Just now",
-              organizationId: org.id, organizationName: org.name,
-              routersTotal: routers.length, routersOnline: onR, sessionsActive: active, sessionsTotal: sessions.length,
-            });
-          }
-        } catch {}
-      }
+          return (locs?.rows ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
+        }),
+      );
+      const locOrgPairs = perOrg
+        .filter((r): r is PromiseFulfilledResult<{ loc: Location; orgId: string; orgName: string }[]> => r.status === "fulfilled")
+        .flatMap((r) => r.value);
+
+      const enriched = await Promise.allSettled(
+        locOrgPairs.map(async ({ loc, orgId, orgName }) => {
+          const [routersR, sessionsR] = await Promise.allSettled([
+            api.get<{ items: RawRouterStatus[] }>(`/locations/${loc.id}/routers`, {
+              params: { page_size: 100 },
+              headers: { "X-Organization-Id": orgId },
+            }),
+            api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
+              params: { location_id: loc.id, page_size: 50 },
+              headers: { "X-Organization-Id": orgId },
+            }),
+          ]);
+          const routers = routersR.status === "fulfilled" ? routersR.value.data?.items ?? [] : [];
+          const sessions = sessionsR.status === "fulfilled" ? sessionsR.value.data?.items ?? [] : [];
+          const onR = routers.filter((r) => r.status === "online").length;
+          const tR = routers.length || 1;
+          const active = sessions.filter((s) => s.status === "active").length;
+          const summary: CustomerLocationSummary = {
+            id: loc.id, name: loc.name, city: loc.city,
+            status: onR === 0 && tR > 0 ? "offline" : onR < tR ? "degraded" : "online",
+            onlineUsers: active, routerHealth: Math.round((onR / tR) * 100),
+            bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
+            isp: "Active", lastSync: "Just now",
+            organizationId: orgId, organizationName: orgName,
+            routersTotal: routers.length, routersOnline: onR, sessionsActive: active, sessionsTotal: sessions.length,
+          };
+          return summary;
+        }),
+      );
+      const results = enriched
+        .filter((r): r is PromiseFulfilledResult<CustomerLocationSummary> => r.status === "fulfilled")
+        .map((r) => r.value);
+
       return results.length > 0 ? results : DEMO_LOCATIONS;
     } catch { return DEMO_LOCATIONS; }
   },
