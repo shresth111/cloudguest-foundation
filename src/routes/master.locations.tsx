@@ -1,12 +1,80 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
+import axios from "axios";
 import { Search, Plus, Trash2, Loader2 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import { MSectionHeader, MTag, MButton, MTable, MTh, MTd, MTr, MDialog, MField, M_INPUT } from "@/components/master/MasterKit";
 import { locationService } from "@/services/location.service";
 import { organizationService } from "@/services/organization.service";
+import { toAppError } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import { PROPERTY_TYPE_LABEL, type Location, type PropertyType } from "@/types/location";
+
+// The Master Console's demo sign-in (see master-login.tsx, "admin@example.com
+// / test") issues a local-only `demo-access-token` that the real backend
+// never recognizes -- every real API call made with it 401s. This page (like
+// the rest of the Master Console) has no other data source, so demo sessions
+// need this small local fallback instead of unconditionally hitting the real
+// API and surfacing a scary "could not load" toast for what is actually
+// expected, by-design behavior of a fake session.
+const DEMO_ORGS: { id: string; name: string }[] = [
+  { id: "org-001", name: "Acme Corp" },
+  { id: "org-002", name: "Blue Cedar Cafes" },
+];
+
+const DEMO_LOCATIONS: Location[] = [
+  {
+    id: "loc-demo-001",
+    name: "Downtown Branch",
+    slug: "downtown-branch",
+    organizationId: "org-001",
+    organizationName: "Acme Corp",
+    status: "active",
+    propertyType: "hotel",
+    locationCode: "LOC-DEMO-001",
+    addressLine1: "123 Main St",
+    addressLine2: null,
+    city: "Austin",
+    stateProvince: "TX",
+    postalCode: "78701",
+    country: "US",
+    timezone: "America/Chicago",
+    latitude: null,
+    longitude: null,
+    contactName: null,
+    contactPhone: null,
+    contactEmail: null,
+    settings: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "loc-demo-002",
+    name: "Airport Kiosk",
+    slug: "airport-kiosk",
+    organizationId: "org-002",
+    organizationName: "Blue Cedar Cafes",
+    status: "active",
+    propertyType: "cafe",
+    locationCode: "LOC-DEMO-002",
+    addressLine1: "1 Airport Way",
+    addressLine2: null,
+    city: "Austin",
+    stateProvince: "TX",
+    postalCode: "78719",
+    country: "US",
+    timezone: "UTC",
+    latitude: null,
+    longitude: null,
+    contactName: null,
+    contactPhone: null,
+    contactEmail: null,
+    settings: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
 
 export const Route = createFileRoute("/master/locations")({
   component: LocationsScreen,
@@ -36,6 +104,17 @@ function LocationsScreen() {
 
   async function refetch() {
     setLoading(true);
+    // Demo sessions (master-login.tsx's "admin@example.com / test" shortcut)
+    // hold a token the real backend never accepts -- every call below would
+    // 401. Serve the local demo dataset instead of a doomed network round
+    // trip (same pattern the customer portal already uses, see
+    // src/services/customer.service.ts's `isDemo()`/`DEMO_LOCATIONS`).
+    if (isDemo()) {
+      setLocations(DEMO_LOCATIONS);
+      setOrgs(DEMO_ORGS);
+      setLoading(false);
+      return;
+    }
     try {
       const [locs, orgList] = await Promise.all([
         locationService.listAll(),
@@ -43,8 +122,11 @@ function LocationsScreen() {
       ]);
       setLocations(locs);
       setOrgs(orgList.rows.map((o) => ({ id: o.id, name: o.name })));
-    } catch {
-      toast.error("Could not load locations from the server.");
+    } catch (err) {
+      const message = axios.isAxiosError(err)
+        ? toAppError(err).message
+        : "Could not load locations from the server.";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
