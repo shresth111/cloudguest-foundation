@@ -58,7 +58,17 @@ export const CUSTOMER_NAVS: CustomerNavItem[] = [
  * show, real access is still gated by actual permissions. */
 export function getCustomerLoginRole(): CustomerLoginRole {
   if (typeof window === "undefined") return "owner";
-  return (localStorage.getItem("cg_login_role") as CustomerLoginRole) || "owner";
+  // Validate, don't just cast: `cg_login_role` can hold "super-admin" left
+  // over from a Master Console login in the same browser (master-login.tsx
+  // sets it on operator sign-in and it's never a valid CustomerLoginRole).
+  // An unvalidated cast made customerNavsForRole() filter against a role
+  // string no CUSTOMER_NAVS entry lists, silently emptying the sidebar --
+  // the real guard against this session ever reaching here at all is
+  // requireCustomerSession() (see src/lib/authGuards.ts), this is just a
+  // defensive fallback so a bad value degrades to "owner" instead of to
+  // an unrecognized role.
+  const stored = localStorage.getItem("cg_login_role");
+  return stored === "agent" ? "agent" : "owner";
 }
 
 export function customerNavsForRole(role: CustomerLoginRole): CustomerNavItem[] {

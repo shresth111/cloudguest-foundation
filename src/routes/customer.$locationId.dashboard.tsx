@@ -24,11 +24,12 @@ import { useCustomerDashboard, useCustomerLocations, useCustomerUsers } from "@/
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
+import { requireCustomerSession } from "@/lib/authGuards";
 
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 export const Route = createFileRoute("/customer/$locationId/dashboard")({
-
+  beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
   component: CustomerDashboardPage,
 });
 

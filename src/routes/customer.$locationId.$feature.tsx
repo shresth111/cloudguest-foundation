@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { requireCustomerSession } from "@/lib/authGuards";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { AgentsPage } from "@/components/features/AgentsPage";
@@ -129,7 +130,7 @@ const ALL_NAV_ITEMS: NavItemDef[] = NAV_GROUPS.flatMap((g) => g.items);
 function getRole(): string { if (typeof window === "undefined") return "owner"; return localStorage.getItem("cg_login_role") || "owner"; }
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
-
+  beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
   component: FeaturePage,
 });
 

@@ -21,9 +21,10 @@ import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry, maskEmail } from "@/components/features/HeaderControls";
+import { requireCustomerSession } from "@/lib/authGuards";
 
 export const Route = createFileRoute("/customer/$locationId/users")({
-
+  beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
   component: CustomerUsersPage,
 });
 

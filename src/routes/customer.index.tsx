@@ -12,9 +12,10 @@ import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
 import { useDeviceStore, FLOORS, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
 import { toast } from "sonner";
+import { requireCustomerSession } from "@/lib/authGuards";
 
 export const Route = createFileRoute("/customer/")({
-
+  beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
   component: CustomerHomePage,
 });
 
