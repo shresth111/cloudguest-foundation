@@ -1,5 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import type { RouterAuthContext } from "@/context/AuthContext";
+import { TOKEN_STORAGE_KEY } from "@/services/api";
 
 /**
  * Auth boundary for the `/customer/*` surface -- the mirror image of
@@ -34,8 +35,15 @@ export function requireCustomerSession(
   if (auth?.status === "anonymous") {
     throw redirect({ to: "/login", search: { redirect: location.href } });
   }
+  // The "admin@example.com" / "test" demo bypass (see login.tsx / AuthContext's
+  // login()) hardcodes a global-scope "Super Admin" role on its fake session --
+  // it was never meant to represent a real operator, and login.tsx sends it
+  // straight to /customer on submit. Same check customer.service.ts's own
+  // isDemo() uses, so this stays in lockstep with the rest of the demo path.
+  const isDemoSession = typeof window !== "undefined" && localStorage.getItem(TOKEN_STORAGE_KEY) === "demo-access-token";
+
   const hasCustomerRole = auth?.roles?.some((r) => r.scopeType !== "global") ?? true;
-  if (auth?.status === "authenticated" && !hasCustomerRole) {
+  if (auth?.status === "authenticated" && !hasCustomerRole && !isDemoSession) {
     // A pure operator has no organization/location-scoped role at all --
     // nothing to legitimately view on this surface. Send them back to
     // their own console instead of silently rendering as them here.
