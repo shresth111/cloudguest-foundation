@@ -102,7 +102,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         const org = await resolveOrgId();
         setOrgId(org);
         const real = await bandwidthPolicyService.list(org);
-        setGroups(real.map((p) => ({ id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0 })));
+        // Backend's GET /policies has no is_active filter -- it returns
+        // deactivated (deleted) policies right alongside active ones, so a
+        // group removed via handleDelete's deactivatePolicy() call would
+        // otherwise silently reappear here on next load/reload. Drop
+        // archived entries client-side so "deleted" actually stays deleted.
+        setGroups(real.filter((p) => p.status !== "archived").map((p) => ({ id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0 })));
       } catch {
         // Leave groups empty -- the "no groups yet" state is accurate.
       }
