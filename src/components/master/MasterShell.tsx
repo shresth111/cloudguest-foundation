@@ -3,7 +3,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutGrid, Building2, MapPin, CreditCard, Server, Router, LineChart,
   Activity, LifeBuoy, ScrollText, Settings, Search, Bell, Sun, Moon, LogOut, Menu, X,
-  TerminalSquare,
+  TerminalSquare, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -27,6 +27,7 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
   { to: "/master/tickets", label: "Support Tickets", icon: LifeBuoy, cap: "tickets" },
+  { to: "/master/demo-requests", label: "Demo Requests", icon: CalendarClock, cap: "demo-requests" },
   { to: "/master/audit", label: "Audit Logs", icon: ScrollText, cap: "audit" },
   { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
 ];

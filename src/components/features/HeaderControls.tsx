@@ -5,11 +5,13 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, ShieldCheck, Clock, CalendarClock } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, Clock, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { demoRequestService } from "@/services/demo-request.service";
+import type { AppError } from "@/services/api";
 
 const PILL_CLASS = "hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex";
 
@@ -100,13 +102,30 @@ const emptyDemoForm = { name: "", email: "", company: "", message: "" };
 export function BookDemoButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyDemoForm);
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email) { toast.error("Please share your name and email."); return; }
-    toast.success("Thanks! Our team will reach out to schedule your demo.");
-    setForm(emptyDemoForm);
-    setOpen(false);
+    if (!form.name || !form.email || !form.company) {
+      toast.error("Please share your name, email, and company.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await demoRequestService.submit({
+        fullName: form.name,
+        email: form.email,
+        companyName: form.company,
+        message: form.message || undefined,
+      });
+      toast.success("Thanks! Our team will reach out to schedule your demo.");
+      setForm(emptyDemoForm);
+      setOpen(false);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not submit your request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -136,8 +155,11 @@ export function BookDemoButton({ className }: { className?: string }) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit">Request Demo</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {submitting ? "Submitting…" : "Request Demo"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

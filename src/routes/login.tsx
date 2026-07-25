@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
+import { demoRequestService } from "@/services/demo-request.service";
 
 export type LoginRole = "owner" | "agent";
 
@@ -55,6 +56,7 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", message: "" });
+  const [demoSubmitting, setDemoSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,12 +76,28 @@ function LoginPage() {
     } finally { setLoading(false); }
   };
 
-  const handleDemoSubmit = (e: React.FormEvent) => {
+  const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!demoForm.name || !demoForm.email) { toast.error("Please share your name and email."); return; }
-    toast.success("Thanks! Our team will reach out to schedule your demo.");
-    setDemoForm({ name: "", email: "", company: "", message: "" });
-    setDemoOpen(false);
+    if (!demoForm.name || !demoForm.email || !demoForm.company) {
+      toast.error("Please share your name, email, and company.");
+      return;
+    }
+    setDemoSubmitting(true);
+    try {
+      await demoRequestService.submit({
+        fullName: demoForm.name,
+        email: demoForm.email,
+        companyName: demoForm.company,
+        message: demoForm.message || undefined,
+      });
+      toast.success("Thanks! Our team will reach out to schedule your demo.");
+      setDemoForm({ name: "", email: "", company: "", message: "" });
+      setDemoOpen(false);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not submit your request. Please try again.");
+    } finally {
+      setDemoSubmitting(false);
+    }
   };
 
   return (
@@ -250,8 +268,11 @@ function LoginPage() {
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDemoOpen(false)}>Cancel</Button>
-            <Button type="submit">Request Demo</Button>
+            <Button type="button" variant="outline" onClick={() => setDemoOpen(false)} disabled={demoSubmitting}>Cancel</Button>
+            <Button type="submit" disabled={demoSubmitting}>
+              {demoSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {demoSubmitting ? "Submitting…" : "Request Demo"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
