@@ -235,6 +235,27 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     }
   };
 
+  // The primary "Block N number(s)" button used to be hard-`disabled` any
+  // time parsed.valid was empty -- which covers 4 different situations
+  // (nothing typed, invalid format, duplicates, already-blocked). A native
+  // `disabled` button suppresses the click event entirely, so in 3 of
+  // those 4 cases (anything typed at all) the click was a true dead end:
+  // no toast, no request, nothing -- indistinguishable from a broken
+  // button. Now the button is only really disabled when the box is empty;
+  // otherwise a click with zero valid numbers explains why instead of
+  // silently doing nothing.
+  const handlePrimaryClick = () => {
+    if (parsed.valid.length > 0) { setShowModal(true); return; }
+    let msg = "Nothing to block.";
+    if (parsed.alreadyBlocked.length > 0 && parsed.invalid.length === 0) {
+      msg = parsed.alreadyBlocked.length === 1 ? "That number is already blocked." : "Those numbers are already blocked.";
+    } else if (parsed.invalid.length > 0) {
+      msg = "No valid numbers to block — check the formatting (include the country code, e.g. +919876543210).";
+    }
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleUndo = () => {
     if (undoPayload) {
       const ids = new Set(undoPayload.map((u) => u.id));
@@ -361,7 +382,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
 
         <hr className="my-5 border-slate-100 dark:border-slate-600" />
         <div className="flex justify-center">
-          <button ref={triggerRef} disabled={parsed.valid.length === 0} onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-60">
+          <button ref={triggerRef} disabled={textarea.trim() === ""} onClick={handlePrimaryClick} className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-60">
             Block {parsed.valid.length > 0 ? `${parsed.valid.length} number${parsed.valid.length > 1 ? "s" : ""}` : "numbers"}
           </button>
         </div>
