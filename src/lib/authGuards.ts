@@ -21,11 +21,21 @@ export function requireCustomerSession(
   auth: RouterAuthContext | undefined,
   location: { href: string },
 ) {
-  if (!auth || auth.status === "anonymous") {
+  // Mirrors /master's own guard exactly: `auth` starts `undefined` until
+  // AuthRouterContextSync's effect (see __root.tsx) pushes the real,
+  // client-only (localStorage-derived) status into router context on
+  // mount/hydration -- treating "not yet synced" the same as "anonymous"
+  // would bounce every real, already-authenticated customer straight to
+  // /login on first navigation/refresh. Only redirect on a *definitive*
+  // anonymous/wrong-identity read; router.invalidate() re-runs this guard
+  // the instant the real status lands, so the window where a stale
+  // operator session could render here closes on the very next tick, same
+  // as it does for /master today.
+  if (auth?.status === "anonymous") {
     throw redirect({ to: "/login", search: { redirect: location.href } });
   }
-  const hasCustomerRole = auth.roles.some((r) => r.scopeType !== "global");
-  if (auth.status === "authenticated" && !hasCustomerRole) {
+  const hasCustomerRole = auth?.roles?.some((r) => r.scopeType !== "global") ?? true;
+  if (auth?.status === "authenticated" && !hasCustomerRole) {
     // A pure operator has no organization/location-scoped role at all --
     // nothing to legitimately view on this surface. Send them back to
     // their own console instead of silently rendering as them here.
