@@ -100,7 +100,20 @@ export async function createPolicyWithRules(args: {
 }): Promise<BackendPolicyDetail> {
   const { data: policy } = await api.post<BackendPolicy>(
     "/policies",
-    { policy_type: args.policyType, name: args.name, description: args.description },
+    {
+      policy_type: args.policyType,
+      name: args.name,
+      description: args.description,
+      // Backend's create_policy() rejects an org-scoped caller (any real
+      // customer session, via requesting_organization_id resolved from
+      // X-Organization-Id) whose body organization_id doesn't match --
+      // and body organization_id defaults to null ("platform-wide"), which
+      // *always* mismatches a real org caller and 400s as
+      // CrossOrganizationPolicyAccessError. orgHeaders() alone (the header)
+      // only controls RBAC scope resolution; the body field is a separate,
+      // independently-checked value that must be sent too.
+      organization_id: args.organizationId ?? null,
+    },
     orgHeaders(args.organizationId),
   );
   const { data: version } = await api.post<BackendPolicyVersion>(
