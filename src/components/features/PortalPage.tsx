@@ -77,7 +77,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         seo: { metaDescription: msg } as any,
       };
       if (portalId) {
-        await portalService.update(portalId, patch);
+        await portalService.update(portalId, patch, orgId);
       } else {
         const created = await portalService.create({ name: "Guest Portal", organizationId: orgId, locationId: locationId ?? "", ...patch });
         setPortalId(created.id);
