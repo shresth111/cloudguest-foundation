@@ -178,14 +178,30 @@ const UNAVAILABLE_REASON: Record<string, string> = {
 
 interface RealGuestSession { started_at: string; ended_at?: string | null; bytes_uploaded?: number; bytes_downloaded?: number }
 
+// GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
+// `page_size: int = Query(default=25, ge=1, le=100)`) -- a single page_size=500
+// request 422s outright, which silently turned every real Data Report into
+// either a fabricated "Could not load this report" error or a false "0 MB"
+// once the per-location Promise.allSettled in realDataByLocation swallowed
+// the rejection. Page through in 100-row chunks via has_next instead, capped
+// at 20 pages (2000 sessions) so one location with an unbounded history can't
+// hang the report -- generous for a <=90-day range (this form's own cap).
+const SESSIONS_PAGE_SIZE = 100;
+const MAX_SESSION_PAGES = 20;
+
 async function fetchRealSessions(orgId: string, locationId: string, from: string, to: string): Promise<RealGuestSession[]> {
-  const { data } = await api.get<{ items: RealGuestSession[] }>("/guest-sessions", {
-    params: { location_id: locationId, page_size: 500 },
-    headers: { "X-Organization-Id": orgId },
-  });
   const fromT = new Date(from).getTime();
   const toT = new Date(to).getTime() + 86400000;
-  return (data?.items ?? []).filter((s) => {
+  const all: RealGuestSession[] = [];
+  for (let page = 1; page <= MAX_SESSION_PAGES; page++) {
+    const { data } = await api.get<{ items: RealGuestSession[]; has_next?: boolean }>("/guest-sessions", {
+      params: { location_id: locationId, page, page_size: SESSIONS_PAGE_SIZE },
+      headers: { "X-Organization-Id": orgId },
+    });
+    all.push(...(data?.items ?? []));
+    if (!data?.has_next) break;
+  }
+  return all.filter((s) => {
     const t = new Date(s.started_at).getTime();
     return t >= fromT && t < toT;
   });
