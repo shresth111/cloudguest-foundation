@@ -12,6 +12,19 @@ const fmtDT = (iso: string) => {
   const d = new Date(iso);
   return `${pad2(d.getDate())}-${pad2(d.getMonth() + 1)}-${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
+// <input type="datetime-local">'s value ("2026-08-01T06:49") carries no UTC
+// offset -- per the HTML/ECMA-262 spec it's the *browser's local* wall-clock
+// time (i.e. the real zone the person filling the form is actually in, not
+// UTC). `new Date(...)` parses a zone-less date-time string exactly that
+// way, so `.toISOString()` gives the real UTC instant for whatever zone the
+// customer is really in -- e.g. an Asia/Kolkata user's "06:49" becomes
+// "01:19:00Z", not (wrongly) "06:49:00Z". Sending the raw local string
+// instead (as this used to do) both misrepresents the intended moment by
+// the zone offset AND -- because the backend then received the datetime
+// with no tzinfo at all -- crashed guest-access/[device-]rules' expiry
+// check with an unhandled naive-vs-aware TypeError (fixed independently on
+// the backend, but this is the real, zone-correct fix at the source).
+const toUtcIso = (dtLocal: string) => (dtLocal ? new Date(dtLocal).toISOString() : undefined);
 const MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COUNTRIES = [
@@ -172,7 +185,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         organizationId: orgId, locationId,
         identifier: tab === "number" ? identifier : undefined,
         macAddress: tab === "device" ? identifier : undefined,
-        ruleType: "whitelist", reason: f.name, expiresAt: f.endDate || undefined,
+        ruleType: "whitelist", reason: f.name, expiresAt: toUtcIso(f.endDate),
       });
       setEntries(p => [toEntry(rule), ...p]);
       setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: units[0] ?? "", startDate: "", endDate: "" });
