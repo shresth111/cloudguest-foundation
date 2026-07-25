@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Fingerprint, IdCard, DoorOpen, Globe, Mail, Ticket, Key, GripVertical, Plus, Trash2 } from "lucide-react";
+import { api } from "@/services/api";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { resolveOrgId } from "@/services/customer.service";
 
 interface LoginMethod {
   id: string;
@@ -20,7 +23,31 @@ interface LoginMethod {
   config: Record<string, any>;
 }
 
-export default function SmartIdPage() {
+// Only these two SmartIdPage methods have a real, persisted counterpart in
+// the backend's captive_portal_configs table (otp_email_enabled /
+// voucher_enabled -- see backend/app/domains/captive_portal/models.py).
+// Aadhaar/Passport/Room No./SSO/PIN have no backing column anywhere in the
+// backend (no identity-verification or PIN-login module exists), so
+// toggling those stays local-only -- the same honest "real field written
+// for real, no field faked as persisted" boundary portal.service.ts's own
+// LOGIN_METHOD_FLAGS already documents for this exact backend table.
+const BACKED_FLAGS: Partial<Record<string, "otp_email_enabled" | "voucher_enabled">> = {
+  "email-otp": "otp_email_enabled",
+  voucher: "voucher_enabled",
+};
+
+interface BackendCaptivePortalConfig {
+  id: string;
+  organization_id: string;
+  location_id: string | null;
+  otp_email_enabled: boolean;
+  voucher_enabled: boolean;
+  is_active: boolean;
+  is_default: boolean;
+}
+
+export default function SmartIdPage({ locationId }: { locationId?: string } = {}) {
+  const demo = useIsDemo();
   const [methods, setMethods] = useState<LoginMethod[]>([
     { id: "aadhar", label: "Aadhaar", icon: Fingerprint, enabled: true, required: true, order: 1, config: { otpVerify: true } },
     { id: "passport", label: "Passport", icon: IdCard, enabled: true, required: false, order: 2, config: { manualVerification: true } },
@@ -35,9 +62,86 @@ export default function SmartIdPage() {
   const [tempPin, setTempPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
 
-  const toggleMethod = (id: string) => {
-    setMethods(methods.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m));
-    toast.success(`Login method updated`);
+  // orgId + the resolved captive-portal config id for this location (if
+  // one already exists) -- null configId means "none yet", created lazily
+  // on the first backed toggle (see toggleMethod below).
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [configId, setConfigId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demo) return;
+    (async () => {
+      try {
+        const org = await resolveOrgId();
+        setOrgId(org);
+        // No single-column "give me this location's config, else the org
+        // default" filter exists server-side -- fetch every config for
+        // this org and resolve most-specific-wins client-side, mirroring
+        // backend's own CaptivePortalService.resolve_portal_config order
+        // (location override, else org default, else none).
+        const { data } = await api.get<{ items: BackendCaptivePortalConfig[] }>(
+          "/captive-portal-configs",
+          { params: { page_size: 100 }, headers: { "X-Organization-Id": org } },
+        );
+        const items = data.items ?? [];
+        const match =
+          items.find((c) => c.location_id === locationId) ??
+          items.find((c) => c.location_id === null && c.is_default) ??
+          null;
+        if (match) {
+          setConfigId(match.id);
+          setMethods((prev) =>
+            prev.map((m) => {
+              const flag = BACKED_FLAGS[m.id];
+              return flag ? { ...m, enabled: match[flag] } : m;
+            }),
+          );
+        }
+      } catch {
+        // Leave the local defaults in place -- backed toggles will lazily
+        // create a config on first use (see toggleMethod).
+      }
+    })();
+  }, [demo, locationId]);
+
+  const toggleMethod = async (id: string) => {
+    const next = !methods.find((m) => m.id === id)?.enabled;
+    setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: next } : m));
+
+    const flag = BACKED_FLAGS[id];
+    if (demo || !flag) {
+      // No backend field for this method (or a demo session) -- local-only,
+      // same as before.
+      toast.success(`Login method updated`);
+      return;
+    }
+    if (!orgId) {
+      setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: !next } : m));
+      toast.error("No organization found for this session.");
+      return;
+    }
+    try {
+      const headers = { "X-Organization-Id": orgId };
+      if (configId) {
+        await api.put(`/captive-portal-configs/${configId}`, { [flag]: next }, { headers });
+      } else {
+        const { data } = await api.post<BackendCaptivePortalConfig>(
+          "/captive-portal-configs",
+          {
+            organization_id: orgId,
+            location_id: locationId || null,
+            name: "Guest WiFi Login",
+            [flag]: next,
+          },
+          { headers },
+        );
+        setConfigId(data.id);
+      }
+      toast.success(`Login method updated`);
+    } catch {
+      setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: !next } : m));
+      toast.error("Could not save — check the connection and try again.");
+    }
   };
 
   const moveUp = (idx: number) => {

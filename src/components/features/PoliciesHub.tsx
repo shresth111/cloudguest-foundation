@@ -69,7 +69,7 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
       {tab === "location" && <LocationPolicies locationId={locationId} />}
       {tab === "user" && userTab === "block" && <BlockUsers locationId={locationId} />}
       {tab === "user" && userTab === "whitelist" && <WhiteList locationId={locationId} />}
-      {tab === "user" && userTab === "smartid" && <SmartIdPage />}
+      {tab === "user" && userTab === "smartid" && <SmartIdPage locationId={locationId} />}
       {tab === "group" && <CreateGroup locationId={locationId} />}
     </div>
   );
