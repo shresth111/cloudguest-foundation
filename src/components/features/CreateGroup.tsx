@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   HelpCircle, X, Plus, ChevronDown, Search, Pencil, Copy, Trash2,
-  ChevronLeft, ChevronRight, Loader2, User, Network,
+  ChevronLeft, ChevronRight, Loader2, User, Network, MapPin, MapPinOff,
 } from "lucide-react";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
@@ -42,6 +42,14 @@ interface Group {
   loginHours: { days: string[]; from: string; to: string } | null;
   dataLimit: { quota: number; unit: string; resets: string } | null;
   members: number;
+  // "Map group" (stepper step 2) -- backed by the real, already-built
+  // backend PolicyAssignment (scope_type="location", target_type="none").
+  // null == not mapped to this location; a string is that active
+  // assignment's id (needed to deactivate it again on unmap). Bug report:
+  // "policies>map group nhi hora hai" -- the stepper icon had no onClick
+  // at all and neither did anything below it call this endpoint, so
+  // mapping a group to its location was a total dead click.
+  mappedAssignmentId: string | null;
 }
 
 function Tooltip({ text }: { text: string }) {
@@ -85,9 +93,9 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
 }
 
 const DEMO_GROUPS: Group[] = [
-  { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12 },
-  { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8 },
-  { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5 },
+  { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12, mappedAssignmentId: "demo-g1" },
+  { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8, mappedAssignmentId: null },
+  { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5, mappedAssignmentId: null },
 ];
 
 export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
@@ -107,7 +115,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // group removed via handleDelete's deactivatePolicy() call would
         // otherwise silently reappear here on next load/reload. Drop
         // archived entries client-side so "deleted" actually stays deleted.
-        setGroups(real.filter((p) => p.status !== "archived").map((p) => ({ id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0 })));
+        const active = real.filter((p) => p.status !== "archived");
+        // One assignments lookup per group to seed the "Map group" toggle's
+        // initial state -- see Group.mappedAssignmentId's own doc comment.
+        // Skipped entirely with no locationId (CreateGroup rendered outside
+        // a location context): every group reads as unmapped and the map
+        // button below disables itself rather than guessing a location.
+        const withMapping = await Promise.all(
+          active.map(async (p) => {
+            let mappedAssignmentId: string | null = null;
+            if (locationId) {
+              try {
+                mappedAssignmentId = await bandwidthPolicyService.locationMapping(p.id, locationId, org);
+              } catch {
+                mappedAssignmentId = null;
+              }
+            }
+            return { id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0, mappedAssignmentId };
+          }),
+        );
+        setGroups(withMapping);
       } catch {
         // Leave groups empty -- the "no groups yet" state is accurate.
       }
@@ -124,6 +151,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [search, setSearch] = useState(""); const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState<number>(10);
   const [toast, setToast] = useState<string | null>(null); const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [mappingBusy, setMappingBusy] = useState<Set<string>>(new Set());
   const [step1Done, setStep1Done] = useState(false);
   // Bug report: "existing groups mai edit icon click nhi ho raha hai" --
   // the Pencil button had no onClick handler at all. Reuses handleClone's
@@ -167,7 +195,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         if (isEdit) {
           setGroups((prev) => prev.map((g) => (g.id === editingId ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
         } else {
-          setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+          setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null }, ...prev]);
         }
         setSaving(false); setStep1Done(true); setPage(0);
         resetForm();
@@ -186,7 +214,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       if (isEdit) {
         setGroups((prev) => prev.map((g) => (g.id === saved.id ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
       } else {
-        setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+        setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null }, ...prev]);
       }
       setStep1Done(true); setPage(0);
       resetForm();
@@ -209,6 +237,41 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => { setGroups(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
       }
     } else { setConfirmingId(id); if (confirmTimer.current) clearTimeout(confirmTimer.current); confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000); }
+  };
+
+  // "Map group" -- toggles this group's real PolicyAssignment to the
+  // current location on/off. Guarded against double-submission
+  // (mappingBusy) since the backend itself doesn't reject a second active
+  // assignment at the same scope -- see bandwidth-policy.service.ts's
+  // mapToLocation doc comment.
+  const handleToggleMap = async (g: Group) => {
+    if (!locationId) {
+      setToast("Select a location to map this group.");
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+    if (mappingBusy.has(g.id)) return;
+    setMappingBusy((p) => new Set(p).add(g.id));
+    const wasMapped = !!g.mappedAssignmentId;
+    try {
+      if (demo) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: wasMapped ? null : `demo-${g.id}` } : x)));
+      } else if (wasMapped) {
+        await bandwidthPolicyService.unmapFromLocation(g.id, g.mappedAssignmentId as string, orgId ?? undefined);
+        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: null } : x)));
+      } else {
+        const assignmentId = await bandwidthPolicyService.mapToLocation(g.id, locationId, orgId ?? undefined);
+        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: assignmentId } : x)));
+      }
+      setToast(wasMapped ? `${g.name} unmapped from this location.` : `${g.name} mapped to this location.`);
+      setTimeout(() => setToast(null), 2500);
+    } catch {
+      setToast(`Could not ${wasMapped ? "unmap" : "map"} ${g.name} — check the connection and try again.`);
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      setMappingBusy((p) => { const n = new Set(p); n.delete(g.id); return n; });
+    }
   };
 
   const handleClone = (g: Group) => {
@@ -234,6 +297,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
   const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  // Drives the "Map group" stepper's caption/color below -- true once at
+  // least one group has been mapped to this location via the real "Map"
+  // button in the Existing Groups table.
+  const step2Done = groups.some((g) => g.mappedAssignmentId);
 
   return (
     <div className="space-y-6">
@@ -246,18 +313,29 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Create Group</h1>
 
       <ol className="flex items-center gap-0" aria-label="Progress">
-        {STEPS.map((s, i) => (
-          <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
-            <div className="flex flex-col items-center min-w-0">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${s.num === 1 ? (step1Done ? "bg-orange-500" : "bg-slate-900") : "bg-slate-100 dark:bg-slate-700"}`}>
-                <s.icon className={`h-4 w-4 ${s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
+        {STEPS.map((s, i) => {
+          // Step 1's "done" readout is step1Done (a group was just
+          // created/edited this session); step 2's is step2Done (a real,
+          // persisted PolicyAssignment exists for some group at this
+          // location -- see the "Map" button in the table below). Step 3
+          // ("Map users") has no real backing yet -- see this file's own
+          // PR notes -- so it deliberately keeps its static caption rather
+          // than claim a state that isn't tracked.
+          const done = s.num === 1 ? step1Done : s.num === 2 ? step2Done : false;
+          const caption = s.num === 2 ? (step2Done ? "Mapped" : "Not started") : s.caption;
+          return (
+            <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
+              <div className="flex flex-col items-center min-w-0">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${done ? "bg-orange-500" : s.num === 1 ? "bg-slate-900" : "bg-slate-100 dark:bg-slate-700"}`}>
+                  <s.icon className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
+                </div>
+                <p className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
+                {caption && <p className={`text-[10px] ${done ? "text-orange-500" : "text-slate-400 dark:text-slate-500"}`}>{caption}</p>}
               </div>
-              <p className={`mt-1 text-xs font-medium ${s.num === 1 ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
-              {s.caption && <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.caption}</p>}
-            </div>
-            {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${i === 0 && step1Done ? "bg-orange-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
-          </li>
-        ))}
+              {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-orange-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
+            </li>
+          );
+        })}
       </ol>
 
       <div id="create-group-form" className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
@@ -344,9 +422,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <div className="overflow-x-auto">
           <table className="min-w-[1000px] w-full text-sm">
             <thead><tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 dark:border-slate-600 dark:text-slate-400">
-              <th className="pb-2 pr-3">Group Name</th><th className="pb-2 pr-3">Bandwidth</th><th className="pb-2 pr-3">Timeout</th><th className="pb-2 pr-3">Idle</th><th className="pb-2 pr-3">Devices</th><th className="pb-2 pr-3">Login Hours</th><th className="pb-2 pr-3">Data Limit</th><th className="pb-2 pr-3">Members</th><th className="pb-2 text-right">Action</th>
+              <th className="pb-2 pr-3">Group Name</th><th className="pb-2 pr-3">Bandwidth</th><th className="pb-2 pr-3">Timeout</th><th className="pb-2 pr-3">Idle</th><th className="pb-2 pr-3">Devices</th><th className="pb-2 pr-3">Login Hours</th><th className="pb-2 pr-3">Data Limit</th><th className="pb-2 pr-3">Members</th><th className="pb-2 pr-3">Location</th><th className="pb-2 text-right">Action</th>
             </tr></thead>
-            <tbody>{paged.length === 0 ? (<tr><td colSpan={9} className="py-10 text-center text-sm text-slate-400">No groups yet. Create one above to give a set of users their own policy.</td></tr>) : paged.map((g) => (
+            <tbody>{paged.length === 0 ? (<tr><td colSpan={10} className="py-10 text-center text-sm text-slate-400">No groups yet. Create one above to give a set of users their own policy.</td></tr>) : paged.map((g) => (
               <tr key={g.id} className="border-b border-slate-100 text-slate-700 last:border-0 dark:border-slate-700 dark:text-slate-300">
                 <td className="py-2.5 pr-3 font-medium">{g.name}</td>
                 <td className="py-2.5 pr-3">{g.bandwidth}</td>
@@ -356,6 +434,24 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 <td className="py-2.5 pr-3 text-xs">{g.loginHours ? `${g.loginHours.days.slice(0,3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}` : <span className="text-slate-300">Any time</span>}</td>
                 <td className="py-2.5 pr-3 text-xs">{g.dataLimit ? `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}` : <span className="text-slate-300">—</span>}</td>
                 <td className="py-2.5 pr-3">{g.members}</td>
+                <td className="py-2.5 pr-3">
+                  <button
+                    aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
+                    disabled={mappingBusy.has(g.id) || !locationId}
+                    title={!locationId ? "Select a location to map this group." : undefined}
+                    onClick={() => handleToggleMap(g)}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-300" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
+                  >
+                    {mappingBusy.has(g.id) ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : g.mappedAssignmentId ? (
+                      <MapPin className="h-3 w-3" />
+                    ) : (
+                      <MapPinOff className="h-3 w-3" />
+                    )}
+                    {g.mappedAssignmentId ? "Mapped" : "Map"}
+                  </button>
+                </td>
                 <td className="py-2.5 text-right">
                   <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Pencil className="h-4 w-4" /></button>
                   <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Copy className="h-4 w-4" /></button>

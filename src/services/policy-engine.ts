@@ -155,3 +155,66 @@ export async function updatePolicyRules(args: {
 export async function deactivatePolicy(id: string, organizationId?: string): Promise<void> {
   await api.post(`/policies/${id}/deactivate`, undefined, orgHeaders(organizationId));
 }
+
+// ============================================================================
+// Assignments -- backing CreateGroup.tsx's "Map group" step. The backend
+// (backend/app/domains/policy/router.py's /{policy_id}/assignments trio) is
+// real and fully built; only the frontend never called it, so the "Map
+// group" stepper icon was a static caption with no onClick at all (bug
+// report: "policies>map group nhi hora hai"). Reused here rather than
+// added to bandwidth-policy.service.ts's typed interface because
+// authn-policy.service.ts/routing-policy.service.ts share this same
+// dependency-free plumbing and could equally wire assignments later.
+export interface BackendPolicyAssignment {
+  id: string;
+  policy_id: string;
+  scope_type: string;
+  scope_id: string | null;
+  priority: number;
+  target_type: string;
+  target_id: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function listPolicyAssignments(
+  policyId: string,
+  organizationId?: string,
+): Promise<BackendPolicyAssignment[]> {
+  const { data } = await api.get<BackendPolicyAssignment[]>(
+    `/policies/${policyId}/assignments`,
+    orgHeaders(organizationId),
+  );
+  return data;
+}
+
+export async function createPolicyAssignment(args: {
+  policyId: string;
+  scopeType: string;
+  scopeId?: string | null;
+  priority?: number;
+  targetType?: string;
+  targetId?: string | null;
+  organizationId?: string;
+}): Promise<BackendPolicyAssignment> {
+  const { data } = await api.post<BackendPolicyAssignment>(
+    `/policies/${args.policyId}/assignments`,
+    {
+      scope_type: args.scopeType,
+      scope_id: args.scopeId ?? null,
+      priority: args.priority ?? 0,
+      target_type: args.targetType ?? "none",
+      target_id: args.targetId ?? null,
+    },
+    orgHeaders(args.organizationId),
+  );
+  return data;
+}
+
+export async function deactivatePolicyAssignment(
+  policyId: string,
+  assignmentId: string,
+  organizationId?: string,
+): Promise<void> {
+  await api.delete(`/policies/${policyId}/assignments/${assignmentId}`, orgHeaders(organizationId));
+}
