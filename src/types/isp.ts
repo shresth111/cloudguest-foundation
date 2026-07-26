@@ -136,3 +136,34 @@ export interface UpdateIspRoutingRulePayload {
   interfaceName?: string | null;
   policyId?: string | null;
 }
+
+/** The result of one real RouterOS `/tool/ping` sweep against a link's own
+ * `gatewayIpAddress` -- see backend `app.domains.isp.models.IspHealthCheck`.
+ * `status` is one of `healthy` | `degraded` | `unhealthy` (classified from
+ * latency/packet-loss thresholds server-side, never computed client-side). */
+export interface IspHealthCheck {
+  id: string;
+  ispLinkId: string;
+  checkedAt: string;
+  status: string;
+  latencyMs: number | null;
+  packetLossPercentage: number | null;
+  errorMessage: string | null;
+}
+
+export interface IspHealthCheckListQuery {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface IspHealthCheckListResult {
+  rows: IspHealthCheck[];
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  /** Null when there is no health-check history yet for this link (never
+   * a fabricated 100%/0% placeholder) -- see backend
+   * `IspService.compute_availability_percentage`. */
+  availabilityPercentage: number | null;
+}

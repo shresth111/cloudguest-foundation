@@ -6,12 +6,12 @@
  * pick up the Aurora Teal identity automatically. Mock data only -- these
  * are the seam a per-location backend call replaces.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Activity, AlertTriangle, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
-  Network, Plus, RadioTower, Router, Shield, Signal, Terminal, Ticket, Trash2,
-  Wifi, XCircle, Bell, Server, ArrowRightLeft,
+  Network, Plus, RadioTower, Router, Shield, ShieldAlert, Signal, Terminal, Ticket, Trash2,
+  Wifi, XCircle, Bell, Server, ArrowRightLeft, Pencil, RefreshCw, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,17 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
 import NetworkCrudTable, { validators } from "@/components/features/NetworkCrudTable";
-import { useIspStore, type IspConfig, type IspLine } from "@/stores/ispStore";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
+import { routerService } from "@/services/router.service";
+import { ispService } from "@/services/isp.service";
+import type { RouterDevice } from "@/types/router";
+import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
 import { api } from "@/services/api";
+import type { AppError } from "@/services/api";
 import { cn } from "@/lib/utils";
+import { getCustomerLoginRole } from "@/lib/customerNav";
 
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -297,237 +302,545 @@ export function TopUpView() {
   );
 }
 
-/* ---------- ISP Details ---------- */
-const PROVIDERS = ["Airtel", "Jio", "Tata Communications", "ACT Fibernet", "BSNL", "Skynet Broadband", "Unknown"];
-const CONNECTION_TYPES = ["Broadband", "Leased Line", "Fiber", "4G/5G Backup"];
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+/* ---------- ISP Details ----------
+ * Real per-router WAN uplink model (`app.domains.isp`): an ISP link belongs
+ * to a real router, not a fake flat "business unit" list. The customer
+ * picks a real router (routerService.listForLocation(), scoped to this
+ * location + the session's own org via resolveOrgId() -- routerService's
+ * master-console list() fans out across every org via GET /organizations,
+ * GLOBAL-scope only, which 403s for an ordinary customer session), then
+ * sees/manages that router's real ISP link(s): provider, bandwidth, DNS,
+ * priority/role/failover config, and real health-check status written by
+ * the isp domain's own 60s Celery sweep (isp_health_checks). All CRUD goes
+ * through ispService, which threads X-Organization-Id on every call. */
 
-function emptyLine(wan: string): IspLine {
-  return { wan, provider: "", connectionType: "Broadband", bandwidthMbps: 0, thresholdMbps: 0, status: "up", emailAlert: false, smsAlert: false };
-}
+const LINK_TYPES: { value: string; label: string }[] = [
+  { value: "fiber", label: "Fiber" },
+  { value: "dsl", label: "DSL" },
+  { value: "cable", label: "Cable" },
+  { value: "wireless_4g", label: "4G Wireless" },
+  { value: "wireless_5g", label: "5G Wireless" },
+  { value: "satellite", label: "Satellite" },
+  { value: "leased_line", label: "Leased Line" },
+  { value: "other", label: "Other" },
+];
 
-/* ---------- Network Health analytics (per-business-unit ISP up/down timeline) ---------- */
-
-function seededRand(seed: number) {
-  let s = seed % 2147483647;
-  if (s <= 0) s += 2147483646;
-  return () => (s = (s * 16807) % 2147483647) / 2147483647;
-}
-
-type HealthStatus = "up" | "down" | "reboot" | "none";
-
-const HEALTH_COLOR: Record<HealthStatus, string> = {
-  up: "bg-emerald-500", down: "bg-rose-500", reboot: "bg-amber-500", none: "bg-muted",
+const HEALTH_BADGE: Record<string, { label: string; dot: string; cls: string }> = {
+  healthy: { label: "Online", dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" },
+  degraded: { label: "Degraded", dot: "bg-amber-500", cls: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" },
+  unhealthy: { label: "Offline", dot: "bg-rose-500", cls: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" },
+  unknown: { label: "Unknown", dot: "bg-muted-foreground/40", cls: "bg-muted text-muted-foreground" },
 };
-const HEALTH_LABEL: Record<HealthStatus, string> = {
-  up: "Network Up", down: "Network Down", reboot: "Reboot", none: "No Data",
-};
 
-/** Manually driven by the ISP config saved above -- a line currently marked
- * "down" biases today's most recent hours to down so the chart reflects the
- * configuration instead of drifting independently. */
-function NetworkHealthChart({ businessUnit, anyLineDown }: { businessUnit: string; anyLineDown: boolean }) {
-  const [hover, setHover] = useState<{ day: string; hour: number; status: HealthStatus } | null>(null);
-
-  const { days, uptimePct } = useMemo(() => {
-    const seed = Array.from(businessUnit).reduce((a, c) => a + c.charCodeAt(0), 7);
-    const rand = seededRand(seed);
-    const today = new Date();
-    const nowHour = today.getHours();
-    const rows: { label: string; hours: HealthStatus[] }[] = [];
-    let upCount = 0, totalCount = 0;
-
-    for (let d = 6; d >= 0; d--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - d);
-      const isToday = d === 0;
-      const label = isToday ? "Today" : `${String(date.getDate()).padStart(2, "0")} ${date.toLocaleDateString("en-US", { month: "short" })} '${String(date.getFullYear()).slice(2)}`;
-      const hours: HealthStatus[] = [];
-      for (let h = 0; h < 24; h++) {
-        if (isToday && h > nowHour) { hours.push("none"); continue; }
-        let status: HealthStatus = "up";
-        const r = rand();
-        if (isToday && anyLineDown && h >= nowHour - 1) status = "down";
-        else if (r < 0.035) status = "down";
-        else if (r < 0.045) status = "reboot";
-        hours.push(status);
-        totalCount++;
-        if (status === "up") upCount++;
-      }
-      rows.push({ label, hours });
-    }
-    const uptimePct = totalCount ? ((upCount / totalCount) * 100).toFixed(2) : "0.00";
-    return { days: rows, uptimePct };
-  }, [businessUnit, anyLineDown]);
-
+function HealthBadge({ status }: { status: string }) {
+  const b = HEALTH_BADGE[status] ?? HEALTH_BADGE.unknown;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Network Health</CardTitle>
-        <CardDescription>This graph shows the network up/down time for each ISP.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="overflow-x-auto">
-          <div className="min-w-[720px]">
-            {days.map((day) => (
-              <div key={day.label} className="flex items-center gap-2 py-0.5">
-                <span className="w-16 shrink-0 text-[11px] text-muted-foreground">{day.label}</span>
-                <div className="flex flex-1 gap-[2px]">
-                  {day.hours.map((status, h) => (
-                    <div
-                      key={h}
-                      onMouseEnter={() => setHover({ day: day.label, hour: h, status })}
-                      onMouseLeave={() => setHover(null)}
-                      className={cn("h-4 flex-1 cursor-pointer rounded-[2px] transition-transform hover:scale-y-125", HEALTH_COLOR[status])}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div className="ml-[72px] mt-1 flex justify-between text-[10px] text-muted-foreground">
-              {["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "23:00"].map((t) => <span key={t}>{t}</span>)}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex h-6 items-center">
-          {hover ? (
-            <div className="rounded-lg border bg-popover px-3 py-1 text-xs shadow-sm">
-              <span className="font-medium">{hover.day}, {String(hover.hour).padStart(2, "0")}:00</span>
-              <span className="text-muted-foreground"> — {HEALTH_LABEL[hover.status]}</span>
-            </div>
-          ) : (
-            <span className="text-xs text-muted-foreground">Hover a bar for hourly detail.</span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 border-t pt-3 text-xs">
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-muted" />No Data</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Network Up</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />Network Down</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />Reboot</span>
-          <span className="ml-auto font-semibold text-foreground">All Interfaces | {uptimePct}% uptime</span>
-        </div>
-      </CardContent>
-    </Card>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium", b.cls)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", b.dot)} />{b.label}
+    </span>
   );
 }
 
-export function IspDetailsView() {
-  const { configs, saveConfig } = useIspStore();
-  const [businessUnit, setBusinessUnit] = useState(UNITS[0]);
-  const draft: IspConfig = configs[businessUnit] ?? { businessUnit, totalInterfaces: 1, emailOnFluctuation: false, lines: [emptyLine("WAN1")] };
-  const [form, setForm] = useState<IspConfig>(draft);
+interface IspLinkFormState {
+  providerName: string;
+  linkType: string;
+  role: IspLinkRole;
+  priority: number;
+  interfaceName: string;
+  gatewayIpAddress: string;
+  dnsPrimary: string;
+  dnsSecondary: string;
+  downloadBandwidthMbps: string;
+  uploadBandwidthMbps: string;
+  autoFailback: boolean;
+}
+const emptyLinkForm = (): IspLinkFormState => ({
+  providerName: "", linkType: "fiber", role: "primary", priority: 0, interfaceName: "",
+  gatewayIpAddress: "", dnsPrimary: "", dnsSecondary: "", downloadBandwidthMbps: "", uploadBandwidthMbps: "", autoFailback: true,
+});
 
-  const selectUnit = (u: string) => { setBusinessUnit(u); setForm(configs[u] ?? { businessUnit: u, totalInterfaces: 1, emailOnFluctuation: false, lines: [emptyLine("WAN1")] }); };
-  const setTotalInterfaces = (n: number) => {
-    const lines = Array.from({ length: n }, (_, i) => form.lines[i] ?? emptyLine(`WAN${i + 1}`));
-    setForm({ ...form, totalInterfaces: n, lines });
-  };
-  const updateLine = (i: number, patch: Partial<IspLine>) => setForm({ ...form, lines: form.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+// Illustrative-only, entirely local demo fixture -- the demo session's
+// token never authenticates against the real backend (see
+// router.service.ts's own DEMO_ROUTERS comment), so this view never calls
+// routerService/ispService while isDemo() is true, mirroring every other
+// rebuilt customer view's (MacAuthView, WhiteList, CreateGroup) identical
+// demo/real split.
+const DEMO_ROUTER: RouterDevice = {
+  id: "router-demo-isp", locationId: "demo-location", locationName: "Demo Location", organizationId: "org-demo", organizationName: "Demo Org",
+  name: "DEMO-EDGE-01", serialNumber: "SN-DEMO-ISP", macAddress: "AA:BB:CC:DD:EE:FF", model: "RB5009UG+S+", vendor: "MikroTik",
+  routerOsVersion: "7.14", managementIpAddress: "10.20.0.1", publicIpAddress: "203.0.113.20", status: "online",
+  lastSeenAt: new Date().toISOString(), lastHealthCheckAt: new Date().toISOString(), healthStatus: "healthy",
+  hasApiCredentials: true, settings: {}, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(), updatedAt: new Date().toISOString(),
+};
+const DEMO_LINKS: IspLink[] = [
+  { id: "isp-demo-1", routerId: DEMO_ROUTER.id, organizationId: "org-demo", locationId: "demo-location", providerName: "Airtel", linkType: "fiber", role: "primary", isActiveUplink: true, autoFailback: true, isEnabled: true, priority: 0, interface: "ether1", gatewayIpAddress: "203.0.113.1", dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8", downloadBandwidthMbps: 500, uploadBandwidthMbps: 200, healthStatus: "healthy", latencyMs: 12.4, packetLossPercentage: 0, lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 30 * 86400000).toISOString() },
+  { id: "isp-demo-2", routerId: DEMO_ROUTER.id, organizationId: "org-demo", locationId: "demo-location", providerName: "Jio", linkType: "wireless_4g", role: "backup", isActiveUplink: false, autoFailback: true, isEnabled: true, priority: 1, interface: "lte1", gatewayIpAddress: "203.0.113.9", dnsPrimary: "1.1.1.1", dnsSecondary: null, downloadBandwidthMbps: 100, uploadBandwidthMbps: 40, healthStatus: "degraded", latencyMs: 89.1, packetLossPercentage: 3.2, lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 30 * 86400000).toISOString() },
+];
 
-  const save = () => { saveConfig({ ...form, businessUnit }); toast.success(`ISP details saved for ${businessUnit}`); };
+function IspLinkDialog({
+  open, onOpenChange, editing, saving, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  editing: IspLink | null;
+  saving: boolean;
+  onSave: (form: IspLinkFormState) => void;
+}) {
+  const [form, setForm] = useState<IspLinkFormState>(emptyLinkForm());
+  useEffect(() => {
+    if (!open) return;
+    setForm(editing ? {
+      providerName: editing.providerName,
+      linkType: editing.linkType,
+      role: editing.role,
+      priority: editing.priority,
+      interfaceName: editing.interface ?? "",
+      gatewayIpAddress: editing.gatewayIpAddress ?? "",
+      dnsPrimary: editing.dnsPrimary ?? "",
+      dnsSecondary: editing.dnsSecondary ?? "",
+      downloadBandwidthMbps: editing.downloadBandwidthMbps != null ? String(editing.downloadBandwidthMbps) : "",
+      uploadBandwidthMbps: editing.uploadBandwidthMbps != null ? String(editing.uploadBandwidthMbps) : "",
+      autoFailback: editing.autoFailback,
+    } : emptyLinkForm());
+  }, [open, editing]);
+
+  const valid = form.providerName.trim().length > 0;
 
   return (
-    <div className="space-y-6">
-      <FeatureHeader title="ISP Details" description="Configure your ISP details, manage ISP alerts and add load balancing/failover details." />
-
-      <Card>
-        <CardContent className="space-y-5 p-5">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div><Label className="mb-1.5 block text-sm">Business Unit *</Label><Select value={businessUnit} onValueChange={selectUnit}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>
-            <div><Label className="mb-1.5 block text-sm">Total Interfaces *</Label><Select value={String(form.totalInterfaces)} onValueChange={(v) => setTotalInterfaces(+v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
-            <div className="flex items-end"><label className="flex items-center gap-2 text-sm"><Switch checked={form.emailOnFluctuation} onCheckedChange={(v) => setForm({ ...form, emailOnFluctuation: v })} />Email when ISP speed fluctuates</label></div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit ISP Link" : "Add ISP Link"}</DialogTitle>
+          <DialogDescription>{editing ? "Update this router's WAN uplink." : "Add a new WAN uplink for the selected router."}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">Internet Provider *</Label><Input placeholder="e.g. Airtel" value={form.providerName} onChange={(e) => setForm({ ...form, providerName: e.target.value })} className="h-9" /></div>
+            <div><Label className="mb-1 block text-xs">Link Type</Label><Select value={form.linkType} onValueChange={(v) => setForm({ ...form, linkType: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{LINK_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">Role</Label><Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as IspLinkRole })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="backup">Backup</SelectItem></SelectContent></Select></div>
+            <div><Label className="mb-1 block text-xs">Priority</Label><Input type="number" min={0} value={form.priority} onChange={(e) => setForm({ ...form, priority: +e.target.value || 0 })} className="h-9" /></div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">Download (Mbps)</Label><Input type="number" min={0} placeholder="500" value={form.downloadBandwidthMbps} onChange={(e) => setForm({ ...form, downloadBandwidthMbps: e.target.value })} className="h-9" /></div>
+            <div><Label className="mb-1 block text-xs">Upload (Mbps)</Label><Input type="number" min={0} placeholder="200" value={form.uploadBandwidthMbps} onChange={(e) => setForm({ ...form, uploadBandwidthMbps: e.target.value })} className="h-9" /></div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">Gateway IP</Label><Input placeholder="203.0.113.1" value={form.gatewayIpAddress} onChange={(e) => setForm({ ...form, gatewayIpAddress: e.target.value })} className="h-9 font-mono" /></div>
+            <div><Label className="mb-1 block text-xs">Interface</Label><Input placeholder="ether1" value={form.interfaceName} onChange={(e) => setForm({ ...form, interfaceName: e.target.value })} className="h-9 font-mono" /></div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">DNS Primary</Label><Input placeholder="1.1.1.1" value={form.dnsPrimary} onChange={(e) => setForm({ ...form, dnsPrimary: e.target.value })} className="h-9 font-mono" /></div>
+            <div><Label className="mb-1 block text-xs">DNS Secondary</Label><Input placeholder="8.8.8.8" value={form.dnsSecondary} onChange={(e) => setForm({ ...form, dnsSecondary: e.target.value })} className="h-9 font-mono" /></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm"><Switch checked={form.autoFailback} onCheckedChange={(v) => setForm({ ...form, autoFailback: v })} />Auto failback to this link once healthy again</label>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button disabled={!valid || saving} onClick={() => onSave(form)}>{saving ? "Saving…" : editing ? "Save Changes" : "Add Link"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-          {form.lines.map((line, i) => (
-            <div key={line.wan} className="rounded-xl border p-4">
-              <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <span className={`h-2 w-2 rounded-full ${line.status === "up" ? "bg-emerald-500" : "bg-rose-500"}`} />
-                ISP{i + 1} Details <span className="text-xs font-normal text-muted-foreground">({line.wan})</span>
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div><Label className="mb-1 block text-xs">Internet Provider *</Label><Select value={line.provider} onValueChange={(v) => updateLine(i, { provider: v })}><SelectTrigger className="h-9"><SelectValue placeholder="Choose provider" /></SelectTrigger><SelectContent>{PROVIDERS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label className="mb-1 block text-xs">Connection Type *</Label><Select value={line.connectionType} onValueChange={(v) => updateLine(i, { connectionType: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{CONNECTION_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label className="mb-1 block text-xs">Bandwidth (Mbps) *</Label><Input type="number" min={0} value={line.bandwidthMbps} onChange={(e) => updateLine(i, { bandwidthMbps: +e.target.value || 0 })} className="h-9" /></div>
-                <div><Label className="mb-1 block text-xs">Threshold (Mbps) *</Label><Input type="number" min={0} value={line.thresholdMbps} onChange={(e) => updateLine(i, { thresholdMbps: +e.target.value || 0 })} className="h-9" /></div>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-5">
-                <label className="flex items-center gap-2 text-xs"><Switch checked={line.emailAlert} onCheckedChange={(v) => updateLine(i, { emailAlert: v })} />Email notification when down</label>
-                <label className="flex items-center gap-2 text-xs"><Switch checked={line.smsAlert} onCheckedChange={(v) => updateLine(i, { smsAlert: v })} />SMS notification when down</label>
-                <label className="ml-auto flex items-center gap-2 text-xs"><Switch checked={line.status === "up"} onCheckedChange={(v) => updateLine(i, { status: v ? "up" : "down" })} />{line.status === "up" ? "Up" : "Down"} (demo toggle)</label>
+function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string | null; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [checks, setChecks] = useState<IspHealthCheck[]>([]);
+  const [availability, setAvailability] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !linkId) return;
+    let alive = true;
+    setLoading(true);
+    ispService.listHealthChecks(linkId, { page: 1, pageSize: 10 })
+      .then((r) => { if (alive) { setChecks(r.rows); setAvailability(r.availabilityPercentage); } })
+      .catch(() => { if (alive) toast.error("Could not load health-check history."); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [open, linkId]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Recent Health Checks</DialogTitle>
+          <DialogDescription>
+            {availability != null ? `${availability.toFixed(1)}% availability over the last ${checks.length} checks.` : "Real /tool/ping results from this link's scheduled health-check sweep."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-80 space-y-2 overflow-y-auto">
+          {loading ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+          ) : checks.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet -- the next sweep runs within 60 seconds, or trigger one manually.</p>
+          ) : checks.map((c) => (
+            <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
+              <div className="flex items-center gap-2"><HealthBadge status={c.status} /><span className="text-muted-foreground">{new Date(c.checkedAt).toLocaleString()}</span></div>
+              <div className="text-right text-muted-foreground">
+                {c.latencyMs != null ? `${c.latencyMs.toFixed(1)} ms` : "—"} · {c.packetLossPercentage != null ? `${c.packetLossPercentage.toFixed(1)}% loss` : "—"}
+                {c.errorMessage && <p className="mt-0.5 text-rose-600 dark:text-rose-400">{c.errorMessage}</p>}
               </div>
             </div>
           ))}
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-          <div className="flex justify-center"><Button onClick={save}>Save ISP Details</Button></div>
-        </CardContent>
-      </Card>
+export function IspDetailsView({ locationId }: { locationId?: string }) {
+  const demo = isDemo();
+  const [routers, setRouters] = useState<RouterDevice[]>([]);
+  const [routersLoading, setRoutersLoading] = useState(true);
+  const [selectedRouterId, setSelectedRouterId] = useState("");
+  const [links, setLinks] = useState<IspLink[]>([]);
+  const [linksLoading, setLinksLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<IspLink | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [historyLinkId, setHistoryLinkId] = useState<string | null>(null);
+  const [failoverBusy, setFailoverBusy] = useState(false);
 
-      <NetworkHealthChart businessUnit={businessUnit} anyLineDown={form.lines.some((l) => l.status === "down")} />
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setRoutersLoading(true);
+      try {
+        const rows = demo ? [DEMO_ROUTER] : locationId ? await routerService.listForLocation(locationId, await resolveOrgId()) : [];
+        if (!alive) return;
+        setRouters(rows);
+        setSelectedRouterId((prev) => (prev && rows.some((r) => r.id === prev)) ? prev : (rows[0]?.id ?? ""));
+      } catch {
+        if (alive) toast.error("Could not load routers for this location.");
+      } finally {
+        if (alive) setRoutersLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [locationId, demo]);
+
+  const loadLinks = async (routerId: string) => {
+    if (!routerId) { setLinks([]); return; }
+    setLinksLoading(true);
+    try {
+      if (demo) {
+        setLinks(routerId === DEMO_ROUTER.id ? DEMO_LINKS : []);
+      } else {
+        const result = await ispService.listLinks({ routerId, page: 1, pageSize: 25 });
+        setLinks(result.rows);
+      }
+    } catch {
+      toast.error("Could not load ISP links for this router.");
+      setLinks([]);
+    } finally {
+      setLinksLoading(false);
+    }
+  };
+
+  useEffect(() => { loadLinks(selectedRouterId); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedRouterId, demo]);
+
+  const selectedRouter = routers.find((r) => r.id === selectedRouterId) ?? null;
+
+  const openCreate = () => { setEditingLink(null); setDialogOpen(true); };
+  const openEdit = (link: IspLink) => { setEditingLink(link); setDialogOpen(true); };
+
+  const saveLink = async (form: IspLinkFormState) => {
+    if (demo) { toast.error("Sign in to a real account to manage ISP links."); return; }
+    if (!selectedRouterId) return;
+    setSaving(true);
+    try {
+      const payload = {
+        routerId: selectedRouterId,
+        providerName: form.providerName.trim(),
+        linkType: form.linkType,
+        role: form.role,
+        priority: form.priority,
+        interface: form.interfaceName.trim() || null,
+        gatewayIpAddress: form.gatewayIpAddress.trim() || null,
+        dnsPrimary: form.dnsPrimary.trim() || null,
+        dnsSecondary: form.dnsSecondary.trim() || null,
+        downloadBandwidthMbps: form.downloadBandwidthMbps ? +form.downloadBandwidthMbps : null,
+        uploadBandwidthMbps: form.uploadBandwidthMbps ? +form.uploadBandwidthMbps : null,
+        autoFailback: form.autoFailback,
+      };
+      if (editingLink) {
+        const updated = await ispService.updateLink(editingLink.id, payload);
+        setLinks((ls) => ls.map((l) => (l.id === updated.id ? updated : l)));
+        toast.success("ISP link updated");
+      } else {
+        const created = await ispService.createLink(payload);
+        setLinks((ls) => [created, ...ls]);
+        toast.success("ISP link added");
+      }
+      setDialogOpen(false);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not save the ISP link.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeLink = async (link: IspLink) => {
+    if (demo) { toast.error("Sign in to a real account to manage ISP links."); return; }
+    setLinks((ls) => ls.filter((l) => l.id !== link.id));
+    try {
+      await ispService.removeLink(link.id);
+      toast.success("ISP link removed");
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not remove the ISP link.");
+      setLinks((ls) => [link, ...ls]);
+    }
+  };
+
+  const checkHealth = async (link: IspLink) => {
+    if (demo) { toast.info("Health checks run against real router hardware -- not available in demo mode."); return; }
+    setCheckingId(link.id);
+    try {
+      const updated = await ispService.checkLinkHealth(link.id);
+      setLinks((ls) => ls.map((l) => (l.id === updated.id ? updated : l)));
+      toast.success(`Health check complete — ${HEALTH_BADGE[updated.healthStatus]?.label ?? updated.healthStatus}`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Health check failed.");
+    } finally {
+      setCheckingId(null);
+    }
+  };
+
+  const triggerFailover = async () => {
+    if (demo || !selectedRouterId) return;
+    setFailoverBusy(true);
+    try {
+      await ispService.triggerFailover(selectedRouterId);
+      toast.success("Failover triggered");
+      await loadLinks(selectedRouterId);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not trigger failover.");
+    } finally {
+      setFailoverBusy(false);
+    }
+  };
+
+  const triggerFailback = async () => {
+    if (demo || !selectedRouterId) return;
+    setFailoverBusy(true);
+    try {
+      await ispService.triggerFailback(selectedRouterId);
+      toast.success("Failback triggered");
+      await loadLinks(selectedRouterId);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not trigger failback.");
+    } finally {
+      setFailoverBusy(false);
+    }
+  };
+
+  const healthyCount = links.filter((l) => l.healthStatus === "healthy").length;
+  const activeLink = links.find((l) => l.isActiveUplink);
+
+  return (
+    <div className="space-y-6">
+      <FeatureHeader
+        title="ISP Details"
+        description="Real WAN uplinks per router -- provider, bandwidth, DNS, failover priority, and live health status."
+        action={selectedRouterId ? <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" />Add ISP Link</Button> : undefined}
+      />
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Current ISP Routing</CardTitle><CardDescription>This shows the ISP configuration for every business unit.</CardDescription></CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>Business Name</TableHead><TableHead>WANs</TableHead><TableHead>ISPs</TableHead><TableHead>Type</TableHead><TableHead>Bandwidth (Mbps)</TableHead><TableHead>Threshold (Mbps)</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {Object.values(configs).map((cfg) => (
-                <TableRow key={cfg.businessUnit}>
-                  <TableCell className="font-medium">{cfg.businessUnit}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.wan).join(", ")}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.provider || "N/A").join(", ")}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.connectionType).join(", ")}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.bandwidthMbps).join(", ")}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{cfg.lines.map((l) => l.thresholdMbps).join(", ")}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1.5">
-                      {cfg.lines.map((l) => (
-                        <span key={l.wan} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${l.status === "up" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"}`}>{l.wan} {l.status === "up" ? "UP" : "DOWN"}</span>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="space-y-4 p-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label className="mb-1.5 block text-sm">Router *</Label>
+              <Select value={selectedRouterId} onValueChange={setSelectedRouterId} disabled={routersLoading || routers.length === 0}>
+                <SelectTrigger className="h-9"><SelectValue placeholder={routersLoading ? "Loading routers…" : "Select a router"} /></SelectTrigger>
+                <SelectContent>
+                  {routers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name} <span className="text-muted-foreground">({r.locationName || r.serialNumber})</span></SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedRouter && (
+              <div className="flex items-end gap-2">
+                <Button variant="outline" size="sm" disabled={failoverBusy || links.length < 2} onClick={triggerFailover}><ArrowRightLeft className="h-4 w-4" />Trigger Failover</Button>
+                <Button variant="outline" size="sm" disabled={failoverBusy || links.length < 2} onClick={triggerFailback}><RefreshCw className="h-4 w-4" />Trigger Failback</Button>
+              </div>
+            )}
+          </div>
+
+          {!routersLoading && routers.length === 0 && (
+            <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+              No routers are provisioned at this location yet. Provision a router first, then come back here to configure its ISP link.
+            </p>
+          )}
         </CardContent>
       </Card>
+
+      {selectedRouter && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Router Status" value={selectedRouter.status === "online" ? "Online" : selectedRouter.status.replace(/_/g, " ")} tone={selectedRouter.status === "online" ? "success" : "warning"} icon={Router} />
+            <StatCard label="ISP Links" value={links.length} tone="default" icon={Network} />
+            <StatCard label="Healthy Links" value={`${healthyCount}/${links.length}`} tone={healthyCount === links.length && links.length > 0 ? "success" : "warning"} icon={Signal} />
+            <StatCard label="Active Uplink" value={activeLink?.providerName ?? "—"} tone="primary" icon={Globe} />
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">WAN Uplinks — {selectedRouter.name}</CardTitle><CardDescription>Every ISP link configured for this router, with real, sweep-updated health status.</CardDescription></CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Provider</TableHead><TableHead>Type</TableHead><TableHead>Role</TableHead>
+                    <TableHead>Bandwidth</TableHead><TableHead>DNS</TableHead><TableHead>Priority</TableHead>
+                    <TableHead>Health</TableHead><TableHead>Latency / Loss</TableHead><TableHead>Last Checked</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {linksLoading ? (
+                    <TableRow><TableCell colSpan={10} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+                  ) : links.length === 0 ? (
+                    <TableRow><TableCell colSpan={10} className="py-8 text-center text-xs text-muted-foreground">No ISP link configured for this router yet. Click "Add ISP Link" to add one.</TableCell></TableRow>
+                  ) : links.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell className="font-medium">{l.providerName}{l.isActiveUplink && <Badge variant="outline" className="ml-2 text-[10px]">Active</Badge>}</TableCell>
+                      <TableCell className="text-xs capitalize text-muted-foreground">{l.linkType.replace(/_/g, " ")}</TableCell>
+                      <TableCell className="text-xs capitalize text-muted-foreground">{l.role}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{l.downloadBandwidthMbps ?? "—"}↓ / {l.uploadBandwidthMbps ?? "—"}↑ Mbps</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{[l.dnsPrimary, l.dnsSecondary].filter(Boolean).join(", ") || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{l.priority}</TableCell>
+                      <TableCell><HealthBadge status={l.healthStatus} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{l.latencyMs != null ? `${l.latencyMs.toFixed(1)} ms` : "—"} / {l.packetLossPercentage != null ? `${l.packetLossPercentage.toFixed(1)}%` : "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{l.lastCheckedAt ? timeAgo(l.lastCheckedAt) : "Never"}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Check health now" disabled={checkingId === l.id} onClick={() => checkHealth(l)}><RefreshCw className={cn("h-4 w-4", checkingId === l.id && "animate-spin")} /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Health history" onClick={() => setHistoryLinkId(l.id)}><History className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => openEdit(l)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" title="Remove" onClick={() => removeLink(l)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      <IspLinkDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editingLink} saving={saving} onSave={saveLink} />
+      <IspHealthHistoryDialog linkId={historyLinkId} open={historyLinkId != null} onOpenChange={(v) => !v && setHistoryLinkId(null)} />
     </div>
   );
 }
 
 /* ---------- Admin Logs ---------- */
-export function AdminLogsView() {
-  const logs = [
-    { who: "hasnan@company.com", action: "Updated hotspot settings", ip: "10.0.1.4", t: "2 min ago" },
-    { who: "reception", action: "Generated 50 vouchers", ip: "10.0.1.22", t: "26 min ago" },
-    { who: "manager", action: "Changed bandwidth policy", ip: "10.0.2.9", t: "1 hour ago" },
-    { who: "system", action: "ISP failover to Airtel", ip: "—", t: "3 hours ago" },
-    { who: "admin", action: "Added agent 'front-desk'", ip: "10.0.1.4", t: "6 hours ago" },
-  ];
+export function AdminLogsView({ locationId }: { locationId?: string }) {
+  // Owner-only, render-time check -- defense in depth alongside the
+  // sidebar/route-nav guard (customerNav.ts / customer.$locationId.$feature
+  // .tsx's own NAV_GROUPS) and the backend's own independent enforcement
+  // (app.domains.admin_logs.router's RequireRole("organization-owner")).
+  // A UI guard alone is bypassable (a direct URL hit skips the sidebar
+  // filter entirely) -- this catches that case; the backend 403 is what
+  // actually keeps a non-owner from ever getting the real data either way.
+  const role = getCustomerLoginRole();
+  // Real data only -- fetched from /admin-logs/dashboard-logins and
+  // /admin-logs/router-events (org-scoped, Owner-only) via
+  // customerService.getFeatureData("admin-logs", ...). No Math.random(),
+  // no fabricated rows; a failed/blocked fetch resolves to an empty
+  // section, never fake log entries (see customer.service.ts's own
+  // "admin-logs" case docstring).
+  const { data, isLoading } = useCustomerFeatureData("admin-logs", locationId ?? "");
+
+  if (role !== "owner") {
+    return (
+      <div className="space-y-6">
+        <FeatureHeader title="Admin Logs" description="Who logged into the dashboard and when, plus router activity across every location." />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+            <ShieldAlert className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm font-medium text-foreground">Owner access only</p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              Admin Logs shows a security-sensitive login audit trail for the whole organization. Only the Organization Owner can view this page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const logins = data?.adminLogs?.dashboardLogins ?? [];
+  const routerLogs = data?.adminLogs?.routerLogs ?? [];
+
   return (
-    <div className="space-y-6">
-      <FeatureHeader title="Admin Logs" description="Every administrative action taken on this location." action={<Button variant="outline" size="sm"><Download className="h-4 w-4" /> Export</Button>} />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow><TableHead>Admin</TableHead><TableHead>Action</TableHead><TableHead>IP</TableHead><TableHead>When</TableHead></TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((l, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{l.who}</TableCell>
-                  <TableCell className="text-sm">{l.action}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{l.ip}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{l.t}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    <div className="space-y-8">
+      <FeatureHeader title="Admin Logs" description="Real login activity and router events across every location in your organization." />
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Dashboard Logins</h3>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow><TableHead>Email</TableHead><TableHead>IP Address</TableHead><TableHead>Result</TableHead><TableHead>When</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+                ) : logins.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">No dashboard logins recorded yet.</TableCell></TableRow>
+                ) : logins.map((l) => (
+                  <TableRow key={l.id}>
+                    <TableCell className="font-medium">{l.email}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{l.ipAddress}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", l.success ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400")}>
+                        {l.success ? "Success" : (l.failureReason ?? "Failed")}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{l.time}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Router Logs by Location</h3>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow><TableHead>Location</TableHead><TableHead>Router</TableHead><TableHead>Event</TableHead><TableHead>Message</TableHead><TableHead>When</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+                ) : routerLogs.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-xs text-muted-foreground">No router events recorded yet.</TableCell></TableRow>
+                ) : routerLogs.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="font-medium">{e.locationName}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{e.routerName}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", e.isError ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" : "bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-300")}>
+                        {e.eventType.replace(/_/g, " ")}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{e.message ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{e.time}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

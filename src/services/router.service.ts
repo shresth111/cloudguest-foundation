@@ -206,6 +206,26 @@ async function fetchAllRouters(): Promise<RouterDevice[]> {
 }
 
 export const routerService = {
+  /**
+   * Location-scoped router listing for callers that already know both the
+   * location and its organization id (e.g. the customer dashboard's ISP
+   * Details page, which gets `locationId` from the route and
+   * `organizationId` from `customer.service.ts`'s `resolveOrgId()`) --
+   * skips `list()`'s own `fetchAllLocations()` -> `fetchAllOrganizations()`
+   * fan-out entirely. That fan-out hits the platform-wide `GET
+   * /organizations` (GLOBAL scope only), which an ordinary customer/
+   * org-owner session 403s on -- the identical gap `resolveOrgId()`'s own
+   * docstring documents for MAC authorization, applied here to routers.
+   */
+  async listForLocation(locationId: string, organizationId: string): Promise<RouterDevice[]> {
+    if (isDemo()) return DEMO_ROUTERS.filter((r) => r.locationId === locationId);
+    const { data } = await api.get<BackendListResponse<BackendRouter>>(
+      `/locations/${locationId}/routers`,
+      { params: { page_size: 100 }, headers: { "X-Organization-Id": organizationId } },
+    );
+    return data.items.map((r) => toRouter(r, "", ""));
+  },
+
   async list(q: RouterListQuery): Promise<RouterListResult> {
     let rows =
       q.locationId && q.locationId !== "all"
