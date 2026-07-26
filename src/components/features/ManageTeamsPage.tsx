@@ -31,6 +31,25 @@ type TabId = (typeof TABS)[number]["id"];
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 
+// "Download Template" used to just toast.success("Template downloaded")
+// with no actual file -- a pure UI stub. Build and trigger a real CSV
+// blob download instead, matching the columns each bulk-upload flow
+// actually expects (team_name/business_unit/shared_users for Setup Bulk
+// Teams, mobile_number/team_name/business_unit for Map Bulk Users).
+function downloadCsvTemplate(filename: string, header: string[], sampleRow: string[]) {
+  const csv = [header, sampleRow].map((row) => row.join(",")).join("\r\n") + "\r\n";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast.success("Template downloaded");
+}
+
 function CsvDropzone({ file, onFile }: { file: File | null; onFile: (f: File | null) => void }) {
   return (
     <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors hover:border-primary/50 hover:bg-accent/40">
@@ -250,7 +269,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </div>
             </div>
             <QuickNotes items={[
-              <span key="1">Get sample format <button onClick={() => toast.success("Template downloaded")} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
+              <span key="1">Get sample format <button onClick={() => downloadCsvTemplate("bulk-teams-template.csv", ["team_name", "business_unit", "shared_users"], ["Sales Team", units[0] ?? "Business Unit", "0"])} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
               "Size of the file should not exceed 30kb (~200 records).",
               "You can set shared users to 0 for unlimited user access for any team.",
               "Shared users should not be more than 5000.",
@@ -275,7 +294,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </div>
             </div>
             <QuickNotes items={[
-              <span key="1">Get sample format <button onClick={() => toast.success("Template downloaded")} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
+              <span key="1">Get sample format <button onClick={() => downloadCsvTemplate("bulk-map-users-template.csv", ["mobile_number", "team_name", "business_unit"], ["9998887766", "Sales Team", units[0] ?? "Business Unit"])} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
               "Size of the file should not exceed 30kb (~200 records).",
             ]} />
           </div>
