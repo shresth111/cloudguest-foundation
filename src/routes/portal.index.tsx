@@ -69,7 +69,7 @@ function PortalLoading() {
           )}
         </motion.div>
         <div>
-          <p className="text-lg font-semibold">{config?.name ?? "CloudGuest"}</p>
+          <p className="text-lg font-semibold">{config?.name ?? "ZIP WiFi"}</p>
           <p className="mt-1 text-sm text-white/60">{t("loading")}</p>
         </div>
         <div className="flex gap-1.5">

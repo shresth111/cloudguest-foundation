@@ -392,7 +392,14 @@ function PortalPreviewPage() {
                     ))}
               </div>
 
-              <p className="mt-4 text-center text-[9px] text-slate-400">Powered by CloudGuest</p>
+              {/* Mirrors the real guest flow's own footer convention (see
+               * PortalShell's light-variant footer) -- this used to show
+               * "Powered by CloudGuest", the internal engineering name,
+               * which this preview should never show since it's meant to
+               * be an honest mockup of what a guest actually sees. */}
+              <p className="mt-4 text-center text-[9px] text-slate-400">
+                Terms · Privacy · Support: ask venue staff
+              </p>
             </div>
           </div>
         </div>

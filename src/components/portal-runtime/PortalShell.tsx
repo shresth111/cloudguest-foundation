@@ -148,7 +148,7 @@ export function PortalShell({
                 )}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{config?.name ?? "CloudGuest"}</p>
+                <p className="truncate text-sm font-semibold">{config?.name ?? "ZIP WiFi"}</p>
                 <p className="truncate text-[11px] text-white/60">
                   {config?.splashHeadline ?? "Guest WiFi"}
                 </p>
@@ -168,8 +168,23 @@ export function PortalShell({
         >
           {children}
         </motion.main>
-        <footer className="mt-8 text-center text-[11px] text-white/40">
-          Powered by CloudGuest · v1.0
+        {/* Same real footer convention as the light variant (Terms/Privacy
+         * link to the real /portal/terms page, "Support" left as plain
+         * text -- see that footer's own comment for why) -- this variant
+         * used to show a "Powered by CloudGuest · v1.0" line instead, an
+         * internal engineering name and a raw version string that never
+         * belonged in guest-facing copy and didn't match the rest of the
+         * flow. */}
+        <footer className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] text-white/40">
+          <Link to="/portal/terms" search={portalSearch} className="hover:text-white/70 hover:underline">
+            Terms
+          </Link>
+          <span>·</span>
+          <Link to="/portal/terms" search={portalSearch} className="hover:text-white/70 hover:underline">
+            Privacy
+          </Link>
+          <span>·</span>
+          <span>Support: ask venue staff</span>
         </footer>
       </div>
     </div>
