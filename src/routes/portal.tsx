@@ -5,16 +5,27 @@ import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 // A real captive-portal redirect from a NAS/router would encode equivalent
 // identity (MAC/AP/NAS-ID query params in a vendor-specific format) -- there
 // is no live NAS in this environment to generate one, so these three are
-// taken as explicit, required search params instead. `mac` is the one
-// *optional* exception: a real NAS redirect's own connecting-device MAC
-// address, honored only if present (see src/routes/portal.index.tsx's
-// real MAC-whitelist bypass attempt) -- its absence changes nothing about
-// the rest of this real, already-working sign-in flow.
+// taken as explicit, required search params instead.
+//
+// There used to be a fourth, optional `mac` param here, read by
+// src/routes/portal.index.tsx to attempt a "MAC-whitelist bypass" login by
+// POSTing it straight to the backend's `/guest/login/mac`. That was a real
+// authentication bypass: an unauthenticated browser claiming any MAC string
+// in a query param got a full guest session for it, with no server-side
+// proof the caller was ever near the real device. It has been removed on
+// both sides -- the backend endpoint no longer exists at all. A
+// pre-whitelisted device's auto-connect is now granted the only place a
+// MAC address can genuinely be trusted: RADIUS's own Authorize call, which
+// only ever runs behind the NAS's shared secret and carries the NAS's own
+// asserted `Calling-Station-Id`, never a browser's claim (see
+// `app.domains.guest.service.RadiusService.authorize`'s docstring on the
+// backend). A whitelisted device is granted access before it ever reaches
+// this captive portal at all -- there is nothing left for this frontend to
+// do for that case.
 const searchSchema = z.object({
   organizationId: z.string().min(1),
   locationId: z.string().min(1),
   routerId: z.string().min(1),
-  mac: z.string().optional(),
 });
 
 export const Route = createFileRoute("/portal")({
@@ -32,13 +43,12 @@ export const Route = createFileRoute("/portal")({
 });
 
 function PortalRuntimeLayout() {
-  const { organizationId, locationId, routerId, mac } = Route.useSearch();
+  const { organizationId, locationId, routerId } = Route.useSearch();
   return (
     <PortalRuntimeProvider
       organizationId={organizationId}
       locationId={locationId}
       routerId={routerId}
-      mac={mac}
     >
       <Outlet />
     </PortalRuntimeProvider>

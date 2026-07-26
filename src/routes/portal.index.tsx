@@ -1,63 +1,36 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
-import { portalRuntimeService } from "@/services/portal-runtime.service";
 
 export const Route = createFileRoute("/portal/")({
   component: PortalLoading,
 });
 
 function PortalLoading() {
-  const { isLoading, config, error, t, mac, organizationId, locationId, routerId, setSession } =
-    usePortalRuntime();
+  const { isLoading, config, error, t } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
 
-  // Real MAC-whitelist bypass attempt (see src/services/portal-runtime
-  // .service.ts's loginWithMac docstring) -- only ever runs when a real
-  // NAS redirect actually supplied a `mac` search param; every other real
-  // captive-portal URL (including every one this session's own test
-  // locations use) has none, so this is simply skipped and the guest
-  // lands on the normal sign-in card exactly as before.
-  const macLogin = useMutation({
-    mutationFn: (macAddress: string) =>
-      portalRuntimeService.loginWithMac({
-        macAddress,
-        organizationId,
-        locationId,
-        routerId,
-      }),
-    onSuccess: (session) => {
-      setSession(session);
-      navigate({
-        to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
-        replace: true,
-        search: (prev) => prev,
-      });
-    },
-    // A rejection here (not whitelisted, or no MAC Authorization
-    // integration wired at all) is completely ordinary -- fall through
-    // to the real sign-in card below, never surface a guest-facing error
-    // for it.
-  });
-
+  // There used to be a client-side "MAC-whitelist bypass" attempt here,
+  // triggered by an optional `mac` search param and POSTed straight to the
+  // backend's (now-removed) `/guest/login/mac`. That was a real
+  // authentication bypass -- see src/routes/portal.tsx's search-schema
+  // docstring for the full write-up. A pre-whitelisted device is now
+  // granted access transparently at the network layer (RADIUS Authorize,
+  // bound to the NAS's own asserted Calling-Station-Id) before it ever
+  // reaches this captive portal, so there is nothing left for this screen
+  // to attempt -- it simply shows the loading splash, then the normal
+  // sign-in card.
   useEffect(() => {
     if (isLoading || !config) return;
-    if (mac && !macLogin.isPending && !macLogin.isSuccess) {
-      macLogin.mutate(mac);
-      return;
-    }
-    if (macLogin.isPending) return;
     const to = setTimeout(
       () => navigate({ to: "/portal/welcome", replace: true, search: (prev) => prev }),
       900,
     );
     return () => clearTimeout(to);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, config, mac, macLogin.isPending, macLogin.isSuccess, navigate]);
+  }, [isLoading, config, navigate]);
 
   if (!isLoading && error) {
     return (
