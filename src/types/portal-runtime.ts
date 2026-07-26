@@ -1,4 +1,4 @@
-export type RuntimeAuthMethod = "otp_sms" | "otp_email";
+export type RuntimeAuthMethod = "otp_sms" | "otp_email" | "username_password";
 
 /** The frontend's own client-side i18n dictionary only has these 5 -- a
  * real config's `default_language`/`supported_languages` are free text and
@@ -26,6 +26,7 @@ export interface RuntimePortalConfig {
   redirectUrl: string | null;
   otpSmsEnabled: boolean;
   otpEmailEnabled: boolean;
+  usernamePasswordEnabled: boolean;
   resolvedViaLocationOverride: boolean;
 }
 
@@ -53,4 +54,11 @@ export interface RuntimeSession {
   isNewGuest: boolean;
   deviceMacAddress: string | null;
   deviceName: string | null;
+  // Whether this guest already has a password set -- lets the "set a
+  // password for next time?" prompt (shown right after an OTP login) know
+  // whether to offer itself at all. Always true for a session that was
+  // itself created via a password login (see
+  // ``portalRuntimeService.loginWithPassword``, which only ever succeeds
+  // for a guest that already has one).
+  hasPassword: boolean;
 }

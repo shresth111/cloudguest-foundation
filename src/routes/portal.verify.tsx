@@ -68,8 +68,19 @@ function VerifyPage() {
           .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
           .catch(() => undefined);
       }
+      // First (or any) OTP-verified login by a guest who hasn't set a
+      // password yet, on a portal that offers password login at all --
+      // offer the skippable "save a password for next time?" prompt before
+      // continuing on to the ad/success screen. A password login itself
+      // never reaches here (see portal.auth.$method.tsx's own onLoggedIn),
+      // so this can only ever fire right after a real OTP verification.
+      const offerPasswordSetup = config?.usernamePasswordEnabled && !session.hasPassword;
       navigate({
-        to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+        to: offerPasswordSetup
+          ? "/portal/set-password"
+          : config?.advertisementBannerUrl
+            ? "/portal/ad"
+            : "/portal/success",
         search: (prev) => prev,
       });
     },

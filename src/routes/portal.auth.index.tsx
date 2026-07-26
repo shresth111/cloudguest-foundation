@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Smartphone, Mail, ChevronRight } from "lucide-react";
+import { Smartphone, Mail, KeyRound, ChevronRight } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -15,12 +15,18 @@ const METHOD_META: Record<
 > = {
   otp_sms: { icon: Smartphone, labelKey: "mobileOtp", desc: "Receive a code by SMS" },
   otp_email: { icon: Mail, labelKey: "emailOtp", desc: "Receive a code by email" },
+  username_password: {
+    icon: KeyRound,
+    labelKey: "passwordLogin",
+    desc: "Sign in with your saved password",
+  },
 };
 
 function enabledMethods(config: RuntimePortalConfig): RuntimeAuthMethod[] {
   const methods: RuntimeAuthMethod[] = [];
   if (config.otpSmsEnabled) methods.push("otp_sms");
   if (config.otpEmailEnabled) methods.push("otp_email");
+  if (config.usernamePasswordEnabled) methods.push("username_password");
   return methods;
 }
 

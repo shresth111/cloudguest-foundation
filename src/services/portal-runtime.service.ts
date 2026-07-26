@@ -33,6 +33,7 @@ interface BackendCaptivePortalConfig {
   redirect_url: string | null;
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
+  username_password_enabled: boolean;
   resolved_via_location_override: boolean;
 }
 
@@ -77,6 +78,7 @@ interface BackendGuestLoginResponse {
   guest_id: string;
   identifier: string;
   is_new_guest: boolean;
+  has_password: boolean;
   session: BackendGuestSession;
   device: BackendGuestDevice | null;
 }
@@ -103,6 +105,7 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     redirectUrl: c.redirect_url,
     otpSmsEnabled: c.otp_sms_enabled,
     otpEmailEnabled: c.otp_email_enabled,
+    usernamePasswordEnabled: c.username_password_enabled,
     resolvedViaLocationOverride: c.resolved_via_location_override,
   };
 }
@@ -129,6 +132,7 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
     isNewGuest: data.is_new_guest,
     deviceMacAddress: data.device?.mac_address ?? null,
     deviceName: data.device?.device_name ?? null,
+    hasPassword: data.has_password,
   };
 }
 
@@ -180,6 +184,44 @@ export const portalRuntimeService = {
       device_mac: params.deviceMac,
     });
     return toRuntimeSession(data);
+  },
+
+  async loginWithPassword(params: {
+    identifier: string;
+    password: string;
+    organizationId: string;
+    locationId: string;
+    routerId: string;
+    deviceMac?: string;
+  }): Promise<RuntimeSession> {
+    const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/password", {
+      identifier: params.identifier,
+      password: params.password,
+      organization_id: params.organizationId,
+      location_id: params.locationId,
+      router_id: params.routerId,
+      device_mac: params.deviceMac,
+    });
+    return toRuntimeSession(data);
+  },
+
+  /** The "set a password for next time?" prompt, right after a real OTP
+   * login -- ``sessionId`` is that same OTP login's own ``session.id`` (the
+   * only thing authenticating this call server-side; see
+   * ``app.domains.guest.service.GuestService.set_guest_password``'s own
+   * docstring). Returns nothing on success; a weak password/ineligible
+   * session both surface as a normal thrown ``AppError`` the caller can
+   * show inline. */
+  async setPassword(params: {
+    guestId: string;
+    sessionId: string;
+    password: string;
+  }): Promise<void> {
+    await guestPortalApi.post("/guest/set-password", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+      password: params.password,
+    });
   },
 
   async recordConsent(params: {

@@ -28,6 +28,7 @@ import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
 import { Route as PortalTermsRouteImport } from './routes/portal.terms'
 import { Route as PortalSuccessRouteImport } from './routes/portal.success'
+import { Route as PortalSetPasswordRouteImport } from './routes/portal.set-password'
 import { Route as PortalSessionRouteImport } from './routes/portal.session'
 import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
 import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
@@ -145,6 +146,7 @@ import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
 import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './routes/_authenticated/locations.$locationId.index'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
+import { Route as AuthenticatedPreviewPortalLocationIdRouteImport } from './routes/_authenticated/preview.portal.$locationId'
 import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
@@ -239,6 +241,11 @@ const PortalTermsRoute = PortalTermsRouteImport.update({
 const PortalSuccessRoute = PortalSuccessRouteImport.update({
   id: '/success',
   path: '/success',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalSetPasswordRoute = PortalSetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalSessionRoute = PortalSessionRouteImport.update({
@@ -906,6 +913,12 @@ const AuthenticatedWorkspaceLocationsLocationIdRoute =
     path: '/$locationId',
     getParentRoute: () => AuthenticatedWorkspaceLocationsRoute,
   } as any)
+const AuthenticatedPreviewPortalLocationIdRoute =
+  AuthenticatedPreviewPortalLocationIdRouteImport.update({
+    id: '/preview/portal/$locationId',
+    path: '/preview/portal/$locationId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedLocationsLocationIdNasNasIdRoute =
   AuthenticatedLocationsLocationIdNasNasIdRouteImport.update({
     id: '/nas/$nasId',
@@ -951,6 +964,7 @@ export interface FileRoutesByFullPath {
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
+  '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
@@ -1047,6 +1061,7 @@ export interface FileRoutesByFullPath {
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
+  '/preview/portal/$locationId': typeof AuthenticatedPreviewPortalLocationIdRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1084,6 +1099,7 @@ export interface FileRoutesByTo {
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
+  '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
@@ -1179,6 +1195,7 @@ export interface FileRoutesByTo {
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
+  '/preview/portal/$locationId': typeof AuthenticatedPreviewPortalLocationIdRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1223,6 +1240,7 @@ export interface FileRoutesById {
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
+  '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
@@ -1319,6 +1337,7 @@ export interface FileRoutesById {
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
+  '/_authenticated/preview/portal/$locationId': typeof AuthenticatedPreviewPortalLocationIdRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1363,6 +1382,7 @@ export interface FileRouteTypes {
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
+    | '/portal/set-password'
     | '/portal/success'
     | '/portal/terms'
     | '/portal/verify'
@@ -1459,6 +1479,7 @@ export interface FileRouteTypes {
     | '/vouchers/'
     | '/workspace/'
     | '/portal/auth/'
+    | '/preview/portal/$locationId'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
@@ -1496,6 +1517,7 @@ export interface FileRouteTypes {
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
+    | '/portal/set-password'
     | '/portal/success'
     | '/portal/terms'
     | '/portal/verify'
@@ -1591,6 +1613,7 @@ export interface FileRouteTypes {
     | '/vouchers'
     | '/workspace'
     | '/portal/auth'
+    | '/preview/portal/$locationId'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
@@ -1634,6 +1657,7 @@ export interface FileRouteTypes {
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
+    | '/portal/set-password'
     | '/portal/success'
     | '/portal/terms'
     | '/portal/verify'
@@ -1730,6 +1754,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/portal/auth/'
+    | '/_authenticated/preview/portal/$locationId'
     | '/_authenticated/workspace/locations/$locationId'
     | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
@@ -1886,6 +1911,13 @@ declare module '@tanstack/react-router' {
       path: '/success'
       fullPath: '/portal/success'
       preLoaderRoute: typeof PortalSuccessRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/set-password': {
+      id: '/portal/set-password'
+      path: '/set-password'
+      fullPath: '/portal/set-password'
+      preLoaderRoute: typeof PortalSetPasswordRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/session': {
@@ -2707,6 +2739,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceLocationsLocationIdRouteImport
       parentRoute: typeof AuthenticatedWorkspaceLocationsRoute
     }
+    '/_authenticated/preview/portal/$locationId': {
+      id: '/_authenticated/preview/portal/$locationId'
+      path: '/preview/portal/$locationId'
+      fullPath: '/preview/portal/$locationId'
+      preLoaderRoute: typeof AuthenticatedPreviewPortalLocationIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/locations/$locationId/nas/$nasId': {
       id: '/_authenticated/locations/$locationId/nas/$nasId'
       path: '/nas/$nasId'
@@ -2871,6 +2910,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSubscriptionIndexRoute: typeof AuthenticatedSubscriptionIndexRoute
   AuthenticatedTopologyIndexRoute: typeof AuthenticatedTopologyIndexRoute
   AuthenticatedVouchersIndexRoute: typeof AuthenticatedVouchersIndexRoute
+  AuthenticatedPreviewPortalLocationIdRoute: typeof AuthenticatedPreviewPortalLocationIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2959,6 +2999,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSubscriptionIndexRoute: AuthenticatedSubscriptionIndexRoute,
   AuthenticatedTopologyIndexRoute: AuthenticatedTopologyIndexRoute,
   AuthenticatedVouchersIndexRoute: AuthenticatedVouchersIndexRoute,
+  AuthenticatedPreviewPortalLocationIdRoute:
+    AuthenticatedPreviewPortalLocationIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -3032,6 +3074,7 @@ interface PortalRouteChildren {
   PortalOfflineRoute: typeof PortalOfflineRoute
   PortalRedirectRoute: typeof PortalRedirectRoute
   PortalSessionRoute: typeof PortalSessionRoute
+  PortalSetPasswordRoute: typeof PortalSetPasswordRoute
   PortalSuccessRoute: typeof PortalSuccessRoute
   PortalTermsRoute: typeof PortalTermsRoute
   PortalVerifyRoute: typeof PortalVerifyRoute
@@ -3047,6 +3090,7 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalOfflineRoute: PortalOfflineRoute,
   PortalRedirectRoute: PortalRedirectRoute,
   PortalSessionRoute: PortalSessionRoute,
+  PortalSetPasswordRoute: PortalSetPasswordRoute,
   PortalSuccessRoute: PortalSuccessRoute,
   PortalTermsRoute: PortalTermsRoute,
   PortalVerifyRoute: PortalVerifyRoute,
