@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { voucherService } from "@/services/voucher.service";
 import { resolveOrgId } from "@/services/customer.service";
+import type { Voucher as BackendVoucherModel, VoucherBatchStats } from "@/types/voucher";
 
 interface Voucher { code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; }
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
@@ -36,6 +37,36 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", businessUnit: UNITS[0], quantity: 10, validMin: 60, prefix: "VCH", dataLimit: 0, maxUses: 1, codeLen: 8 });
   const [planOpts] = useState([{v:"1h",l:"1 Hour"},{v:"24h",l:"24 Hours"},{v:"3d",l:"3 Days"},{v:"7d",l:"7 Days"}]);
+
+  // View (Eye icon) -- the Actions column's eye button had no onClick at
+  // all, so it was a real dead click. Wired to the batch's real vouchers +
+  // stats (backend/app/domains/voucher already exposes both).
+  const [viewBatch, setViewBatch] = useState<BatchRow | Voucher | null>(null);
+  const [viewVouchers, setViewVouchers] = useState<BackendVoucherModel[]>([]);
+  const [viewStats, setViewStats] = useState<VoucherBatchStats | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const openView = async (row: BatchRow | Voucher) => {
+    setViewBatch(row);
+    if (demo) return;
+    const b = row as BatchRow;
+    setViewLoading(true);
+    setViewVouchers([]);
+    setViewStats(null);
+    try {
+      const [vouchers, stats] = await Promise.all([
+        voucherService.listVouchers(b.id, b.organizationId),
+        voucherService.getStats(b.id, b.organizationId),
+      ]);
+      setViewVouchers(vouchers.rows);
+      setViewStats(stats);
+    } catch {
+      toast.error("Could not load this batch's vouchers.");
+    } finally {
+      setViewLoading(false);
+    }
+  };
+  const closeView = () => { setViewBatch(null); setViewVouchers([]); setViewStats(null); };
 
   useEffect(() => {
     if (demo) return;
@@ -154,7 +185,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
             <TableCell className="text-sm">{v.used}</TableCell>
             {demo && <TableCell className="text-xs text-muted-foreground">{v.redeemedAt ?? "—"}</TableCell>}
             <TableCell className="text-right">
-              <Button variant="ghost" size="icon" className="h-7 w-7"><Eye className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="View batch" onClick={() => openView(v)}><Eye className="h-3.5 w-3.5" /></Button>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => revoke(v)}><Trash2 className="h-3.5 w-3.5" /></Button>
             </TableCell>
           </TableRow>
@@ -165,6 +196,49 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
         <Button variant="outline" size="sm" onClick={() => toast.success("Print job queued")}><Printer className="mr-1.5 h-3.5 w-3.5" />Print</Button>
         <Button variant="outline" size="sm" onClick={() => toast.success("Email sent")}><Mail className="mr-1.5 h-3.5 w-3.5" />Email</Button>
       </div>
+
+      <Dialog open={!!viewBatch} onOpenChange={(o) => { if (!o) closeView(); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>{demo ? "Voucher" : "Batch"} — {viewBatch?.code}</DialogTitle></DialogHeader>
+          {demo && viewBatch ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Plan</span><span>{formatPlan(viewBatch.plan)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge variant={viewBatch.status === "active" ? "default" : "secondary"} className="capitalize">{viewBatch.status}</Badge></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Used</span><span>{viewBatch.used}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Business Unit</span><span>{viewBatch.businessUnit}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Redeemed At</span><span>{viewBatch.redeemedAt ?? "—"}</span></div>
+            </div>
+          ) : viewLoading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <div className="space-y-4">
+              {viewStats && (
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="rounded-lg border p-2"><p className="text-lg font-semibold">{viewStats.total}</p><p className="text-muted-foreground">Total</p></div>
+                  <div className="rounded-lg border p-2"><p className="text-lg font-semibold">{viewStats.unused}</p><p className="text-muted-foreground">Unused</p></div>
+                  <div className="rounded-lg border p-2"><p className="text-lg font-semibold">{(viewStats.redemptionRate * 100).toFixed(0)}%</p><p className="text-muted-foreground">Redeemed</p></div>
+                </div>
+              )}
+              <div className="max-h-64 overflow-y-auto rounded-lg border">
+                <Table><TableHeader><TableRow><TableHead className="text-xs">Code</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs">Uses</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {viewVouchers.length === 0 ? (
+                      <TableRow><TableCell colSpan={3} className="py-6 text-center text-xs text-muted-foreground">No vouchers in this batch.</TableCell></TableRow>
+                    ) : viewVouchers.map((vch) => (
+                      <TableRow key={vch.id}>
+                        <TableCell className="font-mono text-xs">{vch.code}</TableCell>
+                        <TableCell><Badge variant={vch.status === "unused" ? "secondary" : "default"} className="capitalize text-[10px]">{vch.status.replace(/_/g, " ")}</Badge></TableCell>
+                        <TableCell className="text-xs">{vch.useCount}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={closeView}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
