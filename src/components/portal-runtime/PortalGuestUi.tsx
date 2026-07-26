@@ -73,8 +73,14 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
   );
 }
 
+// disabled:shadow-none matters here, not just cosmetic: compounding the
+// already-translucent shadow-indigo-500/25 with disabled:opacity-60
+// multiplies down to a very-low-alpha blurred shadow that several
+// renderers (this env's headless Chromium included) band/dash instead of
+// blurring smoothly -- visible on first paint of the OTP screen, since
+// the Verify button starts disabled before a guest has typed 6 digits.
 export const PG_PRIMARY_BTN =
-  "h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 disabled:opacity-60";
+  "h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 disabled:opacity-60 disabled:shadow-none";
 
 export const PG_INPUT =
   "h-11 rounded-[13px] border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15";
