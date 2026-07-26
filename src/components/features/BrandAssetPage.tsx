@@ -14,6 +14,7 @@ const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 interface DemoAsset { businessUnit: string; url: string; }
 
 const BRANDING_QUERY_KEY = ["branding", "current-organization"] as const;
+const BACKGROUND_IMAGE_BLOB_QUERY_KEY = [...BRANDING_QUERY_KEY, "background-image-blob"] as const;
 
 export default function BrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
   const demo = useIsDemo();
@@ -58,7 +59,7 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
   // not the bytes. Re-runs whenever `branding.updatedAt` changes (i.e.
   // after a real upload/delete), not on every render.
   const { data: currentImageBlobUrl, isLoading: isImageLoading } = useQuery({
-    queryKey: [...BRANDING_QUERY_KEY, "background-image-blob", branding?.updatedAt],
+    queryKey: [...BACKGROUND_IMAGE_BLOB_QUERY_KEY, branding?.updatedAt],
     queryFn: () => brandAssetService.fetchBackgroundImageBlobUrl(),
     enabled: !!branding?.hasBackgroundImage,
   });
@@ -78,10 +79,25 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  // invalidateQueries matches by key *prefix*, so a plain
+  // `invalidateQueries({ queryKey: BRANDING_QUERY_KEY })` also matches
+  // (and immediately refetches) the still-mounted background-image-blob
+  // query above -- using whatever `enabled`/key it had *before* this
+  // mutation's result changes `branding.hasBackgroundImage`. Concretely:
+  // after a delete, that stale refetch hit the now-empty raw endpoint and
+  // logged a spurious 404 (confirmed live). `removeQueries` first evicts
+  // the blob query outright (no fetch); invalidating branding afterward
+  // then lets it remount fresh, with the correct enabled/key, once
+  // `branding.hasBackgroundImage` has actually updated.
+  const refreshBranding = () => {
+    qc.removeQueries({ queryKey: BACKGROUND_IMAGE_BLOB_QUERY_KEY });
+    qc.invalidateQueries({ queryKey: BRANDING_QUERY_KEY });
+  };
+
   const uploadMutation = useMutation({
     mutationFn: (f: File) => brandAssetService.uploadBackgroundImage(f),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: BRANDING_QUERY_KEY });
+      refreshBranding();
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success(`${title} updated.`);
@@ -95,7 +111,7 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
   const deleteMutation = useMutation({
     mutationFn: () => brandAssetService.deleteBackgroundImage(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: BRANDING_QUERY_KEY });
+      refreshBranding();
       toast.success(`${title} removed.`);
     },
     onError: (err) => toast.error((err as unknown as AppError).message || "Removal failed."),
