@@ -1,72 +1,188 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
-import { PortalShell } from "@/components/portal-runtime/PortalShell";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { Link as LinkIcon } from "lucide-react";
+import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { Skeleton } from "@/components/ui/skeleton";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { primaryAuthMethod } from "@/lib/portal-auth-methods";
+import { enabledAuthMethods, primaryAuthMethod } from "@/lib/portal-auth-methods";
+import {
+  METHOD_META,
+  MobileForm,
+  EmailForm,
+  PasswordForm,
+  VoucherForm,
+} from "@/components/portal-runtime/AuthMethodForms";
+import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 
 export const Route = createFileRoute("/portal/welcome")({
   component: WelcomePage,
 });
 
+/**
+ * The guest's real landing screen (see src/routes/portal.index.tsx --
+ * `/portal/` auto-redirects here once config resolves). Branding +
+ * sign-in form on ONE page: a guest sees the actual phone/email/password/
+ * voucher field the instant this loads, picks a different enabled method
+ * with the small tab row if more than one is on, and submits -- no
+ * separate "Connect" button gating a picker screen gating a form screen
+ * (that three-hop chain -- src/routes/portal.auth.index.tsx's method
+ * picker, then src/routes/portal.auth.$method.tsx's form -- is what a
+ * real guest actually complained about: an unnecessary "Next" before ever
+ * seeing a field to fill in). Those two routes are kept only as
+ * deep-linkable fallbacks (a bookmarked/shared method-specific URL still
+ * resolves) -- this page no longer sends anyone through them.
+ *
+ * OTP's own two-step shape (request a code, then enter the code that
+ * arrives by SMS/email on src/routes/portal.verify.tsx) is real and kept
+ * as-is: the code doesn't exist until requested, so there's no page to
+ * collapse it into -- that is not the redundant "Next" being removed
+ * here.
+ */
 function WelcomePage() {
-  const { config, t, setSelectedMethod } = usePortalRuntime();
+  const {
+    config,
+    isLoading,
+    t,
+    organizationId,
+    locationId,
+    routerId,
+    setOtpTarget,
+    setSelectedMethod,
+    setSession,
+  } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
 
-  // Industry-standard pattern (Cisco Meraki/Aruba ClearPass/Purple WiFi,
-  // and most modern consumer sign-in flows): "Connect" goes straight to
-  // the single highest-priority *enabled* method's own entry field --
-  // SMS OTP's phone-number field by default, since that's this config's
-  // actual primary method the overwhelming majority of the time -- never
-  // a method-picker menu first. The picker
-  // (src/routes/portal.auth.index.tsx) is still there and reachable from
-  // that form's own fallback links, for a guest who wants a different
-  // enabled method instead. Only when nothing is enabled at all does this
-  // fall through to the picker, which then shows its own "contact
-  // reception" state.
-  const handleConnect = () => {
-    const method = config ? primaryAuthMethod(config) : null;
-    if (method) {
-      setSelectedMethod(method);
-      navigate({
-        to: "/portal/auth/$method",
-        params: { method },
-        search: (prev) => prev,
-      });
-      return;
-    }
-    navigate({ to: "/portal/auth", search: (prev) => prev });
+  const methods: RuntimeAuthMethod[] = config ? enabledAuthMethods(config) : [];
+  const [activeMethod, setActiveMethod] = useState<RuntimeAuthMethod | null>(null);
+  // Falls back to the config's own priority-ordered primary method until a
+  // guest explicitly taps a different tab -- same "land directly on the
+  // most likely method" behavior this page always had, just without the
+  // extra click to get there.
+  const method = activeMethod ?? (config ? primaryAuthMethod(config) : null);
+
+  const onOtpSent = (target: string, authMethod: RuntimeAuthMethod) => {
+    setOtpTarget(target);
+    setSelectedMethod(authMethod);
+    navigate({ to: "/portal/verify", search: (prev) => prev });
+  };
+
+  const onPasswordLoggedIn = (session: RuntimeSession) => {
+    setSelectedMethod("username_password");
+    setSession(session);
+    toast.success("Signed in");
+    navigate({
+      to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+      search: (prev) => prev,
+    });
+  };
+
+  const onVoucherLoggedIn = (session: RuntimeSession) => {
+    setSelectedMethod("voucher");
+    setSession(session);
+    toast.success("Connected");
+    navigate({
+      to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+      search: (prev) => prev,
+    });
   };
 
   return (
     <PortalShell>
-      <div className="flex flex-1 flex-col justify-center gap-6">
+      <div className="flex flex-1 flex-col gap-5">
         <div>
-          <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
             {config?.splashHeadline ?? "Welcome"}
           </h1>
-          <p className="mt-3 text-sm text-white/70 sm:text-base">{config?.splashWelcomeMessage}</p>
+          <p className="mt-2 text-sm text-white/70">{config?.splashWelcomeMessage}</p>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Button
-            size="lg"
-            className="h-12 w-full text-base font-semibold text-white shadow-lg"
-            style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={handleConnect}
-          >
-            {t("connect")} <ArrowRight className="ms-2 h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-11 w-full text-white/80 hover:bg-white/10 hover:text-white"
-            asChild
-          >
-            <Link to="/portal/terms" from="/portal/welcome" search={(prev) => prev}>
-              {t("learnMore")}
-            </Link>
-          </Button>
-        </div>
+        {isLoading ? (
+          <PortalCard>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-24 bg-white/10" />
+              <Skeleton className="h-10 w-full bg-white/10" />
+              <Skeleton className="h-10 w-full bg-white/10" />
+            </div>
+          </PortalCard>
+        ) : methods.length === 0 ? (
+          <PortalCard className="text-center text-sm text-white/70">
+            No sign-in methods are available. Please contact reception.
+          </PortalCard>
+        ) : (
+          <PortalCard>
+            {methods.length > 1 && (
+              <div
+                role="tablist"
+                aria-label={t("chooseMethod")}
+                className="mb-4 flex gap-1 rounded-xl bg-white/[0.06] p-1"
+              >
+                {methods.map((m) => {
+                  const meta = METHOD_META[m];
+                  const Icon = meta.icon;
+                  const active = m === method;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setActiveMethod(m)}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition " +
+                        (active
+                          ? "bg-white/15 text-white shadow-sm"
+                          : "text-white/55 hover:text-white/85")
+                      }
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{t(meta.labelKey)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {method === "otp_sms" && (
+              <MobileForm
+                organizationId={organizationId}
+                locationId={locationId}
+                onSent={(target) => onOtpSent(target, "otp_sms")}
+              />
+            )}
+            {method === "otp_email" && (
+              <EmailForm
+                organizationId={organizationId}
+                locationId={locationId}
+                onSent={(target) => onOtpSent(target, "otp_email")}
+              />
+            )}
+            {method === "username_password" && (
+              <PasswordForm
+                organizationId={organizationId}
+                locationId={locationId}
+                routerId={routerId}
+                onLoggedIn={onPasswordLoggedIn}
+              />
+            )}
+            {method === "voucher" && (
+              <VoucherForm
+                organizationId={organizationId}
+                locationId={locationId}
+                routerId={routerId}
+                onLoggedIn={onVoucherLoggedIn}
+              />
+            )}
+          </PortalCard>
+        )}
+
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/portal/terms", search: (prev) => prev })}
+          className="mx-auto flex items-center gap-1.5 text-xs text-white/60 hover:text-white hover:underline"
+        >
+          <LinkIcon className="h-3 w-3" /> {t("learnMore")}
+        </button>
       </div>
     </PortalShell>
   );
