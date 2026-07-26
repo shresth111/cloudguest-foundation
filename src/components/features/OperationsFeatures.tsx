@@ -742,29 +742,32 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
   // Owner-only, render-time check -- defense in depth alongside the
   // sidebar/route-nav guard (customerNav.ts / customer.$locationId.$feature
   // .tsx's own NAV_GROUPS) and the backend's own independent enforcement
-  // (app.domains.admin_logs.router's RequireRole("organization-owner")).
-  // A UI guard alone is bypassable (a direct URL hit skips the sidebar
-  // filter entirely) -- this catches that case; the backend 403 is what
-  // actually keeps a non-owner from ever getting the real data either way.
+  // (app.domains.admin_logs.router's RequireRole("organization-owner"),
+  // and -- since the "Audit Log" tab's real data was folded into this
+  // page's own Account Activity section below -- app.domains.audit
+  // .router's matching RequireRole narrowing). A UI guard alone is
+  // bypassable (a direct URL hit skips the sidebar filter entirely) --
+  // this catches that case; the backend 403 is what actually keeps a
+  // non-owner from ever getting the real data either way.
   const role = getCustomerLoginRole();
-  // Real data only -- fetched from /admin-logs/dashboard-logins and
-  // /admin-logs/router-events (org-scoped, Owner-only) via
-  // customerService.getFeatureData("admin-logs", ...). No Math.random(),
-  // no fabricated rows; a failed/blocked fetch resolves to an empty
-  // section, never fake log entries (see customer.service.ts's own
-  // "admin-logs" case docstring).
+  // Real data only -- fetched from /admin-logs/dashboard-logins,
+  // /admin-logs/router-events, and /audit/entries (all org-scoped,
+  // Owner-only) via customerService.getFeatureData("admin-logs", ...). No
+  // Math.random(), no fabricated rows; a failed/blocked fetch resolves to
+  // an empty section, never fake log entries (see customer.service.ts's
+  // own "admin-logs" case docstring).
   const { data, isLoading } = useCustomerFeatureData("admin-logs", locationId ?? "");
 
   if (role !== "owner") {
     return (
       <div className="space-y-6">
-        <FeatureHeader title="Admin Logs" description="Who logged into the dashboard and when, plus router activity across every location." />
+        <FeatureHeader title="Admin Logs" description="Who logged into the dashboard and when, router activity, and account changes across every location." />
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
             <ShieldAlert className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">Owner access only</p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              Admin Logs shows a security-sensitive login audit trail for the whole organization. Only the Organization Owner can view this page.
+              Admin Logs shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page.
             </p>
           </CardContent>
         </Card>
@@ -774,10 +777,11 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
 
   const logins = data?.adminLogs?.dashboardLogins ?? [];
   const routerLogs = data?.adminLogs?.routerLogs ?? [];
+  const accountActivity = data?.adminLogs?.accountActivity ?? [];
 
   return (
     <div className="space-y-8">
-      <FeatureHeader title="Admin Logs" description="Real login activity and router events across every location in your organization." />
+      <FeatureHeader title="Admin Logs" description="Real login activity, router events, and account/config changes across every location in your organization." />
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Dashboard Logins</h3>
@@ -834,6 +838,45 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{e.message ?? "—"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{e.time}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-3">
+        {/* Real administrative change-audit trail (role assignments,
+            location/member changes, etc.) -- what used to be the
+            standalone "Audit Log" tab, now merged in here as its own
+            section rather than kept as a second nav entry. Same real
+            /audit/entries data (app.domains.audit), same
+            useCustomerFeatureData("admin-logs", ...) call as the two
+            sections above -- see customer.service.ts's own "admin-logs"
+            case docstring. */}
+        <h3 className="text-sm font-semibold text-foreground">Account Activity</h3>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow><TableHead>Action</TableHead><TableHead>Description</TableHead><TableHead>Actor</TableHead><TableHead>When</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+                ) : accountActivity.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">No account activity recorded yet.</TableCell></TableRow>
+                ) : accountActivity.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-500/10 dark:text-slate-300">
+                        {a.action.replace(/_/g, " ")}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.description ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{a.actorUserId ?? "system"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

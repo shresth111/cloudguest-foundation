@@ -120,15 +120,18 @@ const NAV_GROUPS: NavGroupDef[] = [
     group: "Support & Logs",
     items: [
       { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
-      { id: "audit", label: "Audit Log", icon: ScrollText, roles: ["owner", "agent"] },
-      // Owner-only: unlike every other item here, this shows a real login
-      // audit trail (who signed into the dashboard, when, from where)
-      // across the whole organization -- not something an Agent/staff
-      // account should see. The backend independently enforces this too
-      // (app.domains.admin_logs.router's RequireRole("organization-owner"))
-      // so this is defense in depth, not the only guard -- see
-      // OperationsFeatures.tsx's own AdminLogsView for the second,
-      // render-time check.
+      // The former separate "Audit Log" tab (real admin/config-change
+      // events from app.domains.audit's /audit/entries) was merged into
+      // this page's own "Account Activity" section rather than kept as a
+      // second nav entry -- one log destination, not two. Owner-only:
+      // unlike every other item here, this shows a real login + change
+      // audit trail across the whole organization -- not something an
+      // Agent/staff account should see. The backend independently enforces
+      // this too (app.domains.admin_logs.router's and, for the merged-in
+      // section, app.domains.audit.router's own matching RequireRole
+      // ("organization-owner")) so this is defense in depth, not the only
+      // guard -- see OperationsFeatures.tsx's own AdminLogsView for the
+      // second, render-time check.
       { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner"] },
     ],
   },
@@ -227,7 +230,11 @@ function FeaturePage() {
             {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
             {feature === "agents" && <AgentsPage locationId={locationId} />}
             {feature === "advanced" && <AdvancedPage />}
-            {feature === "audit" && <AuditView locationId={locationId} />}
+            {/* "audit" no longer has its own nav entry (merged into Admin
+                Logs' Account Activity section) -- keep old bookmarks/links
+                to /customer/:id/audit landing somewhere real instead of the
+                generic-feature fallback. */}
+            {feature === "audit" && <AdminLogsView locationId={locationId} />}
             {feature === "tickets" && <TicketsPage locationId={locationId} />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <BusinessHoursView />}
@@ -243,7 +250,10 @@ function FeaturePage() {
             {feature === "isp-routing" && <IspRoutingView />}
             {feature === "debugging" && <DebuggingView />}
             {feature === "hotspot" && <HotspotView />}
-            {!ALL_NAV_ITEMS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
+            {/* "audit" is handled above (redirected to AdminLogsView, see
+                that render line's own comment) -- excluded here too so it
+                doesn't also fall through to the generic placeholder. */}
+            {feature !== "audit" && !ALL_NAV_ITEMS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
           </div>
         </main>
       </div>
@@ -318,23 +328,5 @@ function DevicesView({ locationId }: { locationId: string }) {
     : devices.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No connected devices yet.</TableCell></TableRow>
     : devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}
   </TableBody></Table></CardContent></Card>);
-}
-
-// ── Audit ─────────────────────────────────────────────────
-const DEMO_AUDIT = [
-  {a:"Guest login via OTP",w:"guest@email.com",t:"2 min ago"},{a:"Voucher batch created",w:"reception",t:"18 min ago"},
-  {a:"Router restart completed",w:"system",t:"1 hour ago"},{a:"Portal branding updated",w:"manager",t:"3 hours ago"},
-  {a:"Bandwidth policy changed",w:"admin",t:"5 hours ago"},{a:"New location provisioned",w:"system",t:"1 day ago"},
-];
-
-function AuditView({ locationId }: { locationId: string }) {
-  const { data, isLoading } = useCustomerFeatureData("audit", locationId);
-  const demo = useIsDemo();
-  const items = data?.audit?.length ? data.audit.map((e) => ({ a: e.action, w: e.user, t: e.time })) : (demo ? DEMO_AUDIT : []);
-  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader><CardContent className="divide-y">
-    {isLoading ? <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
-    : items.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">No audit entries yet.</p>
-    : items.map((ev,i)=>(<div key={i} className="flex items-start gap-3 py-3"><div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="text-xs text-muted-foreground truncate">{ev.w} · {ev.t}</p></div></div>))}
-  </CardContent></Card>);
 }
 

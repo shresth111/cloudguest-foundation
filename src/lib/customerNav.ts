@@ -49,9 +49,10 @@ export const CUSTOMER_NAVS: CustomerNavItem[] = [
   { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
   { id: "debugging", label: "Debugging", icon: Terminal, roles: ["owner"] },
   { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
-  { id: "audit", label: "Audit Log", icon: ScrollText, roles: ["owner", "agent"] },
-  // Owner-only -- see customer.$locationId.$feature.tsx's own NAV_GROUPS
-  // entry for the same restriction and why (a real, org-wide login audit
+  // The former separate "Audit Log" tab was merged into Admin Logs' own
+  // "Account Activity" section -- one log destination, not two. Owner-only
+  // -- see customer.$locationId.$feature.tsx's own NAV_GROUPS entry for
+  // the same restriction and why (a real, org-wide login + change audit
   // trail, independently enforced by the backend too).
   { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner"] },
 ];

@@ -89,7 +89,26 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
           rbacService.listPermissions(undefined, org),
         ]);
         setRealRoles(roleList);
-        setRealAgents(users.items.map((u) => ({ id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: u.isActive ? "active" : "inactive", roleId: "", roleName: "—" })));
+        // Resolve each user's actual assigned role (GET /users doesn't
+        // return it inline -- a separate GET /users/{id}/roles per row is
+        // the only way) so the list shows the real role name -- notably
+        // "Organization Owner" for whoever holds it, instead of every real
+        // agent always reading "No role" -- and so isOwnerRole below can
+        // reliably tell the Owner's own row apart from every other agent.
+        const withRoles = await Promise.all(
+          users.items.map(async (u): Promise<RealAgent> => {
+            const base = { id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: (u.isActive ? "active" : "inactive") as RealAgent["status"] };
+            try {
+              const assignments = await rbacService.listUserRoleAssignments(u.id, org);
+              const active = assignments.find((a) => a.isActive && a.organizationId === org);
+              const role = active ? roleList.find((r) => r.id === active.roleId) : undefined;
+              return { ...base, roleId: role?.id ?? "", roleName: role?.name ?? "—" };
+            } catch {
+              return { ...base, roleId: "", roleName: "—" };
+            }
+          }),
+        );
+        setRealAgents(withRoles);
         setRealPermissionGroups(groups.slice().sort((a, b) => a.sortOrder - b.sortOrder));
         setRealPermissions(perms.filter((p) => p.isActive));
       } catch {
@@ -242,6 +261,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   // simplest safe guard is to just not let it happen from this panel.
   // Someone else with admin access can change it instead.
   const isSelf = !demo && !!currentUser && selected?.id === currentUser.id;
+  // The Organization Owner row (real accounts only -- the demo store has no
+  // real-RBAC "organization-owner" slug to key off of): the backend already
+  // refuses to remove an org's sole Owner (LastOrganizationOwnerError), so a
+  // delete button here would recreate exactly the "looks like it works but
+  // doesn't" problem the roles-tab's own missing delete affordance (see the
+  // comment above createRealRole) was written to avoid.
+  const isOwnerRole = !demo && !!selected && realRoles.find((r) => r.id === selected.roleId)?.slug === "organization-owner";
   const strength = passwordStrength(form.password);
 
   const create = async () => {
@@ -701,7 +727,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                   <label className="flex items-center gap-2 text-sm"><Switch checked={selected.status === "active"} onCheckedChange={(v) => updateAgent(selected.id, { status: v ? "active" : "inactive" })} /> Active</label>
                   <label className="flex items-center gap-2 text-sm"><Switch checked={selected.dataMasking} onCheckedChange={(v) => updateAgent(selected.id, { dataMasking: v })} /> Data masking</label>
                   {demo && <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}><Eye className="h-4 w-4" /> Preview as agent <ExternalLink className="h-3.5 w-3.5" /></Button>}
-                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { removeAgent(selected.id); setSelectedId(null); }}><Trash2 className="h-4 w-4" /></Button>
+                  {!isOwnerRole && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { removeAgent(selected.id); setSelectedId(null); }}><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               </div>
 

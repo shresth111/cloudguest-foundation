@@ -80,7 +80,8 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Support & Logs",
     items: [
       { id: "tickets", label: "Support Tickets", icon: LifeBuoy, core: true },
-      { id: "audit", label: "Audit Log", icon: ScrollText },
+      // "Audit Log" is no longer a separate grantable feature -- its real
+      // data was merged into Admin Logs' own "Account Activity" section.
       { id: "admin-logs", label: "Admin Logs", icon: ScrollText },
     ],
   },

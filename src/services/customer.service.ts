@@ -54,12 +54,19 @@ export interface CustomerFeatureData {
   campaigns?: { id: string; name: string; status: string; impressions: number; conversions: number }[];
   vouchers?: { code: string; plan: string; status: string; used: number }[];
   portal?: { status: string; theme: string; authMethods: string[]; languages: string[] };
-  audit?: { action: string; user: string; time: string; status: string }[];
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
   macAuth?: { id: string; mac: string; type: string; expiresAt: string | null; comment: string | null; enabled: boolean }[];
   adminLogs?: {
     dashboardLogins: { id: string; email: string; ipAddress: string; success: boolean; failureReason: string | null; time: string }[];
     routerLogs: { id: string; locationName: string; routerName: string; eventType: string; message: string | null; isError: boolean; time: string }[];
+    // Real administrative change-audit trail (role/permission/location/
+    // member changes, etc.) -- merged in from what used to be the separate
+    // "Audit Log" nav tab (`GET /audit/entries`, same `audit_log_entries`
+    // table `app.domains.audit` already served that page from). Folded
+    // into this one "admin-logs" feature fetch rather than kept as its own
+    // "audit" case/query key, now that both live on the same Owner-only
+    // Admin Logs page.
+    accountActivity: { id: string; action: string; description: string | null; actorUserId: string | null; entityType: string; time: string }[];
   };
 }
 
@@ -367,15 +374,6 @@ export const customerService = {
           const caption = locationId ? await api.get(`/captive-portal`, { params: { location_id: locationId } }).catch(() => null) : null;
           return { portal: { status: "Live", theme: "Enterprise Blue", authMethods: ["Email OTP", "SMS", "Voucher"], languages: ["EN", "HI", "AR"] } };
         }
-        case "audit": {
-          // /audit/entries requires audit_logs.read, resolved to ORGANIZATION
-          // scope via X-Organization-Id -- omitting it (as this did before)
-          // defaults to GLOBAL scope and 403s for a real customer/org-owner
-          // session, same class of bug as resolveOrgId's other call sites.
-          const orgId = await resolveOrgId();
-          const { data } = await api.get<{ items: { action: string; description: string; actor_user_id: string | null; created_at: string }[] }>("/audit/entries", { params: { page_size: 10 }, headers: { "X-Organization-Id": orgId } }).catch(() => ({ data: { items: [] } }));
-          return { audit: (data?.items ?? []).map((a) => ({ action: a.description ?? a.action, user: a.actor_user_id ?? "system", time: timeAgo(a.created_at), status: "info" })) };
-        }
         case "devices": {
           // Same fix -- /connected-devices requires connected_devices.read
           // at ORGANIZATION scope via X-Organization-Id.
@@ -392,22 +390,27 @@ export const customerService = {
           return { macAuth: data.items.map((e) => ({ id: e.id, mac: e.mac_address, type: e.authorization_type, expiresAt: e.expires_at, comment: e.comment, enabled: e.is_enabled })) };
         }
         case "admin-logs": {
-          // Owner-only on the backend (app.domains.admin_logs.router --
-          // RequirePermission("audit_logs.read") + RequireRole
-          // ("organization-owner", ...) + RequireFeature) -- an Agent
-          // session 403s here even if it somehow reaches this route (the
-          // sidebar/route guard already keep it from getting this far in
-          // the first place, see customerNav.ts/authGuards.ts). Each call
-          // is caught independently via allSettled rather than one
-          // try/catch, so one endpoint 403ing/erroring doesn't blank out
-          // the other section -- and, deliberately, a failure here
-          // resolves to an *empty* section, never demo/fabricated log
-          // rows: this is a security audit trail, and a fake "who logged
-          // in" row would be actively misleading, unlike the numeric
-          // placeholders every other feature's own demo fallback shows.
+          // Owner-only on the backend for all three sections below --
+          // dashboard-logins/router-events via app.domains.admin_logs
+          // .router's RequirePermission("audit_logs.read") + RequireRole
+          // ("organization-owner", ...) + RequireFeature; accountActivity
+          // (/audit/entries, the former standalone "Audit Log" tab's real
+          // data source) via app.domains.audit.router's own
+          // RequirePermission + the same RequireRole narrowing, added when
+          // this section was folded in here. An Agent session 403s on all
+          // three even if it somehow reaches this route (the sidebar/route
+          // guard already keep it from getting this far in the first
+          // place, see customerNav.ts/authGuards.ts). Each call is caught
+          // independently via allSettled rather than one try/catch, so one
+          // endpoint 403ing/erroring doesn't blank out the others -- and,
+          // deliberately, a failure here resolves to an *empty* section,
+          // never demo/fabricated log rows: this is a security audit
+          // trail, and a fake "who logged in"/"who changed what" row would
+          // be actively misleading, unlike the numeric placeholders every
+          // other feature's own demo fallback shows.
           const orgId = await resolveOrgId();
           const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-          const [loginsR, routerR] = await Promise.allSettled([
+          const [loginsR, routerR, activityR] = await Promise.allSettled([
             api.get<{ items: { id: string; email: string; ip_address: string; success: boolean; failure_reason: string | null; created_at: string }[] }>(
               "/admin-logs/dashboard-logins",
               { params: { page_size: 50 }, ...orgHeaders },
@@ -416,13 +419,19 @@ export const customerService = {
               "/admin-logs/router-events",
               { params: { page_size: 50 }, ...orgHeaders },
             ),
+            api.get<{ items: { id: string; action: string; description: string | null; actor_user_id: string | null; entity_type: string; created_at: string }[] }>(
+              "/audit/entries",
+              { params: { page_size: 50 }, ...orgHeaders },
+            ),
           ]);
           const logins = loginsR.status === "fulfilled" ? loginsR.value.data?.items ?? [] : [];
           const routerEvents = routerR.status === "fulfilled" ? routerR.value.data?.items ?? [] : [];
+          const activity = activityR.status === "fulfilled" ? activityR.value.data?.items ?? [] : [];
           return {
             adminLogs: {
               dashboardLogins: logins.map((l) => ({ id: l.id, email: l.email, ipAddress: l.ip_address, success: l.success, failureReason: l.failure_reason, time: timeAgo(l.created_at) })),
               routerLogs: routerEvents.map((e) => ({ id: e.id, locationName: e.location_name, routerName: e.router_name, eventType: e.event_type, message: e.message, isError: e.is_error, time: timeAgo(e.occurred_at) })),
+              accountActivity: activity.map((a) => ({ id: a.id, action: a.action, description: a.description, actorUserId: a.actor_user_id, entityType: a.entity_type, time: timeAgo(a.created_at) })),
             },
           };
         }
@@ -440,7 +449,6 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
     case "campaigns": return { campaigns: [{ id: "1", name: "Summer Promo", status: "active", impressions: 2841, conversions: 423 }, { id: "2", name: "New Year", status: "draft", impressions: 0, conversions: 0 }] };
     case "vouchers": return { vouchers: [{ code: "VCH-8821", plan: "1h", status: "active", used: 3 }, { code: "VCH-8822", plan: "24h", status: "active", used: 12 }] };
     case "portal": return { portal: { status: "Live", theme: "Enterprise Blue", authMethods: ["Email OTP", "SMS", "Voucher"], languages: ["EN", "HI", "AR"] } };
-    case "audit": return { audit: [{ action: "Guest login via OTP", user: "guest@email.com", time: "2 min ago", status: "success" }, { action: "Voucher created", user: "reception", time: "18 min ago", status: "info" }, { action: "Router restart", user: "system", time: "1h ago", status: "success" }, { action: "Portal updated", user: "manager", time: "3h ago", status: "info" }] };
     case "devices": return { devices: [{ mac: "00:1A:2B:3C:4D:5E", ip: "10.0.1.42", device: "iPhone 15", firstSeen: "Today", lastSeen: "Just now" }, { mac: "AA:BB:CC:DD:EE:FF", ip: "10.0.1.87", device: "MacBook Pro", firstSeen: "Today", lastSeen: "2 min ago" }] };
     case "mac-auth": return { macAuth: [
       { id: "1", mac: "7C:70:DB:B5:76:92", type: "permanent", expiresAt: null, comment: "Front desk tablet", enabled: true },
@@ -458,6 +466,11 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
           { id: "1", locationName: "Mumbai HQ", routerName: "mikrotik-mumbai-1", eventType: "config_applied", message: "Hotspot policy pushed", isError: false, time: "12 min ago" },
           { id: "2", locationName: "Delhi Office", routerName: "mikrotik-delhi-1", eventType: "config_apply_failed", message: "Device unreachable during push", isError: true, time: "2 hours ago" },
           { id: "3", locationName: "Bangalore DC", routerName: "mikrotik-blr-1", eventType: "enrollment_approved", message: null, isError: false, time: "Yesterday" },
+        ],
+        accountActivity: [
+          { id: "1", action: "role_assigned", description: "Assigned role 'Helpdesk' to reception@acme.demo", actorUserId: "owner@acme.demo", entityType: "user_role", time: "8 min ago" },
+          { id: "2", action: "location_created", description: "Created location 'Pune Office'", actorUserId: "owner@acme.demo", entityType: "location", time: "1 day ago" },
+          { id: "3", action: "organization_member_removed", description: "Removed member manager@acme.demo", actorUserId: "owner@acme.demo", entityType: "organization_member", time: "3 days ago" },
         ],
       },
     };
