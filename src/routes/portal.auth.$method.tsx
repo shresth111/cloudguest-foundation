@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Wifi } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { otherAuthMethods, AUTH_METHOD_FALLBACK_COPY } from "@/lib/portal-auth-methods";
@@ -43,7 +43,7 @@ function OtherMethodsLinks({
             setSelectedMethod(m);
             navigate({ to: "/portal/auth/$method", params: { method: m }, search: (prev) => prev });
           }}
-          className="block w-full text-center text-xs text-white/60 underline-offset-2 hover:text-white hover:underline"
+          className="block w-full text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
         >
           {AUTH_METHOD_FALLBACK_COPY[m]}
         </button>
@@ -65,6 +65,7 @@ function AuthMethodPage() {
     setSession,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/auth/$method" });
+  const portalSearch = { organizationId, locationId, routerId };
   const m = (METHODS as string[]).includes(method) ? (method as RuntimeAuthMethod) : null;
 
   const onSent = (target: string, authMethod: RuntimeAuthMethod) => {
@@ -109,22 +110,38 @@ function AuthMethodPage() {
           : "mobileOtp";
 
   return (
-    <PortalShell>
+    <PortalShell variant="light" showHeader={false}>
       <div className="flex flex-1 flex-col gap-5">
         <Link
           to="/portal/auth"
           from="/portal/auth/$method"
           search={(prev) => prev}
-          className="inline-flex w-fit items-center gap-1.5 text-sm text-white/70 hover:text-white"
+          className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
         >
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
         </Link>
-        <div>
-          <h1 className="text-2xl font-semibold">{t(titleKey)}</h1>
-          <p className="mt-1 text-sm text-white/60">Complete the form below to get online.</p>
+
+        <div className="flex flex-col items-center text-center">
+          <div
+            className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25"
+            style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+          >
+            {config?.logoUrl ? (
+              <img src={config.logoUrl} alt="" className="h-8 w-8 rounded-lg object-contain" />
+            ) : (
+              <Wifi className="h-7 w-7 text-white" />
+            )}
+          </div>
+          <h1
+            className="mt-4 text-[26px] font-bold leading-tight text-slate-900"
+            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
+          >
+            {t(titleKey)}
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-500">Complete the form below to get online.</p>
         </div>
 
-        <PortalCard>
+        <PortalCard variant="light">
           {m === "otp_sms" && (
             <MobileForm
               organizationId={organizationId}
@@ -155,7 +172,7 @@ function AuthMethodPage() {
               onLoggedIn={onVoucherLoggedIn}
             />
           )}
-          {!m && <p className="text-sm text-white/70">Unknown sign-in method.</p>}
+          {!m && <p className="text-sm text-slate-500">Unknown sign-in method.</p>}
           {m && <OtherMethodsLinks config={config} current={m} />}
         </PortalCard>
       </div>
