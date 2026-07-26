@@ -854,29 +854,33 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
             /audit/entries data (app.domains.audit), same
             useCustomerFeatureData("admin-logs", ...) call as the two
             sections above -- see customer.service.ts's own "admin-logs"
-            case docstring. */}
+            case docstring. Fetched with exclude_view_events=true, so this
+            is only real changes -- never the "*_viewed" access-logging
+            noise that would otherwise bury it. */}
         <h3 className="text-sm font-semibold text-foreground">Account Activity</h3>
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Action</TableHead><TableHead>Description</TableHead><TableHead>Actor</TableHead><TableHead>When</TableHead></TableRow>
+                <TableRow><TableHead>Change</TableHead><TableHead>Actor</TableHead><TableHead>When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : accountActivity.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">No account activity recorded yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3} className="py-10 text-center text-xs text-muted-foreground">No account activity recorded yet.</TableCell></TableRow>
                 ) : accountActivity.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-500/10 dark:text-slate-300">
-                        {a.action.replace(/_/g, " ")}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", actionTone(a.action))}>
+                          {formatAuditAction(a.action)}
+                        </span>
+                        {a.description && <span className="text-sm text-foreground">{a.description}</span>}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{a.description ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{a.actorUserId ?? "system"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{a.time}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.actor}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -886,6 +890,30 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
       </div>
     </div>
   );
+}
+
+/** "role_assigned" -> "Role assigned"; title-cased just the leading word so
+ * multi-word actions (the common case) still read as a sentence fragment
+ * rather than shouty Title Case Everywhere. */
+function formatAuditAction(action: string): string {
+  const words = action.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Colors the action badge by what kind of change it was -- destructive
+ * (removed/deleted/revoked/deactivated/archived) reads as rose, additive
+ * (created/assigned/added/approved/activated) as emerald, everything else
+ * (updated/changed/published/...) as neutral slate -- the same
+ * create/destructive/neutral language the two tables above this one
+ * already use for their own status pills. */
+function actionTone(action: string): string {
+  if (/removed|deleted|revoked|deactivated|archived|rejected|denied/.test(action)) {
+    return "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400";
+  }
+  if (/created|assigned|added|approved|activated|invited|accepted|published/.test(action)) {
+    return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
+  }
+  return "bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-300";
 }
 
 /* ---------- MAC Authorization ---------- */

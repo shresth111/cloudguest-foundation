@@ -65,8 +65,12 @@ export interface CustomerFeatureData {
     // table `app.domains.audit` already served that page from). Folded
     // into this one "admin-logs" feature fetch rather than kept as its own
     // "audit" case/query key, now that both live on the same Owner-only
-    // Admin Logs page.
-    accountActivity: { id: string; action: string; description: string | null; actorUserId: string | null; entityType: string; time: string }[];
+    // Admin Logs page. `exclude_view_events=true` on that fetch drops the
+    // "*_viewed" read-only access-logging noise (see customer.service.ts's
+    // own "admin-logs" case for why); `actor` is an email when resolvable
+    // from the dashboard-logins list fetched alongside it, else the raw
+    // actor_user_id, else "System" -- never a fabricated name.
+    accountActivity: { id: string; action: string; description: string | null; actor: string; entityType: string; time: string }[];
   };
 }
 
@@ -411,7 +415,7 @@ export const customerService = {
           const orgId = await resolveOrgId();
           const orgHeaders = { headers: { "X-Organization-Id": orgId } };
           const [loginsR, routerR, activityR] = await Promise.allSettled([
-            api.get<{ items: { id: string; email: string; ip_address: string; success: boolean; failure_reason: string | null; created_at: string }[] }>(
+            api.get<{ items: { id: string; user_id: string | null; email: string; ip_address: string; success: boolean; failure_reason: string | null; created_at: string }[] }>(
               "/admin-logs/dashboard-logins",
               { params: { page_size: 50 }, ...orgHeaders },
             ),
@@ -419,19 +423,32 @@ export const customerService = {
               "/admin-logs/router-events",
               { params: { page_size: 50 }, ...orgHeaders },
             ),
+            // exclude_view_events=true drops the "*_viewed" read-only
+            // access-logging noise (billing/analytics dashboard loads --
+            // fired on effectively every page view) that would otherwise
+            // vastly outnumber and bury the real role/location/policy/etc.
+            // change events this section exists to show -- see
+            // repository.search_audit_log_entries's own docstring.
             api.get<{ items: { id: string; action: string; description: string | null; actor_user_id: string | null; entity_type: string; created_at: string }[] }>(
               "/audit/entries",
-              { params: { page_size: 50 }, ...orgHeaders },
+              { params: { page_size: 30, exclude_view_events: true }, ...orgHeaders },
             ),
           ]);
           const logins = loginsR.status === "fulfilled" ? loginsR.value.data?.items ?? [] : [];
           const routerEvents = routerR.status === "fulfilled" ? routerR.value.data?.items ?? [] : [];
           const activity = activityR.status === "fulfilled" ? activityR.value.data?.items ?? [] : [];
+          // Real login history already carries user_id <-> email pairs for
+          // this same org -- reuse it to show a human actor instead of a
+          // raw UUID (accountActivity itself only has actor_user_id). Not
+          // exhaustive (only actors who have ever logged in appear), so
+          // this stays a display nicety with a UUID fallback, never a
+          // fabricated name.
+          const actorEmailById = new Map(logins.filter((l) => l.user_id).map((l) => [l.user_id as string, l.email]));
           return {
             adminLogs: {
               dashboardLogins: logins.map((l) => ({ id: l.id, email: l.email, ipAddress: l.ip_address, success: l.success, failureReason: l.failure_reason, time: timeAgo(l.created_at) })),
               routerLogs: routerEvents.map((e) => ({ id: e.id, locationName: e.location_name, routerName: e.router_name, eventType: e.event_type, message: e.message, isError: e.is_error, time: timeAgo(e.occurred_at) })),
-              accountActivity: activity.map((a) => ({ id: a.id, action: a.action, description: a.description, actorUserId: a.actor_user_id, entityType: a.entity_type, time: timeAgo(a.created_at) })),
+              accountActivity: activity.map((a) => ({ id: a.id, action: a.action, description: a.description, actor: a.actor_user_id ? actorEmailById.get(a.actor_user_id) ?? a.actor_user_id : "System", entityType: a.entity_type, time: timeAgo(a.created_at) })),
             },
           };
         }
@@ -468,9 +485,9 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
           { id: "3", locationName: "Bangalore DC", routerName: "mikrotik-blr-1", eventType: "enrollment_approved", message: null, isError: false, time: "Yesterday" },
         ],
         accountActivity: [
-          { id: "1", action: "role_assigned", description: "Assigned role 'Helpdesk' to reception@acme.demo", actorUserId: "owner@acme.demo", entityType: "user_role", time: "8 min ago" },
-          { id: "2", action: "location_created", description: "Created location 'Pune Office'", actorUserId: "owner@acme.demo", entityType: "location", time: "1 day ago" },
-          { id: "3", action: "organization_member_removed", description: "Removed member manager@acme.demo", actorUserId: "owner@acme.demo", entityType: "organization_member", time: "3 days ago" },
+          { id: "1", action: "role_assigned", description: "Assigned role 'Helpdesk' to reception@acme.demo", actor: "owner@acme.demo", entityType: "user_role", time: "8 min ago" },
+          { id: "2", action: "location_created", description: "Created location 'Pune Office'", actor: "owner@acme.demo", entityType: "location", time: "1 day ago" },
+          { id: "3", action: "organization_member_removed", description: "Removed member manager@acme.demo", actor: "owner@acme.demo", entityType: "organization_member", time: "3 days ago" },
         ],
       },
     };
