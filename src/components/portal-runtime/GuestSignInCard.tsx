@@ -11,6 +11,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 import { deviceHasPassword, markDeviceHasPassword } from "@/lib/portal-returning-guest";
+import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -138,7 +139,7 @@ export function GuestSignInCard() {
       // surface exactly that, never an invented fixed wait.
       const retryAfter = e.data?.retry_after_seconds;
       if (typeof retryAfter === "number") setResendCooldown(retryAfter);
-      setOtpError(e.message);
+      setOtpError(friendlyGuestAuthError(e, "otp_request"));
     },
   });
 
@@ -157,7 +158,13 @@ export function GuestSignInCard() {
       setSelectedMethod(otpChannel === "sms" ? "otp_sms" : "otp_email");
       await afterLogin(session);
     },
-    onError: (e: AppError) => setOtpError(e.message),
+    // A wrong/expired code 400/410s with a real, already-plain-English
+    // reason from OtpCodeMismatchError/OtpExpiredError/etc. -- shown as-is.
+    // The one shape that isn't fit for a guest to read verbatim is a raw
+    // 422 "Request validation failed" (the backend's generic request-schema
+    // validation handler, not a real OTP business-logic reason) -- see
+    // src/lib/portal-guest-errors.ts for why that's the only case mapped.
+    onError: (e: AppError) => setOtpError(friendlyGuestAuthError(e, "otp_verify")),
   });
 
   // ---- Password tab state --------------------------------------------
@@ -179,7 +186,7 @@ export function GuestSignInCard() {
       setSelectedMethod("username_password");
       await afterLogin(session);
     },
-    onError: (e: AppError) => setPasswordError(e.message),
+    onError: (e: AppError) => setPasswordError(friendlyGuestAuthError(e, "password")),
   });
 
   async function afterLogin(session: RuntimeSession) {

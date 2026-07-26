@@ -6,9 +6,10 @@ import { toast } from "sonner";
 import { Loader2, Smartphone, Mail, KeyRound, Ticket } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
+import { PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -66,34 +67,26 @@ export function MobileForm({
       toast.success("Code sent");
       onSent(v.countryCode + v.phone);
     },
-    onError: (e: AppError) => toast.error(e.message),
+    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
   });
   return (
     <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
-      <Label className="text-white/80">{t("mobileNumber")}</Label>
+      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
       <div className="grid grid-cols-[90px_1fr] gap-2">
-        <Input
-          {...form.register("countryCode")}
-          className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-        />
+        <Input {...form.register("countryCode")} className={PG_INPUT} />
         <Input
           {...form.register("phone")}
           inputMode="tel"
           placeholder="555 010 2200"
-          className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+          className={PG_INPUT}
         />
       </div>
       {form.formState.errors.phone && (
-        <p className="text-xs text-red-300">{form.formState.errors.phone.message}</p>
+        <p className="text-xs text-red-600">{form.formState.errors.phone.message}</p>
       )}
-      <Button
-        type="submit"
-        disabled={send.isPending}
-        className="h-11 w-full font-semibold text-white shadow-lg"
-        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-      >
-        {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("sendOtp")}
-      </Button>
+      <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
+        {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+      </button>
     </form>
   );
 }
@@ -125,28 +118,23 @@ export function EmailForm({
       toast.success("Code sent");
       onSent(v.email);
     },
-    onError: (e: AppError) => toast.error(e.message),
+    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
   });
   return (
     <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
-      <Label className="text-white/80">{t("emailAddress")}</Label>
+      <Label className="text-xs font-semibold text-slate-500">{t("emailAddress")}</Label>
       <Input
         {...form.register("email")}
         type="email"
         placeholder="you@example.com"
-        className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+        className={PG_INPUT}
       />
       {form.formState.errors.email && (
-        <p className="text-xs text-red-300">{form.formState.errors.email.message}</p>
+        <p className="text-xs text-red-600">{form.formState.errors.email.message}</p>
       )}
-      <Button
-        type="submit"
-        disabled={send.isPending}
-        className="h-11 w-full font-semibold text-white shadow-lg"
-        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-      >
-        {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("sendOtp")}
-      </Button>
+      <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
+        {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+      </button>
     </form>
   );
 }
@@ -187,38 +175,33 @@ export function PasswordForm({
     // never a distinguishable one (avoids leaking account existence) --
     // so this page can't auto-detect "you're new, here's OTP instead" and
     // just relies on the method switcher above the form instead.
-    onError: (e: AppError) => toast.error(e.message),
+    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "password")),
   });
 
   return (
     <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
-      <Label className="text-white/80">{t("mobileNumber")}</Label>
+      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
       <Input
         {...form.register("identifier")}
         placeholder="you@example.com or +1 555 010 2200"
-        className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+        className={PG_INPUT}
       />
       {form.formState.errors.identifier && (
-        <p className="text-xs text-red-300">{form.formState.errors.identifier.message}</p>
+        <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
       )}
-      <Label className="text-white/80">{t("password")}</Label>
+      <Label className="text-xs font-semibold text-slate-500">{t("password")}</Label>
       <Input
         {...form.register("password")}
         type="password"
         placeholder="••••••••••••"
-        className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+        className={PG_INPUT}
       />
       {form.formState.errors.password && (
-        <p className="text-xs text-red-300">{form.formState.errors.password.message}</p>
+        <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
       )}
-      <Button
-        type="submit"
-        disabled={login.isPending}
-        className="h-11 w-full font-semibold text-white shadow-lg"
-        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-      >
-        {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("signIn")}
-      </Button>
+      <button type="submit" disabled={login.isPending} className={PG_PRIMARY_BTN}>
+        {login.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("signIn")}
+      </button>
     </form>
   );
 }
@@ -253,36 +236,27 @@ export function VoucherForm({
         routerId,
       }),
     onSuccess: onLoggedIn,
-    onError: (e: AppError) => toast.error(e.message),
+    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "voucher")),
   });
   return (
     <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
-      <Label className="text-white/80">{t("mobileNumber")}</Label>
+      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
       <Input
         {...form.register("identifier")}
         placeholder="you@example.com or +1 555 010 2200"
-        className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+        className={PG_INPUT}
       />
       {form.formState.errors.identifier && (
-        <p className="text-xs text-red-300">{form.formState.errors.identifier.message}</p>
+        <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
       )}
-      <Label className="text-white/80">{t("voucherCode")}</Label>
-      <Input
-        {...form.register("code")}
-        placeholder="ABCD-1234"
-        className="bg-white/10 border-white/10 text-white placeholder:text-white/40 uppercase"
-      />
+      <Label className="text-xs font-semibold text-slate-500">{t("voucherCode")}</Label>
+      <Input {...form.register("code")} placeholder="ABCD-1234" className={`${PG_INPUT} uppercase`} />
       {form.formState.errors.code && (
-        <p className="text-xs text-red-300">{form.formState.errors.code.message}</p>
+        <p className="text-xs text-red-600">{form.formState.errors.code.message}</p>
       )}
-      <Button
-        type="submit"
-        disabled={login.isPending}
-        className="h-11 w-full font-semibold text-white shadow-lg"
-        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-      >
-        {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("submit")}
-      </Button>
+      <button type="submit" disabled={login.isPending} className={PG_PRIMARY_BTN}>
+        {login.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("submit")}
+      </button>
     </form>
   );
 }
