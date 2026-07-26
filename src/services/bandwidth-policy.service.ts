@@ -140,4 +140,48 @@ export const bandwidthPolicyService = {
   async unmapFromLocation(policyId: string, assignmentId: string, organizationId?: string): Promise<void> {
     await deactivatePolicyAssignment(policyId, assignmentId, organizationId);
   },
+
+  // "Map users" (CreateGroup.tsx step 3) -- every guest currently mapped
+  // into this group at this location (a GUEST-targeted PolicyAssignment,
+  // scope_type="location", target_type="guest" -- see backend/app/domains
+  // /policy/constants.py's PolicyAssignmentTargetType.GUEST doc comment).
+  async guestMappings(
+    policyId: string,
+    locationId: string,
+    organizationId?: string,
+  ): Promise<{ assignmentId: string; guestId: string }[]> {
+    const assignments = await listPolicyAssignments(policyId, organizationId);
+    return assignments
+      .filter(
+        (a) => a.is_active && a.scope_type === "location" && a.scope_id === locationId && a.target_type === "guest" && a.target_id,
+      )
+      .map((a) => ({ assignmentId: a.id, guestId: a.target_id as string }));
+  },
+
+  // Idempotent, mirroring mapToLocation: a guest already mapped into this
+  // group at this location is left as-is rather than creating a second
+  // active row for the same (policy, location, guest) triple.
+  async mapGuestToLocation(
+    policyId: string,
+    locationId: string,
+    guestId: string,
+    organizationId?: string,
+  ): Promise<string> {
+    const existing = await bandwidthPolicyService.guestMappings(policyId, locationId, organizationId);
+    const already = existing.find((m) => m.guestId === guestId);
+    if (already) return already.assignmentId;
+    const assignment = await createPolicyAssignment({
+      policyId,
+      scopeType: "location",
+      scopeId: locationId,
+      targetType: "guest",
+      targetId: guestId,
+      organizationId,
+    });
+    return assignment.id;
+  },
+
+  async unmapGuestFromLocation(policyId: string, assignmentId: string, organizationId?: string): Promise<void> {
+    await deactivatePolicyAssignment(policyId, assignmentId, organizationId);
+  },
 };

@@ -1,11 +1,13 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   HelpCircle, X, Plus, ChevronDown, Search, Pencil, Copy, Trash2,
-  ChevronLeft, ChevronRight, Loader2, User, Network, MapPin, MapPinOff,
+  ChevronLeft, ChevronRight, Loader2, User, Network, MapPin, MapPinOff, Users, UserPlus,
 } from "lucide-react";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
+import { guestService } from "@/services/guest.service";
+import type { Guest } from "@/types/guest";
 
 // Only the bandwidth rate has a real backend equivalent (bandwidthPolicyService) --
 // session/idle timeout, daily limit, devices-per-user, login hours, and data
@@ -152,6 +154,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [toast, setToast] = useState<string | null>(null); const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
   const [mappingBusy, setMappingBusy] = useState<Set<string>>(new Set());
+  const [step3Done, setStep3Done] = useState(false);
   // The actual concurrency guard for handleToggleMap -- a ref, not the
   // mappingBusy *state* above. A same-tick double-click's second call can
   // run its guard check before React has committed the first call's
@@ -287,6 +290,111 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     }
   };
 
+  // "Map users" (step 3) -- assigns specific guests into a group already
+  // mapped to this location, via a real GUEST-targeted PolicyAssignment
+  // (backend/app/domains/policy/constants.py's PolicyAssignmentTargetType
+  // .GUEST). Only reachable once the group itself is mapped (handleToggleMap
+  // above) -- mirrors the flow the bug report itself described: create the
+  // group, map the group, then map users into it.
+  const [usersModalGroup, setUsersModalGroup] = useState<Group | null>(null);
+  const [mappedGuests, setMappedGuests] = useState<{ assignmentId: string; guestId: string; label: string }[]>([]);
+  const [guestsLoading, setGuestsLoading] = useState(false);
+  const [guestSearch, setGuestSearch] = useState("");
+  const [guestResults, setGuestResults] = useState<Guest[]>([]);
+  const [guestSearchBusy, setGuestSearchBusy] = useState(false);
+  const [guestActionBusy, setGuestActionBusy] = useState<Set<string>>(new Set());
+  const guestActionLock = useRef<Set<string>>(new Set());
+  const DEMO_GUESTS: Guest[] = [
+    { id: "dg1", organizationId: "demo", organizationName: "Demo Org", locationId: locationId ?? null, locationName: null, identifier: "+91 98765 43210", displayName: "Aarav Shah", firstSeenAt: "", lastSeenAt: "", totalVisitCount: 4, isBlocked: false, blockedReason: null, createdAt: "", updatedAt: "" },
+    { id: "dg2", organizationId: "demo", organizationName: "Demo Org", locationId: locationId ?? null, locationName: null, identifier: "priya@example.com", displayName: "Priya Nair", firstSeenAt: "", lastSeenAt: "", totalVisitCount: 1, isBlocked: false, blockedReason: null, createdAt: "", updatedAt: "" },
+  ];
+
+  const openUsersModal = async (g: Group) => {
+    setUsersModalGroup(g);
+    setGuestSearch(""); setGuestResults([]);
+    if (!locationId) return;
+    setGuestsLoading(true);
+    try {
+      if (demo) {
+        setMappedGuests([{ assignmentId: `demo-map-${DEMO_GUESTS[0].id}`, guestId: DEMO_GUESTS[0].id, label: `${DEMO_GUESTS[0].displayName} · ${DEMO_GUESTS[0].identifier}` }]);
+        setStep3Done(true);
+      } else {
+        const mappings = await bandwidthPolicyService.guestMappings(g.id, locationId, orgId ?? undefined);
+        const resolved = await Promise.all(mappings.map(async (m) => {
+          const guest = await guestService.get(m.guestId).catch(() => null);
+          const label = guest ? `${guest.displayName ?? guest.identifier} · ${guest.identifier}` : m.guestId;
+          return { ...m, label };
+        }));
+        setMappedGuests(resolved);
+        if (resolved.length > 0) setStep3Done(true);
+      }
+    } catch {
+      setMappedGuests([]);
+    } finally {
+      setGuestsLoading(false);
+    }
+  };
+
+  const searchGuests = async () => {
+    if (!guestSearch.trim()) { setGuestResults([]); return; }
+    setGuestSearchBusy(true);
+    try {
+      if (demo) {
+        const q = guestSearch.trim().toLowerCase();
+        setGuestResults(DEMO_GUESTS.filter((g) => g.identifier.toLowerCase().includes(q) || (g.displayName ?? "").toLowerCase().includes(q)));
+      } else {
+        const { rows } = await guestService.list({ search: guestSearch.trim(), page: 1, pageSize: 10 });
+        setGuestResults(locationId ? rows.filter((r) => r.locationId === locationId) : rows);
+      }
+    } catch {
+      setGuestResults([]);
+    } finally {
+      setGuestSearchBusy(false);
+    }
+  };
+
+  const mapGuest = async (guest: Guest) => {
+    if (!usersModalGroup || !locationId || guestActionLock.current.has(guest.id)) return;
+    guestActionLock.current.add(guest.id);
+    setGuestActionBusy((p) => new Set(p).add(guest.id));
+    try {
+      if (demo) {
+        await new Promise((r) => setTimeout(r, 300));
+        setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId: `demo-map-${guest.id}`, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
+      } else {
+        const assignmentId = await bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined);
+        setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
+      }
+      setStep3Done(true);
+      setToast(`${guest.displayName ?? guest.identifier} mapped into ${usersModalGroup.name}.`);
+      setTimeout(() => setToast(null), 2500);
+    } catch {
+      setToast("Could not map this guest — check the connection and try again.");
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      guestActionLock.current.delete(guest.id);
+      setGuestActionBusy((p) => { const n = new Set(p); n.delete(guest.id); return n; });
+    }
+  };
+
+  const unmapGuest = async (mapping: { assignmentId: string; guestId: string; label: string }) => {
+    if (!usersModalGroup || guestActionLock.current.has(mapping.guestId)) return;
+    guestActionLock.current.add(mapping.guestId);
+    setGuestActionBusy((p) => new Set(p).add(mapping.guestId));
+    try {
+      if (!demo) await bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined);
+      setMappedGuests((p) => p.filter((m) => m.guestId !== mapping.guestId));
+      setToast(`${mapping.label} unmapped from ${usersModalGroup.name}.`);
+      setTimeout(() => setToast(null), 2500);
+    } catch {
+      setToast("Could not unmap this guest — check the connection and try again.");
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      guestActionLock.current.delete(mapping.guestId);
+      setGuestActionBusy((p) => { const n = new Set(p); n.delete(mapping.guestId); return n; });
+    }
+  };
+
   const handleClone = (g: Group) => {
     setEditingId(null);
     setName(`${g.name} (copy)`); setBw(g.bandwidth); setSt(g.sessionTimeout); setIt(g.idleTimeout); setDp(g.devicesPerUser); setDl(g.dailyLimit);
@@ -314,6 +422,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // least one group has been mapped to this location via the real "Map"
   // button in the Existing Groups table.
   const step2Done = groups.some((g) => g.mappedAssignmentId);
+  // Drives "Map users"'s own caption -- true once a guest has actually been
+  // mapped into a group this session (see mapGuest/unmapGuest below). Not
+  // re-derived from a full per-group guest-mapping fetch on every load (that
+  // would mean an extra request per group just to paint a status dot); the
+  // "Users" column inside each open modal is always the real, authoritative
+  // per-group state regardless of this cosmetic session flag.
 
   return (
     <div className="space-y-6">
@@ -330,12 +444,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           // Step 1's "done" readout is step1Done (a group was just
           // created/edited this session); step 2's is step2Done (a real,
           // persisted PolicyAssignment exists for some group at this
-          // location -- see the "Map" button in the table below). Step 3
-          // ("Map users") has no real backing yet -- see this file's own
-          // PR notes -- so it deliberately keeps its static caption rather
-          // than claim a state that isn't tracked.
-          const done = s.num === 1 ? step1Done : s.num === 2 ? step2Done : false;
-          const caption = s.num === 2 ? (step2Done ? "Mapped" : "Not started") : s.caption;
+          // location); step 3's is step3Done (a real guest has been mapped
+          // into some group's "Map users" panel -- see openUsersModal/
+          // mapGuest below).
+          const done = s.num === 1 ? step1Done : s.num === 2 ? step2Done : step3Done;
+          const caption = s.num === 1 ? s.caption : (done ? "Mapped" : "Not started");
           return (
             <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
               <div className="flex flex-col items-center min-w-0">
@@ -435,9 +548,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <div className="overflow-x-auto">
           <table className="min-w-[1000px] w-full text-sm">
             <thead><tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 dark:border-slate-600 dark:text-slate-400">
-              <th className="pb-2 pr-3">Group Name</th><th className="pb-2 pr-3">Bandwidth</th><th className="pb-2 pr-3">Timeout</th><th className="pb-2 pr-3">Idle</th><th className="pb-2 pr-3">Devices</th><th className="pb-2 pr-3">Login Hours</th><th className="pb-2 pr-3">Data Limit</th><th className="pb-2 pr-3">Members</th><th className="pb-2 pr-3">Location</th><th className="pb-2 text-right">Action</th>
+              <th className="pb-2 pr-3">Group Name</th><th className="pb-2 pr-3">Bandwidth</th><th className="pb-2 pr-3">Timeout</th><th className="pb-2 pr-3">Idle</th><th className="pb-2 pr-3">Devices</th><th className="pb-2 pr-3">Login Hours</th><th className="pb-2 pr-3">Data Limit</th><th className="pb-2 pr-3">Members</th><th className="pb-2 pr-3">Location</th><th className="pb-2 pr-3">Users</th><th className="pb-2 text-right">Action</th>
             </tr></thead>
-            <tbody>{paged.length === 0 ? (<tr><td colSpan={10} className="py-10 text-center text-sm text-slate-400">No groups yet. Create one above to give a set of users their own policy.</td></tr>) : paged.map((g) => (
+            <tbody>{paged.length === 0 ? (<tr><td colSpan={11} className="py-10 text-center text-sm text-slate-400">No groups yet. Create one above to give a set of users their own policy.</td></tr>) : paged.map((g) => (
               <tr key={g.id} className="border-b border-slate-100 text-slate-700 last:border-0 dark:border-slate-700 dark:text-slate-300">
                 <td className="py-2.5 pr-3 font-medium">{g.name}</td>
                 <td className="py-2.5 pr-3">{g.bandwidth}</td>
@@ -465,6 +578,18 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     {g.mappedAssignmentId ? "Mapped" : "Map"}
                   </button>
                 </td>
+                <td className="py-2.5 pr-3">
+                  <button
+                    aria-label={`Map users into ${g.name}`}
+                    disabled={!g.mappedAssignmentId}
+                    title={!g.mappedAssignmentId ? "Map this group to the location first." : undefined}
+                    onClick={() => openUsersModal(g)}
+                    className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                  >
+                    <Users className="h-3 w-3" />
+                    Map users
+                  </button>
+                </td>
                 <td className="py-2.5 text-right">
                   <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Pencil className="h-4 w-4" /></button>
                   <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Copy className="h-4 w-4" /></button>
@@ -481,6 +606,86 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           </div>
         )}
       </div>
+
+      {usersModalGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setUsersModalGroup(null)}>
+          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="map-users-title">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="map-users-title" className="text-lg font-semibold text-slate-800 dark:text-slate-100">Map users — {usersModalGroup.name}</h3>
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Guests mapped here get this group's policy instead of the location default.</p>
+              </div>
+              <button aria-label="Close" onClick={() => setUsersModalGroup(null)} className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <input
+                type="text"
+                value={guestSearch}
+                onChange={(e) => setGuestSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") searchGuests(); }}
+                placeholder="Search by mobile or email…"
+                className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+              />
+              <button onClick={searchGuests} disabled={guestSearchBusy || !guestSearch.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900">
+                {guestSearchBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                Find
+              </button>
+            </div>
+
+            {guestResults.length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                {guestResults.map((guest) => {
+                  const already = mappedGuests.some((m) => m.guestId === guest.id);
+                  return (
+                    <div key={guest.id} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 dark:border-slate-600">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{guest.displayName ?? guest.identifier}</p>
+                        <p className="truncate text-xs text-slate-400">{guest.identifier}</p>
+                      </div>
+                      <button
+                        disabled={already || guestActionBusy.has(guest.id)}
+                        onClick={() => mapGuest(guest)}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:hover:bg-orange-900/20"
+                      >
+                        {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                        {already ? "Mapped" : "Map"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {guestSearch.trim() && !guestSearchBusy && guestResults.length === 0 && (
+              <p className="mt-3 text-xs text-slate-400">No guest found for "{guestSearch.trim()}" at this location.</p>
+            )}
+
+            <hr className="my-4 border-slate-100 dark:border-slate-600" />
+            <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Mapped users</h4>
+            {guestsLoading ? (
+              <p className="text-xs text-slate-400">Loading…</p>
+            ) : mappedGuests.length === 0 ? (
+              <p className="text-xs text-slate-400">No users mapped into this group yet.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {mappedGuests.map((m) => (
+                  <div key={m.guestId} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/50">
+                    <p className="truncate text-sm text-slate-600 dark:text-slate-300">{m.label}</p>
+                    <button
+                      disabled={guestActionBusy.has(m.guestId)}
+                      onClick={() => unmapGuest(m)}
+                      className="inline-flex shrink-0 items-center justify-center rounded p-1 text-slate-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
+                      aria-label={`Unmap ${m.label}`}
+                    >
+                      {guestActionBusy.has(m.guestId) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
