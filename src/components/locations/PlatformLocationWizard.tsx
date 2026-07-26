@@ -11,6 +11,7 @@ import {
   Sparkles,
   SlidersHorizontal,
   UserCog,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -44,6 +45,7 @@ import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
 import { PROPERTY_TYPE_LABEL, type PropertyType, type ProvisionLocationPayload, type ProvisionLocationResult } from "@/types/location";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
 
 // Same demo-session gap as location.service.ts's fetch helpers (see their
@@ -480,9 +482,16 @@ function LocationStep({
           <Select value={state.propertyType} onValueChange={(v) => upd("propertyType", v as PropertyType)}>
             <SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger>
             <SelectContent>
-              {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => (
-                <SelectItem key={t} value={t}>{PROPERTY_TYPE_LABEL[t]}</SelectItem>
-              ))}
+              {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => {
+                const TypeIcon = businessTypeIcon(t);
+                return (
+                  <SelectItem key={t} value={t}>
+                    <span className="flex items-center gap-2">
+                      <TypeIcon className="h-4 w-4 text-muted-foreground" /> {PROPERTY_TYPE_LABEL[t]}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -785,7 +794,11 @@ function ReviewStep({
       <div className="grid gap-3 md:grid-cols-2">
         <SummaryRow label="Organization" value={orgLabel} />
         <SummaryRow label="Location" value={state.location.name || "—"} />
-        <SummaryRow label="Property" value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`} />
+        <SummaryRow
+          label="Property"
+          value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`}
+          icon={businessTypeIcon(state.location.propertyType)}
+        />
         <SummaryRow label="Owner" value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`} />
         <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`} />
         <SummaryRow label="Plan" value={planLabel} />
@@ -799,11 +812,14 @@ function ReviewStep({
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
   return (
     <div className="rounded-lg border bg-muted/20 px-3 py-2">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium">{value}</div>
+      <div className="flex items-center gap-1.5 text-sm font-medium">
+        {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+        {value}
+      </div>
     </div>
   );
 }

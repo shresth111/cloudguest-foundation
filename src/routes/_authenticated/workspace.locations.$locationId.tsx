@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   BarChart3,
-  Building2,
   Cpu,
   Download,
   FileText,
@@ -55,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { StatCard } from "@/components/ui-ext";
 import type { StatTone } from "@/components/ui-ext";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useLocationResources } from "@/hooks/useWorkspace";
 import { useDeleteLocations } from "@/hooks/useLocations";
@@ -293,12 +293,13 @@ function LocationHeader({
 }) {
   const sibling = customer.locations.filter((l) => l.id !== location.id);
   const navigate = useNavigate();
+  const HeaderIcon = businessTypeIcon(location.siteType);
   return (
     <Card>
       <CardContent className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-4 sm:p-5 md:flex md:flex-wrap md:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-            <Building2 className="h-6 w-6" />
+            <HeaderIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">

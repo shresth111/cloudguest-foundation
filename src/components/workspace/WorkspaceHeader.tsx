@@ -1,4 +1,4 @@
-import { Building2, ChevronDown, MapPin } from "lucide-react";
+import { ChevronDown, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 
 export function WorkspaceHeader() {
   const { customer, locations, activeLocationId, activeLocation, setActiveLocationId } =
@@ -19,12 +20,16 @@ export function WorkspaceHeader() {
 
   const activeLabel =
     activeLocationId === "all" ? "All locations" : activeLocation?.name ?? "All locations";
+  // With a single location focused, show that location's own business-type
+  // icon; scoped to "All locations" there's no single type to represent, so
+  // fall back to the generic building icon (businessTypeIcon(undefined)).
+  const HeaderIcon = businessTypeIcon(activeLocationId === "all" ? undefined : activeLocation?.siteType);
 
   return (
     <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4 md:flex md:flex-wrap md:justify-between">
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Building2 className="h-5 w-5" />
+          <HeaderIcon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -70,17 +75,20 @@ export function WorkspaceHeader() {
             <MapPin className="mr-2 h-4 w-4" /> All locations
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {locations.map((l) => (
-            <DropdownMenuItem key={l.id} onSelect={() => setActiveLocationId(l.id)}>
-              <MapPin className="mr-2 h-4 w-4 opacity-70" />
-              <div className="flex flex-col">
-                <span>{l.name}</span>
-                <span className="text-xs capitalize text-muted-foreground">
-                  {l.siteType} · {l.city}
-                </span>
-              </div>
-            </DropdownMenuItem>
-          ))}
+          {locations.map((l) => {
+            const LocIcon = businessTypeIcon(l.siteType);
+            return (
+              <DropdownMenuItem key={l.id} onSelect={() => setActiveLocationId(l.id)}>
+                <LocIcon className="mr-2 h-4 w-4 opacity-70" />
+                <div className="flex flex-col">
+                  <span>{l.name}</span>
+                  <span className="text-xs capitalize text-muted-foreground">
+                    {l.siteType} · {l.city}
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            );
+          })}
           {locations.length === 0 && (
             <div className="px-2 py-4 text-center text-xs text-muted-foreground">
               No locations yet

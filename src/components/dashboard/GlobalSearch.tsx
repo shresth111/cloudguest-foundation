@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Building2, MapPin, Search, Wifi } from "lucide-react";
+import { Building2, Search, Wifi } from "lucide-react";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import {
   CommandDialog,
   CommandEmpty,
@@ -127,13 +128,15 @@ export function GlobalSearch() {
             <>
               {orgs.length > 0 && <CommandSeparator />}
               <CommandGroup heading="Locations">
-                {locations.map((l) => (
+                {locations.map((l) => {
+                  const LocIcon = businessTypeIcon(l.propertyType);
+                  return (
                   <CommandItem
                     key={l.id}
                     value={`loc-${l.id} ${l.name} ${l.organizationName} ${l.city}`}
                     onSelect={() => setOpen(false)}
                   >
-                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <LocIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">{l.name}</span>
                       <span className="text-xs text-muted-foreground">
@@ -141,7 +144,8 @@ export function GlobalSearch() {
                       </span>
                     </div>
                   </CommandItem>
-                ))}
+                  );
+                })}
               </CommandGroup>
             </>
           )}

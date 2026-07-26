@@ -10,6 +10,7 @@ import { organizationService } from "@/services/organization.service";
 import { toAppError } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import { PROPERTY_TYPE_LABEL, type Location, type PropertyType } from "@/types/location";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 
 // The Master Console's demo sign-in (see master-login.tsx, "admin@example.com
 // / test") issues a local-only `demo-access-token` that the real backend
@@ -219,11 +220,18 @@ function LocationsScreen() {
           {rows.length === 0 ? (
             <MTr><MTd className="text-center text-muted-foreground" /><MTd /><MTd /><MTd className="hidden sm:table-cell" /><MTd /><MTd /></MTr>
           ) : (
-            rows.map((l) => (
+            rows.map((l) => {
+              const TypeIcon = businessTypeIcon(l.propertyType);
+              return (
               <MTr key={l.id}>
                 <MTd className="font-mono text-sm font-bold text-primary">{l.locationCode ?? "—"}</MTd>
                 <MTd className="font-semibold">{l.organizationName}</MTd>
-                <MTd className="text-sm">{l.propertyType ? PROPERTY_TYPE_LABEL[l.propertyType] : "—"}</MTd>
+                <MTd className="text-sm">
+                  <span className="inline-flex items-center gap-1.5">
+                    <TypeIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    {l.propertyType ? PROPERTY_TYPE_LABEL[l.propertyType] : "—"}
+                  </span>
+                </MTd>
                 <MTd className="hidden text-sm sm:table-cell">{l.city}</MTd>
                 <MTd><MTag label={l.status} /></MTd>
                 <MTd>
@@ -237,7 +245,8 @@ function LocationsScreen() {
                   </button>
                 </MTd>
               </MTr>
-            ))
+              );
+            })
           )}
         </MTable>
       )}

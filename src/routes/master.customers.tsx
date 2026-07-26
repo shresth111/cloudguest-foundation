@@ -10,6 +10,8 @@ import { organizationService } from "@/services/organization.service";
 import { locationService } from "@/services/location.service";
 import { billingService } from "@/services/billing.service";
 import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
+import { businessTypeIcon } from "@/lib/business-type-icons";
+import type { PropertyType } from "@/types/location";
 import type { Organization, OrgStatus } from "@/types/organization";
 
 export const Route = createFileRoute("/master/customers")({
@@ -21,6 +23,11 @@ type Filter = "all" | OrgStatus;
 interface Enriched extends Organization {
   locationCount: number;
   planName: string | null;
+  // `Organization` itself carries no business-type field (only
+  // `Location.propertyType` does -- see business-type-icons.ts's doc
+  // comment) -- represent the org by its first/primary location's type, if
+  // it has any locations at all.
+  businessType: PropertyType | null;
 }
 
 function CustomersScreen() {
@@ -47,7 +54,11 @@ function CustomersScreen() {
         billingService.getSnapshot().catch(() => null),
       ]);
       const locCounts = new Map<string, number>();
-      for (const l of locations) locCounts.set(l.organizationId, (locCounts.get(l.organizationId) ?? 0) + 1);
+      const businessTypeByOrg = new Map<string, PropertyType | null>();
+      for (const l of locations) {
+        locCounts.set(l.organizationId, (locCounts.get(l.organizationId) ?? 0) + 1);
+        if (!businessTypeByOrg.has(l.organizationId)) businessTypeByOrg.set(l.organizationId, l.propertyType);
+      }
       const planByOrg = new Map<string, string>();
       snapshot?.subscriptions.forEach((s) => planByOrg.set(s.organizationId, s.planName));
 
@@ -56,6 +67,7 @@ function CustomersScreen() {
           ...o,
           locationCount: locCounts.get(o.id) ?? 0,
           planName: planByOrg.get(o.id) ?? null,
+          businessType: businessTypeByOrg.get(o.id) ?? null,
         })),
       );
     } catch {
@@ -123,11 +135,20 @@ function CustomersScreen() {
         </div>
       ) : (
         <MTable head={<><MTh>Customer</MTh><MTh className="hidden md:table-cell">Contact</MTh><MTh>Plan</MTh><MTh className="hidden sm:table-cell">Loc.</MTh><MTh>Status</MTh></>}>
-          {filtered.map((c) => (
+          {filtered.map((c) => {
+            const TypeIcon = businessTypeIcon(c.businessType);
+            return (
             <MTr key={c.id} onClick={() => setSelected(c)}>
               <MTd>
-                <p className="font-semibold">{c.name}</p>
-                <p className="text-xs text-muted-foreground">{c.orgType === "msp" ? "MSP" : "Standard"} · since {new Date(c.createdAt).toLocaleDateString()}</p>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <TypeIcon className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="font-semibold">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.orgType === "msp" ? "MSP" : "Standard"} · since {new Date(c.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
               </MTd>
               <MTd className="hidden md:table-cell">
                 <p className="text-xs text-muted-foreground">{c.contactEmail}</p>
@@ -137,7 +158,8 @@ function CustomersScreen() {
               <MTd className="hidden tabular-nums sm:table-cell">{c.locationCount}</MTd>
               <MTd><MTag label={c.status} /></MTd>
             </MTr>
-          ))}
+            );
+          })}
           {filtered.length === 0 && (
             <MTr><MTd className="py-10 text-center text-muted-foreground"><span className="block">No customers match your filter.</span></MTd></MTr>
           )}

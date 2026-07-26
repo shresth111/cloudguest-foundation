@@ -34,6 +34,7 @@ import { api } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { primaryRoleLabel } from "@/lib/roles";
 import type { SiteType } from "@/types/location";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { LucideIcon } from "lucide-react";
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
@@ -425,7 +426,10 @@ function SpaceTile({
   onFav: (id: string) => void;
 }) {
   const tier = TIER_META[card.tier];
-  const TierIcon = tier.icon;
+  // A location-tier card is a real business location -- show its actual
+  // business-type icon (cafe, school, hotel, …) instead of the generic
+  // "this is a location" pin every tier eyebrow otherwise uses.
+  const TierIcon = card.tier === "location" ? businessTypeIcon(card.siteType) : tier.icon;
 
   return (
     <Card className="group relative overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_40px_-20px_oklch(0.52_0.18_265/0.35)]">
