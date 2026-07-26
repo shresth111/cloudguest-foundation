@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDeletePlan, useSavePlan } from "@/hooks/useBilling";
-import { SUPPORT_LEVEL_LABELS, type Plan, type PlanTier, type SupportLevel } from "@/types/billing";
+import type { Plan, PlanTier, SupportLevel } from "@/types/billing";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -134,7 +134,7 @@ function Feature({ label, ok = true }: { label: string; ok?: boolean }) {
 }
 
 function supportLabel(l: SupportLevel) {
-  return SUPPORT_LEVEL_LABELS[l];
+  return { basic: "Basic (Email)", priority: "Priority", dedicated: "Dedicated (24×7)" }[l];
 }
 
 function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange: (v: boolean) => void; plan?: Plan }) {

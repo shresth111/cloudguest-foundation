@@ -325,7 +325,6 @@ export const locationService = {
         feature_key: f.featureKey,
         is_enabled: f.isEnabled,
         limit_value: f.limitValue,
-        tier_value: f.tierValue,
       })),
       coupon_code: payload.couponCode,
     });
