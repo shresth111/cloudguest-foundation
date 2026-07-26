@@ -26,12 +26,18 @@ export function AnalyticsQuickActions({ onRefresh, onExportDashboard, onGenerate
         <CardTitle className="text-sm font-semibold">Quick actions</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {/* This card lives in the 1fr column of an xl:grid-cols-[2fr_1fr]
+            layout, so it's always a narrow sidebar -- multi-column button
+            grids here (previously sm:grid-cols-2 lg:grid-cols-3) keyed off
+            viewport width rather than the card's own rendered width and
+            clipped labels like "Export dashboard" / "Schedule report" mid-word
+            with no wrap or ellipsis. Single column always fits. */}
+        <div className="grid grid-cols-1 gap-2">
           {actions.map((a) => {
             const Icon = a.icon;
             return (
               <Button key={a.label} variant="outline" className="justify-start" onClick={a.onClick}>
-                <Icon className="mr-2 h-4 w-4" /> {a.label}
+                <Icon className="mr-2 h-4 w-4 shrink-0" /> {a.label}
               </Button>
             );
           })}
