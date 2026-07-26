@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import { usePortalPreview, type PortalPreviewConfigSource } from "@/hooks/usePortalPreview";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import {
@@ -123,6 +124,21 @@ const BANNER_COPY: Record<
 function PortalPreviewPage() {
   const { locationId } = Route.useParams();
   const { organizationId } = Route.useSearch();
+  // "Back to Portal Settings" used to hardcode `to="/locations"` -- a route
+  // that isn't either caller's actual settings page (it's
+  // `_authenticated/locations.index.tsx`, an unrelated org-wide "Location
+  // Master" list gated behind its own permissions). For a customer that's a
+  // 403-riddled, unfamiliar admin page; for a Master operator it's still the
+  // wrong "Locations" screen (their real one is `/master/locations`, a
+  // different route/component entirely). Either way, clicking it landed
+  // somewhere that felt like a random unrelated page -- exactly the
+  // reported "back button jumps to some old/wrong page" symptom, just
+  // triggered by this in-page link rather than the browser's own Back.
+  // Compute the *real* settings page for whichever surface actually sent
+  // this visitor here, instead of guessing with one hardcoded string.
+  const { roles } = useAuth();
+  const isOperator = roles.some((r) => r.scopeType === "global");
+  const backTo = isOperator ? "/master/locations" : `/customer/${locationId}/portal`;
   // Mirrors GuestSignInCard's own "otp" | "password" tab state -- the
   // real guest card these two are all this preview shows now (voucher/the
   // non-default OTP channel still show as the same small fallback links
@@ -172,7 +188,7 @@ function PortalPreviewPage() {
       <div className="mx-auto max-w-md space-y-4">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 px-2" asChild>
-            <Link to="/locations">
+            <Link to={backTo}>
               <ArrowLeft className="h-4 w-4" />
               Back to Portal Settings
             </Link>
