@@ -31,16 +31,45 @@ interface DisplayMessage {
 }
 
 const DEMO_WELCOME =
-  "Hi! I'm the ZIP WiFi assistant. Ask me about WiFi connectivity, billing, or vouchers -- or anything else on your mind.";
+  "Hi! I'm the ZIP WiFi assistant. Ask me about WiFi connectivity, billing, vouchers, routers, or guest management -- or anything else on your mind.";
 
-const DEMO_WIFI_KEYWORDS = ["wifi", "wi-fi", "password", "connect", "internet", "network", "login"];
-const DEMO_BILLING_KEYWORDS = ["bill", "invoice", "payment", "charge", "subscription", "refund"];
+// Keyword groups, checked most-specific-intent-first -- mirrors the fix in
+// the backend's LoggingAssistantProvider (app/domains/assistant/service.py)
+// after live QA found two collisions: a generic WiFi keyword ("connect") is
+// a substring of "disconnect", and a single "voucher" bucket conflated the
+// staff-facing creation flow with the guest-facing redemption flow.
+const DEMO_GUEST_MANAGEMENT_KEYWORDS = ["block", "unblock", "ban", "kick", "disconnect", "connected device"];
+const DEMO_ROUTER_STATUS_KEYWORDS = ["router offline", "router down", "router disconnected", "router unreachable", "no signal", "offline"];
+const DEMO_VOUCHER_CREATE_KEYWORDS = [
+  "create a voucher",
+  "create voucher",
+  "generate voucher",
+  "issue a voucher",
+  "issue voucher",
+  "new voucher",
+  "voucher plan",
+  "make a voucher",
+];
 const DEMO_VOUCHER_KEYWORDS = ["voucher", "redeem", "redemption"];
+const DEMO_BILLING_KEYWORDS = ["bill", "invoice", "payment", "charge", "subscription", "refund"];
+const DEMO_LOCATION_KEYWORDS = ["location", "new property", "another property", "multiple properties", "branch"];
+const DEMO_TEAM_KEYWORDS = ["team", "staff", "invite", "teammate", "role", "permission"];
+const DEMO_WIFI_KEYWORDS = ["wifi", "wi-fi", "password", "connect", "internet", "network", "login"];
 
+const DEMO_GUEST_MANAGEMENT_REPLY =
+  "You can block a guest from the Guests or Connected Devices section of your dashboard -- open the entry and choose Block (prevents reconnecting until unblocked) or Disconnect (ends just their current session).";
+const DEMO_ROUTER_STATUS_REPLY =
+  "Router status is based on its last heartbeat -- check the Routers page for the last-seen time. An offline router usually means a power or internet-uplink problem; it reconnects automatically once that's fixed.";
+const DEMO_VOUCHER_CREATE_REPLY =
+  "To create vouchers: open the Vouchers section, set up a Voucher Plan (validity, data limit, uses per voucher), then generate vouchers from it -- ready to hand out immediately.";
 const DEMO_VOUCHER_REPLY =
   "Vouchers are redeemed from the guest WiFi login page -- enter the code exactly as printed (it's case-sensitive) and tap Connect. A code that's already used or expired can't be reused; ask reception to issue a new one from the Vouchers section.";
 const DEMO_BILLING_REPLY =
   "For billing questions, check the Billing section of your dashboard for your invoice history and subscription status. Still looks wrong? I've noted this conversation for our support team, or you can raise a support ticket for a tracked response.";
+const DEMO_LOCATION_REPLY =
+  "Manage multiple properties from the Locations section -- add a new one there, then assign routers and vouchers to it, and switch between properties with the location selector in the header.";
+const DEMO_TEAM_REPLY =
+  "Invite teammates from the Team section and assign a role -- Owner, Admin, or a custom role -- to control what they can see and do.";
 const DEMO_WIFI_REPLY =
   "For WiFi trouble: double-check the network name and password (case-sensitive), then try forgetting the network on your device and reconnecting. Still stuck? I've noted this for our support team, or raise a support ticket directly.";
 const DEMO_DEFAULT_REPLY =
@@ -48,8 +77,13 @@ const DEMO_DEFAULT_REPLY =
 
 function demoReply(message: string): string {
   const lowered = message.toLowerCase();
+  if (DEMO_GUEST_MANAGEMENT_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_GUEST_MANAGEMENT_REPLY;
+  if (DEMO_ROUTER_STATUS_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_ROUTER_STATUS_REPLY;
+  if (DEMO_VOUCHER_CREATE_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_VOUCHER_CREATE_REPLY;
   if (DEMO_VOUCHER_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_VOUCHER_REPLY;
   if (DEMO_BILLING_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_BILLING_REPLY;
+  if (DEMO_LOCATION_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_LOCATION_REPLY;
+  if (DEMO_TEAM_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_TEAM_REPLY;
   if (DEMO_WIFI_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_WIFI_REPLY;
   return DEMO_DEFAULT_REPLY;
 }
