@@ -152,6 +152,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [toast, setToast] = useState<string | null>(null); const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
   const [mappingBusy, setMappingBusy] = useState<Set<string>>(new Set());
+  // The actual concurrency guard for handleToggleMap -- a ref, not the
+  // mappingBusy *state* above. A same-tick double-click's second call can
+  // run its guard check before React has committed the first call's
+  // setMappingBusy update (state updates only take effect on the next
+  // render), so checking mappingBusy itself let two rapid clicks both pass
+  // the guard and each fire their own real request -- observed live as two
+  // PolicyAssignment rows for one group/location instead of one. A ref
+  // mutates synchronously and is visible to every call immediately,
+  // closing that window; mappingBusy (state) still drives the disabled/
+  // spinner UI, it's just no longer what's trusted for correctness.
+  const mappingLock = useRef<Set<string>>(new Set());
   const [step1Done, setStep1Done] = useState(false);
   // Bug report: "existing groups mai edit icon click nhi ho raha hai" --
   // the Pencil button had no onClick handler at all. Reuses handleClone's
@@ -250,7 +261,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setTimeout(() => setToast(null), 2500);
       return;
     }
-    if (mappingBusy.has(g.id)) return;
+    if (mappingLock.current.has(g.id)) return;
+    mappingLock.current.add(g.id);
     setMappingBusy((p) => new Set(p).add(g.id));
     const wasMapped = !!g.mappedAssignmentId;
     try {
@@ -270,6 +282,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setToast(`Could not ${wasMapped ? "unmap" : "map"} ${g.name} — check the connection and try again.`);
       setTimeout(() => setToast(null), 2500);
     } finally {
+      mappingLock.current.delete(g.id);
       setMappingBusy((p) => { const n = new Set(p); n.delete(g.id); return n; });
     }
   };
