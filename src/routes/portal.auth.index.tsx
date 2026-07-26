@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Smartphone, Mail, KeyRound, ChevronRight } from "lucide-react";
+import { Smartphone, Mail, KeyRound, Ticket, ChevronRight } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import type { RuntimeAuthMethod, RuntimePortalConfig } from "@/types/portal-runtime";
+import { enabledAuthMethods } from "@/lib/portal-auth-methods";
+import type { RuntimeAuthMethod } from "@/types/portal-runtime";
 
 export const Route = createFileRoute("/portal/auth/")({
   component: AuthMethodPicker,
@@ -20,20 +21,13 @@ const METHOD_META: Record<
     labelKey: "passwordLogin",
     desc: "Sign in with your saved password",
   },
+  voucher: { icon: Ticket, labelKey: "voucherCode", desc: "Redeem a voucher code" },
 };
-
-function enabledMethods(config: RuntimePortalConfig): RuntimeAuthMethod[] {
-  const methods: RuntimeAuthMethod[] = [];
-  if (config.otpSmsEnabled) methods.push("otp_sms");
-  if (config.otpEmailEnabled) methods.push("otp_email");
-  if (config.usernamePasswordEnabled) methods.push("username_password");
-  return methods;
-}
 
 function AuthMethodPicker() {
   const { config, isLoading, t, setSelectedMethod } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/auth" });
-  const methods = config ? enabledMethods(config) : [];
+  const methods = config ? enabledAuthMethods(config) : [];
 
   return (
     <PortalShell>

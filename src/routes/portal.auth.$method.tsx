@@ -11,14 +11,45 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
-import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
+import { otherAuthMethods, AUTH_METHOD_FALLBACK_COPY } from "@/lib/portal-auth-methods";
+import type { RuntimeAuthMethod, RuntimePortalConfig, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/auth/$method")({
   component: AuthMethodPage,
 });
 
-const METHODS: RuntimeAuthMethod[] = ["otp_sms", "otp_email", "username_password"];
+const METHODS: RuntimeAuthMethod[] = ["otp_sms", "otp_email", "username_password", "voucher"];
+
+function OtherMethodsLinks({
+  config,
+  current,
+}: {
+  config: RuntimePortalConfig | undefined;
+  current: RuntimeAuthMethod;
+}) {
+  const { setSelectedMethod } = usePortalRuntime();
+  const navigate = useNavigate({ from: "/portal/auth/$method" });
+  const others = config ? otherAuthMethods(config, current) : [];
+  if (others.length === 0) return null;
+  return (
+    <div className="space-y-1.5 pt-1">
+      {others.map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => {
+            setSelectedMethod(m);
+            navigate({ to: "/portal/auth/$method", params: { method: m }, search: (prev) => prev });
+          }}
+          className="block w-full text-center text-xs text-white/60 underline-offset-2 hover:text-white hover:underline"
+        >
+          {AUTH_METHOD_FALLBACK_COPY[m]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function AuthMethodPage() {
   const { method } = Route.useParams();
@@ -54,8 +85,27 @@ function AuthMethodPage() {
     });
   };
 
+  // A voucher login redeems and connects in one step (no separate OTP-style
+  // verify page) -- same "already fully authenticated" destination as a
+  // password login, and for the identical reason (no code left to verify).
+  const onVoucherLoggedIn = (session: RuntimeSession) => {
+    setSelectedMethod("voucher");
+    setSession(session);
+    toast.success("Connected");
+    navigate({
+      to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+      search: (prev) => prev,
+    });
+  };
+
   const titleKey =
-    m === "otp_email" ? "emailOtp" : m === "username_password" ? "passwordLogin" : "mobileOtp";
+    m === "otp_email"
+      ? "emailOtp"
+      : m === "username_password"
+        ? "passwordLogin"
+        : m === "voucher"
+          ? "voucherCode"
+          : "mobileOtp";
 
   return (
     <PortalShell>
@@ -96,7 +146,16 @@ function AuthMethodPage() {
               onLoggedIn={onPasswordLoggedIn}
             />
           )}
+          {m === "voucher" && (
+            <VoucherForm
+              organizationId={organizationId}
+              locationId={locationId}
+              routerId={routerId}
+              onLoggedIn={onVoucherLoggedIn}
+            />
+          )}
           {!m && <p className="text-sm text-white/70">Unknown sign-in method.</p>}
+          {m && <OtherMethodsLinks config={config} current={m} />}
         </PortalCard>
       </div>
     </PortalShell>
@@ -233,8 +292,7 @@ function PasswordForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t, config, setSelectedMethod } = usePortalRuntime();
-  const navigate = useNavigate({ from: "/portal/auth/$method" });
+  const { t } = usePortalRuntime();
   const form = useForm<z.infer<typeof passwordLoginSchema>>({
     resolver: zodResolver(passwordLoginSchema),
     defaultValues: { identifier: "", password: "" },
@@ -254,19 +312,10 @@ function PasswordForm({
     // password" -- see GuestPasswordLoginFailedError's own docstring, and
     // never a distinguishable one (avoids leaking account existence) --
     // so this page can't auto-detect "you're new, here's OTP instead" and
-    // just offers a one-tap escape hatch below instead.
+    // just relies on the page's own generic OtherMethodsLinks escape hatch
+    // below instead (see AuthMethodPage).
     onError: (e: AppError) => toast.error(e.message),
   });
-
-  // First enabled OTP method, so a guest who's new (or never set a
-  // password) is one tap from the actual form that will get them online,
-  // not back to a full picker. Undefined (link hidden) only when this
-  // portal has password login as its *only* enabled method.
-  const otpFallback: RuntimeAuthMethod | undefined = config?.otpSmsEnabled
-    ? "otp_sms"
-    : config?.otpEmailEnabled
-      ? "otp_email"
-      : undefined;
 
   return (
     <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
@@ -297,22 +346,70 @@ function PasswordForm({
       >
         {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("signIn")}
       </Button>
-      {otpFallback && (
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedMethod(otpFallback);
-            navigate({
-              to: "/portal/auth/$method",
-              params: { method: otpFallback },
-              search: (prev) => prev,
-            });
-          }}
-          className="w-full text-center text-xs text-white/60 underline-offset-2 hover:text-white hover:underline"
-        >
-          New here, or forgot your password? Use a one-time code instead
-        </button>
+    </form>
+  );
+}
+
+const voucherLoginSchema = z.object({
+  identifier: z.string().min(3, "Enter your phone number or email"),
+  code: z.string().min(1, "Enter your voucher code"),
+});
+function VoucherForm({
+  organizationId,
+  locationId,
+  routerId,
+  onLoggedIn,
+}: {
+  organizationId: string;
+  locationId: string;
+  routerId: string;
+  onLoggedIn: (session: RuntimeSession) => void;
+}) {
+  const { t } = usePortalRuntime();
+  const form = useForm<z.infer<typeof voucherLoginSchema>>({
+    resolver: zodResolver(voucherLoginSchema),
+    defaultValues: { identifier: "", code: "" },
+  });
+  const login = useMutation({
+    mutationFn: (v: z.infer<typeof voucherLoginSchema>) =>
+      portalRuntimeService.loginWithVoucher({
+        identifier: v.identifier,
+        code: v.code,
+        organizationId,
+        locationId,
+        routerId,
+      }),
+    onSuccess: onLoggedIn,
+    onError: (e: AppError) => toast.error(e.message),
+  });
+  return (
+    <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
+      <Label className="text-white/80">{t("mobileNumber")}</Label>
+      <Input
+        {...form.register("identifier")}
+        placeholder="you@example.com or +1 555 010 2200"
+        className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+      />
+      {form.formState.errors.identifier && (
+        <p className="text-xs text-red-300">{form.formState.errors.identifier.message}</p>
       )}
+      <Label className="text-white/80">{t("voucherCode")}</Label>
+      <Input
+        {...form.register("code")}
+        placeholder="ABCD-1234"
+        className="bg-white/10 border-white/10 text-white placeholder:text-white/40 uppercase"
+      />
+      {form.formState.errors.code && (
+        <p className="text-xs text-red-300">{form.formState.errors.code.message}</p>
+      )}
+      <Button
+        type="submit"
+        disabled={login.isPending}
+        className="h-11 w-full font-semibold text-white shadow-lg"
+        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
+      >
+        {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("submit")}
+      </Button>
     </form>
   );
 }

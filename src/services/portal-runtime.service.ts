@@ -34,6 +34,7 @@ interface BackendCaptivePortalConfig {
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
   username_password_enabled: boolean;
+  voucher_enabled: boolean;
   resolved_via_location_override: boolean;
 }
 
@@ -106,6 +107,7 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     otpSmsEnabled: c.otp_sms_enabled,
     otpEmailEnabled: c.otp_email_enabled,
     usernamePasswordEnabled: c.username_password_enabled,
+    voucherEnabled: c.voucher_enabled,
     resolvedViaLocationOverride: c.resolved_via_location_override,
   };
 }
@@ -178,6 +180,32 @@ export const portalRuntimeService = {
       identifier: params.identifier,
       code: params.code,
       auth_method: params.authMethod,
+      organization_id: params.organizationId,
+      location_id: params.locationId,
+      router_id: params.routerId,
+      device_mac: params.deviceMac,
+    });
+    return toRuntimeSession(data);
+  },
+
+  /** Voucher-code login -- ``code`` mirrors the real batch-issued voucher
+   * codes shown in ``VoucherManagement``/``VouchersPage``; ``identifier`` is
+   * the guest's own phone/email, exactly like an OTP login, used to create
+   * or look up their guest record (see the real
+   * ``GuestService.login_via_voucher``'s own docstring -- a voucher
+   * authenticates the *connection*, not a pre-existing identity, so the
+   * guest still supplies who they are alongside the code). */
+  async loginWithVoucher(params: {
+    code: string;
+    identifier: string;
+    organizationId: string;
+    locationId: string;
+    routerId: string;
+    deviceMac?: string;
+  }): Promise<RuntimeSession> {
+    const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/voucher", {
+      code: params.code,
+      identifier: params.identifier,
       organization_id: params.organizationId,
       location_id: params.locationId,
       router_id: params.routerId,

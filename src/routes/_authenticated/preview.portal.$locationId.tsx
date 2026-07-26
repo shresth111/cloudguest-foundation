@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import {
   Smartphone,
   Mail,
   KeyRound,
+  Ticket,
   Wifi,
   AlertTriangle,
   Info,
@@ -22,7 +23,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/services/api";
 import { usePortalPreview, type PortalPreviewConfigSource } from "@/hooks/usePortalPreview";
 import { businessTypeIcon } from "@/lib/business-type-icons";
-import type { RuntimeAuthMethod, RuntimePortalConfig } from "@/types/portal-runtime";
+import { useSidebar } from "@/components/ui/sidebar";
+import {
+  enabledAuthMethods,
+  primaryAuthMethod,
+  otherAuthMethods,
+  AUTH_METHOD_FALLBACK_COPY,
+} from "@/lib/portal-auth-methods";
+import type { RuntimeAuthMethod } from "@/types/portal-runtime";
 
 /**
  * Shareable, internal Portal Preview -- see how a location's guest-facing
@@ -98,18 +106,8 @@ const METHOD_META: Record<
     label: "Password login",
     desc: "Sign in with a saved password",
   },
+  voucher: { icon: Ticket, label: "Voucher code", desc: "Redeem a voucher code" },
 };
-
-// Mirrors src/routes/portal.auth.index.tsx's own `enabledMethods` exactly --
-// these are the methods a real guest currently sees on /portal/auth, in the
-// same order.
-function liveEnabledMethods(config: RuntimePortalConfig): RuntimeAuthMethod[] {
-  const methods: RuntimeAuthMethod[] = [];
-  if (config.otpSmsEnabled) methods.push("otp_sms");
-  if (config.otpEmailEnabled) methods.push("otp_email");
-  if (config.usernamePasswordEnabled) methods.push("username_password");
-  return methods;
-}
 
 const BANNER_COPY: Record<
   PortalPreviewConfigSource,
@@ -132,6 +130,19 @@ function PortalPreviewPage() {
   const [step, setStep] = useState<"welcome" | "auth" | "form">("welcome");
   const [activeMethod, setActiveMethod] = useState<RuntimeAuthMethod | null>(null);
 
+  // This page's whole point is a focused, distraction-free look at the
+  // guest-facing portal (see this file's own module docstring) -- force
+  // the mobile nav drawer closed on arrival so a still-open drawer carried
+  // over from wherever the admin was browsing before never covers the
+  // preview itself. The drawer's own trigger (TopNavbar) is still there
+  // and still opens normally; this only clears a stale *already-open*
+  // state on mount.
+  const { setOpenMobile } = useSidebar();
+  useEffect(() => {
+    setOpenMobile(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const preview = usePortalPreview(organizationId, locationId);
 
   const locationQuery = useQuery({
@@ -140,9 +151,12 @@ function PortalPreviewPage() {
     retry: false,
   });
 
-  const liveMethods: RuntimeAuthMethod[] = preview.config
-    ? liveEnabledMethods(preview.config)
-    : [];
+  // The exact same priority-ordered enabled-methods logic the real guest
+  // flow uses (src/lib/portal-auth-methods.ts) -- reused as-is, not
+  // reimplemented, so this preview can never show a method set (or a
+  // default landing method) that the real /portal/* flow wouldn't.
+  const liveMethods: RuntimeAuthMethod[] = preview.config ? enabledAuthMethods(preview.config) : [];
+  const primary = preview.config ? primaryAuthMethod(preview.config) : null;
 
   const gradient = `linear-gradient(135deg, ${preview.primaryColor}, ${preview.secondaryColor})`;
   const banner = BANNER_COPY[preview.configSource];
@@ -153,6 +167,19 @@ function PortalPreviewPage() {
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success("Preview link copied");
+  };
+
+  // "Connect" lands directly on the highest-priority enabled method's own
+  // form -- mirrors src/routes/portal.welcome.tsx's real handleConnect
+  // exactly. The full "auth" picker step (below) stays reachable via that
+  // form's own "see other options" link, never as the default landing.
+  const handleConnect = () => {
+    if (primary) {
+      setActiveMethod(primary);
+      setStep("form");
+      return;
+    }
+    setStep("auth");
   };
 
   return (
@@ -263,13 +290,18 @@ function PortalPreviewPage() {
                 <Button
                   className="h-11 w-full text-sm font-semibold text-white shadow-lg"
                   style={{ background: gradient }}
-                  onClick={() => setStep("auth")}
+                  onClick={handleConnect}
                 >
                   Connect <ChevronRight className="ms-1.5 h-4 w-4" />
                 </Button>
               </div>
             )}
 
+            {/* Only reachable via the "See other sign-in options" link
+                below the primary method's own form -- never the default
+                landing for "Connect" itself (see handleConnect above),
+                mirroring the real guest flow's own picker
+                (src/routes/portal.auth.index.tsx). */}
             {step === "auth" && (
               <div className="flex flex-1 flex-col gap-3">
                 <button
@@ -325,7 +357,7 @@ function PortalPreviewPage() {
               <div className="flex flex-1 flex-col gap-3">
                 <button
                   type="button"
-                  onClick={() => setStep("auth")}
+                  onClick={() => setStep(liveMethods.length > 1 ? "auth" : "welcome")}
                   className="mb-1 flex items-center gap-1 text-[11px] text-white/60 hover:text-white"
                 >
                   <ArrowLeft className="h-3 w-3" /> Back
@@ -360,11 +392,36 @@ function PortalPreviewPage() {
                     <p className="text-[11px] font-medium text-white/70">Password</p>
                     <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">••••••••••••</div>
                     <div className="mt-1 rounded-lg py-2.5 text-center text-xs font-semibold" style={{ background: gradient }}>Sign in</div>
-                    <p className="pt-1 text-center text-[10px] text-white/50">
-                      New here, or forgot your password? Use a one-time code instead.
-                    </p>
                   </div>
                 )}
+
+                {activeMethod === "voucher" && (
+                  <div className="space-y-2.5">
+                    <p className="text-[11px] font-medium text-white/70">Mobile number</p>
+                    <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">
+                      you@example.com or +1 555 010 2200
+                    </div>
+                    <p className="text-[11px] font-medium text-white/70">Voucher code</p>
+                    <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">ABCD-1234</div>
+                    <div className="mt-1 rounded-lg py-2.5 text-center text-xs font-semibold" style={{ background: gradient }}>Submit</div>
+                  </div>
+                )}
+
+                {/* Every *other* enabled method, as a compact fallback link
+                    -- mirrors src/routes/portal.auth.$method.tsx's own
+                    OtherMethodsLinks field-for-field (same shared copy),
+                    never a second full menu by default. */}
+                {preview.config &&
+                  otherAuthMethods(preview.config, activeMethod).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setActiveMethod(m)}
+                      className="pt-1 text-center text-[10px] text-white/50 hover:text-white hover:underline"
+                    >
+                      {AUTH_METHOD_FALLBACK_COPY[m]}
+                    </button>
+                  ))}
               </div>
             )}
 

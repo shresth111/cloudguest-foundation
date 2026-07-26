@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { primaryAuthMethod } from "@/lib/portal-auth-methods";
 
 export const Route = createFileRoute("/portal/welcome")({
   component: WelcomePage,
@@ -13,19 +14,23 @@ function WelcomePage() {
   const navigate = useNavigate({ from: "/portal/welcome" });
 
   // Industry-standard pattern (Cisco Meraki/Aruba ClearPass/Purple WiFi,
-  // and most modern consumer sign-in flows): a returning guest goes
-  // straight to their identifier + password, no method-picker menu in the
-  // way -- the picker (src/routes/portal.auth.index.tsx) is still there
-  // and reachable via that form's own "Back" link, for a guest who wants
-  // OTP instead (new here, or never set a password). Only relevant when
-  // password login is actually enabled for this portal; every other case
-  // still lands on the picker exactly as before.
+  // and most modern consumer sign-in flows): "Connect" goes straight to
+  // the single highest-priority *enabled* method's own entry field --
+  // SMS OTP's phone-number field by default, since that's this config's
+  // actual primary method the overwhelming majority of the time -- never
+  // a method-picker menu first. The picker
+  // (src/routes/portal.auth.index.tsx) is still there and reachable from
+  // that form's own fallback links, for a guest who wants a different
+  // enabled method instead. Only when nothing is enabled at all does this
+  // fall through to the picker, which then shows its own "contact
+  // reception" state.
   const handleConnect = () => {
-    if (config?.usernamePasswordEnabled) {
-      setSelectedMethod("username_password");
+    const method = config ? primaryAuthMethod(config) : null;
+    if (method) {
+      setSelectedMethod(method);
       navigate({
         to: "/portal/auth/$method",
-        params: { method: "username_password" },
+        params: { method },
         search: (prev) => prev,
       });
       return;
@@ -48,7 +53,7 @@ function WelcomePage() {
             size="lg"
             className="h-12 w-full text-base font-semibold text-white shadow-lg"
             style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={() => navigate({ to: "/portal/auth", search: (prev) => prev })}
+            onClick={handleConnect}
           >
             {t("connect")} <ArrowRight className="ms-2 h-4 w-4" />
           </Button>

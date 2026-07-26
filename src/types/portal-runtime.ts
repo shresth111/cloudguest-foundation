@@ -1,4 +1,4 @@
-export type RuntimeAuthMethod = "otp_sms" | "otp_email" | "username_password";
+export type RuntimeAuthMethod = "otp_sms" | "otp_email" | "username_password" | "voucher";
 
 /** The frontend's own client-side i18n dictionary only has these 5 -- a
  * real config's `default_language`/`supported_languages` are free text and
@@ -27,6 +27,7 @@ export interface RuntimePortalConfig {
   otpSmsEnabled: boolean;
   otpEmailEnabled: boolean;
   usernamePasswordEnabled: boolean;
+  voucherEnabled: boolean;
   resolvedViaLocationOverride: boolean;
 }
 
