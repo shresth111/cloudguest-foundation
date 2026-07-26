@@ -154,6 +154,25 @@ function deviceDistributionFrom(sessions: { userAgent: string | null }[]): { nam
     .map(([name, value]) => ({ name, value }));
 }
 
+/** A friendly, single-device label sniffed from the session's user-agent --
+ * same substring approach as deviceDistributionFrom() above, just returning
+ * one label instead of a bucketed count. Used by getUsers(): the Users
+ * table's "Device" column has no real device-name field to show (that
+ * lives on GuestDevice, which /guest-sessions doesn't join in), so this is
+ * the honest, non-fabricated stand-in -- not the session's device_id (a raw
+ * UUID FK, not a device name). */
+function deviceLabelFrom(userAgent: string | null | undefined): string {
+  const ua = (userAgent ?? "").toLowerCase();
+  if (!ua) return "Unknown device";
+  if (ua.includes("ipad")) return "iPad";
+  if (ua.includes("iphone")) return "iPhone";
+  if (ua.includes("android")) return "Android device";
+  if (ua.includes("windows")) return "Windows PC";
+  if (ua.includes("mac os") || ua.includes("macintosh")) return "Mac";
+  if (ua.includes("linux")) return "Linux device";
+  return "Unknown device";
+}
+
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
   return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
@@ -240,7 +259,11 @@ export const customerService = {
           const sessions = sessionsR.status === "fulfilled" ? sessionsR.value.data?.items ?? [] : [];
           const onR = routers.filter((r) => r.status === "online").length;
           const tR = routers.length || 1;
-          const active = sessions.filter((s) => s.status === "active").length;
+          // See getDashboard()'s identical guard below -- a location with
+          // zero online routers can't genuinely have online guests, so
+          // don't let a stale "active" session row contradict the
+          // "offline" status this same summary reports.
+          const active = onR === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
           const summary: CustomerLocationSummary = {
             id: loc.id, name: loc.name, city: loc.city,
             status: onR === 0 && tR > 0 ? "offline" : onR < tR ? "degraded" : "online",
@@ -304,9 +327,22 @@ export const customerService = {
     const today = new Date().toISOString().slice(0, 10);
     const hourly = new Array(24).fill(0);
     sessions.forEach((s) => { if (s.started_at) hourly[new Date(s.started_at).getHours()]++; });
+    // "Online Users" and "Active Sessions" are the same real thing (one
+    // online guest == one active session) and must come from the same
+    // count -- `sessions` here is every row /guest-sessions returned
+    // (active *and* already-ended), so `sessions.length` alone used to
+    // silently double as "Active Sessions", inflating it past the
+    // correctly-filtered "Online Users" figure right next to it. And if
+    // every router at this location is offline, no guest can genuinely
+    // still be online through it -- a stale "active" session row left
+    // over from before the router dropped shouldn't make the dashboard
+    // contradict its own "Offline" status pill, so floor both to 0 in
+    // that case rather than trusting a session row that's outlived its
+    // router.
+    const activeSessionCount = onR === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
     return {
       health: { systemHealth: `${Math.round((onR / tR) * 100)}%`, routersOnline: `${onR}/${routers.length}`, isp: health ? "Active" : "Unknown", networkLoad: `${Math.min(100, Math.round(sessions.length / 5))}%` },
-      kpis: { onlineUsers: sessions.filter((s) => s.status === "active").length, activeSessions: sessions.length, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length, slaUptime: 99.9 },
+      kpis: { onlineUsers: activeSessionCount, activeSessions: activeSessionCount, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length, slaUptime: 99.9 },
       usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
       deviceDistribution: deviceDistributionFrom(sessions.map((s) => ({ userAgent: s.user_agent ?? null }))),
       hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
@@ -337,7 +373,12 @@ export const customerService = {
         headers: { "X-Organization-Id": orgId },
       });
       let users = (data?.items ?? []).map((s) => ({
-        id: s.id, name: "Guest", email: "", device: s.device_id ?? "", mac: s.device_id ?? "",
+        // s.device_id is the session's raw GuestDevice UUID FK, not a MAC
+        // address or a device name -- /guest-sessions doesn't join the
+        // device row that actually carries those, so show the honest
+        // user-agent-derived label / "Unknown" instead of that UUID
+        // masquerading as either column.
+        id: s.id, name: "Guest", email: "", device: deviceLabelFrom(s.user_agent), mac: "Unknown",
         ip: s.ip_address ?? "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
         download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
       }));

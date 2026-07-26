@@ -771,8 +771,9 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
 
               {!demo && (
                 <Card className="rounded-2xl">
-                  <CardContent className="p-5 text-sm text-muted-foreground">
-                    This agent's real permissions are governed by the platform's RBAC roles and permission keys, not this catalog's feature list — manage fine-grained access from the role itself.
+                  <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-muted-foreground">
+                    <span>Permissions are set by the role you assign to this agent, not by this page.</span>
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setTab("roles")}>View role permissions</Button>
                   </CardContent>
                 </Card>
               )}
