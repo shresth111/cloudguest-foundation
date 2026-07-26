@@ -91,3 +91,22 @@ export interface UpdateCampaignQuestionPayload {
   options?: string[];
   isRequired?: boolean;
 }
+
+// BANNER/REDIRECT campaigns carry their real guest-facing content as an
+// asset (image + click-through link) rather than questions -- see
+// backend app/domains/campaigns/models.py's CampaignAsset docstring.
+export interface CampaignAsset {
+  id: string;
+  campaignId: string;
+  imageUrl: string | null;
+  clickUrl: string | null;
+  altText: string | null;
+  locale: string | null;
+}
+
+export interface CreateCampaignAssetPayload {
+  imageUrl?: string | null;
+  clickUrl?: string | null;
+  altText?: string | null;
+  locale?: string | null;
+}

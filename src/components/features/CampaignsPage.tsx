@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X, ListChecks } from "lucide-react";
+import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X, ListChecks, Eye, Wifi, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
-import { campaignService } from "@/services/campaign.service";
-import type { CampaignQuestion, CampaignType, QuestionAnswerType } from "@/types/campaign";
+import { campaignService, CAMPAIGN_STATUS_TRANSITIONS } from "@/services/campaign.service";
+import type { CampaignAsset, CampaignQuestion, CampaignType, QuestionAnswerType } from "@/types/campaign";
 
 interface Campaign { id: string; name: string; type: string; status: string; businessUnit: string; startDate: string; endDate: string; impressions: number; conversions: number; }
 const TYPES = ["SURVEY", "BANNER", "REDIRECT"];
@@ -34,6 +34,32 @@ const DEMO_SEED: Campaign[] = [
 
 const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", endDate: "" };
 const emptyFilters = { businessUnit: "", type: "", startDate: "" };
+const emptyAssetForm = { imageUrl: "", clickUrl: "" };
+
+// The only statuses a given current status may legally move to next --
+// mirrors the backend's own CAMPAIGN_STATUS_TRANSITIONS. Anything outside
+// this set 409s server-side (InvalidCampaignStatusTransitionError); the
+// status <Select> below must only ever offer these, and the Play/Pause row
+// icon must compute its target from this table too, not toggle blindly
+// between "active"/"paused" regardless of the row's real current status.
+function selectableStatuses(current: string): string[] {
+  return [current, ...(CAMPAIGN_STATUS_TRANSITIONS[current] ?? [])];
+}
+
+/** What the single Play/Pause row icon should do next, given the campaign's
+ * real current status -- or null when there's no legal next action at all
+ * (a campaign that has ENDED). A draft campaign's icon schedules it (the
+ * only legal move); a scheduled or paused campaign's icon activates it;
+ * only an active campaign's icon pauses it. Previously this always sent
+ * "active" unless the row was already "active", which 409'd for every
+ * draft/ended row -- the click reverted with an error toast that was easy
+ * to miss, reading as "nothing happened." */
+function nextPlayAction(status: string): { target: string; label: string; icon: "play" | "pause" } | null {
+  if (status === "active") return { target: "paused", label: "Pause", icon: "pause" };
+  if (status === "scheduled" || status === "paused") return { target: "active", label: "Activate", icon: "play" };
+  if (status === "draft") return { target: "scheduled", label: "Schedule", icon: "play" };
+  return null;
+}
 
 const ANSWER_TYPES: { value: QuestionAnswerType; label: string }[] = [
   { value: "single_choice", label: "Single choice" },
@@ -49,6 +75,14 @@ const demoQuestionSeed = (campaignId: string): CampaignQuestion[] => SURVEY_QUES
   id: `${campaignId}-demo-${i}`, campaignId, orderIndex: i, questionText: s.q,
   answerType: "single_choice" as QuestionAnswerType, options: s.options, isRequired: true,
 }));
+
+// Demo-only seed so previewing a BANNER/REDIRECT campaign while in demo
+// mode still has something real-shaped to show -- mirrors the "Flat 20%
+// off" illustration already used elsewhere on this page.
+const demoAssetSeed = (campaignId: string): CampaignAsset[] => [{
+  id: `${campaignId}-demo-asset`, campaignId, imageUrl: null, clickUrl: "https://zipwifi.io/promo",
+  altText: "Flat 20% off this weekend", locale: null,
+}];
 
 export function CampaignsPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
@@ -70,6 +104,18 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [qForm, setQForm] = useState(emptyQuestionForm);
   const [qErr, setQErr] = useState("");
+
+  // Guest Preview -- an honest look at what an actual guest would see for
+  // this campaign: a SURVEY's real questions (same data Manage Questions
+  // edits) rendered as a guest-facing form mockup, or a BANNER/REDIRECT's
+  // real uploaded image/click-through link. Mirrors the device-mockup look
+  // of /preview/portal/:locationId (today's Portal Preview) so this reads
+  // as the same feature family rather than a new visual language.
+  const [previewFor, setPreviewFor] = useState<Campaign | null>(null);
+  const [previewQuestions, setPreviewQuestions] = useState<CampaignQuestion[]>([]);
+  const [previewAssets, setPreviewAssets] = useState<CampaignAsset[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [assetForm, setAssetForm] = useState(emptyAssetForm);
 
   useEffect(() => {
     if (demo) return;
@@ -169,6 +215,59 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   };
 
   const closeManage = () => { setManageFor(null); setQuestions([]); setQForm(emptyQuestionForm); setQErr(""); };
+
+  const openPreview = async (c: Campaign) => {
+    setPreviewFor(c);
+    setPreviewQuestions([]);
+    setPreviewAssets([]);
+    setAssetForm(emptyAssetForm);
+    if (demo) {
+      if (c.type === "SURVEY") setPreviewQuestions(demoQuestionSeed(c.id));
+      else setPreviewAssets(demoAssetSeed(c.id));
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      if (c.type === "SURVEY") setPreviewQuestions(await campaignService.listQuestions(c.id));
+      else setPreviewAssets(await campaignService.listAssets(c.id));
+    } catch {
+      toast.error("Could not load the preview — check the connection and try again.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewFor(null); setPreviewQuestions([]); setPreviewAssets([]); setAssetForm(emptyAssetForm);
+  };
+
+  const addPreviewAsset = async () => {
+    if (!previewFor) return;
+    if (!assetForm.imageUrl.trim() && !assetForm.clickUrl.trim()) {
+      toast.error("Add an image URL or a click-through URL.");
+      return;
+    }
+    if (demo) {
+      setPreviewAssets([{
+        id: `${previewFor.id}-demo-asset`, campaignId: previewFor.id,
+        imageUrl: assetForm.imageUrl || null, clickUrl: assetForm.clickUrl || null,
+        altText: null, locale: null,
+      }]);
+      setAssetForm(emptyAssetForm);
+      toast.success("Banner saved");
+      return;
+    }
+    try {
+      const created = await campaignService.addAsset(previewFor.id, {
+        imageUrl: assetForm.imageUrl || null, clickUrl: assetForm.clickUrl || null,
+      });
+      setPreviewAssets([...previewAssets, created]);
+      setAssetForm(emptyAssetForm);
+      toast.success("Banner saved");
+    } catch {
+      toast.error("Could not save the banner — check the connection and try again.");
+    }
+  };
 
   const addQuestion = async () => {
     if (!manageFor) return;
@@ -415,6 +514,122 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         </div>
       )}
 
+      {previewFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closePreview}>
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="font-semibold">Guest Preview — {previewFor.name}</h3>
+              <button onClick={closePreview} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {previewFor.type === "SURVEY"
+                ? "The real questions this campaign will ask, exactly as configured in Manage Questions."
+                : "The real banner content this campaign will show."}
+              {" "}Preview only — campaigns aren't wired into the live guest login flow yet.
+            </p>
+
+            {/* Device mockup -- same phone-frame + indigo gradient look as
+                /preview/portal/:locationId (today's Portal Preview), so this
+                reads as the same feature family. */}
+            <div className="mx-auto w-full max-w-[260px] rounded-[2rem] border-8 border-foreground/90 bg-foreground/90 p-1.5 shadow-xl">
+              <div
+                className="relative min-h-[420px] overflow-hidden rounded-[1.4rem]"
+                style={{ background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)" }}
+              >
+                {previewLoading && (
+                  <div className="absolute inset-0 z-20 grid place-items-center bg-white/60">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  </div>
+                )}
+                <div className="relative z-10 flex min-h-[420px] flex-col px-4 pb-4 pt-5 text-slate-900">
+                  <div className="mb-4 flex flex-col items-center text-center">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white shadow-lg" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}>
+                      {previewFor.type === "SURVEY" ? <MessageSquareText className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
+                    </div>
+                    <h4 className="mt-2 text-sm font-bold leading-tight" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>
+                      {previewFor.type === "SURVEY" ? "Quick feedback?" : "Welcome!"}
+                    </h4>
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      {previewFor.type === "SURVEY" ? "Help us improve — it only takes a moment." : "You're connected to guest WiFi."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-1 flex-col rounded-2xl border border-indigo-100/80 bg-white p-3.5" style={{ boxShadow: "0 16px 40px -18px rgba(79,70,229,0.3)" }}>
+                    {previewFor.type === "SURVEY" ? (
+                      previewQuestions.length === 0 ? (
+                        <p className="py-6 text-center text-[11px] text-slate-500">
+                          No questions yet — add some via Manage Questions, then preview again.
+                        </p>
+                      ) : (
+                        <div className="space-y-3 overflow-y-auto">
+                          {previewQuestions.map((q, i) => (
+                            <div key={q.id} className={i > 0 ? "border-t border-slate-100 pt-3" : ""}>
+                              <p className="mb-1.5 text-[11px] font-semibold text-slate-700">
+                                {i + 1}. {q.questionText}{q.isRequired && <span className="text-rose-500"> *</span>}
+                              </p>
+                              {q.answerType === "free_text" ? (
+                                <div className="rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] text-slate-400">Type your answer…</div>
+                              ) : q.answerType === "rating_5" ? (
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5].map(n => <Star key={n} className="h-3.5 w-3.5 text-amber-300" />)}
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {q.options.map(o => (
+                                    <span key={o} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">{o}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <div className="mt-1 rounded-lg py-1.5 text-center text-[10px] font-semibold text-white" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}>
+                            Submit feedback
+                          </div>
+                        </div>
+                      )
+                    ) : previewAssets[0]?.imageUrl ? (
+                      <div className="space-y-2">
+                        <div className="overflow-hidden rounded-xl border border-slate-200">
+                          <img src={previewAssets[0].imageUrl} alt={previewAssets[0].altText ?? ""} className="w-full object-cover" />
+                        </div>
+                        {previewAssets[0].clickUrl && (
+                          <p className="flex items-center justify-center gap-1 text-[10px] text-indigo-600">
+                            <ExternalLink className="h-3 w-3" />Tap to open offer
+                          </p>
+                        )}
+                        <div className="rounded-lg py-1.5 text-center text-[10px] font-semibold text-white" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}>
+                          Continue
+                        </div>
+                      </div>
+                    ) : previewAssets[0]?.clickUrl ? (
+                      <div className="py-4 text-center text-[11px] text-slate-600">
+                        No banner image — guests will be redirected straight to
+                        <span className="mt-1 block truncate font-medium text-indigo-600">{previewAssets[0].clickUrl}</span>
+                      </div>
+                    ) : (
+                      <p className="py-6 text-center text-[11px] text-slate-500">
+                        No banner configured yet — add an image or link below, then preview again.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {previewFor.type !== "SURVEY" && !previewLoading && !previewAssets[0] && (
+              <div className="mt-4 space-y-2 border-t pt-4">
+                <Label className="text-xs">Add this campaign's banner</Label>
+                <Input value={assetForm.imageUrl} onChange={e => setAssetForm({ ...assetForm, imageUrl: e.target.value })} placeholder="Image URL (e.g. https://…/banner.png)" />
+                <Input value={assetForm.clickUrl} onChange={e => setAssetForm({ ...assetForm, clickUrl: e.target.value })} placeholder="Click-through URL (optional)" />
+                <div className="flex justify-end"><Button size="sm" onClick={addPreviewAsset}><Plus className="mr-2 h-4 w-4" />Save banner</Button></div>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end"><Button variant="outline" size="sm" onClick={closePreview}>Close</Button></div>
+          </div>
+        </div>
+      )}
+
       {/* Recent Campaigns */}
       <div>
         <h3 className="mb-1 text-base font-semibold">Recent Campaigns</h3>
@@ -434,13 +649,40 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                   ) : c.name}
                 </TableCell>
                 <TableCell><Badge variant="outline">{c.type}</Badge></TableCell>
-                <TableCell><Select defaultValue={c.status} onValueChange={v => updateStatus(c.id, v)}><SelectTrigger className="h-7 w-28"><SelectValue /></SelectTrigger><SelectContent>{STATUSES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent></Select></TableCell>
+                <TableCell>
+                  <Select
+                    disabled={selectableStatuses(c.status).length === 1}
+                    value={c.status}
+                    onValueChange={v => updateStatus(c.id, v)}
+                  >
+                    <SelectTrigger className="h-7 w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.filter(s => selectableStatuses(c.status).includes(s)).map(s => (
+                        <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell>{c.impressions.toLocaleString()}</TableCell><TableCell>{c.conversions}</TableCell>
                 <TableCell className="text-right">
                   {c.type === "SURVEY" && (
                     <Button variant="ghost" size="icon" title="Manage questions" onClick={() => openManage(c)}><ListChecks className="h-4 w-4" /></Button>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => updateStatus(c.id, c.status === "active" ? "paused" : "active")}>{c.status === "active" ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</Button>
+                  <Button variant="ghost" size="icon" title="Preview as a guest" onClick={() => openPreview(c)}><Eye className="h-4 w-4" /></Button>
+                  {(() => {
+                    const action = nextPlayAction(c.status);
+                    return (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={action?.label ?? "No further status change"}
+                        disabled={!action}
+                        onClick={() => action && updateStatus(c.id, action.target)}
+                      >
+                        {action?.icon === "pause" ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      </Button>
+                    );
+                  })()}
                   <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(c.id); toast.success("Campaign ID copied"); }}><Copy className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCampaign(c.id)}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
