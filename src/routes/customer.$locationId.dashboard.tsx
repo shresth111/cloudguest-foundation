@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, LogOut, Bell, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
+  ArrowLeft, LogOut, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
   CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
   KeyRound, MapPinned, ShieldCheck,
 } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
@@ -60,7 +61,6 @@ function CustomerDashboardPage() {
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [notif, setNotif] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
@@ -133,10 +133,7 @@ function CustomerDashboardPage() {
             <BookDemoButton />
             <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9"><Search className="h-4 w-4" /></Button>
-            <div className="relative">
-              <Button variant="ghost" size="icon" className="h-9 w-9 relative" onClick={() => setNotif(!notif)}><Bell className="h-4 w-4" /><span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive" /></Button>
-              {notif && <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border bg-popover p-2 shadow-xl"><p className="px-2 py-1 text-xs font-medium text-muted-foreground">No new notifications</p></div>}
-            </div>
+            <NotificationBell scope="org" viewAllPath={`/customer/${locationId}/alerts`} />
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="h-4 w-4" /></Button>
             <div className="relative">
               <button onClick={() => setMenu(!menu)} className="ml-2"><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>

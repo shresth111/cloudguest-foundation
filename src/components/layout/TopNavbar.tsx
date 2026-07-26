@@ -125,7 +125,7 @@ export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
           >
             <Activity className="h-4 w-4" />
           </Button>
-          <NotificationBell />
+          <NotificationBell scope="org" />
           <QuickActionsMenu inWorkspace={inWorkspace} />
           <Button
             variant="ghost"

@@ -2,9 +2,10 @@ import { useState, useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LogOut, Bell, Search, Menu, XCircle, Eye, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned, ShieldCheck,
+  LogOut, Search, Menu, XCircle, Eye, ChevronLeft, ChevronRight, RotateCw, KeyRound, MapPinned, ShieldCheck,
   Users, Wifi, WifiOff, Clock, X, Download, Smartphone,
 } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { toast } from "sonner";
 import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,6 @@ function CustomerUsersPage() {
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [notif, setNotif] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
@@ -75,12 +75,7 @@ function CustomerUsersPage() {
             <BookDemoButton />
             <OtpMaskToggle masked={masked} setMasked={setMasked} />
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}><RotateCw className="h-4 w-4" /></Button>
-            <div className="relative">
-              <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
-                <Bell className="h-4.5 w-4.5" /><span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-              </button>
-              {notif && <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border bg-popover p-2 shadow-xl z-50"><p className="px-2 py-1 text-xs font-medium text-muted-foreground">No new notifications</p></div>}
-            </div>
+            <NotificationBell scope="org" viewAllPath={`/customer/${locationId}/alerts`} />
             <div className="relative"><button onClick={() => setMenu(!menu)} className="ml-2"><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
               {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
                 <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>

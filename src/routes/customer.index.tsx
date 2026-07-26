@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Search, Star, MapPin, Wifi, Router, Printer, Camera, HardDrive, Clock, ArrowRight, RotateCw, LogOut, Bell, Settings, Moon, Activity, Radio, Eye, RefreshCw } from "lucide-react";
+import { Search, Star, MapPin, Wifi, Router, Printer, Camera, HardDrive, Clock, ArrowRight, RotateCw, LogOut, Settings, Moon, Activity, Radio, Eye, RefreshCw } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -76,7 +77,10 @@ function CustomerHomePage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative h-9 w-9"><Bell className="h-4 w-4" /><span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive" /></Button>
+            {/* No locationId yet on this location-picker page, so "view
+                all" has nowhere real to send the click -- the dropdown
+                itself (org-wide recent alerts) is the honest destination. */}
+            <NotificationBell scope="org" />
             <Button variant="ghost" size="icon" className="h-9 w-9"><Moon className="h-4 w-4" /></Button>
             <div className="relative">
               <button onClick={() => setMenu(!menu)} className="flex items-center gap-2 pl-2 border-l border-border ml-1">

@@ -2,11 +2,12 @@ import { useState, type ComponentType } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutGrid, Building2, MapPin, CreditCard, Server, Router, LineChart,
-  Activity, LifeBuoy, ScrollText, Settings, Search, Bell, Sun, Moon, LogOut, Menu, X,
+  Activity, LifeBuoy, ScrollText, Settings, Search, Sun, Moon, LogOut, Menu, X,
   TerminalSquare, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export interface MasterNavItem {
   to: string;
@@ -121,10 +122,12 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                   className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
               </div>
-              <button className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Notifications">
-                <Bell className="h-4.5 w-4.5" />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
-              </button>
+              {/* Platform-wide: every organization's alerts, not just one --
+                  a genuinely different data scope from the customer bell
+                  below (see NotificationBellProps.scope). No dedicated
+                  platform alerts page exists yet, so there's no "view all"
+                  link -- the dropdown itself is the real destination. */}
+              <NotificationBell scope="platform" />
               <button
                 onClick={() => setDark((d) => !d)}
                 className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground"

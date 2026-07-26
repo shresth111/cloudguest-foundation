@@ -35,6 +35,7 @@ import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry } from "@/components/features/HeaderControls";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
@@ -145,7 +146,6 @@ function FeaturePage() {
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [notif, setNotif] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
@@ -190,12 +190,7 @@ function FeaturePage() {
           <BookDemoButton className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
           <OtpMaskToggle masked={masked} setMasked={setMasked} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
 
-          <div className="relative">
-            <button onClick={() => setNotif((n) => !n)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
-              <Bell className="h-4.5 w-4.5" /><span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-            </button>
-            {notif && <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border bg-popover p-2 shadow-xl z-50"><p className="px-2 py-1 text-xs font-medium text-muted-foreground">No new notifications</p></div>}
-          </div>
+          <NotificationBell scope="org" viewAllPath={`/customer/${locationId}/alerts`} />
 
           <div className="relative"><button onClick={() => setMenu(!menu)}><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
             {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
@@ -230,7 +225,7 @@ function FeaturePage() {
             {feature === "business-hours" && <BusinessHoursView />}
             {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
             {feature === "notification" && <NotificationView />}
-            {feature === "isp-details" && <IspDetailsView />}
+            {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
             {feature === "admin-logs" && <AdminLogsView />}
             {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
             {feature === "port-forwarding" && <PortForwardingView />}
