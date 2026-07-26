@@ -11,6 +11,7 @@ import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
 import { Input } from "@/components/ui/input";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { markDeviceHasPassword } from "@/lib/portal-returning-guest";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/set-password")({
@@ -68,6 +69,10 @@ function SetPasswordPage() {
     onSuccess: () => {
       toast.success(t("passwordSaved"));
       if (session) setSession({ ...session, hasPassword: true });
+      // Remember, on this real device, that its guest now has a password
+      // -- next visit's sign-in card defaults straight to the Registered
+      // user tab instead of OTP (see src/lib/portal-returning-guest.ts).
+      markDeviceHasPassword();
       navigate({ to: nextRoute, search: (prev) => prev });
     },
     onError: (e: AppError) => toast.error(e.message),

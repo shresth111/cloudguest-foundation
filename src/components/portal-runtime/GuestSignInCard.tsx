@@ -10,6 +10,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
+import { deviceHasPassword, markDeviceHasPassword } from "@/lib/portal-returning-guest";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -61,23 +62,30 @@ export function GuestSignInCard() {
   const hasVoucher = methods.includes("voucher");
 
   const [otpChannel, setOtpChannel] = useState<"sms" | "email">(hasOtpSms ? "sms" : "email");
-  const [tab, setTab] = useState<"otp" | "password">(() =>
-    selectedMethod === "username_password" && hasPassword
-      ? "password"
-      : hasOtp
-        ? "otp"
-        : "password",
-  );
-  // A guest arriving from the expired screen's "Sign in again"/"Use OTP
-  // instead" buttons carries their pick via this same real context field
-  // (see src/routes/portal.expired.tsx) -- honor it once, then let normal
-  // tab clicks take over.
+  const [tab, setTab] = useState<"otp" | "password">(() => {
+    // An explicit hand-off (the expired screen's "Sign in again"/"Use OTP
+    // instead" buttons, see src/routes/portal.expired.tsx) always wins.
+    if (selectedMethod === "username_password" && hasPassword) return "password";
+    if ((selectedMethod === "otp_sms" || selectedMethod === "otp_email") && hasOtp) return "otp";
+    // Otherwise: "OTP once, then phone/email + password from then on" --
+    // this same browser having set a real password before defaults it
+    // straight to the Registered-user tab (see
+    // src/lib/portal-returning-guest.ts); a genuine first-time guest has
+    // no such flag and lands on the OTP tab, same as always.
+    if (hasPassword && deviceHasPassword()) return "password";
+    return hasOtp ? "otp" : "password";
+  });
+  // Re-run once the real config actually resolves (methods are unknown,
+  // so the lazy initializer above may have guessed "password" as a bare
+  // fallback before hasOtp/hasPassword were known) -- and honor an
+  // explicit selectedMethod hand-off the same way.
   useEffect(() => {
     if (selectedMethod === "username_password" && hasPassword) setTab("password");
     else if ((selectedMethod === "otp_sms" || selectedMethod === "otp_email") && hasOtp)
       setTab("otp");
+    else if (hasPassword && deviceHasPassword()) setTab("password");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasOtp, hasPassword]);
 
   const venueName = config?.name;
   const heading =
@@ -176,6 +184,12 @@ export function GuestSignInCard() {
 
   async function afterLogin(session: RuntimeSession) {
     setSession(session);
+    // Covers OTP/voucher logins too: the real backend already knows
+    // whether this guest has a password (`hasPassword`, from the exact
+    // same login response) even if it was set from a different device --
+    // if so, this device should default to the Registered-user tab next
+    // time as well.
+    if (session.hasPassword) markDeviceHasPassword();
     if (termsAccepted) {
       portalRuntimeService
         .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
