@@ -108,7 +108,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
             }
           }),
         );
-        setRealAgents(withRoles);
+        // The Organization Owner is the one granting/managing agent access
+        // from this very page -- not one of the agents being managed --
+        // so exclude that row from the list entirely rather than just
+        // hiding its delete button (see isOwnerRole below, kept as a
+        // defense-in-depth guard in case this filter ever misses a row,
+        // e.g. a role lookup that failed above).
+        setRealAgents(withRoles.filter((a) => roleList.find((r) => r.id === a.roleId)?.slug !== "organization-owner"));
         setRealPermissionGroups(groups.slice().sort((a, b) => a.sortOrder - b.sortOrder));
         setRealPermissions(perms.filter((p) => p.isActive));
       } catch {
