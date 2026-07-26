@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
+import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import { CUSTOMER_NAVS } from "@/lib/customerNav";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
@@ -47,99 +49,9 @@ import {
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
-  LogOut, Bell, Menu, Wifi, Users, LayoutDashboard, FileText, Megaphone, Palette, Ticket,
-  ShieldCheck, Shield, Monitor, UsersRound, Bot, Network, Settings2, ScrollText, LifeBuoy, RefreshCw, CheckCircle,
-  AlertTriangle, Activity, XCircle, Plus, Trash2, Download, Printer, Mail, KeyRound, MapPinned,
-  Clock, Server, Globe, Terminal, Signal, ArrowRightLeft, Fingerprint, Share2, ChevronDown,
+  LogOut, Menu, Wifi, Users, ShieldCheck, CheckCircle,
+  AlertTriangle, Activity, XCircle, Download, KeyRound, MapPinned,
 } from "lucide-react";
-
-type NavRole = "owner" | "agent";
-interface NavItemDef { id: string; label: string; icon: React.ComponentType<{ className?: string }>; roles: NavRole[] }
-interface NavGroupDef { group: string; items: NavItemDef[] }
-
-// Full customer feature set, provisioned per location from the super
-// dashboard and gated by the signed-in role (owner sees all, agent a
-// read/operate subset). Grouped for scanability at 30+ items.
-const NAV_GROUPS: NavGroupDef[] = [
-  {
-    group: "Overview",
-    items: [
-      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
-      { id: "users", label: "Users", icon: Users, roles: ["owner", "agent"] },
-      { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
-      { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
-    ],
-  },
-  {
-    group: "Engagement",
-    items: [
-      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
-      { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
-      { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
-    ],
-  },
-  {
-    group: "Access & Policy",
-    items: [
-      { id: "policies", label: "Policies", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Whitelist", icon: Shield, roles: ["owner"] },
-      { id: "mac-auth", label: "MAC Auth", icon: Fingerprint, roles: ["owner"] },
-      { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
-      { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
-    ],
-  },
-  {
-    group: "Devices & Team",
-    items: [
-      { id: "devices", label: "Devices", icon: Monitor, roles: ["owner", "agent"] },
-      { id: "teams", label: "Teams", icon: UsersRound, roles: ["owner"] },
-      { id: "agents", label: "Agents", icon: Bot, roles: ["owner"] },
-    ],
-  },
-  {
-    group: "Network",
-    items: [
-      { id: "hotspot", label: "Hotspot", icon: Wifi, roles: ["owner"] },
-      { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
-      { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
-      { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
-      { id: "voip", label: "VOIP Priority", icon: Signal, roles: ["owner"] },
-      { id: "isp-routing", label: "ISP Routing", icon: ArrowRightLeft, roles: ["owner"] },
-      { id: "isp-details", label: "ISP Details", icon: Globe, roles: ["owner"] },
-    ],
-  },
-  {
-    group: "Operations",
-    items: [
-      { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
-      { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
-      { id: "debugging", label: "Debugging", icon: Terminal, roles: ["owner"] },
-    ],
-  },
-  {
-    group: "Support & Logs",
-    items: [
-      { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
-      // The former separate "Audit Log" tab (real admin/config-change
-      // events from app.domains.audit's /audit/entries) was merged into
-      // this page's own "Account Activity" section rather than kept as a
-      // second nav entry -- one log destination, not two. Owner-only:
-      // unlike every other item here, this shows a real login + change
-      // audit trail across the whole organization -- not something an
-      // Agent/staff account should see. The backend independently enforces
-      // this too (app.domains.admin_logs.router's and, for the merged-in
-      // section, app.domains.audit.router's own matching RequireRole
-      // ("organization-owner")) so this is defense in depth, not the only
-      // guard -- see OperationsFeatures.tsx's own AdminLogsView for the
-      // second, render-time check.
-      { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner"] },
-    ],
-  },
-];
-
-const ALL_NAV_ITEMS: NavItemDef[] = NAV_GROUPS.flatMap((g) => g.items);
-
-function getRole(): string { if (typeof window === "undefined") return "owner"; return localStorage.getItem("cg_login_role") || "owner"; }
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
   beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
@@ -151,7 +63,6 @@ function FeaturePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
-  const loginRole = getRole();
   const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
   const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
   const [sidebar, setSidebar] = useState(true);
@@ -165,32 +76,17 @@ function FeaturePage() {
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
   const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
 
-  const role = (loginRole === "agent" ? "agent" : "owner") as NavRole;
-  const navGroups = NAV_GROUPS
-    .map((g) => ({ group: g.group, items: g.items.filter((n) => n.roles.includes(role)) }))
-    .filter((g) => g.items.length > 0);
-
   return (
     <div className="flex min-h-screen bg-muted/30">
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
-      <aside className={cn("fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto", sidebar ? "w-60" : "w-0 lg:w-16 overflow-hidden", mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
-        <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>{sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? feature}</p></div>}</div>
-        <nav className="flex-1 space-y-3 px-2 py-2 overflow-y-auto">{navGroups.map(g => (
-          <div key={g.group} className="space-y-0.5">
-            {sidebar && <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{g.group}</p>}
-            {g.items.map(item => {
-              const Icon = item.icon;
-              const active = item.id === feature;
-              return (
-                <button key={item.id} onClick={() => handleNav(item.id)} title={item.label} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-left transition-all", active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground", !sidebar && "justify-center")}>
-                  <Icon className="h-4 w-4 shrink-0" />{sidebar && <span className="truncate">{item.label}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}</nav>
-        <div className="border-t p-2 hidden lg:block"><button onClick={() => setSidebar(!sidebar)} className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent">{sidebar ? "◄" : "►"}</button></div>
-      </aside>
+      <CustomerSidebar
+        activeId={feature}
+        collapsed={!sidebar}
+        mobileOpen={mobile}
+        onNavigate={handleNav}
+        onToggleCollapsed={() => setSidebar(!sidebar)}
+        subtitle={activeLocation?.name ?? feature}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 backdrop-blur-xl px-4 sm:px-6">
@@ -253,7 +149,7 @@ function FeaturePage() {
             {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it
                 doesn't also fall through to the generic placeholder. */}
-            {feature !== "audit" && !ALL_NAV_ITEMS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
+            {feature !== "audit" && !CUSTOMER_NAVS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
           </div>
         </main>
       </div>

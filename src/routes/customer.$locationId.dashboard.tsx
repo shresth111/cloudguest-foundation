@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { toast } from "sonner";
-import { getCustomerLoginRole, customerNavsForRole } from "@/lib/customerNav";
+import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
@@ -82,40 +82,25 @@ function CustomerDashboardPage() {
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
   const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
-  const filteredNavs = customerNavsForRole(getCustomerLoginRole());
 
   return (
     <div className="flex min-h-screen bg-muted/30">
       {/* Mobile overlay */}
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
 
-      {/* Sidebar */}
-      <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto",
-        sidebar ? "w-60" : "w-0 lg:w-16 overflow-hidden",
-        mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-      )}>
-        <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
-          {sidebar && <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[10px] text-muted-foreground">{activeLocation?.name ?? "Portal"}</p></div>}
-        </div>
-        <nav className="flex-1 space-y-0.5 px-2 py-2 overflow-y-auto">
-          {filteredNavs.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} onClick={() => handleNav(item.id)}
-                className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all w-full text-left", item.id === "dashboard" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground")}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {sidebar && <span className="truncate">{item.label}</span>}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="border-t p-2 hidden lg:block">
-          <button onClick={() => setSidebar(!sidebar)} className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent">{sidebar ? "◄" : "►"}</button>
-        </div>
-      </aside>
+      {/* Sidebar -- same shared component/grouped-nav data source every
+          other customer page (Reports, Campaigns, Policies, Vouchers,
+          Portal, Devices, ISP Details, Admin Logs, etc., all rendered via
+          customer.$locationId.$feature.tsx) uses, so Dashboard can't drift
+          out of visual/structural sync with its siblings again. */}
+      <CustomerSidebar
+        activeId="dashboard"
+        collapsed={!sidebar}
+        mobileOpen={mobile}
+        onNavigate={handleNav}
+        onToggleCollapsed={() => setSidebar(!sidebar)}
+        subtitle={activeLocation?.name ?? "Portal"}
+      />
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
