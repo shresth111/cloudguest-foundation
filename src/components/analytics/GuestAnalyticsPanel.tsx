@@ -31,7 +31,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <ChartCard title="Daily guests" description="Unique guest connections per day" {...state}>
+      <ChartCard title="Daily guests" description="Unique guest connections per day" {...state} isEmpty={!data?.daily?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.daily ?? []}>
             <defs>
@@ -49,7 +49,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Weekly guests" description="Total per week" {...state}>
+      <ChartCard title="Weekly guests" description="Total per week" {...state} isEmpty={!data?.weekly?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.weekly ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -61,7 +61,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Monthly guests" description="Rolling twelve months" {...state}>
+      <ChartCard title="Monthly guests" description="Rolling twelve months" {...state} isEmpty={!data?.monthly?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data?.monthly ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -73,7 +73,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="New vs returning" description="Daily split" {...state}>
+      <ChartCard title="New vs returning" description="Daily split" {...state} isEmpty={!data?.newVsReturning?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.newVsReturning ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -91,6 +91,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         title="Login method distribution"
         description={data ? `Success rate ${data.loginSuccessRate}%` : undefined}
         {...state}
+        isEmpty={!data?.loginMethods?.length}
       >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -105,7 +106,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Peak login hours" description="Hour of day" {...state}>
+      <ChartCard title="Peak login hours" description="Hour of day" {...state} isEmpty={!data?.peakHours?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.peakHours ?? []}>
             <defs>
@@ -123,7 +124,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Top locations" description="By guest connections" {...state}>
+      <ChartCard title="Top locations" description="By guest connections" {...state} isEmpty={!data?.topLocations?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.topLocations ?? []} layout="vertical" margin={{ left: 8 }}>
             <CartesianGrid strokeOpacity={0.15} horizontal={false} />
@@ -135,7 +136,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Guest growth trend" description="Monthly growth" {...state}>
+      <ChartCard title="Guest growth trend" description="Monthly growth" {...state} isEmpty={!data?.growthTrend?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.growthTrend ?? []}>
             <defs>

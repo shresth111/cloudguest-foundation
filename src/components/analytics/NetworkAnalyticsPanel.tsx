@@ -27,7 +27,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
   const state = { isLoading, isError, onRetry };
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <ChartCard title="Bandwidth usage" description="Download vs upload (Mbps)" {...state}>
+      <ChartCard title="Bandwidth usage" description="Download vs upload (Mbps)" {...state} isEmpty={!data?.bandwidth?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.bandwidth ?? []}>
             <defs>
@@ -51,7 +51,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Peak bandwidth hours" description="Aggregate Mbps by hour" {...state}>
+      <ChartCard title="Peak bandwidth hours" description="Aggregate Mbps by hour" {...state} isEmpty={!data?.peakBandwidthHours?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.peakBandwidthHours ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -63,7 +63,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Internet utilization" description="% of capacity" {...state}>
+      <ChartCard title="Internet utilization" description="% of capacity" {...state} isEmpty={!data?.internetUtilization?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data?.internetUtilization ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -75,7 +75,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Router health score" description="Fleet average" {...state}>
+      <ChartCard title="Router health score" description="Fleet average" {...state} isEmpty={!data?.routerHealthScore?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.routerHealthScore ?? []}>
             <defs>
@@ -93,7 +93,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Packet loss" description="Average % per day" {...state}>
+      <ChartCard title="Packet loss" description="Average % per day" {...state} isEmpty={!data?.packetLoss?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.packetLoss ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -105,7 +105,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Latency" description="Average ms" {...state}>
+      <ChartCard title="Latency" description="Average ms" {...state} isEmpty={!data?.latency?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data?.latency ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -117,7 +117,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Uptime trend" description="% uptime" className="xl:col-span-2" {...state}>
+      <ChartCard title="Uptime trend" description="% uptime" className="xl:col-span-2" {...state} isEmpty={!data?.uptime?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.uptime ?? []}>
             <defs>

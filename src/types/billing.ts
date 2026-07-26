@@ -85,6 +85,7 @@ export interface Payment {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  organizationId?: string;
   organizationName: string;
   type: InvoiceType;
   amount: number;

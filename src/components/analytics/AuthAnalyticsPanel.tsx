@@ -60,7 +60,7 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="Authentication success vs failure" {...state}>
+        <ChartCard title="Authentication success vs failure" {...state} isEmpty={!data?.successFailTrend?.length}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.successFailTrend ?? []}>
               <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -74,7 +74,7 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Login trends" description="Total logins per day" {...state}>
+        <ChartCard title="Login trends" description="Total logins per day" {...state} isEmpty={!data?.loginTrends?.length}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data?.loginTrends ?? []}>
               <defs>

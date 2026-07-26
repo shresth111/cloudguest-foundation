@@ -395,6 +395,20 @@ function ErrorText({ msg }: { msg?: string }) {
   return <p className="mt-1 text-xs text-destructive">{msg}</p>;
 }
 
+/** A small, real, editable slug suggestion derived from a name -- e.g.
+ * "Acme Hospitality" -> "acme-hospitality". Used to auto-fill the Slug
+ * field as the user types the name it's derived from, instead of leaving
+ * it empty behind a greyed example placeholder that reads as an
+ * already-filled-in value at a glance (easy to miss that it's required).
+ * The user can still freely edit the result afterwards. */
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function ModeCard({ value, title, desc }: { value: string; title: string; desc: string }) {
   return (
     <label htmlFor={`mode-${value}`} className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
@@ -438,12 +452,24 @@ function OrgStep({
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <Label>Organization name</Label>
-            <Input value={state.name} onChange={(e) => setState({ ...state, name: e.target.value })} placeholder="Acme Hospitality" />
+            <Input
+              value={state.name}
+              onChange={(e) => {
+                const name = e.target.value;
+                // Auto-fills/keeps the slug in sync with the name as long as
+                // the user hasn't diverged from the auto-suggestion by
+                // hand-editing it -- see slugify's own doc comment.
+                const slugIsAuto = !state.slug || state.slug === slugify(state.name);
+                setState({ ...state, name, slug: slugIsAuto ? slugify(name) : state.slug });
+              }}
+              placeholder="Acme Hospitality"
+            />
             <ErrorText msg={errors["org.name"]} />
           </div>
           <div>
             <Label>Slug</Label>
-            <Input value={state.slug} onChange={(e) => setState({ ...state, slug: e.target.value })} placeholder="acme-hospitality" />
+            <Input value={state.slug} onChange={(e) => setState({ ...state, slug: e.target.value })} placeholder="e.g. acme-hospitality" />
+            <p className="mt-1 text-xs text-muted-foreground">Auto-suggested from the name above -- edit freely.</p>
             <ErrorText msg={errors["org.slug"]} />
           </div>
           <div className="md:col-span-2">
@@ -471,12 +497,24 @@ function LocationStep({
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Location name</Label>
-          <Input value={state.name} onChange={(e) => upd("name", e.target.value)} placeholder="Downtown Branch" />
+          <Input
+            value={state.name}
+            onChange={(e) => {
+              const name = e.target.value;
+              // Same auto-suggest-until-hand-edited behavior as the
+              // Organization step's own Slug field -- see slugify's doc
+              // comment.
+              const slugIsAuto = !state.slug || state.slug === slugify(state.name);
+              setState({ ...state, name, slug: slugIsAuto ? slugify(name) : state.slug });
+            }}
+            placeholder="Downtown Branch"
+          />
           <ErrorText msg={errors["location.name"]} />
         </div>
         <div>
           <Label>Slug</Label>
-          <Input value={state.slug} onChange={(e) => upd("slug", e.target.value)} placeholder="downtown-branch" />
+          <Input value={state.slug} onChange={(e) => upd("slug", e.target.value)} placeholder="e.g. downtown-branch" />
+          <p className="mt-1 text-xs text-muted-foreground">Auto-suggested from the name above -- edit freely.</p>
           <ErrorText msg={errors["location.slug"]} />
         </div>
         <div>

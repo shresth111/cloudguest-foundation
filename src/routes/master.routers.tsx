@@ -29,7 +29,15 @@ function displayStatus(r: RouterDevice): "online" | "degraded" | "offline" {
 }
 
 function timeAgo(iso: string | null): string {
-  if (!iso) return "Never";
+  // Honestly still means "no check-in has ever been recorded" -- every real
+  // router on this platform is in this state today, since none has yet
+  // completed the router-agent enrollment/heartbeat flow (confirmed against
+  // real data: 0 rows in `heartbeat_logs`, every real `Router` row has a
+  // NULL `last_seen_at`). "Awaiting first check-in" reads as the expected,
+  // pre-connection state a freshly-provisioned router sits in rather than
+  // as a dead/broken one -- without inventing a check-in that never
+  // happened.
+  if (!iso) return "Awaiting first check-in";
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (m < 1) return "Just now";
   if (m < 60) return `${m}m ago`;
@@ -93,7 +101,13 @@ function RouterFleetScreen() {
   // console); disabled with an honest explanation for real accounts,
   // pointing at Device Console instead of faking success.
   const act = (msg: string) => toast.success(msg);
-  const statusLabel = (r: RouterDevice) => (r.status === "pending_provisioning" ? "pending" : r.status);
+  // "pending" on its own reads as stuck/broken -- this status just means
+  // the router has been provisioned server-side but has never yet
+  // completed its first real check-in (see timeAgo's own doc comment for
+  // the real data backing that). Keeps the same amber "in progress" tone
+  // (via the explicit `tone="pending"` passed at each call site below),
+  // just with honest, less alarming copy.
+  const statusLabel = (r: RouterDevice) => (r.status === "pending_provisioning" ? "Awaiting check-in" : r.status);
 
   return (
     <MasterShell title="Router Fleet">
@@ -126,13 +140,13 @@ function RouterFleetScreen() {
             <MTr key={r.id} onClick={() => setSel(r)}>
               <MTd>
                 <p className="font-semibold">{r.name}</p>
-                <p className="font-mono text-xs text-muted-foreground">{r.managementIpAddress ?? r.publicIpAddress ?? "no IP on file"} · {r.locationName}</p>
+                <p className="font-mono text-xs text-muted-foreground">{r.managementIpAddress ?? r.publicIpAddress ?? "IP not yet assigned"} · {r.locationName}</p>
               </MTd>
               <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
               <MTd className="hidden text-sm sm:table-cell">{r.organizationName}</MTd>
               <MTd><span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span></MTd>
               <MTd className="text-xs text-muted-foreground">{timeAgo(r.lastSeenAt)}</MTd>
-              <MTd><MTag label={statusLabel(r)} /></MTd>
+              <MTd><MTag label={statusLabel(r)} tone={r.status === "pending_provisioning" ? "pending" : undefined} /></MTd>
             </MTr>
           ))}
         </MTable>
@@ -147,7 +161,7 @@ function RouterFleetScreen() {
         open={!!sel}
         onClose={() => setSel(null)}
         title={sel?.name ?? ""}
-        subtitle={sel ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "no IP on file"} · ${sel.organizationName} / ${sel.locationName}` : ""}
+        subtitle={sel ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}` : ""}
         footer={sel && (
           demo ? (
             <MButton variant="primary" className="w-full justify-center" onClick={() => act(`Opening remote console for ${sel.name}`)}><TerminalSquare /> Open Remote Console</MButton>

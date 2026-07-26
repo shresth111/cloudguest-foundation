@@ -117,7 +117,7 @@ export function MStubPanel({
           </li>
         ))}
       </ul>
-      <p className="mt-4 text-xs font-medium text-muted-foreground">Next build pass · wired to its API</p>
+      <p className="mt-4 text-xs font-medium text-muted-foreground">Coming soon</p>
     </div>
   );
 }

@@ -168,10 +168,24 @@ export const nasService = {
   },
 
   async listAll(): Promise<NasClient[]> {
-    const [raw, locations] = await Promise.all([fetchAllNasRaw(), fetchAllLocations()]);
+    const [raw, locations, orgs] = await Promise.all([
+      fetchAllNasRaw(),
+      fetchAllLocations(),
+      fetchAllOrganizations(),
+    ]);
     const byLocationId = new Map(locations.map((l) => [l.id, l]));
+    // `GET /radius/nas` queries `radius_nas_clients` directly with no join
+    // against `organizations` -- it has no notion of a parent organization
+    // being archived/soft-deleted, so a since-archived organization's NAS
+    // registration keeps coming back here forever (confirmed live: one real
+    // row on this platform belongs to an archived org). `fetchAllOrganizations`
+    // already excludes archived orgs (same `is_deleted = false` list every
+    // other Master Console screen fans out over), so use it here too rather
+    // than showing a ghost NAS row with a blank org/location name.
+    const validOrgIds = new Set(orgs.map((o) => o.id));
     return raw
       .filter((n) => n.status !== "deleted")
+      .filter((n) => validOrgIds.has(n.organization_id))
       .map((n) => {
         const loc = byLocationId.get(n.location_id);
         return toNasClient(n, loc?.name ?? "", loc?.organizationName ?? "");

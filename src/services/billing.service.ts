@@ -457,6 +457,17 @@ function toSubscription(
   org: BackendOrg,
   plan: BackendPlan | undefined,
   coupon: BackendCoupon | undefined,
+  // Whether this organization has at least one real, captured Payment (or
+  // paid Invoice) on record. Previously this was never passed and every
+  // non-past_due/non-trial subscription was unconditionally labeled "paid"
+  // regardless of whether any money had actually been collected -- on this
+  // platform's real data (0 rows in `payments`, 0 in `invoices`) that meant
+  // every active subscription showed "Paid" while Billing's own Total
+  // Revenue/Collection Rate KPIs (genuinely, correctly derived from those
+  // same empty tables) showed 0 -- a fabricated-looking contradiction, not
+  // a real one. Defaults to `false` (honest "no evidence yet") rather than
+  // asserting a payment that was never observed.
+  hasConfirmedPayment = false,
 ): Subscription {
   const status = SUBSCRIPTION_STATUS_MAP[s.status] ?? "active";
   return {
@@ -473,7 +484,8 @@ function toSubscription(
     status,
     amount: plan ? n(plan.base_price) : 0,
     autoRenewal: s.auto_renew,
-    paymentStatus: status === "past_due" ? "failed" : status === "trial" ? "pending" : "paid",
+    paymentStatus:
+      status === "past_due" ? "failed" : status === "trial" ? "pending" : hasConfirmedPayment ? "paid" : "pending",
     locations: plan ? featureLimit(plan.features, "max_locations") : 0,
     routers: plan ? featureLimit(plan.features, "max_routers") : 0,
     maxGuests: plan ? featureLimit(plan.features, "max_guests") : 0,
@@ -560,6 +572,7 @@ function toInvoice(inv: BackendInvoice, org: BackendOrg): Invoice[] {
   const base: Invoice = {
     id: inv.id,
     invoiceNumber: inv.invoice_number,
+    organizationId: org.id,
     organizationName: org.name,
     type: "tax_invoice",
     amount: n(inv.subtotal),
@@ -794,12 +807,22 @@ export const billingService = {
       fetchAllInvoices(orgs),
       fetchAllUsage(orgs),
     ]);
+    // Real evidence an organization has actually paid: a captured Payment
+    // or a paid Invoice against it. Empty on this platform's current real
+    // data (0 payments, 0 invoices) -- see toSubscription's own doc
+    // comment for why that must NOT be papered over with a fabricated
+    // "paid" default.
+    const orgsWithConfirmedPayment = new Set<string>([
+      ...payments.filter((p) => p.status === "paid").map((p) => p.organizationId),
+      ...invoices.filter((i) => i.status === "paid" && i.organizationId).map((i) => i.organizationId!),
+    ]);
     const subscriptions = subRecords.map(({ sub, org }) =>
       toSubscription(
         sub,
         org,
         backendPlans.find((p) => p.id === sub.plan_id),
         backendCoupons.find((c) => c.id === sub.applied_coupon_id),
+        orgsWithConfirmedPayment.has(org.id),
       ),
     );
 
