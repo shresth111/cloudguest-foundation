@@ -248,14 +248,22 @@ function loginMethodFlags(methods: PortalLoginMethod[]): Partial<BackendCaptiveP
 }
 
 // GET /organizations is the platform-wide admin listing (GLOBAL scope
-// only) -- an ordinary customer/org-owner session gets a 403 here. That's
-// fine for the master admin console (which does hold GLOBAL scope and
-// wants every org's name), but it must never take down the whole portal
-// fetch for a real customer session, so this always resolves to a
-// (possibly empty) map rather than throwing -- toPortal()'s `?? ""`
-// fallback already handles a missing name gracefully.
-async function fetchOrgNameMap(): Promise<Map<string, string>> {
+// only) -- an ordinary customer/org-owner session gets a 403 here. When the
+// caller already knows their own orgId (the customer Portal tab always
+// does), resolve just that one org by id with X-Organization-Id instead --
+// a real customer session does hold read access at ORGANIZATION scope, so
+// this avoids the 403 entirely rather than just swallowing it. The master
+// admin console (GLOBAL scope, no orgId) keeps using the platform-wide
+// listing. Either way this still resolves to a (possibly empty) map rather
+// than throwing -- toPortal()'s `?? ""` fallback handles a miss gracefully.
+async function fetchOrgNameMap(orgId?: string): Promise<Map<string, string>> {
   try {
+    if (orgId) {
+      const { data } = await api.get<BackendOrg>(`/organizations/${orgId}`, {
+        headers: { "X-Organization-Id": orgId },
+      });
+      return new Map([[data.id, data.name]]);
+    }
     const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
       params: { page_size: 100 },
     });
@@ -377,9 +385,9 @@ async function fetchAllConfigs(orgId?: string): Promise<BackendCaptivePortalConf
   return data.items;
 }
 
-async function hydrate(configs: BackendCaptivePortalConfig[]): Promise<Portal[]> {
+async function hydrate(configs: BackendCaptivePortalConfig[], orgId?: string): Promise<Portal[]> {
   const [orgNames, locNames] = await Promise.all([
-    fetchOrgNameMap(),
+    fetchOrgNameMap(orgId),
     fetchLocationNameMap(configs.map((c) => c.organization_id)),
   ]);
   return configs.map((c) => toPortal(c, orgNames, locNames));
@@ -390,7 +398,7 @@ async function fetchOnePortal(id: string, orgId?: string): Promise<Portal> {
     headers: orgId ? { "X-Organization-Id": orgId } : undefined,
   });
   const [orgNames, locNames] = await Promise.all([
-    fetchOrgNameMap(),
+    fetchOrgNameMap(orgId),
     fetchLocationNameMap([data.organization_id]),
   ]);
   return toPortal(data, orgNames, locNames);
@@ -428,7 +436,7 @@ export const portalService = {
     // to ORGANIZATION scope -- see fetchAllConfigs()'s comment. The master
     // admin console leaves organizationId unset and keeps its GLOBAL view.
     const configs = await fetchAllConfigs(query.organizationId);
-    let rows = await hydrate(configs);
+    let rows = await hydrate(configs, query.organizationId);
     if (query.search) {
       const s = query.search.toLowerCase();
       rows = rows.filter(

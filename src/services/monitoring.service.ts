@@ -634,6 +634,12 @@ export const monitoringService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      // RequirePermission resolves CurrentOrganization from this header, not
+      // the query param -- omitting it 403'd for every customer session (the
+      // header notification bell's "org" scope). Same fix as AlertsView's
+      // own inline /alerts fetch already applies; platform scope passes no
+      // organizationId so this stays undefined there, matching before.
+      headers: q.organizationId ? { "X-Organization-Id": q.organizationId } : undefined,
     });
     return {
       items: data.items.map(toAlert),
