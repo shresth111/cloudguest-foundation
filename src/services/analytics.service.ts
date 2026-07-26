@@ -566,10 +566,27 @@ export const analyticsService = {
       return { url: `#unavailable/${filename}`, filename };
     }
 
-    const orgId = ORG_SCOPED_REPORT_TYPES.has(backendType)
-      ? await resolveDefaultOrganizationId()
-      : null;
-    const headers = orgId ? { "X-Organization-Id": orgId } : undefined;
+    let headers: Record<string, string> | undefined;
+    if (backendType === "location") {
+      // LOCATION reports are LOCATION-scoped, not ORGANIZATION-scoped (see
+      // report_router.py's own module docstring): the backend resolves
+      // `location_id` from `X-Location-Id`, not from an org header, and
+      // 400s with "location_id is required to generate a LOCATION report"
+      // without it (confirmed live -- this was the real bug behind all 4
+      // Location report icons failing).
+      const locationId = await resolveDefaultLocationId();
+      if (!locationId) {
+        throw new Error(
+          "No location is available to generate a Location report for.",
+        );
+      }
+      headers = { "X-Location-Id": locationId };
+    } else {
+      const orgId = ORG_SCOPED_REPORT_TYPES.has(backendType)
+        ? await resolveDefaultOrganizationId()
+        : null;
+      headers = orgId ? { "X-Organization-Id": orgId } : undefined;
+    }
 
     const days = RANGE_DAYS[input.range] ?? 30;
     const end = new Date();
@@ -695,6 +712,41 @@ async function resolveDefaultOrganizationId(): Promise<string | null> {
     cachedOrgId = null;
   }
   return cachedOrgId;
+}
+
+// There is no cross-org "first location" endpoint (same gap
+// location.service.ts's fetchAllLocations already documents), so this fans
+// out one `GET /organizations/{id}/locations` per organization -- same
+// convention -- until it finds one with at least one location, then caches
+// that id. `X-Organization-Id` on each lookup is required by the backend's
+// own organization-membership check on that route.
+let cachedLocationId: string | null | undefined;
+async function resolveDefaultLocationId(): Promise<string | null> {
+  if (cachedLocationId !== undefined) return cachedLocationId;
+  try {
+    const { data: orgs } = await api.get<BackendListResponse<BackendOrgListItem>>(
+      "/organizations",
+      { params: { page_size: 25 } },
+    );
+    for (const org of orgs.items) {
+      try {
+        const { data: locations } = await api.get<BackendListResponse<{ id: string }>>(
+          `/organizations/${org.id}/locations`,
+          { params: { page_size: 1 }, headers: { "X-Organization-Id": org.id } },
+        );
+        if (locations.items[0]) {
+          cachedLocationId = locations.items[0].id;
+          return cachedLocationId;
+        }
+      } catch {
+        // This caller may not be a member of `org` -- try the next one.
+      }
+    }
+    cachedLocationId = null;
+  } catch {
+    cachedLocationId = null;
+  }
+  return cachedLocationId;
 }
 
 let settings: AnalyticsSettings = {
