@@ -216,6 +216,33 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
   const closeManage = () => { setManageFor(null); setQuestions([]); setQForm(emptyQuestionForm); setQErr(""); };
 
+  // navigator.clipboard is only defined in a secure context (HTTPS or
+  // localhost) -- this deployment is served over plain HTTP, so
+  // navigator.clipboard is undefined there and calling .writeText on it
+  // threw a TypeError instead of copying, which looked like the Copy
+  // Campaign ID icon "did nothing" (found while sweeping every control on
+  // this page for the reported click issue). Falls back to the older
+  // execCommand("copy") path, which does work over HTTP.
+  const copyCampaignId = async (id: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(id);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = id;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      toast.success("Campaign ID copied");
+    } catch {
+      toast.error("Could not copy the campaign ID.");
+    }
+  };
+
   const openPreview = async (c: Campaign) => {
     setPreviewFor(c);
     setPreviewQuestions([]);
@@ -683,7 +710,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                       </Button>
                     );
                   })()}
-                  <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(c.id); toast.success("Campaign ID copied"); }}><Copy className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" title="Copy campaign ID" onClick={() => copyCampaignId(c.id)}><Copy className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCampaign(c.id)}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
