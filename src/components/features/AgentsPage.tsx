@@ -22,6 +22,7 @@ import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { useAuth } from "@/context/AuthContext";
 import { rbacService } from "@/services/rbac.service";
 import { resolveOrgId } from "@/services/customer.service";
+import type { AppError } from "@/services/api";
 import type { Permission, PermissionGroup, Role as RbacRole, ScopeType } from "@/types/rbac";
 import { SCOPE_TYPE_LABEL } from "@/types/rbac";
 
@@ -282,7 +283,8 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
 
   const updateAgent = (id: string, patch: { status?: "active" | "inactive" | "pending"; dataMasking?: boolean; roleId?: string; locations?: string[] }) => {
     if (demo) { updateStoreAgent(id, patch); return; }
-    const prevRole = realAgents.find((a) => a.id === id)?.roleId;
+    const prev = realAgents.find((a) => a.id === id);
+    const prevRole = prev?.roleId;
     setRealAgents((p) => p.map((a) => a.id === id ? { ...a, ...patch, roleName: patch.roleId ? roleOptions.find((r) => r.id === patch.roleId)?.name ?? "—" : a.roleName } : a));
     (async () => {
       try {
@@ -300,6 +302,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
           // that call still sees the (soon-to-be-old) role active.
           const existing = await rbacService.listUserRoleAssignments(id, orgId);
           await rbacService.assignRole(id, { roleId: patch.roleId, ...scopeArgsForRole(patch.roleId) }, orgId);
+          // The revoke half of a downgrade can be legitimately rejected --
+          // e.g. the backend's LastOrganizationOwnerError guard refusing to
+          // strip an organization's sole remaining Organization Owner role
+          // (see RBACService._assert_not_last_organization_owner). Surface
+          // that instead of swallowing it as a generic failure below, and
+          // don't leave the optimistic UI showing a role change that the
+          // server only half-applied.
           await Promise.all(
             existing
               .filter((a) => a.isActive && (a.organizationId === orgId || a.locationId === locationId))
@@ -307,8 +316,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
           );
           toast.success("Role updated");
         }
-      } catch {
-        toast.error("Could not update on the server.");
+      } catch (err) {
+        // Roll back the optimistic patch above -- the server rejected (or
+        // only partially applied) this change, so the list/detail view must
+        // not keep showing a role/status/masking value that isn't actually
+        // in effect.
+        if (prev) setRealAgents((p) => p.map((a) => a.id === id ? prev : a));
+        toast.error((err as AppError).message || "Could not update on the server.");
       }
     })();
   };
