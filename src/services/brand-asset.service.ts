@@ -47,6 +47,17 @@ export interface OrgBranding {
    * actually render it -- this flag alone doesn't hand back the bytes. */
   hasBackgroundImage: boolean;
   updatedAt: string | null;
+  // Added for the Portal Preview page (src/routes/_authenticated/preview.portal.$locationId.tsx),
+  // which falls back to these organization-level branding fields when a
+  // location has no captive_portal_configs row of its own -- the backend
+  // response already carries them, `toOrgBranding` just wasn't mapping
+  // them yet since BrandAssetPage.tsx (the only other caller) never
+  // needed them.
+  logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  theme: string;
 }
 
 function toOrgBranding(b: BackendBranding): OrgBranding {
@@ -56,11 +67,25 @@ function toOrgBranding(b: BackendBranding): OrgBranding {
     companyName: b.company_name,
     hasBackgroundImage: b.background_image_url != null,
     updatedAt: b.updated_at,
+    logoUrl: b.logo_url,
+    primaryColor: b.primary_color,
+    secondaryColor: b.secondary_color,
+    accentColor: b.accent_color,
+    theme: b.theme,
   };
 }
 
-async function orgHeaders(): Promise<{ "X-Organization-Id": string }> {
-  const orgId = await resolveOrgId();
+/**
+ * `organizationId` is optional and defaults to the caller's own org
+ * (`resolveOrgId()`, i.e. "/me/organizations") -- the shape every existing
+ * call site (BrandAssetPage.tsx) relies on. Passing it explicitly lets a
+ * caller resolve a *different* organization's branding -- e.g. the Portal
+ * Preview page, reached both by an org owner (whose own org is implicit
+ * anyway) and by a Master-console operator previewing an arbitrary
+ * customer's location, who has no "own org" to resolve at all.
+ */
+async function orgHeaders(organizationId?: string): Promise<{ "X-Organization-Id": string }> {
+  const orgId = organizationId ?? (await resolveOrgId());
   return { "X-Organization-Id": orgId };
 }
 
@@ -69,8 +94,8 @@ export const brandAssetService = {
    * default -- no background image) if the organization has no branding
    * row yet -- the backend never returns a bare null body, but there's
    * nothing organization-specific to show here either way. */
-  async getBranding(): Promise<OrgBranding | null> {
-    const headers = await orgHeaders();
+  async getBranding(organizationId?: string): Promise<OrgBranding | null> {
+    const headers = await orgHeaders(organizationId);
     const { data } = await api.get<BackendBranding | { is_default: true }>("/branding", {
       headers,
     });
@@ -84,9 +109,9 @@ export const brandAssetService = {
    * cleanup effect). Returns `null` on any failure (e.g. no image set)
    * rather than throwing -- this backs a passive preview render, not a
    * user-initiated action that needs its own error toast. */
-  async fetchBackgroundImageBlobUrl(): Promise<string | null> {
+  async fetchBackgroundImageBlobUrl(organizationId?: string): Promise<string | null> {
     try {
-      const headers = await orgHeaders();
+      const headers = await orgHeaders(organizationId);
       const { data } = await api.get<Blob>("/branding/background-image/raw", {
         headers,
         responseType: "blob",

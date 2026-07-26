@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw } from "lucide-react";
+import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
@@ -26,52 +27,87 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [logo, setLogo] = useState<string | null>(null);
   const [portalId, setPortalId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Extracted so the (previously decorative, no-op) refresh button can
+  // re-run the exact same real load -- bug report: "live preview run nhi
+  // kr rha hai or refresh bar bhi nhi kamm kr rha hai". `pageSize: 1` sorted
+  // by `updatedAt desc` used to silently grab *any* portal in the whole
+  // organization, not this location's -- on an org with more than one
+  // location (the real, exercised case) that meant e.g. "coloba"'s Portal
+  // tab was actually showing "sector 12"'s saved config. Now fetches every
+  // portal in the org and matches this location explicitly, falling back to
+  // the org's default (or newest) only when this location truly has none.
+  const loadPortal = async () => {
+    if (demo) return;
+    const org = await resolveOrgId();
+    setOrgId(org);
+    const res = await portalService.list({
+      organizationId: org,
+      page: 1,
+      pageSize: 100,
+      sort: { key: "updatedAt", dir: "desc" },
+    });
+    const p = res.items.find((i) => i.locationId === locationId) ?? res.items[0];
+    if (!p) {
+      setPortalId(null);
+      return;
+    }
+    setPortalId(p.id);
+    setMsg(p.seo.metaDescription || "Welcome! Connect to enjoy free WiFi");
+    setPrimary(p.branding.primaryColor);
+    setForm((f) => ({ ...f, redirectUrl: p.login.redirectUrl || f.redirectUrl, lang: p.languages.join(", "), terms: p.consent.termsUrl || f.terms }));
+    setAuthMethods(p.loginMethods);
+    setLogo(p.branding.logoUrl || null);
+  };
 
   useEffect(() => {
-    if (demo) return;
-    (async () => {
-      try {
-        // /me/organizations (membership-scoped) instead of the
-        // platform-wide GET /organizations -- an ordinary customer/
-        // org-owner session doesn't hold organizations.read at GLOBAL
-        // scope and 403s on that endpoint (see customer.service.ts's
-        // resolveOrgId doc comment for the full explanation).
-        const org = await resolveOrgId();
-        setOrgId(org);
-        const res = await portalService.list({ organizationId: org, page: 1, pageSize: 1, sort: { key: "updatedAt", dir: "desc" } });
-        const p = res.items[0];
-        if (!p) return;
-        setPortalId(p.id);
-        setMsg(p.seo.metaDescription || msg);
-        setPrimary(p.branding.primaryColor);
-        setForm((f) => ({ ...f, redirectUrl: p.login.redirectUrl || f.redirectUrl, lang: p.languages.join(", "), terms: p.consent.termsUrl || f.terms }));
-        setAuthMethods(p.loginMethods);
-        if (p.branding.logoUrl) setLogo(p.branding.logoUrl);
-      } catch {
-        // Real fetch failed -- leave the form at its sensible defaults above.
-      }
-    })();
+    loadPortal().catch(() => {
+      // Real fetch failed -- leave the form at its sensible defaults above.
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, locationId]);
+
+  const handleRefresh = async () => {
+    if (demo) {
+      toast.success("Preview refreshed");
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await loadPortal();
+      toast.success("Preview refreshed with the last saved configuration");
+    } catch {
+      toast.error("Could not refresh — check the connection and try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const toggleAuth = (m: string) => {
     setAuthMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setLogo(url);
-    toast.success("Logo uploaded");
-  };
+  // A real, hosted logo URL (mirrors src/components/branding/PortalBrandingPanel.tsx's
+  // own "Logo URL" field) -- not a file upload. The captive_portal_configs
+  // backend only ever persists `logo_url` as a plain string; there is no
+  // MinIO-backed upload endpoint for it the way brandings.background_image
+  // has (see BrandAssetPage.tsx). The previous "Upload logo" file picker
+  // called `URL.createObjectURL(file)` and stopped there -- a browser-local
+  // blob: URL that `saveConfig` never even included in its patch, so
+  // nothing was ever persisted; the logo silently reverted on every reload.
+  // Bug report: "portal logo default nhi hai" (no default after refresh).
+  const handleLogoUrlChange = (value: string) => setLogo(value || null);
 
   const saveConfig = async () => {
     if (demo) { toast.success("Portal configuration saved"); return; }
     if (!orgId) { toast.error("No organization found for this session."); return; }
     try {
       const patch = {
-        branding: { primaryColor: primary } as any,
+        // `logo` (not `logo || undefined`) so clearing the field actually
+        // clears the saved logo too -- portalService.update only touches
+        // logo_url at all when this key is present and not `undefined`.
+        branding: { primaryColor: primary, logoUrl: logo } as any,
         login: { redirectUrl: form.redirectUrl } as any,
         loginMethods: authMethods as PortalLoginMethod[],
         seo: { metaDescription: msg } as any,
@@ -89,7 +125,28 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
+      {/* Real, shareable preview of the actual guest-facing captive portal
+          (background image, branding, live sign-in methods) -- pulls the
+          real captive_portal_configs/brandings data for this location, not
+          the local mock state this page's own form/"Live Preview" card
+          below still runs on. Hidden in demo mode (no real backend/org to
+          preview) and until `orgId` has resolved. */}
+      {!demo && orgId && locationId && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" asChild>
+            <Link
+              to="/preview/portal/$locationId"
+              params={{ locationId }}
+              search={{ organizationId: orgId }}
+              target="_blank"
+            >
+              <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
+            </Link>
+          </Button>
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-2">
       <Card className="shadow-sm border-0">
         <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="h-4 w-4 text-primary" />Portal Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-5">
@@ -119,14 +176,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           <div>
             <Label className="mb-2 block">Portal Logo</Label>
             <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                {logo ? <img src={logo} alt="Portal logo" className="h-full w-full object-cover" /> : <ImageUp className="h-5 w-5 text-muted-foreground" />}
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
+                {logo ? <img src={logo} alt="Portal logo" className="h-full w-full object-cover" onError={() => setLogo(null)} /> : <ImageUp className="h-5 w-5 text-muted-foreground" />}
               </div>
-              <label className="cursor-pointer">
-                <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><ImageUp className="h-3.5 w-3.5" />Upload logo</span>
-                <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-              </label>
+              <Input
+                value={logo ?? ""}
+                onChange={(e) => handleLogoUrlChange(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                className="h-9"
+              />
             </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              A hosted image URL -- saved with the rest of this form, and shown to guests on the
+              real sign-in screen.
+            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -152,7 +215,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         <Card className="shadow-sm border-0 overflow-hidden">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="flex items-center gap-2 text-sm"><Smartphone className="h-4 w-4 text-primary" />Live Preview</CardTitle>
-            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label="Refresh preview from the last saved configuration"
+              title="Refresh from saved configuration"
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            >
+              {refreshing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+            </button>
           </CardHeader>
           <CardContent>
             {/* Phone frame */}
@@ -191,6 +267,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 </AnimatePresence>
               </div>
             </div>
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">
+              A live mockup of your unsaved edits above. For the real, saved guest experience
+              (actual branding, background image, live sign-in methods), use{" "}
+              <span className="font-medium text-foreground">Preview Portal</span> at the top of
+              this page.
+            </p>
           </CardContent>
         </Card>
 
@@ -204,6 +286,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             <Button variant="outline" size="sm" onClick={() => toast.success("QR code downloaded")}><Download className="mr-1.5 h-3.5 w-3.5" />Download QR</Button>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

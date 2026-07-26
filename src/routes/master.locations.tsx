@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import axios from "axios";
-import { Search, Plus, Trash2, Loader2 } from "lucide-react";
+import { Search, Plus, Trash2, Loader2, ExternalLink } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import { MSectionHeader, MTag, MButton, MTable, MTh, MTd, MTr, MDialog, MField, M_INPUT } from "@/components/master/MasterKit";
 import { locationService } from "@/services/location.service";
@@ -235,14 +235,29 @@ function LocationsScreen() {
                 <MTd className="hidden text-sm sm:table-cell">{l.city}</MTd>
                 <MTd><MTag label={l.status} /></MTd>
                 <MTd>
-                  <button
-                    aria-label={`Delete ${l.name}`}
-                    disabled={deletingId === l.id}
-                    onClick={() => handleDelete(l)}
-                    className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                  >
-                    {deletingId === l.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    {!isDemo() && (
+                      <Link
+                        to="/preview/portal/$locationId"
+                        params={{ locationId: l.id }}
+                        search={{ organizationId: l.organizationId }}
+                        target="_blank"
+                        aria-label={`Preview ${l.name}'s guest portal`}
+                        title="Preview guest portal"
+                        className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    )}
+                    <button
+                      aria-label={`Delete ${l.name}`}
+                      disabled={deletingId === l.id}
+                      onClick={() => handleDelete(l)}
+                      className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                    >
+                      {deletingId === l.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </MTd>
               </MTr>
               );
