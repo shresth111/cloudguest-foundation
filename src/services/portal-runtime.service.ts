@@ -4,6 +4,7 @@ import type {
   RuntimeLanguage,
   RuntimePortalConfig,
   RuntimeSession,
+  RuntimeSessionAuthMethod,
 } from "@/types/portal-runtime";
 
 const SUPPORTED_LANGUAGES: RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
@@ -63,7 +64,7 @@ interface BackendGuestSession {
   router_id: string;
   location_id: string;
   organization_id: string;
-  auth_method: RuntimeAuthMethod;
+  auth_method: RuntimeSessionAuthMethod;
   status: string;
   started_at: string;
   ended_at: string | null;
@@ -229,6 +230,31 @@ export const portalRuntimeService = {
       location_id: params.locationId,
       router_id: params.routerId,
       device_mac: params.deviceMac,
+    });
+    return toRuntimeSession(data);
+  },
+
+  /** A pre-whitelisted device connecting without OTP/voucher/password at
+   * all -- ``POST /guest/login/mac``, real
+   * (``GuestService.login_via_mac_whitelist``), gated on a real
+   * ``app.domains.mac_authorization`` entry, not a per-location
+   * ``captive_portal_configs`` flag (see that method's own docstring for
+   * why). Meant to be attempted silently, before the sign-in card ever
+   * renders (see src/routes/portal.index.tsx) -- a rejection here is
+   * completely ordinary (this device just isn't whitelisted, or this
+   * deployment has none configured) and the caller should fall through
+   * to the normal card, never surface this as a guest-facing error. */
+  async loginWithMac(params: {
+    macAddress: string;
+    organizationId: string;
+    locationId: string;
+    routerId: string;
+  }): Promise<RuntimeSession> {
+    const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/mac", {
+      mac_address: params.macAddress,
+      organization_id: params.organizationId,
+      location_id: params.locationId,
+      router_id: params.routerId,
     });
     return toRuntimeSession(data);
   },

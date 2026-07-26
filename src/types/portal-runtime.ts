@@ -1,5 +1,15 @@
 export type RuntimeAuthMethod = "otp_sms" | "otp_email" | "username_password" | "voucher";
 
+/** Every real value ``GuestSession.auth_method`` can come back as --
+ * ``RuntimeAuthMethod`` above only lists the four a guest actually
+ * *picks* on the sign-in card (see src/lib/portal-auth-methods.ts, whose
+ * exhaustive per-method switch deliberately never has a "mac_whitelist"
+ * case to handle, since it's never a selectable tab). ``mac_whitelist``
+ * is real (``GuestService.login_via_mac_whitelist``) but only ever
+ * *arrives* as a finished session's own auth method, never chosen by a
+ * guest through this card. */
+export type RuntimeSessionAuthMethod = RuntimeAuthMethod | "mac_whitelist";
+
 /** The frontend's own client-side i18n dictionary only has these 5 -- a
  * real config's `default_language`/`supported_languages` are free text and
  * get validated against this set with an "en" fallback. */
@@ -42,7 +52,7 @@ export interface RuntimeSession {
   routerId: string;
   locationId: string;
   organizationId: string;
-  authMethod: RuntimeAuthMethod;
+  authMethod: RuntimeSessionAuthMethod;
   status: string;
   startedAt: string;
   endedAt: string | null;

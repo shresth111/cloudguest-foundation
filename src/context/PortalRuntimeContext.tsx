@@ -39,6 +39,13 @@ interface PortalRuntimeState {
   organizationId: string;
   locationId: string;
   routerId: string;
+  /** The connecting device's real MAC address, if a real NAS redirect
+   * supplied one as a search param (see src/routes/portal.tsx) --
+   * undefined in this environment's own test URLs, same as any other
+   * real captive portal with no live NAS behind it. Read by
+   * src/routes/portal.index.tsx to attempt a real MAC-whitelist bypass
+   * login before ever showing the sign-in card. */
+  mac?: string;
   config?: RuntimePortalConfig;
   isLoading: boolean;
   error?: Error;
@@ -65,10 +72,17 @@ interface Props {
   organizationId: string;
   locationId: string;
   routerId: string;
+  mac?: string;
   children: ReactNode;
 }
 
-export function PortalRuntimeProvider({ organizationId, locationId, routerId, children }: Props) {
+export function PortalRuntimeProvider({
+  organizationId,
+  locationId,
+  routerId,
+  mac,
+  children,
+}: Props) {
   const {
     data: config,
     isLoading,
@@ -136,6 +150,7 @@ export function PortalRuntimeProvider({ organizationId, locationId, routerId, ch
       organizationId,
       locationId,
       routerId,
+      mac,
       config,
       isLoading,
       error: error as Error | undefined,
@@ -159,6 +174,7 @@ export function PortalRuntimeProvider({ organizationId, locationId, routerId, ch
       organizationId,
       locationId,
       routerId,
+      mac,
       config,
       isLoading,
       error,
