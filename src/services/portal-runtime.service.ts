@@ -252,6 +252,25 @@ export const portalRuntimeService = {
     });
   },
 
+  /** Guest-initiated disconnect, from the success screen's real
+   * "Disconnect" button -- the guest-facing counterpart to the admin-only
+   * `POST /guest-sessions/{id}/disconnect` (see
+   * `GuestService.disconnect_own_session`'s docstring for the real backend
+   * addition this required and how `guestId`/`sessionId` authenticate the
+   * call). Sends a real RADIUS CoA-Disconnect, not just a client-side
+   * "forget the session" no-op. */
+  async disconnectSession(params: {
+    guestId: string;
+    sessionId: string;
+    reason?: string;
+  }): Promise<void> {
+    await guestPortalApi.post("/guest/session/disconnect", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+      reason: params.reason,
+    });
+  },
+
   async recordConsent(params: {
     guestId: string;
     captivePortalConfigId?: string;

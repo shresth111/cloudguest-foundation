@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
-export function A11yMenu() {
+export function A11yMenu({ tone = "dark" }: { tone?: "dark" | "light" }) {
   const { t, highContrast, largeText, toggleHighContrast, toggleLargeText } = usePortalRuntime();
   return (
     <DropdownMenu>
@@ -18,7 +18,11 @@ export function A11yMenu() {
           variant="ghost"
           size="icon"
           aria-label={t("a11y")}
-          className="h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+          className={
+            tone === "light"
+              ? "h-9 w-9 rounded-full border border-indigo-100 bg-white text-indigo-600 shadow-sm hover:bg-indigo-50 hover:text-indigo-700"
+              : "h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+          }
         >
           <Accessibility className="h-4 w-4" />
         </Button>

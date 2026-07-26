@@ -10,7 +10,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { LANGUAGE_LABEL } from "@/lib/portal-i18n";
 import type { RuntimeLanguage } from "@/types/portal-runtime";
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ tone = "dark" }: { tone?: "dark" | "light" }) {
   const { config, language, setLanguage, t } = usePortalRuntime();
   const langs = (config?.supportedLanguages ?? ["en"]) as RuntimeLanguage[];
   return (
@@ -20,7 +20,11 @@ export function LanguageSwitcher() {
           variant="ghost"
           size="icon"
           aria-label={t("language")}
-          className="h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+          className={
+            tone === "light"
+              ? "h-9 w-9 rounded-full border border-indigo-100 bg-white text-indigo-600 shadow-sm hover:bg-indigo-50 hover:text-indigo-700"
+              : "h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+          }
         >
           <Languages className="h-4 w-4" />
         </Button>

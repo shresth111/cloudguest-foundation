@@ -9,6 +9,11 @@ export interface AppError {
   code: string;
   message: string;
   fieldErrors?: Record<string, string>;
+  /** The backend's own structured error payload (``CloudGuestError``'s
+   * ``data`` field, e.g. ``{ retry_after_seconds }`` on a 429 OTP
+   * rate-limit) -- passed through untouched so a caller can surface real
+   * backend state (a real cooldown) instead of inventing one client-side. */
+  data?: Record<string, unknown>;
 }
 
 export interface BackendEnvelope<T> {
@@ -40,10 +45,17 @@ function fieldErrorsFromValidation(data: unknown): Record<string, string> | unde
   return out;
 }
 
+function errorData(data: unknown): Record<string, unknown> | undefined {
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : undefined;
+}
+
 export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppError {
   const status = error.response?.status ?? null;
   const envelope = error.response?.data;
   const message = envelope?.message || error.message || "Something went wrong";
+  const data = errorData(envelope?.data);
 
   if (status === 422) {
     return {
@@ -51,18 +63,19 @@ export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppErro
       code: "validation_error",
       message,
       fieldErrors: fieldErrorsFromValidation(envelope?.data),
+      data,
     };
   }
   if (status === 401) {
-    return { status, code: "unauthorized", message };
+    return { status, code: "unauthorized", message, data };
   }
   if (status === 403) {
-    return { status, code: "forbidden", message };
+    return { status, code: "forbidden", message, data };
   }
   if (status === null) {
     return { status, code: "network_error", message: "Unable to reach the server" };
   }
-  return { status, code: slugifyMessage(message), message };
+  return { status, code: slugifyMessage(message), message, data };
 }
 
 export const api = axios.create({
@@ -143,7 +156,13 @@ api.interceptors.response.use(
     // own catch block show "invalid email or password".
     const isLoginCall = config?.url?.includes("/auth/login");
 
-    if (error.response?.status === 401 && config && !config._retried && !isRefreshCall && !isLoginCall) {
+    if (
+      error.response?.status === 401 &&
+      config &&
+      !config._retried &&
+      !isRefreshCall &&
+      !isLoginCall
+    ) {
       const newToken = await refreshAccessToken();
       if (newToken) {
         config._retried = true;
@@ -152,7 +171,8 @@ api.interceptors.response.use(
         return api.request(config);
       }
       // Demo mode: skip session expiry redirect for demo tokens
-      const currentToken = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+      const currentToken =
+        typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
       if (currentToken === "demo-access-token") {
         return Promise.reject(toAppError(error));
       }

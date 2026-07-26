@@ -508,3 +508,28 @@
   background-size: 800px 100%;
   animation: shimmer-slide 1.6s linear infinite;
 }
+
+/**
+ * Guest captive-portal "light indigo" theme (the guest sign-in redesign --
+ * src/components/portal-runtime/PortalShell.tsx's `variant="light"`,
+ * src/routes/portal.welcome/success/expired/set-password.tsx). Kept
+ * separate from the pre-existing dark glass `.portal-runtime` look, which
+ * every *other* portal.* route (offline/failure/ad/redirect/terms/session)
+ * still uses -- this is additive, not a global reskin, to keep the blast
+ * radius of a visual-only redesign bounded to the exact flow the design
+ * spec describes.
+ */
+@keyframes pg-blob-drift {
+  0%, 100% { transform: translate(-6%, -8%) scale(1); }
+  33% { transform: translate(8%, 4%) scale(1.15); }
+  66% { transform: translate(-4%, 10%) scale(0.94); }
+}
+@keyframes pg-blob-drift-2 {
+  0%, 100% { transform: translate(6%, 8%) scale(1); }
+  50% { transform: translate(-9%, -6%) scale(1.2); }
+}
+.pg-glow-1 { animation: pg-blob-drift 24s ease-in-out infinite; }
+.pg-glow-2 { animation: pg-blob-drift-2 28s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pg-glow-1, .pg-glow-2 { animation: none !important; }
+}

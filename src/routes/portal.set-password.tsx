@@ -7,9 +7,8 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { KeyRound, Loader2 } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import type { AppError } from "@/services/api";
@@ -77,54 +76,57 @@ function SetPasswordPage() {
   const skip = () => navigate({ to: nextRoute, search: (prev) => prev });
 
   return (
-    <PortalShell>
+    <PortalShell variant="light" showHeader={false}>
       <div className="flex flex-1 flex-col gap-5">
         <div className="text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white/10 text-white">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
             <KeyRound className="h-6 w-6" />
           </div>
-          <h1 className="mt-4 text-2xl font-semibold">{t("setPasswordTitle")}</h1>
-          <p className="mt-1 text-sm text-white/60">{t("setPasswordSubtitle")}</p>
+          <h1
+            className="mt-4 text-2xl font-bold text-slate-900"
+            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
+          >
+            {t("setPasswordTitle")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">{t("setPasswordSubtitle")}</p>
         </div>
 
-        <PortalCard>
+        <PortalCard variant="light">
           <form onSubmit={form.handleSubmit((v) => save.mutate(v))} className="space-y-3">
-            <Label className="text-white/80">{t("newPassword")}</Label>
+            <label className="text-xs font-semibold text-slate-500">{t("newPassword")}</label>
             <Input
               {...form.register("password")}
               type="password"
               placeholder="••••••••••••"
-              className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+              className="h-11 rounded-[13px] border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
             />
-            {form.formState.errors.password && (
-              <p className="text-xs text-red-300">{form.formState.errors.password.message}</p>
-            )}
-            <Label className="text-white/80">{t("confirmPassword")}</Label>
+            <AlertBanner message={form.formState.errors.password?.message} />
+            <label className="text-xs font-semibold text-slate-500">{t("confirmPassword")}</label>
             <Input
               {...form.register("confirm")}
               type="password"
               placeholder="••••••••••••"
-              className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+              className="h-11 rounded-[13px] border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
             />
-            {form.formState.errors.confirm && (
-              <p className="text-xs text-red-300">{form.formState.errors.confirm.message}</p>
-            )}
-            <Button
+            <AlertBanner message={form.formState.errors.confirm?.message} />
+            <button
               type="submit"
               disabled={save.isPending}
-              className="h-11 w-full font-semibold text-white shadow-lg"
-              style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
+              className="h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 disabled:opacity-60"
             >
-              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("savePassword")}
-            </Button>
-            <Button
+              {save.isPending ? (
+                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              ) : (
+                t("savePassword")
+              )}
+            </button>
+            <button
               type="button"
-              variant="ghost"
               onClick={skip}
-              className="h-11 w-full text-white/80 hover:bg-white/10 hover:text-white"
+              className="h-11 w-full rounded-[14px] text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
             >
               {t("skipForNow")}
-            </Button>
+            </button>
           </form>
         </PortalCard>
       </div>
