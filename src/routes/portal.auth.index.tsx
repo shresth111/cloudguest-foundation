@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Smartphone, Mail, KeyRound, Ticket, ChevronRight } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,7 +6,33 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 import type { RuntimeAuthMethod } from "@/types/portal-runtime";
 
+/**
+ * Bare `/portal/auth` (this method-picker menu, no `$method` segment) is
+ * not a real guest entry point anymore -- the redesigned
+ * `/portal/welcome` (GuestSignInCard) folded this same choice into its
+ * own "New user / Registered user" tab toggle (a client-side state
+ * change, not a URL navigation), and is the one real landing page a
+ * guest's device/QR code/NAS redirect ever points at. The only remaining
+ * legitimate callers of this exact bare route are internal
+ * fallback-flow "go back and try again" links (portal.verify,
+ * portal.failure, portal.set-password) -- for those, redirecting on to
+ * `/portal/welcome` instead of rendering this standalone menu is a
+ * strict improvement (same real sign-in options, the one entry point
+ * users actually recognize).
+ *
+ * A *direct* hit on this URL shape -- hand-typed, bookmarked, or leaked
+ * from somewhere that built one it shouldn't have (see
+ * src/routes/preview.portal.$locationId.tsx's own history: it used to
+ * generate exactly this, with a fake `routerId=preview`) -- must never
+ * render this raw, out-of-context menu to a real end-user either. One
+ * `beforeLoad` redirect covers both cases identically, since there is no
+ * reliable way (or reason) to tell an internal "try again" click apart
+ * from a direct hit for this particular route.
+ */
 export const Route = createFileRoute("/portal/auth/")({
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/portal/welcome", search });
+  },
   component: AuthMethodPicker,
 });
 

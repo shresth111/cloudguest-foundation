@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Copy,
-  ExternalLink,
   Wifi,
   AlertTriangle,
   Info,
@@ -34,8 +33,8 @@ import type { RuntimeAuthMethod } from "@/types/portal-runtime";
  * customer's own Portal page (src/components/features/PortalPage.tsx) and
  * the Master console's Locations directory (src/routes/master.locations.tsx).
  *
- * Deliberately just the device mockup + a one-line status banner + two
- * links -- an earlier version also carried a whole second column of
+ * Deliberately just the device mockup + a one-line status banner + a
+ * copy-link action -- an earlier version also carried a whole second column of
  * summary cards (login-method badges, an industry-reference writeup,
  * branding/legal fields), which was more "admin dashboard panel" than
  * "preview": (see git history if that data is wanted again elsewhere,
@@ -176,7 +175,22 @@ function PortalPreviewPage() {
   const banner = BANNER_COPY[preview.configSource];
   const TypeIcon = businessTypeIcon(locationQuery.data?.propertyType);
 
-  const liveFlowUrl = `/portal?organizationId=${organizationId}&locationId=${locationId}&routerId=preview`;
+  // There used to be an "Open live guest flow" button here, opening
+  // `/portal?...&routerId=preview` in a new tab -- a real, externally
+  // reachable guest-portal URL built with the literal string "preview" as
+  // its routerId. That's not a real router: every actual login call
+  // downstream (OTP verify, password, voucher -- see
+  // src/services/portal-runtime.service.ts) sends routerId straight to
+  // the backend as the session's real router_id, so that link could never
+  // complete a real sign-in anyway, and it dead-ended guests (or whoever
+  // it got shared/copied to) on out-of-context /portal/* screens with a
+  // non-functional router id in the URL (see the reported
+  // `/portal/auth?...routerId=preview` link). There is no real router to
+  // put there instead -- a preview has no physical device attached, by
+  // design (see usePortalPreview's own docstring) -- so the only correct
+  // fix is to not generate that link at all. The phone mockup above
+  // already shows this location's real branding/config/enabled methods
+  // live, in-page, without needing any router id.
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -215,11 +229,6 @@ function PortalPreviewPage() {
           </div>
           <Button variant="ghost" size="icon" onClick={copyLink} title="Copy preview link">
             <Copy className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" asChild title="Open live guest flow">
-            <a href={liveFlowUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-4 w-4" />
-            </a>
           </Button>
         </div>
 
