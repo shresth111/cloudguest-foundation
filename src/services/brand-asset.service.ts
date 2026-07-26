@@ -98,17 +98,24 @@ export const brandAssetService = {
   },
 
   /** Uploads (replacing any existing) the login-screen background image
-   * for the current organization. Deliberately does not set a
-   * Content-Type header -- letting the browser's XHR generate the
-   * multipart boundary for the FormData body is the reliable way to do
-   * this through axios; hand-setting "multipart/form-data" strips the
-   * boundary and breaks the upload. */
+   * for the current organization.
+   *
+   * `Content-Type: undefined` is load-bearing, not decorative: the shared
+   * `api` instance (src/services/api.ts) sets a default
+   * `Content-Type: application/json` header on every request. Left in
+   * place, that default header wins over the browser's own multipart
+   * boundary generation for this `FormData` body -- confirmed live
+   * against production, this shipped as a real bug once (a 422 "field
+   * 'file' required", because the backend received a body claiming to be
+   * JSON with no multipart boundary to parse at all). Setting it to
+   * `undefined` here removes the header for this call only, letting the
+   * browser fill in `multipart/form-data; boundary=...` itself. */
   async uploadBackgroundImage(file: File): Promise<OrgBranding> {
     const headers = await orgHeaders();
     const formData = new FormData();
     formData.append("file", file);
     const { data } = await api.post<BackendBranding>("/branding/background-image", formData, {
-      headers,
+      headers: { ...headers, "Content-Type": undefined },
     });
     return toOrgBranding(data);
   },
