@@ -35,9 +35,12 @@ export default function BrandAssetPage({ title, description, tableTitle, tableSu
  *  - Before save: `URL.createObjectURL(file)` on the just-picked local
  *    file -- a real, standard use of that API for a not-yet-uploaded
  *    preview. Revoked on cleanup so it never leaks.
- *  - After save: the actual `backgroundImageUrl` persisted by the backend
- *    and re-fetched by `useQuery`, not the local blob URL -- a full page
- *    reload re-fetches this from the server, not from stale local state.
+ *  - After save: the actual persisted image, re-fetched by `useQuery` from
+ *    `GET /branding/background-image/raw` (via a local blob URL, since an
+ *    `<img>` tag can't send the auth headers that endpoint needs -- see
+ *    brand-asset.service.ts's own note on this) -- not the local
+ *    pre-upload blob URL. A full page reload re-fetches this from the
+ *    server, not from stale local state.
  */
 function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
   const qc = useQueryClient();
@@ -49,6 +52,22 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     queryKey: BRANDING_QUERY_KEY,
     queryFn: () => brandAssetService.getBranding(),
   });
+
+  // The persisted image itself -- a separate, dependent fetch because
+  // GET /branding only reports whether one exists (`hasBackgroundImage`),
+  // not the bytes. Re-runs whenever `branding.updatedAt` changes (i.e.
+  // after a real upload/delete), not on every render.
+  const { data: currentImageBlobUrl, isLoading: isImageLoading } = useQuery({
+    queryKey: [...BRANDING_QUERY_KEY, "background-image-blob", branding?.updatedAt],
+    queryFn: () => brandAssetService.fetchBackgroundImageBlobUrl(),
+    enabled: !!branding?.hasBackgroundImage,
+  });
+
+  // Blob URLs are never revoked by the browser on their own -- revoke the
+  // previous one whenever a new one replaces it (including on unmount).
+  useEffect(() => {
+    return () => { if (currentImageBlobUrl) URL.revokeObjectURL(currentImageBlobUrl); };
+  }, [currentImageBlobUrl]);
 
   // Local, pre-upload preview only -- revoked whenever the selected file
   // changes or the component unmounts, so it never outlives its use.
@@ -88,7 +107,7 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     uploadMutation.mutate(file);
   };
 
-  const currentUrl = branding?.backgroundImageUrl ?? null;
+  const currentUrl = branding?.hasBackgroundImage ? (currentImageBlobUrl ?? null) : null;
   const imageBoxCls = cn("rounded-md border object-cover", aspect === "wide" ? "h-10 w-20" : "h-10 w-10");
 
   return (
@@ -138,7 +157,7 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2.5">Organization</th><th className="px-3 py-2.5">Preview</th><th className="px-3 py-2.5 text-right">Action</th></tr></thead>
             <tbody>
-              {isLoading ? (
+              {isLoading || (branding?.hasBackgroundImage && isImageLoading) ? (
                 <tr><td colSpan={3} className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></td></tr>
               ) : isError ? (
                 <tr><td colSpan={3} className="py-10 text-center text-sm text-destructive">Could not load branding data.</td></tr>
