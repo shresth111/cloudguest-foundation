@@ -159,6 +159,14 @@ interface BackendListResponse<T> {
 interface BackendOrg {
   id: string;
   name: string;
+  /** Null until a subscription has actually been created for this org (see
+   * backend billing/service.py's _sync_subscription_tier, only ever called
+   * from create_subscription/upgrade_subscription) -- a reliable, already-
+   * fetched signal for "does this org already have a subscription" with no
+   * extra request, used by listOrganizations() below to keep the New
+   * Subscription dialog's org picker from offering orgs that are guaranteed
+   * to 409 with "already has a subscription" on submit. */
+  subscription_tier?: string | null;
 }
 
 interface BackendPlanFeature {
@@ -910,10 +918,15 @@ export const billingService = {
     };
   },
 
+  // Only orgs without a subscription yet -- POST /subscriptions 409s with
+  // "Organization already has a subscription" for any other org (see
+  // DuplicateSubscriptionError in billing/service.py's create_subscription),
+  // so offering them in the New Subscription dialog's picker just sets the
+  // operator up to hit that on submit.
   async listOrganizations() {
     if (isDemo()) return DEMO_BILLING_ORGS;
     const orgs = await fetchAllOrganizations();
-    return orgs.map((o) => ({ id: o.id, name: o.name }));
+    return orgs.filter((o) => !o.subscription_tier).map((o) => ({ id: o.id, name: o.name }));
   },
 
   // Real POST /subscriptions (backend/app/domains/billing/schemas.py's

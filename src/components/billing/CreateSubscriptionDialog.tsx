@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import axios from "axios";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { subscriptionSchema, type SubscriptionFormValues } from "@/lib/billing-schemas";
 import { useCreateSubscription, useOrganizationsList } from "@/hooks/useBilling";
+import { toAppError } from "@/services/api";
 import type { Coupon, Plan } from "@/types/billing";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -94,7 +96,12 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
         onOpenChange(false);
         reset();
       },
-      onError: () => toast.error("Failed to create subscription"),
+      onError: (err) => {
+        const message = axios.isAxiosError(err)
+          ? toAppError(err).message
+          : "Failed to create subscription";
+        toast.error(message);
+      },
     });
   };
 
@@ -118,6 +125,11 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
                   {orgs.data?.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            )}
+            {!orgs.isLoading && orgs.data?.length === 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Every organization already has a subscription -- there is nothing left to provision.
+              </p>
             )}
             {form.formState.errors.organizationId && (
               <p className="mt-1 text-xs text-destructive">{form.formState.errors.organizationId.message}</p>
