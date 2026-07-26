@@ -134,7 +134,7 @@ function Feature({ label, ok = true }: { label: string; ok?: boolean }) {
 }
 
 function supportLabel(l: SupportLevel) {
-  return { email: "Email", priority: "Priority", "24x7": "24×7", dedicated: "Dedicated" }[l];
+  return { basic: "Basic (Email)", priority: "Priority", dedicated: "Dedicated (24×7)" }[l];
 }
 
 function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange: (v: boolean) => void; plan?: Plan }) {
@@ -170,7 +170,7 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           whiteLabel: false,
           pmsIntegration: false,
           aiFeatures: false,
-          supportLevel: "email",
+          supportLevel: "basic",
         },
   });
 
@@ -228,10 +228,9 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
             <Select value={form.watch("supportLevel")} onValueChange={(v) => form.setValue("supportLevel", v as SupportLevel)}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="basic">Basic (Email)</SelectItem>
                 <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="24x7">24×7</SelectItem>
-                <SelectItem value="dedicated">Dedicated</SelectItem>
+                <SelectItem value="dedicated">Dedicated (24×7)</SelectItem>
               </SelectContent>
             </Select>
           </div>

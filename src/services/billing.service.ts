@@ -44,7 +44,7 @@ const DEMO_PLANS: Plan[] = [
     id: "plan-demo-starter", name: "Starter", tier: "starter", currency: "INR",
     monthlyPrice: 999, annualPrice: 11988, includedLocations: 1, includedRouters: 2,
     includedGuests: 500, storageLimitGb: 10, apiAccess: false, whiteLabel: false,
-    pmsIntegration: false, aiFeatures: false, supportLevel: "email",
+    pmsIntegration: false, aiFeatures: false, supportLevel: "basic",
   },
   {
     id: "plan-demo-growth", name: "Growth", tier: "professional", currency: "INR",
@@ -56,7 +56,7 @@ const DEMO_PLANS: Plan[] = [
     id: "plan-demo-enterprise", name: "Enterprise", tier: "enterprise", currency: "INR",
     monthlyPrice: 9999, annualPrice: 119988, includedLocations: 50, includedRouters: 200,
     includedGuests: 25000, storageLimitGb: 500, apiAccess: true, whiteLabel: true,
-    pmsIntegration: true, aiFeatures: true, supportLevel: "24x7",
+    pmsIntegration: true, aiFeatures: true, supportLevel: "dedicated",
   },
 ];
 
@@ -387,10 +387,10 @@ function featureBool(features: BackendPlanFeature[], key: string): boolean {
 
 function supportLevelFrom(features: BackendPlanFeature[]): Plan["supportLevel"] {
   const tier = features.find((f) => f.feature_key === "support_level")?.tier_value;
-  if (tier === "basic") return "email";
+  if (tier === "basic") return "basic";
   if (tier === "priority") return "priority";
   if (tier === "dedicated") return "dedicated";
-  return "email";
+  return "basic";
 }
 
 function toPlan(p: BackendPlan): Plan {
@@ -1057,9 +1057,11 @@ export const billingService = {
       { feature_key: "pms_integration", feature_type: "boolean", is_enabled: input.pmsIntegration },
       { feature_key: "ai_features", feature_type: "boolean", is_enabled: input.aiFeatures },
       {
+        // SupportLevel is kept 1:1 with the backend's SupportTier enum
+        // (basic | priority | dedicated) -- no relabeling needed here.
         feature_key: "support_level",
         feature_type: "tier",
-        tier_value: input.supportLevel === "email" ? "basic" : input.supportLevel === "24x7" ? "dedicated" : input.supportLevel,
+        tier_value: input.supportLevel,
       },
     ];
     if (input.id) {

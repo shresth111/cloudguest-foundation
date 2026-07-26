@@ -29,7 +29,7 @@ export const planSchema = z.object({
   whiteLabel: z.boolean(),
   pmsIntegration: z.boolean(),
   aiFeatures: z.boolean(),
-  supportLevel: z.enum(["email", "priority", "24x7", "dedicated"]),
+  supportLevel: z.enum(["basic", "priority", "dedicated"]),
 });
 export type PlanFormValues = z.infer<typeof planSchema>;
 

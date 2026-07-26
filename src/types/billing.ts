@@ -1,6 +1,13 @@
 export type PlanTier = "starter" | "professional" | "enterprise" | "custom";
 export type BillingCycle = "monthly" | "annual";
-export type SupportLevel = "email" | "priority" | "24x7" | "dedicated";
+// Mirrors the real backend SupportTier enum exactly (backend/app/domains/
+// billing/constants.py) -- the closed set of legal PlanFeature.tier_value
+// values for the support_level feature key. Used to be a 4-way
+// "email" | "priority" | "24x7" | "dedicated" that had no matching 4th
+// backend value: saving "24x7" silently collapsed into the "dedicated"
+// tier_value, and the next load then showed "Dedicated" -- a lossy round
+// trip. Kept 1:1 with the backend now so every option actually persists.
+export type SupportLevel = "basic" | "priority" | "dedicated";
 
 export type SubscriptionStatus =
   | "active"
