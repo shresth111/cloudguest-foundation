@@ -14,7 +14,6 @@ const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 interface DemoAsset { businessUnit: string; url: string; }
 
 const BRANDING_QUERY_KEY = ["branding", "current-organization"] as const;
-const BACKGROUND_IMAGE_BLOB_QUERY_KEY = [...BRANDING_QUERY_KEY, "background-image-blob"] as const;
 
 export default function BrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
   const demo = useIsDemo();
@@ -54,15 +53,37 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     queryFn: () => brandAssetService.getBranding(),
   });
 
-  // The persisted image itself -- a separate, dependent fetch because
-  // GET /branding only reports whether one exists (`hasBackgroundImage`),
-  // not the bytes. Re-runs whenever `branding.updatedAt` changes (i.e.
-  // after a real upload/delete), not on every render.
-  const { data: currentImageBlobUrl, isLoading: isImageLoading } = useQuery({
-    queryKey: [...BACKGROUND_IMAGE_BLOB_QUERY_KEY, branding?.updatedAt],
-    queryFn: () => brandAssetService.fetchBackgroundImageBlobUrl(),
-    enabled: !!branding?.hasBackgroundImage,
-  });
+  // The persisted image itself -- fetched separately from GET /branding,
+  // which only reports whether one exists (`hasBackgroundImage`), not the
+  // bytes. Deliberately a plain effect, not a second `useQuery` keyed off
+  // `branding.updatedAt`: a dependent query re-mounted via
+  // invalidateQueries/removeQueries after the delete mutation raced its
+  // own stale `enabled` snapshot from *before* `hasBackgroundImage`
+  // flipped to false, firing one real (harmless but not clean) 404
+  // request against the now-empty endpoint -- confirmed live. A `useEffect`
+  // only ever runs after React has actually committed the new
+  // `branding` value, so it can't observe that stale, pre-mutation state.
+  const [currentImageBlobUrl, setCurrentImageBlobUrl] = useState<string | null>(null);
+  const [isImageLoading, setIsImageLoading] = useState(false);
+
+  useEffect(() => {
+    if (!branding?.hasBackgroundImage) {
+      setCurrentImageBlobUrl(null);
+      return;
+    }
+    let cancelled = false;
+    setIsImageLoading(true);
+    brandAssetService.fetchBackgroundImageBlobUrl().then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      setCurrentImageBlobUrl(url);
+      setIsImageLoading(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branding?.hasBackgroundImage, branding?.updatedAt]);
 
   // Blob URLs are never revoked by the browser on their own -- revoke the
   // previous one whenever a new one replaces it (including on unmount).
@@ -79,20 +100,7 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // invalidateQueries matches by key *prefix*, so a plain
-  // `invalidateQueries({ queryKey: BRANDING_QUERY_KEY })` also matches
-  // (and immediately refetches) the still-mounted background-image-blob
-  // query above -- using whatever `enabled`/key it had *before* this
-  // mutation's result changes `branding.hasBackgroundImage`. Concretely:
-  // after a delete, that stale refetch hit the now-empty raw endpoint and
-  // logged a spurious 404 (confirmed live). `removeQueries` first evicts
-  // the blob query outright (no fetch); invalidating branding afterward
-  // then lets it remount fresh, with the correct enabled/key, once
-  // `branding.hasBackgroundImage` has actually updated.
-  const refreshBranding = () => {
-    qc.removeQueries({ queryKey: BACKGROUND_IMAGE_BLOB_QUERY_KEY });
-    qc.invalidateQueries({ queryKey: BRANDING_QUERY_KEY });
-  };
+  const refreshBranding = () => qc.invalidateQueries({ queryKey: BRANDING_QUERY_KEY });
 
   const uploadMutation = useMutation({
     mutationFn: (f: File) => brandAssetService.uploadBackgroundImage(f),
