@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
@@ -7,15 +7,10 @@ import {
   ArrowLeft,
   Copy,
   ExternalLink,
-  Smartphone,
-  Mail,
-  KeyRound,
-  Ticket,
   Wifi,
   AlertTriangle,
   Info,
   CheckCircle2,
-  ChevronRight,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,7 +20,6 @@ import { usePortalPreview, type PortalPreviewConfigSource } from "@/hooks/usePor
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import {
   enabledAuthMethods,
-  primaryAuthMethod,
   otherAuthMethods,
   AUTH_METHOD_FALLBACK_COPY,
 } from "@/lib/portal-auth-methods";
@@ -111,20 +105,6 @@ async function fetchLocationSummary(
   return { name: data.name, propertyType: data.property_type, organizationName };
 }
 
-const METHOD_META: Record<
-  RuntimeAuthMethod,
-  { icon: React.ComponentType<{ className?: string }>; label: string; desc: string }
-> = {
-  otp_sms: { icon: Smartphone, label: "Mobile OTP", desc: "Receive a code by SMS" },
-  otp_email: { icon: Mail, label: "Email OTP", desc: "Receive a code by email" },
-  username_password: {
-    icon: KeyRound,
-    label: "Password login",
-    desc: "Sign in with a saved password",
-  },
-  voucher: { icon: Ticket, label: "Voucher code", desc: "Redeem a voucher code" },
-};
-
 const BANNER_COPY: Record<
   PortalPreviewConfigSource,
   { tone: "ok" | "info" | "warn"; text: string }
@@ -143,8 +123,11 @@ const BANNER_COPY: Record<
 function PortalPreviewPage() {
   const { locationId } = Route.useParams();
   const { organizationId } = Route.useSearch();
-  const [step, setStep] = useState<"welcome" | "auth" | "form">("welcome");
-  const [activeMethod, setActiveMethod] = useState<RuntimeAuthMethod | null>(null);
+  // Mirrors GuestSignInCard's own "otp" | "password" tab state -- the
+  // real guest card these two are all this preview shows now (voucher/the
+  // non-default OTP channel still show as the same small fallback links
+  // the real card uses).
+  const [tab, setTab] = useState<"otp" | "password">("otp");
 
   const preview = usePortalPreview(organizationId, locationId);
 
@@ -159,7 +142,19 @@ function PortalPreviewPage() {
   // reimplemented, so this preview can never show a method set (or a
   // default landing method) that the real /portal/* flow wouldn't.
   const liveMethods: RuntimeAuthMethod[] = preview.config ? enabledAuthMethods(preview.config) : [];
-  const primary = preview.config ? primaryAuthMethod(preview.config) : null;
+  const hasOtpTab = liveMethods.includes("otp_sms") || liveMethods.includes("otp_email");
+  const hasPasswordTab = liveMethods.includes("username_password");
+  // Which OTP channel the mockup's "New user" tab shows -- SMS first if
+  // enabled (same AUTH_METHOD_PRIORITY the real card follows), else email.
+  const otpChannel: RuntimeAuthMethod = liveMethods.includes("otp_sms") ? "otp_sms" : "otp_email";
+  // Default landing tab mirrors the real card's own primaryAuthMethod
+  // fallback (see src/lib/portal-auth-methods.ts): OTP if enabled at all,
+  // else password -- re-evaluated once the real config actually loads
+  // (liveMethods is empty, and this location-specific config unknown,
+  // until then).
+  useEffect(() => {
+    if (!hasOtpTab && hasPasswordTab) setTab("password");
+  }, [hasOtpTab, hasPasswordTab]);
 
   const gradient = `linear-gradient(135deg, ${preview.primaryColor}, ${preview.secondaryColor})`;
   const banner = BANNER_COPY[preview.configSource];
@@ -170,19 +165,6 @@ function PortalPreviewPage() {
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success("Preview link copied");
-  };
-
-  // "Connect" lands directly on the highest-priority enabled method's own
-  // form -- mirrors src/routes/portal.welcome.tsx's real handleConnect
-  // exactly. The full "auth" picker step (below) stays reachable via that
-  // form's own "see other options" link, never as the default landing.
-  const handleConnect = () => {
-    if (primary) {
-      setActiveMethod(primary);
-      setStep("form");
-      return;
-    }
-    setStep("auth");
   };
 
   return (
@@ -252,188 +234,165 @@ function PortalPreviewPage() {
             is just enough chrome to know what you're looking at. */}
         <div className="mx-auto w-full max-w-[300px] rounded-[2.2rem] border-8 border-foreground/90 bg-foreground/90 p-1.5 shadow-xl">
           <div
-            className="relative min-h-[560px] overflow-hidden rounded-[1.6rem] text-white"
-            style={{ background: gradient }}
+            className="relative min-h-[560px] overflow-hidden rounded-[1.6rem]"
+            style={{ background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)" }}
           >
             {preview.isLoading && (
-              <div className="absolute inset-0 z-20 grid place-items-center bg-black/20">
-                <Loader2 className="h-5 w-5 animate-spin text-white/80" />
+              <div className="absolute inset-0 z-20 grid place-items-center bg-white/60">
+                <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
               </div>
             )}
-            {preview.backgroundImageUrl && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-30"
-                style={{ backgroundImage: `url(${preview.backgroundImageUrl})` }}
-              />
-            )}
-            <div className="relative z-10 flex min-h-[560px] flex-col px-5 pb-6 pt-6">
-              <div className="mb-6 flex items-center gap-2.5">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full opacity-50 blur-2xl"
+              style={{
+                background: `radial-gradient(circle, ${preview.primaryColor} 0%, transparent 70%)`,
+              }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-14 -right-10 h-36 w-36 rounded-full opacity-40 blur-2xl"
+              style={{
+                background: `radial-gradient(circle, ${preview.secondaryColor} 0%, transparent 70%)`,
+              }}
+            />
+            <div className="relative z-10 flex min-h-[560px] flex-col px-5 pb-5 pt-6 text-slate-900">
+              <div className="mb-5 flex flex-col items-center text-center">
                 <div
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white shadow-lg"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
                   style={{ background: gradient }}
                 >
                   {preview.logoUrl ? (
-                    <img src={preview.logoUrl} alt="" className="h-5 w-5 object-contain" />
+                    <img src={preview.logoUrl} alt="" className="h-6 w-6 object-contain" />
                   ) : (
-                    <Wifi className="h-4 w-4" />
+                    <Wifi className="h-5 w-5" />
                   )}
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold">{preview.name}</p>
-                  <p className="truncate text-[10px] text-white/60">Guest WiFi</p>
-                </div>
+                <h2
+                  className="mt-3 text-lg font-bold leading-tight"
+                  style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
+                >
+                  {preview.config?.splashHeadline?.trim() || `Welcome to ${preview.name}`}
+                </h2>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {preview.config?.splashWelcomeMessage?.trim() ||
+                    "Sign in for complimentary WiFi access on this network."}
+                </p>
               </div>
 
-              {step === "welcome" && (
-                <div className="flex flex-1 flex-col justify-center gap-5">
-                  <div>
-                    <h2 className="text-2xl font-bold leading-tight">
-                      {preview.config?.splashHeadline ?? "Welcome"}
-                    </h2>
-                    <p className="mt-2 text-xs text-white/70">
-                      {preview.config?.splashWelcomeMessage ?? "Connect to enjoy free guest WiFi."}
-                    </p>
+              {/* A field-accurate, single-screen mockup of the real
+                  redesigned guest sign-in card (src/components/portal-runtime/
+                  GuestSignInCard.tsx) -- no more "tap Connect, then pick a
+                  method, then see its form" 3-hop mockup: the real guest
+                  flow was collapsed to one page a while back, and this
+                  preview now mirrors that shape exactly instead of showing
+                  an already-retired multi-step design. */}
+              <div
+                className="flex flex-1 flex-col rounded-2xl border border-indigo-100/80 bg-white p-4 text-slate-900"
+                style={{ boxShadow: "0 16px 40px -18px rgba(79,70,229,0.3)" }}
+              >
+                {hasOtpTab && hasPasswordTab && (
+                  <div className="mb-3 grid grid-cols-2 gap-1 rounded-full bg-indigo-50 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setTab("otp")}
+                      className={
+                        "rounded-full px-1.5 py-1.5 text-[10px] font-semibold transition " +
+                        (tab === "otp" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500")
+                      }
+                    >
+                      New user &middot; Mobile OTP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTab("password")}
+                      className={
+                        "rounded-full px-1.5 py-1.5 text-[10px] font-semibold transition " +
+                        (tab === "password"
+                          ? "bg-white text-indigo-700 shadow-sm"
+                          : "text-slate-500")
+                      }
+                    >
+                      Registered user
+                    </button>
                   </div>
-                  <Button
-                    className="h-11 w-full text-sm font-semibold text-white shadow-lg"
-                    style={{ background: gradient }}
-                    onClick={handleConnect}
-                  >
-                    Connect <ChevronRight className="ms-1.5 h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+                )}
 
-              {/* Only reachable via the "See other sign-in options" link
-                  below the primary method's own form -- never the default
-                  landing for "Connect" itself (see handleConnect above),
-                  mirroring the real guest flow's own picker
-                  (src/routes/portal.auth.index.tsx). */}
-              {step === "auth" && (
-                <div className="flex flex-1 flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setStep("welcome")}
-                    className="mb-1 flex items-center gap-1 text-[11px] text-white/60 hover:text-white"
-                  >
-                    <ArrowLeft className="h-3 w-3" /> Back
-                  </button>
-                  <h3 className="text-base font-semibold">Choose sign-in method</h3>
-                  {liveMethods.length === 0 ? (
-                    <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4 text-center text-xs text-white/70">
-                      No sign-in methods are enabled. A real guest would see &ldquo;contact
-                      reception.&rdquo;
-                    </div>
-                  ) : (
-                    liveMethods.map((m) => {
-                      const meta = METHOD_META[m];
-                      const Icon = meta.icon;
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => {
-                            setActiveMethod(m);
-                            setStep("form");
-                          }}
-                          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] p-3 text-start transition hover:border-white/25 hover:bg-white/[0.1]"
-                        >
-                          <div
-                            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white"
-                            style={{ background: gradient }}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold">{meta.label}</p>
-                            <p className="truncate text-[10px] text-white/55">{meta.desc}</p>
-                          </div>
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/40" />
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-
-              {/* Field-accurate mockup of the real form the guest lands on
-                  for whichever method they tapped -- mirrors
-                  src/routes/portal.auth.$method.tsx's MobileForm/EmailForm/
-                  PasswordForm field-for-field. */}
-              {step === "form" && activeMethod && (
-                <div className="flex flex-1 flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setStep(liveMethods.length > 1 ? "auth" : "welcome")}
-                    className="mb-1 flex items-center gap-1 text-[11px] text-white/60 hover:text-white"
-                  >
-                    <ArrowLeft className="h-3 w-3" /> Back
-                  </button>
-                  <h3 className="text-base font-semibold">{METHOD_META[activeMethod].label}</h3>
-
-                  {activeMethod === "otp_sms" && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] font-medium text-white/70">Mobile number</p>
-                      <div className="grid grid-cols-[64px_1fr] gap-2">
-                        <div className="rounded-lg border border-white/10 bg-white/10 px-2 py-2 text-xs">+1</div>
-                        <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">555 010 2200</div>
+                {liveMethods.length === 0 ? (
+                  <p className="py-4 text-center text-[11px] text-slate-500">
+                    No sign-in methods are enabled. A real guest would see &ldquo;contact
+                    reception.&rdquo;
+                  </p>
+                ) : tab === "otp" && hasOtpTab ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold text-slate-500">
+                      {otpChannel === "otp_sms" ? "Mobile number" : "Email address"}
+                    </p>
+                    {otpChannel === "otp_sms" ? (
+                      <div className="grid grid-cols-[46px_1fr] gap-1.5">
+                        <div className="rounded-lg border border-slate-200 px-2 py-2 text-[11px]">
+                          +1
+                        </div>
+                        <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
+                          555 010 2200
+                        </div>
                       </div>
-                      <div className="mt-1 rounded-lg py-2.5 text-center text-xs font-semibold" style={{ background: gradient }}>Send code</div>
-                    </div>
-                  )}
-
-                  {activeMethod === "otp_email" && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] font-medium text-white/70">Email address</p>
-                      <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">you@example.com</div>
-                      <div className="mt-1 rounded-lg py-2.5 text-center text-xs font-semibold" style={{ background: gradient }}>Send code</div>
-                    </div>
-                  )}
-
-                  {activeMethod === "username_password" && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] font-medium text-white/70">Mobile number</p>
-                      <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">
-                        you@example.com or +1 555 010 2200
+                    ) : (
+                      <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
+                        you@example.com
                       </div>
-                      <p className="text-[11px] font-medium text-white/70">Password</p>
-                      <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">••••••••••••</div>
-                      <div className="mt-1 rounded-lg py-2.5 text-center text-xs font-semibold" style={{ background: gradient }}>Sign in</div>
+                    )}
+                    <div
+                      className="mt-1 rounded-lg py-2 text-center text-[11px] font-semibold text-white"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+                    >
+                      Send OTP
                     </div>
-                  )}
-
-                  {activeMethod === "voucher" && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] font-medium text-white/70">Mobile number</p>
-                      <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">
-                        you@example.com or +1 555 010 2200
-                      </div>
-                      <p className="text-[11px] font-medium text-white/70">Voucher code</p>
-                      <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/40">ABCD-1234</div>
-                      <div className="mt-1 rounded-lg py-2.5 text-center text-xs font-semibold" style={{ background: gradient }}>Submit</div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold text-slate-500">
+                      Mobile number or email
+                    </p>
+                    <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
+                      you@example.com or +1 555 010 2200
                     </div>
-                  )}
+                    <p className="text-[10px] font-semibold text-slate-500">Password</p>
+                    <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
+                      ••••••••••••
+                    </div>
+                    <label className="mt-1 flex items-start gap-2 rounded-lg bg-slate-50 p-2 text-[10px] text-slate-600">
+                      <span className="mt-0.5 h-3 w-3 shrink-0 rounded-sm border border-slate-300" />
+                      I agree to the{" "}
+                      <span className="font-medium text-slate-800">
+                        Terms &amp; Acceptable Use Policy
+                      </span>
+                    </label>
+                    <div
+                      className="mt-1 rounded-lg py-2 text-center text-[11px] font-semibold text-white"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+                    >
+                      Sign in &amp; connect
+                    </div>
+                  </div>
+                )}
 
-                  {/* Every *other* enabled method, as a compact fallback link
-                      -- mirrors src/routes/portal.auth.$method.tsx's own
-                      OtherMethodsLinks field-for-field (same shared copy),
-                      never a second full menu by default. */}
-                  {preview.config &&
-                    otherAuthMethods(preview.config, activeMethod).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setActiveMethod(m)}
-                        className="pt-1 text-center text-[10px] text-white/50 hover:text-white hover:underline"
-                      >
+                {/* Every *other* enabled method, as a compact fallback link
+                    -- same real fallback copy the live card and
+                    src/routes/portal.auth.$method.tsx use, never a second
+                    full menu by default. */}
+                {preview.config &&
+                  liveMethods.length > 0 &&
+                  otherAuthMethods(preview.config, tab === "otp" ? otpChannel : "username_password")
+                    .filter((m) => !(tab === "otp" && (m === "otp_sms" || m === "otp_email")))
+                    .map((m) => (
+                      <p key={m} className="mt-2 text-center text-[9px] text-slate-500">
                         {AUTH_METHOD_FALLBACK_COPY[m]}
-                      </button>
+                      </p>
                     ))}
-                </div>
-              )}
+              </div>
 
-              <p className="mt-6 text-center text-[9px] text-white/40">Powered by CloudGuest</p>
+              <p className="mt-4 text-center text-[9px] text-slate-400">Powered by CloudGuest</p>
             </div>
           </div>
         </div>
