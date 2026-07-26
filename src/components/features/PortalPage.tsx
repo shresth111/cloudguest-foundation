@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
+import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw, ExternalLink, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
+import { brandAssetService } from "@/services/brand-asset.service";
 import type { PortalLoginMethod } from "@/types/portal";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
@@ -25,6 +26,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
   const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://zipwifi.io/welcome", terms: "By connecting you agree to fair-use terms." });
   const [logo, setLogo] = useState<string | null>(null);
+  // True once `logo` is a blob: URL from a real uploaded file (needs
+  // URL.revokeObjectURL on the way out, and enables the "Remove" button
+  // below) -- false for a plain hotlinkable URL or no logo at all.
+  const [logoIsUploaded, setLogoIsUploaded] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [portalId, setPortalId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,17 +44,57 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // tab was actually showing "sector 12"'s saved config. Now fetches every
   // portal in the org and matches this location explicitly, falling back to
   // the org's default (or newest) only when this location truly has none.
+  // The logo itself now lives on the real, object-storage-backed
+  // org-level branding (app.domains.branding, POST/GET/DELETE
+  // /branding/logo -- same MinIO/S3-compatible storage
+  // BrandAssetPage.tsx's Background Image already uses), not
+  // captive_portal_configs.logo_url -- a plain text column with no
+  // upload endpoint at all. Shared org-wide, same reasoning as
+  // Background Image: "the login screen doesn't know which location a
+  // guest belongs to until after they've connected" (see
+  // BrandAssetPage.tsx's own note).
+  const loadLogo = async (org: string) => {
+    const branding = await brandAssetService.getBranding(org);
+    if (!branding?.logoUrl) {
+      setLogo(null);
+      setLogoIsUploaded(false);
+      return;
+    }
+    if (branding.logoIsUploaded) {
+      const blobUrl = await brandAssetService.fetchLogoBlobUrl(org);
+      setLogo(blobUrl);
+      setLogoIsUploaded(!!blobUrl);
+    } else {
+      setLogo(branding.logoUrl);
+      setLogoIsUploaded(false);
+    }
+  };
+
   const loadPortal = async () => {
     if (demo) return;
     const org = await resolveOrgId();
     setOrgId(org);
+    loadLogo(org).catch(() => {
+      // Leave the logo preview empty -- not fatal to the rest of the page.
+    });
     const res = await portalService.list({
       organizationId: org,
       page: 1,
       pageSize: 100,
       sort: { key: "updatedAt", dir: "desc" },
     });
-    const p = res.items.find((i) => i.locationId === locationId) ?? res.items[0];
+    // Most-specific-wins, mirroring both the backend's own
+    // CaptivePortalService.resolve_portal_config order and
+    // SmartIdPage.tsx's identical client-side resolution: this
+    // location's own config, else the organization's default
+    // (Portal.locationId is "" for an org-default row -- see
+    // portal.service.ts's toPortal), else none -- never an arbitrary
+    // *other* location's config, which is what the original
+    // `res.items[0]` (newest overall) bug actually did.
+    const p =
+      res.items.find((i) => i.locationId === locationId) ??
+      res.items.find((i) => i.locationId === "") ??
+      null;
     if (!p) {
       setPortalId(null);
       return;
@@ -58,7 +104,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setPrimary(p.branding.primaryColor);
     setForm((f) => ({ ...f, redirectUrl: p.login.redirectUrl || f.redirectUrl, lang: p.languages.join(", "), terms: p.consent.termsUrl || f.terms }));
     setAuthMethods(p.loginMethods);
-    setLogo(p.branding.logoUrl || null);
   };
 
   useEffect(() => {
@@ -67,6 +112,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, locationId]);
+
+  // Blob URLs are never revoked by the browser on their own -- revoke the
+  // previous one whenever a new one replaces it (including on unmount).
+  // Mirrors BrandAssetPage.tsx's identical cleanup effect.
+  useEffect(() => {
+    return () => {
+      if (logoIsUploaded && logo) URL.revokeObjectURL(logo);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logo]);
 
   const handleRefresh = async () => {
     if (demo) {
@@ -88,26 +143,69 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setAuthMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   };
 
-  // A real, hosted logo URL (mirrors src/components/branding/PortalBrandingPanel.tsx's
-  // own "Logo URL" field) -- not a file upload. The captive_portal_configs
-  // backend only ever persists `logo_url` as a plain string; there is no
-  // MinIO-backed upload endpoint for it the way brandings.background_image
-  // has (see BrandAssetPage.tsx). The previous "Upload logo" file picker
-  // called `URL.createObjectURL(file)` and stopped there -- a browser-local
+  // Real upload, backed by app.domains.branding's MinIO/S3-compatible
+  // object storage -- replaces the old flow, which only ever called
+  // `URL.createObjectURL(file)` and stopped there: a browser-local
   // blob: URL that `saveConfig` never even included in its patch, so
-  // nothing was ever persisted; the logo silently reverted on every reload.
-  // Bug report: "portal logo default nhi hai" (no default after refresh).
-  const handleLogoUrlChange = (value: string) => setLogo(value || null);
+  // nothing was ever persisted and the logo silently reverted on every
+  // reload. Bug report: "portal logo default nhi hai" (no default after
+  // refresh). Uploads immediately (like BrandAssetPage.tsx's Background
+  // Image), not deferred to "Save Configuration" below.
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (demo) {
+      // No real backend exists to talk to for a demo session (same
+      // fallback pattern as master.locations.tsx's DEMO_LOCATIONS) --
+      // a local-only, un-persisted preview is all a demo can offer.
+      setLogo(URL.createObjectURL(file));
+      setLogoIsUploaded(true);
+      toast.success("Logo uploaded");
+      return;
+    }
+    if (!orgId) return;
+    setUploadingLogo(true);
+    try {
+      await brandAssetService.uploadLogo(file, orgId);
+      await loadLogo(orgId);
+      toast.success("Logo uploaded");
+    } catch {
+      toast.error("Could not upload the logo — check the connection and try again.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (demo) {
+      setLogo(null);
+      setLogoIsUploaded(false);
+      toast.success("Logo removed");
+      return;
+    }
+    if (!orgId) return;
+    setUploadingLogo(true);
+    try {
+      await brandAssetService.deleteLogo(orgId);
+      await loadLogo(orgId);
+      toast.success("Logo removed");
+    } catch {
+      toast.error("Could not remove the logo — check the connection and try again.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   const saveConfig = async () => {
     if (demo) { toast.success("Portal configuration saved"); return; }
     if (!orgId) { toast.error("No organization found for this session."); return; }
     try {
       const patch = {
-        // `logo` (not `logo || undefined`) so clearing the field actually
-        // clears the saved logo too -- portalService.update only touches
-        // logo_url at all when this key is present and not `undefined`.
-        branding: { primaryColor: primary, logoUrl: logo } as any,
+        // The logo is no longer part of this patch -- it's the real,
+        // immediately-persisted org-level upload above, not a
+        // captive_portal_configs.logo_url string field.
+        branding: { primaryColor: primary } as any,
         login: { redirectUrl: form.redirectUrl } as any,
         loginMethods: authMethods as PortalLoginMethod[],
         seo: { metaDescription: msg } as any,
@@ -177,18 +275,34 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             <Label className="mb-2 block">Portal Logo</Label>
             <div className="flex items-center gap-3">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                {logo ? <img src={logo} alt="Portal logo" className="h-full w-full object-cover" onError={() => setLogo(null)} /> : <ImageUp className="h-5 w-5 text-muted-foreground" />}
+                {uploadingLogo ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : logo ? (
+                  <img src={logo} alt="Portal logo" className="h-full w-full object-cover" onError={() => setLogo(null)} />
+                ) : (
+                  <ImageUp className="h-5 w-5 text-muted-foreground" />
+                )}
               </div>
-              <Input
-                value={logo ?? ""}
-                onChange={(e) => handleLogoUrlChange(e.target.value)}
-                placeholder="https://example.com/logo.png"
-                className="h-9"
-              />
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                  <ImageUp className="h-3.5 w-3.5" />Upload logo
+                </span>
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploadingLogo} onChange={handleLogoUpload} />
+              </label>
+              {logo && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  disabled={uploadingLogo}
+                  className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />Remove
+                </button>
+              )}
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              A hosted image URL -- saved with the rest of this form, and shown to guests on the
-              real sign-in screen.
+              Uploaded to real object storage and shown to guests on the real sign-in screen --
+              shared across every location in this organization, same as the Background Image.
             </p>
           </div>
 

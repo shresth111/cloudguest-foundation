@@ -102,6 +102,34 @@ export function usePortalPreview(organizationId: string, locationId: string): Po
     };
   }, [orgBackgroundBlobUrl]);
 
+  // Same pattern as the background image, for the organization's
+  // *uploaded* logo specifically -- a plain-text logoUrl (logoIsUploaded
+  // false) is already directly hotlinkable and needs no blob fetch here.
+  const [orgLogoBlobUrl, setOrgLogoBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!brandingQuery.data?.logoIsUploaded) {
+      setOrgLogoBlobUrl(null);
+      return;
+    }
+    let cancelled = false;
+    brandAssetService.fetchLogoBlobUrl(organizationId).then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      setOrgLogoBlobUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, brandingQuery.data?.logoIsUploaded, brandingQuery.data?.updatedAt]);
+
+  useEffect(() => {
+    return () => {
+      if (orgLogoBlobUrl) URL.revokeObjectURL(orgLogoBlobUrl);
+    };
+  }, [orgLogoBlobUrl]);
+
   const config = configQuery.data ?? null;
   const branding = brandingQuery.data ?? null;
 
@@ -120,7 +148,11 @@ export function usePortalPreview(organizationId: string, locationId: string): Po
     // guest sees) wins when set; the organization's branding-table image
     // is the fallback for a location with no config of its own.
     backgroundImageUrl: config?.backgroundImageUrl ?? orgBackgroundBlobUrl,
-    logoUrl: config?.logoUrl ?? branding?.logoUrl ?? null,
+    // The org's uploaded logo needs the blob URL; a plain-text logoUrl
+    // (no upload) is already a directly-usable <img src>.
+    logoUrl:
+      config?.logoUrl ??
+      (branding?.logoIsUploaded ? orgLogoBlobUrl : (branding?.logoUrl ?? null)),
     primaryColor: config?.primaryColor ?? branding?.primaryColor ?? FALLBACK_PRIMARY,
     secondaryColor: config?.secondaryColor ?? branding?.secondaryColor ?? FALLBACK_SECONDARY,
     name: config?.name ?? branding?.companyName ?? "Guest WiFi",

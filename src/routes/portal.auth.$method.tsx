@@ -233,7 +233,8 @@ function PasswordForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t } = usePortalRuntime();
+  const { t, config, setSelectedMethod } = usePortalRuntime();
+  const navigate = useNavigate({ from: "/portal/auth/$method" });
   const form = useForm<z.infer<typeof passwordLoginSchema>>({
     resolver: zodResolver(passwordLoginSchema),
     defaultValues: { identifier: "", password: "" },
@@ -250,11 +251,23 @@ function PasswordForm({
     onSuccess: onLoggedIn,
     // The backend deliberately returns one generic message for "wrong
     // password", "no such guest", and "guest exists but never set a
-    // password" -- see GuestPasswordLoginFailedError's own docstring.
-    // Surfaced verbatim so a guest who never set one up is pointed back at
-    // OTP without this page itself having to guess why the login failed.
+    // password" -- see GuestPasswordLoginFailedError's own docstring, and
+    // never a distinguishable one (avoids leaking account existence) --
+    // so this page can't auto-detect "you're new, here's OTP instead" and
+    // just offers a one-tap escape hatch below instead.
     onError: (e: AppError) => toast.error(e.message),
   });
+
+  // First enabled OTP method, so a guest who's new (or never set a
+  // password) is one tap from the actual form that will get them online,
+  // not back to a full picker. Undefined (link hidden) only when this
+  // portal has password login as its *only* enabled method.
+  const otpFallback: RuntimeAuthMethod | undefined = config?.otpSmsEnabled
+    ? "otp_sms"
+    : config?.otpEmailEnabled
+      ? "otp_email"
+      : undefined;
+
   return (
     <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
       <Label className="text-white/80">{t("mobileNumber")}</Label>
@@ -284,6 +297,22 @@ function PasswordForm({
       >
         {login.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("signIn")}
       </Button>
+      {otpFallback && (
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedMethod(otpFallback);
+            navigate({
+              to: "/portal/auth/$method",
+              params: { method: otpFallback },
+              search: (prev) => prev,
+            });
+          }}
+          className="w-full text-center text-xs text-white/60 underline-offset-2 hover:text-white hover:underline"
+        >
+          New here, or forgot your password? Use a one-time code instead
+        </button>
+      )}
     </form>
   );
 }

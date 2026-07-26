@@ -28,6 +28,11 @@ interface BackendBranding {
   organization_id: string;
   company_name: string | null;
   logo_url: string | null;
+  // True when `logo_url` is the authenticated GET /branding/logo/raw
+  // proxy path (a real uploaded logo), false when it's a plain,
+  // directly-hotlinkable URL an admin typed in (or null). See
+  // OrgBranding.logoIsUploaded's own doc comment.
+  logo_is_uploaded: boolean;
   favicon_url: string | null;
   primary_color: string | null;
   secondary_color: string | null;
@@ -53,7 +58,14 @@ export interface OrgBranding {
   // response already carries them, `toOrgBranding` just wasn't mapping
   // them yet since BrandAssetPage.tsx (the only other caller) never
   // needed them.
+  //
+  // Either the authenticated `GET /branding/logo/raw` proxy path (an
+  // uploaded logo exists -- fetch with `fetchLogoBlobUrl()`, an `<img>`
+  // tag can't send the auth headers that path needs) or a plain,
+  // directly-hotlinkable URL an admin typed in instead of uploading a
+  // file. `logoIsUploaded` tells you which one this is.
   logoUrl: string | null;
+  logoIsUploaded: boolean;
   primaryColor: string | null;
   secondaryColor: string | null;
   accentColor: string | null;
@@ -68,6 +80,7 @@ function toOrgBranding(b: BackendBranding): OrgBranding {
     hasBackgroundImage: b.background_image_url != null,
     updatedAt: b.updated_at,
     logoUrl: b.logo_url,
+    logoIsUploaded: b.logo_is_uploaded,
     primaryColor: b.primary_color,
     secondaryColor: b.secondary_color,
     accentColor: b.accent_color,
@@ -150,6 +163,45 @@ export const brandAssetService = {
     const { data } = await api.delete<BackendBranding>("/branding/background-image", {
       headers,
     });
+    return toOrgBranding(data);
+  },
+
+  /** Fetches the actual logo bytes and returns a local blob URL ready to
+   * use as an `<img src>` -- only meaningful when `logoIsUploaded` is
+   * true (a plain-text `logoUrl` is already directly hotlinkable and
+   * needs no authenticated fetch). Mirrors
+   * `fetchBackgroundImageBlobUrl` exactly, including its ownership/
+   * cleanup contract and its "return null, don't throw" failure mode. */
+  async fetchLogoBlobUrl(organizationId?: string): Promise<string | null> {
+    try {
+      const headers = await orgHeaders(organizationId);
+      const { data } = await api.get<Blob>("/branding/logo/raw", {
+        headers,
+        responseType: "blob",
+      });
+      return URL.createObjectURL(data);
+    } catch {
+      return null;
+    }
+  },
+
+  /** Uploads (replacing any existing) the logo for the current
+   * organization. Mirrors `uploadBackgroundImage` exactly, including the
+   * load-bearing `Content-Type: undefined` override -- see that
+   * method's own doc comment for why. */
+  async uploadLogo(file: File, organizationId?: string): Promise<OrgBranding> {
+    const headers = await orgHeaders(organizationId);
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post<BackendBranding>("/branding/logo", formData, {
+      headers: { ...headers, "Content-Type": undefined },
+    });
+    return toOrgBranding(data);
+  },
+
+  async deleteLogo(organizationId?: string): Promise<OrgBranding> {
+    const headers = await orgHeaders(organizationId);
+    const { data } = await api.delete<BackendBranding>("/branding/logo", { headers });
     return toOrgBranding(data);
   },
 };

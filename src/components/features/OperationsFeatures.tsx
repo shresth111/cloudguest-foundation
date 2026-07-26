@@ -209,6 +209,16 @@ export function AlertsView() {
 /* ---------- Business Hours ---------- */
 export function BusinessHoursView() {
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  // Bug report: "weekly schedule > open or close mai only open likha aa
+  // raha hai" -- the switch was uncontrolled (`defaultChecked`, no
+  // onCheckedChange) and the "Open" label next to it was static text,
+  // never reflecting the switch at all, so a day toggled off still read
+  // "Open". Real per-day state now, controlled switch, and the label
+  // actually shows Open/Closed for that day's current toggle state.
+  const [open, setOpen] = useState<boolean[]>(days.map((_, i) => i < 6));
+  const toggleDay = (i: number) =>
+    setOpen((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
+
   return (
     <div className="space-y-6">
       <FeatureHeader title="Business Hours" description="Set operational timings to minimize unauthorized access outside working hours." action={<Button size="sm" onClick={() => toast.success("Business hours applied")}>Apply</Button>} />
@@ -221,13 +231,15 @@ export function BusinessHoursView() {
           {days.map((d, i) => (
             <div key={d} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3">
               <span className="w-24 text-sm font-medium">{d}</span>
-              <Switch defaultChecked={i < 6} />
-              <span className="text-xs text-muted-foreground">Open</span>
+              <Switch checked={open[i]} onCheckedChange={() => toggleDay(i)} />
+              <span className={`text-xs ${open[i] ? "text-foreground" : "text-muted-foreground"}`}>
+                {open[i] ? "Open" : "Closed"}
+              </span>
               <div className="ml-auto flex items-center gap-2">
-                <Input type="time" defaultValue="00:00" className="h-9 w-32" />
+                <Input type="time" defaultValue="00:00" className="h-9 w-32" disabled={!open[i]} />
                 <span className="text-muted-foreground">—</span>
-                <Input type="time" defaultValue="23:59" className="h-9 w-32" />
-                <Button variant="outline" size="sm">All day</Button>
+                <Input type="time" defaultValue="23:59" className="h-9 w-32" disabled={!open[i]} />
+                <Button variant="outline" size="sm" disabled={!open[i]}>All day</Button>
               </div>
             </div>
           ))}

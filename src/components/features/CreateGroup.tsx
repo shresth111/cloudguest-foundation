@@ -125,6 +125,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [toast, setToast] = useState<string | null>(null); const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
   const [step1Done, setStep1Done] = useState(false);
+  // Bug report: "existing groups mai edit icon click nhi ho raha hai" --
+  // the Pencil button had no onClick handler at all. Reuses handleClone's
+  // own form-population logic (Edit and Clone only differ in whether the
+  // saved name gets a "(copy)" suffix and whether saving creates a new
+  // group or updates this one in place -- bandwidthPolicyService.save
+  // already branches create-vs-update on `input.id`, so this only needs
+  // to track which group is being edited).
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const toggleDay = (d: string) => setLoginDays((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)));
   const setField = (k: string, v: string) => { if (k === "name") setName(v); else if (k === "bw") setBw(v); else if (k === "st") setSt(v); else if (k === "it") setIt(v); else if (k === "dp") setDp(v); else if (k === "dl") setDl(v); setErrs((p) => { const n = { ...p }; delete n[k]; return n; }); };
@@ -132,7 +140,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!name) e.name = "Required.";
-    else if (groups.some((g) => g.name.toLowerCase() === name.toLowerCase())) e.name = "A group with this name already exists.";
+    else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase())) e.name = "A group with this name already exists.";
     if (!bw) e.bw = "Required."; if (!st) e.st = "Required."; if (!it) e.it = "Required."; if (!dp) e.dp = "Required.";
     if (st && it) {
       const toMin = (v: string) => { const n = parseInt(v); return v.includes("hr") ? n * 60 : v.includes("min") ? n : Infinity; };
@@ -145,19 +153,25 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
   const resetForm = () => {
     setName(""); setBw(""); setSt(""); setIt(""); setDp(""); setDl("No Limit"); setLoginOn(false); setLoginDays(["Mon","Tue","Wed","Thu","Fri"]); setLoginFrom("09:00"); setLoginTo("18:00"); setDlOpen(false); setDlQuota("");
+    setEditingId(null);
   };
 
   const handleCreate = async () => {
     if (!validate()) return; setSaving(true);
     const dataLimit = dlOpen ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets } : null;
     const loginHours = loginOn ? { days: [...loginDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)), from: loginFrom, to: loginTo } : null;
+    const isEdit = editingId !== null;
 
     if (demo) {
       setTimeout(() => {
-        setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+        if (isEdit) {
+          setGroups((prev) => prev.map((g) => (g.id === editingId ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
+        } else {
+          setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+        }
         setSaving(false); setStep1Done(true); setPage(0);
         resetForm();
-        setToast("Group created.");
+        setToast(isEdit ? "Group updated." : "Group created.");
         setTimeout(() => setToast(null), 3500);
       }, 500);
       return;
@@ -165,14 +179,21 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
     try {
       const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
-      const saved = await bandwidthPolicyService.save({ name, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps }, orgId ?? undefined);
-      setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+      const saved = await bandwidthPolicyService.save(
+        { id: editingId ?? undefined, name, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps },
+        orgId ?? undefined,
+      );
+      if (isEdit) {
+        setGroups((prev) => prev.map((g) => (g.id === saved.id ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
+      } else {
+        setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0 }, ...prev]);
+      }
       setStep1Done(true); setPage(0);
       resetForm();
-      setToast("Group created.");
+      setToast(isEdit ? "Group updated." : "Group created.");
       setTimeout(() => setToast(null), 3500);
     } catch {
-      setToast("Could not create the group — check the connection and try again.");
+      setToast(isEdit ? "Could not update the group — check the connection and try again." : "Could not create the group — check the connection and try again.");
       setTimeout(() => setToast(null), 3500);
     } finally {
       setSaving(false);
@@ -191,9 +212,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   };
 
   const handleClone = (g: Group) => {
+    setEditingId(null);
     setName(`${g.name} (copy)`); setBw(g.bandwidth); setSt(g.sessionTimeout); setIt(g.idleTimeout); setDp(g.devicesPerUser); setDl(g.dailyLimit);
     if (g.loginHours) { setLoginOn(true); setLoginDays(g.loginHours.days); setLoginFrom(g.loginHours.from); setLoginTo(g.loginHours.to); } else { setLoginOn(false); }
     if (g.dataLimit) { setDlOpen(true); setDlQuota(String(g.dataLimit.quota)); setDlUnit(g.dataLimit.unit); setDlResets(g.dataLimit.resets); } else { setDlOpen(false); }
+    document.getElementById("create-group-form")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleEdit = (g: Group) => {
+    setEditingId(g.id);
+    setName(g.name); setBw(g.bandwidth); setSt(g.sessionTimeout); setIt(g.idleTimeout); setDp(g.devicesPerUser); setDl(g.dailyLimit);
+    if (g.loginHours) { setLoginOn(true); setLoginDays(g.loginHours.days); setLoginFrom(g.loginHours.from); setLoginTo(g.loginHours.to); } else { setLoginOn(false); }
+    if (g.dataLimit) { setDlOpen(true); setDlQuota(String(g.dataLimit.quota)); setDlUnit(g.dataLimit.unit); setDlResets(g.dataLimit.resets); } else { setDlOpen(false); }
+    setErrs({});
     document.getElementById("create-group-form")?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -230,8 +261,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       </ol>
 
       <div id="create-group-form" className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Create Group</h2>
-        <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Groups set internet policies for specific users or teams. A group's settings override the location policy for its members.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{editingId ? "Edit Group" : "Create Group"}</h2>
+            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Groups set internet policies for specific users or teams. A group's settings override the location policy for its members.</p>
+          </div>
+          {editingId && (
+            <button type="button" onClick={resetForm} className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-slate-400 dark:hover:bg-slate-700">
+              Cancel edit
+            </button>
+          )}
+        </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div>
@@ -287,7 +327,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <hr className="my-6 border-slate-100 dark:border-slate-600" />
         <div className="flex justify-center">
           <button onClick={handleCreate} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{saving ? "Creating…" : "Create group"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {saving ? (editingId ? "Saving…" : "Creating…") : editingId ? "Save changes" : "Create group"}
           </button>
         </div>
       </div>
@@ -316,7 +357,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 <td className="py-2.5 pr-3 text-xs">{g.dataLimit ? `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}` : <span className="text-slate-300">—</span>}</td>
                 <td className="py-2.5 pr-3">{g.members}</td>
                 <td className="py-2.5 text-right">
-                  <button aria-label={`Edit ${g.name}`} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Pencil className="h-4 w-4" /></button>
+                  <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Pencil className="h-4 w-4" /></button>
                   <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Copy className="h-4 w-4" /></button>
                   <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirmingId === g.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500"}`}>
                     {confirmingId === g.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}

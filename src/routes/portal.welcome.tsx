@@ -9,8 +9,29 @@ export const Route = createFileRoute("/portal/welcome")({
 });
 
 function WelcomePage() {
-  const { config, t } = usePortalRuntime();
+  const { config, t, setSelectedMethod } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
+
+  // Industry-standard pattern (Cisco Meraki/Aruba ClearPass/Purple WiFi,
+  // and most modern consumer sign-in flows): a returning guest goes
+  // straight to their identifier + password, no method-picker menu in the
+  // way -- the picker (src/routes/portal.auth.index.tsx) is still there
+  // and reachable via that form's own "Back" link, for a guest who wants
+  // OTP instead (new here, or never set a password). Only relevant when
+  // password login is actually enabled for this portal; every other case
+  // still lands on the picker exactly as before.
+  const handleConnect = () => {
+    if (config?.usernamePasswordEnabled) {
+      setSelectedMethod("username_password");
+      navigate({
+        to: "/portal/auth/$method",
+        params: { method: "username_password" },
+        search: (prev) => prev,
+      });
+      return;
+    }
+    navigate({ to: "/portal/auth", search: (prev) => prev });
+  };
 
   return (
     <PortalShell>
