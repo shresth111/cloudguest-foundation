@@ -52,7 +52,7 @@ export interface OrgBranding {
    * actually render it -- this flag alone doesn't hand back the bytes. */
   hasBackgroundImage: boolean;
   updatedAt: string | null;
-  // Added for the Portal Preview page (src/routes/_authenticated/preview.portal.$locationId.tsx),
+  // Added for the Portal Preview page (src/routes/preview.portal.$locationId.tsx),
   // which falls back to these organization-level branding fields when a
   // location has no captive_portal_configs row of its own -- the backend
   // response already carries them, `toOrgBranding` just wasn't mapping

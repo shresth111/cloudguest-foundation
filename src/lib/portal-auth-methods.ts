@@ -5,7 +5,7 @@ import type { RuntimeAuthMethod, RuntimePortalConfig } from "@/types/portal-runt
  * actually see" -- shared by the real guest flow
  * (src/routes/portal.welcome.tsx, portal.auth.index.tsx,
  * portal.auth.$method.tsx) and its admin preview
- * (src/routes/_authenticated/preview.portal.$locationId.tsx), so the two
+ * (src/routes/preview.portal.$locationId.tsx), so the two
  * can never drift into showing a different method set for the same
  * config.
  *
@@ -33,7 +33,7 @@ export const AUTH_METHOD_LABEL_KEY: Record<RuntimeAuthMethod, string> = {
 /** What a landed-on method's own form offers as a fallback link to each
  * *other* enabled method -- shared verbatim by the real guest flow
  * (src/routes/portal.auth.$method.tsx) and its admin preview
- * (src/routes/_authenticated/preview.portal.$locationId.tsx) so the two
+ * (src/routes/preview.portal.$locationId.tsx) so the two
  * never show different fallback copy for the same config. */
 export const AUTH_METHOD_FALLBACK_COPY: Record<RuntimeAuthMethod, string> = {
   otp_sms: "Use a mobile number instead",

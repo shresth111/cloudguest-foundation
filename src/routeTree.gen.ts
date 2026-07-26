@@ -91,6 +91,7 @@ import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAuditTimelineIndexRouteImport } from './routes/_authenticated/audit-timeline.index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
+import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
 import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
@@ -146,7 +147,6 @@ import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
 import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './routes/_authenticated/locations.$locationId.index'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
-import { Route as AuthenticatedPreviewPortalLocationIdRouteImport } from './routes/_authenticated/preview.portal.$locationId'
 import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
@@ -589,6 +589,11 @@ const AuthenticatedAnalyticsIndexRoute =
     path: '/analytics/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const PreviewPortalLocationIdRoute = PreviewPortalLocationIdRouteImport.update({
+  id: '/preview/portal/$locationId',
+  path: '/preview/portal/$locationId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   id: '/$method',
   path: '/$method',
@@ -913,12 +918,6 @@ const AuthenticatedWorkspaceLocationsLocationIdRoute =
     path: '/$locationId',
     getParentRoute: () => AuthenticatedWorkspaceLocationsRoute,
   } as any)
-const AuthenticatedPreviewPortalLocationIdRoute =
-  AuthenticatedPreviewPortalLocationIdRouteImport.update({
-    id: '/preview/portal/$locationId',
-    path: '/preview/portal/$locationId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedLocationsLocationIdNasNasIdRoute =
   AuthenticatedLocationsLocationIdNasNasIdRouteImport.update({
     id: '/nas/$nasId',
@@ -1026,6 +1025,7 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
+  '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1061,7 +1061,6 @@ export interface FileRoutesByFullPath {
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
-  '/preview/portal/$locationId': typeof AuthenticatedPreviewPortalLocationIdRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1160,6 +1159,7 @@ export interface FileRoutesByTo {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
+  '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/audit-timeline': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1195,7 +1195,6 @@ export interface FileRoutesByTo {
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
-  '/preview/portal/$locationId': typeof AuthenticatedPreviewPortalLocationIdRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1302,6 +1301,7 @@ export interface FileRoutesById {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
+  '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1337,7 +1337,6 @@ export interface FileRoutesById {
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
-  '/_authenticated/preview/portal/$locationId': typeof AuthenticatedPreviewPortalLocationIdRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1444,6 +1443,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
+    | '/preview/portal/$locationId'
     | '/analytics/'
     | '/api-keys/'
     | '/audit-timeline/'
@@ -1479,7 +1479,6 @@ export interface FileRouteTypes {
     | '/vouchers/'
     | '/workspace/'
     | '/portal/auth/'
-    | '/preview/portal/$locationId'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
@@ -1578,6 +1577,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
+    | '/preview/portal/$locationId'
     | '/analytics'
     | '/api-keys'
     | '/audit-timeline'
@@ -1613,7 +1613,6 @@ export interface FileRouteTypes {
     | '/vouchers'
     | '/workspace'
     | '/portal/auth'
-    | '/preview/portal/$locationId'
     | '/workspace/locations/$locationId'
     | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
@@ -1719,6 +1718,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
+    | '/preview/portal/$locationId'
     | '/_authenticated/analytics/'
     | '/_authenticated/api-keys/'
     | '/_authenticated/audit-timeline/'
@@ -1754,7 +1754,6 @@ export interface FileRouteTypes {
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/portal/auth/'
-    | '/_authenticated/preview/portal/$locationId'
     | '/_authenticated/workspace/locations/$locationId'
     | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
@@ -1776,6 +1775,7 @@ export interface RootRouteChildren {
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
   CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
+  PreviewPortalLocationIdRoute: typeof PreviewPortalLocationIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2354,6 +2354,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/preview/portal/$locationId': {
+      id: '/preview/portal/$locationId'
+      path: '/preview/portal/$locationId'
+      fullPath: '/preview/portal/$locationId'
+      preLoaderRoute: typeof PreviewPortalLocationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/auth/$method': {
       id: '/portal/auth/$method'
       path: '/$method'
@@ -2739,13 +2746,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceLocationsLocationIdRouteImport
       parentRoute: typeof AuthenticatedWorkspaceLocationsRoute
     }
-    '/_authenticated/preview/portal/$locationId': {
-      id: '/_authenticated/preview/portal/$locationId'
-      path: '/preview/portal/$locationId'
-      fullPath: '/preview/portal/$locationId'
-      preLoaderRoute: typeof AuthenticatedPreviewPortalLocationIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/locations/$locationId/nas/$nasId': {
       id: '/_authenticated/locations/$locationId/nas/$nasId'
       path: '/nas/$nasId'
@@ -2910,7 +2910,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSubscriptionIndexRoute: typeof AuthenticatedSubscriptionIndexRoute
   AuthenticatedTopologyIndexRoute: typeof AuthenticatedTopologyIndexRoute
   AuthenticatedVouchersIndexRoute: typeof AuthenticatedVouchersIndexRoute
-  AuthenticatedPreviewPortalLocationIdRoute: typeof AuthenticatedPreviewPortalLocationIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2999,8 +2998,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSubscriptionIndexRoute: AuthenticatedSubscriptionIndexRoute,
   AuthenticatedTopologyIndexRoute: AuthenticatedTopologyIndexRoute,
   AuthenticatedVouchersIndexRoute: AuthenticatedVouchersIndexRoute,
-  AuthenticatedPreviewPortalLocationIdRoute:
-    AuthenticatedPreviewPortalLocationIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -3117,6 +3114,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
   CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
+  PreviewPortalLocationIdRoute: PreviewPortalLocationIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

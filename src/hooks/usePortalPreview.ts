@@ -6,7 +6,7 @@ import type { AppError } from "@/services/api";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 /**
- * Backs the Portal Preview page (src/routes/_authenticated/preview.portal.$locationId.tsx).
+ * Backs the Portal Preview page (src/routes/preview.portal.$locationId.tsx).
  *
  * Two real, independent backend sources exist for what a location's guest
  * WiFi login screen looks like, and neither alone is the full picture:
