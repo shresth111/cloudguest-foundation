@@ -121,7 +121,15 @@ const NAV_GROUPS: NavGroupDef[] = [
     items: [
       { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
       { id: "audit", label: "Audit Log", icon: ScrollText, roles: ["owner", "agent"] },
-      { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner", "agent"] },
+      // Owner-only: unlike every other item here, this shows a real login
+      // audit trail (who signed into the dashboard, when, from where)
+      // across the whole organization -- not something an Agent/staff
+      // account should see. The backend independently enforces this too
+      // (app.domains.admin_logs.router's RequireRole("organization-owner"))
+      // so this is defense in depth, not the only guard -- see
+      // OperationsFeatures.tsx's own AdminLogsView for the second,
+      // render-time check.
+      { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner"] },
     ],
   },
 ];
@@ -226,7 +234,7 @@ function FeaturePage() {
             {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
             {feature === "notification" && <NotificationView />}
             {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
-            {feature === "admin-logs" && <AdminLogsView />}
+            {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
             {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
             {feature === "port-forwarding" && <PortForwardingView />}
             {feature === "dhcp" && <DhcpView />}

@@ -54,6 +54,10 @@ export interface CustomerFeatureData {
   audit?: { action: string; user: string; time: string; status: string }[];
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
   macAuth?: { id: string; mac: string; type: string; expiresAt: string | null; comment: string | null; enabled: boolean }[];
+  adminLogs?: {
+    dashboardLogins: { id: string; email: string; ipAddress: string; success: boolean; failureReason: string | null; time: string }[];
+    routerLogs: { id: string; locationName: string; routerName: string; eventType: string; message: string | null; isError: boolean; time: string }[];
+  };
 }
 
 /* ── Demo Data ─────────────────────────────────────────────── */
@@ -383,6 +387,41 @@ export const customerService = {
           );
           return { macAuth: data.items.map((e) => ({ id: e.id, mac: e.mac_address, type: e.authorization_type, expiresAt: e.expires_at, comment: e.comment, enabled: e.is_enabled })) };
         }
+        case "admin-logs": {
+          // Owner-only on the backend (app.domains.admin_logs.router --
+          // RequirePermission("audit_logs.read") + RequireRole
+          // ("organization-owner", ...) + RequireFeature) -- an Agent
+          // session 403s here even if it somehow reaches this route (the
+          // sidebar/route guard already keep it from getting this far in
+          // the first place, see customerNav.ts/authGuards.ts). Each call
+          // is caught independently via allSettled rather than one
+          // try/catch, so one endpoint 403ing/erroring doesn't blank out
+          // the other section -- and, deliberately, a failure here
+          // resolves to an *empty* section, never demo/fabricated log
+          // rows: this is a security audit trail, and a fake "who logged
+          // in" row would be actively misleading, unlike the numeric
+          // placeholders every other feature's own demo fallback shows.
+          const orgId = await resolveOrgId();
+          const orgHeaders = { headers: { "X-Organization-Id": orgId } };
+          const [loginsR, routerR] = await Promise.allSettled([
+            api.get<{ items: { id: string; email: string; ip_address: string; success: boolean; failure_reason: string | null; created_at: string }[] }>(
+              "/admin-logs/dashboard-logins",
+              { params: { page_size: 50 }, ...orgHeaders },
+            ),
+            api.get<{ items: { id: string; location_name: string; router_name: string; event_type: string; message: string | null; is_error: boolean; occurred_at: string }[] }>(
+              "/admin-logs/router-events",
+              { params: { page_size: 50 }, ...orgHeaders },
+            ),
+          ]);
+          const logins = loginsR.status === "fulfilled" ? loginsR.value.data?.items ?? [] : [];
+          const routerEvents = routerR.status === "fulfilled" ? routerR.value.data?.items ?? [] : [];
+          return {
+            adminLogs: {
+              dashboardLogins: logins.map((l) => ({ id: l.id, email: l.email, ipAddress: l.ip_address, success: l.success, failureReason: l.failure_reason, time: timeAgo(l.created_at) })),
+              routerLogs: routerEvents.map((e) => ({ id: e.id, locationName: e.location_name, routerName: e.router_name, eventType: e.event_type, message: e.message, isError: e.is_error, time: timeAgo(e.occurred_at) })),
+            },
+          };
+        }
         default: return {};
       }
     } catch { return getDemoFeatureData(feature); }
@@ -404,6 +443,20 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
       { id: "2", mac: "9E:CB:12:2C:02:52", type: "temporary", expiresAt: new Date(Date.now() + 86400000 * 3).toISOString(), comment: "Contractor laptop", enabled: true },
       { id: "3", mac: "C2:7C:20:00:F2:24", type: "permanent", expiresAt: null, comment: null, enabled: false },
     ] };
+    case "admin-logs": return {
+      adminLogs: {
+        dashboardLogins: [
+          { id: "1", email: "owner@acme.demo", ipAddress: "49.36.128.4", success: true, failureReason: null, time: "3 min ago" },
+          { id: "2", email: "owner@acme.demo", ipAddress: "49.36.128.4", success: true, failureReason: null, time: "1 hour ago" },
+          { id: "3", email: "owner@acme.demo", ipAddress: "103.22.9.71", success: false, failureReason: "invalid_password", time: "Yesterday" },
+        ],
+        routerLogs: [
+          { id: "1", locationName: "Mumbai HQ", routerName: "mikrotik-mumbai-1", eventType: "config_applied", message: "Hotspot policy pushed", isError: false, time: "12 min ago" },
+          { id: "2", locationName: "Delhi Office", routerName: "mikrotik-delhi-1", eventType: "config_apply_failed", message: "Device unreachable during push", isError: true, time: "2 hours ago" },
+          { id: "3", locationName: "Bangalore DC", routerName: "mikrotik-blr-1", eventType: "enrollment_approved", message: null, isError: false, time: "Yesterday" },
+        ],
+      },
+    };
     default: return {};
   }
 }
