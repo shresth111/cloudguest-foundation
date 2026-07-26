@@ -41,6 +41,7 @@ import { api } from "@/services/api";
 import type { AppError } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
+import { normalizeMac } from "@/components/customer/BasicFeatureViews";
 
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -941,23 +942,43 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ mac: "", type: "permanent", comment: "" });
-  const macValid = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(form.mac.trim());
+  const [macError, setMacError] = useState<string | null>(null);
 
   const addEntry = async () => {
-    if (!macValid) { toast.error("Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF"); return; }
-    const payload = { macAddress: form.mac.trim().toUpperCase(), authorizationType: form.type as "permanent" | "temporary", comment: form.comment || null, isEnabled: true };
+    // Real-world MACs get pasted in every notation (dashes, no separators,
+    // mixed case -- e.g. the dash format a router's own MAC is shown in
+    // elsewhere in this app). A strict colon-only regex silently rejected
+    // all of those: the dialog just sat there with a transient toast as
+    // the only feedback, reading as "the Add button doesn't work" (the
+    // same bug already fixed in NetworkHardwareView's Add Device dialog --
+    // see BasicFeatureViews.normalizeMac). Normalize first, and surface a
+    // real inline error instead of only a fading toast.
+    const normalizedMac = normalizeMac(form.mac);
+    if (!normalizedMac) {
+      const msg = "Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF";
+      setMacError(msg);
+      toast.error(msg);
+      return;
+    }
+    const payload = { macAddress: normalizedMac, authorizationType: form.type as "permanent" | "temporary", comment: form.comment || null, isEnabled: true };
     try {
       if (!isDemo() && locationId) {
         const created = await macAuthorizationService.create({ ...payload, locationId });
         setEntries((e) => [{ id: created.id, mac: created.macAddress, type: created.authorizationType, expiresAt: created.expiresAt, comment: created.comment, enabled: created.isEnabled }, ...e]);
       } else {
-        setEntries((e) => [{ id: String(Date.now()), mac: payload.macAddress, type: payload.type, expiresAt: null, comment: payload.comment, enabled: true }, ...e]);
+        setEntries((e) => [{ id: String(Date.now()), mac: payload.macAddress, type: payload.authorizationType, expiresAt: null, comment: payload.comment, enabled: true }, ...e]);
       }
       toast.success("MAC address authorized");
       setForm({ mac: "", type: "permanent", comment: "" });
+      setMacError(null);
       setOpen(false);
-    } catch {
-      toast.error("Could not save — check the connection and try again.");
+    } catch (err) {
+      // Surface the backend's real message (e.g. its duplicate-MAC 409)
+      // instead of a generic "check the connection" -- a genuine rejection
+      // needs to read as a rejection, not a dead click.
+      const msg = (err as AppError).message || "Could not save — check the connection and try again.";
+      setMacError(msg);
+      toast.error(msg);
     }
   };
 
@@ -980,7 +1001,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
 
   return (
     <div className="space-y-6">
-      <FeatureHeader title="MAC Authorization" description="Bypass hotspot authentication on a few devices." action={<Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add MAC</Button>} />
+      <FeatureHeader title="MAC Authorization" description="Bypass hotspot authentication on a few devices." action={<Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add MAC</Button>} />
       <Card>
         <CardHeader><CardTitle className="text-base">Authorized Devices</CardTitle><CardDescription>Devices allowed onto the network without going through the captive portal.</CardDescription></CardHeader>
         <CardContent className="p-0">
@@ -1006,11 +1027,22 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setMacError(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Add MAC Address</DialogTitle><DialogDescription>Authorize a device to skip the captive portal.</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>MAC Address</Label><Input placeholder="AA:BB:CC:DD:EE:FF" value={form.mac} onChange={(e) => setForm({ ...form, mac: e.target.value })} className="font-mono" /></div>
+            <div className="space-y-2">
+              <Label>MAC Address</Label>
+              <Input
+                placeholder="AA:BB:CC:DD:EE:FF"
+                value={form.mac}
+                onChange={(e) => { setForm({ ...form, mac: e.target.value }); if (macError) setMacError(null); }}
+                className={cn("font-mono", macError && "border-destructive focus-visible:ring-destructive/20")}
+                aria-invalid={!!macError}
+              />
+              <p className="text-[11px] text-muted-foreground">Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.</p>
+              {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
+            </div>
             <div className="space-y-2">
               <Label>Type</Label>
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="permanent">Permanent</SelectItem><SelectItem value="temporary">Temporary</SelectItem></SelectContent></Select>
