@@ -157,7 +157,7 @@ function CustomerDashboardPage() {
           {isLoading ? (
             <div className="space-y-6 animate-pulse">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-muted" />)}</div>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-28 rounded-2xl bg-muted" />)}</div>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-28 rounded-2xl bg-muted" />)}</div>
               <div className="grid gap-4 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-72 rounded-2xl bg-muted" />)}</div>
             </div>
           ) : d ? (
@@ -178,11 +178,14 @@ function CustomerDashboardPage() {
               </div>
 
               {/* KPI Grid */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+              {/* Router count already shown in the Health Row above (as
+                  d.health.routersOnline, the same "online/total" figure) --
+                  don't repeat it here, that produced a literal duplicate
+                  "Routers" tile on the dashboard. */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
                 {[
                   { l: "Online Users", v: d.kpis.onlineUsers, c: TrendingUp },
                   { l: "Active Sessions", v: d.kpis.activeSessions, c: Activity },
-                  { l: "Routers", v: `${d.kpis.routersOnline}/${d.kpis.totalRouters}`, c: Router },
                   { l: "Today's Guests", v: d.kpis.todayGuests, c: Users },
                   { l: "Avg Session", v: `${d.kpis.avgSession}m`, c: Clock },
                   { l: "SLA Uptime", v: `${d.kpis.slaUptime}%`, c: CheckCircle },
