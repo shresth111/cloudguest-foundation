@@ -10,7 +10,7 @@ import type { OrganizationMembership } from "@/types/auth";
  * full normalization + org-wide fan-out helpers. */
 interface RawRouterStatus { status: string; }
 interface RawGuestSessionStatus { status: string; bytes_downloaded?: number; bytes_uploaded?: number; }
-interface RawLocationSummary { id: string; name: string; city: string; }
+interface RawLocationSummary { id: string; name: string; city: string; property_type: string | null; }
 interface RawGuestSession {
   id: string;
   status: string;
@@ -32,6 +32,9 @@ export interface CustomerLocationSummary {
   organizationId: string; organizationName: string;
   routersTotal: number; routersOnline: number;
   sessionsActive: number; sessionsTotal: number;
+  // Backend `Location.property_type` (see business-type-icons.ts) -- null
+  // for locations created before this field existed.
+  propertyType: string | null;
 }
 
 export interface CustomerDashboardData {
@@ -63,14 +66,14 @@ export interface CustomerFeatureData {
 /* ── Demo Data ─────────────────────────────────────────────── */
 
 const DEMO_LOCATIONS: CustomerLocationSummary[] = [
-  { id: "loc-1", name: "Mumbai HQ", city: "Mumbai", status: "online", onlineUsers: 142, routerHealth: 98, bandwidth: "450 Mbps", isp: "Tata Communications", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 4, routersOnline: 4, sessionsActive: 142, sessionsTotal: 892 },
-  { id: "loc-2", name: "Delhi Office", city: "Delhi", status: "online", onlineUsers: 98, routerHealth: 95, bandwidth: "300 Mbps", isp: "Airtel", lastSync: "2 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 3, routersOnline: 3, sessionsActive: 98, sessionsTotal: 456 },
-  { id: "loc-3", name: "Bangalore DC", city: "Bangalore", status: "degraded", onlineUsers: 76, routerHealth: 72, bandwidth: "180 Mbps", isp: "Jio", lastSync: "5 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 1, sessionsActive: 76, sessionsTotal: 312 },
-  { id: "loc-4", name: "Chennai Office", city: "Chennai", status: "online", onlineUsers: 54, routerHealth: 99, bandwidth: "250 Mbps", isp: "ACT Fibernet", lastSync: "1 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 54, sessionsTotal: 234 },
-  { id: "loc-5", name: "Hyderabad DC", city: "Hyderabad", status: "offline", onlineUsers: 0, routerHealth: 0, bandwidth: "0 Mbps", isp: "Airtel", lastSync: "15 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 0, sessionsActive: 0, sessionsTotal: 0 },
-  { id: "loc-6", name: "Kolkata Office", city: "Kolkata", status: "online", onlineUsers: 32, routerHealth: 91, bandwidth: "200 Mbps", isp: "Tata Communications", lastSync: "3 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 32, sessionsTotal: 156 },
-  { id: "loc-7", name: "Pune Office", city: "Pune", status: "online", onlineUsers: 67, routerHealth: 97, bandwidth: "350 Mbps", isp: "Jio", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 67, sessionsTotal: 345 },
-  { id: "loc-8", name: "Ahmedabad DC", city: "Ahmedabad", status: "online", onlineUsers: 89, routerHealth: 93, bandwidth: "280 Mbps", isp: "BSNL", lastSync: "4 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 89, sessionsTotal: 423 },
+  { id: "loc-1", name: "Mumbai HQ", city: "Mumbai", status: "online", onlineUsers: 142, routerHealth: 98, bandwidth: "450 Mbps", isp: "Tata Communications", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 4, routersOnline: 4, sessionsActive: 142, sessionsTotal: 892, propertyType: "office" },
+  { id: "loc-2", name: "Delhi Office", city: "Delhi", status: "online", onlineUsers: 98, routerHealth: 95, bandwidth: "300 Mbps", isp: "Airtel", lastSync: "2 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 3, routersOnline: 3, sessionsActive: 98, sessionsTotal: 456, propertyType: "office" },
+  { id: "loc-3", name: "Bangalore DC", city: "Bangalore", status: "degraded", onlineUsers: 76, routerHealth: 72, bandwidth: "180 Mbps", isp: "Jio", lastSync: "5 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 1, sessionsActive: 76, sessionsTotal: 312, propertyType: "coworking_space" },
+  { id: "loc-4", name: "Chennai Office", city: "Chennai", status: "online", onlineUsers: 54, routerHealth: 99, bandwidth: "250 Mbps", isp: "ACT Fibernet", lastSync: "1 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 54, sessionsTotal: 234, propertyType: "cafe" },
+  { id: "loc-5", name: "Hyderabad DC", city: "Hyderabad", status: "offline", onlineUsers: 0, routerHealth: 0, bandwidth: "0 Mbps", isp: "Airtel", lastSync: "15 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 0, sessionsActive: 0, sessionsTotal: 0, propertyType: "hotel" },
+  { id: "loc-6", name: "Kolkata Office", city: "Kolkata", status: "online", onlineUsers: 32, routerHealth: 91, bandwidth: "200 Mbps", isp: "Tata Communications", lastSync: "3 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 32, sessionsTotal: 156, propertyType: null },
+  { id: "loc-7", name: "Pune Office", city: "Pune", status: "online", onlineUsers: 67, routerHealth: 97, bandwidth: "350 Mbps", isp: "Jio", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 67, sessionsTotal: 345, propertyType: "restaurant" },
+  { id: "loc-8", name: "Ahmedabad DC", city: "Ahmedabad", status: "online", onlineUsers: 89, routerHealth: 93, bandwidth: "280 Mbps", isp: "BSNL", lastSync: "4 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 89, sessionsTotal: 423, propertyType: "hospital" },
 ];
 
 const DEMO_NAV: NavItem[] = [
@@ -235,6 +238,7 @@ export const customerService = {
             isp: "Active", lastSync: "Just now",
             organizationId: orgId, organizationName: orgName,
             routersTotal: routers.length, routersOnline: onR, sessionsActive: active, sessionsTotal: sessions.length,
+            propertyType: loc.property_type,
           };
           return summary;
         }),

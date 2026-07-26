@@ -12,6 +12,7 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
 import { useDeviceStore, FLOORS, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
 
@@ -116,7 +117,9 @@ function CustomerHomePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-muted-foreground"><MapPin className="mb-4 h-12 w-12 opacity-30" /><p>No locations found</p></div>
-            ) : filtered.map((loc, i) => (
+            ) : filtered.map((loc, i) => {
+              const LocationIcon = businessTypeIcon(loc.propertyType);
+              return (
               <motion.div key={loc.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
                 role="button" tabIndex={0}
                 onClick={() => handleSelect(loc)}
@@ -127,7 +130,7 @@ function CustomerHomePage() {
                   <Star className={cn("h-4 w-4", favorites.includes(loc.id) && "fill-amber-500 text-amber-500")} />
                 </button>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5"><MapPin className="h-5 w-5 text-primary" /></div>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5"><LocationIcon className="h-5 w-5 text-primary" /></div>
                   <div className="min-w-0 flex-1"><p className="truncate font-semibold">{loc.name}</p><p className="text-xs text-muted-foreground">{loc.city} · {loc.organizationName}</p></div>
                 </div>
                 <div className="mt-4 space-y-2 border-t pt-3">
@@ -137,7 +140,8 @@ function CustomerHomePage() {
                 </div>
                 <div className="mt-3 flex items-center justify-end text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">Open dashboard <ArrowRight className="ml-1 h-3 w-3" /></div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
 
