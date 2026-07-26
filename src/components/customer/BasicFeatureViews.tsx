@@ -157,6 +157,19 @@ const DEVICE_TYPE_ICON: Record<DeviceType, typeof Wifi> = {
 
 const emptyHardwareForm = { name: "", mac: "", type: "Access Point" as DeviceType, floor: FLOORS[FLOORS.length - 1] };
 
+const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+/** Normalizes any commonly-pasted MAC format (dashes, dots, no separators,
+ * mixed case, stray whitespace -- e.g. what a router's own MAC is shown as
+ * elsewhere in this app, "CB-D1-76-EC-90-3E") into the canonical
+ * "AA:BB:CC:DD:EE:FF" form. Returns null if it can't be salvaged into 12
+ * hex digits. */
+export function normalizeMac(raw: string): string | null {
+  const hex = raw.trim().replace(/[^0-9A-Fa-f]/g, "");
+  if (hex.length !== 12) return null;
+  return (hex.match(/.{2}/g) ?? []).join(":").toUpperCase();
+}
+
 /** Manual setup for network hardware (Access Points, Printers, etc), scoped
  * to whichever location's dashboard this is rendered inside -- a device
  * added here only ever shows up in that location's monitoring, never mixed
@@ -168,15 +181,26 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const devices = allDevices.filter((d) => d.locationId === locationId);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyHardwareForm);
-
-  const macValid = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(form.mac.trim());
+  const [macError, setMacError] = useState<string | null>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!locationId) { toast.error("Select a location first."); return; }
-    if (!macValid) { toast.error("Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF"); return; }
-    if (allDevices.some((d) => d.mac.toUpperCase() === form.mac.trim().toUpperCase())) { toast.error("A device with this MAC is already set up."); return; }
-    addDevice(locationId, form.name.trim(), form.mac.trim().toUpperCase(), form.type, form.floor);
+    const normalizedMac = normalizeMac(form.mac);
+    if (!normalizedMac || !STRICT_MAC_RE.test(normalizedMac)) {
+      const msg = "Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF";
+      setMacError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (allDevices.some((d) => d.mac.toUpperCase() === normalizedMac)) {
+      const msg = "A device with this MAC is already set up.";
+      setMacError(msg);
+      toast.error(msg);
+      return;
+    }
+    setMacError(null);
+    addDevice(locationId, form.name.trim(), normalizedMac, form.type, form.floor);
     toast.success(`${form.type} added on ${form.floor}`);
     setForm(emptyHardwareForm);
     setOpen(false);
@@ -189,7 +213,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
           <CardTitle className="text-base">Network Hardware</CardTitle>
           <CardDescription>Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them.</CardDescription>
         </div>
-        <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add Device</Button>
+        <Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add Device</Button>
       </CardHeader>
       <CardContent className="p-0">
         <Table>
@@ -222,7 +246,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         </Table>
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setMacError(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Network Hardware</DialogTitle>
@@ -232,7 +256,16 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
             <div className="space-y-2"><Label htmlFor="hw-name">Device name</Label><Input id="hw-name" placeholder="e.g. AP Lobby North" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2">
               <Label htmlFor="hw-mac">MAC address</Label>
-              <Input id="hw-mac" placeholder="AA:BB:CC:DD:EE:FF" value={form.mac} onChange={(e) => setForm({ ...form, mac: e.target.value })} className="font-mono" />
+              <Input
+                id="hw-mac"
+                placeholder="AA:BB:CC:DD:EE:FF"
+                value={form.mac}
+                onChange={(e) => { setForm({ ...form, mac: e.target.value }); if (macError) setMacError(null); }}
+                className={cn("font-mono", macError && "border-destructive focus-visible:ring-destructive/20")}
+                aria-invalid={!!macError}
+              />
+              <p className="text-[11px] text-muted-foreground">Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.</p>
+              {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
