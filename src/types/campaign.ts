@@ -63,3 +63,31 @@ export interface CampaignKpis {
   scheduled: number;
   draft: number;
 }
+
+export type QuestionAnswerType = "single_choice" | "multi_choice" | "rating_5" | "free_text";
+
+export interface CampaignQuestion {
+  id: string;
+  campaignId: string;
+  orderIndex: number;
+  questionText: string;
+  answerType: QuestionAnswerType;
+  options: string[];
+  isRequired: boolean;
+}
+
+export interface CreateCampaignQuestionPayload {
+  orderIndex: number;
+  questionText: string;
+  answerType: QuestionAnswerType;
+  options?: string[];
+  isRequired?: boolean;
+}
+
+export interface UpdateCampaignQuestionPayload {
+  orderIndex?: number;
+  questionText?: string;
+  answerType?: QuestionAnswerType;
+  options?: string[];
+  isRequired?: boolean;
+}

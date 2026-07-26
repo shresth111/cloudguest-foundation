@@ -4,8 +4,11 @@ import type {
   CampaignKpis,
   CampaignListQuery,
   CampaignListResult,
+  CampaignQuestion,
   CreateCampaignPayload,
+  CreateCampaignQuestionPayload,
   UpdateCampaignPayload,
+  UpdateCampaignQuestionPayload,
 } from "@/types/campaign";
 
 interface BackendCampaign {
@@ -32,6 +35,28 @@ interface BackendCampaignListResponse {
   total_pages: number;
   has_next: boolean;
   has_previous: boolean;
+}
+
+interface BackendCampaignQuestion {
+  id: string;
+  campaign_id: string;
+  order_index: number;
+  question_text: string;
+  answer_type: string;
+  options: string[];
+  is_required: boolean;
+}
+
+function toQuestion(q: BackendCampaignQuestion): CampaignQuestion {
+  return {
+    id: q.id,
+    campaignId: q.campaign_id,
+    orderIndex: q.order_index,
+    questionText: q.question_text,
+    answerType: q.answer_type as CampaignQuestion["answerType"],
+    options: q.options,
+    isRequired: q.is_required,
+  };
 }
 
 function toCampaign(c: BackendCampaign): Campaign {
@@ -195,5 +220,57 @@ export const campaignService = {
       headers: { "X-Organization-Id": orgId },
     });
     return toCampaign(data);
+  },
+
+  // Survey questions -- SURVEY-type campaigns only (backend rejects these
+  // for BANNER/REDIRECT campaigns). This sub-resource existed on the
+  // backend (app/domains/campaigns/router.py) since the Campaigns domain
+  // was first built, but no frontend caller ever wired it up -- the
+  // "Survey & Feedback" card's question list was always static mock
+  // content, and a created survey campaign had no click path at all to
+  // configure its real questions.
+  async listQuestions(campaignId: string): Promise<CampaignQuestion[]> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<BackendCampaignQuestion[]>(`/campaigns/${campaignId}/questions`, {
+      headers: { "X-Organization-Id": orgId },
+    });
+    return data.map(toQuestion);
+  },
+
+  async addQuestion(campaignId: string, payload: CreateCampaignQuestionPayload): Promise<CampaignQuestion> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendCampaignQuestion>(
+      `/campaigns/${campaignId}/questions`,
+      {
+        order_index: payload.orderIndex,
+        question_text: payload.questionText,
+        answer_type: payload.answerType,
+        options: payload.options ?? [],
+        is_required: payload.isRequired ?? true,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return toQuestion(data);
+  },
+
+  async updateQuestion(questionId: string, payload: UpdateCampaignQuestionPayload): Promise<CampaignQuestion> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.put<BackendCampaignQuestion>(
+      `/campaigns/questions/${questionId}`,
+      {
+        order_index: payload.orderIndex,
+        question_text: payload.questionText,
+        answer_type: payload.answerType,
+        options: payload.options,
+        is_required: payload.isRequired,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return toQuestion(data);
+  },
+
+  async deleteQuestion(questionId: string): Promise<void> {
+    const orgId = await resolveOrganizationId();
+    await api.delete(`/campaigns/questions/${questionId}`, { headers: { "X-Organization-Id": orgId } });
   },
 };

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X } from "lucide-react";
+import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { campaignService } from "@/services/campaign.service";
-import type { CampaignType } from "@/types/campaign";
+import type { CampaignQuestion, CampaignType, QuestionAnswerType } from "@/types/campaign";
 
 interface Campaign { id: string; name: string; type: string; status: string; businessUnit: string; startDate: string; endDate: string; impressions: number; conversions: number; }
 const TYPES = ["SURVEY", "BANNER", "REDIRECT"];
@@ -34,6 +35,21 @@ const DEMO_SEED: Campaign[] = [
 const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", endDate: "" };
 const emptyFilters = { businessUnit: "", type: "", startDate: "" };
 
+const ANSWER_TYPES: { value: QuestionAnswerType; label: string }[] = [
+  { value: "single_choice", label: "Single choice" },
+  { value: "multi_choice", label: "Multiple choice" },
+  { value: "rating_5", label: "Rating (1-5)" },
+  { value: "free_text", label: "Free text" },
+];
+const emptyQuestionForm = { questionText: "", answerType: "single_choice" as QuestionAnswerType, options: "", isRequired: true };
+
+// Demo-only seed so a survey campaign created while in demo mode still has
+// something to manage -- mirrors the shape a real backend question takes.
+const demoQuestionSeed = (campaignId: string): CampaignQuestion[] => SURVEY_QUESTIONS.map((s, i) => ({
+  id: `${campaignId}-demo-${i}`, campaignId, orderIndex: i, questionText: s.q,
+  answerType: "single_choice" as QuestionAnswerType, options: s.options, isRequired: true,
+}));
+
 export function CampaignsPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
@@ -44,6 +60,16 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [showSearch, setShowSearch] = useState(false);
   const [redirectUrl, setRedirectUrl] = useState("https://zipwifi.io/welcome");
+
+  // Manage Questions -- the only real way to configure what a SURVEY
+  // campaign actually asks guests. Previously there was no click path to
+  // this at all: the Recent Campaigns table had no per-row action for it,
+  // so clicking a survey campaign did nothing.
+  const [manageFor, setManageFor] = useState<Campaign | null>(null);
+  const [questions, setQuestions] = useState<CampaignQuestion[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [qForm, setQForm] = useState(emptyQuestionForm);
+  const [qErr, setQErr] = useState("");
 
   useEffect(() => {
     if (demo) return;
@@ -120,6 +146,71 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
     if (!demo) {
       try { await campaignService.remove(id); }
       catch { setItems(prev); toast.error("Could not delete on the server."); }
+    }
+  };
+
+  const openManage = async (c: Campaign) => {
+    setManageFor(c);
+    setQForm(emptyQuestionForm);
+    setQErr("");
+    if (demo) {
+      setQuestions(demoQuestionSeed(c.id));
+      return;
+    }
+    setQuestionsLoading(true);
+    try {
+      setQuestions(await campaignService.listQuestions(c.id));
+    } catch {
+      toast.error("Could not load the survey's questions.");
+      setQuestions([]);
+    } finally {
+      setQuestionsLoading(false);
+    }
+  };
+
+  const closeManage = () => { setManageFor(null); setQuestions([]); setQForm(emptyQuestionForm); setQErr(""); };
+
+  const addQuestion = async () => {
+    if (!manageFor) return;
+    if (!qForm.questionText.trim()) { setQErr("Question text is required."); return; }
+    const needsOptions = qForm.answerType === "single_choice" || qForm.answerType === "multi_choice";
+    const options = qForm.options.split(",").map((o) => o.trim()).filter(Boolean);
+    if (needsOptions && options.length < 2) { setQErr("Add at least two comma-separated options."); return; }
+    setQErr("");
+
+    if (demo) {
+      setQuestions([...questions, {
+        id: `${manageFor.id}-demo-${Date.now()}`, campaignId: manageFor.id, orderIndex: questions.length,
+        questionText: qForm.questionText, answerType: qForm.answerType, options: needsOptions ? options : [], isRequired: qForm.isRequired,
+      }]);
+      setQForm(emptyQuestionForm);
+      toast.success("Question added");
+      return;
+    }
+
+    try {
+      const created = await campaignService.addQuestion(manageFor.id, {
+        orderIndex: questions.length, questionText: qForm.questionText, answerType: qForm.answerType,
+        options: needsOptions ? options : [], isRequired: qForm.isRequired,
+      });
+      setQuestions([...questions, created]);
+      setQForm(emptyQuestionForm);
+      toast.success("Question added");
+    } catch {
+      toast.error("Could not add the question — check the connection and try again.");
+    }
+  };
+
+  const removeQuestion = async (id: string) => {
+    const prev = questions;
+    setQuestions(questions.filter((q) => q.id !== id));
+    if (demo) { toast.success("Question removed"); return; }
+    try {
+      await campaignService.deleteQuestion(id);
+      toast.success("Question removed");
+    } catch {
+      setQuestions(prev);
+      toast.error("Could not remove the question on the server.");
     }
   };
 
@@ -272,6 +363,58 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         </div>
       )}
 
+      {manageFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closeManage}>
+          <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="font-semibold">Manage Questions — {manageFor.name}</h3>
+              <button onClick={closeManage} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">Guests answer these when this survey campaign is shown at login.</p>
+
+            {questionsLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+            ) : (
+              <div className="mb-4 max-h-64 space-y-2 overflow-y-auto">
+                {questions.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No questions yet — add one below.</p>}
+                {questions.map((q, i) => (
+                  <div key={q.id} className="flex items-start justify-between gap-2 rounded-xl border bg-muted/30 p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{i + 1}. {q.questionText}{q.isRequired && <span className="text-destructive"> *</span>}</p>
+                      <p className="text-xs text-muted-foreground">{ANSWER_TYPES.find(a => a.value === q.answerType)?.label}{q.options.length > 0 ? ` — ${q.options.join(", ")}` : ""}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => removeQuestion(q.id)}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2 border-t pt-4">
+              <Label>New Question</Label>
+              <Input value={qForm.questionText} onChange={e => setQForm({ ...qForm, questionText: e.target.value })} placeholder="e.g. Rate our food quality?" />
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={qForm.answerType} onValueChange={(v: QuestionAnswerType) => setQForm({ ...qForm, answerType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{ANSWER_TYPES.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
+                </Select>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={qForm.isRequired} onCheckedChange={(v) => setQForm({ ...qForm, isRequired: v === true })} />
+                  Required
+                </label>
+              </div>
+              {(qForm.answerType === "single_choice" || qForm.answerType === "multi_choice") && (
+                <Input value={qForm.options} onChange={e => setQForm({ ...qForm, options: e.target.value })} placeholder="Options, comma separated (e.g. Excellent, Good, Average)" />
+              )}
+              {qErr && <p className="text-xs text-destructive">{qErr}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={closeManage}>Done</Button>
+                <Button size="sm" onClick={addQuestion}><Plus className="mr-2 h-4 w-4" />Add Question</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recent Campaigns */}
       <div>
         <h3 className="mb-1 text-base font-semibold">Recent Campaigns</h3>
@@ -285,11 +428,18 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
               <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">No campaigns match your search.</TableCell></TableRow>
             ) : filtered.map(c => (
               <TableRow key={c.id} className="border-b">
-                <TableCell className="font-medium">{c.name}</TableCell>
+                <TableCell className="font-medium">
+                  {c.type === "SURVEY" ? (
+                    <button className="hover:underline text-left" onClick={() => openManage(c)}>{c.name}</button>
+                  ) : c.name}
+                </TableCell>
                 <TableCell><Badge variant="outline">{c.type}</Badge></TableCell>
                 <TableCell><Select defaultValue={c.status} onValueChange={v => updateStatus(c.id, v)}><SelectTrigger className="h-7 w-28"><SelectValue /></SelectTrigger><SelectContent>{STATUSES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent></Select></TableCell>
                 <TableCell>{c.impressions.toLocaleString()}</TableCell><TableCell>{c.conversions}</TableCell>
                 <TableCell className="text-right">
+                  {c.type === "SURVEY" && (
+                    <Button variant="ghost" size="icon" title="Manage questions" onClick={() => openManage(c)}><ListChecks className="h-4 w-4" /></Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => updateStatus(c.id, c.status === "active" ? "paused" : "active")}>{c.status === "active" ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</Button>
                   <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(c.id); toast.success("Campaign ID copied"); }}><Copy className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCampaign(c.id)}><Trash2 className="h-4 w-4" /></Button>
