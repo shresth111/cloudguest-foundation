@@ -131,7 +131,7 @@ export interface ProvisionLocationPayload {
     publicIpAddress?: string;
   };
   planId: string;
-  featureOverrides?: Array<{ featureKey: string; isEnabled?: boolean; limitValue?: number }>;
+  featureOverrides?: Array<{ featureKey: string; isEnabled?: boolean; limitValue?: number; tierValue?: string }>;
   couponCode?: string;
 }
 

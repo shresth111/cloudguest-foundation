@@ -45,6 +45,7 @@ import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
 import { PROPERTY_TYPE_LABEL, type PropertyType, type ProvisionLocationPayload, type ProvisionLocationResult } from "@/types/location";
+import { SUPPORT_LEVEL_LABELS, type SupportLevel } from "@/types/billing";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
 
@@ -57,6 +58,11 @@ const DEMO_PLANS: BackendPlan[] = [
   { id: "plan-demo-growth", name: "Growth", plan_type: "standard", base_price: "2999.00", currency: "INR" },
   { id: "plan-demo-enterprise", name: "Enterprise", plan_type: "custom", base_price: "9999.00", currency: "INR" },
 ];
+
+// Radix Select forbids an empty-string item value -- this sentinel means
+// "no tier override, inherit the plan's own tier_value" in the Features
+// step's tier-typed (support_level) selector. See FeaturesStep's setTier.
+const PLAN_DEFAULT_TIER_VALUE = "__plan_default__";
 
 const COUNTRIES = ["US", "GB", "IN", "SG", "AE", "DE", "AU", "CA"];
 const TIMEZONES = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin"];
@@ -74,6 +80,7 @@ const STEPS = [
 interface FeatureOverrideState {
   isEnabled?: boolean;
   limitValue?: number;
+  tierValue?: string;
 }
 
 interface WizardState {
@@ -131,8 +138,14 @@ interface BackendFeature {
   name: string;
   description: string | null;
   category: string;
-  type: "boolean" | "limit";
+  type: "boolean" | "limit" | "tier";
   default_enabled: boolean;
+  // Populated only when type === "tier" (today, exactly "support_level")
+  // -- the closed set of legal tier_value strings, and the tier a plan
+  // effectively carries when no override is set. See GET /features'
+  // FeatureEntitlementService.list_features for where these come from.
+  tier_options?: string[];
+  default_tier_value?: string | null;
 }
 
 export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, initialOrganizationId }: Props) {
@@ -251,8 +264,8 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
       router: { ...state.router, managementIpAddress: state.router.managementIpAddress || undefined },
       planId: state.planId,
       featureOverrides: Object.entries(state.featureOverrides)
-        .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
-        .map(([featureKey, v]) => ({ featureKey, isEnabled: v.isEnabled, limitValue: v.limitValue })),
+        .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined || v.tierValue !== undefined)
+        .map(([featureKey, v]) => ({ featureKey, isEnabled: v.isEnabled, limitValue: v.limitValue, tierValue: v.tierValue })),
     };
     try {
       const r = await provision.mutateAsync(payload);
@@ -684,6 +697,22 @@ function FeaturesStep({
     onChange(next);
   }
 
+  // Tier-typed features (today, only "support_level") can never be a plain
+  // on/off toggle -- the backend rejects a TIER-typed override with no
+  // tier_value (see provisioning_service.py's validate_feature_value).
+  // Radix Select forbids an empty-string item value (it's reserved to mean
+  // "clear the selection"), so PLAN_DEFAULT_TIER_VALUE is the sentinel for
+  // "no override -- inherit the plan's own tier_value" instead.
+  function setTier(key: string, raw: string) {
+    const next = { ...value };
+    if (raw === PLAN_DEFAULT_TIER_VALUE) {
+      delete next[key];
+    } else {
+      next[key] = { ...next[key], tierValue: raw };
+    }
+    onChange(next);
+  }
+
   return (
     <div>
       <StepHeader title="Customize features (optional)" description="Overrides applied on top of the selected plan's defaults, for this customer only. Leave everything alone to just use the plan as-is." />
@@ -708,6 +737,26 @@ function FeaturesStep({
                           value={override?.limitValue ?? ""}
                           onChange={(e) => setLimit(f.key, e.target.value)}
                         />
+                      </div>
+                    );
+                  }
+                  if (f.type === "tier") {
+                    return (
+                      <div key={f.key} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
+                        <Label className="text-xs">{f.description || f.name}</Label>
+                        <Select value={override?.tierValue ?? PLAN_DEFAULT_TIER_VALUE} onValueChange={(v) => setTier(f.key, v)}>
+                          <SelectTrigger className="h-7 w-40 text-xs">
+                            <SelectValue placeholder="Plan default" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={PLAN_DEFAULT_TIER_VALUE}>Plan default</SelectItem>
+                            {(f.tier_options ?? []).map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {SUPPORT_LEVEL_LABELS[t as SupportLevel] ?? t}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     );
                   }

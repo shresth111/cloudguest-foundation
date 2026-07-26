@@ -9,6 +9,17 @@ export type BillingCycle = "monthly" | "annual";
 // trip. Kept 1:1 with the backend now so every option actually persists.
 export type SupportLevel = "basic" | "priority" | "dedicated";
 
+// The one, shared label set for SupportLevel -- used by both the Plan
+// editor (PlanManagement.tsx) and the Smart Location Provisioning wizard's
+// per-customer "support_level" tier override (PlatformLocationWizard.tsx)
+// so the two surfaces can never drift the way the plan editor's own values
+// once did (see this file's comment above).
+export const SUPPORT_LEVEL_LABELS: Record<SupportLevel, string> = {
+  basic: "Basic (Email)",
+  priority: "Priority",
+  dedicated: "Dedicated (24×7)",
+};
+
 export type SubscriptionStatus =
   | "active"
   | "trial"
