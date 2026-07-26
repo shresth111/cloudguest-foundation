@@ -12,7 +12,7 @@ import { resolveOrgId } from "@/services/customer.service";
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 
-interface Team { id: string; name: string; businessUnit: string; members: number; quota: number; status: "active" }
+interface Team { id: string; name: string; businessUnit: string; members: number; quota: number; status: "active" | "expired" | "revoked" }
 
 const DEMO_TEAMS: Team[] = [
   { id: "1", name: "Sales Team", businessUnit: "Marina Bay Hotel", members: 12, quota: 85, status: "active" },
@@ -99,7 +99,14 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
         const org = await resolveOrgId();
         setOrgId(org);
         const rows = await guestService.listTeams(org);
-        setTeams(rows.map((t) => ({ id: t.id, name: t.name, businessUnit: "", members: t.maxMembers ?? 0, quota: 0, status: "active" as const })));
+        // GET /guest-teams returns every team regardless of status (active,
+        // expired, *and* revoked) -- this used to get discarded and every
+        // row hardcoded to "active" here, so a team someone had already
+        // revoked (see revokeTeam() below) would silently reappear as if
+        // still current on the next page load/refresh. Keep the real
+        // status so revoked teams stay filtered out of "Current Teams"
+        // (below) instead of resurfacing.
+        setTeams(rows.map((t) => ({ id: t.id, name: t.name, businessUnit: "", members: t.maxMembers ?? 0, quota: 0, status: t.status })));
       } catch {
         // Leave teams empty -- the "no teams yet" state is accurate.
       }
@@ -213,7 +220,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <hr className="my-6 border-border" />
           <h3 className="mb-3 text-sm font-semibold text-foreground">Current Teams</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {teams.map((t) => (
+            {teams.filter((t) => t.status !== "revoked").map((t) => (
               <Card key={t.id} className="border shadow-none">
                 <CardContent className="p-4">
                   <div className="mb-1 flex items-center justify-between"><p className="text-sm font-semibold">{t.name}</p><Badge variant="outline">{t.members} members</Badge></div>
