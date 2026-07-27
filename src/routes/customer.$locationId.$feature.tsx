@@ -145,7 +145,7 @@ function FeaturePage() {
             {feature === "voip" && <VoipView />}
             {feature === "isp-routing" && <IspRoutingView />}
             {feature === "debugging" && <DebuggingView />}
-            {feature === "hotspot" && <HotspotView />}
+            {feature === "hotspot" && <HotspotView locationId={locationId} />}
             {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it
                 doesn't also fall through to the generic placeholder. */}

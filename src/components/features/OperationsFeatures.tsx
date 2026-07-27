@@ -37,6 +37,7 @@ import { ispService } from "@/services/isp.service";
 import { DhcpManagement } from "@/components/network/DhcpManagement";
 import { VlanManagement } from "@/components/network/VlanManagement";
 import { PortForwardingManagement } from "@/components/network/PortForwardingManagement";
+import { HotspotManagement } from "@/components/network/HotspotManagement";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
 import { api } from "@/services/api";
@@ -1301,22 +1302,16 @@ export function DebuggingView() {
   );
 }
 
-/* ---------- Hotspot Settings ---------- */
-export function HotspotView() {
-  return (
-    <div className="space-y-6">
-      <FeatureHeader title="Hotspot Settings" description="Enable or disable per-hotspot capabilities for this location." action={<Button size="sm" onClick={() => toast.success("Settings applied")}>Apply settings</Button>} />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <ToggleRow label="Auto Login" hint="Skip portal for known devices" defaultOn />
-        <ToggleRow label="Login via OTP" hint="One-time password over SMS" defaultOn />
-        <ToggleRow label="Group Policy" hint="Apply shared team limits" />
-        <ToggleRow label="Name Collect" hint="Ask guest for name" defaultOn />
-        <ToggleRow label="Email Collect" hint="Ask guest for email" defaultOn />
-        <ToggleRow label="Official Email Collect" hint="Require work email" />
-        <ToggleRow label="Team Name Collect" hint="Ask for team / company" />
-      </div>
-    </div>
-  );
+/* ---------- Hotspot Settings ----------
+ * Was a page of decorative ToggleRows -- "Apply settings" just fired a toast,
+ * nothing was ever read from or written to a backend, and a reload silently
+ * discarded every change. The real domain already exists end-to-end
+ * (app.domains.hotspot, the `hotspot_profiles` table,
+ * hotspotService/useHotspot on the frontend) and already backs
+ * HotspotManagement -- reused here, scoped to this location, the same way
+ * DhcpView/VlansView/PortForwardingView are. */
+export function HotspotView({ locationId }: { locationId?: string }) {
+  return <HotspotManagement locationId={locationId} />;
 }
 
 /* ---------- RaaS: Dashboard ---------- */

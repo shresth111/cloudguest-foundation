@@ -61,7 +61,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "voip": return <VoipView />;
     case "isp-routing": return <IspRoutingView />;
     case "debugging": return <DebuggingView />;
-    case "hotspot": return <HotspotView />;
+    case "hotspot": return <HotspotView locationId={ctx.locationId} />;
     default: return <GenericFeatureView feature={id} />;
   }
 }
