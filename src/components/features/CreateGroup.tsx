@@ -7,6 +7,7 @@ import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
+import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
 
 // Every field on this form now has a real backend equivalent
@@ -121,6 +122,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const demo = useIsDemo();
   const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const activeLocationName = useCustomerStore((s) => s.activeLocation?.name);
+  // Groups are reusable, account-wide templates (bandwidthPolicyService.list
+  // has no location filter -- confirmed against app.domains.policy.router,
+  // which only takes policy_type) -- mapping one to a location (the
+  // Map/Mapped button below) is what actually varies per location, same as
+  // Location Policies/User Policies picking their one active assignment out
+  // of this same shared catalog. "har location ka group policy alag hoga"
+  // (this table should look different per location, like the dashboard
+  // does) -- default the list to this location's mapped groups, with an
+  // explicit toggle to browse/map from the full account catalog.
+  const [showAllGroups, setShowAllGroups] = useState(false);
 
   useEffect(() => {
     if (demo) return;
@@ -512,8 +524,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   };
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase(); return groups.filter((g) => !q || g.name.toLowerCase().includes(q) || g.bandwidth.includes(q));
-  }, [groups, search]);
+    const q = search.toLowerCase();
+    const scoped = !showAllGroups && locationId ? groups.filter((g) => g.mappedAssignmentId) : groups;
+    return scoped.filter((g) => !q || g.name.toLowerCase().includes(q) || g.bandwidth.includes(q));
+  }, [groups, search, showAllGroups, locationId]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
   const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
@@ -638,8 +652,31 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
       <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div><h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Groups</h3><p className="text-xs text-slate-400 dark:text-slate-500">Groups already set up for this account.</p></div>
-          <div className="flex items-center gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Groups</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              {!showAllGroups && locationId
+                ? `Mapped to ${activeLocationName ?? "this location"} -- other groups in the account are hidden.`
+                : "Every group in this account, across all locations."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {locationId && (
+              <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
+                <button
+                  onClick={() => { setShowAllGroups(false); setPage(0); }}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${!showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                >
+                  This location
+                </button>
+                <button
+                  onClick={() => { setShowAllGroups(true); setPage(0); }}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                >
+                  All groups
+                </button>
+              </div>
+            )}
             <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">{PAGE_SIZE_OPTS.map((n) => (<button key={n} onClick={() => { setPageSize(n); setPage(0); }} className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}>{n}</button>))}</div>
           </div>
@@ -649,7 +686,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             <thead><tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 dark:border-slate-600 dark:text-slate-400">
               <th className="pb-2 pr-3">Group Name</th><th className="pb-2 pr-3">Bandwidth</th><th className="pb-2 pr-3">Timeout</th><th className="pb-2 pr-3">Idle</th><th className="pb-2 pr-3">Devices</th><th className="pb-2 pr-3">Login Hours</th><th className="pb-2 pr-3">Data Limit</th><th className="pb-2 pr-3">Members</th><th className="pb-2 pr-3">Location</th><th className="pb-2 pr-3">Users</th><th className="pb-2 text-right">Action</th>
             </tr></thead>
-            <tbody>{paged.length === 0 ? (<tr><td colSpan={11} className="py-10 text-center text-sm text-slate-400">No groups yet. Create one above to give a set of users their own policy.</td></tr>) : paged.map((g) => (
+            <tbody>{paged.length === 0 ? (
+              <tr><td colSpan={11} className="py-10 text-center text-sm text-slate-400">
+                {!showAllGroups && locationId && groups.length > 0
+                  ? <>No groups mapped to this location yet. <button onClick={() => setShowAllGroups(true)} className="font-medium text-orange-600 underline hover:text-orange-700 dark:text-orange-400">Browse all groups</button> to map one.</>
+                  : "No groups yet. Create one above to give a set of users their own policy."}
+              </td></tr>
+            ) : paged.map((g) => (
               <tr key={g.id} className="border-b border-slate-100 text-slate-700 last:border-0 dark:border-slate-700 dark:text-slate-300">
                 <td className="py-2.5 pr-3 font-medium">{g.name}</td>
                 <td className="py-2.5 pr-3">{g.bandwidth}</td>
