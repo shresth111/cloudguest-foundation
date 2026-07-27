@@ -33,7 +33,7 @@ import { SCOPE_TYPE_LABEL } from "@/types/rbac";
  * this file's local `FEATURE_GROUPS`/`ALL_FEATURES` catalog -- the two
  * vocabularies don't map 1:1, so the demo catalog is only ever used for the
  * `demo` branch below, never for real accounts. */
-interface RealAgent { id: string; name: string; email: string; mobile: string; status: "active" | "inactive" | "pending"; roleId: string; roleName: string }
+interface RealAgent { id: string; name: string; email: string; mobile: string; status: "active" | "inactive" | "pending"; roleId: string; roleName: string; dataMasking: boolean }
 
 function slugify(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "") || "role";
@@ -97,7 +97,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
         // reliably tell the Owner's own row apart from every other agent.
         const withRoles = await Promise.all(
           users.items.map(async (u): Promise<RealAgent> => {
-            const base = { id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: (u.isActive ? "active" : "inactive") as RealAgent["status"] };
+            const base = { id: u.id, name: u.fullName, email: u.email, mobile: u.phone ?? "", status: (u.isActive ? "active" : "inactive") as RealAgent["status"], dataMasking: u.dataMaskingEnabled };
             try {
               const assignments = await rbacService.listUserRoleAssignments(u.id, org);
               const active = assignments.find((a) => a.isActive && a.organizationId === org);
@@ -123,7 +123,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
     })();
   }, [demo]);
 
-  const agents = demo ? storeAgents : realAgents.map((a) => ({ ...a, dataMasking: false, locations: [] as string[] }));
+  const agents = demo ? storeAgents : realAgents.map((a) => ({ ...a, locations: [] as string[] }));
   const roleOptions = demo ? roles.map((r) => ({ id: r.id, name: r.name })) : realRoles.map((r) => ({ id: r.id, name: r.name }));
 
   /** A role can only be assigned at the single scope it was created for
@@ -303,7 +303,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
       if (roleScope.scopeType !== "organization") {
         await rbacService.assignRole(invited.user.id, { roleId: form.roleId, ...roleScope }, orgId);
       }
-      setRealAgents((p) => [{ id: invited.user.id, name: invited.user.fullName, email: invited.user.email, mobile: invited.user.phone ?? "", status: "pending", roleId: form.roleId, roleName: roleOptions.find((r) => r.id === form.roleId)?.name ?? "—" }, ...p]);
+      setRealAgents((p) => [{ id: invited.user.id, name: invited.user.fullName, email: invited.user.email, mobile: invited.user.phone ?? "", status: "pending", roleId: form.roleId, roleName: roleOptions.find((r) => r.id === form.roleId)?.name ?? "—", dataMasking: invited.user.dataMaskingEnabled }, ...p]);
       setForm({ name: "", email: "", mobile: "", password: "", roleId: roleOptions[0]?.id ?? "", locations: [] });
       setCreating(false);
       setSelectedId(invited.user.id);
