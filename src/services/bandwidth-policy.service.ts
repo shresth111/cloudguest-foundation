@@ -3,6 +3,7 @@ import {
   createPolicyWithRules,
   deactivatePolicy,
   deactivatePolicyAssignment,
+  getGuestGroupAssignment,
   listPolicyAssignments,
   listPolicyDetails,
   statusOf,
@@ -25,6 +26,14 @@ interface BandwidthRules {
   burst_threshold_kbps?: number | null;
   burst_time_seconds?: number | null;
   priority?: number | null;
+  // Group Policies' (CreateGroup.tsx) own per-group settings -- see
+  // types/bandwidth-policy.ts's own doc comment for why these live here.
+  session_timeout_minutes?: number | null;
+  idle_timeout_minutes?: number | null;
+  devices_per_user?: number | null;
+  daily_limit_minutes?: number | null;
+  login_hours?: { days: string[]; start_time: string; end_time: string } | null;
+  data_limit?: { quota: number; unit: string; resets: string } | null;
 }
 
 function toBandwidthPolicy(detail: BackendPolicyDetail): BandwidthPolicy {
@@ -42,6 +51,14 @@ function toBandwidthPolicy(detail: BackendPolicyDetail): BandwidthPolicy {
     burstThresholdKbps: rules.burst_threshold_kbps ?? undefined,
     burstTimeSeconds: rules.burst_time_seconds ?? undefined,
     priority: rules.priority ?? undefined,
+    sessionTimeoutMinutes: rules.session_timeout_minutes ?? null,
+    idleTimeoutMinutes: rules.idle_timeout_minutes ?? null,
+    devicesPerUser: rules.devices_per_user ?? null,
+    dailyLimitMinutes: rules.daily_limit_minutes ?? null,
+    loginHours: rules.login_hours
+      ? { days: rules.login_hours.days, from: rules.login_hours.start_time, to: rules.login_hours.end_time }
+      : null,
+    dataLimit: rules.data_limit ?? null,
     createdAt: new Date(detail.created_at).getTime(),
     updatedAt: new Date(detail.updated_at).getTime(),
   };
@@ -56,6 +73,14 @@ function toRules(input: SaveBandwidthPolicyInput): BandwidthRules {
     burst_threshold_kbps: input.burstThresholdKbps ?? null,
     burst_time_seconds: input.burstTimeSeconds ?? null,
     priority: input.priority ?? null,
+    session_timeout_minutes: input.sessionTimeoutMinutes ?? null,
+    idle_timeout_minutes: input.idleTimeoutMinutes ?? null,
+    devices_per_user: input.devicesPerUser ?? null,
+    daily_limit_minutes: input.dailyLimitMinutes ?? null,
+    login_hours: input.loginHours
+      ? { days: input.loginHours.days, start_time: input.loginHours.from, end_time: input.loginHours.to }
+      : null,
+    data_limit: input.dataLimit ?? null,
   };
 }
 
@@ -183,5 +208,23 @@ export const bandwidthPolicyService = {
 
   async unmapGuestFromLocation(policyId: string, assignmentId: string, organizationId?: string): Promise<void> {
     await deactivatePolicyAssignment(policyId, assignmentId, organizationId);
+  },
+
+  // "Which group is this guest already in, if any" -- one guest may only
+  // be actively mapped into one group at a time (backend-enforced, see
+  // policy-engine.ts's getGuestGroupAssignment doc comment). Used by
+  // CreateGroup.tsx's Map users modal to show that group *before* letting
+  // the user attempt (and 409 on) a second one.
+  async guestCurrentGroup(
+    guestId: string,
+    organizationId?: string,
+  ): Promise<{ policyId: string; policyName: string; assignmentId: string } | null> {
+    const result = await getGuestGroupAssignment(guestId, organizationId);
+    if (!result.mapped || !result.policy_id || !result.assignment_id) return null;
+    return {
+      policyId: result.policy_id,
+      policyName: result.policy_name ?? "another group",
+      assignmentId: result.assignment_id,
+    };
   },
 };

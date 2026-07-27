@@ -9,13 +9,30 @@ import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
 import type { Guest } from "@/types/guest";
 
-// Only the bandwidth rate has a real backend equivalent (bandwidthPolicyService) --
-// session/idle timeout, daily limit, devices-per-user, login hours, and data
-// limit have no policy-engine field yet. See LocationPolicies.tsx's identical note.
+// Every field on this form now has a real backend equivalent
+// (bandwidthPolicyService, backed by BandwidthPolicyRules' Group-Policies-
+// specific fields -- see that schema's own doc comment). Bug report: "edit
+// kaam nahi karta" traced back to session/idle timeout, devices-per-user,
+// daily limit, login hours, and data limit never being persisted at all --
+// they're required fields on this form, so reloading a group always blanked
+// them, and clicking Edit -> Save on any already-saved group failed
+// validation on fields the user never touched. The *ToMinutes/labelFrom*
+// pairs below convert this form's fixed dropdown labels to/from the plain
+// minute counts (and device counts) the backend actually stores.
 const BANDWIDTH_KBPS: Record<string, number> = { "512 Kbps": 512, "1 Mbps": 1024, "2 Mbps": 2048, "5 Mbps": 5120, "10 Mbps": 10240 };
 function kbpsToLabel(kbps: number): string {
   const found = Object.entries(BANDWIDTH_KBPS).find(([, v]) => v === kbps);
   return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
+}
+
+const SESSION_TIMEOUT_MINUTES: Record<string, number> = { "30 min": 30, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480, "24 hr": 1440 };
+const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = { "No Limit": null, "5 min": 5, "10 min": 10, "15 min": 15, "30 min": 30, "1 hr": 60 };
+const DAILY_LIMIT_MINUTES: Record<string, number | null> = { "No Limit": null, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480 };
+const DEVICES_COUNT: Record<string, number | null> = { "Unlimited": null, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 };
+
+function labelFromMinutes(minutes: number | null | undefined, table: Record<string, number | null>, fallback: string): string {
+  const found = Object.entries(table).find(([, v]) => v === (minutes ?? null));
+  return found?.[0] ?? fallback;
 }
 
 const STEPS = [
@@ -133,7 +150,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 mappedAssignmentId = null;
               }
             }
-            return { id: p.id, name: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", idleTimeout: "", devicesPerUser: "", dailyLimit: "No Limit", loginHours: null, dataLimit: null, members: 0, mappedAssignmentId };
+            return {
+              id: p.id,
+              name: p.name,
+              bandwidth: kbpsToLabel(p.downloadRateKbps),
+              sessionTimeout: labelFromMinutes(p.sessionTimeoutMinutes, SESSION_TIMEOUT_MINUTES, ""),
+              idleTimeout: labelFromMinutes(p.idleTimeoutMinutes, IDLE_TIMEOUT_MINUTES, ""),
+              devicesPerUser: labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, ""),
+              dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
+              loginHours: p.loginHours ?? null,
+              dataLimit: p.dataLimit ?? null,
+              members: 0,
+              mappedAssignmentId,
+            };
           }),
         );
         setGroups(withMapping);
@@ -222,7 +251,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     try {
       const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
       const saved = await bandwidthPolicyService.save(
-        { id: editingId ?? undefined, name, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps },
+        {
+          id: editingId ?? undefined,
+          name,
+          status: "active",
+          downloadRateKbps: rateKbps,
+          uploadRateKbps: rateKbps,
+          sessionTimeoutMinutes: SESSION_TIMEOUT_MINUTES[st] ?? null,
+          idleTimeoutMinutes: IDLE_TIMEOUT_MINUTES[it] ?? null,
+          devicesPerUser: DEVICES_COUNT[dp] ?? null,
+          dailyLimitMinutes: DAILY_LIMIT_MINUTES[dl] ?? null,
+          loginHours,
+          dataLimit,
+        },
         orgId ?? undefined,
       );
       if (isEdit) {
@@ -304,6 +345,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [guestSearchBusy, setGuestSearchBusy] = useState(false);
   const [guestActionBusy, setGuestActionBusy] = useState<Set<string>>(new Set());
   const guestActionLock = useRef<Set<string>>(new Set());
+  // A guest may only be actively mapped into one group at a time (backend-
+  // enforced -- see bandwidth-policy.service.ts's guestCurrentGroup doc
+  // comment). Keyed by guestId; undefined == not looked up yet, null ==
+  // not mapped anywhere. Populated per search-result batch so the modal can
+  // show "Already in <group>" and offer a clean switch instead of letting
+  // a second "Map" click silently fail (or worse, appear to double-map).
+  const [guestCurrentGroups, setGuestCurrentGroups] = useState<
+    Record<string, { policyId: string; policyName: string; assignmentId: string } | null>
+  >({});
   const DEMO_GUESTS: Guest[] = [
     { id: "dg1", organizationId: "demo", organizationName: "Demo Org", locationId: locationId ?? null, locationName: null, identifier: "+91 98765 43210", displayName: "Aarav Shah", firstSeenAt: "", lastSeenAt: "", totalVisitCount: 4, isBlocked: false, blockedReason: null, createdAt: "", updatedAt: "" },
     { id: "dg2", organizationId: "demo", organizationName: "Demo Org", locationId: locationId ?? null, locationName: null, identifier: "priya@example.com", displayName: "Priya Nair", firstSeenAt: "", lastSeenAt: "", totalVisitCount: 1, isBlocked: false, blockedReason: null, createdAt: "", updatedAt: "" },
@@ -321,7 +371,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       } else {
         const mappings = await bandwidthPolicyService.guestMappings(g.id, locationId, orgId ?? undefined);
         const resolved = await Promise.all(mappings.map(async (m) => {
-          const guest = await guestService.get(m.guestId).catch(() => null);
+          const guest = await guestService.get(m.guestId, orgId ?? undefined).catch(() => null);
           const label = guest ? `${guest.displayName ?? guest.identifier} · ${guest.identifier}` : m.guestId;
           return { ...m, label };
         }));
@@ -343,8 +393,22 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         const q = guestSearch.trim().toLowerCase();
         setGuestResults(DEMO_GUESTS.filter((g) => g.identifier.toLowerCase().includes(q) || (g.displayName ?? "").toLowerCase().includes(q)));
       } else {
-        const { rows } = await guestService.list({ search: guestSearch.trim(), page: 1, pageSize: 10 });
-        setGuestResults(locationId ? rows.filter((r) => r.locationId === locationId) : rows);
+        const { rows } = await guestService.list({
+          search: guestSearch.trim(),
+          page: 1,
+          pageSize: 10,
+          organizationId: orgId ?? undefined,
+          locationId,
+        });
+        const results = locationId ? rows.filter((r) => r.locationId === locationId) : rows;
+        setGuestResults(results);
+        // One "which group is this guest already in" lookup per result --
+        // a small, bounded batch (this page size caps at 10), and the only
+        // way to show "Already in <group>" before the user clicks Map.
+        const entries = await Promise.all(
+          results.map(async (g) => [g.id, await bandwidthPolicyService.guestCurrentGroup(g.id, orgId ?? undefined).catch(() => null)] as const),
+        );
+        setGuestCurrentGroups((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
       }
     } catch {
       setGuestResults([]);
@@ -355,6 +419,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
   const mapGuest = async (guest: Guest) => {
     if (!usersModalGroup || !locationId || guestActionLock.current.has(guest.id)) return;
+    // Already mapped into a *different* group -- the backend rejects this
+    // (one guest, one group, see guestCurrentGroup's own doc comment), and
+    // there's nothing this click should silently do about it: the caller
+    // must use "Switch group" (switchGuestGroup below), which explicitly
+    // unmaps the old one first.
+    const other = guestCurrentGroups[guest.id];
+    if (other && other.policyId !== usersModalGroup.id) return;
     guestActionLock.current.add(guest.id);
     setGuestActionBusy((p) => new Set(p).add(guest.id));
     try {
@@ -364,12 +435,39 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       } else {
         const assignmentId = await bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined);
         setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
+        setGuestCurrentGroups((p) => ({ ...p, [guest.id]: { policyId: usersModalGroup.id, policyName: usersModalGroup.name, assignmentId } }));
       }
       setStep3Done(true);
       setToast(`${guest.displayName ?? guest.identifier} mapped into ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
-      setToast("Could not map this guest — check the connection and try again.");
+      setToast("Could not map this guest — they may already be in another group, or check the connection and try again.");
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      guestActionLock.current.delete(guest.id);
+      setGuestActionBusy((p) => { const n = new Set(p); n.delete(guest.id); return n; });
+    }
+  };
+
+  // "Switch group" -- a guest already active in a different group: unmap
+  // them from it, then map them into the one this modal is open for. Two
+  // real backend calls, not a special endpoint, but presented as one
+  // atomic-feeling action so the one-guest-one-group rule never reads as
+  // a dead end.
+  const switchGuestGroup = async (guest: Guest, other: { policyId: string; policyName: string; assignmentId: string }) => {
+    if (!usersModalGroup || !locationId || guestActionLock.current.has(guest.id)) return;
+    guestActionLock.current.add(guest.id);
+    setGuestActionBusy((p) => new Set(p).add(guest.id));
+    try {
+      await bandwidthPolicyService.unmapGuestFromLocation(other.policyId, other.assignmentId, orgId ?? undefined);
+      const assignmentId = await bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined);
+      setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
+      setGuestCurrentGroups((p) => ({ ...p, [guest.id]: { policyId: usersModalGroup.id, policyName: usersModalGroup.name, assignmentId } }));
+      setStep3Done(true);
+      setToast(`${guest.displayName ?? guest.identifier} moved from ${other.policyName} to ${usersModalGroup.name}.`);
+      setTimeout(() => setToast(null), 2500);
+    } catch {
+      setToast("Could not switch this guest's group — check the connection and try again.");
       setTimeout(() => setToast(null), 2500);
     } finally {
       guestActionLock.current.delete(guest.id);
@@ -384,6 +482,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     try {
       if (!demo) await bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined);
       setMappedGuests((p) => p.filter((m) => m.guestId !== mapping.guestId));
+      setGuestCurrentGroups((p) => ({ ...p, [mapping.guestId]: null }));
       setToast(`${mapping.label} unmapped from ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
@@ -637,20 +736,38 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               <div className="mt-3 space-y-1.5">
                 {guestResults.map((guest) => {
                   const already = mappedGuests.some((m) => m.guestId === guest.id);
+                  // A guest may only be active in one group at a time
+                  // (backend-enforced) -- `other` is that group when it's
+                  // not the one this modal is already open for.
+                  const other = guestCurrentGroups[guest.id];
+                  const inOtherGroup = !already && !!other && other.policyId !== usersModalGroup.id;
                   return (
                     <div key={guest.id} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 dark:border-slate-600">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{guest.displayName ?? guest.identifier}</p>
                         <p className="truncate text-xs text-slate-400">{guest.identifier}</p>
+                        {inOtherGroup && <p className="truncate text-xs text-orange-500">Already in {other.policyName}</p>}
                       </div>
-                      <button
-                        disabled={already || guestActionBusy.has(guest.id)}
-                        onClick={() => mapGuest(guest)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:hover:bg-orange-900/20"
-                      >
-                        {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
-                        {already ? "Mapped" : "Map"}
-                      </button>
+                      {inOtherGroup ? (
+                        <button
+                          disabled={guestActionBusy.has(guest.id)}
+                          onClick={() => switchGuestGroup(guest, other)}
+                          title={`Unmap from ${other.policyName} and map into ${usersModalGroup.name} instead.`}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:hover:bg-orange-900/20"
+                        >
+                          {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                          Switch group
+                        </button>
+                      ) : (
+                        <button
+                          disabled={already || guestActionBusy.has(guest.id)}
+                          onClick={() => mapGuest(guest)}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:hover:bg-orange-900/20"
+                        >
+                          {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                          {already ? "Mapped" : "Map"}
+                        </button>
+                      )}
                     </div>
                   );
                 })}

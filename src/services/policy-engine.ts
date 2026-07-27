@@ -218,3 +218,28 @@ export async function deactivatePolicyAssignment(
 ): Promise<void> {
   await api.delete(`/policies/${policyId}/assignments/${assignmentId}`, orgHeaders(organizationId));
 }
+
+// "Which bandwidth group is this guest currently in, if any" -- backs
+// CreateGroup.tsx's Map users modal pre-check. Backend enforces a guest
+// having at most one active GUEST-targeted BANDWIDTH assignment at a time
+// (a second, different group would otherwise silently create two
+// simultaneous, ambiguous bandwidth assignments for the same guest); this
+// lets the UI show which group to unmap from *before* the user hits that
+// 409, rather than a bare "could not map this guest" toast.
+export interface BackendGuestGroupAssignment {
+  mapped: boolean;
+  policy_id: string | null;
+  policy_name: string | null;
+  assignment_id: string | null;
+}
+
+export async function getGuestGroupAssignment(
+  guestId: string,
+  organizationId?: string,
+): Promise<BackendGuestGroupAssignment> {
+  const { data } = await api.get<BackendGuestGroupAssignment>(
+    `/policies/guest-mapping/${guestId}`,
+    orgHeaders(organizationId),
+  );
+  return data;
+}

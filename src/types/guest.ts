@@ -79,6 +79,14 @@ export interface GuestListQuery {
   isBlocked?: boolean | "all";
   page: number;
   pageSize: number;
+  // When the caller already knows their organization/location (e.g. Group
+  // Policies' "Map users" guest search), skip guestService.list's
+  // GLOBAL-only fan-out (fetchAllOrganizations() -- 403s for an ordinary
+  // org Owner, see guest.service.ts's own comment) and hit /guests
+  // directly, scoped by X-Organization-Id. Callers with no known org
+  // (cross-tenant admin Guests page) omit these and keep the fan-out.
+  organizationId?: string;
+  locationId?: string;
 }
 
 export interface GuestListResult {

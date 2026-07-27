@@ -360,7 +360,34 @@ async function fanOutPerOrg<T>(
 }
 
 export const guestService = {
+  // organizationId, when given (e.g. Group Policies' "Map users" guest
+  // search), skips fetchAllLocations()/fetchAllOrganizations()'s GLOBAL-only
+  // fan-out entirely and hits /guests directly with X-Organization-Id --
+  // same fix as listAccessRules()/listTeams() below. An ordinary org Owner
+  // (not a global admin) has no `organizations.read` permission at global
+  // scope, so the fan-out's very first call 403s; that 403 propagated
+  // straight out of this function (fetchAllLocations() isn't wrapped in
+  // fanOutPerOrg's own allSettled), so callers wrapping this in a plain
+  // try/catch (Group Policies' searchGuests) silently landed on "no guest
+  // found" for every search, no matter how real the guest was. Callers with
+  // no known org (the cross-tenant admin Guests page) keep the original
+  // fan-out.
   async list(query: GuestListQuery): Promise<GuestListResult> {
+    if (query.organizationId) {
+      const { data } = await api.get<BackendListResponse<BackendGuest>>("/guests", {
+        params: {
+          location_id: query.locationId || undefined,
+          search: query.search || undefined,
+          is_blocked: query.isBlocked && query.isBlocked !== "all" ? query.isBlocked : undefined,
+          page: query.page,
+          page_size: query.pageSize,
+        },
+        headers: { "X-Organization-Id": query.organizationId },
+      });
+      const rows = data.items.map((g) => toGuest(g, null, ""));
+      return { rows, total: data.total_items };
+    }
+
     const locations = await fetchAllLocations();
     let rows = await fanOutPerOrg<Guest>("/guests", (raw, org) => {
       const g = raw as BackendGuest;
@@ -383,8 +410,15 @@ export const guestService = {
     return { rows, total };
   },
 
-  async get(guestId: string): Promise<Guest | null> {
-    const { data } = await api.get<BackendGuest>(`/guests/${guestId}`);
+  // organizationId, when given, skips the same GLOBAL-only fan-out as
+  // list() above -- see its comment.
+  async get(guestId: string, organizationId?: string): Promise<Guest | null> {
+    const { data } = await api.get<BackendGuest>(`/guests/${guestId}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+    if (organizationId) {
+      return toGuest(data, null, "");
+    }
     const locations = await fetchAllLocations();
     const orgs = await fetchAllOrganizations();
     const loc = locations.find((l) => l.id === data.location_id);
