@@ -143,7 +143,7 @@ function FeaturePage() {
             {feature === "dhcp" && <DhcpView locationId={locationId} />}
             {feature === "vlans" && <VlansView locationId={locationId} />}
             {feature === "voip" && <VoipView />}
-            {feature === "isp-routing" && <IspRoutingView />}
+            {feature === "isp-routing" && <IspRoutingView locationId={locationId} />}
             {feature === "debugging" && <DebuggingView />}
             {feature === "hotspot" && <HotspotView locationId={locationId} />}
             {/* "audit" is handled above (redirected to AdminLogsView, see

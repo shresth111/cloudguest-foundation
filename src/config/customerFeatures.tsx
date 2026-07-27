@@ -59,7 +59,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "dhcp": return <DhcpView locationId={ctx.locationId} />;
     case "vlans": return <VlansView locationId={ctx.locationId} />;
     case "voip": return <VoipView />;
-    case "isp-routing": return <IspRoutingView />;
+    case "isp-routing": return <IspRoutingView locationId={ctx.locationId} />;
     case "debugging": return <DebuggingView />;
     case "hotspot": return <HotspotView locationId={ctx.locationId} />;
     default: return <GenericFeatureView feature={id} />;

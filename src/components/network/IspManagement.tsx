@@ -69,6 +69,7 @@ import {
   useDeleteIspRoutingRule,
 } from "@/hooks/useIsp";
 import { routerService } from "@/services/router.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { IspLink, IspLinkRole, IspRoutingRule, IspRoutingRuleType } from "@/types/isp";
 
@@ -82,11 +83,22 @@ function healthTone(status: string): "default" | "destructive" | "secondary" {
   return "secondary";
 }
 
-export function IspManagement() {
+export function IspManagement({ locationId }: { locationId?: string } = {}) {
   const [routerId, setRouterId] = useState<string>("");
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["isp", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["isp", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped (the customer dashboard's ISP Routing page): use the
+      // location-scoped router endpoint directly (mirrors
+      // IspDetailsView/DhcpManagement/VlanManagement) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const { data: links, isLoading: linksLoading } = useIspLinks({
