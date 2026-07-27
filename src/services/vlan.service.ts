@@ -50,8 +50,29 @@ function toVlan(v: BackendVlan): Vlan {
   };
 }
 
+let cachedOrganizationId: string | null = null;
+// list_vlans/create_vlan/etc. resolve their tenant scope from
+// CurrentOrganization, which -- per app.domains.rbac.dependencies -- trusts
+// the X-Organization-Id header only, resolving to None (and RequirePermission
+// then checking for a GLOBAL-scope grant an ordinary org owner never holds)
+// when it's absent. Every call here was missing that header entirely, so a
+// real customer/org-owner session 403'd on every VLAN request with
+// "'vlan.read' is required at global scope" -- read from the actual VLANs
+// page as a dead Edit icon (and a page that never loaded any real rows in
+// the first place). Same fix, same cause, same convention as
+// mac-authorization.service.ts's resolveOrganizationId.
+async function resolveOrganizationId(): Promise<string> {
+  if (cachedOrganizationId) return cachedOrganizationId;
+  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrganizationId = membership.organization_id;
+  return cachedOrganizationId;
+}
+
 export const vlanService = {
   async list(q: VlanListQuery): Promise<VlanListResult> {
+    const orgId = await resolveOrganizationId();
     const { data } = await api.get<BackendVlanListResponse>("/vlans", {
       params: {
         router_id: q.routerId,
@@ -59,6 +80,7 @@ export const vlanService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      headers: { "X-Organization-Id": orgId },
     });
     return {
       rows: data.items.map(toVlan),
@@ -70,15 +92,20 @@ export const vlanService = {
   },
 
   async get(id: string): Promise<Vlan> {
-    const { data } = await api.get<BackendVlan>(`/vlans/${id}`);
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<BackendVlan>(`/vlans/${id}`, {
+      headers: { "X-Organization-Id": orgId },
+    });
     return toVlan(data);
   },
 
   async getKpis(): Promise<VlanKpis> {
     // No dedicated stats endpoint exists -- fetch a large page and compute
     // real counts client-side, same convention as other list-derived KPIs.
+    const orgId = await resolveOrganizationId();
     const { data } = await api.get<BackendVlanListResponse>("/vlans", {
       params: { page: 1, page_size: 100 },
+      headers: { "X-Organization-Id": orgId },
     });
     const enabled = data.items.filter((v) => v.is_enabled).length;
     return {
@@ -89,33 +116,46 @@ export const vlanService = {
   },
 
   async create(payload: CreateVlanPayload): Promise<Vlan> {
-    const { data } = await api.post<BackendVlan>("/vlans", {
-      router_id: payload.routerId,
-      vlan_id: payload.vlanId,
-      name: payload.name,
-      gateway_ip_address: payload.gatewayIpAddress,
-      cidr: payload.cidr,
-      interface: payload.interface,
-      description: payload.description,
-      is_enabled: payload.isEnabled ?? true,
-    });
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendVlan>(
+      "/vlans",
+      {
+        router_id: payload.routerId,
+        vlan_id: payload.vlanId,
+        name: payload.name,
+        gateway_ip_address: payload.gatewayIpAddress,
+        cidr: payload.cidr,
+        interface: payload.interface,
+        description: payload.description,
+        is_enabled: payload.isEnabled ?? true,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
     return toVlan(data);
   },
 
   async update(id: string, payload: UpdateVlanPayload): Promise<Vlan> {
-    const { data } = await api.put<BackendVlan>(`/vlans/${id}`, {
-      vlan_id: payload.vlanId,
-      name: payload.name,
-      gateway_ip_address: payload.gatewayIpAddress,
-      cidr: payload.cidr,
-      interface: payload.interface,
-      description: payload.description,
-      is_enabled: payload.isEnabled,
-    });
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.put<BackendVlan>(
+      `/vlans/${id}`,
+      {
+        vlan_id: payload.vlanId,
+        name: payload.name,
+        gateway_ip_address: payload.gatewayIpAddress,
+        cidr: payload.cidr,
+        interface: payload.interface,
+        description: payload.description,
+        is_enabled: payload.isEnabled,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
     return toVlan(data);
   },
 
   async remove(id: string): Promise<void> {
-    await api.delete(`/vlans/${id}`);
+    const orgId = await resolveOrganizationId();
+    await api.delete(`/vlans/${id}`, {
+      headers: { "X-Organization-Id": orgId },
+    });
   },
 };

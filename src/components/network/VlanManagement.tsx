@@ -53,6 +53,7 @@ import {
   useDeleteVlan,
 } from "@/hooks/useVlan";
 import { routerService } from "@/services/router.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { Vlan } from "@/types/vlan";
 
@@ -70,7 +71,7 @@ const vlanSchema = z.object({
 });
 type VlanFormValues = z.infer<typeof vlanSchema>;
 
-export function VlanManagement() {
+export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -82,12 +83,24 @@ export function VlanManagement() {
     page,
     pageSize: PAGE_SIZE,
     routerId: routerFilter === "all" ? undefined : routerFilter,
+    locationId,
   });
   const { data: kpis } = useVlanKpis();
   const del = useDeleteVlan();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["vlan", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["vlan", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped (the customer dashboard's VLANs page): use the
+      // location-scoped router endpoint directly (mirrors
+      // IspDetailsView/MacAuthView/DhcpManagement) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const routerName = (id: string) => routers.rows.find((r) => r.id === id)?.name ?? id.slice(0, 8);
