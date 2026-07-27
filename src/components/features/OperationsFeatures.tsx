@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
-import NetworkCrudTable, { validators } from "@/components/features/NetworkCrudTable";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
@@ -37,6 +36,7 @@ import { routerService } from "@/services/router.service";
 import { ispService } from "@/services/isp.service";
 import { DhcpManagement } from "@/components/network/DhcpManagement";
 import { VlanManagement } from "@/components/network/VlanManagement";
+import { PortForwardingManagement } from "@/components/network/PortForwardingManagement";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
 import { api } from "@/services/api";
@@ -1058,36 +1058,16 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
   );
 }
 
-/* ---------- Port Forwarding ---------- */
-export function PortForwardingView() {
-  return (
-    <NetworkCrudTable
-      title="Port Forwarding"
-      description="Port forwarding (sometimes called PAT — Port Address Translation)."
-      tableTitle="Port Forwarded Devices"
-      tableSubtitle="This lists out all the active Port Forwarded devices on the Network."
-      columns={[
-        { key: "dstAddress", label: "Dst. Address" },
-        { key: "toAddress", label: "To Address" },
-        { key: "dstPort", label: "Dst. Port" },
-        { key: "toPort", label: "To Port" },
-        { key: "comment", label: "Comment" },
-        { key: "protocol", label: "Protocol" },
-        { key: "status", label: "Status" },
-      ]}
-      seed={[]}
-      fields={[
-        { key: "dstAddress", label: "Dst. Address", type: "text", placeholder: "10.0.1.1", validate: validators.requiredIp },
-        { key: "dstPort", label: "Dst. Port", type: "text", placeholder: "8080", validate: validators.requiredPort },
-        { key: "protocol", label: "Protocol Type", type: "select", options: ["TCP", "UDP", "TCP/UDP"], validate: validators.required("protocol") },
-        { key: "comment", label: "Comment", type: "text", placeholder: "CCTV NVR", validate: validators.required("comment") },
-        { key: "toAddress", label: "To Address", type: "text", placeholder: "10.0.1.50", validate: validators.requiredIp },
-        { key: "toPort", label: "To Port", type: "text", placeholder: "80", validate: validators.requiredPort },
-        { key: "bypass", label: "Bypass", type: "switch", helper: "Bypass Device" },
-      ]}
-      addLabel="Add Port Forwarding"
-    />
-  );
+/* ---------- Port Forwarding ----------
+ * Was a NetworkCrudTable over an empty hardcoded seed with a decorative Edit
+ * button (no onClick at all -- a dead click, plus even Add/Delete never
+ * reached a backend). The real domain already exists end-to-end
+ * (app.domains.port_forwarding, the `port_forwarding_rules` table,
+ * portForwardingService/usePortForwarding on the frontend) and already backs
+ * PortForwardingManagement -- reused here, scoped to this location, the same
+ * way DhcpView/VlansView are. */
+export function PortForwardingView({ locationId }: { locationId?: string }) {
+  return <PortForwardingManagement locationId={locationId} />;
 }
 
 /* ---------- DHCP Pool ----------

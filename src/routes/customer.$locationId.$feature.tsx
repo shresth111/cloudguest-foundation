@@ -139,7 +139,7 @@ function FeaturePage() {
             {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
             {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
             {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
-            {feature === "port-forwarding" && <PortForwardingView />}
+            {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
             {feature === "dhcp" && <DhcpView locationId={locationId} />}
             {feature === "vlans" && <VlansView locationId={locationId} />}
             {feature === "voip" && <VoipView />}

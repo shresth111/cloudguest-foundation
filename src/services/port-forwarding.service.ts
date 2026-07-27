@@ -54,10 +54,26 @@ function toRule(r: BackendPortForwardingRule): PortForwardingRule {
   };
 }
 
+function orgHeaders(organizationId?: string) {
+  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : {};
+}
+
+// `create_port_forwarding_rule`/`list_port_forwarding_rules`/etc. all resolve
+// their tenant scope from CurrentOrganization (X-Organization-Id) -- absent
+// it, RequirePermission falls back to checking for a GLOBAL-scope grant,
+// which an ordinary customer/org-owner session never holds, so every call
+// here 403'd for a real customer ("'firewall.read' is required at global
+// scope") -- surfaced as the customer dashboard's Port Forwarding page never
+// having been backend-wired in the first place. `organizationId` is optional
+// and left unset by the master console's platform-wide /network view (which
+// deliberately spans every org), and threaded by the customer dashboard's
+// location-scoped PortForwardingManagement -- same convention as
+// dhcp.service.ts's orgHeaders.
 export const portForwardingService = {
   async list(q: PortForwardingListQuery): Promise<PortForwardingListResult> {
     const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
+      ...orgHeaders(q.organizationId),
     });
     return {
       rows: data.items.map(toRule),
@@ -68,11 +84,12 @@ export const portForwardingService = {
     };
   },
 
-  async getKpis(): Promise<PortForwardingKpis> {
+  async getKpis(organizationId?: string): Promise<PortForwardingKpis> {
     // No dedicated stats endpoint -- fetch a large page and compute real
     // counts client-side, same convention as vlan.service.ts's getKpis.
     const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {
       params: { page: 1, page_size: 100 },
+      ...orgHeaders(organizationId),
     });
     const enabled = data.items.filter((r) => r.is_enabled).length;
     return {
@@ -83,37 +100,49 @@ export const portForwardingService = {
   },
 
   async create(payload: CreatePortForwardingPayload): Promise<PortForwardingRule> {
-    const { data } = await api.post<BackendPortForwardingRule>("/port-forwarding/rules", {
-      router_id: payload.routerId,
-      name: payload.name,
-      protocol: payload.protocol ?? "both",
-      source_address: payload.sourceAddress ?? null,
-      destination_address: payload.destinationAddress ?? null,
-      destination_port: payload.destinationPort,
-      internal_address: payload.internalAddress,
-      internal_port: payload.internalPort,
-      description: payload.description ?? null,
-      is_enabled: payload.isEnabled ?? true,
-    });
+    const { data } = await api.post<BackendPortForwardingRule>(
+      "/port-forwarding/rules",
+      {
+        router_id: payload.routerId,
+        name: payload.name,
+        protocol: payload.protocol ?? "both",
+        source_address: payload.sourceAddress ?? null,
+        destination_address: payload.destinationAddress ?? null,
+        destination_port: payload.destinationPort,
+        internal_address: payload.internalAddress,
+        internal_port: payload.internalPort,
+        description: payload.description ?? null,
+        is_enabled: payload.isEnabled ?? true,
+      },
+      orgHeaders(payload.organizationId),
+    );
     return toRule(data);
   },
 
-  async update(id: string, payload: UpdatePortForwardingPayload): Promise<PortForwardingRule> {
-    const { data } = await api.put<BackendPortForwardingRule>(`/port-forwarding/rules/${id}`, {
-      name: payload.name,
-      protocol: payload.protocol,
-      source_address: payload.sourceAddress,
-      destination_address: payload.destinationAddress,
-      destination_port: payload.destinationPort,
-      internal_address: payload.internalAddress,
-      internal_port: payload.internalPort,
-      description: payload.description,
-      is_enabled: payload.isEnabled,
-    });
+  async update(
+    id: string,
+    payload: UpdatePortForwardingPayload,
+    organizationId?: string,
+  ): Promise<PortForwardingRule> {
+    const { data } = await api.put<BackendPortForwardingRule>(
+      `/port-forwarding/rules/${id}`,
+      {
+        name: payload.name,
+        protocol: payload.protocol,
+        source_address: payload.sourceAddress,
+        destination_address: payload.destinationAddress,
+        destination_port: payload.destinationPort,
+        internal_address: payload.internalAddress,
+        internal_port: payload.internalPort,
+        description: payload.description,
+        is_enabled: payload.isEnabled,
+      },
+      orgHeaders(organizationId),
+    );
     return toRule(data);
   },
 
-  async remove(id: string): Promise<void> {
-    await api.delete(`/port-forwarding/rules/${id}`);
+  async remove(id: string, organizationId?: string): Promise<void> {
+    await api.delete(`/port-forwarding/rules/${id}`, orgHeaders(organizationId));
   },
 };
