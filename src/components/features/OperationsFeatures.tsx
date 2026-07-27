@@ -35,6 +35,8 @@ import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
 import { routerService } from "@/services/router.service";
 import { ispService } from "@/services/isp.service";
+import { DhcpManagement } from "@/components/network/DhcpManagement";
+import { VlanManagement } from "@/components/network/VlanManagement";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
 import { api } from "@/services/api";
@@ -1088,66 +1090,26 @@ export function PortForwardingView() {
   );
 }
 
-/* ---------- DHCP Pool ---------- */
-export function DhcpView() {
-  return (
-    <NetworkCrudTable
-      title="DHCP Pool"
-      description="Address pools handed out to devices per VLAN, with lease times."
-      caution="These are advanced settings — please be sure you know what you're doing here and its impact on the network connectivity of your users."
-      tableTitle="Current DHCP Pools"
-      columns={[
-        { key: "cidr", label: "CIDR" },
-        { key: "dhcp", label: "DHCP" },
-        { key: "range", label: "Range" },
-        { key: "interface", label: "Interface" },
-      ]}
-      seed={[
-        { cidr: "172.16.40.1/24", dhcp: "dhcp_pool2", range: "172.16.40.2-172.16.40.254", interface: "IOT_Devices" },
-        { cidr: "172.16.30.1/24", dhcp: "Hosteller_Staff", range: "172.16.30.2-172.16.30.254", interface: "Hosteller_Staff" },
-        { cidr: "172.16.20.1/21", dhcp: "default-dhcp", range: "172.16.16.2-172.16.23.249", interface: "ZIPWiFi-LAN" },
-      ]}
-      fields={[
-        { key: "dhcp", label: "Pool Name", type: "text", placeholder: "dhcp_pool2", validate: validators.required("pool name") },
-        { key: "interface", label: "Interface Name", type: "text", placeholder: "IOT_Devices", validate: validators.required("interface name") },
-        { key: "network", label: "Network", type: "text", placeholder: "172.16.40.1", validate: validators.requiredIp },
-        { key: "subnet", label: "Subnet Mask", type: "select", options: ["/21", "/22", "/23", "/24", "/25"], validate: validators.required("subnet mask") },
-      ]}
-      addLabel="Add DHCP Pool"
-    />
-  );
+/* ---------- DHCP Pool ----------
+ * Was a NetworkCrudTable over hardcoded seed rows with a decorative Edit
+ * button (no onClick at all -- a dead click, plus even Add/Delete never
+ * reached a backend). The real domain already exists end-to-end
+ * (app.domains.dhcp, the `dhcp_pools` table, dhcpService/useDhcp on the
+ * frontend) and already backs DhcpManagement -- reused here, scoped to
+ * this location, the same way IspDetailsView/MacAuthView are. */
+export function DhcpView({ locationId }: { locationId?: string }) {
+  return <DhcpManagement locationId={locationId} />;
 }
 
-/* ---------- VLANs ---------- */
-export function VlansView() {
-  return (
-    <NetworkCrudTable
-      title="Manage VLANs"
-      description="Segment the network to isolate guest, staff and IoT traffic."
-      caution="These are advanced settings — please be sure you know what you're doing here and its impact on the network connectivity of your users."
-      tableTitle="Current VLANs"
-      tableSubtitle="This lists out all the VLANs setup on the Network."
-      columns={[
-        { key: "addressSubnet", label: "Address/Subnet" },
-        { key: "gateway", label: "Gateway" },
-        { key: "vlanName", label: "Vlan-Name" },
-        { key: "vlanId", label: "VlanId" },
-      ]}
-      seed={[
-        { addressSubnet: "172.16.40.1/24", gateway: "172.16.40.0", vlanName: "IOT_Devices", vlanId: "30" },
-        { addressSubnet: "172.16.30.1/24", gateway: "172.16.30.0", vlanName: "Hosteller_Staff", vlanId: "20" },
-      ]}
-      fields={[
-        { key: "gateway", label: "Gateway", type: "text", placeholder: "172.16.40.0", validate: validators.requiredIp },
-        { key: "subnet", label: "Subnet Mask", type: "select", options: ["/21", "/22", "/23", "/24", "/25"], validate: validators.required("subnet mask") },
-        { key: "vlanId", label: "VLAN ID", type: "text", placeholder: "30", validate: validators.required("VLAN ID") },
-        { key: "hotspot", label: "Hotspot", type: "select", options: ["Guest WiFi", "Staff WiFi", "IoT Network"], validate: validators.required("hotspot") },
-        { key: "vlanName", label: "VLAN Name", type: "text", placeholder: "IOT_Devices", validate: validators.required("VLAN name") },
-        { key: "portType", label: "Port Type", type: "select", options: ["Access", "Trunk"], validate: validators.required("port type") },
-      ]}
-      addLabel="Add VLAN"
-    />
-  );
+/* ---------- VLANs ----------
+ * Was a NetworkCrudTable over hardcoded seed rows with a decorative Edit
+ * button (no onClick at all -- a dead click, plus even Add/Delete never
+ * reached a backend). The real domain already exists end-to-end
+ * (app.domains.vlan, the `vlans` table, vlanService/useVlan on the
+ * frontend) and already backs VlanManagement -- reused here, scoped to
+ * this location, the same way DhcpView/IspDetailsView/MacAuthView are. */
+export function VlansView({ locationId }: { locationId?: string }) {
+  return <VlanManagement locationId={locationId} />;
 }
 
 /* ---------- VOIP Priority ---------- */

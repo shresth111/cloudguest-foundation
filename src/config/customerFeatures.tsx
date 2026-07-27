@@ -56,8 +56,8 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "admin-logs": return <AdminLogsView />;
     case "mac-auth": return <MacAuthView locationId={ctx.locationId} />;
     case "port-forwarding": return <PortForwardingView />;
-    case "dhcp": return <DhcpView />;
-    case "vlans": return <VlansView />;
+    case "dhcp": return <DhcpView locationId={ctx.locationId} />;
+    case "vlans": return <VlansView locationId={ctx.locationId} />;
     case "voip": return <VoipView />;
     case "isp-routing": return <IspRoutingView />;
     case "debugging": return <DebuggingView />;

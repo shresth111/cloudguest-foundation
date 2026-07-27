@@ -52,6 +52,7 @@ import {
   useDeleteDhcpPool,
 } from "@/hooks/useDhcp";
 import { routerService } from "@/services/router.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { DhcpPool } from "@/types/dhcp";
 
@@ -71,7 +72,7 @@ const dhcpSchema = z.object({
 });
 type DhcpFormValues = z.infer<typeof dhcpSchema>;
 
-export function DhcpManagement() {
+export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -79,20 +80,36 @@ export function DhcpManagement() {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DhcpPool | null>(null);
 
+  // The backend's `GET /dhcp-pools` only filters by `router_id`, not
+  // location -- so a location-scoped view (the customer dashboard's DHCP
+  // Pool page) fetches one full (up to max page_size) page and narrows +
+  // paginates it client-side below, same tradeoff `routerService.list`
+  // already makes for its own "all routers" case.
   const { data, isLoading } = useDhcpPools({
-    page,
-    pageSize: PAGE_SIZE,
+    page: locationId ? 1 : page,
+    pageSize: locationId ? 100 : PAGE_SIZE,
     routerId: routerFilter === "all" ? undefined : routerFilter,
   });
   const del = useDeleteDhcpPool();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["dhcp", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["dhcp", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped: use the location-scoped router endpoint directly
+      // (mirrors IspDetailsView/MacAuthView) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const routerName = (id: string) => routers.rows.find((r) => r.id === id)?.name ?? id.slice(0, 8);
 
-  const rows = (data?.rows ?? []).filter((p) => {
+  const filteredRows = (data?.rows ?? []).filter((p) => {
+    if (locationId && p.locationId !== locationId) return false;
     if (!search.trim()) return true;
     const t = search.trim().toLowerCase();
     return (
@@ -102,6 +119,12 @@ export function DhcpManagement() {
       routerName(p.routerId).toLowerCase().includes(t)
     );
   });
+
+  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
+  const total = locationId ? filteredRows.length : data?.total ?? 0;
+  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const hasNext = locationId ? page < totalPages : !!data?.hasNext;
+  const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   const enabledCount = rows.filter((p) => p.isEnabled).length;
 
   return (
@@ -118,7 +141,7 @@ export function DhcpManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Pools" value={data?.total ?? 0} icon={Share2} tone="primary" />
+        <StatCard label="Total Pools" value={total} icon={Share2} tone="primary" />
         <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
         <StatCard label="Disabled" value={rows.length - enabledCount} icon={ShieldOff} tone="warning" />
       </div>
@@ -226,16 +249,16 @@ export function DhcpManagement() {
               ))}
             </TableBody>
           </Table>
-          {data && data.totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
               <span>
-                Page {page} of {data.totalPages} · {data.total} pools
+                Page {page} of {totalPages} · {total} pools
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button size="sm" variant="outline" disabled={!hasPrevious} onClick={() => setPage((p) => p - 1)}>
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button size="sm" variant="outline" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>
                   Next
                 </Button>
               </div>
