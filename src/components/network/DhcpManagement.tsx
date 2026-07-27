@@ -80,16 +80,31 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DhcpPool | null>(null);
 
+  // `list_pools`/etc. resolve their tenant scope from CurrentOrganization
+  // (X-Organization-Id) -- an ordinary org-owner session holds no
+  // GLOBAL-scope fallback, so the location-scoped (customer dashboard) case
+  // must resolve and thread its real org id. The master console's
+  // unscoped view deliberately leaves it unset (spans every org).
+  const { data: scopedOrgId } = useQuery({
+    queryKey: ["dhcp", "org-id"],
+    queryFn: resolveOrgId,
+    enabled: !!locationId,
+  });
+
   // The backend's `GET /dhcp-pools` only filters by `router_id`, not
   // location -- so a location-scoped view (the customer dashboard's DHCP
   // Pool page) fetches one full (up to max page_size) page and narrows +
   // paginates it client-side below, same tradeoff `routerService.list`
   // already makes for its own "all routers" case.
-  const { data, isLoading } = useDhcpPools({
-    page: locationId ? 1 : page,
-    pageSize: locationId ? 100 : PAGE_SIZE,
-    routerId: routerFilter === "all" ? undefined : routerFilter,
-  });
+  const { data, isLoading } = useDhcpPools(
+    {
+      page: locationId ? 1 : page,
+      pageSize: locationId ? 100 : PAGE_SIZE,
+      routerId: routerFilter === "all" ? undefined : routerFilter,
+      organizationId: locationId ? scopedOrgId : undefined,
+    },
+    { enabled: locationId ? !!scopedOrgId : true },
+  );
   const del = useDeleteDhcpPool();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["dhcp", "router-options", locationId],
@@ -271,6 +286,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
         open={creating || !!editing}
         pool={editing}
         routers={routers.rows}
+        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -292,7 +308,10 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync(confirmDelete.id);
+                  await del.mutateAsync({
+                    id: confirmDelete.id,
+                    organizationId: locationId ? scopedOrgId : undefined,
+                  });
                   toast.success(`Pool ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete pool");
@@ -313,11 +332,13 @@ function DhcpDialog({
   open,
   pool,
   routers,
+  organizationId,
   onClose,
 }: {
   open: boolean;
   pool: DhcpPool | null;
   routers: { id: string; name: string }[];
+  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateDhcpPool();
@@ -369,10 +390,10 @@ function DhcpDialog({
         isEnabled: v.isEnabled,
       };
       if (pool) {
-        await update.mutateAsync({ id: pool.id, payload: shared });
+        await update.mutateAsync({ id: pool.id, payload: shared, organizationId });
         toast.success("DHCP pool updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...shared });
+        await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
         toast.success("DHCP pool created");
       }
       onClose();
