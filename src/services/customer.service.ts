@@ -49,6 +49,16 @@ export interface CustomerDashboardData {
 
 export interface CustomerUsersData { users: { id: string; name: string; email: string; device: string; mac: string; ip: string; duration: string; download: string; status: "online" | "offline" | "idle"; }[]; total: number; page: number; pageSize: number; }
 
+/** Real server-side pagination metadata -- this codebase's established
+ * `PaginationMeta` shape (see backend/app/database/utils/pagination.py),
+ * carried through as-is rather than re-derived on the frontend, so
+ * `totalPages` always reflects what the server actually counted. */
+export interface PageMeta { page: number; pageSize: number; totalItems: number; totalPages: number; hasNext: boolean; hasPrevious: boolean; }
+
+export interface AdminLogsDashboardLoginRow { id: string; email: string; ipAddress: string; success: boolean; failureReason: string | null; time: string }
+export interface AdminLogsRouterEventRow { id: string; locationName: string; routerName: string; eventType: string; message: string | null; isError: boolean; time: string }
+export interface AdminLogsActivityRow { id: string; action: string; description: string | null; actor: string; entityType: string; time: string }
+
 export interface CustomerFeatureData {
   analytics?: { totalSessions: number; uniqueGuests: number; returningRate: number; avgDuration: number; };
   campaigns?: { id: string; name: string; status: string; impressions: number; conversions: number }[];
@@ -57,8 +67,8 @@ export interface CustomerFeatureData {
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
   macAuth?: { id: string; mac: string; type: string; expiresAt: string | null; comment: string | null; enabled: boolean }[];
   adminLogs?: {
-    dashboardLogins: { id: string; email: string; ipAddress: string; success: boolean; failureReason: string | null; time: string }[];
-    routerLogs: { id: string; locationName: string; routerName: string; eventType: string; message: string | null; isError: boolean; time: string }[];
+    dashboardLogins: AdminLogsDashboardLoginRow[];
+    routerLogs: AdminLogsRouterEventRow[];
     // Real administrative change-audit trail (role/permission/location/
     // member changes, etc.) -- merged in from what used to be the separate
     // "Audit Log" nav tab (`GET /audit/entries`, same `audit_log_entries`
@@ -70,7 +80,7 @@ export interface CustomerFeatureData {
     // own "admin-logs" case for why); `actor` is an email when resolvable
     // from the dashboard-logins list fetched alongside it, else the raw
     // actor_user_id, else "System" -- never a fabricated name.
-    accountActivity: { id: string; action: string; description: string | null; actor: string; entityType: string; time: string }[];
+    accountActivity: AdminLogsActivityRow[];
   };
 }
 
@@ -497,7 +507,100 @@ export const customerService = {
       }
     } catch { return getDemoFeatureData(feature); }
   },
+
+  /* ── Logs (real, server-side–paginated) ───────────────────
+   * Dedicated per-section paginated fetches for the customer dashboard's
+   * "Logs" (formerly "Admin Logs") page -- unlike the bundled
+   * getFeatureData("admin-logs", ...) case above (which pulls a single
+   * fixed page of all three sections for the page's first paint), each of
+   * these hits its own real backend page/page_size so a real numbered
+   * pager (NumberedPagination) can jump straight to any page of any one
+   * section independently, matching this codebase's established
+   * server-side-pagination convention (PaginationMeta) rather than
+   * fetching everything and slicing client-side. Same Owner-only,
+   * real-data-or-empty posture as the bundled case above -- see its own
+   * comment for why a failed/blocked fetch resolves to an empty page,
+   * never fabricated rows. */
+  async getAdminLogsDashboardLogins(page = 1, pageSize = 25): Promise<{ items: AdminLogsDashboardLoginRow[]; meta: PageMeta }> {
+    if (isDemo()) return paginateDemoAdminLogs("dashboardLogins", page, pageSize);
+    try {
+      const orgId = await resolveOrgId();
+      const { data } = await api.get<{
+        items: { id: string; user_id: string | null; email: string; ip_address: string; success: boolean; failure_reason: string | null; created_at: string }[];
+        page: number; page_size: number; total_items: number; total_pages: number; has_next: boolean; has_previous: boolean;
+      }>("/admin-logs/dashboard-logins", { params: { page, page_size: pageSize }, headers: { "X-Organization-Id": orgId } });
+      return {
+        items: data.items.map((l) => ({ id: l.id, email: l.email, ipAddress: l.ip_address, success: l.success, failureReason: l.failure_reason, time: timeAgo(l.created_at) })),
+        meta: { page: data.page, pageSize: data.page_size, totalItems: data.total_items, totalPages: data.total_pages, hasNext: data.has_next, hasPrevious: data.has_previous },
+      };
+    } catch { return { items: [], meta: emptyPageMeta(page, pageSize) }; }
+  },
+
+  async getAdminLogsRouterEvents(page = 1, pageSize = 25): Promise<{ items: AdminLogsRouterEventRow[]; meta: PageMeta }> {
+    if (isDemo()) return paginateDemoAdminLogs("routerLogs", page, pageSize);
+    try {
+      const orgId = await resolveOrgId();
+      const { data } = await api.get<{
+        items: { id: string; location_name: string; router_name: string; event_type: string; message: string | null; is_error: boolean; occurred_at: string }[];
+        page: number; page_size: number; total_items: number; total_pages: number; has_next: boolean; has_previous: boolean;
+      }>("/admin-logs/router-events", { params: { page, page_size: pageSize }, headers: { "X-Organization-Id": orgId } });
+      return {
+        items: data.items.map((e) => ({ id: e.id, locationName: e.location_name, routerName: e.router_name, eventType: e.event_type, message: e.message, isError: e.is_error, time: timeAgo(e.occurred_at) })),
+        meta: { page: data.page, pageSize: data.page_size, totalItems: data.total_items, totalPages: data.total_pages, hasNext: data.has_next, hasPrevious: data.has_previous },
+      };
+    } catch { return { items: [], meta: emptyPageMeta(page, pageSize) }; }
+  },
+
+  async getAdminLogsAccountActivity(page = 1, pageSize = 25): Promise<{ items: AdminLogsActivityRow[]; meta: PageMeta }> {
+    if (isDemo()) return paginateDemoAdminLogs("accountActivity", page, pageSize);
+    try {
+      const orgId = await resolveOrgId();
+      const orgHeaders = { headers: { "X-Organization-Id": orgId } };
+      const [activityR, loginsR] = await Promise.allSettled([
+        api.get<{
+          items: { id: string; action: string; description: string | null; actor_user_id: string | null; entity_type: string; created_at: string }[];
+          page: number; page_size: number; total_items: number; total_pages: number; has_next: boolean; has_previous: boolean;
+        }>("/audit/entries", { params: { page, page_size: pageSize, exclude_view_events: true }, ...orgHeaders }),
+        // A separate, fixed lookup (not the paginated table above) purely
+        // to resolve actor_user_id -> email for whichever activity page is
+        // showing -- independent of which page of dashboard-logins (if
+        // any) the other section happens to be on. Same "not exhaustive,
+        // never fabricated" nicety the bundled case above already
+        // documents, just decoupled from that section's own pagination now.
+        api.get<{ items: { user_id: string | null; email: string }[] }>(
+          "/admin-logs/dashboard-logins", { params: { page: 1, page_size: 100 }, ...orgHeaders },
+        ),
+      ]);
+      if (activityR.status !== "fulfilled") return { items: [], meta: emptyPageMeta(page, pageSize) };
+      const data = activityR.value.data;
+      const logins = loginsR.status === "fulfilled" ? loginsR.value.data?.items ?? [] : [];
+      const actorEmailById = new Map(logins.filter((l) => l.user_id).map((l) => [l.user_id as string, l.email]));
+      return {
+        items: data.items.map((a) => ({ id: a.id, action: a.action, description: a.description, actor: a.actor_user_id ? actorEmailById.get(a.actor_user_id) ?? a.actor_user_id : "System", entityType: a.entity_type, time: timeAgo(a.created_at) })),
+        meta: { page: data.page, pageSize: data.page_size, totalItems: data.total_items, totalPages: data.total_pages, hasNext: data.has_next, hasPrevious: data.has_previous },
+      };
+    } catch { return { items: [], meta: emptyPageMeta(page, pageSize) }; }
+  },
 };
+
+function emptyPageMeta(page: number, pageSize: number): PageMeta {
+  return { page, pageSize, totalItems: 0, totalPages: 0, hasNext: false, hasPrevious: false };
+}
+
+/** Demo-mode fallback for the three paginated Logs endpoints -- slices the
+ * same fixed demo rows getDemoFeatureData("admin-logs") already returns,
+ * so demo mode still renders (with a single page, since there are only a
+ * handful of fixed demo rows) rather than erroring. */
+function paginateDemoAdminLogs<K extends keyof NonNullable<CustomerFeatureData["adminLogs"]>>(
+  section: K, page: number, pageSize: number,
+): { items: NonNullable<CustomerFeatureData["adminLogs"]>[K]; meta: PageMeta } {
+  const all = getDemoFeatureData("admin-logs").adminLogs![section];
+  const start = (page - 1) * pageSize;
+  const items = all.slice(start, start + pageSize) as NonNullable<CustomerFeatureData["adminLogs"]>[K];
+  const totalItems = all.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  return { items, meta: { page, pageSize, totalItems, totalPages, hasNext: page < totalPages, hasPrevious: page > 1 } };
+}
 
 type DashboardDataResult = CustomerDashboardData;
 

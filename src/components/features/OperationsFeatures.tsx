@@ -29,7 +29,13 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
-import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
+import { NumberedPagination } from "@/components/ui-ext/NumberedPagination";
+import {
+  useCustomerFeatureData,
+  useAdminLogsDashboardLogins,
+  useAdminLogsRouterEvents,
+  useAdminLogsAccountActivity,
+} from "@/hooks/useCustomerDashboard";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
 import { routerService } from "@/services/router.service";
@@ -38,6 +44,7 @@ import { DhcpManagement } from "@/components/network/DhcpManagement";
 import { VlanManagement } from "@/components/network/VlanManagement";
 import { PortForwardingManagement } from "@/components/network/PortForwardingManagement";
 import { HotspotManagement } from "@/components/network/HotspotManagement";
+import { IspManagement } from "@/components/network/IspManagement";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
 import { api } from "@/services/api";
@@ -768,22 +775,30 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
   const role = getCustomerLoginRole();
   // Real data only -- fetched from /admin-logs/dashboard-logins,
   // /admin-logs/router-events, and /audit/entries (all org-scoped,
-  // Owner-only) via customerService.getFeatureData("admin-logs", ...). No
+  // Owner-only), each with its own real server-side page/page_size (see
+  // customer.service.ts's own "Logs (real, server-side–paginated)"
+  // comment) so each section's numbered pager below can jump straight to
+  // any page without fetching the other two pages or the whole table. No
   // Math.random(), no fabricated rows; a failed/blocked fetch resolves to
-  // an empty section, never fake log entries (see customer.service.ts's
-  // own "admin-logs" case docstring).
-  const { data, isLoading } = useCustomerFeatureData("admin-logs", locationId ?? "");
+  // an empty section, never fake log entries.
+  const ADMIN_LOGS_PAGE_SIZE = 25;
+  const [loginsPage, setLoginsPage] = useState(1);
+  const [routerPage, setRouterPage] = useState(1);
+  const [activityPage, setActivityPage] = useState(1);
+  const loginsQuery = useAdminLogsDashboardLogins(loginsPage, ADMIN_LOGS_PAGE_SIZE);
+  const routerQuery = useAdminLogsRouterEvents(routerPage, ADMIN_LOGS_PAGE_SIZE);
+  const activityQuery = useAdminLogsAccountActivity(activityPage, ADMIN_LOGS_PAGE_SIZE);
 
   if (role !== "owner") {
     return (
       <div className="space-y-6">
-        <FeatureHeader title="Admin Logs" description="Who logged into the dashboard and when, router activity, and account changes across every location." />
+        <FeatureHeader title="Logs" description="Who logged into the dashboard and when, router activity, and account changes across every location." />
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
             <ShieldAlert className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">Owner access only</p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              Admin Logs shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page.
+              Logs shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page.
             </p>
           </CardContent>
         </Card>
@@ -791,13 +806,16 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
     );
   }
 
-  const logins = data?.adminLogs?.dashboardLogins ?? [];
-  const routerLogs = data?.adminLogs?.routerLogs ?? [];
-  const accountActivity = data?.adminLogs?.accountActivity ?? [];
+  const logins = loginsQuery.data?.items ?? [];
+  const routerLogs = routerQuery.data?.items ?? [];
+  const accountActivity = activityQuery.data?.items ?? [];
+  const loginsTotalPages = loginsQuery.data?.meta.totalPages ?? 0;
+  const routerTotalPages = routerQuery.data?.meta.totalPages ?? 0;
+  const activityTotalPages = activityQuery.data?.meta.totalPages ?? 0;
 
   return (
     <div className="space-y-8">
-      <FeatureHeader title="Admin Logs" description="Real login activity, router events, and account/config changes across every location in your organization." />
+      <FeatureHeader title="Logs" description="Real login activity, router events, and account/config changes across every location in your organization." />
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Dashboard Logins</h3>
@@ -808,7 +826,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                 <TableRow><TableHead>Email</TableHead><TableHead>IP Address</TableHead><TableHead>Result</TableHead><TableHead>When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {loginsQuery.isLoading ? (
                   <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : logins.length === 0 ? (
                   <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">No dashboard logins recorded yet.</TableCell></TableRow>
@@ -827,6 +845,11 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
               </TableBody>
             </Table>
           </CardContent>
+          {loginsTotalPages > 1 && (
+            <div className="border-t border-border/70 px-4 py-3">
+              <NumberedPagination page={loginsPage} totalPages={loginsTotalPages} onPageChange={setLoginsPage} />
+            </div>
+          )}
         </Card>
       </div>
 
@@ -839,7 +862,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                 <TableRow><TableHead>Location</TableHead><TableHead>Router</TableHead><TableHead>Event</TableHead><TableHead>Message</TableHead><TableHead>When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {routerQuery.isLoading ? (
                   <TableRow><TableCell colSpan={5} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : routerLogs.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="py-10 text-center text-xs text-muted-foreground">No router events recorded yet.</TableCell></TableRow>
@@ -859,6 +882,11 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
               </TableBody>
             </Table>
           </CardContent>
+          {routerTotalPages > 1 && (
+            <div className="border-t border-border/70 px-4 py-3">
+              <NumberedPagination page={routerPage} totalPages={routerTotalPages} onPageChange={setRouterPage} />
+            </div>
+          )}
         </Card>
       </div>
 
@@ -867,12 +895,12 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
             location/member changes, etc.) -- what used to be the
             standalone "Audit Log" tab, now merged in here as its own
             section rather than kept as a second nav entry. Same real
-            /audit/entries data (app.domains.audit), same
-            useCustomerFeatureData("admin-logs", ...) call as the two
-            sections above -- see customer.service.ts's own "admin-logs"
-            case docstring. Fetched with exclude_view_events=true, so this
-            is only real changes -- never the "*_viewed" access-logging
-            noise that would otherwise bury it. */}
+            /audit/entries data (app.domains.audit), same real
+            server-side pagination as the two sections above -- see
+            customer.service.ts's own getAdminLogsAccountActivity comment.
+            Fetched with exclude_view_events=true, so this is only real
+            changes -- never the "*_viewed" access-logging noise that
+            would otherwise bury it. */}
         <h3 className="text-sm font-semibold text-foreground">Account Activity</h3>
         <Card>
           <CardContent className="p-0">
@@ -881,7 +909,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                 <TableRow><TableHead>Change</TableHead><TableHead>Actor</TableHead><TableHead>When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {activityQuery.isLoading ? (
                   <TableRow><TableCell colSpan={3} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : accountActivity.length === 0 ? (
                   <TableRow><TableCell colSpan={3} className="py-10 text-center text-xs text-muted-foreground">No account activity recorded yet.</TableCell></TableRow>
@@ -902,6 +930,11 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
               </TableBody>
             </Table>
           </CardContent>
+          {activityTotalPages > 1 && (
+            <div className="border-t border-border/70 px-4 py-3">
+              <NumberedPagination page={activityPage} totalPages={activityTotalPages} onPageChange={setActivityPage} />
+            </div>
+          )}
         </Card>
       </div>
     </div>
@@ -1136,86 +1169,16 @@ export function VoipView() {
   );
 }
 
-/* ---------- ISP Routing ---------- */
-export function IspRoutingView() {
-  const ISPS = ["Airtel", "Tata Communications", "Jio", "ACT Fibernet", "BSNL"];
-  const [mode, setMode] = useState<"vlan" | "ip">("ip");
-  const [ip, setIp] = useState(""); const [isp, setIsp] = useState("");
-  const [ipRoutes, setIpRoutes] = useState<{ ip: string; isp: string; enabled: boolean }[]>([]);
-  const [vlanRoutes, setVlanRoutes] = useState<{ ip: string; isp: string; enabled: boolean }[]>([]);
-  const [err, setErr] = useState("");
-
-  const addRoute = () => {
-    if (mode === "ip") {
-      if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) { setErr("Enter a valid IP Address"); return; }
-    } else {
-      if (!ip || !/^\d{1,4}$/.test(ip) || +ip < 1 || +ip > 4094) { setErr("Enter a valid VLAN ID (1-4094)"); return; }
-    }
-    if (!isp) { setErr("Select an ISP"); return; }
-    setErr("");
-    const setRoutes = mode === "ip" ? setIpRoutes : setVlanRoutes;
-    setRoutes((r) => [{ ip, isp, enabled: true }, ...r]);
-    setIp(""); setIsp("");
-    toast.success("Route added");
-  };
-
-  const routes = mode === "ip" ? ipRoutes : vlanRoutes;
-  const setRoutes = mode === "ip" ? setIpRoutes : setVlanRoutes;
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">ISP Routing</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Route individual VLAN or user's traffic to a different ISP.</p>
-      </div>
-
-      <div className="inline-flex rounded-xl border bg-muted/40 p-1">
-        {(["vlan", "ip"] as const).map((m) => (
-          <button key={m} onClick={() => { setMode(m); setIp(""); setIsp(""); setErr(""); }} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-            {m === "vlan" ? "Route VLAN" : "Route IP Address"}
-          </button>
-        ))}
-      </div>
-
-      <Card>
-        <CardContent className="p-5">
-          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-            <div>
-              <Label className="mb-1.5 block text-sm">{mode === "ip" ? "IP Address" : "VLAN ID"} *</Label>
-              <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder={mode === "ip" ? "Enter IP Address" : "Enter VLAN ID (1-4094)"} className="h-9" />
-            </div>
-            <div>
-              <Label className="mb-1.5 block text-sm">ISPs *</Label>
-              <Select value={isp} onValueChange={setIsp}><SelectTrigger className="h-9"><SelectValue placeholder="Choose ISP" /></SelectTrigger><SelectContent>{ISPS.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
-            </div>
-            <Button className="h-9 self-end" onClick={addRoute}><Plus className="h-4 w-4" /> Add Route</Button>
-          </div>
-          {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle className="text-base">{mode === "ip" ? "Current IP Address ISP Routing" : "Current VLAN ISP Routing"}</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow><TableHead>{mode === "ip" ? "IP Address" : "VLAN ID"}</TableHead><TableHead>ISP Name</TableHead><TableHead>Action</TableHead><TableHead>Enable/Disable Routing</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {routes.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">No data available in table</TableCell></TableRow>
-              ) : routes.map((r, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-mono text-xs">{r.ip}</TableCell>
-                  <TableCell className="font-medium"><span className="inline-flex items-center gap-1.5"><ArrowRightLeft className="h-3.5 w-3.5 text-primary" />{r.isp}</span></TableCell>
-                  <TableCell><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setRoutes((rt) => rt.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                  <TableCell><Switch checked={r.enabled} onCheckedChange={(v) => setRoutes((rt) => rt.map((x, j) => j === i ? { ...x, enabled: v } : x))} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
+/* ---------- ISP Routing ----------
+ * Was fully local `useState` -- "Add Route" only ever pushed into in-memory
+ * arrays that a reload silently discarded; nothing was ever read from or
+ * written to a backend. The real domain already exists end-to-end
+ * (app.domains.isp_routing, the `isp_routing_rules` table, already-fixed
+ * ispService.listRoutingRules/createRoutingRule/etc. on the frontend) and
+ * already backs IspManagement's "Routing rules" section -- reused here,
+ * scoped to this location, the same way DhcpView/VlansView are. */
+export function IspRoutingView({ locationId }: { locationId?: string }) {
+  return <IspManagement locationId={locationId} />;
 }
 
 /* ---------- Debugging Tools ---------- */

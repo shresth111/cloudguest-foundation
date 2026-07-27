@@ -104,7 +104,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // -- see customer.$locationId.$feature.tsx's own AdminLogsView render
       // for the same restriction and why (a real, org-wide login + change
       // audit trail, independently enforced by the backend too).
-      { id: "admin-logs", label: "Admin Logs", icon: ScrollText, roles: ["owner"] },
+      { id: "admin-logs", label: "Logs", icon: ScrollText, roles: ["owner"] },
     ],
   },
 ];

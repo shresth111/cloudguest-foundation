@@ -22,6 +22,9 @@ export const customerKeys = {
   dashboard: (locationId: string) => ["customer", "dashboard", locationId] as const,
   users: (locationId: string, params?: Record<string, unknown>) => ["customer", "users", locationId, params] as const,
   features: (feature: string, locationId: string) => ["customer", "features", feature, locationId] as const,
+  adminLogsDashboardLogins: (page: number, pageSize: number) => ["customer", "admin-logs", "dashboard-logins", page, pageSize] as const,
+  adminLogsRouterEvents: (page: number, pageSize: number) => ["customer", "admin-logs", "router-events", page, pageSize] as const,
+  adminLogsAccountActivity: (page: number, pageSize: number) => ["customer", "admin-logs", "account-activity", page, pageSize] as const,
 };
 
 export function useCustomerPermissions() {
@@ -53,6 +56,39 @@ export function useCustomerFeatureData(feature: string, locationId: string) {
     queryKey: customerKeys.features(feature, locationId),
     queryFn: () => customerService.getFeatureData(feature, locationId),
     enabled: !!feature && !!locationId, staleTime: 15_000,
+  });
+}
+
+/** Real, server-side–paginated Logs sections (see customer.service.ts's
+ * own "Logs (real, server-side–paginated)" comment) -- each keeps its own
+ * page/pageSize in the query key so switching pages in one section (e.g.
+ * Dashboard Logins) never refetches or resets the others. `placeholderData`
+ * keeps the previous page's rows on screen while the next page loads,
+ * rather than flashing the "Loading…" state on every page-number click. */
+export function useAdminLogsDashboardLogins(page: number, pageSize = 25) {
+  return useQuery({
+    queryKey: customerKeys.adminLogsDashboardLogins(page, pageSize),
+    queryFn: () => customerService.getAdminLogsDashboardLogins(page, pageSize),
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminLogsRouterEvents(page: number, pageSize = 25) {
+  return useQuery({
+    queryKey: customerKeys.adminLogsRouterEvents(page, pageSize),
+    queryFn: () => customerService.getAdminLogsRouterEvents(page, pageSize),
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminLogsAccountActivity(page: number, pageSize = 25) {
+  return useQuery({
+    queryKey: customerKeys.adminLogsAccountActivity(page, pageSize),
+    queryFn: () => customerService.getAdminLogsAccountActivity(page, pageSize),
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
   });
 }
 

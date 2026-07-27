@@ -6,3 +6,4 @@ export { PageShell } from "./PageShell";
 export { RightDrawer } from "./RightDrawer";
 export { LockedOverlay } from "./LockedOverlay";
 export { ComingSoonPanel } from "./ComingSoonPanel";
+export { NumberedPagination } from "./NumberedPagination";
