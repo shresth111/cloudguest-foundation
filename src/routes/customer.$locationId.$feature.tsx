@@ -91,7 +91,12 @@ function FeaturePage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 backdrop-blur-xl px-4 sm:px-6">
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
-          <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature} · {activeLocation?.name ?? ""}</p></div>
+          {/* "admin-logs" is special-cased to "Logs" here too -- otherwise
+              this generic feature-id breadcrumb (CSS `capitalize`, which
+              treats the hyphen as a word boundary) would still show the
+              retired "Admin-Logs" label even though the sidebar/page title
+              below both say "Logs" now. */}
+          <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature} · {activeLocation?.name ?? ""}</p></div>
 
           <PlanExpiryBadge expiry={planExpiry} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex" />
           <BookDemoButton className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
