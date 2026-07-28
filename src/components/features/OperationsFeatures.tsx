@@ -45,6 +45,7 @@ import { VlanManagement } from "@/components/network/VlanManagement";
 import { PortForwardingManagement } from "@/components/network/PortForwardingManagement";
 import { HotspotManagement } from "@/components/network/HotspotManagement";
 import { IspManagement } from "@/components/network/IspManagement";
+import { QosManagement } from "@/components/network/QosManagement";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
 import { api } from "@/services/api";
@@ -1126,47 +1127,21 @@ export function VlansView({ locationId }: { locationId?: string }) {
   return <VlanManagement locationId={locationId} />;
 }
 
-/* ---------- VOIP Priority ---------- */
-export function VoipView() {
-  const [enabled, setEnabled] = useState(true);
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">VOIP Priority</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Caution: these are advanced settings — please be sure you know what you're doing here and its impact on the network connectivity of your users.</p>
-      </div>
-      <Card>
-        <CardHeader><CardTitle className="text-base">VOIP Priority</CardTitle><CardDescription>Traffic shaping rules for voice. Enabling this will apply QoS for voice and will prioritize the voice data packets.</CardDescription></CardHeader>
-        <CardContent>
-          <label className="flex items-center gap-3">
-            <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); toast.success(v ? "VOIP Priority enabled" : "VOIP Priority disabled"); }} />
-            <span className="text-sm font-medium">Enable / Disable VOIP Priority</span>
-          </label>
-        </CardContent>
-      </Card>
-      <KpiRow items={[
-        { label: "Active calls", value: "12", tone: "primary", icon: Signal },
-        { label: "Jitter", value: "8 ms", tone: "success", icon: Activity },
-        { label: "Packet loss", value: "0.1%", tone: "success", icon: Gauge },
-        { label: "Reserved BW", value: "20%", tone: "info", icon: Gauge },
-      ]} />
-      <Card>
-        <CardHeader><CardTitle className="text-base">Prioritization rules</CardTitle></CardHeader>
-        <CardContent className="space-y-2.5">
-          <ToggleRow label="Prioritize SIP (5060/5061)" hint="Mark DSCP EF for signalling" defaultOn />
-          <ToggleRow label="Prioritize RTP media" hint="Voice payload fast-lane" defaultOn />
-          <ToggleRow label="Throttle bulk downloads during calls" />
-          <div className="flex items-center gap-3 pt-1">
-            <Label className="text-sm">Reserved bandwidth for voice</Label>
-            <Select defaultValue="20">
-              <SelectTrigger className="h-9 w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>{["10", "20", "30", "40"].map((n) => <SelectItem key={n} value={n}>{n}%</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+/* ---------- VOIP Priority ----------
+ * Was a page of decorative ToggleRows and a plain local useState switch --
+ * "Enable / Disable VOIP Priority" and the SIP/RTP prioritization toggles
+ * only ever fired a toast, nothing was ever read from or written to a
+ * backend, and a reload silently discarded every change; the KPI tiles
+ * above them ("Active calls", "Jitter", "Packet loss") were hardcoded
+ * display values with no live source, so they're dropped here rather than
+ * faked. The real domain already exists end-to-end (app.domains.qos, the
+ * `qos_traffic_rules` table -- literally named "QoS & VOIP Priority" in its
+ * own module docstring) -- unlike VLAN/DHCP/Port Forwarding/Hotspot/ISP
+ * Routing, no frontend component existed yet to reuse, so QosManagement is
+ * new (qos.service.ts/useQos.ts alongside it), scoped to this location the
+ * same way DhcpView/VlansView are. */
+export function VoipView({ locationId }: { locationId?: string }) {
+  return <QosManagement locationId={locationId} />;
 }
 
 /* ---------- ISP Routing ----------

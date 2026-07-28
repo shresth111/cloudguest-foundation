@@ -147,7 +147,7 @@ function FeaturePage() {
             {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
             {feature === "dhcp" && <DhcpView locationId={locationId} />}
             {feature === "vlans" && <VlansView locationId={locationId} />}
-            {feature === "voip" && <VoipView />}
+            {feature === "voip" && <VoipView locationId={locationId} />}
             {feature === "isp-routing" && <IspRoutingView locationId={locationId} />}
             {feature === "debugging" && <DebuggingView />}
             {feature === "hotspot" && <HotspotView locationId={locationId} />}
