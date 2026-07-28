@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 import { toast } from "sonner";
 import axios from "axios";
 import { Search, Plus, Trash2, Loader2, ExternalLink } from "lucide-react";
@@ -78,13 +79,20 @@ const DEMO_LOCATIONS: Location[] = [
 ];
 
 export const Route = createFileRoute("/master/locations")({
+  // This page has no per-row detail drawer at all (unlike Customers/Router
+  // Fleet) -- its own free-text `q` box is already the whole "detail" story
+  // (see `rows` below), so MasterSearch (the header's real platform search)
+  // just hands its own query straight into the same filter box a result
+  // came from, instead of inventing a drawer this page has never had.
+  validateSearch: z.object({ q: z.string().optional() }),
   component: LocationsScreen,
 });
 
 const PROPERTY_TYPES = Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[];
 
 function LocationsScreen() {
-  const [q, setQ] = useState("");
+  const { q: initialQ } = Route.useSearch();
+  const [q, setQ] = useState(initialQ ?? "");
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

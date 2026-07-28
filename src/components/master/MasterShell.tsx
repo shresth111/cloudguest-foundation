@@ -2,12 +2,13 @@ import { useState, type ComponentType } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutGrid, Building2, MapPin, CreditCard, Server, Router, LineChart,
-  Activity, LifeBuoy, ScrollText, Settings, Search, Sun, Moon, LogOut, Menu, X,
+  Activity, LifeBuoy, ScrollText, Settings, Sun, Moon, LogOut, Menu, X,
   TerminalSquare, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { MasterSearch } from "@/components/master/MasterSearch";
 
 export interface MasterNavItem {
   to: string;
@@ -115,13 +116,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
             <button className="lg:hidden" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
             <h1 className="text-base font-semibold tracking-tight">{title}</h1>
             <div className="ml-auto flex items-center gap-1.5">
-              <div className="hidden items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 md:flex">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <input
-                  placeholder="Search platform…"
-                  className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                />
-              </div>
+              <MasterSearch />
               {/* Platform-wide: every organization's alerts, not just one --
                   a genuinely different data scope from the customer bell
                   below (see NotificationBellProps.scope). No dedicated

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { toast } from "sonner";
 import { Search, Plus, MapPin, UserCog, CreditCard, Ban, CheckCircle, Mail, Phone, Loader2 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -15,6 +16,13 @@ import type { PropertyType } from "@/types/location";
 import type { Organization, OrgStatus } from "@/types/organization";
 
 export const Route = createFileRoute("/master/customers")({
+  // `open` carries an organization id in from MasterSearch (the header's
+  // real platform search) -- this page has no URL-addressable customer
+  // detail route of its own (detail is a local-state drawer, see `selected`
+  // below), so a search result jumps here and this auto-opens that row's
+  // drawer once the real data has loaded, instead of landing on the
+  // Customers list with no indication *which* customer was searched for.
+  validateSearch: z.object({ open: z.string().optional() }),
   component: CustomersScreen,
 });
 
@@ -32,6 +40,7 @@ interface Enriched extends Organization {
 
 function CustomersScreen() {
   const navigate = useNavigate();
+  const { open: openOrgId } = Route.useSearch();
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Enriched | null>(null);
@@ -80,6 +89,16 @@ function CustomersScreen() {
   useEffect(() => {
     refetch();
   }, []);
+
+  // Auto-open the drawer for a search result once the real customer list
+  // has loaded, then drop `open` from the URL so it doesn't re-trigger on
+  // an unrelated refetch (e.g. after a status toggle).
+  useEffect(() => {
+    if (!openOrgId || rows.length === 0) return;
+    const match = rows.find((r) => r.id === openOrgId);
+    if (match) setSelected(match);
+    navigate({ to: "/master/customers", search: {}, replace: true });
+  }, [openOrgId, rows]);
 
   const filtered = useMemo(
     () =>

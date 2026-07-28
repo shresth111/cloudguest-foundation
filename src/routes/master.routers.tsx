@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { toast } from "sonner";
 import {
   Search, Power, RefreshCw, ArrowUpCircle, RotateCcw, Network, Shield, Waypoints,
@@ -14,6 +15,11 @@ import { isDemo } from "@/services/customer.service";
 import type { RouterDevice } from "@/types/router";
 
 export const Route = createFileRoute("/master/routers")({
+  // Same pattern as master.customers.tsx's `open` -- MasterSearch (the
+  // header's real platform search) has nowhere to deep-link a router to but
+  // this list's own local-state drawer (`sel` below), so it hands in the
+  // router id here and this auto-selects it once the real fleet has loaded.
+  validateSearch: z.object({ open: z.string().optional() }),
   component: RouterFleetScreen,
 });
 
@@ -59,6 +65,8 @@ function ControlButton({ icon: Icon, label, onClick, disabled }: { icon: typeof 
 }
 
 function RouterFleetScreen() {
+  const navigate = useNavigate();
+  const { open: openRouterId } = Route.useSearch();
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<RouterDevice | null>(null);
@@ -79,6 +87,13 @@ function RouterFleetScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!openRouterId || routers.length === 0) return;
+    const match = routers.find((r) => r.id === openRouterId);
+    if (match) setSel(match);
+    navigate({ to: "/master/routers", search: {}, replace: true });
+  }, [openRouterId, routers]);
 
   const rows = useMemo(
     () =>
