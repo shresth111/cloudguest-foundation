@@ -28,6 +28,14 @@ const searchSchema = z.object({
   organizationId: z.string().min(1),
   locationId: z.string().min(1),
   routerId: z.string().min(1),
+  // Populated when the hotspot's own login page redirects here with
+  // RouterOS's `$(mac)` substitution -- the one place a MAC address is
+  // trustworthy without RADIUS (it's what generated this very redirect,
+  // not a caller's unverified claim). Optional/additive: every existing
+  // portal link without it keeps working exactly as before, just without
+  // GET /agent/authorized-macs ever having a MAC to report for that
+  // session. See GuestSignInCard's login call for where this is used.
+  mac: z.string().optional(),
 });
 
 /**
@@ -100,12 +108,13 @@ export const Route = createFileRoute("/portal")({
 });
 
 function PortalRuntimeLayout() {
-  const { organizationId, locationId, routerId } = Route.useSearch();
+  const { organizationId, locationId, routerId, mac } = Route.useSearch();
   return (
     <PortalRuntimeProvider
       organizationId={organizationId}
       locationId={locationId}
       routerId={routerId}
+      deviceMac={mac}
     >
       <Outlet />
     </PortalRuntimeProvider>

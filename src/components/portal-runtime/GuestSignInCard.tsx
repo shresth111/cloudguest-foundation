@@ -46,6 +46,7 @@ export function GuestSignInCard() {
     organizationId,
     locationId,
     routerId,
+    deviceMac,
     selectedMethod,
     setSelectedMethod,
     setSession,
@@ -152,6 +153,7 @@ export function GuestSignInCard() {
         organizationId,
         locationId,
         routerId,
+        deviceMac,
       }),
     onSuccess: async (session) => {
       setOtpError(null);
