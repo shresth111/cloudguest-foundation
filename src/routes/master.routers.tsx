@@ -4,7 +4,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import {
   Search, Power, RefreshCw, ArrowUpCircle, RotateCcw, Network, Shield, Waypoints,
-  MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2,
+  MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -12,6 +12,10 @@ import {
 } from "@/components/master/MasterKit";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
+import { useGenerateProvisioningToken } from "@/hooks/useRouters";
+import { buildRouterSetupScript } from "@/components/routers/RouterDetailTabs";
+import api from "@/services/api";
+import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 
 export const Route = createFileRoute("/master/routers")({
@@ -61,6 +65,160 @@ function ControlButton({ icon: Icon, label, onClick, disabled }: { icon: typeof 
     >
       <Icon className="h-4 w-4 text-primary" /> {label}
     </button>
+  );
+}
+
+const inputCls =
+  "w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary";
+
+/** One-paste MikroTik setup: fetches a provisioning token, checks the
+ * router in immediately (dashboard-side, so the agent credential is known
+ * up front), and renders a ready-to-paste RouterOS script -- see
+ * buildRouterSetupScript's own doc comment for exactly what it covers. */
+function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
+  const generate = useGenerateProvisioningToken();
+  const [busy, setBusy] = useState(false);
+  const [script, setScript] = useState<string | null>(null);
+  const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
+  const [wanIfs, setWanIfs] = useState<string[]>(["ether1", "ether2", "ether3"]);
+  const [enableFirewall, setEnableFirewall] = useState(true);
+  const [form, setForm] = useState({
+    lanBridge: "bridge",
+    lanIp: "192.168.88.1",
+    lanCidr: "24",
+    dnsServers: "8.8.8.8,1.1.1.1",
+    hsUser: "guest",
+    hsPass: "welcome123",
+  });
+
+  function set<K extends keyof typeof form>(key: K, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+  function setWanIf(idx: number, value: string) {
+    setWanIfs((arr) => arr.map((v, i) => (i === idx ? value : v)));
+  }
+
+  async function onGenerate() {
+    setBusy(true);
+    setScript(null);
+    try {
+      const { token } = await generate.mutateAsync(router.id);
+      const checkinResp = await api.post<{ agent_credential?: string }>(
+        "/routers/provisioning/check-in",
+        { token },
+      );
+      const agentCredential = checkinResp.data.agent_credential;
+      if (!agentCredential) {
+        toast.error("Check-in succeeded but no agent credential was returned.");
+        return;
+      }
+      setScript(
+        buildRouterSetupScript({
+          apiBase: api.defaults.baseURL || "",
+          agentCredential,
+          wanIfs: wanIfs.slice(0, ispCount),
+          enableFirewall,
+          ...form,
+        }),
+      );
+      toast.success("Script ready");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to generate setup script");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-card p-3">
+      <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <FileCode2 className="h-3.5 w-3.5" /> Setup Script -- 1-shot MikroTik configuration
+      </p>
+      <p className="text-xs text-muted-foreground">
+        WAN internet (1-3 ISP, DHCP, failover if 2+), LAN bridge, Hotspot, basic firewall aur
+        platform check-in + heartbeat -- ek hi script me. WAN IP khud DHCP se milegi.
+      </p>
+
+      <div className="flex gap-1.5">
+        {([1, 2, 3] as const).map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setIspCount(n)}
+            className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${ispCount === n ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-accent"}`}
+          >
+            {n} ISP{n > 1 ? "s" : ""}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {wanIfs.slice(0, ispCount).map((v, idx) => (
+          <div key={idx}>
+            <label className="mb-1 block text-[11px] text-muted-foreground">WAN {idx + 1} interface</label>
+            <input className={inputCls} value={v} onChange={(e) => setWanIf(idx, e.target.value)} placeholder={`ether${idx + 1}`} />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-[11px] text-muted-foreground">LAN bridge name</label>
+          <input className={inputCls} value={form.lanBridge} onChange={(e) => set("lanBridge", e.target.value)} placeholder="bridge" />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-muted-foreground">LAN IP</label>
+          <input className={inputCls} value={form.lanIp} onChange={(e) => set("lanIp", e.target.value)} placeholder="192.168.88.1" />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-muted-foreground">LAN CIDR</label>
+          <input className={inputCls} value={form.lanCidr} onChange={(e) => set("lanCidr", e.target.value)} placeholder="24" />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-muted-foreground">DNS servers</label>
+          <input className={inputCls} value={form.dnsServers} onChange={(e) => set("dnsServers", e.target.value)} placeholder="8.8.8.8,1.1.1.1" />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot username</label>
+          <input className={inputCls} value={form.hsUser} onChange={(e) => set("hsUser", e.target.value)} placeholder="guest" />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot password</label>
+          <input className={inputCls} value={form.hsPass} onChange={(e) => set("hsPass", e.target.value)} placeholder="welcome123" />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 text-xs text-foreground">
+        <input type="checkbox" checked={enableFirewall} onChange={(e) => setEnableFirewall(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
+        Basic firewall rules bhi lagao
+      </label>
+
+      <MButton variant="primary" onClick={onGenerate} disabled={busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}
+        {busy ? "Generating..." : "Generate script"}
+      </MButton>
+
+      {script && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">Router ke WinBox New Terminal me paste karo</span>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(script);
+                toast.success("Copied");
+              }}
+              className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
+            >
+              <Copy className="h-3 w-3" /> Copy
+            </button>
+          </div>
+          <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug">
+            <code>{script}</code>
+          </pre>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -200,6 +358,8 @@ function RouterFleetScreen() {
                 Quick actions below aren't wired to real device control yet -- use Device Console to run real commands on this router.
               </p>
             )}
+
+            {!demo && <RouterSetupScriptPanel router={sel} />}
 
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Power &amp; Firmware</p>

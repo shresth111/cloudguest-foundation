@@ -917,7 +917,7 @@ function ProvisioningTokenCard({ routerId }: { routerId: string }) {
  * default routes, each independently health-checked by RouterOS's own
  * DHCP client) needs no such assumption and is what's implemented for
  * every WAN count. */
-function buildRouterSetupScript(opts: {
+export function buildRouterSetupScript(opts: {
   apiBase: string;
   agentCredential: string;
   wanIfs: string[];
