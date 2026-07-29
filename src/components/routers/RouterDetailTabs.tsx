@@ -76,6 +76,7 @@ import {
   useRotateSecret,
 } from "@/hooks/useRouterProvisioning";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import api from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
 
@@ -93,6 +94,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         <TabsList className="h-auto flex-wrap gap-1 bg-muted/40 p-1">
           {[
             ["overview", "Overview"],
+            ["setup-script", "Setup Script"],
             ["wireguard", "WireGuard"],
             ["wifi", "Guest WiFi"],
             ["devices", "Connected Devices"],
@@ -190,6 +192,9 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         </Card>
       </TabsContent>
 
+      <TabsContent value="setup-script">
+        <SetupScriptTab routerId={router.id} />
+      </TabsContent>
       <TabsContent value="wireguard">
         <WireGuardTab routerId={router.id} />
       </TabsContent>
@@ -896,6 +901,305 @@ function ProvisioningTokenCard({ routerId }: { routerId: string }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Builds a single one-paste MikroTik RouterOS script: 1-3 DHCP WAN links
+ * (failover via distance ordering when >1), LAN bridge + Hotspot (guest
+ * WiFi), basic firewall, and platform check-in + a recurring heartbeat
+ * scheduler -- agent credential already baked in, no on-router token
+ * exchange needed. Pure string templating, no I/O.
+ *
+ * Load-balancing (PCC) is deliberately out of scope here: it needs each
+ * WAN's actual gateway IP to build routing-mark routes, which isn't known
+ * ahead of time for a DHCP-assigned link -- generating that blind risks
+ * silently breaking the router's internet. Failover (distance-ordered
+ * default routes, each independently health-checked by RouterOS's own
+ * DHCP client) needs no such assumption and is what's implemented for
+ * every WAN count. */
+function buildRouterSetupScript(opts: {
+  apiBase: string;
+  agentCredential: string;
+  wanIfs: string[];
+  lanBridge: string;
+  lanIp: string;
+  lanCidr: string;
+  dnsServers: string;
+  hsUser: string;
+  hsPass: string;
+  enableFirewall: boolean;
+}): string {
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall } = opts;
+  const octets = lanIp.split(".");
+  const base3 = octets.slice(0, 3).join(".");
+  const poolStart = `${base3}.10`;
+  const poolEnd = `${base3}.254`;
+  const lanNetwork = `${base3}.0/${lanCidr}`;
+
+  const lines: string[] = [];
+  lines.push("{");
+  lines.push(`:local apiBase "${apiBase}"`);
+  lines.push(`:local agentCredential "${agentCredential}"`);
+  lines.push(`:local lanBridge "${lanBridge}"`);
+  lines.push(`:local lanIp "${lanIp}"`);
+  lines.push(`:local lanCidr "${lanCidr}"`);
+  lines.push(`:local lanNetwork "${lanNetwork}"`);
+  lines.push(`:local poolStart "${poolStart}"`);
+  lines.push(`:local poolEnd "${poolEnd}"`);
+  lines.push("");
+  lines.push(`:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`);
+
+  wanIfs.forEach((wanIf, idx) => {
+    const n = idx + 1;
+    const v = `wan${n}If`;
+    lines.push(`:local ${v} "${wanIf}"`);
+    lines.push(`:local wan${n}Port [/interface bridge port find where interface=$${v}]`);
+    lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
+    lines.push(`:if ([:len [/interface list member find where interface=$${v} list="WAN"]] = 0) do={ /interface list member add list="WAN" interface=$${v} }`);
+    lines.push(`:if ([:len [/ip dhcp-client find where interface=$${v}]] = 0) do={`);
+    lines.push(`  /ip dhcp-client add interface=$${v} disabled=no use-peer-dns=yes add-default-route=yes default-route-distance=${n}`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface=$${v} action=masquerade]] = 0) do={`);
+    lines.push(`  /ip firewall nat add chain=srcnat out-interface=$${v} action=masquerade comment="cloudguest-nat-wan${n}"`);
+    lines.push(`}`);
+  });
+
+  lines.push("");
+  lines.push(`:foreach addr in=[/ip address find where interface=$lanBridge dynamic=yes] do={ /ip address remove $addr }`);
+  lines.push(`:if ([:len [/ip address find where interface=$lanBridge address=($lanIp . "/" . $lanCidr)]] = 0) do={`);
+  lines.push(`  /ip address add address=($lanIp . "/" . $lanCidr) interface=$lanBridge`);
+  lines.push(`}`);
+  lines.push(`/ip dns set servers=${dnsServers} allow-remote-requests=yes`);
+
+  lines.push("");
+  lines.push(`:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={`);
+  lines.push(`  /ip pool add name="hotspot-pool" ranges=($poolStart . "-" . $poolEnd)`);
+  lines.push(`}`);
+  lines.push(`:if ([:len [/ip dhcp-server find where interface=$lanBridge]] = 0) do={`);
+  lines.push(`  /ip dhcp-server add name="hotspot-dhcp" interface=$lanBridge address-pool="hotspot-pool" disabled=no`);
+  lines.push(`  /ip dhcp-server network add address=$lanNetwork gateway=$lanIp dns-server=$lanIp`);
+  lines.push(`}`);
+  lines.push(`:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={`);
+  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=cloudguest-hotspot`);
+  lines.push(`}`);
+  lines.push(`:if ([:len [/ip hotspot find where interface=$lanBridge]] = 0) do={`);
+  lines.push(`  /ip hotspot add name="hotspot1" interface=$lanBridge address-pool="hotspot-pool" profile="hsprof1" disabled=no`);
+  lines.push(`}`);
+  lines.push(`:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={`);
+  lines.push(`  /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1"`);
+  lines.push(`}`);
+
+  if (enableFirewall) {
+    lines.push("");
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-established"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=input connection-state=established,related action=accept comment="cloudguest-fw-established"`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-invalid"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=input connection-state=invalid action=drop comment="cloudguest-fw-drop-invalid"`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=input in-interface=$lanBridge action=accept comment="cloudguest-fw-allow-lan"`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-icmp"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=input protocol=icmp action=accept comment="cloudguest-fw-allow-icmp"`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=input in-interface-list=WAN action=drop comment="cloudguest-fw-drop-wan-input"`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-established"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=forward connection-state=established,related action=accept comment="cloudguest-fw-fwd-established"`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-drop-invalid"]] = 0) do={`);
+    lines.push(`  /ip firewall filter add chain=forward connection-state=invalid action=drop comment="cloudguest-fw-fwd-drop-invalid"`);
+    lines.push(`}`);
+  }
+
+  lines.push("");
+  lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
+  lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . $apiBase . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . $agentCredential . "\\" http-data=\\"{}\\" output=none")`);
+  lines.push(`}`);
+  lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="{}" output=none`);
+  lines.push("");
+  lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat (every 5m) sab set ho gaya."`);
+  lines.push("}");
+
+  return lines.join("\n");
+}
+
+function SetupScriptTab({ routerId }: { routerId: string }) {
+  const generate = useGenerateProvisioningToken();
+  const [busy, setBusy] = useState(false);
+  const [script, setScript] = useState<string | null>(null);
+  const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
+  const [wanIfs, setWanIfs] = useState<string[]>(["ether1", "ether2", "ether3"]);
+  const [enableFirewall, setEnableFirewall] = useState(true);
+  const [form, setForm] = useState({
+    lanBridge: "bridge",
+    lanIp: "192.168.88.1",
+    lanCidr: "24",
+    dnsServers: "8.8.8.8,1.1.1.1",
+    hsUser: "guest",
+    hsPass: "welcome123",
+  });
+
+  function set<K extends keyof typeof form>(key: K, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function setWanIf(idx: number, value: string) {
+    setWanIfs((arr) => arr.map((v, i) => (i === idx ? value : v)));
+  }
+
+  async function onGenerate() {
+    setBusy(true);
+    setScript(null);
+    try {
+      const { token } = await generate.mutateAsync(routerId);
+      // Check-in is presented device-side in the zero-touch flow, but its
+      // endpoint carries no device-only auth of its own -- only the
+      // one-time token -- so performing it here, immediately after minting
+      // that token, is equivalent to the router doing it itself a minute
+      // later. This lets the dashboard hand back ONE ready-to-run script
+      // with the agent credential already baked in, instead of a token the
+      // router still has to exchange itself.
+      const checkinResp = await api.post<{
+        agent_credential?: string;
+        router_id?: string;
+      }>("/routers/provisioning/check-in", { token });
+      const agentCredential = checkinResp.data.agent_credential;
+      if (!agentCredential) {
+        toast.error("Check-in succeeded but no agent credential was returned.");
+        return;
+      }
+      const apiBase = api.defaults.baseURL || "";
+      setScript(
+        buildRouterSetupScript({
+          apiBase,
+          agentCredential,
+          wanIfs: wanIfs.slice(0, ispCount),
+          enableFirewall,
+          ...form,
+        }),
+      );
+      toast.success("Script ready");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to generate setup script");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Yeh ek complete RouterOS script generate karta hai -- WAN internet (1-3 ISP, DHCP se, extra
+        ISP hone par apne aap failover), LAN bridge, Hotspot (guest WiFi), basic firewall, aur
+        platform check-in + heartbeat scheduler, sab ek saath. Router pe sirf WinBox New Terminal
+        me paste karna hai. WAN IP khud DHCP se mil jayegi -- bharne ki zaroorat nahi.
+      </p>
+      <Card className="rounded-2xl border-border/70 shadow-sm">
+        <CardContent className="space-y-4 p-4">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Kitne ISP / WAN connections hain?</label>
+            <div className="flex gap-2">
+              {([1, 2, 3] as const).map((n) => (
+                <Button
+                  key={n}
+                  type="button"
+                  size="sm"
+                  variant={ispCount === n ? "default" : "outline"}
+                  onClick={() => setIspCount(n)}
+                >
+                  {n} ISP{n > 1 ? "s" : ""}
+                </Button>
+              ))}
+            </div>
+            {ispCount > 1 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Failover mode: WAN 1 primary rahega, baaki backup (ISP 1 down hote hi automatic
+                switch). DHCP hi use hoga -- static IP daalne ki zaroorat nahi.
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {wanIfs.slice(0, ispCount).map((v, idx) => (
+              <div key={idx}>
+                <label className="mb-1 block text-xs text-muted-foreground">
+                  WAN {idx + 1} interface naam
+                </label>
+                <Input value={v} onChange={(e) => setWanIf(idx, e.target.value)} placeholder={`ether${idx + 1}`} />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">LAN bridge interface name</label>
+              <Input value={form.lanBridge} onChange={(e) => set("lanBridge", e.target.value)} placeholder="bridge" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">LAN IP</label>
+              <Input value={form.lanIp} onChange={(e) => set("lanIp", e.target.value)} placeholder="192.168.88.1" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">LAN CIDR</label>
+              <Input value={form.lanCidr} onChange={(e) => set("lanCidr", e.target.value)} placeholder="24" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">DNS servers (comma-separated)</label>
+              <Input value={form.dnsServers} onChange={(e) => set("dnsServers", e.target.value)} placeholder="8.8.8.8,1.1.1.1" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs text-muted-foreground">Hotspot login (guest username / password)</label>
+              <div className="flex gap-2">
+                <Input value={form.hsUser} onChange={(e) => set("hsUser", e.target.value)} placeholder="guest" />
+                <Input value={form.hsPass} onChange={(e) => set("hsPass", e.target.value)} placeholder="welcome123" />
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={enableFirewall}
+              onChange={(e) => setEnableFirewall(e.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            Basic firewall rules bhi lagao (established/related allow, invalid drop, WAN se input block)
+          </label>
+        </CardContent>
+      </Card>
+
+      <Button size="sm" onClick={onGenerate} disabled={busy}>
+        {busy ? "Generating..." : "Generate script"}
+      </Button>
+
+      {script && (
+        <Card className="rounded-2xl border-border/70 shadow-sm">
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Poora copy karo aur router ke WinBox New Terminal me paste karo (ek hi baar).
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(script);
+                  toast.success("Copied");
+                }}
+              >
+                <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
+              </Button>
+            </div>
+            <pre className="max-h-96 overflow-auto rounded-lg bg-muted/50 p-3 text-xs">
+              <code>{script}</code>
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
