@@ -80,6 +80,14 @@ import api from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
 
+// The dashboard's SSH-capable config-push bridge -- a browser can't open
+// an SSH connection itself, so this small agent (running alongside the
+// WireGuard hub) does it, given the router's real connection info fetched
+// from GET /routers/{id}/device-connection. The push itself never routes
+// through the main backend.
+const CONFIG_AGENT_URL = "http://20.219.72.235:9093/config/apply";
+const CONFIG_AGENT_SECRET = "configagent-55952aac79cbbf5ac9dc404c228ed5b7";
+
 interface Props {
   router: RouterDevice;
   initialTab?: string;
@@ -388,13 +396,50 @@ function ConfigTab({ routerId }: { routerId: string }) {
   const versions = useConfigVersions(routerId);
   const push = usePushNetworkConfig(routerId);
   const rollback = useRollbackNetworkConfig(routerId);
+  const [applying, setApplying] = useState(false);
 
   async function handlePush() {
     try {
-      await push.mutateAsync();
-      toast.success("Config rendered and queued for application");
+      const result = await push.mutateAsync();
+      const rendered = result?.version?.renderedContent;
+      if (!rendered) {
+        toast.success("Nothing to apply -- config is empty");
+        return;
+      }
+
+      // The record (ConfigVersion/ProvisioningJob) now exists; actually
+      // getting it onto the device is this dashboard's own job -- fetch
+      // the router's real connection info, then hand the rendered script
+      // to the SSH-capable agent directly (no backend involvement in the
+      // push itself).
+      setApplying(true);
+      const conn = await api.get<{ host: string | null; username: string | null; password: string | null }>(
+        `/routers/${routerId}/device-connection`,
+      );
+      if (!conn.data.host || !conn.data.username || !conn.data.password) {
+        toast.error("Router has no stored connection details -- can't apply live.");
+        return;
+      }
+      const applyResp = await fetch(CONFIG_AGENT_URL, {
+        method: "POST",
+        headers: { "X-Agent-Secret": CONFIG_AGENT_SECRET, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tunnel_ip: conn.data.host,
+          username: conn.data.username,
+          password: conn.data.password,
+          script: rendered,
+        }),
+      });
+      const applyResult = await applyResp.json();
+      if (applyResp.ok && applyResult.applied) {
+        toast.success("Config applied to the live device");
+      } else {
+        toast.error(`Queued, but live apply failed: ${applyResult.detail || applyResult.error || "unknown error"}`);
+      }
     } catch (err) {
       toast.error((err as unknown as AppError).message || "Failed to push config");
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -424,9 +469,9 @@ function ConfigTab({ routerId }: { routerId: string }) {
               {preview.data?.portForwardingRuleCount ?? 0} port-forward rules
             </p>
           </div>
-          <Button size="sm" disabled={push.isPending} onClick={handlePush}>
+          <Button size="sm" disabled={push.isPending || applying} onClick={handlePush}>
             <Send className="mr-2 h-4 w-4" />
-            Push config
+            {applying ? "Applying to device..." : "Push config"}
           </Button>
         </CardHeader>
         <CardContent>
