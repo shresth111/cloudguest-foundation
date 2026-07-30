@@ -39,6 +39,14 @@ export const Route = createFileRoute("/master/nas")({
   component: NasScreen,
 });
 
+/** Same `cg-<router-id-prefix>` convention as the router's own Setup
+ * Script panel (see master.routers.tsx's RouterSetupScriptPanel) -- keeps
+ * a router's NAS identifier predictable without the admin having to
+ * invent and type one by hand. */
+function suggestNasIdentifier(routerId: string): string {
+  return routerId ? `cg-${routerId.slice(0, 8)}` : "";
+}
+
 function canActivate(status: NasClient["status"]) {
   return status === "pending" || status === "disabled" || status === "suspended";
 }
@@ -351,7 +359,21 @@ function NasScreen() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <MField label="Router">
-              <select className={M_INPUT} value={form.routerId} onChange={(e) => setForm((f) => ({ ...f, routerId: e.target.value }))}>
+              <select
+                className={M_INPUT}
+                value={form.routerId}
+                onChange={(e) => {
+                  const routerId = e.target.value;
+                  setForm((f) => {
+                    // Only overwrite the identifier if it's still the
+                    // auto-suggestion for the previously-selected router (or
+                    // untouched) -- an admin who already hand-edited it
+                    // shouldn't have that overwritten by picking a router.
+                    const identifierIsAuto = !f.nasIdentifier || f.nasIdentifier === suggestNasIdentifier(f.routerId);
+                    return { ...f, routerId, nasIdentifier: identifierIsAuto ? suggestNasIdentifier(routerId) : f.nasIdentifier };
+                  });
+                }}
+              >
                 <option value="">{availableRouters.length === 0 ? "No routers without a NAS" : "Select router…"}</option>
                 {availableRouters.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -361,7 +383,10 @@ function NasScreen() {
               </select>
             </MField>
           </div>
-          <MField label="NAS identifier"><input className={M_INPUT} placeholder="cg-lobby-01" value={form.nasIdentifier} onChange={(e) => setForm((f) => ({ ...f, nasIdentifier: e.target.value }))} /></MField>
+          <MField label="NAS identifier">
+            <input className={M_INPUT} placeholder="cg-lobby-01" value={form.nasIdentifier} onChange={(e) => setForm((f) => ({ ...f, nasIdentifier: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-muted-foreground">Auto-filled from the selected router -- edit freely if you want a different identifier.</p>
+          </MField>
           <MField label="Shared secret (optional — auto-generated, min 8 characters if set)"><input type="password" className={M_INPUT} value={form.sharedSecret} onChange={(e) => setForm((f) => ({ ...f, sharedSecret: e.target.value }))} /></MField>
           <MField label="Name (optional)"><input className={M_INPUT} placeholder="Lobby NAS" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></MField>
           <MField label="IP address (optional)"><input className={M_INPUT} placeholder="Defaults to router IP" value={form.ipAddress} onChange={(e) => setForm((f) => ({ ...f, ipAddress: e.target.value }))} /></MField>
