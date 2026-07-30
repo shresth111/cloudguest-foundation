@@ -153,6 +153,23 @@ export const portalRuntimeService = {
     return toRuntimeConfig(data);
   },
 
+  /** Real "is this device already connected?" check -- called on portal
+   * load when the browser has no locally-persisted session (a fresh tab,
+   * a re-scanned QR code, a re-opened captive-portal redirect) but the
+   * device's own MAC (RouterOS's trustworthy `$(mac)`) might still have a
+   * live, RADIUS-authorized session on this router. Returns `null` -- not
+   * an error -- for a normal first-time visit. */
+  async checkActiveSession(params: {
+    routerId: string;
+    deviceMac: string;
+  }): Promise<RuntimeSession | null> {
+    const { data } = await guestPortalApi.get<BackendGuestLoginResponse | null>(
+      "/guest/session/active",
+      { params: { router_id: params.routerId, device_mac: params.deviceMac } },
+    );
+    return data ? toRuntimeSession(data) : null;
+  },
+
   async requestOtp(params: {
     identifier: string;
     channel: "sms" | "email";
