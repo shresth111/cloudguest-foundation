@@ -142,38 +142,48 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // it didn't just mint for this specific router.
       let wireguard: import("@/components/routers/RouterDetailTabs").WireguardPeerInfo | undefined;
       if (enableWireguard) {
-        const wgResp = await fetch(WG_AGENT_URL, {
-          method: "POST",
-          headers: { "X-Agent-Secret": WG_AGENT_SECRET },
-        });
-        if (!wgResp.ok) throw new Error("WireGuard peer allocation failed");
-        const wg = await wgResp.json();
-        wireguard = {
-          routerPrivateKey: wg.router_private_key,
-          serverPublicKey: wg.server_public_key,
-          routerTunnelIp: wg.router_tunnel_ip,
-          serverEndpointHost: wg.server_endpoint_host,
-          serverEndpointPort: wg.server_endpoint_port,
-          tunnelSubnet: wg.tunnel_subnet,
-        };
-        // The agent bridge above just configured the real hub directly --
-        // this platform's own WireGuardPeer table never found out (a real
-        // gap, confirmed live this session: the actual working production
-        // tunnel had no DB row at all, so the dashboard's own WireGuard
-        // view showed nothing/stale data, and network_config's render
-        // pipeline would silently omit this router's tunnel from any
-        // future config push). Records the exact values the bridge already
-        // decided -- never a second, conflicting allocation.
+        // A failure here (e.g. the bridge host being unreachable from this
+        // browser) must not take down the whole "1-shot" script -- WAN/LAN/
+        // hotspot/firewall/API-access/heartbeat are all independently
+        // useful without a tunnel. Degrade to "no WireGuard in this script"
+        // with a clear toast instead of aborting generation entirely.
         try {
-          await api.post(`/routers/${router.id}/wireguard-peer/register-external`, {
-            tunnel_ip_address: wg.router_tunnel_ip,
-            public_key: wg.router_public_key,
+          const wgResp = await fetch(WG_AGENT_URL, {
+            method: "POST",
+            headers: { "X-Agent-Secret": WG_AGENT_SECRET },
           });
-        } catch (err) {
-          toast.error(
-            (err as AppError).message ||
-              "Tunnel is live on the device, but couldn't be recorded on the dashboard.",
-          );
+          if (!wgResp.ok) throw new Error("WireGuard peer allocation failed");
+          const wg = await wgResp.json();
+          wireguard = {
+            routerPrivateKey: wg.router_private_key,
+            serverPublicKey: wg.server_public_key,
+            routerTunnelIp: wg.router_tunnel_ip,
+            serverEndpointHost: wg.server_endpoint_host,
+            serverEndpointPort: wg.server_endpoint_port,
+            tunnelSubnet: wg.tunnel_subnet,
+          };
+          // The agent bridge above just configured the real hub directly --
+          // this platform's own WireGuardPeer table never found out (a real
+          // gap, confirmed live this session: the actual working production
+          // tunnel had no DB row at all, so the dashboard's own WireGuard
+          // view showed nothing/stale data, and network_config's render
+          // pipeline would silently omit this router's tunnel from any
+          // future config push). Records the exact values the bridge already
+          // decided -- never a second, conflicting allocation.
+          try {
+            await api.post(`/routers/${router.id}/wireguard-peer/register-external`, {
+              tunnel_ip_address: wg.router_tunnel_ip,
+              public_key: wg.router_public_key,
+            });
+          } catch (err) {
+            toast.error(
+              (err as AppError).message ||
+                "Tunnel is live on the device, but couldn't be recorded on the dashboard.",
+            );
+          }
+        } catch {
+          wireguard = undefined;
+          toast.error("Couldn't reach the WireGuard bridge -- script generated without a tunnel. Everything else is still included.");
         }
       }
 
@@ -184,36 +194,41 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // RADIUS implies WireGuard (enforced by the checkbox below).
       let radius: { serverAddress: string; sharedSecret: string } | undefined;
       if (enableRadius && wireguard) {
-        let nasIdentifier: string;
-        let sharedSecret: string;
         try {
-          const existing = await api.get<{ id: string; nas_identifier: string }>(
-            `/routers/${router.id}/nas`,
-          );
-          nasIdentifier = existing.data.nas_identifier;
-          const regen = await api.post<{ shared_secret: string }>(
-            `/radius/nas/${existing.data.id}/regenerate-secret`,
-          );
-          sharedSecret = regen.data.shared_secret;
+          let nasIdentifier: string;
+          let sharedSecret: string;
+          try {
+            const existing = await api.get<{ id: string; nas_identifier: string }>(
+              `/routers/${router.id}/nas`,
+            );
+            nasIdentifier = existing.data.nas_identifier;
+            const regen = await api.post<{ shared_secret: string }>(
+              `/radius/nas/${existing.data.id}/regenerate-secret`,
+            );
+            sharedSecret = regen.data.shared_secret;
+          } catch {
+            const created = await api.post<{ nas_identifier: string; shared_secret: string }>(
+              "/radius/nas",
+              { router_id: router.id, nas_identifier: `cg-${router.id.slice(0, 8)}` },
+            );
+            nasIdentifier = created.data.nas_identifier;
+            sharedSecret = created.data.shared_secret;
+          }
+          const radiusAgentResp = await fetch(RADIUS_AGENT_URL, {
+            method: "POST",
+            headers: { "X-Agent-Secret": RADIUS_AGENT_SECRET, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tunnel_ip: wireguard.routerTunnelIp,
+              nas_identifier: nasIdentifier,
+              secret: sharedSecret,
+            }),
+          });
+          if (!radiusAgentResp.ok) throw new Error("RADIUS client registration failed");
+          radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret };
         } catch {
-          const created = await api.post<{ nas_identifier: string; shared_secret: string }>(
-            "/radius/nas",
-            { router_id: router.id, nas_identifier: `cg-${router.id.slice(0, 8)}` },
-          );
-          nasIdentifier = created.data.nas_identifier;
-          sharedSecret = created.data.shared_secret;
+          radius = undefined;
+          toast.error("Couldn't reach the RADIUS bridge -- script generated without RADIUS. Everything else is still included.");
         }
-        const radiusAgentResp = await fetch(RADIUS_AGENT_URL, {
-          method: "POST",
-          headers: { "X-Agent-Secret": RADIUS_AGENT_SECRET, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tunnel_ip: wireguard.routerTunnelIp,
-            nas_identifier: nasIdentifier,
-            secret: sharedSecret,
-          }),
-        });
-        if (!radiusAgentResp.ok) throw new Error("RADIUS client registration failed");
-        radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret };
       }
 
       // Also unlocks Device Console for this router (it stays permanently
