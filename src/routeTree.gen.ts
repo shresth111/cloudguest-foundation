@@ -34,6 +34,7 @@ import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
 import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
 import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
+import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
@@ -271,6 +272,11 @@ const PortalFailureRoute = PortalFailureRouteImport.update({
 const PortalExpiredRoute = PortalExpiredRouteImport.update({
   id: '/expired',
   path: '/expired',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalClosedRoute = PortalClosedRouteImport.update({
+  id: '/closed',
+  path: '/closed',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalAuthRoute = PortalAuthRouteImport.update({
@@ -958,6 +964,7 @@ export interface FileRoutesByFullPath {
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
@@ -1093,6 +1100,7 @@ export interface FileRoutesByTo {
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/ad': typeof PortalAdRoute
+  '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
@@ -1234,6 +1242,7 @@ export interface FileRoutesById {
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
@@ -1376,6 +1385,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/portal/ad'
     | '/portal/auth'
+    | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
@@ -1511,6 +1521,7 @@ export interface FileRouteTypes {
     | '/master/settings'
     | '/master/tickets'
     | '/portal/ad'
+    | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
@@ -1651,6 +1662,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/portal/ad'
     | '/portal/auth'
+    | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
@@ -1953,6 +1965,13 @@ declare module '@tanstack/react-router' {
       path: '/expired'
       fullPath: '/portal/expired'
       preLoaderRoute: typeof PortalExpiredRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/closed': {
+      id: '/portal/closed'
+      path: '/closed'
+      fullPath: '/portal/closed'
+      preLoaderRoute: typeof PortalClosedRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/auth': {
@@ -3066,6 +3085,7 @@ const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(
 interface PortalRouteChildren {
   PortalAdRoute: typeof PortalAdRoute
   PortalAuthRoute: typeof PortalAuthRouteWithChildren
+  PortalClosedRoute: typeof PortalClosedRoute
   PortalExpiredRoute: typeof PortalExpiredRoute
   PortalFailureRoute: typeof PortalFailureRoute
   PortalOfflineRoute: typeof PortalOfflineRoute
@@ -3082,6 +3102,7 @@ interface PortalRouteChildren {
 const PortalRouteChildren: PortalRouteChildren = {
   PortalAdRoute: PortalAdRoute,
   PortalAuthRoute: PortalAuthRouteWithChildren,
+  PortalClosedRoute: PortalClosedRoute,
   PortalExpiredRoute: PortalExpiredRoute,
   PortalFailureRoute: PortalFailureRoute,
   PortalOfflineRoute: PortalOfflineRoute,

@@ -46,10 +46,19 @@ function PortalLoading() {
   // What IS still this screen's job: a device that already has an active
   // session -- found locally or via the live check above -- goes straight
   // to /portal/session ("you're connected"), never back through sign-in.
+  // An existing session always wins over business hours -- someone
+  // already connected mid-visit shouldn't suddenly get bounced to
+  // "closed" just because the clock crossed the schedule boundary; the
+  // closed screen only gates a *new* sign-in.
   useEffect(() => {
     if (isLoading || !config) return;
     if (!session && deviceMac && !liveSessionChecked) return;
-    const target = session || liveSession ? "/portal/session" : "/portal/welcome";
+    const hasSession = !!(session || liveSession);
+    const target = hasSession
+      ? "/portal/session"
+      : config.isOpenNow === false
+        ? "/portal/closed"
+        : "/portal/welcome";
     const to = setTimeout(
       () => navigate({ to: target, replace: true, search: (prev) => prev }),
       900,

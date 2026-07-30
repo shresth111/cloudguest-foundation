@@ -39,6 +39,10 @@ export interface RuntimePortalConfig {
   usernamePasswordEnabled: boolean;
   voucherEnabled: boolean;
   resolvedViaLocationOverride: boolean;
+  /** Computed live, every resolve -- see the backend's validators
+   * .is_open_now. Always true when business hours enforcement is off. */
+  isOpenNow: boolean;
+  businessHoursClosedMessage: string | null;
 }
 
 /** The real `GuestSessionResponse` (plus a couple of login-response-only

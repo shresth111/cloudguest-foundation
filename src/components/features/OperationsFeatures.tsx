@@ -38,6 +38,12 @@ import {
 } from "@/hooks/useCustomerDashboard";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
+import {
+  businessHoursService,
+  type BusinessHoursDay,
+  type BusinessHoursSchedule,
+  type BusinessHoursWeekday,
+} from "@/services/business-hours.service";
 import { routerService } from "@/services/router.service";
 import { ispService } from "@/services/isp.service";
 import { DhcpManagement } from "@/components/network/DhcpManagement";
@@ -218,46 +224,192 @@ export function AlertsView() {
   );
 }
 
-/* ---------- Business Hours ---------- */
-export function BusinessHoursView() {
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  // Bug report: "weekly schedule > open or close mai only open likha aa
-  // raha hai" -- the switch was uncontrolled (`defaultChecked`, no
-  // onCheckedChange) and the "Open" label next to it was static text,
-  // never reflecting the switch at all, so a day toggled off still read
-  // "Open". Real per-day state now, controlled switch, and the label
-  // actually shows Open/Closed for that day's current toggle state.
-  const [open, setOpen] = useState<boolean[]>(days.map((_, i) => i < 6));
-  const toggleDay = (i: number) =>
-    setOpen((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
+/* ---------- Business Hours ----------
+ * Real, guest-facing effect (backend/app/domains/captive_portal --
+ * business_hours_enabled/timezone/schedule/closed_message columns,
+ * GET /captive-portal/resolve computes is_open_now live from these on
+ * every real guest portal load): previously the "Apply" button only
+ * showed a toast, nothing was ever persisted or read back on reload --
+ * bug report "on/off karne par captive portal 'business is closed'
+ * jaisa kuch nahi dikhata tha". Now a real save (PUT /captive-portal-
+ * configs/{id}) and a real fetch on load, via businessHoursService.
+ */
+const BH_DAYS: { key: BusinessHoursWeekday; label: string }[] = [
+  { key: "monday", label: "Monday" },
+  { key: "tuesday", label: "Tuesday" },
+  { key: "wednesday", label: "Wednesday" },
+  { key: "thursday", label: "Thursday" },
+  { key: "friday", label: "Friday" },
+  { key: "saturday", label: "Saturday" },
+  { key: "sunday", label: "Sunday" },
+];
+
+const DEMO_BH_SCHEDULE: BusinessHoursSchedule = Object.fromEntries(
+  BH_DAYS.map((d, i) => [
+    d.key,
+    i < 6 ? { open: true, start: "09:00", end: "21:00" } : { open: false },
+  ]),
+) as BusinessHoursSchedule;
+
+export function BusinessHoursView({ locationId }: { locationId?: string } = {}) {
+  const demo = isDemo();
+  const [configId, setConfigId] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [schedule, setSchedule] = useState<BusinessHoursSchedule>(demo ? DEMO_BH_SCHEDULE : {});
+  const [closedMessage, setClosedMessage] = useState(
+    "We're currently closed. Please check back during business hours.",
+  );
+  const [isOpenNow, setIsOpenNow] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(!demo);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (demo || !locationId) return;
+    let cancelled = false;
+    businessHoursService
+      .get(locationId)
+      .then((cfg) => {
+        if (cancelled) return;
+        setConfigId(cfg.configId);
+        setEnabled(cfg.enabled);
+        setSchedule(cfg.schedule);
+        setClosedMessage(cfg.closedMessage ?? closedMessage);
+        setIsOpenNow(cfg.isOpenNow);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Could not load business hours.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, locationId]);
+
+  const dayState = (key: BusinessHoursWeekday): BusinessHoursDay =>
+    schedule[key] ?? { open: false };
+
+  const setDay = (key: BusinessHoursWeekday, patch: Partial<BusinessHoursDay>) =>
+    setSchedule((prev) => ({ ...prev, [key]: { ...dayState(key), ...patch } }));
+
+  async function handleApply() {
+    if (demo) {
+      toast.success("Business hours applied");
+      return;
+    }
+    if (!configId) {
+      toast.error("No portal config found for this location yet.");
+      return;
+    }
+    // Every "open" day needs real start/end times before saving -- the
+    // backend rejects a malformed schedule outright (see the real 400
+    // this used to be impossible to trigger, since nothing ever saved).
+    for (const { key, label } of BH_DAYS) {
+      const d = dayState(key);
+      if (d.open && (!d.start || !d.end)) {
+        toast.error(`${label}: set both a start and end time, or mark it closed.`);
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      await businessHoursService.save(configId, {
+        enabled,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        schedule,
+        closedMessage,
+      });
+      const refreshed = await businessHoursService.get(locationId!);
+      setIsOpenNow(refreshed.isOpenNow);
+      toast.success("Business hours applied");
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not save business hours.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <FeatureHeader title="Business Hours" description="Set operational timings to minimize unauthorized access outside working hours." action={<Button size="sm" onClick={() => toast.success("Business hours applied")}>Apply</Button>} />
+      <FeatureHeader
+        title="Business Hours"
+        description="Outside these hours, guests see a 'we're closed' screen instead of the sign-in page."
+        action={
+          <Button size="sm" onClick={handleApply} disabled={loading || saving}>
+            {saving ? "Applying…" : "Apply"}
+          </Button>
+        }
+      />
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Weekly schedule</CardTitle>
-          <CardDescription>Toggle a day open/closed and set opening &amp; closing times.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base">Weekly schedule</CardTitle>
+            <CardDescription>Toggle a day open/closed and set opening &amp; closing times.</CardDescription>
+          </div>
+          {!demo && isOpenNow !== null && (
+            <Badge variant={isOpenNow ? "default" : "secondary"}>
+              {isOpenNow ? "Currently open" : "Currently closed"}
+            </Badge>
+          )}
         </CardHeader>
         <CardContent className="space-y-2.5">
-          {days.map((d, i) => (
-            <div key={d} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3">
-              <span className="w-24 text-sm font-medium">{d}</span>
-              <Switch checked={open[i]} onCheckedChange={() => toggleDay(i)} />
-              <span className={`text-xs ${open[i] ? "text-foreground" : "text-muted-foreground"}`}>
-                {open[i] ? "Open" : "Closed"}
-              </span>
-              <div className="ml-auto flex items-center gap-2">
-                <Input type="time" defaultValue="00:00" className="h-9 w-32" disabled={!open[i]} />
-                <span className="text-muted-foreground">—</span>
-                <Input type="time" defaultValue="23:59" className="h-9 w-32" disabled={!open[i]} />
-                <Button variant="outline" size="sm" disabled={!open[i]}>All day</Button>
+          {loading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <>
+              {BH_DAYS.map(({ key, label }) => {
+                const d = dayState(key);
+                return (
+                  <div key={key} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3">
+                    <span className="w-24 text-sm font-medium">{label}</span>
+                    <Switch checked={d.open} onCheckedChange={(v) => setDay(key, { open: v })} />
+                    <span className={`text-xs ${d.open ? "text-foreground" : "text-muted-foreground"}`}>
+                      {d.open ? "Open" : "Closed"}
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Input
+                        type="time"
+                        value={d.start ?? "09:00"}
+                        onChange={(e) => setDay(key, { start: e.target.value })}
+                        className="h-9 w-32"
+                        disabled={!d.open}
+                      />
+                      <span className="text-muted-foreground">—</span>
+                      <Input
+                        type="time"
+                        value={d.end ?? "18:00"}
+                        onChange={(e) => setDay(key, { end: e.target.value })}
+                        className="h-9 w-32"
+                        disabled={!d.open}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!d.open}
+                        onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
+                      >
+                        All day
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="space-y-1.5 pt-2">
+                <Label className="text-xs">Message shown to guests while closed</Label>
+                <Input
+                  value={closedMessage}
+                  onChange={(e) => setClosedMessage(e.target.value)}
+                  placeholder="We're currently closed."
+                />
               </div>
-            </div>
-          ))}
-          <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Switch className="scale-90" /> Make these strict business hours (auto-logout users outside the set window)
-          </label>
+              <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Switch checked={enabled} onCheckedChange={setEnabled} className="scale-90" />
+                Enforce these hours (show guests a "closed" screen outside the schedule above)
+              </label>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

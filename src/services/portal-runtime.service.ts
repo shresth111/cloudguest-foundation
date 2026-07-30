@@ -37,6 +37,8 @@ interface BackendCaptivePortalConfig {
   username_password_enabled: boolean;
   voucher_enabled: boolean;
   resolved_via_location_override: boolean;
+  is_open_now: boolean;
+  business_hours_closed_message: string | null;
 }
 
 interface BackendOtpRequestResponse {
@@ -110,6 +112,8 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     usernamePasswordEnabled: c.username_password_enabled,
     voucherEnabled: c.voucher_enabled,
     resolvedViaLocationOverride: c.resolved_via_location_override,
+    isOpenNow: c.is_open_now,
+    businessHoursClosedMessage: c.business_hours_closed_message,
   };
 }
 

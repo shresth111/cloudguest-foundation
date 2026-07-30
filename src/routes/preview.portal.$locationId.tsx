@@ -173,6 +173,8 @@ function PortalPreviewPage() {
           usernamePasswordEnabled: false,
           voucherEnabled: false,
           resolvedViaLocationOverride: false,
+          isOpenNow: true,
+          businessHoursClosedMessage: null,
         }
       : null);
 

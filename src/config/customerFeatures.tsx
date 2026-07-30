@@ -48,7 +48,7 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "agents": return <AgentsPage />;
     case "advanced": return <AdvancedPage />;
     case "alerts": return <AlertsView />;
-    case "business-hours": return <BusinessHoursView />;
+    case "business-hours": return <BusinessHoursView locationId={ctx.locationId} />;
     case "background-image": return <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />;
     case "notification": return <NotificationView />;
     case "isp-details": return <IspDetailsView />;
