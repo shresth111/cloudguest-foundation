@@ -232,8 +232,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <FileCode2 className="h-3.5 w-3.5" /> Setup Script -- 1-shot MikroTik configuration
       </p>
       <p className="text-xs text-muted-foreground">
-        WAN internet (1-3 ISP, DHCP, failover if 2+), LAN bridge, Hotspot, basic firewall aur
-        platform check-in + heartbeat -- ek hi script me. WAN IP khud DHCP se milegi.
+        WAN internet (1-3 ISPs, DHCP, failover if 2+), LAN bridge, hotspot, basic firewall, and
+        platform check-in + heartbeat — all in one script. The WAN IP is assigned automatically via DHCP.
       </p>
 
       <div className="flex gap-1.5">
@@ -288,7 +288,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input type="checkbox" checked={enableFirewall} onChange={(e) => setEnableFirewall(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
-          Basic firewall rules bhi lagao
+          Also add basic firewall rules
         </label>
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input
@@ -300,7 +300,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
-          WireGuard tunnel bhi banao (platform se remote reachability)
+          Also create a WireGuard tunnel (for remote reachability from the platform)
         </label>
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input
@@ -312,7 +312,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
-          RADIUS bhi on karo (isko unique NAS identity ke liye WireGuard tunnel IP chahiye -- WireGuard apne aap on ho jayega)
+          Also enable RADIUS (needs a WireGuard tunnel IP for a unique NAS identity — WireGuard will turn on automatically)
         </label>
       </div>
 
@@ -324,7 +324,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       {script && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">Router ke WinBox New Terminal me paste karo</span>
+            <span className="text-[11px] text-muted-foreground">Paste this into the router's WinBox New Terminal</span>
             <button
               type="button"
               onClick={() => {
