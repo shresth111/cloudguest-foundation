@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageUp, Loader2, Trash2 } from "lucide-react";
+import { ImageUp, Loader2, Trash2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { brandAssetService } from "@/services/brand-asset.service";
 import type { AppError } from "@/services/api";
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 const DEMO_UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
@@ -125,14 +128,33 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     onError: (err) => toast.error((err as unknown as AppError).message || "Removal failed."),
   });
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] ?? null);
+  const [dragActive, setDragActive] = useState(false);
+
+  const pickFile = (f: File | null) => {
+    if (f && !ACCEPTED_TYPES.includes(f.type)) {
+      toast.error("Use a PNG, JPEG, WEBP, or GIF file.");
+      return;
+    }
+    if (f && f.size > MAX_UPLOAD_BYTES) {
+      toast.error(`That file is ${(f.size / 1024 / 1024).toFixed(1)} MB — the limit is 5 MB.`);
+      return;
+    }
+    setFile(f);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => pickFile(e.target.files?.[0] ?? null);
   const upload = () => {
     if (!file) { toast.error("Choose a file to upload."); return; }
     uploadMutation.mutate(file);
   };
 
   const currentUrl = branding?.hasBackgroundImage ? (currentImageBlobUrl ?? null) : null;
-  const imageBoxCls = cn("rounded-md border object-cover", aspect === "wide" ? "h-10 w-20" : "h-10 w-10");
+  // Whatever the guest would actually see right now: the just-picked file
+  // takes priority (so a customer previews their new choice immediately,
+  // before committing to Upload), falling back to the persisted image.
+  const previewUrl = localPreviewUrl ?? currentUrl;
+  const hasAnyImage = !!(branding?.hasBackgroundImage || file);
+  const loadingCurrent = isLoading || (branding?.hasBackgroundImage && isImageLoading);
 
   return (
     <div className="space-y-6">
@@ -141,71 +163,112 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
 
-      <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className={labelCls}>File</label>
-            <label className="flex h-[38px] cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent/40">
-              <ImageUp className="h-4 w-4 shrink-0" />
-              <span className="truncate">{file ? file.name : "No file chosen"}</span>
-              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleFile} />
-            </label>
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
+          <label className={labelCls}>
+            {branding?.hasBackgroundImage ? "Replace image" : "Upload image"}
+          </label>
+          <label
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragActive(false);
+              pickFile(e.dataTransfer.files?.[0] ?? null);
+            }}
+            className={cn(
+              "flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors",
+              dragActive ? "border-primary bg-primary/5" : "border-input hover:border-primary/50 hover:bg-accent/40",
+            )}
+          >
+            <ImageUp className="h-6 w-6 text-muted-foreground" />
+            <div className="text-sm">
+              <span className="font-medium text-foreground">
+                {file ? file.name : "Drop an image, or click to browse"}
+              </span>
+            </div>
+            {!file && (
+              <p className="text-xs text-muted-foreground">PNG, JPEG, WEBP, or GIF · up to 5 MB</p>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_TYPES.join(",")}
+              className="hidden"
+              onChange={handleFile}
+            />
+          </label>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {aspect === "wide"
+              ? "This fills the whole screen behind the guest sign-in card, dimmed for legibility — a wide, landscape image (1920×1080 or similar) works best. See the live preview alongside."
+              : "Displayed at a small, fixed size — a square image gives the sharpest result."}
+          </p>
+
+          <div className="mt-5 flex items-center gap-2">
+            <button
+              onClick={upload}
+              disabled={uploadMutation.isPending || !file}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {uploadMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {uploadMutation.isPending ? "Uploading…" : "Upload"}
+            </button>
+            {branding?.hasBackgroundImage && (
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                title="Remove current image"
+                className="inline-flex items-center justify-center rounded-lg border p-2.5 text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </button>
+            )}
           </div>
-          <div>
-            <label className={labelCls}>Preview</label>
-            <div className={cn("flex h-[38px] items-center justify-center overflow-hidden rounded-lg border bg-muted/30", aspect === "wide" ? "" : "w-[38px]")}>
-              {localPreviewUrl ? (
-                <img src={localPreviewUrl} alt="Selected file preview" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-xs text-muted-foreground">Select a file to preview</span>
-              )}
+          {isError && (
+            <p className="mt-3 text-xs text-destructive">Could not load your current branding.</p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
+          <label className={labelCls}>Live preview — what guests will see</label>
+          <div className="relative aspect-[9/16] max-h-[380px] w-full overflow-hidden rounded-2xl border shadow-inner">
+            <div
+              className="absolute inset-0"
+              style={{ background: "linear-gradient(135deg, #0F172A, #1E293B)" }}
+            />
+            {loadingCurrent ? (
+              <div className="absolute inset-0 grid place-items-center">
+                <Loader2 className="h-5 w-5 animate-spin text-white/70" />
+              </div>
+            ) : (
+              previewUrl && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 bg-cover bg-center opacity-30"
+                  style={{ backgroundImage: `url(${previewUrl})` }}
+                />
+              )
+            )}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-5">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 text-white shadow-lg backdrop-blur">
+                <Wifi className="h-5 w-5" />
+              </div>
+              <div className="w-full max-w-[220px] rounded-xl border border-white/15 bg-white/10 p-4 text-center backdrop-blur-md">
+                <p className="text-xs font-semibold text-white">Guest Sign In</p>
+                <div className="mt-3 h-8 rounded-lg border border-white/20 bg-white/10" />
+                <div className="mt-2 h-8 rounded-lg bg-white/90" />
+              </div>
             </div>
           </div>
-        </div>
-        <div className="mt-5 flex justify-center">
-          <button
-            onClick={upload}
-            disabled={uploadMutation.isPending || !file}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {uploadMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {uploadMutation.isPending ? "Uploading…" : "Upload"}
-          </button>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-        <h3 className="text-base font-semibold text-foreground">{tableTitle}</h3>
-        <p className="mb-4 text-xs text-muted-foreground">{tableSubtitle}</p>
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2.5">Organization</th><th className="px-3 py-2.5">Preview</th><th className="px-3 py-2.5 text-right">Action</th></tr></thead>
-            <tbody>
-              {isLoading || (branding?.hasBackgroundImage && isImageLoading) ? (
-                <tr><td colSpan={3} className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></td></tr>
-              ) : isError ? (
-                <tr><td colSpan={3} className="py-10 text-center text-sm text-destructive">Could not load branding data.</td></tr>
-              ) : !currentUrl ? (
-                <tr><td colSpan={3} className="py-10 text-center text-sm text-muted-foreground">No background image set yet.</td></tr>
-              ) : (
-                <tr className="border-b last:border-0 hover:bg-accent/50">
-                  <td className="px-3 py-2.5 font-medium text-foreground">{branding?.companyName ?? "Your organization"}</td>
-                  <td className="px-3 py-2.5">
-                    <img src={currentUrl} alt="" className={imageBoxCls} />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <button
-                      onClick={() => deleteMutation.mutate()}
-                      disabled={deleteMutation.isPending}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                    >
-                      {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {!hasAnyImage && !loadingCurrent && (
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              No background image set — guests currently see a plain gradient.
+            </p>
+          )}
         </div>
       </div>
     </div>
