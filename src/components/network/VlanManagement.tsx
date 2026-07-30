@@ -380,6 +380,8 @@ function VlanDialog({
     values: defaults,
   });
   const portMode = form.watch("portMode");
+  const watchedInterface = form.watch("interface");
+  const watchedVlanId = form.watch("vlanId");
 
   async function submit(v: VlanFormValues) {
     try {
@@ -541,6 +543,18 @@ function VlanDialog({
               />
             </div>
           )}
+          <div className="sm:col-span-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
+            This creates the network only — no addresses are handed out automatically. To assign
+            IPs to guests, create a{" "}
+            <span className="font-medium text-foreground">DHCP Pool</span> afterward with
+            Interface set to{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+              {portMode === "access"
+                ? watchedInterface || "the port you enter above"
+                : `vlan${watchedVlanId || "<tag>"}`}
+            </code>
+            .
+          </div>
           <DialogFooter className="sm:col-span-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
