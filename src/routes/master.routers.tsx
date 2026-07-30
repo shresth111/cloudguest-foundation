@@ -75,6 +75,14 @@ const inputCls =
  * router in immediately (dashboard-side, so the agent credential is known
  * up front), and renders a ready-to-paste RouterOS script -- see
  * buildRouterSetupScript's own doc comment for exactly what it covers. */
+// Single shared-tenant RADIUS/WireGuard control plane -- see
+// RouterSetupScriptPanel's own comment on why these are constants rather
+// than per-router secrets today.
+const RADIUS_SERVER_ADDRESS = "20.219.72.235";
+const RADIUS_SHARED_SECRET = "cg-radius-810b06205808b1b6";
+const WG_AGENT_URL = "http://20.219.72.235:9091/wg/peer";
+const WG_AGENT_SECRET = "wgagent-7a647fb42b822aa44cb2da2092a4b79a";
+
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
@@ -82,6 +90,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
   const [wanIfs, setWanIfs] = useState<string[]>(["ether1", "ether2", "ether3"]);
   const [enableFirewall, setEnableFirewall] = useState(true);
+  const [enableWireguard, setEnableWireguard] = useState(false);
+  const [enableRadius, setEnableRadius] = useState(false);
   const [form, setForm] = useState({
     lanBridge: "bridge",
     lanIp: "192.168.88.1",
@@ -112,12 +122,38 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         toast.error("Check-in succeeded but no agent credential was returned.");
         return;
       }
+
+      // Allocates a fresh keypair + the next free tunnel IP server-side --
+      // this dashboard never generates or sees a WireGuard private key
+      // it didn't just mint for this specific router.
+      let wireguard: import("@/components/routers/RouterDetailTabs").WireguardPeerInfo | undefined;
+      if (enableWireguard) {
+        const wgResp = await fetch(WG_AGENT_URL, {
+          method: "POST",
+          headers: { "X-Agent-Secret": WG_AGENT_SECRET },
+        });
+        if (!wgResp.ok) throw new Error("WireGuard peer allocation failed");
+        const wg = await wgResp.json();
+        wireguard = {
+          routerPrivateKey: wg.router_private_key,
+          serverPublicKey: wg.server_public_key,
+          routerTunnelIp: wg.router_tunnel_ip,
+          serverEndpointHost: wg.server_endpoint_host,
+          serverEndpointPort: wg.server_endpoint_port,
+          tunnelSubnet: wg.tunnel_subnet,
+        };
+      }
+
       setScript(
         buildRouterSetupScript({
           apiBase: api.defaults.baseURL || "",
           agentCredential,
           wanIfs: wanIfs.slice(0, ispCount),
           enableFirewall,
+          wireguard,
+          radius: enableRadius
+            ? { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret: RADIUS_SHARED_SECRET }
+            : undefined,
           ...form,
         }),
       );
@@ -188,10 +224,20 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-foreground">
-        <input type="checkbox" checked={enableFirewall} onChange={(e) => setEnableFirewall(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
-        Basic firewall rules bhi lagao
-      </label>
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-xs text-foreground">
+          <input type="checkbox" checked={enableFirewall} onChange={(e) => setEnableFirewall(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
+          Basic firewall rules bhi lagao
+        </label>
+        <label className="flex items-center gap-2 text-xs text-foreground">
+          <input type="checkbox" checked={enableWireguard} onChange={(e) => setEnableWireguard(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
+          WireGuard tunnel bhi banao (platform se remote reachability)
+        </label>
+        <label className="flex items-center gap-2 text-xs text-foreground">
+          <input type="checkbox" checked={enableRadius} onChange={(e) => setEnableRadius(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
+          RADIUS accounting bhi on karo
+        </label>
+      </div>
 
       <MButton variant="primary" onClick={onGenerate} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}

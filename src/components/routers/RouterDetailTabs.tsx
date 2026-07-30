@@ -917,6 +917,15 @@ function ProvisioningTokenCard({ routerId }: { routerId: string }) {
  * default routes, each independently health-checked by RouterOS's own
  * DHCP client) needs no such assumption and is what's implemented for
  * every WAN count. */
+export interface WireguardPeerInfo {
+  routerPrivateKey: string;
+  serverPublicKey: string;
+  routerTunnelIp: string;
+  serverEndpointHost: string;
+  serverEndpointPort: string;
+  tunnelSubnet: string;
+}
+
 export function buildRouterSetupScript(opts: {
   apiBase: string;
   agentCredential: string;
@@ -928,8 +937,10 @@ export function buildRouterSetupScript(opts: {
   hsUser: string;
   hsPass: string;
   enableFirewall: boolean;
+  wireguard?: WireguardPeerInfo;
+  radius?: { serverAddress: string; sharedSecret: string };
 }): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius } = opts;
   const octets = lanIp.split(".");
   const base3 = octets.slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1014,13 +1025,35 @@ export function buildRouterSetupScript(opts: {
     lines.push(`}`);
   }
 
+  if (wireguard) {
+    lines.push("");
+    lines.push(`:if ([:len [/interface wireguard find where name="wg-cloudguest"]] = 0) do={`);
+    lines.push(`  /interface wireguard add name="wg-cloudguest" private-key="${wireguard.routerPrivateKey}" listen-port=13231`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/interface wireguard peers find where interface="wg-cloudguest"]] = 0) do={`);
+    lines.push(`  /interface wireguard peers add interface="wg-cloudguest" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s`);
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`);
+    lines.push(`  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`);
+    lines.push(`}`);
+  }
+
+  if (radius) {
+    lines.push("");
+    lines.push(`:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`);
+    lines.push(`  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}"`);
+    lines.push(`}`);
+    lines.push(`/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`);
+  }
+
   lines.push("");
   lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
   lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . $apiBase . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . $agentCredential . "\\" http-data=\\"{}\\" output=none")`);
   lines.push(`}`);
   lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="{}" output=none`);
   lines.push("");
-  lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat (every 5m) sab set ho gaya."`);
+  const extras = [wireguard && "WireGuard", radius && "RADIUS"].filter(Boolean).join(" + ");
+  lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat${extras ? " + " + extras : ""} sab set ho gaya."`);
   lines.push("}");
 
   return lines.join("\n");
