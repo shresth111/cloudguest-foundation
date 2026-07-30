@@ -366,7 +366,7 @@ function DhcpDialog({
         name: "",
         addressRangeStart: "",
         addressRangeEnd: "",
-        interface: "bridgeLocal",
+        interface: "",
         gatewayIpAddress: "",
         dnsPrimary: "",
         dnsSecondary: "",
@@ -473,14 +473,15 @@ function DhcpDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Interface</Label>
-            <Input {...form.register("interface")} placeholder="bridgeLocal" />
+            <Input {...form.register("interface")} placeholder="bridgeLocal, ether3, vlan3…" />
             {form.formState.errors.interface ? (
               <p className="text-[11px] text-destructive">
                 {form.formState.errors.interface.message}
               </p>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                The dhcp-server binds here, e.g. the LAN bridge or a VLAN's interface.
+                The dhcp-server binds here — the LAN bridge, a direct physical port, or a
+                VLAN's own interface, whichever this pool actually serves.
               </p>
             )}
           </div>
