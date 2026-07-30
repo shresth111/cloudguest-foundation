@@ -77,6 +77,10 @@ export function PortalCustomization({ portal, onChange }: Props) {
           <div className="space-y-2">
             <Label>Logo URL</Label>
             <Input value={b.logoUrl ?? ""} onChange={(e) => set({ logoUrl: e.target.value })} placeholder="https://…" />
+            <p className="text-xs text-muted-foreground">
+              Displays at 24×24px on the portal. Use a square PNG, 256×256px, transparent background,
+              for a sharp result on retina screens.
+            </p>
           </div>
         </CardContent>
       </Card>
