@@ -88,6 +88,15 @@ const WG_AGENT_SECRET = "wgagent-7a647fb42b822aa44cb2da2092a4b79a";
 const RADIUS_AGENT_URL = "http://20.219.72.235:9092/radius/client";
 const RADIUS_AGENT_SECRET = "radiusagent-f37ae8fca1db9695975657196ea19b2e";
 
+/** RouterOS API login the platform itself uses for this router's control-plane
+ * calls (Device Console, VLAN/DHCP pushes, diagnostics) -- distinct from the
+ * heartbeat's `agentCredential`. Generated fresh per router, per script run. */
+const API_ACCESS_USERNAME = "cloudguest-api";
+function generateApiSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
@@ -207,6 +216,26 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret };
       }
 
+      // Also unlocks Device Console for this router (it stays permanently
+      // disabled -- "no credentials" -- until the platform has a RouterOS
+      // API login on file). Recorded on the router row now, and created on
+      // the device itself by the script below, so one script run + one
+      // paste is enough to make the router fully controllable end to end.
+      const apiSecret = generateApiSecret();
+      let apiAccess: { username: string; secret: string } | undefined;
+      try {
+        await api.put(`/routers/${router.id}`, {
+          api_username: API_ACCESS_USERNAME,
+          api_secret: apiSecret,
+        });
+        apiAccess = { username: API_ACCESS_USERNAME, secret: apiSecret };
+      } catch (err) {
+        toast.error(
+          (err as AppError).message ||
+            "Could not record API credentials -- Device Console will stay locked for this router until they're set.",
+        );
+      }
+
       setScript(
         buildRouterSetupScript({
           apiBase: api.defaults.baseURL || "",
@@ -215,6 +244,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           enableFirewall,
           wireguard,
           radius,
+          apiAccess,
           ...form,
         }),
       );
@@ -232,8 +262,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <FileCode2 className="h-3.5 w-3.5" /> Setup Script -- 1-shot MikroTik configuration
       </p>
       <p className="text-xs text-muted-foreground">
-        WAN internet (1-3 ISPs, DHCP, failover if 2+), LAN bridge, hotspot, basic firewall, and
-        platform check-in + heartbeat — all in one script. The WAN IP is assigned automatically via DHCP.
+        WAN internet (1-3 ISPs, DHCP, failover if 2+), LAN bridge, hotspot, basic firewall,
+        platform check-in + heartbeat, and Device Console access — all in one script, one paste.
+        The WAN IP is assigned automatically via DHCP.
       </p>
 
       <div className="flex gap-1.5">

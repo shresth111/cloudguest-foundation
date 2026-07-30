@@ -984,8 +984,15 @@ export function buildRouterSetupScript(opts: {
   enableFirewall: boolean;
   wireguard?: WireguardPeerInfo;
   radius?: { serverAddress: string; sharedSecret: string };
+  /** RouterOS API service + a dedicated login for the platform's own
+   * control-plane calls (Device Console, VLAN/DHCP pushes, diagnostics) --
+   * distinct from `agentCredential` above, which only authenticates the
+   * router's one-way heartbeat back to the platform. Without this, every
+   * router this script provisions starts with Device Console permanently
+   * disabled for it ("no credentials"), needing a separate manual step. */
+  apiAccess?: { username: string; secret: string };
 }): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
   const octets = lanIp.split(".");
   const base3 = octets.slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1091,13 +1098,23 @@ export function buildRouterSetupScript(opts: {
     lines.push(`/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`);
   }
 
+  if (apiAccess) {
+    lines.push("");
+    lines.push(`/ip service set api disabled=no`);
+    lines.push(`:if ([:len [/user find where name="${apiAccess.username}"]] = 0) do={`);
+    lines.push(`  /user add name="${apiAccess.username}" password="${apiAccess.secret}" group=full comment="cloudguest-api"`);
+    lines.push(`} else={`);
+    lines.push(`  /user set [find name="${apiAccess.username}"] password="${apiAccess.secret}"`);
+    lines.push(`}`);
+  }
+
   lines.push("");
   lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
   lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . $apiBase . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . $agentCredential . "\\" http-data=\\"{}\\" output=none")`);
   lines.push(`}`);
   lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="{}" output=none`);
   lines.push("");
-  const extras = [wireguard && "WireGuard", radius && "RADIUS"].filter(Boolean).join(" + ");
+  const extras = [wireguard && "WireGuard", radius && "RADIUS", apiAccess && "API access"].filter(Boolean).join(" + ");
   lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat${extras ? " + " + extras : ""} sab set ho gaya."`);
   lines.push("}");
 
