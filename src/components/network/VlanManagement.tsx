@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Network, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, Network, ShieldCheck, ShieldOff, Wifi } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -65,8 +65,9 @@ const vlanSchema = z.object({
   name: z.string().trim().min(2, "Required").max(48),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   cidr: z.string().trim().optional().or(z.literal("")),
+  portMode: z.enum(["trunk", "access"]),
   interface: z.string().trim().optional().or(z.literal("")),
-  description: z.string().trim().max(240).optional().or(z.literal("")),
+  enableHotspot: z.boolean(),
   isEnabled: z.boolean(),
 });
 type VlanFormValues = z.infer<typeof vlanSchema>;
@@ -178,8 +179,9 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                 <TableHead>VLAN</TableHead>
                 <TableHead>Router</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Gateway / CIDR</TableHead>
-                <TableHead>Interface</TableHead>
+                <TableHead>Network</TableHead>
+                <TableHead>Port</TableHead>
+                <TableHead>Portal</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[80px]" />
               </TableRow>
@@ -188,7 +190,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
               {isLoading && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     Loading…
@@ -198,7 +200,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
               {!isLoading && rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     No VLANs match your filters.
@@ -231,7 +233,19 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                     {v.cidr ? ` / ${v.cidr}` : ""}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
+                    <Badge variant="outline" className="mr-1.5 capitalize">
+                      {v.portMode}
+                    </Badge>
                     {v.interface ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    {v.enableHotspot ? (
+                      <Badge variant="default" className="gap-1">
+                        <Wifi className="h-3 w-3" /> On
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Off</Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={v.isEnabled ? "default" : "secondary"}>
@@ -343,8 +357,9 @@ function VlanDialog({
         name: vlan.name,
         gatewayIpAddress: vlan.gatewayIpAddress ?? "",
         cidr: vlan.cidr ?? "",
+        portMode: vlan.portMode,
         interface: vlan.interface ?? "",
-        description: vlan.description ?? "",
+        enableHotspot: vlan.enableHotspot,
         isEnabled: vlan.isEnabled,
       }
     : {
@@ -353,8 +368,9 @@ function VlanDialog({
         name: "",
         gatewayIpAddress: "",
         cidr: "",
+        portMode: "trunk",
         interface: "",
-        description: "",
+        enableHotspot: false,
         isEnabled: true,
       };
 
@@ -363,6 +379,7 @@ function VlanDialog({
     defaultValues: defaults,
     values: defaults,
   });
+  const portMode = form.watch("portMode");
 
   async function submit(v: VlanFormValues) {
     try {
@@ -375,7 +392,8 @@ function VlanDialog({
             gatewayIpAddress: v.gatewayIpAddress || null,
             cidr: v.cidr || null,
             interface: v.interface || null,
-            description: v.description || null,
+            portMode: v.portMode,
+            enableHotspot: v.enableHotspot,
             isEnabled: v.isEnabled,
           },
         });
@@ -388,7 +406,8 @@ function VlanDialog({
           gatewayIpAddress: v.gatewayIpAddress || null,
           cidr: v.cidr || null,
           interface: v.interface || null,
-          description: v.description || null,
+          portMode: v.portMode,
+          enableHotspot: v.enableHotspot,
           isEnabled: v.isEnabled,
         });
         toast.success("VLAN created");
@@ -464,23 +483,64 @@ function VlanDialog({
             <Input {...form.register("cidr")} placeholder="10.0.0.0/24" className="font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Parent interface (optional)</Label>
-            <Input {...form.register("interface")} placeholder="ether1" />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-            <div className="text-sm font-medium">Enabled</div>
+            <Label className="text-xs font-medium">Port mode</Label>
             <Controller
               control={form.control}
-              name="isEnabled"
+              name="portMode"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trunk">Trunk (tagged)</SelectItem>
+                    <SelectItem value="access">Access (dedicated port)</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">
+              {portMode === "access" ? "Access port" : "Trunk interface"}
+            </Label>
+            <Input
+              {...form.register("interface")}
+              placeholder={portMode === "access" ? "ether3" : "bridgeLocal"}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {portMode === "access"
+                ? "This physical port is dedicated to this VLAN, untagged."
+                : "Tagged sub-interface on this parent, e.g. the LAN bridge."}
+            </p>
+          </div>
+          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
+            <div>
+              <div className="text-sm font-medium">Captive portal</div>
+              <div className="text-[11px] text-muted-foreground">
+                Guests on this VLAN must log in through a hotspot page.
+              </div>
+            </div>
+            <Controller
+              control={form.control}
+              name="enableHotspot"
               render={({ field }) => (
                 <Switch checked={field.value} onCheckedChange={field.onChange} />
               )}
             />
           </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Description (optional)</Label>
-            <Input {...form.register("description")} placeholder="Public guest network…" />
-          </div>
+          {vlan && (
+            <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div className="text-sm font-medium">Enabled</div>
+              <Controller
+                control={form.control}
+                name="isEnabled"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </div>
+          )}
           <DialogFooter className="sm:col-span-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel

@@ -18,6 +18,8 @@ interface BackendVlan {
   gateway_ip_address: string | null;
   cidr: string | null;
   interface: string | null;
+  port_mode: "trunk" | "access";
+  enable_hotspot: boolean;
   description: string | null;
   is_enabled: boolean;
   created_at: string;
@@ -44,6 +46,8 @@ function toVlan(v: BackendVlan): Vlan {
     gatewayIpAddress: v.gateway_ip_address,
     cidr: v.cidr,
     interface: v.interface,
+    portMode: v.port_mode,
+    enableHotspot: v.enable_hotspot,
     description: v.description,
     isEnabled: v.is_enabled,
     createdAt: v.created_at,
@@ -126,6 +130,8 @@ export const vlanService = {
         gateway_ip_address: payload.gatewayIpAddress,
         cidr: payload.cidr,
         interface: payload.interface,
+        port_mode: payload.portMode ?? "trunk",
+        enable_hotspot: payload.enableHotspot ?? false,
         description: payload.description,
         is_enabled: payload.isEnabled ?? true,
       },
@@ -144,6 +150,8 @@ export const vlanService = {
         gateway_ip_address: payload.gatewayIpAddress,
         cidr: payload.cidr,
         interface: payload.interface,
+        port_mode: payload.portMode,
+        enable_hotspot: payload.enableHotspot,
         description: payload.description,
         is_enabled: payload.isEnabled,
       },
