@@ -2,6 +2,7 @@ import { api, type AppError } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreateRouterPayload,
+  DeviceInterface,
   ProvisioningToken,
   RouterDevice,
   RouterListQuery,
@@ -333,6 +334,29 @@ export const routerService = {
 
   async revokeWireGuardPeer(routerId: string): Promise<void> {
     await api.delete(`/routers/${routerId}/wireguard-peer`);
+  },
+
+  async getDeviceInterfaces(routerId: string, organizationId?: string): Promise<DeviceInterface[]> {
+    interface BackendDeviceInterface {
+      name: string;
+      type: string | null;
+      running: boolean;
+      disabled: boolean;
+      bridge: string | null;
+      has_ip_address: boolean;
+    }
+    const { data } = await api.get<{ interfaces: BackendDeviceInterface[] }>(
+      `/routers/${routerId}/device-interfaces`,
+      organizationId ? { headers: { "X-Organization-Id": organizationId } } : {},
+    );
+    return data.interfaces.map((i) => ({
+      name: i.name,
+      type: i.type,
+      running: i.running,
+      disabled: i.disabled,
+      bridge: i.bridge,
+      hasIpAddress: i.has_ip_address,
+    }));
   },
 
   async organizations(): Promise<{ id: string; name: string }[]> {

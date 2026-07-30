@@ -109,3 +109,15 @@ export interface ProvisioningToken {
   token: string;
   expiresAt: string;
 }
+
+/** One real, currently-available interface read live off the device --
+ * already excludes anything bound to a dhcp-server/dhcp-client or the
+ * loopback, see the backend's device_adapters module docstring. */
+export interface DeviceInterface {
+  name: string;
+  type: string | null;
+  running: boolean;
+  disabled: boolean;
+  bridge: string | null;
+  hasIpAddress: boolean;
+}

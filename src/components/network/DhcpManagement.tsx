@@ -379,6 +379,22 @@ function DhcpDialog({
     defaultValues: defaults,
     values: defaults,
   });
+  const selectedRouterId = form.watch("routerId");
+  const [manualInterface, setManualInterface] = useState(false);
+
+  // Real interfaces read live off the device, not guessed -- excludes
+  // whatever's already bound to a dhcp-server/dhcp-client on the router
+  // itself (backend-filtered, see routerService.getDeviceInterfaces).
+  const {
+    data: deviceInterfaces,
+    isLoading: interfacesLoading,
+    isError: interfacesErrored,
+  } = useQuery({
+    queryKey: ["dhcp", "device-interfaces", selectedRouterId, organizationId],
+    queryFn: () => routerService.getDeviceInterfaces(selectedRouterId, organizationId),
+    enabled: !!selectedRouterId,
+    staleTime: 15_000,
+  });
 
   async function submit(v: DhcpFormValues) {
     try {
@@ -472,16 +488,70 @@ function DhcpDialog({
             <Input {...form.register("gatewayIpAddress")} placeholder="10.0.0.1" className="font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Interface</Label>
-            <Input {...form.register("interface")} placeholder="bridgeLocal, ether3, vlan3…" />
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium">Interface</Label>
+              {!manualInterface && (
+                <button
+                  type="button"
+                  className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={() => setManualInterface(true)}
+                >
+                  Type manually
+                </button>
+              )}
+            </div>
+            {manualInterface ? (
+              <Input {...form.register("interface")} placeholder="bridgeLocal, ether3, vlan3…" />
+            ) : (
+              <Controller
+                control={form.control}
+                name="interface"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={!selectedRouterId || interfacesLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          !selectedRouterId
+                            ? "Select a router first"
+                            : interfacesLoading
+                              ? "Checking router…"
+                              : "Select interface"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(deviceInterfaces ?? []).map((i) => (
+                        <SelectItem key={i.name} value={i.name}>
+                          {i.name}
+                          {i.bridge ? ` (in ${i.bridge})` : ""}
+                          {i.running ? " · link up" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            )}
             {form.formState.errors.interface ? (
               <p className="text-[11px] text-destructive">
                 {form.formState.errors.interface.message}
               </p>
+            ) : interfacesErrored ? (
+              <p className="text-[11px] text-destructive">
+                Couldn't reach the router to list its interfaces — type the name manually.
+              </p>
+            ) : selectedRouterId && !interfacesLoading && deviceInterfaces?.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                No available interfaces on this router (everything's already in use, or it's
+                offline) — type one manually if you're sure.
+              </p>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                The dhcp-server binds here — the LAN bridge, a direct physical port, or a
-                VLAN's own interface, whichever this pool actually serves.
+                Read live off the router — already-in-use interfaces are left out.
               </p>
             )}
           </div>
