@@ -58,7 +58,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     items: [
       { id: "policies", label: "Policies", icon: ShieldCheck, roles: ["owner"] },
       { id: "whitelist", label: "Whitelist", icon: Shield, roles: ["owner"] },
-      { id: "mac-auth", label: "MAC Auth", icon: Fingerprint, roles: ["owner"] },
+      { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
       { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
       { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
     ],
@@ -68,8 +68,8 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Devices & Team",
     items: [
       { id: "devices", label: "Devices", icon: Monitor, roles: ["owner", "agent"] },
-      { id: "teams", label: "Teams", icon: UsersRound, roles: ["owner"] },
-      { id: "agents", label: "Agents", icon: Bot, roles: ["owner"] },
+      { id: "teams", label: "Guest Groups", icon: UsersRound, roles: ["owner"] },
+      { id: "agents", label: "Staff Access", icon: Bot, roles: ["owner"] },
     ],
   },
   {
@@ -77,12 +77,12 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Network",
     items: [
       { id: "hotspot", label: "Hotspot", icon: Wifi, roles: ["owner"] },
-      { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
+      { id: "dhcp", label: "IP Address Pool", icon: Server, roles: ["owner"] },
       { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
       { id: "voip", label: "VOIP Priority", icon: Signal, roles: ["owner"] },
-      { id: "isp-routing", label: "ISP Routing", icon: ArrowRightLeft, roles: ["owner"] },
-      { id: "isp-details", label: "ISP Details", icon: Globe, roles: ["owner"] },
+      { id: "isp-routing", label: "Internet Failover", icon: ArrowRightLeft, roles: ["owner"] },
+      { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
     ],
   },
   {
@@ -91,7 +91,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     items: [
       { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
       { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
-      { id: "debugging", label: "Debugging", icon: Terminal, roles: ["owner"] },
+      { id: "debugging", label: "Network Diagnostics", icon: Terminal, roles: ["owner"] },
     ],
   },
   {
