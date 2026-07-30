@@ -36,6 +36,13 @@ const searchSchema = z.object({
   // GET /agent/authorized-macs ever having a MAC to report for that
   // session. See GuestSignInCard's login call for where this is used.
   mac: z.string().optional(),
+  // The site the guest was actually trying to reach before the hotspot
+  // intercepted them -- RouterOS's `$(link-orig)` substitution. Used by
+  // portal.success.tsx/portal.redirect.tsx as the "Continue browsing"
+  // target once real internet access is granted, falling back to the
+  // location's own configured redirectUrl (or nothing) when absent --
+  // see GuestSignInCard/PortalRuntimeContext for how this threads through.
+  dst: z.string().optional(),
 });
 
 /**
@@ -108,13 +115,14 @@ export const Route = createFileRoute("/portal")({
 });
 
 function PortalRuntimeLayout() {
-  const { organizationId, locationId, routerId, mac } = Route.useSearch();
+  const { organizationId, locationId, routerId, mac, dst } = Route.useSearch();
   return (
     <PortalRuntimeProvider
       organizationId={organizationId}
       locationId={locationId}
       routerId={routerId}
       deviceMac={mac}
+      destinationUrl={dst}
     >
       <Outlet />
     </PortalRuntimeProvider>

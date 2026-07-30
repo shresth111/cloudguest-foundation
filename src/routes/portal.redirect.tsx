@@ -10,10 +10,10 @@ export const Route = createFileRoute("/portal/redirect")({
 });
 
 function RedirectPage() {
-  const { config, t } = usePortalRuntime();
+  const { config, t, destinationUrl } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/redirect" });
   const [remaining, setRemaining] = useState(5);
-  const url = config?.redirectUrl;
+  const url = destinationUrl || config?.redirectUrl;
 
   useEffect(() => {
     if (!url) {

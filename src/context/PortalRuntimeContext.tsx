@@ -40,6 +40,7 @@ interface PortalRuntimeState {
   locationId: string;
   routerId: string;
   deviceMac?: string;
+  destinationUrl?: string;
   config?: RuntimePortalConfig;
   isLoading: boolean;
   error?: Error;
@@ -67,6 +68,7 @@ interface Props {
   locationId: string;
   routerId: string;
   deviceMac?: string;
+  destinationUrl?: string;
   children: ReactNode;
 }
 
@@ -75,6 +77,7 @@ export function PortalRuntimeProvider({
   locationId,
   routerId,
   deviceMac,
+  destinationUrl,
   children,
 }: Props) {
   const {
@@ -145,6 +148,7 @@ export function PortalRuntimeProvider({
       locationId,
       routerId,
       deviceMac,
+      destinationUrl,
       config,
       isLoading,
       error: error as Error | undefined,
@@ -169,6 +173,7 @@ export function PortalRuntimeProvider({
       locationId,
       routerId,
       deviceMac,
+      destinationUrl,
       config,
       isLoading,
       error,

@@ -54,8 +54,9 @@ function DetailCard({
  * labeled "Data allowance", not invented as a bogus speed number.
  */
 function SuccessPage() {
-  const { t, config, session, setSession, organizationId, locationId, routerId } =
+  const { t, config, session, setSession, organizationId, locationId, routerId, destinationUrl } =
     usePortalRuntime();
+  const continueUrl = destinationUrl || config?.redirectUrl;
   const navigate = useNavigate({ from: "/portal/success" });
   const portalSearch = { organizationId, locationId, routerId };
   const [now, setNow] = useState(() => Date.now());
@@ -203,7 +204,7 @@ function SuccessPage() {
           </Link>
         )}
 
-        {config?.redirectUrl && (
+        {continueUrl && (
           <button
             type="button"
             onClick={() => navigate({ to: "/portal/redirect", search: (prev) => prev })}
