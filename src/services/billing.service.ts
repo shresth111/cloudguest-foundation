@@ -1258,16 +1258,21 @@ export const billingService = {
     return { fileName: `${type}-report-${Date.now()}.${format}`, size: `${Math.round(200 + Math.random() * 1800)} KB` };
   },
 
-  async generateInvoice(id: string) {
-    // GET /invoices/{id}/download returns the file directly (no shareable
-    // URL concept) -- resolving to a blob URL is a real backend call.
-    try {
-      const response = await api.get(`/invoices/${id}/download`, { responseType: "blob" });
-      const url = URL.createObjectURL(response.data as Blob);
-      return { url, fileName: `${id}.pdf` };
-    } catch {
-      return { url: `#invoice-${id}`, fileName: `${id}.pdf` };
-    }
+  // GET /invoices/{id}/download returns the file directly (no shareable
+  // URL concept) -- resolving to a blob URL is a real backend call. Two
+  // real bugs, confirmed live, fixed together: (1) missing
+  // X-Organization-Id -- the endpoint requires it via RequireOrganization,
+  // so this 403'd for every real customer; (2) the catch swallowed that
+  // failure and returned a fake `#invoice-...` URL, so the caller always
+  // saw a false "Downloading..." success toast with nothing to download.
+  // A real failure now rejects, same as every other real mutation here.
+  async generateInvoice(id: string, organizationId?: string) {
+    const response = await api.get(`/invoices/${id}/download`, {
+      responseType: "blob",
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+    const url = URL.createObjectURL(response.data as Blob);
+    return { url, fileName: `${id}.pdf` };
   },
 
   // No reminder-dispatch endpoint exists in backend/app/domains/billing --

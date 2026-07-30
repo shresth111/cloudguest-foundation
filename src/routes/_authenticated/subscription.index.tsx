@@ -59,7 +59,7 @@ function SubscriptionPage() {
 
   function handleDownload(invoiceId: string, invoiceNumber: string) {
     setDownloadingId(invoiceId);
-    download.mutate(invoiceId, {
+    download.mutate({ id: invoiceId, organizationId: activeOrg?.organizationId }, {
       onSuccess: ({ url, fileName }) => {
         const a = document.createElement("a");
         a.href = url;

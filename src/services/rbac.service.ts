@@ -498,35 +498,59 @@ export const rbacService = {
     });
   },
 
-  async cloneRole(id: string, payload: CloneRolePayload): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${id}/clone`, {
-      new_name: payload.newName,
-      new_slug: payload.newSlug,
-      target_organization_id: payload.targetOrganizationId,
+  // Same missing-X-Organization-Id gap as vlan/dhcp/firewall/connected-
+  // devices this session -- these 5 had no `organizationId` parameter at
+  // all (unlike their createRole/updateRole/deleteRole siblings just
+  // above), so the header could never be attached. Confirmed live: a real
+  // org-owner session 403'd at GLOBAL scope with no header.
+  async cloneRole(id: string, payload: CloneRolePayload, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(
+      `/roles/${id}/clone`,
+      {
+        new_name: payload.newName,
+        new_slug: payload.newSlug,
+        target_organization_id: payload.targetOrganizationId,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toRole(data);
+  },
+
+  async activateRole(id: string, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/activate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return toRole(data);
   },
 
-  async activateRole(id: string): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${id}/activate`);
-    return toRole(data);
-  },
-
-  async deactivateRole(id: string): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${id}/deactivate`);
-    return toRole(data);
-  },
-
-  async attachRolePermission(roleId: string, permissionKey: string): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${roleId}/permissions`, {
-      permission_key: permissionKey,
+  async deactivateRole(id: string, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return toRole(data);
   },
 
-  async detachRolePermission(roleId: string, permissionKey: string): Promise<Role> {
+  async attachRolePermission(
+    roleId: string,
+    permissionKey: string,
+    organizationId?: string,
+  ): Promise<Role> {
+    const { data } = await api.post<BackendRole>(
+      `/roles/${roleId}/permissions`,
+      { permission_key: permissionKey },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toRole(data);
+  },
+
+  async detachRolePermission(
+    roleId: string,
+    permissionKey: string,
+    organizationId?: string,
+  ): Promise<Role> {
     const { data } = await api.delete<BackendRole>(
       `/roles/${roleId}/permissions/${encodeURIComponent(permissionKey)}`,
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return toRole(data);
   },

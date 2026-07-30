@@ -32,7 +32,7 @@ function BillingPage() {
 
   function handleDownload(invoiceId: string, invoiceNumber: string) {
     setDownloadingId(invoiceId);
-    download.mutate(invoiceId, {
+    download.mutate({ id: invoiceId, organizationId: customer?.organizationId }, {
       onSuccess: ({ url, fileName }) => {
         const a = document.createElement("a");
         a.href = url;

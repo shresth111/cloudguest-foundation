@@ -138,7 +138,10 @@ export function useSaveTaxRate() {
 }
 
 export function useDownloadInvoice() {
-  return useMutation({ mutationFn: (id: string) => billingService.generateInvoice(id) });
+  return useMutation({
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      billingService.generateInvoice(id, organizationId),
+  });
 }
 
 // Tenant-facing "my billing" summary (real GET /billing/dashboard/me) --

@@ -29,17 +29,20 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
 
   function handleDownload(inv: Invoice) {
     setDownloadingId(inv.id);
-    download.mutate(inv.id, {
-      onSuccess: ({ url, fileName }) => {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        toast.success(`Downloading ${inv.invoiceNumber} (GST invoice PDF)`);
+    download.mutate(
+      { id: inv.id, organizationId: inv.organizationId },
+      {
+        onSuccess: ({ url, fileName }) => {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          toast.success(`Downloading ${inv.invoiceNumber} (GST invoice PDF)`);
+        },
+        onError: () => toast.error("Could not download the invoice PDF."),
+        onSettled: () => setDownloadingId(null),
       },
-      onError: () => toast.error("Could not download the invoice PDF."),
-      onSettled: () => setDownloadingId(null),
-    });
+    );
   }
 
   return (
