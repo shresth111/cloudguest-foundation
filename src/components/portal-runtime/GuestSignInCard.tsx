@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { Wifi, Smartphone, Mail, Ticket, KeyRound } from "lucide-react";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, ConnectingOverlay, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
@@ -52,6 +53,7 @@ export function GuestSignInCard() {
     setSession,
     termsAccepted,
     setTermsAccepted,
+    previewMode,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = { organizationId, locationId, routerId };
@@ -225,6 +227,10 @@ export function GuestSignInCard() {
       return;
     }
     setOtpError(null);
+    if (previewMode) {
+      toast.info("Preview mode — connect a real device to test sign-in.");
+      return;
+    }
     sendOtp.mutate(id);
   };
 
@@ -235,6 +241,10 @@ export function GuestSignInCard() {
     }
     if (!termsAccepted) {
       setOtpError("Please accept the Terms & Acceptable Use Policy to continue.");
+      return;
+    }
+    if (previewMode) {
+      toast.info("Preview mode — connect a real device to test sign-in.");
       return;
     }
     verifyOtp.mutate(code);
@@ -254,6 +264,10 @@ export function GuestSignInCard() {
     }
     if (!termsAccepted) {
       setPasswordError("Please accept the Terms & Acceptable Use Policy to continue.");
+      return;
+    }
+    if (previewMode) {
+      toast.info("Preview mode — connect a real device to test sign-in.");
       return;
     }
     loginPassword.mutate();

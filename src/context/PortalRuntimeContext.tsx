@@ -44,6 +44,12 @@ interface PortalRuntimeState {
   config?: RuntimePortalConfig;
   isLoading: boolean;
   error?: Error;
+  /** True only for the admin-facing Portal Preview
+   * (src/routes/preview.portal.$locationId.tsx), which renders the exact
+   * real GuestSignInCard/PortalShell for visual fidelity but has no real
+   * router/device behind it -- GuestSignInCard checks this before calling
+   * any real login endpoint, showing a "preview mode" notice instead. */
+  previewMode: boolean;
   language: RuntimeLanguage;
   setLanguage: (l: RuntimeLanguage) => void;
   t: (key: string) => string;
@@ -70,6 +76,17 @@ interface Props {
   deviceMac?: string;
   destinationUrl?: string;
   children: ReactNode;
+  /** Preview-mode support (src/routes/preview.portal.$locationId.tsx) --
+   * see PortalRuntimeState.previewMode's own docstring. */
+  previewMode?: boolean;
+  /** When provided (even `null`), used as the resolved config directly
+   * instead of this provider's own `GET /captive-portal/resolve` fetch --
+   * lets a caller that already has a richer, org-branding-merged version
+   * (usePortalPreview) feed it in without a redundant, less complete
+   * second fetch. `presetConfigLoading` mirrors that caller's own loading
+   * state while its fetch is still in flight. */
+  presetConfig?: RuntimePortalConfig | null;
+  presetConfigLoading?: boolean;
 }
 
 export function PortalRuntimeProvider({
@@ -78,18 +95,25 @@ export function PortalRuntimeProvider({
   routerId,
   deviceMac,
   destinationUrl,
+  previewMode = false,
+  presetConfig,
+  presetConfigLoading,
   children,
 }: Props) {
+  const hasPreset = presetConfig !== undefined;
   const {
-    data: config,
-    isLoading,
+    data: fetchedConfig,
+    isLoading: fetchIsLoading,
     error,
   } = useQuery({
     queryKey: ["portal-runtime-config", organizationId, locationId],
     queryFn: () => portalRuntimeService.resolveConfig({ organizationId, locationId }),
     staleTime: 60_000,
     retry: false,
+    enabled: !hasPreset,
   });
+  const config = hasPreset ? (presetConfig ?? undefined) : fetchedConfig;
+  const isLoading = hasPreset ? !!presetConfigLoading : fetchIsLoading;
 
   const [language, setLanguage] = useState<RuntimeLanguage | undefined>();
   const [highContrast, setHighContrast] = useState(false);
@@ -149,6 +173,7 @@ export function PortalRuntimeProvider({
       routerId,
       deviceMac,
       destinationUrl,
+      previewMode,
       config,
       isLoading,
       error: error as Error | undefined,
@@ -174,6 +199,7 @@ export function PortalRuntimeProvider({
       routerId,
       deviceMac,
       destinationUrl,
+      previewMode,
       config,
       isLoading,
       error,

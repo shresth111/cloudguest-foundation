@@ -168,7 +168,7 @@ function CustomerUsersPage() {
                               e.stopPropagation();
                               disconnect.mutate(u.id, {
                                 onSuccess: () => toast.success(`${u.name} disconnected`),
-                                onError: (err) => toast.error((err as AppError).message || "Couldn't disconnect this session"),
+                                onError: (err) => toast.error((err as unknown as AppError).message || "Couldn't disconnect this session"),
                               });
                             }}
                           >
@@ -217,7 +217,7 @@ function CustomerUsersPage() {
                   onClick={() => {
                     disconnect.mutate(detailUser.id, {
                       onSuccess: () => toast.success(`${detailUser.name} disconnected`),
-                      onError: (err) => toast.error((err as AppError).message || "Couldn't disconnect this session"),
+                      onError: (err) => toast.error((err as unknown as AppError).message || "Couldn't disconnect this session"),
                     });
                     setDetailUser(null);
                   }}

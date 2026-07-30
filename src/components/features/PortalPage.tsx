@@ -301,8 +301,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               )}
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Uploaded to real object storage and shown to guests on the real sign-in screen --
-              shared across every location in this organization, same as the Background Image.
+              Displayed at 32×32px on the real sign-in screen (inside a rounded color badge) --
+              upload a square image, 256×256px, PNG with a transparent background, for a sharp,
+              clean result. Shared across every location in this organization, same as the
+              Background Image.
             </p>
           </div>
 

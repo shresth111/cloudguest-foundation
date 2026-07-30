@@ -19,6 +19,12 @@ interface Props {
    * blob) used by the redesigned guest sign-in flow itself (welcome,
    * success, expired, set-password). */
   variant?: "dark" | "light";
+  /** When true, sizes to 100% of its parent container (`h-full`) instead
+   * of the full viewport (`min-h-dvh`) -- used by the admin Portal
+   * Preview (src/routes/preview.portal.$locationId.tsx), which renders
+   * this exact component inside a fixed-size phone-bezel mockup rather
+   * than a real full-page /portal/* route. */
+  constrained?: boolean;
 }
 
 export function PortalShell({
@@ -26,6 +32,7 @@ export function PortalShell({
   showHeader = true,
   contentClassName,
   variant = "dark",
+  constrained = false,
 }: Props) {
   const { config, highContrast, largeText, organizationId, locationId, routerId } =
     usePortalRuntime();
@@ -36,12 +43,14 @@ export function PortalShell({
   // across routes with different search shapes, so there's no single
   // `from` route TanStack Router could type that callback against.
   const portalSearch = { organizationId, locationId, routerId };
+  const heightCls = constrained ? "h-full" : "min-h-dvh";
 
   if (variant === "light") {
     return (
       <div
         className={cn(
-          "pg-shell relative min-h-dvh w-full overflow-hidden",
+          "pg-shell relative w-full overflow-hidden",
+          heightCls,
           highContrast && "contrast-125 saturate-150",
           largeText && "text-[17px]",
         )}
@@ -79,7 +88,7 @@ export function PortalShell({
           }}
         />
 
-        <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[420px] flex-col px-4 pb-8 pt-6">
+        <div className={cn("relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6", heightCls)}>
           <div className="mb-2 flex items-center justify-end gap-1.5">
             <LanguageSwitcher tone="light" />
             <A11yMenu tone="light" />

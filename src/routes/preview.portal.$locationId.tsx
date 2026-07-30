@@ -1,29 +1,18 @@
-import { useEffect, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Copy,
-  Wifi,
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-  Loader2,
-} from "lucide-react";
+import { ArrowLeft, Copy, AlertTriangle, Info, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { usePortalPreview, type PortalPreviewConfigSource } from "@/hooks/usePortalPreview";
 import { businessTypeIcon } from "@/lib/business-type-icons";
-import {
-  enabledAuthMethods,
-  otherAuthMethods,
-  AUTH_METHOD_FALLBACK_COPY,
-} from "@/lib/portal-auth-methods";
-import type { RuntimeAuthMethod } from "@/types/portal-runtime";
+import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
+import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 /**
  * Shareable, internal Portal Preview -- see how a location's guest-facing
@@ -138,11 +127,6 @@ function PortalPreviewPage() {
   const { roles } = useAuth();
   const isOperator = roles.some((r) => r.scopeType === "global");
   const backTo = isOperator ? "/master/locations" : `/customer/${locationId}/portal`;
-  // Mirrors GuestSignInCard's own "otp" | "password" tab state -- the
-  // real guest card these two are all this preview shows now (voucher/the
-  // non-default OTP channel still show as the same small fallback links
-  // the real card uses).
-  const [tab, setTab] = useState<"otp" | "password">("otp");
 
   const preview = usePortalPreview(organizationId, locationId);
 
@@ -152,28 +136,45 @@ function PortalPreviewPage() {
     retry: false,
   });
 
-  // The exact same priority-ordered enabled-methods logic the real guest
-  // flow uses (src/lib/portal-auth-methods.ts) -- reused as-is, not
-  // reimplemented, so this preview can never show a method set (or a
-  // default landing method) that the real /portal/* flow wouldn't.
-  const liveMethods: RuntimeAuthMethod[] = preview.config ? enabledAuthMethods(preview.config) : [];
-  const hasOtpTab = liveMethods.includes("otp_sms") || liveMethods.includes("otp_email");
-  const hasPasswordTab = liveMethods.includes("username_password");
-  // Which OTP channel the mockup's "New user" tab shows -- SMS first if
-  // enabled (same AUTH_METHOD_PRIORITY the real card follows), else email.
-  const otpChannel: RuntimeAuthMethod = liveMethods.includes("otp_sms") ? "otp_sms" : "otp_email";
-  // Default landing tab mirrors the real card's own primaryAuthMethod
-  // fallback (see src/lib/portal-auth-methods.ts): OTP if enabled at all,
-  // else password -- re-evaluated once the real config actually loads
-  // (liveMethods is empty, and this location-specific config unknown,
-  // until then).
-  useEffect(() => {
-    if (!hasOtpTab && hasPasswordTab) setTab("password");
-  }, [hasOtpTab, hasPasswordTab]);
-
-  const gradient = `linear-gradient(135deg, ${preview.primaryColor}, ${preview.secondaryColor})`;
   const banner = BANNER_COPY[preview.configSource];
   const TypeIcon = businessTypeIcon(locationQuery.data?.propertyType);
+
+  // A real, resolved captive_portal_configs row wins as-is (its own
+  // fields are already correct); a location with none yet ("branding-only",
+  // see usePortalPreview's own docstring) gets a synthetic config built
+  // from the organization's branding fallbacks instead, with every
+  // sign-in method left disabled -- true to what a guest would actually
+  // see today: nothing configured yet, so GuestSignInCard's own "No
+  // sign-in methods are available" message, not a fabricated login form.
+  const mergedConfig: RuntimePortalConfig | null =
+    preview.config ??
+    (preview.branding
+      ? {
+          id: "preview",
+          name: preview.name,
+          theme: "light",
+          logoUrl: preview.logoUrl,
+          backgroundImageUrl: preview.backgroundImageUrl,
+          primaryColor: preview.primaryColor,
+          secondaryColor: preview.secondaryColor,
+          defaultLanguage: "en",
+          supportedLanguages: ["en"],
+          advertisementBannerUrl: null,
+          advertisementBannerLink: null,
+          termsAndConditionsText: null,
+          termsAndConditionsUrl: null,
+          privacyPolicyText: null,
+          privacyPolicyUrl: null,
+          splashHeadline: null,
+          splashWelcomeMessage: null,
+          redirectUrl: null,
+          otpSmsEnabled: false,
+          otpEmailEnabled: false,
+          usernamePasswordEnabled: false,
+          voucherEnabled: false,
+          resolvedViaLocationOverride: false,
+        }
+      : null);
 
   // There used to be an "Open live guest flow" button here, opening
   // `/portal?...&routerId=preview` in a new tab -- a real, externally
@@ -182,15 +183,11 @@ function PortalPreviewPage() {
   // downstream (OTP verify, password, voucher -- see
   // src/services/portal-runtime.service.ts) sends routerId straight to
   // the backend as the session's real router_id, so that link could never
-  // complete a real sign-in anyway, and it dead-ended guests (or whoever
-  // it got shared/copied to) on out-of-context /portal/* screens with a
-  // non-functional router id in the URL (see the reported
-  // `/portal/auth?...routerId=preview` link). There is no real router to
-  // put there instead -- a preview has no physical device attached, by
-  // design (see usePortalPreview's own docstring) -- so the only correct
-  // fix is to not generate that link at all. The phone mockup above
-  // already shows this location's real branding/config/enabled methods
-  // live, in-page, without needing any router id.
+  // complete a real sign-in anyway. The mockup below now renders the
+  // real GuestSignInCard directly, in preview mode (PortalRuntimeProvider's
+  // own previewMode -- submitting shows a "connect a real device" notice
+  // instead of calling a real login endpoint), so there is no separate
+  // link needed at all.
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -254,178 +251,39 @@ function PortalPreviewPage() {
           </div>
         )}
 
-        {/* The preview itself -- real merged branding/config data, no
-            placeholder content. This is the whole page; everything above
-            is just enough chrome to know what you're looking at. */}
+        {/* The real thing, not a hand-copied recreation -- the exact same
+            PortalRuntimeProvider/PortalShell/GuestSignInCard a guest's
+            device renders under /portal/welcome, fed this location's real
+            resolved config (or org-branding fallback, see mergedConfig
+            above). `previewMode` makes GuestSignInCard show a "connect a
+            real device" notice on submit instead of calling a real login
+            endpoint; `constrained` makes PortalShell size to this phone
+            bezel instead of the full viewport. Any future visual change
+            to the real guest flow now shows up here automatically --
+            this can never drift out of sync with it again. */}
         <div className="mx-auto w-full max-w-[300px] rounded-[2.2rem] border-8 border-foreground/90 bg-foreground/90 p-1.5 shadow-xl">
-          <div
-            className="relative min-h-[560px] overflow-hidden rounded-[1.6rem]"
-            style={{ background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)" }}
-          >
-            {preview.isLoading && (
-              <div className="absolute inset-0 z-20 grid place-items-center bg-white/60">
+          <div className="relative h-[600px] overflow-hidden rounded-[1.6rem]">
+            {preview.isLoading ? (
+              <div
+                className="grid h-full place-items-center"
+                style={{ background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)" }}
+              >
                 <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
               </div>
-            )}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full opacity-50 blur-2xl"
-              style={{
-                background: `radial-gradient(circle, ${preview.primaryColor} 0%, transparent 70%)`,
-              }}
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -bottom-14 -right-10 h-36 w-36 rounded-full opacity-40 blur-2xl"
-              style={{
-                background: `radial-gradient(circle, ${preview.secondaryColor} 0%, transparent 70%)`,
-              }}
-            />
-            <div className="relative z-10 flex min-h-[560px] flex-col px-5 pb-5 pt-6 text-slate-900">
-              <div className="mb-5 flex flex-col items-center text-center">
-                <div
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-white shadow-lg"
-                  style={{ background: gradient }}
-                >
-                  {preview.logoUrl ? (
-                    <img src={preview.logoUrl} alt="" className="h-6 w-6 object-contain" />
-                  ) : (
-                    <Wifi className="h-5 w-5" />
-                  )}
-                </div>
-                <h2
-                  className="mt-3 text-lg font-bold leading-tight"
-                  style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-                >
-                  {preview.config?.splashHeadline?.trim() || `Welcome to ${preview.name}`}
-                </h2>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {preview.config?.splashWelcomeMessage?.trim() ||
-                    "Sign in for complimentary WiFi access on this network."}
-                </p>
-              </div>
-
-              {/* A field-accurate, single-screen mockup of the real
-                  redesigned guest sign-in card (src/components/portal-runtime/
-                  GuestSignInCard.tsx) -- no more "tap Connect, then pick a
-                  method, then see its form" 3-hop mockup: the real guest
-                  flow was collapsed to one page a while back, and this
-                  preview now mirrors that shape exactly instead of showing
-                  an already-retired multi-step design. */}
-              <div
-                className="flex flex-1 flex-col rounded-2xl border border-indigo-100/80 bg-white p-4 text-slate-900"
-                style={{ boxShadow: "0 16px 40px -18px rgba(79,70,229,0.3)" }}
+            ) : (
+              <PortalRuntimeProvider
+                organizationId={organizationId}
+                locationId={locationId}
+                routerId="preview"
+                previewMode
+                presetConfig={mergedConfig}
+                presetConfigLoading={false}
               >
-                {hasOtpTab && hasPasswordTab && (
-                  <div className="mb-3 grid grid-cols-2 gap-1 rounded-full bg-indigo-50 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setTab("otp")}
-                      className={
-                        "rounded-full px-1.5 py-1.5 text-[10px] font-semibold transition " +
-                        (tab === "otp" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500")
-                      }
-                    >
-                      New user &middot; Mobile OTP
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTab("password")}
-                      className={
-                        "rounded-full px-1.5 py-1.5 text-[10px] font-semibold transition " +
-                        (tab === "password"
-                          ? "bg-white text-indigo-700 shadow-sm"
-                          : "text-slate-500")
-                      }
-                    >
-                      Registered user
-                    </button>
-                  </div>
-                )}
-
-                {liveMethods.length === 0 ? (
-                  <p className="py-4 text-center text-[11px] text-slate-500">
-                    No sign-in methods are enabled. A real guest would see &ldquo;contact
-                    reception.&rdquo;
-                  </p>
-                ) : tab === "otp" && hasOtpTab ? (
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-semibold text-slate-500">
-                      {otpChannel === "otp_sms" ? "Mobile number" : "Email address"}
-                    </p>
-                    {otpChannel === "otp_sms" ? (
-                      <div className="grid grid-cols-[46px_1fr] gap-1.5">
-                        <div className="rounded-lg border border-slate-200 px-2 py-2 text-[11px]">
-                          +1
-                        </div>
-                        <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
-                          555 010 2200
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
-                        you@example.com
-                      </div>
-                    )}
-                    <div
-                      className="mt-1 rounded-lg py-2 text-center text-[11px] font-semibold text-white"
-                      style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-                    >
-                      Send OTP
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-semibold text-slate-500">
-                      Mobile number or email
-                    </p>
-                    <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
-                      you@example.com or +1 555 010 2200
-                    </div>
-                    <p className="text-[10px] font-semibold text-slate-500">Password</p>
-                    <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] text-slate-400">
-                      ••••••••••••
-                    </div>
-                    <label className="mt-1 flex items-start gap-2 rounded-lg bg-slate-50 p-2 text-[10px] text-slate-600">
-                      <span className="mt-0.5 h-3 w-3 shrink-0 rounded-sm border border-slate-300" />
-                      I agree to the{" "}
-                      <span className="font-medium text-slate-800">
-                        Terms &amp; Acceptable Use Policy
-                      </span>
-                    </label>
-                    <div
-                      className="mt-1 rounded-lg py-2 text-center text-[11px] font-semibold text-white"
-                      style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-                    >
-                      Sign in &amp; connect
-                    </div>
-                  </div>
-                )}
-
-                {/* Every *other* enabled method, as a compact fallback link
-                    -- same real fallback copy the live card and
-                    src/routes/portal.auth.$method.tsx use, never a second
-                    full menu by default. */}
-                {preview.config &&
-                  liveMethods.length > 0 &&
-                  otherAuthMethods(preview.config, tab === "otp" ? otpChannel : "username_password")
-                    .filter((m) => !(tab === "otp" && (m === "otp_sms" || m === "otp_email")))
-                    .map((m) => (
-                      <p key={m} className="mt-2 text-center text-[9px] text-slate-500">
-                        {AUTH_METHOD_FALLBACK_COPY[m]}
-                      </p>
-                    ))}
-              </div>
-
-              {/* Mirrors the real guest flow's own footer convention (see
-               * PortalShell's light-variant footer) -- this used to show
-               * "Powered by CloudGuest", the internal engineering name,
-               * which this preview should never show since it's meant to
-               * be an honest mockup of what a guest actually sees. */}
-              <p className="mt-4 text-center text-[9px] text-slate-400">
-                Terms · Privacy · Support: ask venue staff
-              </p>
-            </div>
+                <PortalShell variant="light" showHeader={false} constrained>
+                  <GuestSignInCard />
+                </PortalShell>
+              </PortalRuntimeProvider>
+            )}
           </div>
         </div>
       </div>
