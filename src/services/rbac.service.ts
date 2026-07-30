@@ -397,6 +397,18 @@ export const rbacService = {
     return toUser(data);
   },
 
+  /** Real, immediate session termination -- unlike deactivate, the account
+   * itself stays active (they can sign back in right away); this only
+   * ends whatever session(s) exist right now, on the target's very next
+   * request, not just their next natural token expiry. See the backend's
+   * `UserService.force_logout_user` for the full "why two steps" writeup. */
+  async forceLogoutUser(id: string, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/force-logout`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+    return toUser(data);
+  },
+
   // -- Permissions / Permission Groups (read-only, seeded) -------------------
 
   // `organizationId` optional -- same GLOBAL-vs-ORGANIZATION scope story as

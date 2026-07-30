@@ -99,6 +99,12 @@ export function useDeactivateUser() {
   });
 }
 
+export function useForceLogoutUser() {
+  return useMutation({
+    mutationFn: (id: string) => rbacService.forceLogoutUser(id),
+  });
+}
+
 // -- Permissions / Permission Groups -----------------------------------------
 
 export const useRbacPermissionGroups = () =>
