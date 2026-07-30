@@ -147,6 +147,25 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           serverEndpointPort: wg.server_endpoint_port,
           tunnelSubnet: wg.tunnel_subnet,
         };
+        // The agent bridge above just configured the real hub directly --
+        // this platform's own WireGuardPeer table never found out (a real
+        // gap, confirmed live this session: the actual working production
+        // tunnel had no DB row at all, so the dashboard's own WireGuard
+        // view showed nothing/stale data, and network_config's render
+        // pipeline would silently omit this router's tunnel from any
+        // future config push). Records the exact values the bridge already
+        // decided -- never a second, conflicting allocation.
+        try {
+          await api.post(`/routers/${router.id}/wireguard-peer/register-external`, {
+            tunnel_ip_address: wg.router_tunnel_ip,
+            public_key: wg.router_public_key,
+          });
+        } catch (err) {
+          toast.error(
+            (err as AppError).message ||
+              "Tunnel is live on the device, but couldn't be recorded on the dashboard.",
+          );
+        }
       }
 
       // Gives this router its own genuine NAS identity -- resolved
