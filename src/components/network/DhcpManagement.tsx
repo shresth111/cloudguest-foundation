@@ -63,7 +63,11 @@ const dhcpSchema = z.object({
   name: z.string().trim().min(2, "Required").max(48),
   addressRangeStart: z.string().trim().min(1, "Required"),
   addressRangeEnd: z.string().trim().min(1, "Required"),
-  interface: z.string().trim().optional().or(z.literal("")),
+  // Required, not optional -- see this component's own comment on the
+  // "Interface" field below for why a pool with no interface never
+  // actually starts a dhcp-server on the real device (silently creates a
+  // bare /ip pool that hands out nothing).
+  interface: z.string().trim().min(1, "Required — the DHCP server won't start on the router without it"),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   dnsPrimary: z.string().trim().optional().or(z.literal("")),
   dnsSecondary: z.string().trim().optional().or(z.literal("")),
@@ -362,7 +366,7 @@ function DhcpDialog({
         name: "",
         addressRangeStart: "",
         addressRangeEnd: "",
-        interface: "",
+        interface: "bridgeLocal",
         gatewayIpAddress: "",
         dnsPrimary: "",
         dnsSecondary: "",
@@ -468,8 +472,17 @@ function DhcpDialog({
             <Input {...form.register("gatewayIpAddress")} placeholder="10.0.0.1" className="font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Interface (optional)</Label>
-            <Input {...form.register("interface")} placeholder="ether1" />
+            <Label className="text-xs font-medium">Interface</Label>
+            <Input {...form.register("interface")} placeholder="bridgeLocal" />
+            {form.formState.errors.interface ? (
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.interface.message}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                The dhcp-server binds here, e.g. the LAN bridge or a VLAN's interface.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">DNS primary (optional)</Label>
