@@ -10,6 +10,10 @@ import { MasterShell } from "@/components/master/MasterShell";
 import {
   MSectionHeader, MSeg, MTag, MTable, MTh, MTd, MTr, MDrawer, MButton,
 } from "@/components/master/MasterKit";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
@@ -330,7 +334,23 @@ function RouterFleetScreen() {
   const [sel, setSel] = useState<RouterDevice | null>(null);
   const [loading, setLoading] = useState(true);
   const [routers, setRouters] = useState<RouterDevice[]>([]);
+  const [rebootTarget, setRebootTarget] = useState<RouterDevice | null>(null);
+  const [rebooting, setRebooting] = useState(false);
   const demo = isDemo();
+
+  const confirmReboot = async () => {
+    if (!rebootTarget) return;
+    setRebooting(true);
+    try {
+      await routerService.reboot(rebootTarget.id);
+      toast.success(`${rebootTarget.name}: reboot command sent — back online in ~1-2 minutes`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not reach the device to reboot it");
+    } finally {
+      setRebooting(false);
+      setRebootTarget(null);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -455,7 +475,8 @@ function RouterFleetScreen() {
 
             {!demo && (
               <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
-                Quick actions below aren't wired to real device control yet -- use Device Console to run real commands on this router.
+                Restart/Upgrade/Sync Config aren't wired to real device control yet -- use Device
+                Console for those. Reboot is real.
               </p>
             )}
 
@@ -465,7 +486,7 @@ function RouterFleetScreen() {
               <p className="mb-2 text-xs font-medium text-muted-foreground">Power &amp; Firmware</p>
               <div className="grid grid-cols-2 gap-2">
                 <ControlButton icon={RotateCcw} label="Restart" disabled={!demo} onClick={() => act(`${sel.name}: restart queued`)} />
-                <ControlButton icon={Power} label="Reboot" disabled={!demo} onClick={() => act(`${sel.name}: reboot queued`)} />
+                <ControlButton icon={Power} label="Reboot" onClick={() => (demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel))} />
                 <ControlButton icon={ArrowUpCircle} label="Upgrade" disabled={!demo} onClick={() => act(`${sel.name}: firmware upgrade started`)} />
                 <ControlButton icon={RefreshCw} label="Sync Config" disabled={!demo} onClick={() => act(`${sel.name}: config synced`)} />
               </div>
@@ -486,6 +507,33 @@ function RouterFleetScreen() {
           </div>
         )}
       </MDrawer>
+
+      <AlertDialog open={!!rebootTarget} onOpenChange={(o) => !o && !rebooting && setRebootTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reboot {rebootTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This immediately restarts the physical device. Every guest currently connected at{" "}
+              {rebootTarget?.locationName} will be disconnected, and the router will be
+              unreachable for its normal 1-2 minute boot cycle. Use with caution — this cannot be
+              undone once sent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rebooting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmReboot();
+              }}
+              disabled={rebooting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {rebooting ? "Rebooting…" : "Reboot device"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MasterShell>
   );
 }

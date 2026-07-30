@@ -336,6 +336,14 @@ export const routerService = {
     await api.delete(`/routers/${routerId}/wireguard-peer`);
   },
 
+  /** Real, immediate `/system reboot` on the physical device -- every
+   * connected guest drops and the router is unreachable for its normal
+   * ~1-2 minute boot cycle. Throws (via the shared api instance's
+   * interceptor) on a real failure -- caller must catch/toast. */
+  async reboot(routerId: string): Promise<void> {
+    await api.post(`/routers/${routerId}/reboot`);
+  },
+
   async getDeviceInterfaces(routerId: string, organizationId?: string): Promise<DeviceInterface[]> {
     interface BackendDeviceInterface {
       name: string;
