@@ -67,10 +67,6 @@ function NasScreen() {
   const [form, setForm] = useState({
     routerId: "",
     nasIdentifier: "",
-    sharedSecret: "",
-    name: "",
-    description: "",
-    ipAddress: "",
   });
 
   async function refetch() {
@@ -128,22 +124,18 @@ function NasScreen() {
       toast.error("Please select a router and enter a NAS identifier.");
       return;
     }
-    if (form.sharedSecret && form.sharedSecret.length < 8) {
-      toast.error("Shared secret must be at least 8 characters (or leave it blank to auto-generate one).");
-      return;
-    }
     setSaving(true);
     try {
+      // Shared secret, name, IP address and description are all optional
+      // on the backend -- left unset here so the server auto-generates the
+      // secret and defaults the rest, instead of asking the admin to fill
+      // in fields that are almost always left blank anyway.
       const result = await nasService.create(router.locationId, {
         routerId: form.routerId,
         nasIdentifier: form.nasIdentifier,
-        sharedSecret: form.sharedSecret || undefined,
-        name: form.name || undefined,
-        description: form.description || undefined,
-        ipAddress: form.ipAddress || undefined,
       });
       toast.success(`NAS "${result.nasCode ?? result.nasIdentifier}" registered`);
-      setForm({ routerId: "", nasIdentifier: "", sharedSecret: "", name: "", description: "", ipAddress: "" });
+      setForm({ routerId: "", nasIdentifier: "" });
       setAddOpen(false);
       setReveal(result);
       refetch();
@@ -383,14 +375,12 @@ function NasScreen() {
               </select>
             </MField>
           </div>
-          <MField label="NAS identifier">
-            <input className={M_INPUT} placeholder="cg-lobby-01" value={form.nasIdentifier} onChange={(e) => setForm((f) => ({ ...f, nasIdentifier: e.target.value }))} />
-            <p className="mt-1 text-[11px] text-muted-foreground">Auto-filled from the selected router -- edit freely if you want a different identifier.</p>
-          </MField>
-          <MField label="Shared secret (optional — auto-generated, min 8 characters if set)"><input type="password" className={M_INPUT} value={form.sharedSecret} onChange={(e) => setForm((f) => ({ ...f, sharedSecret: e.target.value }))} /></MField>
-          <MField label="Name (optional)"><input className={M_INPUT} placeholder="Lobby NAS" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></MField>
-          <MField label="IP address (optional)"><input className={M_INPUT} placeholder="Defaults to router IP" value={form.ipAddress} onChange={(e) => setForm((f) => ({ ...f, ipAddress: e.target.value }))} /></MField>
-          <div className="sm:col-span-2"><MField label="Description (optional)"><input className={M_INPUT} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></MField></div>
+          <div className="sm:col-span-2">
+            <MField label="NAS identifier">
+              <input className={M_INPUT} placeholder="cg-lobby-01" value={form.nasIdentifier} onChange={(e) => setForm((f) => ({ ...f, nasIdentifier: e.target.value }))} />
+              <p className="mt-1 text-[11px] text-muted-foreground">Auto-filled from the selected router -- edit freely if you want a different identifier.</p>
+            </MField>
+          </div>
         </div>
       </MDialog>
 
