@@ -79,9 +79,10 @@ const inputCls =
 // RouterSetupScriptPanel's own comment on why these are constants rather
 // than per-router secrets today.
 const RADIUS_SERVER_ADDRESS = "20.219.72.235";
-const RADIUS_SHARED_SECRET = "cg-radius-810b06205808b1b6";
 const WG_AGENT_URL = "http://20.219.72.235:9091/wg/peer";
 const WG_AGENT_SECRET = "wgagent-7a647fb42b822aa44cb2da2092a4b79a";
+const RADIUS_AGENT_URL = "http://20.219.72.235:9092/radius/client";
+const RADIUS_AGENT_SECRET = "radiusagent-f37ae8fca1db9695975657196ea19b2e";
 
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
@@ -144,6 +145,45 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         };
       }
 
+      // Gives this router its own genuine NAS identity -- resolved
+      // dynamically server-side via %{client:shortname}/%{client:backend_secret}
+      // per-client blocks in FreeRADIUS, not one shared identifier for
+      // every router. Needs the tunnel IP WireGuard just allocated, so
+      // RADIUS implies WireGuard (enforced by the checkbox below).
+      let radius: { serverAddress: string; sharedSecret: string } | undefined;
+      if (enableRadius && wireguard) {
+        let nasIdentifier: string;
+        let sharedSecret: string;
+        try {
+          const existing = await api.get<{ id: string; nas_identifier: string }>(
+            `/routers/${router.id}/nas`,
+          );
+          nasIdentifier = existing.data.nas_identifier;
+          const regen = await api.post<{ shared_secret: string }>(
+            `/radius/nas/${existing.data.id}/regenerate-secret`,
+          );
+          sharedSecret = regen.data.shared_secret;
+        } catch {
+          const created = await api.post<{ nas_identifier: string; shared_secret: string }>(
+            "/radius/nas",
+            { router_id: router.id, nas_identifier: `cg-${router.id.slice(0, 8)}` },
+          );
+          nasIdentifier = created.data.nas_identifier;
+          sharedSecret = created.data.shared_secret;
+        }
+        const radiusAgentResp = await fetch(RADIUS_AGENT_URL, {
+          method: "POST",
+          headers: { "X-Agent-Secret": RADIUS_AGENT_SECRET, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tunnel_ip: wireguard.routerTunnelIp,
+            nas_identifier: nasIdentifier,
+            secret: sharedSecret,
+          }),
+        });
+        if (!radiusAgentResp.ok) throw new Error("RADIUS client registration failed");
+        radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret };
+      }
+
       setScript(
         buildRouterSetupScript({
           apiBase: api.defaults.baseURL || "",
@@ -151,9 +191,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           wanIfs: wanIfs.slice(0, ispCount),
           enableFirewall,
           wireguard,
-          radius: enableRadius
-            ? { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret: RADIUS_SHARED_SECRET }
-            : undefined,
+          radius,
           ...form,
         }),
       );
@@ -230,12 +268,28 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           Basic firewall rules bhi lagao
         </label>
         <label className="flex items-center gap-2 text-xs text-foreground">
-          <input type="checkbox" checked={enableWireguard} onChange={(e) => setEnableWireguard(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
+          <input
+            type="checkbox"
+            checked={enableWireguard}
+            onChange={(e) => {
+              setEnableWireguard(e.target.checked);
+              if (!e.target.checked) setEnableRadius(false);
+            }}
+            className="h-3.5 w-3.5 rounded border-input"
+          />
           WireGuard tunnel bhi banao (platform se remote reachability)
         </label>
         <label className="flex items-center gap-2 text-xs text-foreground">
-          <input type="checkbox" checked={enableRadius} onChange={(e) => setEnableRadius(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
-          RADIUS accounting bhi on karo
+          <input
+            type="checkbox"
+            checked={enableRadius}
+            onChange={(e) => {
+              setEnableRadius(e.target.checked);
+              if (e.target.checked) setEnableWireguard(true);
+            }}
+            className="h-3.5 w-3.5 rounded border-input"
+          />
+          RADIUS bhi on karo (isko unique NAS identity ke liye WireGuard tunnel IP chahiye -- WireGuard apne aap on ho jayega)
         </label>
       </div>
 
