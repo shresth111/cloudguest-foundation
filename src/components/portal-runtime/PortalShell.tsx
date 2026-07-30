@@ -50,6 +50,20 @@ export function PortalShell({
           background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)",
         }}
       >
+        {/* Same organization-uploaded background image the "dark" variant
+         * below already renders -- this branch never referenced
+         * `config.backgroundImageUrl` at all, so a customer's uploaded
+         * image never appeared on the welcome/success/expired/set-password
+         * screens guests actually land on. Kept faint (12%, vs. dark's
+         * 30%) so the white card and its text stay legible against a
+         * light background. */}
+        {config?.backgroundImageUrl && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.12]"
+            style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
+          />
+        )}
         <div
           aria-hidden
           className="pg-glow-1 pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full opacity-60 blur-3xl"
