@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
+import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
@@ -157,7 +158,22 @@ function CustomerUsersPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setDetailUser(u); }}><Eye className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); disconnect.mutate(u.id); }}><XCircle className="h-3.5 w-3.5" /></Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive disabled:text-muted-foreground"
+                            disabled={u.status === "offline" || disconnect.isPending}
+                            title={u.status === "offline" ? "Already offline" : "Disconnect"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              disconnect.mutate(u.id, {
+                                onSuccess: () => toast.success(`${u.name} disconnected`),
+                                onError: (err) => toast.error((err as AppError).message || "Couldn't disconnect this session"),
+                              });
+                            }}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </motion.tr>
@@ -193,7 +209,23 @@ function CustomerUsersPage() {
                 </div>
                 <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">MAC Address</p><p className="mt-1 font-mono text-sm">{detailUser.mac}</p></div>
               </div>
-              <div className="border-t p-4"><Button variant="outline" className="w-full text-destructive" onClick={() => { disconnect.mutate(detailUser.id); setDetailUser(null); }}><XCircle className="mr-2 h-4 w-4" />Disconnect user</Button></div>
+              <div className="border-t p-4">
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive disabled:text-muted-foreground"
+                  disabled={detailUser.status === "offline" || disconnect.isPending}
+                  onClick={() => {
+                    disconnect.mutate(detailUser.id, {
+                      onSuccess: () => toast.success(`${detailUser.name} disconnected`),
+                      onError: (err) => toast.error((err as AppError).message || "Couldn't disconnect this session"),
+                    });
+                    setDetailUser(null);
+                  }}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  {detailUser.status === "offline" ? "Already offline" : "Disconnect user"}
+                </Button>
+              </div>
             </motion.div>
           </>
         )}

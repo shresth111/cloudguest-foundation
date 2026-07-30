@@ -400,7 +400,21 @@ export const customerService = {
 
   async disconnectSession(sessionId: string): Promise<void> {
     if (isDemo()) return;
-    await api.post(`/guest-sessions/${sessionId}/disconnect`);
+    // Same missing-X-Organization-Id gap already fixed on every other
+    // real call in this file (see resolveOrgId's own docstring) -- absent
+    // it, `guest_sessions.execute` falls back to a GLOBAL-scope check an
+    // ordinary org-owner session never holds, so this 403'd for a real
+    // customer with no error ever surfaced (useDisconnectSession had no
+    // onError handler either -- see useCustomerDashboard.ts). The backend
+    // endpoint also requires a real (if empty) JSON body -- `payload:
+    // SessionDisconnectRequest` has no request-level default, so no body
+    // at all 422'd here too.
+    const orgId = await resolveOrgId();
+    await api.post(
+      `/guest-sessions/${sessionId}/disconnect`,
+      {},
+      { headers: { "X-Organization-Id": orgId } },
+    );
   },
 
   /* ── Feature Data ──────────────────────────────────────── */
