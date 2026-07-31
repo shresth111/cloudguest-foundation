@@ -16,24 +16,24 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
   const { branding } = usePlatformBranding();
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-[oklch(0.2_0.04_232)] p-10 text-white lg:flex lg:flex-col lg:justify-between">
-        {/* Aurora: layered teal/cyan/blue radial washes over a deep navy. */}
+      {/* Same dark indigo/violet/fuchsia identity as login.tsx's hero and
+       * the customer dashboard's hero band -- was previously a teal/cyan
+       * "aurora" wash that didn't match the rest of the redesigned product. */}
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-10 text-white lg:flex lg:flex-col lg:justify-between">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(120% 90% at 12% -8%, oklch(0.66 0.15 192 / 0.55), transparent 55%), radial-gradient(90% 80% at 100% 8%, oklch(0.5 0.14 250 / 0.5), transparent 55%), radial-gradient(80% 70% at 60% 110%, oklch(0.56 0.13 210 / 0.45), transparent 60%)",
-          }}
+          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-fuchsia-500/25 blur-3xl"
         />
-        {/* Faint grid for depth, gently panning -- same aurora-grid keyframe src/routes/login.tsx uses. */}
         <div
           aria-hidden
-          className="aurora-grid pointer-events-none absolute inset-0 opacity-[0.15]"
+          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-cyan-400/20 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
-            backgroundImage:
-              "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
             maskImage: "radial-gradient(80% 80% at 50% 30%, black, transparent 75%)",
           }}
         />
@@ -75,13 +75,39 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           © {new Date().getFullYear()} {branding.companyName}. All rights reserved.
         </motion.div>
 
-        {/* Slow drifting blobs -- identical aurora-drift keyframes to src/routes/login.tsx,
-            disabled under prefers-reduced-motion via the same global rule. */}
-        <div className="aurora-blob-1 pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
-        <div className="aurora-blob-2 pointer-events-none absolute -bottom-32 -left-28 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
       </div>
 
-      <div className="flex items-center justify-center px-6 py-12 sm:px-12">
+      {/* Same light-palette pin as login.tsx's form panel -- without this,
+       * a visitor whose OS is in dark mode gets this panel rendered in the
+       * dark theme (near-black background, teal/cyan primary), which read
+       * as "black and green" and clashed with the deliberately dark hero
+       * on the left. Forces the light values regardless of system theme. */}
+      <div
+        className="flex items-center justify-center bg-white px-6 py-12 text-slate-900 sm:px-12"
+        style={
+          {
+            "--background": "oklch(0.984 0.005 220)",
+            "--foreground": "oklch(0.22 0.03 235)",
+            "--card": "oklch(1 0 0)",
+            "--card-foreground": "oklch(0.22 0.03 235)",
+            "--popover": "oklch(1 0 0)",
+            "--popover-foreground": "oklch(0.22 0.03 235)",
+            "--primary": "oklch(0.52 0.115 208)",
+            "--primary-foreground": "oklch(0.99 0.01 200)",
+            "--secondary": "oklch(0.955 0.012 216)",
+            "--secondary-foreground": "oklch(0.26 0.03 232)",
+            "--muted": "oklch(0.962 0.008 218)",
+            "--muted-foreground": "oklch(0.5 0.025 230)",
+            "--accent": "oklch(0.945 0.022 202)",
+            "--accent-foreground": "oklch(0.3 0.06 210)",
+            "--destructive": "oklch(0.58 0.21 25)",
+            "--destructive-foreground": "oklch(0.99 0.005 250)",
+            "--border": "oklch(0.905 0.012 220)",
+            "--input": "oklch(0.925 0.012 220)",
+            "--ring": "oklch(0.58 0.12 205)",
+          } as React.CSSProperties
+        }
+      >
         <motion.div
           className="w-full max-w-md"
           initial={{ opacity: 0, y: 20 }}

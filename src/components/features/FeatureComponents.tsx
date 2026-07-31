@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Network, CalendarClock, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Network, CalendarClock, RotateCcw, Settings2 } from "lucide-react";
+import { ComingSoonPanel } from "@/components/ui-ext/ComingSoonPanel";
 
 interface Policy { id: string; name: string; type: string; status: string; enabled: boolean; }
 interface WhitelistEntry { id: string; mac: string; name: string; type: string; status: string; }
 interface Team { id: string; name: string; members: number; quota: number; status: string; }
 interface NetworkItem { id: string; name: string; status: string; detail: string; }
-interface AdvancedItem { id: string; name: string; desc: string; enabled: boolean; }
 
 export function PoliciesPage() {
   const [items, setItems] = useState<Policy[]>([
@@ -94,17 +94,26 @@ export function NetworkingPage() {
   );
 }
 
+// Was 6 interactive-looking toggles (API Access, MFA, Email Alerts, Auto
+// Backup, Health Checks, Debug Logging) that only ever flipped local
+// React state and fired a toast -- no backend endpoint exists for any of
+// them, so a real customer flipping "MFA" or "API Access" here believed
+// it took effect when nothing happened server-side. Honest "not wired
+// yet" placeholder instead of a convincing-looking fake control panel,
+// matching this codebase's own ComingSoonPanel convention (used
+// elsewhere for exactly this "API contract not staged yet" situation).
 export function AdvancedPage() {
-  const [items, setItems] = useState<AdvancedItem[]>([
-    {id:"1",name:"API Access",desc:"Enable REST API access",enabled:true},{id:"2",name:"MFA",desc:"Require multi-factor auth",enabled:false},
-    {id:"3",name:"Email Alerts",desc:"Send alert notifications via email",enabled:true},{id:"4",name:"Auto Backup",desc:"Automated config backups",enabled:true},
-    {id:"5",name:"Health Checks",desc:"Periodic health monitoring",enabled:true},{id:"6",name:"Debug Logging",desc:"Verbose system logs",enabled:false},
-  ]);
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{items.map(item => (
-    <Card key={item.id} className="border-0 shadow-sm"><CardContent className="p-5">
-      <p className="font-semibold text-sm">{item.name}</p><p className="text-xs text-muted-foreground mt-1">{item.desc}</p>
-      <div className="flex items-center justify-between mt-3"><span className="text-xs text-muted-foreground">{item.enabled ? "Enabled" : "Disabled"}</span>
-        <Switch checked={item.enabled} onCheckedChange={v=>{setItems(items.map(x=>x.id===item.id?{...x,enabled:v}:x));toast.success(`${item.name} ${v?"enabled":"disabled"}`)}} /></div>
-    </CardContent></Card>
-  ))}</div>);
+  return (
+    <ComingSoonPanel
+      icon={Settings2}
+      title="Advanced settings"
+      description="Fine-grained platform controls -- API access, multi-factor auth, automated backups, and diagnostic logging -- are being wired up to real, per-organization configuration."
+      bullets={[
+        "REST API access toggle",
+        "Multi-factor authentication requirement",
+        "Automated configuration backups",
+        "Verbose diagnostic logging",
+      ]}
+    />
+  );
 }

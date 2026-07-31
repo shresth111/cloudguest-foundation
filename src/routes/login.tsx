@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { Loader2, Eye, EyeOff, ShieldCheck, UserRound, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,93 @@ function CountUp({ target, decimals = 0 }: { target: number; decimals?: number }
   }, [target]);
 
   return <>{text}</>;
+}
+
+/**
+ * Decorative hero illustration: a guest connecting to venue WiFi -- a
+ * line-art figure holding a phone, WiFi signal arcs radiating out toward a
+ * venue location pin. Flat geometric shapes + soft blurred glow accents in
+ * the existing hero palette (white line work, cyan/fuchsia/violet accents)
+ * so it reads as one illustration system with the glow blobs and dot-grid
+ * already in this panel, Stripe/Linear-style rather than clip-art.
+ *
+ * Purely decorative -- aria-hidden. The one-time arc "draw-on" entrance
+ * doesn't need a reduced-motion guard, but the looping pin glow does, so it
+ * collapses to a static glow when the visitor prefers reduced motion.
+ */
+function HeroWifiIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  const wifi = { x: 185, y: 86 };
+  const pin = { x: 350, y: 55 };
+  const arcs = [
+    { r: 10, color: "#f0abfc" },
+    { r: 18, color: "#22d3ee" },
+    { r: 26, color: "#a78bfa" },
+  ];
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 480 210"
+      className="h-auto w-full max-w-[300px] text-white"
+      fill="none"
+    >
+      <defs>
+        <filter id="hero-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="14" />
+        </filter>
+      </defs>
+
+      {/* soft glow blobs, echoing the panel's fuchsia/cyan corner blobs */}
+      <circle cx="110" cy="130" r="72" fill="#f0abfc" opacity="0.16" filter="url(#hero-illo-glow)" />
+      <motion.circle
+        cx={pin.x}
+        cy={pin.y}
+        r="24"
+        fill="#22d3ee"
+        filter="url(#hero-illo-glow)"
+        animate={
+          shouldReduceMotion
+            ? { opacity: 0.22 }
+            : { opacity: [0.14, 0.32, 0.14], scale: [1, 1.15, 1] }
+        }
+        transition={shouldReduceMotion ? undefined : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* ground line */}
+      <line x1="40" y1="188" x2="440" y2="188" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
+
+      {/* venue location pin */}
+      <g transform={`translate(${pin.x}, ${pin.y})`} stroke="white" strokeOpacity="0.7" strokeWidth="2" strokeLinejoin="round">
+        <path d="M0 -22c-8.8 0-16 7-16 15.6C-16 5.6 0 26 0 26s16-20.4 16-32.4C16-14.8 8.8-22 0-22z" fill="rgba(255,255,255,0.06)" />
+        <circle cx="0" cy="-6.5" r="5" fill="#22d3ee" stroke="none" />
+      </g>
+
+      {/* guest figure holding a phone */}
+      <g stroke="white" strokeOpacity="0.85" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <circle cx="150" cy="110" r="13" />
+        <path d="M137 188c-4-46 1-74 13-74s17 28 13 74" />
+        <path d="M158 132c14-4 22-14 26-24" />
+      </g>
+      <rect x="176" y="90" width="18" height="32" rx="4" stroke="white" strokeOpacity="0.85" strokeWidth="2" fill="rgba(255,255,255,0.06)" />
+      <circle cx="185" cy="117" r="1.4" fill="white" fillOpacity="0.7" stroke="none" />
+
+      {/* WiFi signal arcs, drawing on with a stagger */}
+      {arcs.map((a, i) => (
+        <motion.path
+          key={a.r}
+          d={`M${wifi.x - a.r} ${wifi.y} A${a.r} ${a.r} 0 0 1 ${wifi.x + a.r} ${wifi.y}`}
+          stroke={a.color}
+          strokeOpacity="0.8"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
+        />
+      ))}
+    </svg>
+  );
 }
 
 function LoginPage() {
@@ -169,6 +256,14 @@ function LoginPage() {
               </motion.div>
             ))}
           </div>
+          <motion.div
+            className="pt-2 opacity-90"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 0.9, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.55, ease: "easeOut" }}
+          >
+            <HeroWifiIllustration />
+          </motion.div>
         </motion.div>
 
         <motion.p
@@ -271,6 +366,22 @@ function LoginPage() {
               <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Agent")}</Button>
             </motion.div>
           </form>
+
+          {/* Real infrastructure trust strip -- this deployment genuinely
+              runs on Azure (the app VM) and AWS (S3-compatible storage for
+              uploads/backups), not a decorative claim. */}
+          <motion.div
+            className="mt-8 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+          >
+            <span>Powered by</span>
+            <img src="/brand/cloud/azure.svg" alt="Microsoft Azure" className="h-4 w-4" />
+            <span className="normal-case text-foreground/70">Azure</span>
+            <span className="text-border">&middot;</span>
+            <img src="/brand/cloud/aws.svg" alt="AWS" className="h-3.5 w-auto" />
+          </motion.div>
         </motion.div>
       </div>
     </div>
