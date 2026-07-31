@@ -201,7 +201,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
       </TabsContent>
 
       <TabsContent value="setup-script">
-        <SetupScriptTab routerId={router.id} />
+        <SetupScriptTab router={router} />
       </TabsContent>
       <TabsContent value="wireguard">
         <WireGuardTab routerId={router.id} />
@@ -991,8 +991,15 @@ export function buildRouterSetupScript(opts: {
    * router this script provisions starts with Device Console permanently
    * disabled for it ("no credentials"), needing a separate manual step. */
   apiAccess?: { username: string; secret: string };
+  /** When set, walls the platform's own portal off from the captive-
+   * portal block (so an unauthenticated guest can actually reach it) and
+   * rewrites the hotspot's login page to redirect there with the real
+   * org/location/router IDs plus RouterOS's own $(mac)/$(link-orig)/
+   * $(link-login-only) substitutions baked in -- without this, a guest
+   * lands on RouterOS's default hotspot login instead of this platform's. */
+  portalUrl?: { frontendBase: string; organizationId: string; locationId: string; routerId: string };
 }): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, portalUrl } = opts;
   const octets = lanIp.split(".");
   const base3 = octets.slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1090,8 +1097,13 @@ export function buildRouterSetupScript(opts: {
   lines.push(`  /ip dhcp-server add name="hotspot-dhcp" interface=$lanBridge address-pool="hotspot-pool" disabled=no`);
   lines.push(`  /ip dhcp-server network add address=$lanNetwork gateway=$lanIp dns-server=$lanIp`);
   lines.push(`}`);
+  // Uses RouterOS's own *stock* hotspot template ("hotspot", not the
+  // old custom-uploaded "cloudguest-hotspot" one) -- present with all its
+  // supporting CSS/error/logout pages on every fresh device out of the
+  // box. Only login.html itself needs to be ours (below); the stock
+  // folder already has everything else login.html depends on.
   lines.push(`:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={`);
-  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=cloudguest-hotspot`);
+  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=hotspot`);
   lines.push(`}`);
   lines.push(`:if ([:len [/ip hotspot find where interface=$lanBridge]] = 0) do={`);
   lines.push(`  /ip hotspot add name="hotspot1" interface=$lanBridge address-pool="hotspot-pool" profile="hsprof1" disabled=no`);
@@ -1099,6 +1111,91 @@ export function buildRouterSetupScript(opts: {
   lines.push(`:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={`);
   lines.push(`  /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1"`);
   lines.push(`}`);
+
+  if (portalUrl) {
+    // Confirmed live: without this, an unauthenticated guest's browser
+    // navigating to the real portal (an ordinary external address as far
+    // as the hotspot is concerned) is silently blocked -- the platform's
+    // own server is no exception unless explicitly walled off. Host-based
+    // walled-garden entries only apply to ports the hotspot's own HTTP
+    // proxy intercepts (80/443/etc.) -- if the portal runs on some other
+    // port, this uses the IP-level walled garden instead, which isn't
+    // port-restricted.
+    const portalHost = (() => {
+      try {
+        return new URL(portalUrl.frontendBase).hostname;
+      } catch {
+        return "";
+      }
+    })();
+    if (portalHost) {
+      const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
+      lines.push("");
+      lines.push(
+        isIpLiteral
+          ? `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`
+          : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`,
+      );
+    }
+
+    const portalRedirectUrl =
+      `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
+      `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
+      `&mac=$(mac)&dst=$(link-orig)&link-login-only=$(link-login-only)`;
+    // RouterOS's own string-literal parser evaluates $(...) as command
+    // substitution even inside double quotes -- without this escaping,
+    // $(mac)/$(link-orig)/$(link-login-only) would evaluate to empty
+    // instead of surviving as literal text for the hotspot's own template
+    // engine to substitute later. Order matters: backslashes first, then
+    // quotes/dollar (each adds a NEW backslash that must not be
+    // re-escaped), real newlines last.
+    const escapeForRouterOsString = (s: string) =>
+      s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/\n/g, "\\n");
+    const portalHtml = [
+      "<!DOCTYPE html>",
+      '<html><head><meta charset="utf-8">',
+      `<meta http-equiv="refresh" content="2;url=${portalRedirectUrl}">`,
+      "<title>Sign in required</title>",
+      "<style>body{font-family:-apple-system,sans-serif;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px}",
+      ".box{max-width:360px}h1{font-size:20px;margin:0 0 8px}p{color:#94a3b8;font-size:14px;margin:0}</style>",
+      "</head>",
+      '<body><div class="box">',
+      "<h1>Sign-in required</h1>",
+      "<p>You must sign in to access the internet on this network. Redirecting you to the sign-in page...</p>",
+      "</div>",
+      `<script>window.location.href = "${portalRedirectUrl}";</script>`,
+      "</body></html>",
+    ].join("\n");
+    lines.push(
+      `/file set [find name="flash/hotspot/login.html"] contents="${escapeForRouterOsString(portalHtml)}"`,
+    );
+  }
+
+  // Confirmed live: an unauthenticated guest's browser can silently bypass
+  // the whole captive-portal redirect via DNS-over-HTTPS/TLS -- it talks
+  // straight to a public resolver over an encrypted channel the hotspot
+  // has no valid certificate for, so the request just fails outright
+  // instead of triggering a redirect. Blocks well-known public DoH/DoT
+  // resolver IPs (and all DoT, port 853) for *unauthenticated* hotspot
+  // traffic only (`hotspot=!auth`) -- always on, not behind a checkbox.
+  {
+    const dohIps = [
+      "1.1.1.1", "1.0.0.1",
+      "8.8.8.8", "8.8.4.4",
+      "9.9.9.9", "149.112.112.112",
+      "208.67.222.222", "208.67.220.220",
+      "94.140.14.14", "94.140.15.15",
+    ];
+    lines.push("");
+    lines.push(`:if ([:len [/ip firewall address-list find where list="cloudguest-doh-ips"]] = 0) do={`);
+    dohIps.forEach((ip) => {
+      lines.push(`  /ip firewall address-list add list="cloudguest-doh-ips" address=${ip} comment="cloudguest-doh"`);
+    });
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-udp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=udp dst-port=853 action=drop comment="cloudguest-block-dot-udp" }`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-tcp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=853 action=drop comment="cloudguest-block-dot-tcp" }`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-doh"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=443 dst-address-list=cloudguest-doh-ips action=drop comment="cloudguest-block-doh" }`);
+  }
 
   if (enableFirewall) {
     lines.push("");
@@ -1509,7 +1606,8 @@ export function buildRouterSetupScriptChunks(opts: {
   return chunks;
 }
 
-function SetupScriptTab({ routerId }: { routerId: string }) {
+function SetupScriptTab({ router }: { router: RouterDevice }) {
+  const routerId = router.id;
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
   const [script, setScript] = useState<string | null>(null);
@@ -1562,6 +1660,12 @@ function SetupScriptTab({ routerId }: { routerId: string }) {
           wanIfs: wanIfs.slice(0, ispCount),
           enableFirewall,
           ...form,
+          portalUrl: {
+            frontendBase: window.location.origin,
+            organizationId: router.organizationId,
+            locationId: router.locationId,
+            routerId: router.id,
+          },
         }),
       );
       toast.success("Script ready");
