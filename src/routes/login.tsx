@@ -182,8 +182,40 @@ function LoginPage() {
 
       </div>
 
-      {/* Right: sign-in form */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center px-6 py-12">
+      {/* Right: sign-in form -- explicitly re-pinned to the light palette
+       * via inline custom-property overrides, regardless of the visitor's
+       * OS/browser dark-mode preference (ThemeContext.tsx auto-applies
+       * `.dark` off `prefers-color-scheme`). Without this, a dark-mode
+       * visitor got a near-black panel with a teal/cyan primary color that
+       * read as "black and green" and clashed with the deliberately dark
+       * indigo/violet hero on the left -- this form should look the same,
+       * clean and light, for every visitor. */}
+      <div
+        className="flex w-full lg:w-1/2 items-center justify-center bg-white px-6 py-12 text-slate-900"
+        style={
+          {
+            "--background": "oklch(0.984 0.005 220)",
+            "--foreground": "oklch(0.22 0.03 235)",
+            "--card": "oklch(1 0 0)",
+            "--card-foreground": "oklch(0.22 0.03 235)",
+            "--popover": "oklch(1 0 0)",
+            "--popover-foreground": "oklch(0.22 0.03 235)",
+            "--primary": "oklch(0.52 0.115 208)",
+            "--primary-foreground": "oklch(0.99 0.01 200)",
+            "--secondary": "oklch(0.955 0.012 216)",
+            "--secondary-foreground": "oklch(0.26 0.03 232)",
+            "--muted": "oklch(0.962 0.008 218)",
+            "--muted-foreground": "oklch(0.5 0.025 230)",
+            "--accent": "oklch(0.945 0.022 202)",
+            "--accent-foreground": "oklch(0.3 0.06 210)",
+            "--destructive": "oklch(0.58 0.21 25)",
+            "--destructive-foreground": "oklch(0.99 0.005 250)",
+            "--border": "oklch(0.905 0.012 220)",
+            "--input": "oklch(0.925 0.012 220)",
+            "--ring": "oklch(0.58 0.12 205)",
+          } as React.CSSProperties
+        }
+      >
         <motion.div
           className="w-full max-w-sm"
           initial={{ opacity: 0, y: 20 }}
