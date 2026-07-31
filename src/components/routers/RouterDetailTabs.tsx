@@ -1287,6 +1287,41 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
 
+  // Confirmed live: an unauthenticated guest's browser can silently bypass
+  // the whole captive-portal redirect via DNS-over-HTTPS/TLS (Chrome/Edge/
+  // Firefox/Windows all default to it in some configuration) -- it talks
+  // straight to a public resolver over an encrypted channel the hotspot
+  // has no valid certificate for, so the request just fails outright
+  // instead of triggering a redirect, and the guest sees "site can't be
+  // reached" instead of the login page. Per-device "turn off Secure DNS"
+  // isn't realistic to ask of every guest, so this blocks the well-known
+  // public DoH/DoT resolver IPs (and all DoT, port 853) for
+  // *unauthenticated* hotspot traffic only (`hotspot=!auth` -- once a
+  // guest logs in, none of this applies to them). A clean drop (not a
+  // redirect) is what reliably triggers each browser's own automatic
+  // fallback to normal DNS, which the hotspot already correctly
+  // intercepts. Always on, not behind a checkbox -- there's no real
+  // scenario where a captive portal wants to skip this.
+  {
+    const dohIps = [
+      "1.1.1.1", "1.0.0.1", // Cloudflare
+      "8.8.8.8", "8.8.4.4", // Google
+      "9.9.9.9", "149.112.112.112", // Quad9
+      "208.67.222.222", "208.67.220.220", // OpenDNS
+      "94.140.14.14", "94.140.15.15", // AdGuard
+    ];
+    const lines: string[] = [];
+    lines.push(`:if ([:len [/ip firewall address-list find where list="cloudguest-doh-ips"]] = 0) do={`);
+    dohIps.forEach((ip) => {
+      lines.push(`  /ip firewall address-list add list="cloudguest-doh-ips" address=${ip} comment="cloudguest-doh"`);
+    });
+    lines.push(`}`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-udp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=udp dst-port=853 action=drop comment="cloudguest-block-dot-udp" }`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-tcp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=853 action=drop comment="cloudguest-block-dot-tcp" }`);
+    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-doh"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=443 dst-address-list=cloudguest-doh-ips action=drop comment="cloudguest-block-doh" }`);
+    chunks.push({ label: "Block DNS-over-HTTPS (forces captive portal to actually show)", script: lines.join("\n") });
+  }
+
   if (enableFirewall) {
     const lines = [
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-established"]] = 0) do={ /ip firewall filter add chain=input connection-state=established,related action=accept comment="cloudguest-fw-established" }`,
