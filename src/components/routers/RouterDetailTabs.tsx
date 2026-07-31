@@ -1050,6 +1050,12 @@ export function buildRouterSetupScript(opts: {
   // by RouterOS's own ether-type interfaces (whatever they're named --
   // "ether1", "eth1", or a custom-renamed identity all show up here),
   // not a hardcoded name pattern.
+  // Confirmed live on a real device: some units ship with a *second*,
+  // hardware-switch default bridge (seen as "bridgeLocal", comment
+  // "defconf") that silently pre-claims every physical port. Unconditionally
+  // detaches a port from whatever bridge it's currently in (if any) before
+  // re-attaching it to ours, rather than skipping it just because it
+  // already belonged to *some* bridge.
   const wanNameLiterals = wanIfs.map((w) => `"${w}"`).join("; ");
   lines.push(`:local wanIfNames {${wanNameLiterals}}`);
   lines.push(`:foreach eth in=[/interface ethernet find] do={`);
@@ -1057,7 +1063,13 @@ export function buildRouterSetupScript(opts: {
   lines.push(`  :local isWan false`);
   lines.push(`  :foreach w in=$wanIfNames do={ :if ($w = $ethName) do={ :set isWan true } }`);
   lines.push(`  :if (!$isWan) do={`);
-  lines.push(`    :if ([:len [/interface bridge port find where interface=$ethName]] = 0) do={`);
+  lines.push(`    :local existingPort [/interface bridge port find where interface=$ethName]`);
+  lines.push(`    :if ([:len $existingPort] > 0) do={`);
+  lines.push(`      :if ([:len [/interface bridge port find where interface=$ethName bridge=$lanBridge]] = 0) do={`);
+  lines.push(`        /interface bridge port remove $existingPort`);
+  lines.push(`        /interface bridge port add bridge=$lanBridge interface=$ethName`);
+  lines.push(`      }`);
+  lines.push(`    } else={`);
   lines.push(`      /interface bridge port add bridge=$lanBridge interface=$ethName`);
   lines.push(`    }`);
   lines.push(`  }`);
@@ -1216,6 +1228,19 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   {
+    // Confirmed live on a real device: some units ship with a *second*,
+    // hardware-switch default bridge (seen as "bridgeLocal", comment
+    // "defconf") that silently pre-claims every physical port -- MikroTik's
+    // own default-configuration docs only ever document a single "bridge",
+    // so this isn't something to expect universally, but it's real on at
+    // least some units/switch chips. The old version of this loop only
+    // checked "is this port a member of *any* bridge" and skipped it if
+    // so -- which meant a port already sitting in that other bridge was
+    // silently left there forever, never joining ours, so the hotspot/DHCP
+    // this script sets up had no physical port actually wired to it (no
+    // guest device could get an IP at all). Now unconditionally detaches
+    // from whatever bridge a port is currently in (if any) before
+    // re-attaching it to ours, regardless of that other bridge's name.
     const wanNameLiterals = wanIfs.map((w) => `"${w}"`).join("; ");
     const lines = [
       `:local wanIfNames {${wanNameLiterals}}`,
@@ -1224,7 +1249,13 @@ export function buildRouterSetupScriptChunks(opts: {
       `  :local isWan false`,
       `  :foreach w in=$wanIfNames do={ :if ($w = $ethName) do={ :set isWan true } }`,
       `  :if (!$isWan) do={`,
-      `    :if ([:len [/interface bridge port find where interface=$ethName]] = 0) do={`,
+      `    :local existingPort [/interface bridge port find where interface=$ethName]`,
+      `    :if ([:len $existingPort] > 0) do={`,
+      `      :if ([:len [/interface bridge port find where interface=$ethName bridge="${lanBridge}"]] = 0) do={`,
+      `        /interface bridge port remove $existingPort`,
+      `        /interface bridge port add bridge="${lanBridge}" interface=$ethName`,
+      `      }`,
+      `    } else={`,
       `      /interface bridge port add bridge="${lanBridge}" interface=$ethName`,
       `    }`,
       `  }`,
