@@ -200,10 +200,10 @@ function DashboardView({ locationId }: { locationId: string }) {
   }
 
   const healthCards = [
-    { icon: CheckCircle, label: "System", value: data.health.systemHealth, tone: "emerald" as const },
-    { icon: Wifi, label: "Routers", value: data.health.routersOnline, tone: "primary" as const },
+    { icon: CheckCircle, label: "System", value: data.health.systemHealth, tone: "primary" as const },
+    { icon: Wifi, label: "Routers", value: data.health.routersOnline, tone: "violet" as const },
     { icon: Activity, label: "ISP", value: data.health.isp, tone: "sky" as const },
-    { icon: Activity, label: "Load", value: data.health.networkLoad, tone: "amber" as const },
+    { icon: Activity, label: "Load", value: data.health.networkLoad, tone: "fuchsia" as const },
   ];
   const heroKpis = [
     { label: "Online right now", value: data.kpis.onlineUsers.toLocaleString() },
@@ -216,10 +216,10 @@ function DashboardView({ locationId }: { locationId: string }) {
     { label: "Avg Session", value: `${data.kpis.avgSession} min`, icon: Activity, grad: "from-fuchsia-500 to-pink-600" },
   ];
   const TONE_BG: Record<string, string> = {
-    emerald: "bg-emerald-50 text-emerald-600",
     primary: "bg-primary/10 text-primary",
+    violet: "bg-violet-50 text-violet-600",
     sky: "bg-sky-50 text-sky-600",
-    amber: "bg-amber-50 text-amber-600",
+    fuchsia: "bg-fuchsia-50 text-fuchsia-600",
   };
   const DEVICE_COLORS = ["#6366f1", "#06b6d4", "#a855f7", "#f472b6", "#22c55e", "#f59e0b"];
   const chartTooltip = {
