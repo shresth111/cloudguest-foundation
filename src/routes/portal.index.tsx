@@ -83,25 +83,28 @@ function PortalLoading() {
   return (
     <PortalShell showHeader={false}>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-        <motion.div
-          initial={{ scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl"
-          style={{
-            background: `linear-gradient(135deg, var(--pr-primary,#0EA5E9), var(--pr-accent,#6366F1))`,
-          }}
-        >
-          {config?.logoUrl ? (
-            <img
-              src={config.logoUrl}
-              alt={config.name}
-              className="h-10 w-10 rounded-lg object-contain"
-            />
-          ) : (
+        {config?.logoUrl ? (
+          <motion.img
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            src={config.logoUrl}
+            alt={config.name}
+            className="h-24 w-24 object-contain drop-shadow-lg"
+          />
+        ) : (
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl"
+            style={{
+              background: `linear-gradient(135deg, var(--pr-primary,#0EA5E9), var(--pr-accent,#6366F1))`,
+            }}
+          >
             <Wifi className="h-8 w-8" />
-          )}
-        </motion.div>
+          </motion.div>
+        )}
         <div>
           <p className="text-lg font-semibold">{config?.name ?? "ZIP WiFi"}</p>
           <p className="mt-1 text-sm text-white/60">{t("loading")}</p>

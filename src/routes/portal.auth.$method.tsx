@@ -122,16 +122,16 @@ function AuthMethodPage() {
         </Link>
 
         <div className="flex flex-col items-center text-center">
-          <div
-            className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25"
-            style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-          >
-            {config?.logoUrl ? (
-              <img src={config.logoUrl} alt="" className="h-8 w-8 rounded-lg object-contain" />
-            ) : (
+          {config?.logoUrl ? (
+            <img src={config.logoUrl} alt="" className="h-16 w-16 object-contain drop-shadow" />
+          ) : (
+            <div
+              className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25"
+              style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+            >
               <Wifi className="h-7 w-7 text-white" />
-            )}
-          </div>
+            </div>
+          )}
           <h1
             className="mt-4 text-[26px] font-bold leading-tight text-slate-900"
             style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}

@@ -69,7 +69,7 @@ export function PortalShell({
         {config?.backgroundImageUrl && (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.12]"
+            className="pointer-events-none absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
           />
         )}
@@ -150,7 +150,7 @@ export function PortalShell({
       {config?.backgroundImageUrl && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-30"
+          className="pointer-events-none absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
         />
       )}
@@ -158,18 +158,22 @@ export function PortalShell({
         {showHeader && (
           <header className="mb-6 flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg font-semibold text-white shadow-lg"
-                style={{
-                  background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))`,
-                }}
-              >
-                {config?.logoUrl ? (
-                  <img src={config.logoUrl} alt="" className="h-6 w-6 object-contain" />
-                ) : (
+              {config?.logoUrl ? (
+                <img
+                  src={config.logoUrl}
+                  alt=""
+                  className="h-10 w-10 shrink-0 object-contain"
+                />
+              ) : (
+                <div
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg font-semibold text-white shadow-lg"
+                  style={{
+                    background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))`,
+                  }}
+                >
                   <Wifi className="h-5 w-5" />
-                )}
-              </div>
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{config?.name ?? "ZIP WiFi"}</p>
                 <p className="truncate text-[11px] text-white/60">
