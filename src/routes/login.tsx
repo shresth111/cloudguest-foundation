@@ -112,16 +112,25 @@ function LoginPage() {
       <CalendarClock className="h-4 w-4" /> Book a Demo
     </motion.button>
     <div className="flex min-h-screen">
-      {/* Left: brand hero */}
-      <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-12 text-primary-foreground overflow-hidden">
-        {/* Faint animated grid for depth */}
+      {/* Left: brand hero -- same dark indigo/violet/fuchsia treatment as
+       * the customer dashboard's hero band, for one consistent visual
+       * identity across the product instead of a flat single-hue fill. */}
+      <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-12 text-white overflow-hidden">
         <div
           aria-hidden
-          className="aurora-grid pointer-events-none absolute inset-0 opacity-[0.12]"
+          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-fuchsia-500/25 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-cyan-400/20 blur-3xl"
+        />
+        {/* Faint dot-grid for depth */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
-            backgroundImage:
-              "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
             maskImage: "radial-gradient(80% 80% at 50% 30%, black, transparent 75%)",
           }}
         />
@@ -133,7 +142,7 @@ function LoginPage() {
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" /></div>
-          <div><p className="text-xl font-bold">ZIP WiFi</p><p className="text-sm text-primary-foreground/70">Guest WiFi, managed.</p></div>
+          <div><p className="text-xl font-bold">ZIP WiFi</p><p className="text-sm text-white/70">Guest WiFi, managed.</p></div>
         </motion.div>
 
         <motion.div
@@ -143,7 +152,7 @@ function LoginPage() {
           transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
         >
           <h2 className="text-4xl font-bold leading-tight tracking-tight">Your network across every location. One dashboard. Zero blind spots.</h2>
-          <p className="text-base text-primary-foreground/80 leading-relaxed">Provision networks, onboard guests, track analytics, and monitor every location in real-time — with role-based access built for global teams.</p>
+          <p className="text-base text-white/80 leading-relaxed">Provision networks, onboard guests, track analytics, and monitor every location in real-time — with role-based access built for global teams.</p>
           <div className="flex gap-6 pt-4">
             {STATS.map((s, i) => (
               <motion.div
@@ -156,14 +165,14 @@ function LoginPage() {
                   {"divide" in s ? <CountUp target={s.v / s.divide} /> : <CountUp target={s.v} decimals={s.v % 1 !== 0 ? 1 : 0} />}
                   {s.suffix}
                 </p>
-                <p className="text-xs text-primary-foreground/60">{s.l}</p>
+                <p className="text-xs text-white/60">{s.l}</p>
               </motion.div>
             ))}
           </div>
         </motion.div>
 
         <motion.p
-          className="relative z-10 text-sm text-primary-foreground/60"
+          className="relative z-10 text-sm text-white/60"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
@@ -171,8 +180,6 @@ function LoginPage() {
           © 2026 ZIP WiFi. All rights reserved.
         </motion.p>
 
-        <div className="aurora-blob-1 pointer-events-none absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
-        <div className="aurora-blob-2 pointer-events-none absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
       </div>
 
       {/* Right: sign-in form */}
