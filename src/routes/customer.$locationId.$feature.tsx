@@ -196,48 +196,73 @@ function DashboardView({ locationId }: { locationId: string }) {
   }
 
   const healthCards = [
-    { icon: CheckCircle, label: "System", value: data.health.systemHealth, color: "text-emerald-500" },
-    { icon: Wifi, label: "Routers", value: data.health.routersOnline, color: "text-primary" },
-    { icon: Activity, label: "ISP", value: data.health.isp, color: "text-sky-500" },
-    { icon: Activity, label: "Load", value: data.health.networkLoad, color: "text-amber-500" },
+    { icon: CheckCircle, label: "System", value: data.health.systemHealth, tone: "emerald" as const },
+    { icon: Wifi, label: "Routers", value: data.health.routersOnline, tone: "primary" as const },
+    { icon: Activity, label: "ISP", value: data.health.isp, tone: "sky" as const },
+    { icon: Activity, label: "Load", value: data.health.networkLoad, tone: "amber" as const },
   ];
-  const kpis = [
-    { label: "Online Users", value: data.kpis.onlineUsers.toLocaleString() },
-    { label: "Active Sessions", value: data.kpis.activeSessions.toLocaleString() },
+  const heroKpis = [
+    { label: "Online right now", value: data.kpis.onlineUsers.toLocaleString() },
+    { label: "Active sessions", value: data.kpis.activeSessions.toLocaleString() },
+    { label: "SLA uptime", value: `${data.kpis.slaUptime}%` },
+  ];
+  const secondaryKpis = [
     { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },
     { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString() },
     { label: "Avg Session", value: `${data.kpis.avgSession} min` },
-    { label: "SLA Uptime", value: `${data.kpis.slaUptime}%` },
   ];
+  const TONE_BG: Record<string, string> = {
+    emerald: "bg-emerald-50 text-emerald-600",
+    primary: "bg-primary/10 text-primary",
+    sky: "bg-sky-50 text-sky-600",
+    amber: "bg-amber-50 text-amber-600",
+  };
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {healthCards.map((h) => (
-          <div key={h.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-              <h.icon className={cn("h-5 w-5", h.color)} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase text-muted-foreground">{h.label}</p>
-              <p className="truncate text-lg font-bold">{h.value}</p>
-            </div>
+      {/* Hero band -- the one place on this page that departs from the flat
+       * neutral admin-tool look everywhere else: a soft brand-tinted
+       * gradient carrying the 3 numbers a customer checks first, at real
+       * size, not squeezed into the same small tile as 6 other stats. */}
+      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-primary/80 p-6 text-primary-foreground shadow-lg shadow-primary/20 sm:p-8">
+        <p className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70">
+          Live overview
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-3">
+          {heroKpis.map((k, i) => (
+            <motion.div
+              key={k.label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+            >
+              <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">{k.value}</p>
+              <p className="mt-1 text-sm text-primary-foreground/80">{k.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {secondaryKpis.map((k) => (
+          <div key={k.label} className="rounded-2xl border bg-card p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{k.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-        {kpis.map((k, i) => (
-          <motion.div
-            key={k.label}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="rounded-2xl border bg-card p-4 shadow-sm"
-          >
-            <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{k.value}</p>
-          </motion.div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {healthCards.map((h) => (
+          <div key={h.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", TONE_BG[h.tone])}>
+              <h.icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase text-muted-foreground">{h.label}</p>
+              <p className="truncate text-sm font-bold">{h.value}</p>
+            </div>
+          </div>
         ))}
       </div>
 
@@ -260,42 +285,33 @@ function DashboardView({ locationId }: { locationId: string }) {
                 No guests have connected yet.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs font-medium">User</TableHead>
-                    <TableHead className="text-xs font-medium">Time</TableHead>
-                    <TableHead className="text-xs font-medium">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.recentUsers.map((u) => (
-                    <TableRow key={u.id} className="border-b">
-                      <TableCell>
-                        <p className="text-sm font-medium">{u.name}</p>
-                        <p className="text-xs text-muted-foreground">{u.email}</p>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{u.time}</TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 text-xs font-medium",
-                            u.status === "online" ? "text-emerald-500" : "text-muted-foreground",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground",
-                            )}
-                          />
-                          {u.status}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="divide-y">
+                {data.recentUsers.map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 px-6 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {u.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "?"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{u.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{u.email || u.time}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 text-xs font-medium",
+                        u.status === "online" ? "text-emerald-500" : "text-muted-foreground",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground",
+                        )}
+                      />
+                      {u.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -303,27 +319,37 @@ function DashboardView({ locationId }: { locationId: string }) {
           <CardHeader>
             <CardTitle className="text-sm">Alerts</CardTitle>
           </CardHeader>
-          <CardContent className="divide-y">
+          <CardContent className="space-y-2 p-3">
             {data.recentAlerts.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted-foreground">No recent alerts.</p>
             ) : (
-              data.recentAlerts.map((a, i) => (
-                <div key={i} className="flex items-start gap-3 py-3">
-                  {a.type === "error" ? (
-                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                  ) : a.type === "warning" ? (
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  ) : a.type === "success" ? (
-                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                  ) : (
-                    <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm">{a.msg}</p>
-                    <p className="text-xs text-muted-foreground">{a.time}</p>
+              data.recentAlerts.map((a, i) => {
+                const border =
+                  a.type === "error"
+                    ? "border-rose-500"
+                    : a.type === "warning"
+                      ? "border-amber-500"
+                      : a.type === "success"
+                        ? "border-emerald-500"
+                        : "border-sky-500";
+                return (
+                  <div key={i} className={cn("flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3", border)}>
+                    {a.type === "error" ? (
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                    ) : a.type === "warning" ? (
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                    ) : a.type === "success" ? (
+                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                    ) : (
+                      <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm">{a.msg}</p>
+                      <p className="text-xs text-muted-foreground">{a.time}</p>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </Card>
