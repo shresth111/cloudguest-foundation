@@ -1307,6 +1307,29 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   if (portalUrl) {
+    // Confirmed live: without this, an unauthenticated guest's browser
+    // navigating to the real portal (an ordinary external address as far
+    // as the hotspot is concerned) is silently blocked -- that's the whole
+    // point of a captive portal, the platform's own server is no
+    // exception unless explicitly walled off. Host-based walled-garden
+    // entries only apply to the ports the hotspot's own HTTP proxy
+    // intercepts (80/443/etc.) -- this platform's frontend/API run on
+    // other ports (e.g. :3000/:8000), so this uses the IP-level walled
+    // garden instead, which isn't port-restricted.
+    const portalHost = (() => {
+      try {
+        return new URL(portalUrl.frontendBase).hostname;
+      } catch {
+        return "";
+      }
+    })();
+    if (portalHost) {
+      chunks.push({
+        label: "Walled Garden (let unauthenticated guests reach the portal)",
+        script: `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`,
+      });
+    }
+
     const url =
       `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
       `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
