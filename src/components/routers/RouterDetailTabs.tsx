@@ -1351,12 +1351,23 @@ export function buildRouterSetupScriptChunks(opts: {
     // that must not be re-escaped), real newlines last.
     const escapeForRouterOsString = (s: string) =>
       s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/\n/g, "\\n");
+    // A brief, visible "you must sign in" message before the redirect
+    // (2s, not instant) -- for the guest who does land on this page (via a
+    // successfully-intercepted plain-HTTP request) but whose OS never
+    // auto-popped this up, so this may be the first and only thing they
+    // see explaining why the network isn't working yet.
     const html = [
       "<!DOCTYPE html>",
       '<html><head><meta charset="utf-8">',
-      `<meta http-equiv="refresh" content="0;url=${url}">`,
-      "<title>Connecting...</title></head>",
-      "<body><p>Redirecting to guest sign-in...</p>",
+      `<meta http-equiv="refresh" content="2;url=${url}">`,
+      "<title>Sign in required</title>",
+      "<style>body{font-family:-apple-system,sans-serif;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px}",
+      ".box{max-width:360px}h1{font-size:20px;margin:0 0 8px}p{color:#94a3b8;font-size:14px;margin:0}</style>",
+      "</head>",
+      '<body><div class="box">',
+      "<h1>Sign-in required</h1>",
+      "<p>You must sign in to access the internet on this network. Redirecting you to the sign-in page...</p>",
+      "</div>",
       `<script>window.location.href = "${url}";</script>`,
       "</body></html>",
     ].join("\n");
