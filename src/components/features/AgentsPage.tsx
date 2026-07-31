@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { FEATURE_GROUPS, ALL_FEATURES } from "@/config/customerFeatureCatalog";
 import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
@@ -392,8 +393,8 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><ShieldCheck className="h-6 w-6 text-primary" /> Manage Agents</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Use role-based access control to limit the features your team can access.</p>
+        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><ShieldCheck className="h-4 w-4 text-primary" /> Manage Agents</h1>
+        <p className="text-sm text-muted-foreground">Use role-based access control to limit the features your team can access.</p>
       </div>
 
       <div className="inline-flex rounded-xl border bg-muted/40 p-1">
@@ -453,7 +454,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                   )}
                 </div>
 
-                <Card className="rounded-2xl">
+                <Card className="rounded-2xl border-0 shadow-sm">
                   <CardHeader><CardTitle className="text-base">Select Permissions</CardTitle></CardHeader>
                   <CardContent className="space-y-5">
                     {FEATURE_GROUPS.map((g) => (
@@ -555,7 +556,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               )}
 
               <div className="space-y-2">
-                {realRoles.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">No roles yet.</p>}
+                {realRoles.length === 0 && <EmptyState icon={UserCog2} title="No roles yet" description="Create a role above to grant your team access." />}
                 {realRoles.map((r) => (
                   <button key={r.id} onClick={() => setSelectedRealRoleId(r.id)} className={cn("flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors", selectedRealRoleId === r.id ? "border-primary bg-primary/5" : "hover:bg-accent")}>
                     <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", r.isSystemRole ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>{r.isSystemRole ? <Lock className="h-4 w-4" /> : <UserCog2 className="h-4 w-4" />}</span>
@@ -596,7 +597,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                   <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">You have unsaved changes — hit Save changes to apply them.</p>
                 )}
 
-                <Card className="rounded-2xl">
+                <Card className="rounded-2xl border-0 shadow-sm">
                   <CardHeader><CardTitle className="text-base">Select Permissions</CardTitle></CardHeader>
                   <CardContent className="space-y-5">
                     {realPermissionGroups.map((g) => {
@@ -694,7 +695,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
             )}
 
             <div className="space-y-2">
-              {agents.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">No agents yet.</p>}
+              {agents.length === 0 && <EmptyState icon={Users2} title="No agents yet" description="Add an agent above to invite them to your team." />}
               {agents.map((a) => {
                 const role = roleOptions.find((r) => r.id === a.roleId);
                 return (
@@ -737,7 +738,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                 </div>
               </div>
 
-              <Card className="rounded-2xl">
+              <Card className="rounded-2xl border-0 shadow-sm">
                 <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
                   <div>
                     <label className={labelCls}>Agent Role</label>
@@ -770,7 +771,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               </Card>
 
               {!demo && (
-                <Card className="rounded-2xl">
+                <Card className="rounded-2xl border-0 shadow-sm">
                   <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-muted-foreground">
                     <span>Permissions are set by the role you assign to this agent, not by this page.</span>
                     <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setTab("roles")}>View role permissions</Button>
@@ -778,7 +779,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                 </Card>
               )}
 
-              {demo && <Card className="rounded-2xl">
+              {demo && <Card className="rounded-2xl border-0 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-primary" /> Permissions from role: {roles.find((r) => r.id === selected.roleId)?.name}</CardTitle>
                   <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setTab("roles")}>Edit role permissions</Button>

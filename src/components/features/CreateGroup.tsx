@@ -9,6 +9,10 @@ import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
 import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 
 // Every field on this form now has a real backend equivalent
 // (bandwidthPolicyService, backed by BandwidthPolicyRules' Group-Policies-
@@ -550,7 +554,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         </div>
       )}
 
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Create Group</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Create Group</h1>
 
       <ol className="flex items-center gap-0" aria-label="Progress">
         {STEPS.map((s, i) => {
@@ -577,7 +581,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         })}
       </ol>
 
-      <div id="create-group-form" className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
+      <Card id="create-group-form" className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{editingId ? "Edit Group" : "Create Group"}</h2>
@@ -648,9 +652,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             {saving ? (editingId ? "Saving…" : "Creating…") : editingId ? "Save changes" : "Create group"}
           </button>
         </div>
-      </div>
+      </CardContent></Card>
 
-      <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
+      <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Groups</h3>
@@ -681,28 +685,30 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">{PAGE_SIZE_OPTS.map((n) => (<button key={n} onClick={() => { setPageSize(n); setPage(0); }} className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}>{n}</button>))}</div>
           </div>
         </div>
+        {paged.length === 0 ? (
+          <EmptyState
+            icon={Network}
+            title={!showAllGroups && locationId && groups.length > 0 ? "No groups mapped to this location" : "No groups yet"}
+            description={!showAllGroups && locationId && groups.length > 0 ? "Browse all groups in the account to map one to this location." : "Create one above to give a set of users their own policy."}
+            action={!showAllGroups && locationId && groups.length > 0 ? { label: "Browse all groups", onClick: () => setShowAllGroups(true) } : undefined}
+          />
+        ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-[1000px] w-full text-sm">
-            <thead><tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 dark:border-slate-600 dark:text-slate-400">
-              <th className="pb-2 pr-3">Group Name</th><th className="pb-2 pr-3">Bandwidth</th><th className="pb-2 pr-3">Timeout</th><th className="pb-2 pr-3">Idle</th><th className="pb-2 pr-3">Devices</th><th className="pb-2 pr-3">Login Hours</th><th className="pb-2 pr-3">Data Limit</th><th className="pb-2 pr-3">Members</th><th className="pb-2 pr-3">Location</th><th className="pb-2 pr-3">Users</th><th className="pb-2 text-right">Action</th>
-            </tr></thead>
-            <tbody>{paged.length === 0 ? (
-              <tr><td colSpan={11} className="py-10 text-center text-sm text-slate-400">
-                {!showAllGroups && locationId && groups.length > 0
-                  ? <>No groups mapped to this location yet. <button onClick={() => setShowAllGroups(true)} className="font-medium text-orange-600 underline hover:text-orange-700 dark:text-orange-400">Browse all groups</button> to map one.</>
-                  : "No groups yet. Create one above to give a set of users their own policy."}
-              </td></tr>
-            ) : paged.map((g) => (
-              <tr key={g.id} className="border-b border-slate-100 text-slate-700 last:border-0 dark:border-slate-700 dark:text-slate-300">
-                <td className="py-2.5 pr-3 font-medium">{g.name}</td>
-                <td className="py-2.5 pr-3">{g.bandwidth}</td>
-                <td className="py-2.5 pr-3">{g.sessionTimeout}</td>
-                <td className="py-2.5 pr-3">{g.idleTimeout}</td>
-                <td className="py-2.5 pr-3">{g.devicesPerUser}</td>
-                <td className="py-2.5 pr-3 text-xs">{g.loginHours ? `${g.loginHours.days.slice(0,3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}` : <span className="text-slate-300">Any time</span>}</td>
-                <td className="py-2.5 pr-3 text-xs">{g.dataLimit ? `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}` : <span className="text-slate-300">—</span>}</td>
-                <td className="py-2.5 pr-3">{g.members}</td>
-                <td className="py-2.5 pr-3">
+          <Table className="min-w-[1000px]">
+            <TableHeader><TableRow>
+              <TableHead className="text-xs font-medium">Group Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Location</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>{paged.map((g) => (
+              <TableRow key={g.id} className="border-b">
+                <TableCell className="font-medium">{g.name}</TableCell>
+                <TableCell>{g.bandwidth}</TableCell>
+                <TableCell>{g.sessionTimeout}</TableCell>
+                <TableCell>{g.idleTimeout}</TableCell>
+                <TableCell>{g.devicesPerUser}</TableCell>
+                <TableCell className="text-xs">{g.loginHours ? `${g.loginHours.days.slice(0,3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}` : <span className="text-muted-foreground">Any time</span>}</TableCell>
+                <TableCell className="text-xs">{g.dataLimit ? `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}` : <span className="text-muted-foreground">—</span>}</TableCell>
+                <TableCell>{g.members}</TableCell>
+                <TableCell>
                   <button
                     aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
                     disabled={mappingBusy.has(g.id) || !locationId}
@@ -719,8 +725,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     )}
                     {g.mappedAssignmentId ? "Mapped" : "Map"}
                   </button>
-                </td>
-                <td className="py-2.5 pr-3">
+                </TableCell>
+                <TableCell>
                   <button
                     aria-label={`Map users into ${g.name}`}
                     disabled={!g.mappedAssignmentId}
@@ -731,23 +737,24 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     <Users className="h-3 w-3" />
                     Map users
                   </button>
-                </td>
-                <td className="py-2.5 text-right">
+                </TableCell>
+                <TableCell className="text-right">
                   <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Pencil className="h-4 w-4" /></button>
                   <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Copy className="h-4 w-4" /></button>
                   <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirmingId === g.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500"}`}>
                     {confirmingId === g.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                   </button>
-                </td>
-              </tr>
-            ))}</tbody></table>
+                </TableCell>
+              </TableRow>
+            ))}</TableBody></Table>
         </div>
+        )}
         {filtered.length > 0 && (
           <div className="mt-4 flex items-center justify-between text-xs text-slate-500"><span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
             <div className="flex gap-1"><button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronLeft className="h-4 w-4" /></button><button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronRight className="h-4 w-4" /></button></div>
           </div>
         )}
-      </div>
+      </CardContent></Card>
 
       {usersModalGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setUsersModalGroup(null)}>
@@ -823,7 +830,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             <hr className="my-4 border-slate-100 dark:border-slate-600" />
             <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Mapped users</h4>
             {guestsLoading ? (
-              <p className="text-xs text-slate-400">Loading…</p>
+              <LoadingSkeleton rows={2} />
             ) : mappedGuests.length === 0 ? (
               <p className="text-xs text-slate-400">No users mapped into this group yet.</p>
             ) : (

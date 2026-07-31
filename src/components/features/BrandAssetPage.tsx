@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2, Trash2, Wifi } from "lucide-react";
 import { toast } from "sonner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { brandAssetService } from "@/services/brand-asset.service";
@@ -159,8 +161,8 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
@@ -297,8 +299,8 @@ function DemoBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
       <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
@@ -324,24 +326,26 @@ function DemoBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
       <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
         <h3 className="text-base font-semibold text-foreground">{tableTitle}</h3>
         <p className="mb-4 text-xs text-muted-foreground">{tableSubtitle}</p>
+        {assets.length === 0 ? (
+          <EmptyState icon={ImageUp} title="No images uploaded" description="Upload an image above to see it listed here." />
+        ) : (
         <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2.5">Business Name</th><th className="px-3 py-2.5">Preview</th><th className="px-3 py-2.5 text-right">Action</th></tr></thead>
-            <tbody>
-              {assets.length === 0 ? (
-                <tr><td colSpan={3} className="py-10 text-center text-sm text-muted-foreground">No data available in table</td></tr>
-              ) : assets.map((a) => (
-                <tr key={a.businessUnit} className="border-b last:border-0 hover:bg-accent/50">
-                  <td className="px-3 py-2.5 font-medium text-foreground">{a.businessUnit}</td>
-                  <td className="px-3 py-2.5">
+          <Table>
+            <TableHeader><TableRow><TableHead className="text-xs font-medium">Business Name</TableHead><TableHead className="text-xs font-medium">Preview</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {assets.map((a) => (
+                <TableRow key={a.businessUnit} className="border-b">
+                  <TableCell className="font-medium text-foreground">{a.businessUnit}</TableCell>
+                  <TableCell>
                     <img src={a.url} alt="" className={cn("rounded-md border object-cover", aspect === "wide" ? "h-10 w-20" : "h-10 w-10")} />
-                  </td>
-                  <td className="px-3 py-2.5 text-right"><button onClick={() => setAssets((p) => p.filter((x) => x.businessUnit !== a.businessUnit))} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button></td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right"><button onClick={() => setAssets((p) => p.filter((x) => x.businessUnit !== a.businessUnit))} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button></TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
+        )}
       </div>
     </div>
   );

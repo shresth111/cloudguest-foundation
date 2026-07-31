@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
 
@@ -216,12 +217,13 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         <Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add Device</Button>
       </CardHeader>
       <CardContent className="p-0">
+        {devices.length === 0 ? (
+          <EmptyState icon={HardDrive} title="No hardware set up yet" description="Add a device by MAC address to start monitoring it." />
+        ) : (
         <Table>
           <TableHeader><TableRow><TableHead>Device</TableHead><TableHead>MAC</TableHead><TableHead>Floor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
           <TableBody>
-            {devices.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No hardware set up yet. Add one by MAC address to start monitoring it.</TableCell></TableRow>
-            ) : devices.map((d) => {
+            {devices.map((d) => {
               const Icon = DEVICE_TYPE_ICON[d.type];
               return (
                 <TableRow key={d.id}>
@@ -244,6 +246,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
             })}
           </TableBody>
         </Table>
+        )}
       </CardContent>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setMacError(null); }}>

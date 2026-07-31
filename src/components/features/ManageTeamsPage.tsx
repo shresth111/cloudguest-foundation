@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
@@ -180,8 +181,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><Users className="h-6 w-6 text-primary" /> Manage Teams</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Group guests into teams with shared data quotas and manage them in bulk.</p>
+        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Users className="h-4 w-4 text-primary" /> Manage Teams</h1>
+        <p className="text-sm text-muted-foreground">Group guests into teams with shared data quotas and manage them in bulk.</p>
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-muted/40 p-1">
@@ -195,8 +196,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       </div>
 
       {tab === "setup" && (
-        <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-          <h2 className="text-lg font-semibold text-foreground">Setup Teams</h2>
+        <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
+          <h2 className="text-lg font-semibold tracking-tight">Setup Teams</h2>
           <p className="mb-5 text-sm text-muted-foreground">Please use this to set up your teams.</p>
           <div className="grid gap-4 md:grid-cols-3">
             <div>
@@ -219,6 +220,9 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
           <hr className="my-6 border-border" />
           <h3 className="mb-3 text-sm font-semibold text-foreground">Current Teams</h3>
+          {teams.filter((t) => t.status !== "revoked").length === 0 ? (
+            <EmptyState icon={Users} title="No teams yet" description="Create a team above to get started." />
+          ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {teams.filter((t) => t.status !== "revoked").map((t) => (
               <Card key={t.id} className="border shadow-none">
@@ -235,12 +239,13 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </Card>
             ))}
           </div>
-        </div>
+          )}
+        </CardContent></Card>
       )}
 
       {tab === "update" && (
-        <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-          <h2 className="text-lg font-semibold text-foreground">Update User Details</h2>
+        <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
+          <h2 className="text-lg font-semibold tracking-tight">Update User Details</h2>
           <p className="mb-5 text-sm text-muted-foreground">Please use this to modify user details.</p>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
@@ -257,12 +262,12 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               Find User
             </Button>
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       {tab === "bulk-teams" && (
-        <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-          <h2 className="text-lg font-semibold text-foreground">Setup Bulk Teams</h2>
+        <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
+          <h2 className="text-lg font-semibold tracking-tight">Setup Bulk Teams</h2>
           <p className="mb-5 text-sm text-muted-foreground">Please upload your CSV file here to create teams in bulk.</p>
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
@@ -282,12 +287,12 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               "Shared users should not be more than 5000.",
             ]} />
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       {tab === "bulk-map" && (
-        <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-          <h2 className="text-lg font-semibold text-foreground">Map Bulk Users</h2>
+        <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
+          <h2 className="text-lg font-semibold tracking-tight">Map Bulk Users</h2>
           <p className="mb-5 text-sm text-muted-foreground">Please upload your CSV file here to map users to teams in bulk.</p>
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
@@ -305,7 +310,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               "Size of the file should not exceed 30kb (~200 records).",
             ]} />
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       <Dialog open={!!manageTeam} onOpenChange={(open) => !open && setManageTeam(null)}>

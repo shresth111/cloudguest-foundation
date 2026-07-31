@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { LifeBuoy, Plus, MessageSquare, CheckCircle2, X, Loader2, Send, ShieldCheck, User, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { ticketService, resolveOrgId } from "@/services/ticket.service";
@@ -268,8 +271,8 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><LifeBuoy className="h-6 w-6 text-primary" /> Support Tickets</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Raise an issue for any of your locations and track its progress.</p>
+          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><LifeBuoy className="h-4.5 w-4.5 text-primary" /> Support Tickets</h1>
+          <p className="text-sm text-muted-foreground">Raise an issue for any of your locations and track its progress.</p>
         </div>
         <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"><Plus className="h-4 w-4" />Raise Ticket</button>
       </div>
@@ -285,17 +288,18 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
         ))}
       </div>
 
-      <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-semibold text-foreground">{filterUnit ? `Tickets · ${filterUnit}` : "All Tickets"}</h3>
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-sm">{filterUnit ? `Tickets · ${filterUnit}` : "All Tickets"}</CardTitle>
           {filterUnit && <button onClick={() => setFilterUnit("")} className="text-xs font-medium text-primary hover:underline">Clear filter</button>}
-        </div>
+        </CardHeader>
+        <CardContent>
 
         {!demo && loading ? (
-          <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading tickets…</div>
+          <LoadingSkeleton rows={4} />
         ) : demo ? (
           filteredDemo.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground"><MessageSquare className="mb-3 h-8 w-8 opacity-40" /><p className="text-sm">No tickets for this location yet.</p></div>
+            <EmptyState icon={MessageSquare} title="No tickets" description="No tickets for this location yet." />
           ) : (
             <div className="space-y-3">
               {filteredDemo.map((t) => (
@@ -320,7 +324,7 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
             </div>
           )
         ) : filteredReal.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-14 text-muted-foreground"><MessageSquare className="mb-3 h-8 w-8 opacity-40" /><p className="text-sm">No tickets for this location yet.</p></div>
+          <EmptyState icon={MessageSquare} title="No tickets" description="No tickets for this location yet." />
         ) : (
           <div className="space-y-3">
             {filteredReal.map((t) => {
@@ -399,7 +403,8 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
             })}
           </div>
         )}
-      </div>
+        </CardContent>
+      </Card>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>

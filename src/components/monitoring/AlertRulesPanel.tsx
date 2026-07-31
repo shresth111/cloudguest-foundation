@@ -225,7 +225,7 @@ export function AlertRulesPanel() {
         onConfirm={async () => {
           if (!confirmDelete) return;
           try {
-            await deleteRule.mutateAsync(confirmDelete.id);
+            await deleteRule.mutateAsync({ id: confirmDelete.id, organizationId: confirmDelete.organizationId ?? undefined });
             toast.success("Alert rule deleted");
           } catch (err) {
             toast.error((err as AppError).message || "Failed to delete");

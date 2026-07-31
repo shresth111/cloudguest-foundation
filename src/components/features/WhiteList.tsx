@@ -1,6 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
@@ -216,8 +219,8 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     <div className="space-y-6">
       {/* heading */}
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><ShieldCheck className="h-6 w-6 text-primary" /> Whitelist</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Allow specific numbers or devices to bypass the captive portal.</p>
+        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><ShieldCheck className="h-5 w-5 text-primary" /> Whitelist</h1>
+        <p className="text-sm text-muted-foreground">Allow specific numbers or devices to bypass the captive portal.</p>
       </div>
 
       {/* toast */}
@@ -238,9 +241,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       </div>
 
       {/* form card */}
-      <form onSubmit={handleSubmit} className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-        <h2 className="mb-5 text-lg font-semibold text-foreground">{tab === "number" ? "Whitelist a number" : "Whitelist a device"}</h2>
-
+      <form onSubmit={handleSubmit} className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
+        <CardHeader><CardTitle className="text-sm">{tab === "number" ? "Whitelist a number" : "Whitelist a device"}</CardTitle></CardHeader>
+        <CardContent>
         <div className="grid gap-4 md:grid-cols-2">
           {/* Mobile / MAC */}
           {tab === "number" ? (
@@ -306,76 +309,74 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             {tab === "number" ? "Allow Number" : "Allow Device"}
           </button>
         </div>
+        </CardContent>
       </form>
 
       {/* table card */}
-      <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
+        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
-            <h3 className="text-base font-semibold text-foreground">
+            <CardTitle className="text-sm">
               Whitelisted {tab === "number" ? "Users" : "Devices"}
-            </h3>
+            </CardTitle>
             <p className="text-xs text-muted-foreground">Everything currently allow-listed for this location.</p>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search…" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className={cn(inputCls, "w-48 py-1.5 pl-8")} />
           </div>
-        </div>
-
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="min-w-[820px] w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2.5">Name</th>
-                <th className="px-3 py-2.5">{tab === "number" ? "Mobile Number" : "MAC Address"}</th>
-                <th className="px-3 py-2.5">Business Unit</th>
-                <th className="px-3 py-2.5">Start Date</th>
-                <th className="px-3 py-2.5">End Date</th>
-                <th className="px-3 py-2.5">Status</th>
-                <th className="px-3 py-2.5 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                    Nothing whitelisted yet. Fill the form above to add the first one.
-                  </td>
-                </tr>
-              ) : (
-                paged.map(e => (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-accent/50">
-                    <td className="px-3 py-2.5">
+        </CardHeader>
+        <CardContent className="p-0">
+        {paged.length === 0 ? (
+          <EmptyState icon={ShieldCheck} title="Nothing whitelisted yet" description="Fill the form above to add the first one." />
+        ) : (
+        <div className="overflow-x-auto">
+          <Table className="min-w-[820px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs font-medium">Name</TableHead>
+                <TableHead className="text-xs font-medium">{tab === "number" ? "Mobile Number" : "MAC Address"}</TableHead>
+                <TableHead className="text-xs font-medium">Business Unit</TableHead>
+                <TableHead className="text-xs font-medium">Start Date</TableHead>
+                <TableHead className="text-xs font-medium">End Date</TableHead>
+                <TableHead className="text-xs font-medium">Status</TableHead>
+                <TableHead className="text-right text-xs font-medium">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.map(e => (
+                  <TableRow key={e.id} className="border-b">
+                    <TableCell>
                       <div className="flex items-center gap-2.5">
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                           {tab === "number" ? <Smartphone className="h-3.5 w-3.5" /> : <Laptop className="h-3.5 w-3.5" />}
                         </span>
                         <span className="font-medium text-foreground">{e.name}</span>
                       </div>
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">{e.identifier}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{e.businessUnit}</td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground">{fmtDT(e.startDate)}</td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground">{fmtDT(e.endDate)}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium", isActive(e.endDate) ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{e.identifier}</TableCell>
+                    <TableCell className="text-muted-foreground">{e.businessUnit}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{fmtDT(e.startDate)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{fmtDT(e.endDate)}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center gap-1 text-xs font-medium", isActive(e.endDate) ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400")} />
                         {isActive(e.endDate) ? "Active" : "Expired"}
                       </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <button aria-label={`Edit ${e.name}`} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" /></button>
                       <button aria-label={`Delete ${e.name}`} onClick={() => handleDelete(e.id)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </TableCell>
+                  </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
+        )}
 
         {filtered.length > 0 && (
-          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
             <span>Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-1">
               <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
@@ -383,6 +384,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             </div>
           </div>
         )}
+        </CardContent>
       </div>
     </div>
   );

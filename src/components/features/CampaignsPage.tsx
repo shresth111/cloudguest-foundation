@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { campaignService, CAMPAIGN_STATUS_TRANSITIONS } from "@/services/campaign.service";
 import type { CampaignAsset, CampaignQuestion, CampaignType, QuestionAnswerType } from "@/types/campaign";
@@ -662,13 +664,18 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         <h3 className="mb-1 text-base font-semibold">Recent Campaigns</h3>
         <p className="mb-3 text-xs text-muted-foreground">This lists out all the recent communication campaigns you had setup.</p>
         <Card className="border-0 shadow-sm"><CardContent className="p-0">
+          {loading ? (
+            <div className="p-4"><LoadingSkeleton rows={4} /></div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="No campaigns"
+              description={filtersActive ? "No campaigns match your search." : "Create a campaign above to reach guests over your WiFi."}
+            />
+          ) : (
           <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Impressions</TableHead><TableHead>Conversions</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">No campaigns match your search.</TableCell></TableRow>
-            ) : filtered.map(c => (
+            {filtered.map(c => (
               <TableRow key={c.id} className="border-b">
                 <TableCell className="font-medium">
                   {c.type === "SURVEY" ? (
@@ -715,7 +722,9 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                 </TableCell>
               </TableRow>
             ))}
-          </TableBody></Table></CardContent></Card>
+          </TableBody></Table>
+          )}
+        </CardContent></Card>
       </div>
     </div>
   );

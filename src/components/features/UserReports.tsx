@@ -4,6 +4,10 @@ import {
   Search, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   Loader2, FileBarChart, Download, Printer, FileDown, Info,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
@@ -457,51 +461,49 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
 
       <div aria-live="polite" className="mt-6">
         {rows === null && !running && (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground"><FileBarChart className="mb-3 h-10 w-10 opacity-40" /><p className="text-sm">Choose a report type and press Search to see results.</p></div>
+          <EmptyState icon={FileBarChart} title="No report run yet" description="Choose a report type and press Search to see results." />
         )}
-        {running && <div className="space-y-3 animate-pulse">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-muted" />)}</div>}
+        {running && <LoadingSkeleton rows={5} />}
         {!running && rows !== null && rows.length === 0 && unavailable && (
-          <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-            <Info className="mb-3 h-10 w-10 opacity-40" />
-            <p className="text-sm font-medium text-foreground">Not available yet</p>
-            <p className="mt-1 max-w-sm text-xs">{unavailable}</p>
-          </div>
+          <EmptyState icon={Info} title="Not available yet" description={unavailable} />
         )}
         {!running && rows !== null && rows.length === 0 && !unavailable && (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground"><p className="text-sm font-medium">No data for this report.</p><p className="mt-1 text-xs">Try a wider date range or a different location.</p></div>
+          <EmptyState icon={FileBarChart} title="No data for this report" description="Try a wider date range or a different location." />
         )}
         {!running && rows && rows.length > 0 && (
-          <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-            <div className="print:hidden mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div><h3 className="text-base font-semibold text-foreground">{rt?.label}</h3><p className="text-xs text-muted-foreground">{bu} · {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} · {sortedRows.length} rows</p></div>
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="print:hidden flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+              <div><CardTitle className="text-sm">{rt?.label}</CardTitle><p className="text-xs text-muted-foreground">{bu} · {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} · {sortedRows.length} rows</p></div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="text" placeholder="Filter…" value={searchTxt} onChange={(e) => { setSearchTxt(e.target.value); setPage(0); }} className={cn(inputCls, "w-40 py-1.5 pl-8")} /></div>
                 <button onClick={exportCsv} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Download className="h-4 w-4" />CSV</button>
                 <button onClick={handlePrint} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><Printer className="h-4 w-4" />Print</button>
                 <button onClick={handlePrint} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><FileDown className="h-4 w-4" />PDF</button>
               </div>
-            </div>
+            </CardHeader>
+            <CardContent>
             <div className="hidden print:block mb-4"><h3 className="text-base font-semibold">{rt?.label}</h3><p className="text-xs text-muted-foreground">{bu} · {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} · {sortedRows.length} rows</p></div>
             <div className="overflow-x-auto rounded-xl border">
-              <table className="min-w-[900px] w-full text-sm">
-                <thead><tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">{cols.map((c) => {
+              <Table className="min-w-[900px]">
+                <TableHeader><TableRow>{cols.map((c) => {
                   const active = sortKey === c.key;
-                  return <th key={c.key} className={cn("px-3 py-2.5 cursor-pointer select-none print:cursor-default", c.key === "rank" && "w-8")} onClick={() => toggleSort(c.key)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                  return <TableHead key={c.key} className={cn("text-xs font-medium cursor-pointer select-none print:cursor-default", c.key === "rank" && "w-8")} onClick={() => toggleSort(c.key)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                     <span className="inline-flex items-center gap-1">{c.label}{active ? <ChevronUp className="h-3 w-3 text-primary print:hidden" /> : null}</span>
-                  </th>;
-                })}<th className="px-3 py-2.5 text-right print:hidden">Actions</th></tr></thead>
-                <tbody>{paged.map((r, i) => (
-                  <tr key={i} className="border-b last:border-0 hover:bg-accent/50">
+                  </TableHead>;
+                })}<TableHead className="text-right text-xs font-medium print:hidden">Actions</TableHead></TableRow></TableHeader>
+                <TableBody>{paged.map((r, i) => (
+                  <TableRow key={i} className="border-b">
                     {cols.map((c) => (
-                      <td key={c.key} className="px-3 py-2.5 text-xs text-foreground">{fmtCell(c.key, r[c.key] ?? null)}</td>
+                      <TableCell key={c.key} className="text-xs text-foreground">{fmtCell(c.key, r[c.key] ?? null)}</TableCell>
                     ))}
-                    <td className="px-3 py-2.5 text-right print:hidden"><button className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="View details"><ChevronRight className="h-4 w-4" /></button></td>
-                  </tr>
-                ))}</tbody>
-              </table>
+                    <TableCell className="text-right print:hidden"><button className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="View details"><ChevronRight className="h-4 w-4" /></button></TableCell>
+                  </TableRow>
+                ))}</TableBody>
+              </Table>
             </div>
             {sortedRows.length > 0 && <div className="print:hidden mt-4 flex items-center justify-between text-xs text-muted-foreground"><span>Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length)} of {sortedRows.length}</span><div className="flex gap-1"><button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button><button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button></div></div>}
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </>
@@ -523,8 +525,8 @@ export default function UserReports() {
   return (
     <div className="space-y-6">
       <div className="print:hidden">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><FileBarChart className="h-6 w-6 text-primary" /> Reports</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Run and export usage, voucher, campaign, data, and SMS reports.</p>
+        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><FileBarChart className="h-4.5 w-4.5 text-primary" /> Reports</h1>
+        <p className="text-sm text-muted-foreground">Run and export usage, voucher, campaign, data, and SMS reports.</p>
       </div>
 
       <div className="print:hidden overflow-x-auto rounded-xl border bg-muted/40 p-1">

@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   AlertTriangle, HelpCircle, Plus, ChevronDown, Search, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Loader2, X,
+  ChevronLeft, ChevronRight, Loader2, X, Shield,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
@@ -251,9 +254,6 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         </div>
       )}
 
-      {/* title */}
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Location Policies</h1>
-
       {/* warning banner */}
       <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
@@ -264,9 +264,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       </div>
 
       {/* form card */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
-        <h2 className="mb-5 text-lg font-semibold text-slate-800 dark:text-slate-100">Location Policies</h2>
-
+      <Card className="border-0 shadow-sm">
+      <CardHeader><CardTitle className="text-sm">Location Policies</CardTitle></CardHeader>
+      <CardContent>
         <div className="grid gap-4 md:grid-cols-2">
           <Select id="bu" label="Business Unit" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose Business Unit" err={errs.businessUnit} />
           <Select id="bw" label="Bandwidth" required value={f.bandwidth} onChange={(v) => setField("bandwidth", v)} options={BANDWIDTH} placeholder="Choose Bandwidth" tooltip="Maximum speed per guest device." err={errs.bandwidth} />
@@ -315,14 +315,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             {saving ? "Updating…" : "Update policies"}
           </button>
         </div>
-      </div>
+      </CardContent>
+      </Card>
 
       {/* table card */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <Card className="border-0 shadow-sm">
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Current Location Policies</h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">The policies currently active for the selected space.</p>
+            <CardTitle className="text-sm">Current Location Policies</CardTitle>
+            <p className="text-xs text-muted-foreground">The policies currently active for the selected space.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -335,54 +336,54 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               ))}
             </div>
           </div>
-        </div>
-
+      </CardHeader>
+      <CardContent className="p-0">
+        {paged.length === 0 ? (
+          <EmptyState icon={Shield} title="No policies yet" description="Fill the form above to create the first one." />
+        ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-[900px] w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 dark:border-slate-600 dark:text-slate-400">
-                <th className="pb-2 pr-3">Business Unit</th>
-                <th className="pb-2 pr-3">Bandwidth</th>
-                <th className="pb-2 pr-3">Session Timeout</th>
-                <th className="pb-2 pr-3">Idle Timeout</th>
-                <th className="pb-2 pr-3">Daily Limit</th>
-                <th className="pb-2 pr-3">Devices</th>
-                <th className="pb-2 pr-3">Data Limit</th>
-                <th className="pb-2 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 ? (
-                <tr><td colSpan={8} className="py-10 text-center text-sm text-slate-400 dark:text-slate-500">No policies set for this location yet. Fill the form above to create the first one.</td></tr>
-              ) : (
-                paged.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-100 text-slate-700 last:border-0 dark:border-slate-700 dark:text-slate-300">
-                    <td className="py-2.5 pr-3 font-medium">{p.businessUnit}</td>
-                    <td className="py-2.5 pr-3">{p.bandwidth}</td>
-                    <td className="py-2.5 pr-3">{p.sessionTimeout}</td>
-                    <td className="py-2.5 pr-3">{p.idleTimeout}</td>
-                    <td className="py-2.5 pr-3">{p.dailyLimit}</td>
-                    <td className="py-2.5 pr-3">{p.devicesPerUser}</td>
-                    <td className="py-2.5 pr-3 text-xs">{p.dataLimit ? `${p.dataLimit.quota} ${p.dataLimit.unit} / ${p.dataLimit.resets}` : <span className="text-slate-300 dark:text-slate-600">—</span>}</td>
-                    <td className="py-2.5 text-right">
-                      <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
-                      <button
-                        aria-label={confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`}
-                        onClick={() => handleDelete(p.id)}
-                        className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirming === p.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}
-                      >
-                        {confirming === p.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs font-medium">Business Unit</TableHead>
+                <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                <TableHead className="text-xs font-medium">Session Timeout</TableHead>
+                <TableHead className="text-xs font-medium">Idle Timeout</TableHead>
+                <TableHead className="text-xs font-medium">Daily Limit</TableHead>
+                <TableHead className="text-xs font-medium">Devices</TableHead>
+                <TableHead className="text-xs font-medium">Data Limit</TableHead>
+                <TableHead className="text-right text-xs font-medium">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.map((p) => (
+                <TableRow key={p.id} className="border-b">
+                  <TableCell className="font-medium">{p.businessUnit}</TableCell>
+                  <TableCell>{p.bandwidth}</TableCell>
+                  <TableCell>{p.sessionTimeout}</TableCell>
+                  <TableCell>{p.idleTimeout}</TableCell>
+                  <TableCell>{p.dailyLimit}</TableCell>
+                  <TableCell>{p.devicesPerUser}</TableCell>
+                  <TableCell className="text-xs">{p.dataLimit ? `${p.dataLimit.quota} ${p.dataLimit.unit} / ${p.dataLimit.resets}` : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-right">
+                    <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
+                    <button
+                      aria-label={confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`}
+                      onClick={() => handleDelete(p.id)}
+                      className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirming === p.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}
+                    >
+                      {confirming === p.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
+        )}
 
         {filtered.length > 0 && (
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
             <span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-1">
               <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronLeft className="h-4 w-4" /></button>
@@ -390,7 +391,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             </div>
           </div>
         )}
-      </div>
+      </CardContent>
+      </Card>
     </div>
   );
 }

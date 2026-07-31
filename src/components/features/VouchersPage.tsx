@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Download, Printer, Mail, Eye } from "lucide-react";
+import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { voucherService } from "@/services/voucher.service";
 import { resolveOrgId } from "@/services/customer.service";
@@ -166,13 +168,14 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
       </div>
 
       <Card className="border-0 shadow-sm"><CardContent className="p-0">
+        {loading ? (
+          <div className="p-4"><LoadingSkeleton rows={4} /></div>
+        ) : rows.length === 0 ? (
+          <EmptyState icon={Ticket} title="No voucher batches" description="Generate a batch above to issue guest access vouchers." />
+        ) : (
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">{demo ? "Code" : "Batch Name"}</TableHead>{demo && <TableHead className="text-xs font-medium">Business Unit</TableHead>}<TableHead className="text-xs font-medium">{demo ? "Plan" : "Validity"}</TableHead><TableHead className="text-xs font-medium">Status</TableHead><TableHead className="text-xs font-medium">{demo ? "Used" : "Quantity"}</TableHead>{demo && <TableHead className="text-xs font-medium">Redeemed At</TableHead>}<TableHead className="text-right text-xs font-medium">Actions</TableHead></TableRow></TableHeader>
         <TableBody>
-          {loading ? (
-            <TableRow><TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
-          ) : rows.length === 0 ? (
-            <TableRow><TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">No voucher batches yet.</TableCell></TableRow>
-          ) : rows.map(v => (
+          {rows.map(v => (
           <TableRow key={demo ? v.code : (v as BatchRow).id} className="border-b">
             <TableCell className="font-mono text-xs">{v.code}</TableCell>
             {demo && <TableCell className="text-xs text-muted-foreground">{v.businessUnit}</TableCell>}
@@ -189,7 +192,9 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => revoke(v)}><Trash2 className="h-3.5 w-3.5" /></Button>
             </TableCell>
           </TableRow>
-        ))}</TableBody></Table></div></CardContent></Card>
+        ))}</TableBody></Table></div>
+        )}
+      </CardContent></Card>
 
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => toast.success("CSV exported")}><Download className="mr-1.5 h-3.5 w-3.5" />CSV</Button>

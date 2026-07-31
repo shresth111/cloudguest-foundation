@@ -101,7 +101,7 @@ export function AdvancedPage() {
     {id:"5",name:"Health Checks",desc:"Periodic health monitoring",enabled:true},{id:"6",name:"Debug Logging",desc:"Verbose system logs",enabled:false},
   ]);
   return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{items.map(item => (
-    <Card key={item.id} className="shadow-sm border-0"><CardContent className="p-5">
+    <Card key={item.id} className="border-0 shadow-sm"><CardContent className="p-5">
       <p className="font-semibold text-sm">{item.name}</p><p className="text-xs text-muted-foreground mt-1">{item.desc}</p>
       <div className="flex items-center justify-between mt-3"><span className="text-xs text-muted-foreground">{item.enabled ? "Enabled" : "Disabled"}</span>
         <Switch checked={item.enabled} onCheckedChange={v=>{setItems(items.map(x=>x.id===item.id?{...x,enabled:v}:x));toast.success(`${item.name} ${v?"enabled":"disabled"}`)}} /></div>

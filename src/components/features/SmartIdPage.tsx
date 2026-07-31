@@ -155,8 +155,8 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Smart ID Configuration</h1>
-          <p className="text-sm text-slate-400 dark:text-slate-500">Configure login methods for the captive portal — guests can use any enabled method.</p>
+          <h1 className="text-lg font-semibold tracking-tight">Smart ID Configuration</h1>
+          <p className="text-sm text-muted-foreground">Configure login methods for the captive portal — guests can use any enabled method.</p>
         </div>
       </div>
 

@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   AlertTriangle, HelpCircle, X, Search, ChevronUp, ChevronDown,
-  ChevronLeft, ChevronRight, Trash2, RotateCcw, Undo2,
+  ChevronLeft, ChevronRight, Trash2, RotateCcw, Undo2, Ban,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
@@ -171,11 +174,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     const active = sortKey === k;
     const Icon = active ? (sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronUp;
     return (
-      <th className="cursor-pointer pb-2 pr-3 select-none" onClick={() => toggleSort(k)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+      <TableHead className="cursor-pointer select-none text-xs font-medium" onClick={() => toggleSort(k)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+        <span className="inline-flex items-center gap-1">
           {label} <Icon className={`h-3 w-3 ${active ? "text-orange-500" : "text-slate-300"}`} />
         </span>
-      </th>
+      </TableHead>
     );
   };
 
@@ -332,18 +335,20 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         </div>
       )}
 
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Block Users</h1>
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">Block Users</h1>
+      </div>
 
-      <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Block User</h2>
+      <Card className="border-0 shadow-sm">
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+          <CardTitle className="text-sm">Block User</CardTitle>
           <div>
             <label htmlFor="bu-select" className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Applies to</label>
             <select id="bu-select" value={bu} onChange={(e) => { setBu(e.target.value); setPage(0); }} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
           </div>
-        </div>
-
-        <div className="mt-4 flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <p className="text-sm text-amber-800 dark:text-amber-200">Blocking takes effect immediately and ends any session these users currently have.</p>
         </div>
@@ -386,13 +391,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             Block {parsed.valid.length > 0 ? `${parsed.valid.length} number${parsed.valid.length > 1 ? "s" : ""}` : "numbers"}
           </button>
         </div>
-      </div>
+      </CardContent>
+      </Card>
 
-      <div className="rounded-lg bg-white p-6 ring-1 ring-slate-200 shadow-sm dark:bg-slate-800 dark:ring-slate-600 md:p-8">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <Card className="border-0 shadow-sm">
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Blocked Users</h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Everyone currently blocked at this location.</p>
+            <CardTitle className="text-sm">Blocked Users</CardTitle>
+            <p className="text-xs text-muted-foreground">Everyone currently blocked at this location.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -405,48 +411,48 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               ))}
             </div>
           </div>
-        </div>
-
+      </CardHeader>
+      <CardContent className="p-0">
+        {paged.length === 0 ? (
+          <EmptyState icon={Ban} title="Nobody is blocked" description="Paste a number above to block one." />
+        ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-[860px] w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-600">
+          <Table className="min-w-[860px]">
+            <TableHeader>
+              <TableRow>
                 <SortHeader k="name" label="Name" />
                 <SortHeader k="mobile" label="Mobile Number" />
                 <SortHeader k="businessUnit" label="Business Unit" />
                 <SortHeader k="blockedOn" label="Blocked On" />
-                <th className="pb-2 pr-3 text-xs font-medium text-slate-500 dark:text-slate-400">Status</th>
-                <th className="pb-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 ? (
-                <tr><td colSpan={6} className="py-10 text-center text-sm text-slate-400 dark:text-slate-500">Nobody is blocked at this location. Paste a number above to block one.</td></tr>
-              ) : (
-                paged.map((b) => (
-                  <tr key={b.id} className="border-b border-slate-100 text-slate-700 last:border-0 dark:border-slate-700 dark:text-slate-300">
-                    <td className="py-2.5 pr-3 font-medium">{b.name ?? <span className="text-slate-300 dark:text-slate-600">—</span>}</td>
-                    <td className="py-2.5 pr-3 font-mono text-xs">{b.mobile}</td>
-                    <td className="py-2.5 pr-3 text-xs">{b.businessUnit}</td>
-                    <td className="py-2.5 pr-3 text-xs whitespace-nowrap">{fmtDT(b.blockedOn)}</td>
-                    <td className="py-2.5 pr-3">
+                <TableHead className="text-xs font-medium">Status</TableHead>
+                <TableHead className="text-right text-xs font-medium">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.map((b) => (
+                  <TableRow key={b.id} className="border-b">
+                    <TableCell className="font-medium">{b.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="font-mono text-xs">{b.mobile}</TableCell>
+                    <TableCell className="text-xs">{b.businessUnit}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{fmtDT(b.blockedOn)}</TableCell>
+                    <TableCell>
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${b.status === "Blocked" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400" : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"}`}>{b.status}</span>
-                    </td>
-                    <td className="py-2.5 text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <button aria-label={b.status === "Blocked" ? `Unblock ${b.mobile}` : `Block ${b.mobile}`} onClick={() => toggleStatus(b.id)} className="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:hover:bg-slate-700">{b.status === "Blocked" ? "Unblock" : "Block again"}</button>
                       <button aria-label={confirmingId === b.id ? "Confirm delete" : `Delete ${b.mobile}`} onClick={() => handleDelete(b.id)} className={`ml-1 inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirmingId === b.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}>
                         {confirmingId === b.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                       </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </TableCell>
+                  </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
+        )}
 
         {filtered.length > 0 && (
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
             <span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-1">
               <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronLeft className="h-4 w-4" /></button>
@@ -454,7 +460,8 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             </div>
           </div>
         )}
-      </div>
+      </CardContent>
+      </Card>
     </div>
   );
 }

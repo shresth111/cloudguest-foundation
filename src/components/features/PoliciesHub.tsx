@@ -24,8 +24,10 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Policies</h1>
-      <p className="text-sm text-slate-400 -mt-5">Configure network, user, and group policies for this location.</p>
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">Policies</h1>
+        <p className="text-sm text-muted-foreground">Configure network, user, and group policies for this location.</p>
+      </div>
 
       {/* Main policy tabs */}
       <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">

@@ -28,8 +28,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { StatCard, type StatTone } from "@/components/ui-ext/StatCard";
+import type { StatTone } from "@/components/ui-ext/StatCard";
 import { NumberedPagination } from "@/components/ui-ext/NumberedPagination";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import {
   useCustomerFeatureData,
   useAdminLogsDashboardLogins,
@@ -79,7 +81,7 @@ function FeatureHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
       {action}
@@ -133,11 +135,30 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+const TONE_ICON_TEXT: Record<StatTone, string> = {
+  default: "text-foreground",
+  primary: "text-primary",
+  success: "text-emerald-500",
+  warning: "text-amber-500",
+  danger: "text-rose-500",
+  info: "text-sky-500",
+};
+
 function KpiRow({ items }: { items: { label: string; value: string; tone?: StatTone; icon?: React.ComponentType<{ className?: string }> }[] }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       {items.map((k) => (
-        <StatCard key={k.label} label={k.label} value={k.value} tone={k.tone} icon={k.icon} />
+        <div key={k.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+          {k.icon && (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+              <k.icon className={cn("h-5 w-5", TONE_ICON_TEXT[k.tone ?? "default"])} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
+            <p className="truncate text-lg font-bold">{k.value}</p>
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -201,13 +222,13 @@ export function AlertsView() {
         { label: "Resolved", value: String(resolved), tone: "success", icon: CheckCircle2 },
         { label: "Total", value: String(alerts.length), tone: "primary", icon: Activity },
       ]} />
-      <Card>
-        <CardHeader><CardTitle className="text-base">Recent alerts</CardTitle></CardHeader>
-        <CardContent className="divide-y p-0">
+      <Card className="border-0 shadow-sm">
+        <CardHeader><CardTitle className="text-sm">Recent alerts</CardTitle></CardHeader>
+        <CardContent className={cn("p-0", alerts.length > 0 && !loading && "divide-y")}>
           {loading ? (
-            <p className="px-6 py-8 text-center text-xs text-muted-foreground">Loading…</p>
+            <div className="px-6 py-4"><LoadingSkeleton rows={4} /></div>
           ) : alerts.length === 0 ? (
-            <p className="px-6 py-8 text-center text-xs text-muted-foreground">No alerts yet.</p>
+            <EmptyState icon={Bell} title="No alerts" description="Operational alerts across routers, ISPs and the captive portal will show up here." />
           ) : alerts.map((a, i) => (
             <div key={i} className="flex items-start gap-3 px-6 py-3.5">
               <span className="mt-0.5 shrink-0">{icon(a.sev)}</span>
@@ -342,10 +363,10 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
           </Button>
         }
       />
-      <Card>
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle className="text-base">Weekly schedule</CardTitle>
+            <CardTitle className="text-sm">Weekly schedule</CardTitle>
             <CardDescription>Toggle a day open/closed and set opening &amp; closing times.</CardDescription>
           </div>
           {!demo && isOpenNow !== null && (
@@ -356,7 +377,7 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
         </CardHeader>
         <CardContent className="space-y-2.5">
           {loading ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+            <LoadingSkeleton rows={4} />
           ) : (
             <>
               {BH_DAYS.map(({ key, label }) => {
@@ -422,8 +443,8 @@ export function NotificationView() {
     <div className="space-y-6">
       <FeatureHeader title="Notifications" description="Choose how and when your team is notified about network events." action={<Button size="sm" onClick={() => toast.success("Preferences saved")}>Save</Button>} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Channels</CardTitle></CardHeader>
+        <Card className="border-0 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">Channels</CardTitle></CardHeader>
           <CardContent className="space-y-2.5">
             <ToggleRow label="Email" hint="admin@company.com" defaultOn />
             <ToggleRow label="SMS" hint="+91 •••• •• 4210" />
@@ -431,8 +452,8 @@ export function NotificationView() {
             <ToggleRow label="Webhook" hint="POST to your endpoint" />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-base">Events</CardTitle></CardHeader>
+        <Card className="border-0 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">Events</CardTitle></CardHeader>
           <CardContent className="space-y-2.5">
             <ToggleRow label="Router offline" defaultOn />
             <ToggleRow label="ISP failover" defaultOn />
@@ -501,17 +522,17 @@ const LINK_TYPES: { value: string; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-const HEALTH_BADGE: Record<string, { label: string; dot: string; cls: string }> = {
-  healthy: { label: "Online", dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" },
-  degraded: { label: "Degraded", dot: "bg-amber-500", cls: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" },
-  unhealthy: { label: "Offline", dot: "bg-rose-500", cls: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" },
-  unknown: { label: "Unknown", dot: "bg-muted-foreground/40", cls: "bg-muted text-muted-foreground" },
+const HEALTH_BADGE: Record<string, { label: string; dot: string; text: string }> = {
+  healthy: { label: "Online", dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400" },
+  degraded: { label: "Degraded", dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" },
+  unhealthy: { label: "Offline", dot: "bg-rose-500", text: "text-rose-600 dark:text-rose-400" },
+  unknown: { label: "Unknown", dot: "bg-muted-foreground/40", text: "text-muted-foreground" },
 };
 
 function HealthBadge({ status }: { status: string }) {
   const b = HEALTH_BADGE[status] ?? HEALTH_BADGE.unknown;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium", b.cls)}>
+    <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", b.text)}>
       <span className={cn("h-1.5 w-1.5 rounded-full", b.dot)} />{b.label}
     </span>
   );
@@ -648,7 +669,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
         </DialogHeader>
         <div className="max-h-80 space-y-2 overflow-y-auto">
           {loading ? (
-            <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+            <LoadingSkeleton rows={3} />
           ) : checks.length === 0 ? (
             <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet -- the next sweep runs within 60 seconds, or trigger one manually.</p>
           ) : checks.map((c) => (
@@ -825,7 +846,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         action={selectedRouterId ? <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" />Add ISP Link</Button> : undefined}
       />
 
-      <Card>
+      <Card className="border-0 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -846,41 +867,44 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
           </div>
 
           {!routersLoading && routers.length === 0 && (
-            <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              No routers are provisioned at this location yet. Provision a router first, then come back here to configure its ISP link.
-            </p>
+            <EmptyState
+              icon={Router}
+              title="No routers provisioned"
+              description="Provision a router at this location first, then come back here to configure its ISP link."
+            />
           )}
         </CardContent>
       </Card>
 
       {selectedRouter && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Router Status" value={selectedRouter.status === "online" ? "Online" : selectedRouter.status.replace(/_/g, " ")} tone={selectedRouter.status === "online" ? "success" : "warning"} icon={Router} />
-            <StatCard label="ISP Links" value={links.length} tone="default" icon={Network} />
-            <StatCard label="Healthy Links" value={`${healthyCount}/${links.length}`} tone={healthyCount === links.length && links.length > 0 ? "success" : "warning"} icon={Signal} />
-            <StatCard label="Active Uplink" value={activeLink?.providerName ?? "—"} tone="primary" icon={Globe} />
-          </div>
+          <KpiRow items={[
+            { label: "Router Status", value: selectedRouter.status === "online" ? "Online" : selectedRouter.status.replace(/_/g, " "), tone: selectedRouter.status === "online" ? "success" : "warning", icon: Router },
+            { label: "ISP Links", value: String(links.length), tone: "default", icon: Network },
+            { label: "Healthy Links", value: `${healthyCount}/${links.length}`, tone: healthyCount === links.length && links.length > 0 ? "success" : "warning", icon: Signal },
+            { label: "Active Uplink", value: activeLink?.providerName ?? "—", tone: "primary", icon: Globe },
+          ]} />
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">WAN Uplinks — {selectedRouter.name}</CardTitle><CardDescription>Every ISP link configured for this router, with real, sweep-updated health status.</CardDescription></CardHeader>
+          <Card className="border-0 shadow-sm">
+            <CardHeader><CardTitle className="text-sm">WAN Uplinks — {selectedRouter.name}</CardTitle><CardDescription>Every ISP link configured for this router, with real, sweep-updated health status.</CardDescription></CardHeader>
             <CardContent className="p-0">
+              {linksLoading ? (
+                <div className="p-4"><LoadingSkeleton rows={4} /></div>
+              ) : links.length === 0 ? (
+                <EmptyState icon={Network} title="No ISP link configured" description={'Click "Add ISP Link" above to add one for this router.'} />
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Provider</TableHead><TableHead>Type</TableHead><TableHead>Role</TableHead>
-                    <TableHead>Bandwidth</TableHead><TableHead>DNS</TableHead><TableHead>Priority</TableHead>
-                    <TableHead>Health</TableHead><TableHead>Latency / Loss</TableHead><TableHead>Last Checked</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-xs font-medium">Provider</TableHead><TableHead className="text-xs font-medium">Type</TableHead><TableHead className="text-xs font-medium">Role</TableHead>
+                    <TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">DNS</TableHead><TableHead className="text-xs font-medium">Priority</TableHead>
+                    <TableHead className="text-xs font-medium">Health</TableHead><TableHead className="text-xs font-medium">Latency / Loss</TableHead><TableHead className="text-xs font-medium">Last Checked</TableHead>
+                    <TableHead className="text-right text-xs font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {linksLoading ? (
-                    <TableRow><TableCell colSpan={10} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
-                  ) : links.length === 0 ? (
-                    <TableRow><TableCell colSpan={10} className="py-8 text-center text-xs text-muted-foreground">No ISP link configured for this router yet. Click "Add ISP Link" to add one.</TableCell></TableRow>
-                  ) : links.map((l) => (
-                    <TableRow key={l.id}>
+                  {links.map((l) => (
+                    <TableRow key={l.id} className="border-b">
                       <TableCell className="font-medium">{l.providerName}{l.isActiveUplink && <Badge variant="outline" className="ml-2 text-[10px]">Active</Badge>}</TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">{l.linkType.replace(/_/g, " ")}</TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">{l.role}</TableCell>
@@ -902,6 +926,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </>
@@ -946,13 +971,13 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
     return (
       <div className="space-y-6">
         <FeatureHeader title="Logs" description="Who logged into the dashboard and when, router activity, and account changes across every location." />
-        <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-            <ShieldAlert className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium text-foreground">Owner access only</p>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              Logs shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page.
-            </p>
+        <Card className="border-0 shadow-sm">
+          <CardContent>
+            <EmptyState
+              icon={ShieldAlert}
+              title="Owner access only"
+              description="Logs shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page."
+            />
           </CardContent>
         </Card>
       </div>
@@ -972,23 +997,25 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Dashboard Logins</h3>
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
+            {loginsQuery.isLoading ? (
+              <div className="p-4"><LoadingSkeleton rows={5} /></div>
+            ) : logins.length === 0 ? (
+              <EmptyState icon={History} title="No dashboard logins yet" description="Login activity for this organization will appear here." />
+            ) : (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Email</TableHead><TableHead>IP Address</TableHead><TableHead>Result</TableHead><TableHead>When</TableHead></TableRow>
+                <TableRow><TableHead className="text-xs font-medium">Email</TableHead><TableHead className="text-xs font-medium">IP Address</TableHead><TableHead className="text-xs font-medium">Result</TableHead><TableHead className="text-xs font-medium">When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {loginsQuery.isLoading ? (
-                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
-                ) : logins.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="py-10 text-center text-xs text-muted-foreground">No dashboard logins recorded yet.</TableCell></TableRow>
-                ) : logins.map((l) => (
-                  <TableRow key={l.id}>
+                {logins.map((l) => (
+                  <TableRow key={l.id} className="border-b">
                     <TableCell className="font-medium">{l.email}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{l.ipAddress}</TableCell>
                     <TableCell>
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", l.success ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400")}>
+                      <span className={cn("inline-flex items-center gap-1 text-xs font-medium", l.success ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", l.success ? "bg-emerald-500" : "bg-rose-500")} />
                         {l.success ? "Success" : (l.failureReason ?? "Failed")}
                       </span>
                     </TableCell>
@@ -997,6 +1024,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
           {loginsTotalPages > 1 && (
             <div className="border-t border-border/70 px-4 py-3">
@@ -1008,23 +1036,25 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Router Logs by Location</h3>
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
+            {routerQuery.isLoading ? (
+              <div className="p-4"><LoadingSkeleton rows={5} /></div>
+            ) : routerLogs.length === 0 ? (
+              <EmptyState icon={Router} title="No router events yet" description="Router activity across your locations will appear here." />
+            ) : (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Location</TableHead><TableHead>Router</TableHead><TableHead>Event</TableHead><TableHead>Message</TableHead><TableHead>When</TableHead></TableRow>
+                <TableRow><TableHead className="text-xs font-medium">Location</TableHead><TableHead className="text-xs font-medium">Router</TableHead><TableHead className="text-xs font-medium">Event</TableHead><TableHead className="text-xs font-medium">Message</TableHead><TableHead className="text-xs font-medium">When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {routerQuery.isLoading ? (
-                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
-                ) : routerLogs.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-xs text-muted-foreground">No router events recorded yet.</TableCell></TableRow>
-                ) : routerLogs.map((e) => (
-                  <TableRow key={e.id}>
+                {routerLogs.map((e) => (
+                  <TableRow key={e.id} className="border-b">
                     <TableCell className="font-medium">{e.locationName}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{e.routerName}</TableCell>
                     <TableCell>
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", e.isError ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" : "bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-300")}>
+                      <span className={cn("inline-flex items-center gap-1 text-xs font-medium", e.isError ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", e.isError ? "bg-rose-500" : "bg-slate-400")} />
                         {e.eventType.replace(/_/g, " ")}
                       </span>
                     </TableCell>
@@ -1034,6 +1064,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
           {routerTotalPages > 1 && (
             <div className="border-t border-border/70 px-4 py-3">
@@ -1055,19 +1086,20 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
             changes -- never the "*_viewed" access-logging noise that
             would otherwise bury it. */}
         <h3 className="text-sm font-semibold text-foreground">Account Activity</h3>
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
+            {activityQuery.isLoading ? (
+              <div className="p-4"><LoadingSkeleton rows={5} /></div>
+            ) : accountActivity.length === 0 ? (
+              <EmptyState icon={Shield} title="No account activity yet" description="Role assignments and account/config changes across your organization will appear here." />
+            ) : (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Change</TableHead><TableHead>Actor</TableHead><TableHead>When</TableHead></TableRow>
+                <TableRow><TableHead className="text-xs font-medium">Change</TableHead><TableHead className="text-xs font-medium">Actor</TableHead><TableHead className="text-xs font-medium">When</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {activityQuery.isLoading ? (
-                  <TableRow><TableCell colSpan={3} className="py-10 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
-                ) : accountActivity.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="py-10 text-center text-xs text-muted-foreground">No account activity recorded yet.</TableCell></TableRow>
-                ) : accountActivity.map((a) => (
-                  <TableRow key={a.id}>
+                {accountActivity.map((a) => (
+                  <TableRow key={a.id} className="border-b">
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", actionTone(a.action))}>
@@ -1082,6 +1114,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
           {activityTotalPages > 1 && (
             <div className="border-t border-border/70 px-4 py-3">
@@ -1191,18 +1224,19 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
   return (
     <div className="space-y-6">
       <FeatureHeader title="MAC Authorization" description="Bypass hotspot authentication on a few devices." action={<Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add MAC</Button>} />
-      <Card>
-        <CardHeader><CardTitle className="text-base">Authorized Devices</CardTitle><CardDescription>Devices allowed onto the network without going through the captive portal.</CardDescription></CardHeader>
+      <Card className="border-0 shadow-sm">
+        <CardHeader><CardTitle className="text-sm">Authorized Devices</CardTitle><CardDescription>Devices allowed onto the network without going through the captive portal.</CardDescription></CardHeader>
         <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4"><LoadingSkeleton rows={4} /></div>
+          ) : entries.length === 0 ? (
+            <EmptyState icon={Shield} title="No MAC addresses authorized" description='Click "Add MAC" above to let a device bypass the captive portal.' />
+          ) : (
           <Table>
-            <TableHeader><TableRow><TableHead>MAC Address</TableHead><TableHead>Type</TableHead><TableHead>Expires</TableHead><TableHead>Comment</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead className="text-xs font-medium">MAC Address</TableHead><TableHead className="text-xs font-medium">Type</TableHead><TableHead className="text-xs font-medium">Expires</TableHead><TableHead className="text-xs font-medium">Comment</TableHead><TableHead className="text-xs font-medium">Enabled</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead></TableRow></TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
-              ) : entries.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">No MAC addresses authorized yet.</TableCell></TableRow>
-              ) : entries.map((e) => (
-                <TableRow key={e.id}>
+              {entries.map((e) => (
+                <TableRow key={e.id} className="border-b">
                   <TableCell className="font-mono text-xs">{e.mac}</TableCell>
                   <TableCell className="text-xs capitalize">{e.type}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : "Never"}</TableCell>
@@ -1213,6 +1247,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -1350,9 +1385,9 @@ export function DebuggingView() {
     <div className="space-y-6">
       <FeatureHeader title="Debugging Tools" description="Trouble connecting or opening a site? Debug it right here." />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Globe className="h-4 w-4 text-primary" /> DNS Lookup</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-primary" /> DNS Lookup</CardTitle>
             <CardDescription>Check if a website resolves on any ISP.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1369,9 +1404,9 @@ export function DebuggingView() {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><RadioTower className="h-4 w-4 text-primary" /> Reset User Session</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm"><RadioTower className="h-4 w-4 text-primary" /> Reset User Session</CardTitle>
             <CardDescription>Force a guest back to the login page.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1380,8 +1415,8 @@ export function DebuggingView() {
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Terminal className="h-4 w-4 text-primary" /> Controller Logs</CardTitle></CardHeader>
+      <Card className="border-0 shadow-sm">
+        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Terminal className="h-4 w-4 text-primary" /> Controller Logs</CardTitle></CardHeader>
         <CardContent>
           <div className="h-56 overflow-auto rounded-xl border bg-[oklch(0.16_0.02_236)] p-4 font-mono text-xs text-emerald-300/90">
             {logs.length === 0 ? <span className="text-white/40">No logs to display… run a DNS lookup or session reset above.</span> : logs.map((l, i) => <div key={i}>{l}</div>)}
@@ -1538,10 +1573,13 @@ export function GenericFeatureView({ feature }: { feature: string }) {
   return (
     <div className="space-y-6">
       <FeatureHeader title={label.replace(/\b\w/g, (c) => c.toUpperCase())} description="This module is provisioned for your location." />
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><Network className="h-6 w-6" /></span>
-          <p className="text-sm text-muted-foreground">Configuration for <span className="font-medium text-foreground capitalize">{label}</span> will appear here.</p>
+      <Card className="border-0 shadow-sm">
+        <CardContent>
+          <EmptyState
+            icon={Network}
+            title="Not configured yet"
+            description={`Configuration for ${label} will appear here.`}
+          />
         </CardContent>
       </Card>
     </div>

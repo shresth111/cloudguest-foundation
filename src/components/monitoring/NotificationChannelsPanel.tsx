@@ -169,7 +169,7 @@ export function NotificationChannelsPanel() {
         onConfirm={async () => {
           if (!confirmDelete) return;
           try {
-            await remove.mutateAsync(confirmDelete.id);
+            await remove.mutateAsync({ id: confirmDelete.id });
             toast.success("Notification channel deleted");
           } catch (err) {
             toast.error((err as AppError).message || "Failed to delete");
