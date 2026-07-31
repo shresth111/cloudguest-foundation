@@ -80,14 +80,11 @@ const inputCls =
  * router in immediately (dashboard-side, so the agent credential is known
  * up front), and renders a ready-to-paste RouterOS script -- see
  * buildRouterSetupScript's own doc comment for exactly what it covers. */
-// Single shared-tenant RADIUS/WireGuard control plane -- see
-// RouterSetupScriptPanel's own comment on why these are constants rather
-// than per-router secrets today.
+// The RADIUS server's own address, baked into the generated RouterOS
+// script's `/radius add address=...` line -- the actual bridge calls that
+// used to need matching secrets here now live server-side (see
+// api.post(".../allocate-external"/".../register-external") below).
 const RADIUS_SERVER_ADDRESS = "20.219.72.235";
-const WG_AGENT_URL = "http://20.219.72.235:9091/wg/peer";
-const WG_AGENT_SECRET = "wgagent-7a647fb42b822aa44cb2da2092a4b79a";
-const RADIUS_AGENT_URL = "http://20.219.72.235:9092/radius/client";
-const RADIUS_AGENT_SECRET = "radiusagent-f37ae8fca1db9695975657196ea19b2e";
 
 /** RouterOS API login the platform itself uses for this router's control-plane
  * calls (Device Console, VLAN/DHCP pushes, diagnostics) -- distinct from the
@@ -152,48 +149,39 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // it didn't just mint for this specific router.
       let wireguard: import("@/components/routers/RouterDetailTabs").WireguardPeerInfo | undefined;
       if (enableWireguard) {
-        // A failure here (e.g. the bridge host being unreachable from this
-        // browser) must not take down the whole "1-shot" script -- WAN/LAN/
-        // hotspot/firewall/API-access/heartbeat are all independently
-        // useful without a tunnel. Degrade to "no WireGuard in this script"
-        // with a clear toast instead of aborting generation entirely.
+        // Routed through the backend, not fetch()'d directly against the
+        // hub bridge from here -- that bridge has no CORS/OPTIONS support,
+        // so a direct browser call always failed once a custom auth header
+        // was involved (confirmed live). The backend makes the same call
+        // server-to-server (CORS is a browser-only restriction) and
+        // records the result in one step. A failure here must not take
+        // down the whole "1-shot" script -- WAN/LAN/hotspot/firewall/
+        // API-access/heartbeat are all independently useful without a
+        // tunnel, so this degrades to "no WireGuard in this script" with a
+        // clear toast instead of aborting generation entirely.
         try {
-          const wgResp = await fetch(WG_AGENT_URL, {
-            method: "POST",
-            headers: { "X-Agent-Secret": WG_AGENT_SECRET },
-          });
-          if (!wgResp.ok) throw new Error("WireGuard peer allocation failed");
-          const wg = await wgResp.json();
+          const wg = await api.post<{
+            peer_private_key: string;
+            hub_public_key: string;
+            tunnel_ip_address: string;
+            hub_endpoint_host: string;
+            hub_endpoint_port: number;
+            tunnel_network_cidr: string;
+          }>(`/routers/${router.id}/wireguard-peer/allocate-external`);
           wireguard = {
-            routerPrivateKey: wg.router_private_key,
-            serverPublicKey: wg.server_public_key,
-            routerTunnelIp: wg.router_tunnel_ip,
-            serverEndpointHost: wg.server_endpoint_host,
-            serverEndpointPort: wg.server_endpoint_port,
-            tunnelSubnet: wg.tunnel_subnet,
+            routerPrivateKey: wg.data.peer_private_key,
+            serverPublicKey: wg.data.hub_public_key,
+            routerTunnelIp: wg.data.tunnel_ip_address,
+            serverEndpointHost: wg.data.hub_endpoint_host,
+            serverEndpointPort: String(wg.data.hub_endpoint_port),
+            tunnelSubnet: wg.data.tunnel_network_cidr,
           };
-          // The agent bridge above just configured the real hub directly --
-          // this platform's own WireGuardPeer table never found out (a real
-          // gap, confirmed live this session: the actual working production
-          // tunnel had no DB row at all, so the dashboard's own WireGuard
-          // view showed nothing/stale data, and network_config's render
-          // pipeline would silently omit this router's tunnel from any
-          // future config push). Records the exact values the bridge already
-          // decided -- never a second, conflicting allocation.
-          try {
-            await api.post(`/routers/${router.id}/wireguard-peer/register-external`, {
-              tunnel_ip_address: wg.router_tunnel_ip,
-              public_key: wg.router_public_key,
-            });
-          } catch (err) {
-            toast.error(
-              (err as AppError).message ||
-                "Tunnel is live on the device, but couldn't be recorded on the dashboard.",
-            );
-          }
-        } catch {
+        } catch (err) {
           wireguard = undefined;
-          toast.error("Couldn't reach the WireGuard bridge -- script generated without a tunnel. Everything else is still included.");
+          toast.error(
+            (err as AppError).message ||
+              "Couldn't reach the WireGuard hub -- script generated without a tunnel. Everything else is still included.",
+          );
         }
       }
 
@@ -204,40 +192,19 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // RADIUS implies WireGuard (enforced by the checkbox below).
       let radius: { serverAddress: string; sharedSecret: string } | undefined;
       if (enableRadius && wireguard) {
+        // Same CORS problem, same fix -- routed through the backend
+        // instead of fetch()'d directly against the FreeRADIUS bridge.
         try {
-          let nasIdentifier: string;
-          let sharedSecret: string;
-          try {
-            const existing = await api.get<{ id: string; nas_identifier: string }>(
-              `/routers/${router.id}/nas`,
-            );
-            nasIdentifier = existing.data.nas_identifier;
-            const regen = await api.post<{ shared_secret: string }>(
-              `/radius/nas/${existing.data.id}/regenerate-secret`,
-            );
-            sharedSecret = regen.data.shared_secret;
-          } catch {
-            const created = await api.post<{ nas_identifier: string; shared_secret: string }>(
-              "/radius/nas",
-              { router_id: router.id, nas_identifier: `cg-${router.id.slice(0, 8)}` },
-            );
-            nasIdentifier = created.data.nas_identifier;
-            sharedSecret = created.data.shared_secret;
-          }
-          const radiusAgentResp = await fetch(RADIUS_AGENT_URL, {
-            method: "POST",
-            headers: { "X-Agent-Secret": RADIUS_AGENT_SECRET, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              tunnel_ip: wireguard.routerTunnelIp,
-              nas_identifier: nasIdentifier,
-              secret: sharedSecret,
-            }),
-          });
-          if (!radiusAgentResp.ok) throw new Error("RADIUS client registration failed");
-          radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret };
-        } catch {
+          const nas = await api.post<{ shared_secret: string }>(
+            `/radius/nas/register-external/${router.id}`,
+          );
+          radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret: nas.data.shared_secret };
+        } catch (err) {
           radius = undefined;
-          toast.error("Couldn't reach the RADIUS bridge -- script generated without RADIUS. Everything else is still included.");
+          toast.error(
+            (err as AppError).message ||
+              "Couldn't reach the RADIUS server -- script generated without RADIUS. Everything else is still included.",
+          );
         }
       }
 
@@ -270,6 +237,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           wireguard,
           radius,
           apiAccess,
+          identity: router.locationName,
           ...form,
         }),
       );

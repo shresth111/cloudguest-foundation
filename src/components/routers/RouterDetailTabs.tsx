@@ -1187,8 +1187,13 @@ export function buildRouterSetupScriptChunks(opts: {
   wireguard?: WireguardPeerInfo;
   radius?: { serverAddress: string; sharedSecret: string };
   apiAccess?: { username: string; secret: string };
+  /** RouterOS's own device identity (shown in the CLI prompt, e.g.
+   * `[admin@gurgaon-branch] >`) -- set to the location name so a field
+   * engineer connecting to a random router in the fleet immediately knows
+   * which site it is, without cross-referencing the dashboard. */
+  identity?: string;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity } = opts;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
   const poolEnd = `${base3}.254`;
@@ -1262,6 +1267,40 @@ export function buildRouterSetupScriptChunks(opts: {
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-drop-invalid"]] = 0) do={ /ip firewall filter add chain=forward connection-state=invalid action=drop comment="cloudguest-fw-fwd-drop-invalid" }`,
     ];
     chunks.push({ label: "Firewall", script: lines.join("\n") });
+  }
+
+  // Basic per-connection-classifier (PCC) mangle rules for real dual/multi-
+  // WAN load balancing -- only meaningful with 2+ WAN links. This marks
+  // which WAN each new LAN connection should use (split evenly by
+  // source+destination address/port), which the failover-only distance
+  // setup in the WAN chunk doesn't give you. NOTE: this only marks
+  // connections/routes -- it does NOT add the `/ip route ... gateway=...
+  // routing-mark=to_wanN` entries themselves, since (same as the WAN IP
+  // itself) only the field engineer on-site knows each link's actual
+  // gateway. Add one such route per WAN after this, using the matching
+  // `to_wan<N>` routing-mark.
+  if (wanIfs.length > 1) {
+    const lines: string[] = [];
+    wanIfs.forEach((wanIf, idx) => {
+      const n = idx + 1;
+      lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={`);
+      lines.push(`  /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}"`);
+      lines.push(`}`);
+      lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={`);
+      lines.push(`  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}"`);
+      lines.push(`}`);
+      lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-route-wan${n}"]] = 0) do={`);
+      lines.push(`  /ip firewall mangle add chain=prerouting connection-mark="wan${n}_conn" action=mark-routing new-routing-mark="to_wan${n}" passthrough=yes comment="cloudguest-mangle-route-wan${n}"`);
+      lines.push(`}`);
+    });
+    chunks.push({ label: "Basic Mangle Rules (dual/multi-WAN load balancing)", script: lines.join("\n") });
+  }
+
+  if (identity) {
+    chunks.push({
+      label: "Router Identity",
+      script: `/system identity set name="${identity}"`,
+    });
   }
 
   if (apiAccess) {
