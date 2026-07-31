@@ -1025,6 +1025,9 @@ export function buildRouterSetupScript(opts: {
   lines.push(`:if ([:len [/interface bridge find where name=$lanBridge]] = 0) do={`);
   lines.push(`  /interface bridge add name=$lanBridge`);
   lines.push(`}`);
+  // A pre-existing default-config bridge (comment "defconf") starts
+  // disabled on some factory images -- confirmed live on a real device.
+  lines.push(`/interface bridge set [find name=$lanBridge] disabled=no`);
 
   wanIfs.forEach((wanIf, idx) => {
     const n = idx + 1;
@@ -1040,6 +1043,27 @@ export function buildRouterSetupScript(opts: {
     lines.push(`  /ip firewall nat add chain=srcnat out-interface=$${v} action=masquerade comment="cloudguest-nat-wan${n}"`);
     lines.push(`}`);
   });
+
+  lines.push("");
+  // Every other physical ethernet port (i.e. not one of the WAN interfaces
+  // above) becomes a LAN bridge member -- without this, the hotspot/DHCP
+  // server this script sets up has no physical port actually wired to it,
+  // so no guest device plugged into the router can ever reach it. Matches
+  // by RouterOS's own ether-type interfaces (whatever they're named --
+  // "ether1", "eth1", or a custom-renamed identity all show up here),
+  // not a hardcoded name pattern.
+  const wanNameLiterals = wanIfs.map((w) => `"${w}"`).join("; ");
+  lines.push(`:local wanIfNames {${wanNameLiterals}}`);
+  lines.push(`:foreach eth in=[/interface ethernet find] do={`);
+  lines.push(`  :local ethName [/interface ethernet get $eth name]`);
+  lines.push(`  :local isWan false`);
+  lines.push(`  :foreach w in=$wanIfNames do={ :if ($w = $ethName) do={ :set isWan true } }`);
+  lines.push(`  :if (!$isWan) do={`);
+  lines.push(`    :if ([:len [/interface bridge port find where interface=$ethName]] = 0) do={`);
+  lines.push(`      /interface bridge port add bridge=$lanBridge interface=$ethName`);
+  lines.push(`    }`);
+  lines.push(`  }`);
+  lines.push(`}`);
 
   lines.push("");
   lines.push(`:foreach addr in=[/ip address find where interface=$lanBridge dynamic=yes] do={ /ip address remove $addr }`);

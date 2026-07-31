@@ -292,6 +292,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         The WAN IP is assigned automatically via DHCP.
       </p>
 
+      <ol className="list-decimal space-y-1 rounded-lg border border-border bg-muted/30 p-2.5 pl-6 text-[11px] text-muted-foreground">
+        <li>Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH session, and not a browser.</li>
+        <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there before generating.</li>
+        <li>Fill in the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
+        <li>Paste the whole thing into WinBox's New Terminal and press Enter.</li>
+        <li>If a very long paste ever errors out partway through (rare, but WinBox's terminal can drop characters on huge pastes), paste it in 2-3 smaller pieces instead of all at once — each block is independently safe to (re-)run.</li>
+      </ol>
+
       <div className="flex gap-1.5">
         {([1, 2, 3] as const).map((n) => (
           <button
