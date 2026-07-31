@@ -211,9 +211,9 @@ function DashboardView({ locationId }: { locationId: string }) {
     { label: "SLA uptime", value: `${data.kpis.slaUptime}%` },
   ];
   const secondaryKpis = [
-    { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}`, icon: Wifi, grad: "from-violet-500 to-purple-500" },
-    { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString(), icon: Users, grad: "from-cyan-500 to-sky-500" },
-    { label: "Avg Session", value: `${data.kpis.avgSession} min`, icon: Activity, grad: "from-orange-400 to-amber-500" },
+    { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}`, icon: Wifi, grad: "from-violet-600 to-indigo-600" },
+    { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString(), icon: Users, grad: "from-cyan-500 to-blue-600" },
+    { label: "Avg Session", value: `${data.kpis.avgSession} min`, icon: Activity, grad: "from-fuchsia-500 to-pink-600" },
   ];
   const TONE_BG: Record<string, string> = {
     emerald: "bg-emerald-50 text-emerald-600",
@@ -221,37 +221,63 @@ function DashboardView({ locationId }: { locationId: string }) {
     sky: "bg-sky-50 text-sky-600",
     amber: "bg-amber-50 text-amber-600",
   };
-  const DEVICE_COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#a855f7", "#22c55e", "#ef4444"];
+  const DEVICE_COLORS = ["#6366f1", "#06b6d4", "#a855f7", "#f472b6", "#22c55e", "#f59e0b"];
   const chartTooltip = {
     background: "hsl(var(--popover, 0 0% 100%))",
     border: "1px solid var(--color-border, #e2e8f0)",
-    borderRadius: 10,
+    borderRadius: 12,
     fontSize: 12,
     padding: "8px 10px",
+    boxShadow: "0 12px 32px -12px rgba(15,23,42,0.25)",
   } as const;
+  const cardLift =
+    "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg";
 
   return (
     <div className="space-y-6">
-      {/* Hero band -- the one place on this page that departs from the flat
-       * neutral admin-tool look everywhere else: a soft brand-tinted
-       * gradient carrying the 3 numbers a customer checks first, at real
-       * size, not squeezed into the same small tile as 6 other stats. */}
-      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-primary/80 p-6 text-primary-foreground shadow-lg shadow-primary/20 sm:p-8">
-        <p className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70">
-          Live overview
-        </p>
-        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {heroKpis.map((k, i) => (
-            <motion.div
-              key={k.label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-            >
-              <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">{k.value}</p>
-              <p className="mt-1 text-sm text-primary-foreground/80">{k.label}</p>
-            </motion.div>
-          ))}
+      {/* Hero band -- a rich dark gradient instead of the flat neutral
+       * admin-tool look everywhere else, carrying the 3 numbers a customer
+       * checks first at real size. Ambient glow blobs + a faint dot-grid
+       * texture give it depth without needing an uploaded image. */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-6 text-white shadow-xl shadow-indigo-950/30 sm:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-fuchsia-500/30 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.15]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+          }}
+        />
+        <div className="relative">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
+            Live overview
+          </p>
+          <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-3">
+            {heroKpis.map((k, i) => (
+              <motion.div
+                key={k.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+              >
+                <p
+                  className="text-4xl font-bold tabular-nums tracking-tight sm:text-[3.25rem] sm:leading-none"
+                  style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
+                >
+                  {k.value}
+                </p>
+                <p className="mt-2 text-sm text-white/70">{k.label}</p>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -265,18 +291,22 @@ function DashboardView({ locationId }: { locationId: string }) {
             className={cn(
               "relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-md",
               k.grad,
+              cardLift,
             )}
           >
             <k.icon className="absolute -right-3 -top-3 h-16 w-16 text-white/15" />
-            <p className="relative text-xs font-medium uppercase tracking-wide text-white/80">{k.label}</p>
-            <p className="relative mt-1 text-2xl font-bold tabular-nums">{k.value}</p>
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
+              <k.icon className="h-4 w-4" />
+            </div>
+            <p className="relative mt-3 text-xs font-medium uppercase tracking-wide text-white/80">{k.label}</p>
+            <p className="relative mt-0.5 text-2xl font-bold tabular-nums">{k.value}</p>
           </motion.div>
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {healthCards.map((h) => (
-          <div key={h.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+          <div key={h.label} className={cn("flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm", cardLift)}>
             <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", TONE_BG[h.tone])}>
               <h.icon className="h-5 w-5" />
             </div>
@@ -292,7 +322,7 @@ function DashboardView({ locationId }: { locationId: string }) {
        * hourlySessions all come from the same getDashboard() response
        * already fetched above, just never rendered before now. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border-0 shadow-sm lg:col-span-2">
+        <Card className={cn("border-0 shadow-sm lg:col-span-2", cardLift)}>
           <CardHeader>
             <CardTitle className="text-sm">Users online (last 24h)</CardTitle>
           </CardHeader>
@@ -301,7 +331,7 @@ function DashboardView({ locationId }: { locationId: string }) {
               <AreaChart data={data.usersTrend}>
                 <defs>
                   <linearGradient id="usersTrendFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
                     <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -309,12 +339,19 @@ function DashboardView({ locationId }: { locationId: string }) {
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
                 <RechartsTooltip contentStyle={chartTooltip} />
-                <Area type="monotone" dataKey="users" stroke="#6366f1" strokeWidth={2.5} fill="url(#usersTrendFill)" />
+                <Area
+                  type="monotone"
+                  dataKey="users"
+                  stroke="#6366f1"
+                  strokeWidth={3}
+                  fill="url(#usersTrendFill)"
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className={cn("border-0 shadow-sm", cardLift)}>
           <CardHeader>
             <CardTitle className="text-sm">Devices</CardTitle>
           </CardHeader>
@@ -332,10 +369,11 @@ function DashboardView({ locationId }: { locationId: string }) {
                     nameKey="name"
                     innerRadius={45}
                     outerRadius={75}
-                    paddingAngle={2}
+                    paddingAngle={3}
+                    cornerRadius={6}
                   >
                     {data.deviceDistribution.map((_, i) => (
-                      <Cell key={i} fill={DEVICE_COLORS[i % DEVICE_COLORS.length]} />
+                      <Cell key={i} fill={DEVICE_COLORS[i % DEVICE_COLORS.length]} stroke="none" />
                     ))}
                   </Pie>
                   <RechartsTooltip contentStyle={chartTooltip} />
@@ -347,7 +385,7 @@ function DashboardView({ locationId }: { locationId: string }) {
       </div>
 
       {data.hourlySessions.length > 0 && (
-        <Card className="border-0 shadow-sm">
+        <Card className={cn("border-0 shadow-sm", cardLift)}>
           <CardHeader>
             <CardTitle className="text-sm">Sessions by hour</CardTitle>
           </CardHeader>
@@ -358,7 +396,7 @@ function DashboardView({ locationId }: { locationId: string }) {
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
                 <RechartsTooltip contentStyle={chartTooltip} />
-                <Bar dataKey="sessions" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="sessions" radius={[6, 6, 0, 0]} fill="#6366f1">
                   {data.hourlySessions.map((_, i) => (
                     <Cell key={i} fill={DEVICE_COLORS[i % DEVICE_COLORS.length]} />
                   ))}
@@ -370,7 +408,7 @@ function DashboardView({ locationId }: { locationId: string }) {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-0 shadow-sm">
+        <Card className={cn("border-0 shadow-sm", cardLift)}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm">Recent Users</CardTitle>
             <Button
@@ -418,7 +456,7 @@ function DashboardView({ locationId }: { locationId: string }) {
             )}
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className={cn("border-0 shadow-sm", cardLift)}>
           <CardHeader>
             <CardTitle className="text-sm">Alerts</CardTitle>
           </CardHeader>
