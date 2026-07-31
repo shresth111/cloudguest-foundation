@@ -60,22 +60,18 @@ export function PortalShell({
         }}
       >
         {/* Same organization-uploaded background image the "dark" variant
-         * below already renders. Shown at full clarity on phone/tablet,
-         * where it fills the screen at close to native resolution -- a
-         * customer's own uploaded photo/artwork should actually be
-         * visible, not washed out to near-invisibility. On wider
-         * viewports the same image is stretched much further past its
-         * native size (most uploads are well under 1200px wide), which
-         * reads as pixelated rather than intentional -- a soft blur +
-         * slight scale-up (to hide the now-visible blurred edge) at lg+
-         * turns that into a deliberate, atmospheric backdrop instead,
-         * the same treatment large-viewport hero photography commonly
-         * uses (e.g. macOS's own lock screen). */}
+         * below already renders. Shown at full clarity, not faded --
+         * a customer's own uploaded photo/artwork should actually be
+         * visible, not washed out to near-invisibility. On viewports much
+         * wider than the uploaded image's own resolution this can look
+         * soft/stretched -- that's a "upload a higher-resolution image"
+         * problem for the customer to fix, not something to paper over
+         * with an artificial blur here. */}
         {config?.backgroundImageUrl && (
           <>
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-cover bg-center lg:scale-110 lg:blur-md xl:blur-lg"
+              className="pointer-events-none absolute inset-0 bg-cover bg-center"
               style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
             />
             {/* A legibility scrim, not a fade -- keeps the image crystal
@@ -115,11 +111,13 @@ export function PortalShell({
         {/* Below lg:, this column fills the viewport edge-to-edge like
          * every phone/tablet captive-portal page should. At lg: (laptop+)
          * it instead becomes a self-contained "stage" -- fixed max-width,
-         * its own frosted-glass surface, vertically centered by the
-         * parent's `lg:flex lg:items-center lg:justify-center` above --
-         * so the composition reads as one considered panel against the
-         * (now deliberately blurred) backdrop, not a small card adrift
-         * in a wide-open gradient. */}
+         * its own frosted-glass surface (the `backdrop-blur-2xl` here
+         * softens whatever sits behind this panel through its own
+         * semi-transparent surface -- the background image itself is
+         * untouched/unblurred), vertically centered by the parent's
+         * `lg:flex lg:items-center lg:justify-center` above -- so the
+         * composition reads as one considered panel, not a small card
+         * adrift in a wide-open gradient. */}
         <div
           className={cn(
             "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]",
