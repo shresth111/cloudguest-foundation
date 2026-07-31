@@ -22,6 +22,14 @@ const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"
 export function PortalPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
   const [primary, setPrimary] = useState("#1B57F5");
+  // The actual big heading a guest sees on the sign-in screen (e.g.
+  // "Welcome to Haldwani") -- backed by `seo.pageTitle` / `splash_headline`.
+  // This is a *different* field from `msg` below (`seo.metaDescription` /
+  // `splash_welcome_message`, the smaller subtext under it) -- until this
+  // field existed here, editing "Welcome Message" silently saved to the
+  // subtext only, so the headline itself could never be changed from this
+  // screen (bug report: "welcome to haldwani kyun nahi hat raha hai").
+  const [headline, setHeadline] = useState("");
   const [msg, setMsg] = useState("Welcome! Connect to enjoy free WiFi");
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
   const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://zipwifi.io/welcome", terms: "By connecting you agree to fair-use terms." });
@@ -100,6 +108,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       return;
     }
     setPortalId(p.id);
+    setHeadline(p.seo.pageTitle || "");
     setMsg(p.seo.metaDescription || "Welcome! Connect to enjoy free WiFi");
     setPrimary(p.branding.primaryColor);
     setForm((f) => ({ ...f, redirectUrl: p.login.redirectUrl || f.redirectUrl, lang: p.languages.join(", "), terms: p.consent.termsUrl || f.terms }));
@@ -208,7 +217,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         branding: { primaryColor: primary } as any,
         login: { redirectUrl: form.redirectUrl } as any,
         loginMethods: authMethods as PortalLoginMethod[],
-        seo: { metaDescription: msg } as any,
+        seo: { pageTitle: headline, metaDescription: msg } as any,
       };
       if (portalId) {
         await portalService.update(portalId, patch, orgId);
@@ -248,7 +257,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       <Card className="shadow-sm border-0">
         <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="h-4 w-4 text-primary" />Portal Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-5">
-          <div className="space-y-1.5"><Label>Welcome Message</Label><Textarea rows={2} value={msg} onChange={e => setMsg(e.target.value)} /></div>
+          <div className="space-y-1.5">
+            <Label>Headline</Label>
+            <Input
+              value={headline}
+              onChange={e => setHeadline(e.target.value)}
+              placeholder="Welcome to your venue"
+            />
+            <p className="text-xs text-muted-foreground">The large heading guests see first on the sign-in screen. Leave blank to use the default "Welcome to [venue]".</p>
+          </div>
+          <div className="space-y-1.5"><Label>Welcome Message</Label><Textarea rows={2} value={msg} onChange={e => setMsg(e.target.value)} /><p className="text-xs text-muted-foreground">Smaller subtext shown under the headline.</p></div>
 
           <div>
             <Label className="mb-2 block">Brand Color</Label>
