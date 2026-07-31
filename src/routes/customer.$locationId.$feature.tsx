@@ -38,10 +38,12 @@ import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry } from "@/components/features/HeaderControls";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
+import { EmptyState } from "@/components/common/EmptyState";
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerDashboard, useCustomerUsers } from "@/hooks/useCustomerDashboard";
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -166,45 +168,311 @@ function FeaturePage() {
 }
 
 // ── Dashboard ───────────────────────────────────────────────
+// Real data via useCustomerDashboard (customerService.getDashboard) --
+// this used to be entirely hardcoded literal arrays ("John Doe", "1,247
+// Online Users") shown to every real customer, not just demo sessions.
+// isDemo() gating already lives correctly inside getDashboard() itself;
+// this component just has to actually call it.
 function DashboardView({ locationId }: { locationId: string }) {
   const navigate = useNavigate();
+  const { data, isLoading } = useCustomerDashboard(locationId);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <LoadingSkeleton rows={2} />
+        <LoadingSkeleton rows={4} />
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <EmptyState
+        icon={Activity}
+        title="No dashboard data yet"
+        description="This location hasn't reported any activity yet."
+      />
+    );
+  }
+
+  const healthCards = [
+    { icon: CheckCircle, label: "System", value: data.health.systemHealth, color: "text-emerald-500" },
+    { icon: Wifi, label: "Routers", value: data.health.routersOnline, color: "text-primary" },
+    { icon: Activity, label: "ISP", value: data.health.isp, color: "text-sky-500" },
+    { icon: Activity, label: "Load", value: data.health.networkLoad, color: "text-amber-500" },
+  ];
   const kpis = [
-    { l: "Online Users", v: "1,247" }, { l: "Active Sessions", v: "892" },
-    { l: "Routers Online", v: "18/20" }, { l: "Today's Guests", v: "456" },
-    { l: "Avg Session", v: "34 min" }, { l: "SLA Uptime", v: "99.97%" },
+    { label: "Online Users", value: data.kpis.onlineUsers.toLocaleString() },
+    { label: "Active Sessions", value: data.kpis.activeSessions.toLocaleString() },
+    { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },
+    { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString() },
+    { label: "Avg Session", value: `${data.kpis.avgSession} min` },
+    { label: "SLA Uptime", value: `${data.kpis.slaUptime}%` },
   ];
-  const users = [
-    { n: "John Doe", e: "john@email.com", t: "2m ago", s: "online" },
-    { n: "Jane Smith", e: "jane@email.com", t: "5m ago", s: "online" },
-    { n: "Raj Kumar", e: "raj@email.com", t: "12m ago", s: "online" },
-    { n: "Priya Sharma", e: "priya@email.com", t: "18m ago", s: "online" },
-    { n: "Alex Chen", e: "alex@email.com", t: "25m ago", s: "offline" },
-  ];
-  return (<div className="space-y-6">
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {[{i:CheckCircle,l:"System",v:"98%",c:"text-emerald-500"},{i:Wifi,l:"Routers",v:"4/4 Online",c:"text-primary"},{i:Activity,l:"ISP",v:"Tata Communications",c:"text-sky-500"},{i:Activity,l:"Load",v:"42%",c:"text-amber-500"}].map(h => (
-        <div key={h.l} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted"><h.i className={cn("h-5 w-5", h.c)} /></div><div><p className="text-xs font-medium text-muted-foreground uppercase">{h.l}</p><p className="text-lg font-bold">{h.v}</p></div></div>
-      ))}
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {healthCards.map((h) => (
+          <div key={h.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+              <h.icon className={cn("h-5 w-5", h.color)} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase text-muted-foreground">{h.label}</p>
+              <p className="truncate text-lg font-bold">{h.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+        {kpis.map((k, i) => (
+          <motion.div
+            key={k.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="rounded-2xl border bg-card p-4 shadow-sm"
+          >
+            <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{k.value}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm">Recent Users</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-primary"
+              onClick={() => navigate({ to: `/customer/${locationId}/users` })}
+            >
+              All →
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {data.recentUsers.length === 0 ? (
+              <p className="px-6 py-8 text-center text-xs text-muted-foreground">
+                No guests have connected yet.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs font-medium">User</TableHead>
+                    <TableHead className="text-xs font-medium">Time</TableHead>
+                    <TableHead className="text-xs font-medium">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.recentUsers.map((u) => (
+                    <TableRow key={u.id} className="border-b">
+                      <TableCell>
+                        <p className="text-sm font-medium">{u.name}</p>
+                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{u.time}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 text-xs font-medium",
+                            u.status === "online" ? "text-emerald-500" : "text-muted-foreground",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground",
+                            )}
+                          />
+                          {u.status}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Alerts</CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y">
+            {data.recentAlerts.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">No recent alerts.</p>
+            ) : (
+              data.recentAlerts.map((a, i) => (
+                <div key={i} className="flex items-start gap-3 py-3">
+                  {a.type === "error" ? (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                  ) : a.type === "warning" ? (
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  ) : a.type === "success" ? (
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  ) : (
+                    <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">{a.msg}</p>
+                    <p className="text-xs text-muted-foreground">{a.time}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-      {kpis.map((k, i) => (<motion.div key={k.l} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}} className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-medium text-muted-foreground uppercase">{k.l}</p><p className="text-2xl font-bold mt-1">{k.v}</p></motion.div>))}
-    </div>
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="border-0 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={()=>navigate({to:`/customer/${locationId}/users`})}>All →</Button></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">User</TableHead><TableHead className="text-xs font-medium">Time</TableHead><TableHead className="text-xs font-medium">Status</TableHead></TableRow></TableHeader><TableBody>{users.map(u => (<TableRow key={u.n} className="border-b"><TableCell><p className="text-sm font-medium">{u.n}</p><p className="text-xs text-muted-foreground">{u.e}</p></TableCell><TableCell className="text-xs text-muted-foreground">{u.t}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium",u.s==="online"?"text-emerald-500":"text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full",u.s==="online"?"bg-emerald-500":"bg-muted-foreground")}/>{u.s}</span></TableCell></TableRow>))}</TableBody></Table></CardContent></Card>
-      <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="text-sm">Alerts</CardTitle></CardHeader><CardContent className="divide-y">{[{t:"warning",m:"GW-02 signal degradation"},{t:"success",m:"ISP failover completed"},{t:"error",m:"Bandwidth threshold exceeded"},{t:"info",m:"Firmware update available"}].map(a => (<div key={a.m} className="flex items-start gap-3 py-3">{a.t==="error"?<XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500"/>:a.t==="warning"?<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500"/>:a.t==="success"?<CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500"/>:<Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500"/>}<p className="text-sm">{a.m}</p></div>))}</CardContent></Card>
-    </div>
-  </div>);
+  );
 }
 
 // ── Users ─────────────────────────────────────────────────
+// Real data via useCustomerUsers (customerService.getUsers) -- same fix
+// as DashboardView above, see its own comment. Server-side paginated
+// (page is 1-indexed) and server-side filtered by status/search, not a
+// client-side slice of a fabricated in-memory array.
 function UsersView({ locationId }: { locationId: string }) {
-  const [search, setSearch] = useState(""); const [tab, setTab] = useState("all"); const [page, setPage] = useState(0);
-  const allUsers = Array.from({length:24},(_,i)=>({id:`u-${i}`,name:["John Doe","Jane Smith","Raj Kumar","Priya Sharma","Alex Chen","Sarah Wilson","Mike Brown","Emily Davis"][i%8],email:`user${i+1}@email.com`,mac:`00:1A:${10+i}`,duration:`${15+(i%6)*10}m`,download:`${(Math.random()*500).toFixed(0)}MB`,status:["online","online","online","online","online","online","online","online","online","online","online","online","online","online","online","online","idle","idle","idle","idle","offline","offline","offline","offline"][i]}));
-  const filtered = allUsers.filter(u=>(tab==="all"||u.status===tab)&&(!search||u.name.toLowerCase().includes(search))).slice(page*8,(page+1)*8);
-  return (<div className="space-y-4">
-    <div className="flex flex-wrap items-center gap-3"><Input placeholder="Search users…" value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}} className="h-10 max-w-xs" /><div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">{[["all","All"],["online","Online"],["offline","Offline"]].map(([k,v])=>(<button key={k} onClick={()=>{setTab(k);setPage(0)}} className={cn("px-3 py-1.5 text-xs font-medium rounded-md",tab===k?"bg-background shadow-sm":"text-muted-foreground")}>{v}</button>))}</div></div>
-    <Card className="border-0 shadow-sm"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">User</TableHead><TableHead className="text-xs font-medium hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium">Duration</TableHead><TableHead className="text-xs font-medium">Download</TableHead><TableHead className="text-xs font-medium">Status</TableHead></TableRow></TableHeader><TableBody>{filtered.map(u=>(<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{u.email}</p></TableCell><TableCell className="font-mono text-xs hidden sm:table-cell">{u.mac}</TableCell><TableCell className="text-xs">{u.duration}</TableCell><TableCell className="text-xs">{u.download}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium",u.status==="online"?"text-emerald-500":u.status==="idle"?"text-amber-500":"text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full",u.status==="online"?"bg-emerald-500":u.status==="idle"?"bg-amber-500":"bg-muted-foreground")}/>{u.status}</span></TableCell></TableRow>))}</TableBody></Table></CardContent></Card>
-  </div>);
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("all");
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useCustomerUsers(locationId, {
+    search: search || undefined,
+    status: tab === "all" ? undefined : tab,
+    page,
+    pageSize: 20,
+  });
+  const users = data?.users ?? [];
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          placeholder="Search users…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="h-10 max-w-xs"
+        />
+        <div className="flex gap-1 rounded-lg border bg-muted/50 p-0.5">
+          {[
+            ["all", "All"],
+            ["online", "Online"],
+            ["offline", "Offline"],
+          ].map(([k, v]) => (
+            <button
+              key={k}
+              onClick={() => {
+                setTab(k);
+                setPage(1);
+              }}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium",
+                tab === k ? "bg-background shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4">
+              <LoadingSkeleton rows={5} />
+            </div>
+          ) : users.length === 0 ? (
+            <p className="px-6 py-10 text-center text-sm text-muted-foreground">
+              No guests match this filter yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs font-medium">User</TableHead>
+                  <TableHead className="hidden text-xs font-medium sm:table-cell">MAC</TableHead>
+                  <TableHead className="text-xs font-medium">Duration</TableHead>
+                  <TableHead className="text-xs font-medium">Download</TableHead>
+                  <TableHead className="text-xs font-medium">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((u) => (
+                  <TableRow key={u.id} className="border-b">
+                    <TableCell>
+                      <p className="text-sm font-medium">{u.name}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                    </TableCell>
+                    <TableCell className="hidden font-mono text-xs sm:table-cell">{u.mac}</TableCell>
+                    <TableCell className="text-xs">{u.duration}</TableCell>
+                    <TableCell className="text-xs">{u.download}</TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-xs font-medium",
+                          u.status === "online"
+                            ? "text-emerald-500"
+                            : u.status === "idle"
+                              ? "text-amber-500"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            u.status === "online"
+                              ? "bg-emerald-500"
+                              : u.status === "idle"
+                                ? "bg-amber-500"
+                                : "bg-muted-foreground",
+                          )}
+                        />
+                        {u.status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {data && totalPages > 1 && (
+            <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
+              <span>
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // ── Reports ───────────────────────────────────────────────
