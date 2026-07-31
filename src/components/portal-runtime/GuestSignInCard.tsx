@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Wifi, Smartphone, Mail, Ticket, KeyRound } from "lucide-react";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
@@ -358,36 +359,52 @@ export function GuestSignInCard() {
               <div
                 role="tablist"
                 aria-label="Sign-in method"
-                className="mb-5 grid grid-cols-2 gap-1 rounded-full bg-indigo-50 p-1"
+                className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-indigo-50 p-1 ring-1 ring-inset ring-indigo-100"
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === "otp"}
-                  onClick={() => setTab("otp")}
-                  className={
-                    "rounded-full px-2 py-2 text-[13px] font-semibold transition " +
-                    (tab === "otp"
-                      ? "bg-white text-indigo-700 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700")
-                  }
-                >
-                  New user · Mobile OTP
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === "password"}
-                  onClick={() => setTab("password")}
-                  className={
-                    "rounded-full px-2 py-2 text-[13px] font-semibold transition " +
-                    (tab === "password"
-                      ? "bg-white text-indigo-700 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700")
-                  }
-                >
-                  Registered user
-                </button>
+                {(
+                  [
+                    { id: "otp" as const, label: "New user", hint: "Mobile OTP" },
+                    { id: "password" as const, label: "Registered", hint: "Password" },
+                  ]
+                ).map((item) => {
+                  const active = tab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setTab(item.id)}
+                      className="relative min-h-[52px] rounded-[14px] px-2 py-2 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-50"
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="guest-signin-tab-pill"
+                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                          className="absolute inset-0 rounded-[14px] bg-white shadow-[0_1px_2px_rgba(17,20,40,0.06),0_6px_16px_-8px_rgba(49,46,129,0.35)]"
+                        />
+                      )}
+                      <span className="relative block">
+                        <span
+                          className={
+                            "block text-[13px] font-semibold leading-tight " +
+                            (active ? "text-indigo-700" : "text-slate-500")
+                          }
+                        >
+                          {item.label}
+                        </span>
+                        <span
+                          className={
+                            "mt-0.5 block text-[10px] font-medium uppercase tracking-[0.08em] " +
+                            (active ? "text-indigo-500" : "text-slate-400")
+                          }
+                        >
+                          {item.hint}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -440,12 +457,13 @@ export function GuestSignInCard() {
                     </p>
                     <div className="flex justify-center">
                       <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
-                        <InputOTPGroup className="gap-2">
+                        <InputOTPGroup className="gap-2 sm:gap-2.5">
                           {[0, 1, 2, 3, 4, 5].map((i) => (
                             <InputOTPSlot
                               key={i}
                               index={i}
-                              className="h-12 w-10 rounded-[12px] border-slate-200 bg-white text-lg font-semibold text-slate-900 first:rounded-[12px] last:rounded-[12px]"
+                              className="h-14 w-11 rounded-2xl border-slate-200 bg-white text-xl font-semibold text-slate-900 shadow-none transition-all duration-150 first:rounded-2xl last:rounded-2xl"
+                              style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
                             />
                           ))}
                         </InputOTPGroup>

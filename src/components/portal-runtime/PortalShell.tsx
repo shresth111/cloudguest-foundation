@@ -7,6 +7,126 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 
+// A static "network" mesh -- a handful of connected nodes, a couple of
+// concentric range rings, and a faint grid -- replacing the two blurred
+// gradient "glow blobs" the light variant used before. Reads as
+// connectivity without a literal wifi-signal icon, and is genuinely
+// on-brand per organization: colors come from the same `--pr-primary`/
+// `--pr-accent` CSS custom properties every other per-org accent in this
+// file already uses, not a hardcoded indigo. Deliberately static (no
+// animation loop) -- this renders on a guest's own phone before they have
+// real internet, not worth the extra CPU/battery for a decorative touch.
+const MESH_NODES: Array<{ x: number; y: number; r: number }> = [
+  { x: 60, y: 90, r: 3 },
+  { x: 180, y: 40, r: 2.5 },
+  { x: 300, y: 130, r: 3.5 },
+  { x: 120, y: 220, r: 2.5 },
+  { x: 260, y: 260, r: 3 },
+];
+const MESH_EDGES: Array<[number, number]> = [
+  [0, 1],
+  [1, 2],
+  [2, 4],
+  [0, 3],
+  [3, 4],
+];
+
+function AmbientMesh() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <svg
+        className="absolute -left-24 -top-28 h-[420px] w-[420px] opacity-[0.18]"
+        viewBox="0 0 240 240"
+        fill="none"
+      >
+        {[40, 75, 110].map((r) => (
+          <circle
+            key={r}
+            cx="120"
+            cy="120"
+            r={r}
+            stroke="var(--pr-primary, #6366f1)"
+            strokeWidth="1"
+          />
+        ))}
+      </svg>
+      <svg
+        className="absolute -left-10 -top-10 h-[340px] w-[340px] sm:h-[420px] sm:w-[420px]"
+        viewBox="0 0 320 320"
+        fill="none"
+      >
+        <g>
+          {MESH_EDGES.map(([a, b], i) => (
+            <line
+              key={i}
+              x1={MESH_NODES[a].x}
+              y1={MESH_NODES[a].y}
+              x2={MESH_NODES[b].x}
+              y2={MESH_NODES[b].y}
+              stroke="var(--pr-primary, #6366f1)"
+              strokeOpacity="0.16"
+              strokeWidth="1"
+            />
+          ))}
+          {MESH_NODES.map((n, i) => (
+            <circle
+              key={i}
+              cx={n.x}
+              cy={n.y}
+              r={n.r}
+              fill="var(--pr-primary, #6366f1)"
+              fillOpacity="0.35"
+            />
+          ))}
+        </g>
+      </svg>
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-[0.5] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, rgba(99,102,241,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(99,102,241,0.06) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full opacity-40 blur-3xl"
+        style={{
+          background: "radial-gradient(circle, var(--pr-accent, #4f46e5) 0%, transparent 70%)",
+        }}
+      />
+    </div>
+  );
+}
+
+/** The lg:+ (laptop-width) left-hand context panel -- fills the space
+ * that used to be empty gradient next to a small floating card. Copy is
+ * deliberately generic (real venue name, phrased so it never repeats the
+ * exact headline sentence the sign-in card on the right already shows)
+ * rather than fabricated marketing claims (speed, encryption, session
+ * length) this codebase has no real config field for -- see this
+ * session's own audit call-out on not inventing guest-facing copy that
+ * isn't backed by real data. */
+function BrandPanel({ venueName }: { venueName?: string }) {
+  return (
+    <div className="max-w-lg">
+      <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700 backdrop-blur">
+        <Wifi className="h-3.5 w-3.5" /> Guest network
+      </span>
+      <h2
+        className="mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]"
+        style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
+      >
+        Fast, secure WiFi{venueName ? <>, courtesy of {venueName}</> : null}.
+      </h2>
+      <p className="mt-5 max-w-md text-[16px] leading-relaxed text-slate-500">
+        Verify your device on the right to get connected -- it takes about fifteen seconds.
+      </p>
+    </div>
+  );
+}
+
 interface Props {
   children: ReactNode;
   showHeader?: boolean;
@@ -93,74 +213,65 @@ export function PortalShell({
             />
           </>
         )}
-        <div
-          aria-hidden
-          className="pg-glow-1 pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full opacity-60 blur-3xl"
-          style={{
-            background: "radial-gradient(circle, var(--pr-primary, #6366f1) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pg-glow-2 pointer-events-none absolute -bottom-32 -right-20 h-96 w-96 rounded-full opacity-50 blur-3xl"
-          style={{
-            background: "radial-gradient(circle, var(--pr-accent, #4f46e5) 0%, transparent 70%)",
-          }}
-        />
+        <AmbientMesh />
 
-        {/* Below lg:, this column fills the viewport edge-to-edge like
-         * every phone/tablet captive-portal page should. At lg: (laptop+)
-         * it instead becomes a self-contained "stage" -- fixed max-width,
-         * its own frosted-glass surface (the `backdrop-blur-2xl` here
-         * softens whatever sits behind this panel through its own
-         * semi-transparent surface -- the background image itself is
-         * untouched/unblurred), vertically centered by the parent's
-         * `lg:flex lg:items-center lg:justify-center` above -- so the
-         * composition reads as one considered panel, not a small card
-         * adrift in a wide-open gradient. */}
+        {/* Below lg:, this fills the viewport edge-to-edge like every
+         * phone/tablet captive-portal page should (single column, the
+         * `lg:grid` below is a no-op until that breakpoint). At lg:
+         * (laptop+) it becomes two columns -- a left context panel plus
+         * the actual sign-in content on the right, vertically centered by
+         * the parent's `lg:flex lg:items-center lg:justify-center` above
+         * -- so a laptop-width viewport gets a considered composition
+         * instead of a small card adrift in open gradient space. */}
         <div
           className={cn(
             "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]",
-            "lg:min-h-0 lg:max-h-[88vh] lg:max-w-[560px] lg:overflow-y-auto lg:rounded-[32px] lg:border lg:border-white/70 lg:bg-white/50 lg:px-10 lg:py-9 lg:shadow-[0_40px_110px_-35px_rgba(79,70,229,0.4)] lg:backdrop-blur-2xl",
+            "lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_480px] lg:items-center lg:gap-16 lg:px-12 lg:py-10 xl:gap-24",
             heightCls,
           )}
         >
-          <div className="mb-2 flex items-center justify-end gap-1.5">
-            <LanguageSwitcher tone="light" />
-            <A11yMenu tone="light" />
+          <div className="hidden lg:block">
+            <BrandPanel venueName={config?.name} />
           </div>
-          <motion.main
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-            className={cn("flex flex-1 flex-col", contentClassName)}
-          >
-            {children}
-          </motion.main>
-          <footer className="mt-8 flex items-center justify-center gap-2.5 text-center text-[11px]">
-            {/* One link, not two -- /portal/terms already covers both
-             * Terms of service and Privacy policy as separate sections
-             * (config's actual terms_and_conditions_text/url +
-             * privacy_policy_text/url, see src/routes/portal.terms.tsx).
-             * Two identically-styled links pointing at the exact same
-             * page read as a broken/duplicate link, not two real
-             * destinations. "Support" has no real guest-facing contact
-             * field wired through /captive-portal/resolve today (only an
-             * org/location `contactEmail` that's admin-facing, not part
-             * of RuntimePortalConfig), so it stays plain text rather than
-             * a fabricated mailto/tel link -- visually set apart (no
-             * separator, dimmer, non-interactive) so it doesn't read as a
-             * third, silently-broken link next to a real one. */}
-            <Link
-              to="/portal/terms"
-              search={portalSearch}
-              className="text-slate-400 hover:text-slate-600 hover:underline"
+          <div className="flex w-full flex-col lg:mx-auto lg:w-full lg:max-w-[480px]">
+            <div className="mb-2 flex items-center justify-end gap-1.5">
+              <LanguageSwitcher tone="light" />
+              <A11yMenu tone="light" />
+            </div>
+            <motion.main
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className={cn("flex flex-1 flex-col", contentClassName)}
             >
-              Terms &amp; Privacy
-            </Link>
-            <span className="text-slate-300">·</span>
-            <span className="text-slate-300">Support: ask venue staff</span>
-          </footer>
+              {children}
+            </motion.main>
+            <footer className="mt-8 flex items-center justify-center gap-2.5 text-center text-[11px]">
+              {/* One link, not two -- /portal/terms already covers both
+               * Terms of service and Privacy policy as separate sections
+               * (config's actual terms_and_conditions_text/url +
+               * privacy_policy_text/url, see src/routes/portal.terms.tsx).
+               * Two identically-styled links pointing at the exact same
+               * page read as a broken/duplicate link, not two real
+               * destinations. "Support" has no real guest-facing contact
+               * field wired through /captive-portal/resolve today (only
+               * an org/location `contactEmail` that's admin-facing, not
+               * part of RuntimePortalConfig), so it stays plain text
+               * rather than a fabricated mailto/tel link -- visually set
+               * apart (no separator, dimmer, non-interactive) so it
+               * doesn't read as a third, silently-broken link next to a
+               * real one. */}
+              <Link
+                to="/portal/terms"
+                search={portalSearch}
+                className="text-slate-400 hover:text-slate-600 hover:underline"
+              >
+                Terms &amp; Privacy
+              </Link>
+              <span className="text-slate-300">·</span>
+              <span className="text-slate-300">Support: ask venue staff</span>
+            </footer>
+          </div>
         </div>
       </div>
     );

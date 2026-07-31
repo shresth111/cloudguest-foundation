@@ -80,7 +80,7 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
 // blurring smoothly -- visible on first paint of the OTP screen, since
 // the Verify button starts disabled before a guest has typed 6 digits.
 export const PG_PRIMARY_BTN =
-  "h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 disabled:opacity-60 disabled:shadow-none";
+  "h-[52px] w-full rounded-2xl bg-gradient-to-r from-[#6366f1] to-[#4f46e5] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
 export const PG_INPUT =
-  "h-11 rounded-[13px] border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15";
+  "h-[52px] rounded-2xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 transition-all duration-200 hover:border-slate-300 focus-visible:border-indigo-500 focus-visible:ring-4 focus-visible:ring-indigo-500/15";
