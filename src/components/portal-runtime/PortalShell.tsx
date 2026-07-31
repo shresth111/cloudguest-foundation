@@ -60,18 +60,34 @@ export function PortalShell({
         }}
       >
         {/* Same organization-uploaded background image the "dark" variant
-         * below already renders -- this branch never referenced
-         * `config.backgroundImageUrl` at all, so a customer's uploaded
-         * image never appeared on the welcome/success/expired/set-password
-         * screens guests actually land on. Kept faint (12%, vs. dark's
-         * 30%) so the white card and its text stay legible against a
-         * light background. */}
+         * below already renders. Shown at full clarity, not faded --
+         * a customer's own uploaded photo/artwork should actually be
+         * visible, not washed out to near-invisibility. */}
         {config?.backgroundImageUrl && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
-          />
+          <>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
+            />
+            {/* A legibility scrim, not a fade -- keeps the image crystal
+             * clear through the middle (where the sign-in card already
+             * has its own opaque white background) while protecting the
+             * logo/heading text at top and the Terms/Privacy footer at
+             * bottom, which sit directly on the image with no card
+             * behind them. Necessary regardless of how busy or plain the
+             * uploaded image is -- a customer's background could be
+             * anything from a subtle texture to a dense promotional
+             * flyer with its own bold text. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 16%, rgba(255,255,255,0) 34%, rgba(255,255,255,0) 72%, rgba(255,255,255,0.65) 100%)",
+              }}
+            />
+          </>
         )}
         <div
           aria-hidden
@@ -148,11 +164,24 @@ export function PortalShell({
       }}
     >
       {config?.backgroundImageUrl && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
-        />
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
+          />
+          {/* Same legibility scrim as the "light" variant, dark-tinted to
+           * match this variant's navy background/white text instead of
+           * fading the image itself -- see that one's own comment. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(15,23,42,0.75) 0%, rgba(15,23,42,0.35) 16%, rgba(15,23,42,0) 34%, rgba(15,23,42,0) 72%, rgba(15,23,42,0.6) 100%)",
+            }}
+          />
+        </>
       )}
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-5 sm:max-w-lg">
         {showHeader && (
