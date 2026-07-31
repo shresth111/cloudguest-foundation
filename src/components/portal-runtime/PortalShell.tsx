@@ -49,7 +49,7 @@ export function PortalShell({
     return (
       <div
         className={cn(
-          "pg-shell relative w-full overflow-hidden",
+          "pg-shell relative w-full overflow-hidden lg:flex lg:items-center lg:justify-center",
           heightCls,
           highContrast && "contrast-125 saturate-150",
           largeText && "text-[17px]",
@@ -60,14 +60,22 @@ export function PortalShell({
         }}
       >
         {/* Same organization-uploaded background image the "dark" variant
-         * below already renders. Shown at full clarity, not faded --
-         * a customer's own uploaded photo/artwork should actually be
-         * visible, not washed out to near-invisibility. */}
+         * below already renders. Shown at full clarity on phone/tablet,
+         * where it fills the screen at close to native resolution -- a
+         * customer's own uploaded photo/artwork should actually be
+         * visible, not washed out to near-invisibility. On wider
+         * viewports the same image is stretched much further past its
+         * native size (most uploads are well under 1200px wide), which
+         * reads as pixelated rather than intentional -- a soft blur +
+         * slight scale-up (to hide the now-visible blurred edge) at lg+
+         * turns that into a deliberate, atmospheric backdrop instead,
+         * the same treatment large-viewport hero photography commonly
+         * uses (e.g. macOS's own lock screen). */}
         {config?.backgroundImageUrl && (
           <>
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-cover bg-center"
+              className="pointer-events-none absolute inset-0 bg-cover bg-center lg:scale-110 lg:blur-md xl:blur-lg"
               style={{ backgroundImage: `url(${config.backgroundImageUrl})` }}
             />
             {/* A legibility scrim, not a fade -- keeps the image crystal
@@ -104,7 +112,21 @@ export function PortalShell({
           }}
         />
 
-        <div className={cn("relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]", heightCls)}>
+        {/* Below lg:, this column fills the viewport edge-to-edge like
+         * every phone/tablet captive-portal page should. At lg: (laptop+)
+         * it instead becomes a self-contained "stage" -- fixed max-width,
+         * its own frosted-glass surface, vertically centered by the
+         * parent's `lg:flex lg:items-center lg:justify-center` above --
+         * so the composition reads as one considered panel against the
+         * (now deliberately blurred) backdrop, not a small card adrift
+         * in a wide-open gradient. */}
+        <div
+          className={cn(
+            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]",
+            "lg:min-h-0 lg:max-h-[88vh] lg:max-w-[560px] lg:overflow-y-auto lg:rounded-[32px] lg:border lg:border-white/70 lg:bg-white/50 lg:px-10 lg:py-9 lg:shadow-[0_40px_110px_-35px_rgba(79,70,229,0.4)] lg:backdrop-blur-2xl",
+            heightCls,
+          )}
+        >
           <div className="mb-2 flex items-center justify-end gap-1.5">
             <LanguageSwitcher tone="light" />
             <A11yMenu tone="light" />
@@ -117,33 +139,29 @@ export function PortalShell({
           >
             {children}
           </motion.main>
-          <footer className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] text-slate-400">
-            {/* Both link to the real /portal/terms page (config's actual
-             * terms_and_conditions_text/url + privacy_policy_text/url --
-             * see src/routes/portal.terms.tsx). "Support" has no real
-             * guest-facing contact field wired through
-             * /captive-portal/resolve today (only an org/location
-             * `contactEmail` that's admin-facing, not part of
-             * RuntimePortalConfig), so it's left as plain text rather
-             * than a fabricated mailto/tel link -- see this session's own
-             * report for the honest call-out. */}
+          <footer className="mt-8 flex items-center justify-center gap-2.5 text-center text-[11px]">
+            {/* One link, not two -- /portal/terms already covers both
+             * Terms of service and Privacy policy as separate sections
+             * (config's actual terms_and_conditions_text/url +
+             * privacy_policy_text/url, see src/routes/portal.terms.tsx).
+             * Two identically-styled links pointing at the exact same
+             * page read as a broken/duplicate link, not two real
+             * destinations. "Support" has no real guest-facing contact
+             * field wired through /captive-portal/resolve today (only an
+             * org/location `contactEmail` that's admin-facing, not part
+             * of RuntimePortalConfig), so it stays plain text rather than
+             * a fabricated mailto/tel link -- visually set apart (no
+             * separator, dimmer, non-interactive) so it doesn't read as a
+             * third, silently-broken link next to a real one. */}
             <Link
               to="/portal/terms"
               search={portalSearch}
-              className="hover:text-slate-600 hover:underline"
+              className="text-slate-400 hover:text-slate-600 hover:underline"
             >
-              Terms
+              Terms &amp; Privacy
             </Link>
-            <span>·</span>
-            <Link
-              to="/portal/terms"
-              search={portalSearch}
-              className="hover:text-slate-600 hover:underline"
-            >
-              Privacy
-            </Link>
-            <span>·</span>
-            <span>Support: ask venue staff</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-slate-300">Support: ask venue staff</span>
           </footer>
         </div>
       </div>
@@ -231,16 +249,19 @@ export function PortalShell({
          * internal engineering name and a raw version string that never
          * belonged in guest-facing copy and didn't match the rest of the
          * flow. */}
-        <footer className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] text-white/40">
-          <Link to="/portal/terms" search={portalSearch} className="hover:text-white/70 hover:underline">
-            Terms
+        <footer className="mt-8 flex items-center justify-center gap-2.5 text-center text-[11px]">
+          {/* See the light variant's own footer comment -- one merged
+           * Terms &amp; Privacy link (same destination either way), Support
+           * visually set apart as non-interactive. */}
+          <Link
+            to="/portal/terms"
+            search={portalSearch}
+            className="text-white/40 hover:text-white/70 hover:underline"
+          >
+            Terms &amp; Privacy
           </Link>
-          <span>·</span>
-          <Link to="/portal/terms" search={portalSearch} className="hover:text-white/70 hover:underline">
-            Privacy
-          </Link>
-          <span>·</span>
-          <span>Support: ask venue staff</span>
+          <span className="text-white/25">·</span>
+          <span className="text-white/25">Support: ask venue staff</span>
         </footer>
       </div>
     </div>
