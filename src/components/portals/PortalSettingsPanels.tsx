@@ -18,7 +18,7 @@ import type { Portal, PortalLanguage } from "@/types/portal";
 import { LANGUAGES } from "@/types/portal";
 
 export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
-  const update = useUpdatePortal(portal.id);
+  const update = useUpdatePortal(portal.id, portal.organizationId);
   const { register, handleSubmit, watch, setValue, formState } = useForm<LoginSettingsValues>({
     resolver: zodResolver(loginSettingsSchema),
     defaultValues: portal.login,
@@ -49,7 +49,7 @@ export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
 }
 
 export function PortalSeoPanel({ portal }: { portal: Portal }) {
-  const update = useUpdatePortal(portal.id);
+  const update = useUpdatePortal(portal.id, portal.organizationId);
   const { register, handleSubmit, formState } = useForm<SeoValues>({
     resolver: zodResolver(seoSchema),
     defaultValues: portal.seo,
@@ -74,7 +74,7 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
 }
 
 export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
-  const update = useUpdatePortal(portal.id);
+  const update = useUpdatePortal(portal.id, portal.organizationId);
   const toggle = (lang: PortalLanguage) => {
     const has = portal.languages.includes(lang);
     const next = has ? portal.languages.filter((l) => l !== lang) : [...portal.languages, lang];

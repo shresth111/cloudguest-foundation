@@ -232,7 +232,6 @@ function LoginPage() {
               <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Agent")}</Button>
             </motion.div>
           </form>
-          <div className="mt-6 text-center"><p className="text-xs text-muted-foreground">Demo: admin@example.com / test</p></div>
         </motion.div>
       </div>
     </div>

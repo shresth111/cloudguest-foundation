@@ -534,16 +534,26 @@ export const portalService = {
     return portalService.create({ ...src, name: `${src.name} (Copy)` });
   },
 
-  async remove(id: string): Promise<void> {
-    await api.delete(`/captive-portal-configs/${id}`);
+  async remove(id: string, organizationId?: string): Promise<void> {
+    // Same GLOBAL-scope-by-default 403 as create()/update() above without
+    // this header -- captive_portal.delete resolves scope from
+    // X-Organization-Id, not the path/body.
+    await api.delete(`/captive-portal-configs/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
-  async setStatus(id: string, status: PortalStatus): Promise<Portal> {
+  async setStatus(id: string, status: PortalStatus, organizationId?: string): Promise<Portal> {
     // Backend only has a binary is_active -- "published" activates, every
     // other frontend status ("draft"/"archived"/"scheduled", none of which
-    // the backend distinguishes) deactivates.
-    await api.post(`/captive-portal-configs/${id}/${status === "published" ? "activate" : "deactivate"}`);
-    return fetchOnePortal(id);
+    // the backend distinguishes) deactivates. Same header requirement as
+    // every other captive_portal.* mutation in this file.
+    await api.post(
+      `/captive-portal-configs/${id}/${status === "published" ? "activate" : "deactivate"}`,
+      undefined,
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return fetchOnePortal(id, organizationId);
   },
 
   /** Static design catalog -- see THEMES comment above, no backend concept. */
@@ -555,15 +565,19 @@ export const portalService = {
    * `theme` string -- this persists the theme's real color fields for
    * real (primary/secondary color), then returns the refreshed config
    * with the local theme id attached for display. */
-  async applyTheme(id: string, themeId: string): Promise<Portal> {
+  async applyTheme(id: string, themeId: string, organizationId?: string): Promise<Portal> {
     const theme = THEMES.find((t) => t.id === themeId);
     if (!theme) throw new Error("Theme not found");
-    await api.put(`/captive-portal-configs/${id}`, {
-      theme: theme.id,
-      primary_color: theme.branding.primaryColor,
-      secondary_color: theme.branding.secondaryColor,
-    });
-    return fetchOnePortal(id);
+    await api.put(
+      `/captive-portal-configs/${id}`,
+      {
+        theme: theme.id,
+        primary_color: theme.branding.primaryColor,
+        secondary_color: theme.branding.secondaryColor,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return fetchOnePortal(id, organizationId);
   },
 
   /** No backend endpoint to persist a new theme definition -- appends to

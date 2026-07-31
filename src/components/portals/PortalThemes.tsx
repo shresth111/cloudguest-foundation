@@ -19,7 +19,7 @@ import type { Portal } from "@/types/portal";
 
 export function PortalThemes({ portal }: { portal: Portal }) {
   const { data, isLoading, isError, refetch } = usePortalThemes();
-  const apply = useApplyTheme(portal.id);
+  const apply = useApplyTheme(portal.id, portal.organizationId);
   const save = useSaveAsTheme(portal.id);
   const [saveOpen, setSaveOpen] = useState(false);
   const [name, setName] = useState(`${portal.name} Theme`);

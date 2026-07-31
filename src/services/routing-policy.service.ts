@@ -28,13 +28,17 @@ function toRoutingPolicy(detail: BackendPolicyDetail): RoutingPolicy {
 }
 
 export const routingPolicyService = {
-  async list(): Promise<RoutingPolicy[]> {
-    const details = await listPolicyDetails(POLICY_TYPE);
+  // organizationId, when given (e.g. the customer Policies tab), scopes
+  // this to ORGANIZATION instead of the GLOBAL-only default -- see
+  // policy-engine.ts's orgHeaders() comment. Mirrors
+  // bandwidth-policy.service.ts's identical threading.
+  async list(organizationId?: string): Promise<RoutingPolicy[]> {
+    const details = await listPolicyDetails(POLICY_TYPE, organizationId);
     return details.map(toRoutingPolicy);
   },
 
-  async kpis(): Promise<RoutingPolicyKpis> {
-    const policies = await routingPolicyService.list();
+  async kpis(organizationId?: string): Promise<RoutingPolicyKpis> {
+    const policies = await routingPolicyService.list(organizationId);
     return {
       total: policies.length,
       active: policies.filter((p) => p.status === "active").length,
@@ -42,13 +46,14 @@ export const routingPolicyService = {
     };
   },
 
-  async save(input: SaveRoutingPolicyInput): Promise<RoutingPolicy> {
+  async save(input: SaveRoutingPolicyInput, organizationId?: string): Promise<RoutingPolicy> {
     if (input.id) {
       const detail = await updatePolicyRules({
         id: input.id,
         rules: input.rules,
         publish: input.status !== "draft",
         archive: input.status === "archived",
+        organizationId,
       });
       return toRoutingPolicy(detail);
     }
@@ -58,11 +63,12 @@ export const routingPolicyService = {
       description: input.description ?? null,
       rules: input.rules,
       publish: input.status !== "draft",
+      organizationId,
     });
     return toRoutingPolicy(detail);
   },
 
-  async remove(id: string): Promise<void> {
-    await deactivatePolicy(id);
+  async remove(id: string, organizationId?: string): Promise<void> {
+    await deactivatePolicy(id, organizationId);
   },
 };

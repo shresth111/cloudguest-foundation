@@ -51,7 +51,7 @@ export const Route = createFileRoute("/_authenticated/portals/$portalId")({
 function PortalDetailPage() {
   const { portalId } = useParams({ from: "/_authenticated/portals/$portalId" });
   const { data, isLoading, isError, refetch } = usePortal(portalId);
-  const update = useUpdatePortal(portalId);
+  const update = useUpdatePortal(portalId, data?.organizationId);
   const publish = useSetPortalStatus();
   const duplicate = useDuplicatePortal();
 
@@ -111,11 +111,26 @@ function PortalDetailPage() {
             <Save className="mr-2 h-4 w-4" /> Save draft
           </Button>
           {data.status === "published" ? (
-            <Button size="sm" variant="outline" onClick={() => publish.mutate({ id: data.id, status: "draft" })}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                publish.mutate({ id: data.id, status: "draft", organizationId: data.organizationId })
+              }
+            >
               Unpublish
             </Button>
           ) : (
-            <Button size="sm" onClick={() => publish.mutate({ id: data.id, status: "published" })}>
+            <Button
+              size="sm"
+              onClick={() =>
+                publish.mutate({
+                  id: data.id,
+                  status: "published",
+                  organizationId: data.organizationId,
+                })
+              }
+            >
               {publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
               Publish
             </Button>

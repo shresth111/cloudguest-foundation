@@ -38,13 +38,17 @@ function toRules(input: SaveAuthnPolicyInput): AuthnRules {
 }
 
 export const authnPolicyService = {
-  async list(): Promise<AuthnPolicy[]> {
-    const details = await listPolicyDetails(POLICY_TYPE);
+  // organizationId, when given (e.g. the customer Policies tab), scopes
+  // this to ORGANIZATION instead of the GLOBAL-only default -- see
+  // policy-engine.ts's orgHeaders() comment. Mirrors
+  // bandwidth-policy.service.ts's identical threading.
+  async list(organizationId?: string): Promise<AuthnPolicy[]> {
+    const details = await listPolicyDetails(POLICY_TYPE, organizationId);
     return details.map(toAuthnPolicy);
   },
 
-  async kpis(): Promise<AuthnPolicyKpis> {
-    const policies = await authnPolicyService.list();
+  async kpis(organizationId?: string): Promise<AuthnPolicyKpis> {
+    const policies = await authnPolicyService.list(organizationId);
     return {
       total: policies.length,
       active: policies.filter((p) => p.status === "active").length,
@@ -52,13 +56,14 @@ export const authnPolicyService = {
     };
   },
 
-  async save(input: SaveAuthnPolicyInput): Promise<AuthnPolicy> {
+  async save(input: SaveAuthnPolicyInput, organizationId?: string): Promise<AuthnPolicy> {
     if (input.id) {
       const detail = await updatePolicyRules({
         id: input.id,
         rules: toRules(input),
         publish: input.status !== "draft",
         archive: input.status === "archived",
+        organizationId,
       });
       return toAuthnPolicy(detail);
     }
@@ -68,12 +73,13 @@ export const authnPolicyService = {
       description: input.description ?? null,
       rules: toRules(input),
       publish: input.status !== "draft",
+      organizationId,
     });
     return toAuthnPolicy(detail);
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, organizationId?: string): Promise<void> {
     // No hard delete on the backend -- deactivate is the real equivalent.
-    await deactivatePolicy(id);
+    await deactivatePolicy(id, organizationId);
   },
 };
