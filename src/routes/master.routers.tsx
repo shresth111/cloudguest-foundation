@@ -124,6 +124,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   }
 
   async function onGenerate() {
+    // A blank LAN bridge name renders as `:local lanBridge ""` -- every
+    // later line that binds something to `$lanBridge` (IP address, DHCP
+    // server, hotspot) then fails on the device with "input does not match
+    // any value of interface", after already having minted and consumed a
+    // provisioning token. Cheaper to block before spending that token.
+    if (!form.lanBridge.trim()) {
+      toast.error("LAN bridge name can't be empty");
+      return;
+    }
     setBusy(true);
     setScript(null);
     try {

@@ -991,8 +991,14 @@ export function buildRouterSetupScript(opts: {
    * router this script provisions starts with Device Console permanently
    * disabled for it ("no credentials"), needing a separate manual step. */
   apiAccess?: { username: string; secret: string };
+  /** Only meaningful with 2+ WAN interfaces. "failover" (default) gives
+   * each WAN a distinct default-route distance -- WAN1 is always preferred,
+   * later ones only take over once it's unreachable. "loadbalance" gives
+   * every WAN default route the same distance so RouterOS ECMP splits new
+   * connections across all of them, using both links' bandwidth at once. */
+  wanMode?: "failover" | "loadbalance";
 }): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, wanMode = "failover" } = opts;
   const octets = lanIp.split(".");
   const base3 = octets.slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1011,6 +1017,14 @@ export function buildRouterSetupScript(opts: {
   lines.push(`:local poolEnd "${poolEnd}"`);
   lines.push("");
   lines.push(`:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`);
+  // A fully factory-reset device (no default configuration kept) has no
+  // "bridge" interface at all -- every line below that binds something to
+  // $lanBridge (IP address, DHCP server, hotspot) would otherwise fail with
+  // "input does not match any value of interface". Safe to run even when a
+  // same-named bridge already exists (e.g. the stock default config).
+  lines.push(`:if ([:len [/interface bridge find where name=$lanBridge]] = 0) do={`);
+  lines.push(`  /interface bridge add name=$lanBridge`);
+  lines.push(`}`);
 
   wanIfs.forEach((wanIf, idx) => {
     const n = idx + 1;
