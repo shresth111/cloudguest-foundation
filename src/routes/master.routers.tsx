@@ -21,6 +21,7 @@ import { buildRouterSetupScript } from "@/components/routers/RouterDetailTabs";
 import api from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
+import { copyToClipboard } from "@/lib/utils";
 
 export const Route = createFileRoute("/master/routers")({
   // Same pattern as master.customers.tsx's `open` -- MasterSearch (the
@@ -373,9 +374,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             <span className="text-[11px] text-muted-foreground">Paste this into the router's WinBox New Terminal</span>
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(script);
-                toast.success("Copied");
+              onClick={async () => {
+                const ok = await copyToClipboard(script);
+                if (ok) toast.success("Copied");
+                else toast.error("Couldn't copy automatically -- select the text below and copy it manually.");
               }}
               className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
             >
