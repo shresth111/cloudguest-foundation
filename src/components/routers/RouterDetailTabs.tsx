@@ -1157,6 +1157,163 @@ export function buildRouterSetupScript(opts: {
   return lines.join("\n");
 }
 
+export interface RouterSetupScriptChunk {
+  label: string;
+  script: string;
+}
+
+/** Same configuration as `buildRouterSetupScript`, split into small,
+ * independently-pasteable pieces instead of one giant `{ ... }` block --
+ * confirmed live on a real device that WinBox's terminal can drop/mangle
+ * characters on a very long single paste (many long lines, deep `{}`
+ * nesting), corrupting the RouterOS parse partway through with no clean
+ * way to tell which line actually failed. Each chunk here uses literal
+ * values instead of shared `:local` variables (proven live, this same
+ * session) so it's safe to paste standalone, in any order, and to re-run
+ * if something goes wrong -- unlike the single-block version, nothing here
+ * depends on an earlier chunk having already run in the same console
+ * session. */
+export function buildRouterSetupScriptChunks(opts: {
+  apiBase: string;
+  agentCredential: string;
+  wanIfs: string[];
+  lanBridge: string;
+  lanIp: string;
+  lanCidr: string;
+  dnsServers: string;
+  hsUser: string;
+  hsPass: string;
+  enableFirewall: boolean;
+  wireguard?: WireguardPeerInfo;
+  radius?: { serverAddress: string; sharedSecret: string };
+  apiAccess?: { username: string; secret: string };
+}): RouterSetupScriptChunk[] {
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
+  const base3 = lanIp.split(".").slice(0, 3).join(".");
+  const poolStart = `${base3}.10`;
+  const poolEnd = `${base3}.254`;
+  const lanNetwork = `${base3}.0/${lanCidr}`;
+  const chunks: RouterSetupScriptChunk[] = [];
+
+  {
+    const lines: string[] = [];
+    lines.push(`:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`);
+    lines.push(`:if ([:len [/interface bridge find where name="${lanBridge}"]] = 0) do={ /interface bridge add name="${lanBridge}" }`);
+    lines.push(`/interface bridge set [find name="${lanBridge}"] disabled=no`);
+    wanIfs.forEach((wanIf, idx) => {
+      const n = idx + 1;
+      lines.push(`:local wan${n}Port [/interface bridge port find where interface="${wanIf}"]`);
+      lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
+      lines.push(`:if ([:len [/interface list member find where interface="${wanIf}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${wanIf}" }`);
+      lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${wanIf}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${wanIf}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
+    });
+    chunks.push({ label: "WAN + Bridge", script: lines.join("\n") });
+  }
+
+  {
+    const wanNameLiterals = wanIfs.map((w) => `"${w}"`).join("; ");
+    const lines = [
+      `:local wanIfNames {${wanNameLiterals}}`,
+      `:foreach eth in=[/interface ethernet find] do={`,
+      `  :local ethName [/interface ethernet get $eth name]`,
+      `  :local isWan false`,
+      `  :foreach w in=$wanIfNames do={ :if ($w = $ethName) do={ :set isWan true } }`,
+      `  :if (!$isWan) do={`,
+      `    :if ([:len [/interface bridge port find where interface=$ethName]] = 0) do={`,
+      `      /interface bridge port add bridge="${lanBridge}" interface=$ethName`,
+      `    }`,
+      `  }`,
+      `}`,
+    ];
+    chunks.push({ label: "LAN Ports (add every non-WAN port to the bridge)", script: lines.join("\n") });
+  }
+
+  {
+    const lines = [
+      `:foreach addr in=[/ip address find where interface="${lanBridge}" dynamic=yes] do={ /ip address remove $addr }`,
+      `:if ([:len [/ip address find where interface="${lanBridge}" address="${lanIp}/${lanCidr}"]] = 0) do={ /ip address add address=${lanIp}/${lanCidr} interface="${lanBridge}" }`,
+      `/ip dns set servers=${dnsServers} allow-remote-requests=yes`,
+    ];
+    chunks.push({ label: "LAN IP + DNS", script: lines.join("\n") });
+  }
+
+  {
+    const lines = [
+      `:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={ /ip pool add name="hotspot-pool" ranges=${poolStart}-${poolEnd} }`,
+      `:if ([:len [/ip dhcp-server find where interface="${lanBridge}"]] = 0) do={`,
+      `  /ip dhcp-server add name="hotspot-dhcp" interface="${lanBridge}" address-pool="hotspot-pool" disabled=no`,
+      `  /ip dhcp-server network add address=${lanNetwork} gateway=${lanIp} dns-server=${lanIp}`,
+      `}`,
+      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=cloudguest-hotspot }`,
+      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
+      `:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={ /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1" }`,
+    ];
+    chunks.push({ label: "Hotspot", script: lines.join("\n") });
+  }
+
+  if (enableFirewall) {
+    const lines = [
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-established"]] = 0) do={ /ip firewall filter add chain=input connection-state=established,related action=accept comment="cloudguest-fw-established" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-invalid"]] = 0) do={ /ip firewall filter add chain=input connection-state=invalid action=drop comment="cloudguest-fw-drop-invalid" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]] = 0) do={ /ip firewall filter add chain=input in-interface="${lanBridge}" action=accept comment="cloudguest-fw-allow-lan" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-icmp"]] = 0) do={ /ip firewall filter add chain=input protocol=icmp action=accept comment="cloudguest-fw-allow-icmp" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN action=drop comment="cloudguest-fw-drop-wan-input" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-established"]] = 0) do={ /ip firewall filter add chain=forward connection-state=established,related action=accept comment="cloudguest-fw-fwd-established" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-drop-invalid"]] = 0) do={ /ip firewall filter add chain=forward connection-state=invalid action=drop comment="cloudguest-fw-fwd-drop-invalid" }`,
+    ];
+    chunks.push({ label: "Firewall", script: lines.join("\n") });
+  }
+
+  if (apiAccess) {
+    const lines = [
+      `/ip service set api disabled=no`,
+      `:if ([:len [/user find where name="${apiAccess.username}"]] = 0) do={`,
+      `  /user add name="${apiAccess.username}" password="${apiAccess.secret}" group=full comment="cloudguest-api"`,
+      `} else={`,
+      `  /user set [find name="${apiAccess.username}"] password="${apiAccess.secret}"`,
+      `}`,
+    ];
+    chunks.push({ label: "API Access (unlocks Device Console)", script: lines.join("\n") });
+  }
+
+  if (wireguard) {
+    const lines = [
+      `:if ([:len [/interface wireguard find where name="wg-cloudguest"]] = 0) do={`,
+      `  /interface wireguard add name="wg-cloudguest" private-key="${wireguard.routerPrivateKey}" listen-port=13231`,
+      `}`,
+      `:if ([:len [/interface wireguard peers find where interface="wg-cloudguest"]] = 0) do={`,
+      `  /interface wireguard peers add interface="wg-cloudguest" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s`,
+      `}`,
+      `:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`,
+      `  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`,
+      `}`,
+    ];
+    chunks.push({ label: "WireGuard Tunnel", script: lines.join("\n") });
+  }
+
+  if (radius) {
+    const lines = [
+      `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`,
+      `  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}"`,
+      `}`,
+      `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
+    ];
+    chunks.push({ label: "RADIUS", script: lines.join("\n") });
+  }
+
+  {
+    const lines = [
+      `:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`,
+      `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . "${apiBase}" . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . "${agentCredential}" . "\\" http-data=\\"{}\\" output=none")`,
+      `}`,
+      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data="{}" output=none`,
+    ];
+    chunks.push({ label: "Heartbeat", script: lines.join("\n") });
+  }
+
+  return chunks;
+}
+
 function SetupScriptTab({ routerId }: { routerId: string }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);

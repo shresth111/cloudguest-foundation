@@ -17,7 +17,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScript } from "@/components/routers/RouterDetailTabs";
+import { buildRouterSetupScriptChunks } from "@/components/routers/RouterDetailTabs";
 import api from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
@@ -101,7 +101,7 @@ function generateApiSecret(): string {
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
-  const [script, setScript] = useState<string | null>(null);
+  const [chunks, setChunks] = useState<import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null>(null);
   const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
   const [wanIfs, setWanIfs] = useState<string[]>(["ether1", "ether2", "ether3"]);
   const [enableFirewall, setEnableFirewall] = useState(true);
@@ -134,7 +134,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       return;
     }
     setBusy(true);
-    setScript(null);
+    setChunks(null);
     try {
       const { token } = await generate.mutateAsync(router.id);
       const checkinResp = await api.post<{ agent_credential?: string }>(
@@ -261,8 +261,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         );
       }
 
-      setScript(
-        buildRouterSetupScript({
+      setChunks(
+        buildRouterSetupScriptChunks({
           apiBase: api.defaults.baseURL || "",
           agentCredential,
           wanIfs: wanIfs.slice(0, ispCount),
@@ -298,8 +298,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there.</li>
         <li>Get each WAN interface online <strong>first</strong>: run <code className="rounded bg-background px-1 py-0.5">/ip dhcp-client add interface=&lt;name&gt; disabled=no</code> if the ISP hands out an IP automatically, or <code className="rounded bg-background px-1 py-0.5">/ip address add address=&lt;ip/cidr&gt; interface=&lt;name&gt;</code> + a default route if it's a static/leased-line IP — whichever this specific link actually is.</li>
         <li>Back in the dashboard, fill in the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
-        <li>Paste the whole thing into WinBox's New Terminal and press Enter.</li>
-        <li>If a very long paste ever errors out partway through (rare, but WinBox's terminal can drop characters on huge pastes), paste it in 2-3 smaller pieces instead of all at once — each block is independently safe to (re-)run.</li>
+        <li>The script appears below in numbered pieces — copy and paste each one into WinBox's New Terminal <strong>one at a time, in order</strong>, pressing Enter after each. This avoids WinBox's terminal dropping characters on one huge paste.</li>
       </ol>
 
       <div className="flex gap-1.5">
@@ -387,25 +386,32 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         {busy ? "Generating..." : "Generate script"}
       </MButton>
 
-      {script && (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">Paste this into the router's WinBox New Terminal</span>
-            <button
-              type="button"
-              onClick={async () => {
-                const ok = await copyToClipboard(script);
-                if (ok) toast.success("Copied");
-                else toast.error("Couldn't copy automatically -- select the text below and copy it manually.");
-              }}
-              className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
-            >
-              <Copy className="h-3 w-3" /> Copy
-            </button>
-          </div>
-          <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug">
-            <code>{script}</code>
-          </pre>
+      {chunks && (
+        <div className="space-y-2.5">
+          <p className="text-[11px] text-muted-foreground">
+            Paste these <strong>one at a time</strong>, in order, into the router's WinBox New Terminal — press Enter after each before pasting the next. Splitting it up like this avoids WinBox's terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it.
+          </p>
+          {chunks.map((chunk, i) => (
+            <div key={chunk.label} className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-foreground">{i + 1}. {chunk.label}</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await copyToClipboard(chunk.script);
+                    if (ok) toast.success(`Copied: ${chunk.label}`);
+                    else toast.error("Couldn't copy automatically -- select the text below and copy it manually.");
+                  }}
+                  className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
+                >
+                  <Copy className="h-3 w-3" /> Copy
+                </button>
+              </div>
+              <pre className="max-h-48 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug">
+                <code>{chunk.script}</code>
+              </pre>
+            </div>
+          ))}
         </div>
       )}
     </div>
