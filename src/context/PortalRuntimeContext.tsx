@@ -41,6 +41,15 @@ interface PortalRuntimeState {
   routerId: string;
   deviceMac?: string;
   destinationUrl?: string;
+  /** RouterOS's `$(link-login-only)` substitution -- the URL this guest's
+   * browser must POST username/password to for the NAS itself to actually
+   * grant network access. Our own backend login (OTP/password/voucher)
+   * only ever creates a GuestSession in this platform's own database; it
+   * never told the router anything, so the hotspot's own gate stayed shut
+   * even after a "successful" login here (confirmed live). Optional --
+   * absent for any NAS/flow that doesn't use this mechanism (e.g. a
+   * RADIUS-authorized device that never reaches this portal at all). */
+  hotspotLoginUrl?: string;
   config?: RuntimePortalConfig;
   isLoading: boolean;
   error?: Error;
@@ -75,6 +84,7 @@ interface Props {
   routerId: string;
   deviceMac?: string;
   destinationUrl?: string;
+  hotspotLoginUrl?: string;
   children: ReactNode;
   /** Preview-mode support (src/routes/preview.portal.$locationId.tsx) --
    * see PortalRuntimeState.previewMode's own docstring. */
@@ -95,6 +105,7 @@ export function PortalRuntimeProvider({
   routerId,
   deviceMac,
   destinationUrl,
+  hotspotLoginUrl,
   previewMode = false,
   presetConfig,
   presetConfigLoading,
@@ -173,6 +184,7 @@ export function PortalRuntimeProvider({
       routerId,
       deviceMac,
       destinationUrl,
+      hotspotLoginUrl,
       previewMode,
       config,
       isLoading,
@@ -199,6 +211,7 @@ export function PortalRuntimeProvider({
       routerId,
       deviceMac,
       destinationUrl,
+      hotspotLoginUrl,
       previewMode,
       config,
       isLoading,

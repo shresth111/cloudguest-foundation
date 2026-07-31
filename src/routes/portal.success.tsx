@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -13,6 +13,57 @@ import type { AppError } from "@/services/api";
 export const Route = createFileRoute("/portal/success")({
   component: SuccessPage,
 });
+
+// Matches the local hotspot user every router's Setup Script provisions by
+// default (see RouterSetupScriptPanel's "Hotspot username/password"
+// fields, default "guest"/"welcome123") -- this platform's own login
+// (OTP/password/voucher) only proves who the guest is to *us*; the NAS
+// itself still needs a login-by=cookie,http-chap POST to actually open its
+// gate. TODO: once per-location hotspot credentials are configurable and
+// exposed to this portal, use those instead of this shared default.
+const HOTSPOT_SHARED_USERNAME = "guest";
+const HOTSPOT_SHARED_PASSWORD = "welcome123";
+
+/** Submits username/password to RouterOS's `$(link-login-only)` URL via a
+ * hidden iframe form POST -- a real cross-origin form submission, not
+ * fetch(), since the NAS bridge this hits has no CORS support (confirmed
+ * live) and a plain form POST doesn't need any. Using an iframe (not
+ * navigating the whole tab) keeps the guest on this success page while the
+ * browser completes the handshake and the NAS sets its own access cookie
+ * for this origin. */
+function submitHotspotLogin(loginUrl: string) {
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  document.body.appendChild(iframe);
+  const cleanup = () => {
+    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+  };
+  try {
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) {
+      cleanup();
+      return;
+    }
+    const form = iframeDoc.createElement("form");
+    form.method = "POST";
+    form.action = loginUrl;
+    const addField = (name: string, value: string) => {
+      const input = iframeDoc.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    };
+    addField("username", HOTSPOT_SHARED_USERNAME);
+    addField("password", HOTSPOT_SHARED_PASSWORD);
+    iframeDoc.body.appendChild(form);
+    form.submit();
+  } catch {
+    cleanup();
+    return;
+  }
+  setTimeout(cleanup, 8000);
+}
 
 function formatDataLimit(mb: number | null): string {
   if (mb === null || mb <= 0) return "Unlimited";
@@ -54,13 +105,34 @@ function DetailCard({
  * labeled "Data allowance", not invented as a bogus speed number.
  */
 function SuccessPage() {
-  const { t, config, session, setSession, organizationId, locationId, routerId, destinationUrl } =
-    usePortalRuntime();
+  const {
+    t,
+    config,
+    session,
+    setSession,
+    organizationId,
+    locationId,
+    routerId,
+    destinationUrl,
+    hotspotLoginUrl,
+  } = usePortalRuntime();
   const continueUrl = destinationUrl || config?.redirectUrl;
   const navigate = useNavigate({ from: "/portal/success" });
   const portalSearch = { organizationId, locationId, routerId };
   const [now, setNow] = useState(() => Date.now());
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // Our own login (OTP/password/voucher) only just created a session in
+  // this platform's own database -- the NAS's own gate is a completely
+  // separate thing and stays shut until it sees this POST (confirmed live:
+  // a guest could "log in" here and still have zero real internet access).
+  // Guarded to fire at most once per mount, not on every re-render.
+  const hotspotLoginSubmitted = useRef(false);
+  useEffect(() => {
+    if (!session || !hotspotLoginUrl || hotspotLoginSubmitted.current) return;
+    hotspotLoginSubmitted.current = true;
+    submitHotspotLogin(hotspotLoginUrl);
+  }, [session, hotspotLoginUrl]);
 
   useEffect(() => {
     if (!session) {

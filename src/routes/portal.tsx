@@ -43,6 +43,11 @@ const searchSchema = z.object({
   // location's own configured redirectUrl (or nothing) when absent --
   // see GuestSignInCard/PortalRuntimeContext for how this threads through.
   dst: z.string().optional(),
+  // RouterOS's `$(link-login-only)` substitution -- see
+  // PortalRuntimeContext's `hotspotLoginUrl` docstring for why this portal
+  // must POST to it once login succeeds here, not just create a session in
+  // this platform's own database.
+  "link-login-only": z.string().optional(),
 });
 
 /**
@@ -115,7 +120,9 @@ export const Route = createFileRoute("/portal")({
 });
 
 function PortalRuntimeLayout() {
-  const { organizationId, locationId, routerId, mac, dst } = Route.useSearch();
+  const search = Route.useSearch();
+  const { organizationId, locationId, routerId, mac, dst } = search;
+  const linkLoginOnly = search["link-login-only"];
   return (
     <PortalRuntimeProvider
       organizationId={organizationId}
@@ -123,6 +130,7 @@ function PortalRuntimeLayout() {
       routerId={routerId}
       deviceMac={mac}
       destinationUrl={dst}
+      hotspotLoginUrl={linkLoginOnly}
     >
       <Outlet />
     </PortalRuntimeProvider>
