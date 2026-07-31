@@ -123,13 +123,17 @@ function AuthMethodPage() {
 
         <div className="flex flex-col items-center text-center">
           {config?.logoUrl ? (
-            <img src={config.logoUrl} alt="" className="h-16 w-16 object-contain drop-shadow" />
+            <img
+              src={config.logoUrl}
+              alt=""
+              className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
+            />
           ) : (
             <div
-              className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25"
+              className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25 sm:h-16 sm:w-16 md:h-20 md:w-20"
               style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
             >
-              <Wifi className="h-7 w-7 text-white" />
+              <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
             </div>
           )}
           <h1

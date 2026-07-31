@@ -88,7 +88,7 @@ export function PortalShell({
           }}
         />
 
-        <div className={cn("relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6", heightCls)}>
+        <div className={cn("relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]", heightCls)}>
           <div className="mb-2 flex items-center justify-end gap-1.5">
             <LanguageSwitcher tone="light" />
             <A11yMenu tone="light" />
@@ -162,16 +162,16 @@ export function PortalShell({
                 <img
                   src={config.logoUrl}
                   alt=""
-                  className="h-10 w-10 shrink-0 object-contain"
+                  className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12 md:h-14 md:w-14"
                 />
               ) : (
                 <div
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg font-semibold text-white shadow-lg"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg font-semibold text-white shadow-lg sm:h-12 sm:w-12 md:h-14 md:w-14"
                   style={{
                     background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))`,
                   }}
                 >
-                  <Wifi className="h-5 w-5" />
+                  <Wifi className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7" />
                 </div>
               )}
               <div className="min-w-0">

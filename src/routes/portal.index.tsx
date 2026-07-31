@@ -90,19 +90,19 @@ function PortalLoading() {
             transition={{ duration: 0.5 }}
             src={config.logoUrl}
             alt={config.name}
-            className="h-24 w-24 object-contain drop-shadow-lg"
+            className="h-24 w-24 object-contain drop-shadow-lg sm:h-32 sm:w-32 md:h-36 md:w-36"
           />
         ) : (
           <motion.div
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl"
+            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl sm:h-28 sm:w-28 md:h-32 md:w-32"
             style={{
               background: `linear-gradient(135deg, var(--pr-primary,#0EA5E9), var(--pr-accent,#6366F1))`,
             }}
           >
-            <Wifi className="h-8 w-8" />
+            <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
           </motion.div>
         )}
         <div>
