@@ -1324,10 +1324,17 @@ export function buildRouterSetupScriptChunks(opts: {
       }
     })();
     if (portalHost) {
-      chunks.push({
-        label: "Walled Garden (let unauthenticated guests reach the portal)",
-        script: `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`,
-      });
+      // /^[\d.]+$/ is enough to tell an IPv4 literal from a real hostname
+      // (the only two shapes frontendBase's hostname can take here) -- an
+      // IP needs the IP-level walled garden (dst-address), a real domain
+      // needs the host-based one (dst-host); using the wrong one silently
+      // does nothing; RouterOS won't reject a malformed dst-address the
+      // way you'd hope.
+      const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
+      const script = isIpLiteral
+        ? `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`
+        : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`;
+      chunks.push({ label: "Walled Garden (let unauthenticated guests reach the portal)", script });
     }
 
     const url =
