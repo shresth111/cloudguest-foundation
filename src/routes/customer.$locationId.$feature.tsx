@@ -51,6 +51,10 @@ import {
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
+  ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
+} from "recharts";
+import {
   LogOut, Menu, Wifi, Users, ShieldCheck, CheckCircle,
   AlertTriangle, Activity, XCircle, Download, KeyRound, MapPinned,
 } from "lucide-react";
@@ -207,9 +211,9 @@ function DashboardView({ locationId }: { locationId: string }) {
     { label: "SLA uptime", value: `${data.kpis.slaUptime}%` },
   ];
   const secondaryKpis = [
-    { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },
-    { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString() },
-    { label: "Avg Session", value: `${data.kpis.avgSession} min` },
+    { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}`, icon: Wifi, grad: "from-violet-500 to-purple-500" },
+    { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString(), icon: Users, grad: "from-cyan-500 to-sky-500" },
+    { label: "Avg Session", value: `${data.kpis.avgSession} min`, icon: Activity, grad: "from-orange-400 to-amber-500" },
   ];
   const TONE_BG: Record<string, string> = {
     emerald: "bg-emerald-50 text-emerald-600",
@@ -217,6 +221,14 @@ function DashboardView({ locationId }: { locationId: string }) {
     sky: "bg-sky-50 text-sky-600",
     amber: "bg-amber-50 text-amber-600",
   };
+  const DEVICE_COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#a855f7", "#22c55e", "#ef4444"];
+  const chartTooltip = {
+    background: "hsl(var(--popover, 0 0% 100%))",
+    border: "1px solid var(--color-border, #e2e8f0)",
+    borderRadius: 10,
+    fontSize: 12,
+    padding: "8px 10px",
+  } as const;
 
   return (
     <div className="space-y-6">
@@ -243,12 +255,22 @@ function DashboardView({ locationId }: { locationId: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {secondaryKpis.map((k) => (
-          <div key={k.label} className="rounded-2xl border bg-card p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{k.value}</p>
-          </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {secondaryKpis.map((k, i) => (
+          <motion.div
+            key={k.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className={cn(
+              "relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-md",
+              k.grad,
+            )}
+          >
+            <k.icon className="absolute -right-3 -top-3 h-16 w-16 text-white/15" />
+            <p className="relative text-xs font-medium uppercase tracking-wide text-white/80">{k.label}</p>
+            <p className="relative mt-1 text-2xl font-bold tabular-nums">{k.value}</p>
+          </motion.div>
         ))}
       </div>
 
@@ -265,6 +287,87 @@ function DashboardView({ locationId }: { locationId: string }) {
           </div>
         ))}
       </div>
+
+      {/* Real charts, real data -- usersTrend/deviceDistribution/
+       * hourlySessions all come from the same getDashboard() response
+       * already fetched above, just never rendered before now. */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="border-0 shadow-sm lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm">Users online (last 24h)</CardTitle>
+          </CardHeader>
+          <CardContent className="h-56 pl-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.usersTrend}>
+                <defs>
+                  <linearGradient id="usersTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" vertical={false} />
+                <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+                <RechartsTooltip contentStyle={chartTooltip} />
+                <Area type="monotone" dataKey="users" stroke="#6366f1" strokeWidth={2.5} fill="url(#usersTrendFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Devices</CardTitle>
+          </CardHeader>
+          <CardContent className="h-56">
+            {data.deviceDistribution.length === 0 ? (
+              <p className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
+                No device data yet.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data.deviceDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={2}
+                  >
+                    {data.deviceDistribution.map((_, i) => (
+                      <Cell key={i} fill={DEVICE_COLORS[i % DEVICE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={chartTooltip} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {data.hourlySessions.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Sessions by hour</CardTitle>
+          </CardHeader>
+          <CardContent className="h-44 pl-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.hourlySessions}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" vertical={false} />
+                <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+                <RechartsTooltip contentStyle={chartTooltip} />
+                <Bar dataKey="sessions" radius={[6, 6, 0, 0]}>
+                  {data.hourlySessions.map((_, i) => (
+                    <Cell key={i} fill={DEVICE_COLORS[i % DEVICE_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-0 shadow-sm">
