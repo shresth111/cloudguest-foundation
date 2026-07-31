@@ -238,6 +238,16 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           radius,
           apiAccess,
           identity: router.locationName,
+          // window.location.origin -- wherever this Master dashboard is
+          // being viewed from is, by construction, the same deployment's
+          // real frontend, so it's always correct for a guest-facing link
+          // too (no separate "frontend URL" setting to keep in sync).
+          portalUrl: {
+            frontendBase: window.location.origin,
+            organizationId: router.organizationId,
+            locationId: router.locationId,
+            routerId: router.id,
+          },
           ...form,
         }),
       );

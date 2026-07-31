@@ -1204,8 +1204,19 @@ export function buildRouterSetupScriptChunks(opts: {
    * engineer connecting to a random router in the fleet immediately knows
    * which site it is, without cross-referencing the dashboard. */
   identity?: string;
+  /** When provided, overwrites the *stock* MikroTik hotspot template's
+   * login.html (flash/hotspot/login.html -- present on every fresh
+   * RouterOS device out of the box, no manual asset upload needed) to
+   * redirect to this platform's own real guest portal instead of
+   * MikroTik's bare default form. Confirmed live: a router provisioned
+   * without this redirects nowhere real, and an earlier hand-edited
+   * version of this exact file was found pointing at a since-deleted
+   * organization/location/router (a previous session's one-off manual
+   * fix that no automated flow ever kept in sync) -- this makes the
+   * correct, per-router values part of the repeatable script instead. */
+  portalUrl?: { frontendBase: string; organizationId: string; locationId: string; routerId: string };
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
   const poolEnd = `${base3}.254`;
@@ -1280,11 +1291,49 @@ export function buildRouterSetupScriptChunks(opts: {
       `  /ip dhcp-server add name="hotspot-dhcp" interface="${lanBridge}" address-pool="hotspot-pool" disabled=no`,
       `  /ip dhcp-server network add address=${lanNetwork} gateway=${lanIp} dns-server=${lanIp}`,
       `}`,
-      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=cloudguest-hotspot }`,
+      // Uses RouterOS's own *stock* hotspot template ("hotspot", not a
+      // custom-uploaded one) -- present with all its supporting CSS/error/
+      // logout pages on every fresh device out of the box. A previous,
+      // one-off custom folder ("cloudguest-hotspot") required manually
+      // uploading a whole asset folder that no repeatable script ever
+      // covers; only login.html itself needs to be ours (see the "Portal
+      // Redirect Page" chunk below), and the stock folder already has
+      // everything else login.html depends on.
+      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot }`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
       `:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={ /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1" }`,
     ];
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
+  }
+
+  if (portalUrl) {
+    const url =
+      `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
+      `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
+      `&mac=$(mac)&dst=$(link-orig)&link-login-only=$(link-login-only)`;
+    // RouterOS's own string-literal parser evaluates $(...) as command
+    // substitution even inside double quotes (confirmed live -- without
+    // this escaping, $(mac)/$(link-orig)/$(link-login-only) silently
+    // evaluate to empty instead of surviving as literal text for the
+    // hotspot's *own*, separate template engine to substitute later when
+    // it actually serves this file to a connecting guest). Order matters:
+    // backslashes first, then quotes/dollar (each adds a NEW backslash
+    // that must not be re-escaped), real newlines last.
+    const escapeForRouterOsString = (s: string) =>
+      s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/\n/g, "\\n");
+    const html = [
+      "<!DOCTYPE html>",
+      '<html><head><meta charset="utf-8">',
+      `<meta http-equiv="refresh" content="0;url=${url}">`,
+      "<title>Connecting...</title></head>",
+      "<body><p>Redirecting to guest sign-in...</p>",
+      `<script>window.location.href = "${url}";</script>`,
+      "</body></html>",
+    ].join("\n");
+    const lines = [
+      `/file set [find name="flash/hotspot/login.html"] contents="${escapeForRouterOsString(html)}"`,
+    ];
+    chunks.push({ label: "Portal Redirect Page", script: lines.join("\n") });
   }
 
   // Confirmed live: an unauthenticated guest's browser can silently bypass
