@@ -287,15 +287,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <FileCode2 className="h-3.5 w-3.5" /> Setup Script -- 1-shot MikroTik configuration
       </p>
       <p className="text-xs text-muted-foreground">
-        WAN internet (1-3 ISPs, DHCP, failover if 2+), LAN bridge, hotspot, basic firewall,
-        platform check-in + heartbeat, and Device Console access — all in one script, one paste.
-        The WAN IP is assigned automatically via DHCP.
+        WAN interface list + NAT (1-3 ISPs), LAN bridge, hotspot, basic firewall, platform
+        check-in + heartbeat, and Device Console access — all in one script, one paste. WAN IP
+        addressing itself (DHCP or a static/leased-line IP) is <strong>not</strong> part of this
+        script — every ISP link is different, so that's a manual on-site step first (see below).
       </p>
 
       <ol className="list-decimal space-y-1 rounded-lg border border-border bg-muted/30 p-2.5 pl-6 text-[11px] text-muted-foreground">
         <li>Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH session, and not a browser.</li>
-        <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there before generating.</li>
-        <li>Fill in the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
+        <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there.</li>
+        <li>Get each WAN interface online <strong>first</strong>: run <code className="rounded bg-background px-1 py-0.5">/ip dhcp-client add interface=&lt;name&gt; disabled=no</code> if the ISP hands out an IP automatically, or <code className="rounded bg-background px-1 py-0.5">/ip address add address=&lt;ip/cidr&gt; interface=&lt;name&gt;</code> + a default route if it's a static/leased-line IP — whichever this specific link actually is.</li>
+        <li>Back in the dashboard, fill in the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
         <li>Paste the whole thing into WinBox's New Terminal and press Enter.</li>
         <li>If a very long paste ever errors out partway through (rare, but WinBox's terminal can drop characters on huge pastes), paste it in 2-3 smaller pieces instead of all at once — each block is independently safe to (re-)run.</li>
       </ol>

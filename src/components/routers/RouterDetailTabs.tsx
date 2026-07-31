@@ -991,14 +991,8 @@ export function buildRouterSetupScript(opts: {
    * router this script provisions starts with Device Console permanently
    * disabled for it ("no credentials"), needing a separate manual step. */
   apiAccess?: { username: string; secret: string };
-  /** Only meaningful with 2+ WAN interfaces. "failover" (default) gives
-   * each WAN a distinct default-route distance -- WAN1 is always preferred,
-   * later ones only take over once it's unreachable. "loadbalance" gives
-   * every WAN default route the same distance so RouterOS ECMP splits new
-   * connections across all of them, using both links' bandwidth at once. */
-  wanMode?: "failover" | "loadbalance";
 }): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, wanMode = "failover" } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
   const octets = lanIp.split(".");
   const base3 = octets.slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1029,6 +1023,13 @@ export function buildRouterSetupScript(opts: {
   // disabled on some factory images -- confirmed live on a real device.
   lines.push(`/interface bridge set [find name=$lanBridge] disabled=no`);
 
+  // WAN IP acquisition (DHCP vs. a leased-line's static IP/gateway) is
+  // deliberately NOT handled here -- the field engineer sets that up
+  // manually on-site first (via /ip address or /ip dhcp-client directly in
+  // WinBox, whichever the actual ISP connection needs), since only they
+  // know which this link is. This script only wires each already-connected
+  // WAN interface into the "WAN" interface list and NAT, which is the same
+  // regardless of how the IP itself was obtained.
   wanIfs.forEach((wanIf, idx) => {
     const n = idx + 1;
     const v = `wan${n}If`;
@@ -1036,9 +1037,6 @@ export function buildRouterSetupScript(opts: {
     lines.push(`:local wan${n}Port [/interface bridge port find where interface=$${v}]`);
     lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
     lines.push(`:if ([:len [/interface list member find where interface=$${v} list="WAN"]] = 0) do={ /interface list member add list="WAN" interface=$${v} }`);
-    lines.push(`:if ([:len [/ip dhcp-client find where interface=$${v}]] = 0) do={`);
-    lines.push(`  /ip dhcp-client add interface=$${v} disabled=no use-peer-dns=yes add-default-route=yes default-route-distance=${n}`);
-    lines.push(`}`);
     lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface=$${v} action=masquerade]] = 0) do={`);
     lines.push(`  /ip firewall nat add chain=srcnat out-interface=$${v} action=masquerade comment="cloudguest-nat-wan${n}"`);
     lines.push(`}`);
