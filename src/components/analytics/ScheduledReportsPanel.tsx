@@ -24,9 +24,18 @@ import {
 } from "@/hooks/useAnalytics";
 import type { ReportFormat, ReportType } from "@/types/analytics";
 
+// Only these six -- scheduling "audit"/"billing"/"monitoring" always fails:
+// analyticsService.createScheduledReport() has no backend ReportType to map
+// them to (see that function's own comment in analytics.service.ts) and
+// throws, which previously surfaced here as a generic, unexplained "Failed
+// to create scheduled report" toast for every single attempt. Mirrors
+// ReportCenter.tsx's identical on-demand-report screen, which never offers
+// those three as a "Download" option for the same reason.
+const SCHEDULABLE_REPORT_TYPES = ["guest", "router", "network", "organization", "location", "revenue"] as const;
+
 const schema = z.object({
   name: z.string().min(2, "Report name is required"),
-  type: z.enum(["guest", "router", "network", "organization", "location", "revenue", "audit", "billing", "monitoring"]),
+  type: z.enum(SCHEDULABLE_REPORT_TYPES),
   frequency: z.enum(["daily", "weekly", "monthly"]),
   format: z.enum(["pdf", "excel", "csv"]),
   recipients: z.string().min(3, "Add at least one email"),
@@ -59,8 +68,8 @@ export function ScheduledReportsPanel() {
       toast.success("Scheduled report created");
       setOpen(false);
       form.reset();
-    } catch {
-      toast.error("Failed to create scheduled report");
+    } catch (err) {
+      toast.error((err as AppError)?.message || "Failed to create scheduled report");
     }
   }
 
@@ -91,7 +100,7 @@ export function ScheduledReportsPanel() {
                   <Select value={form.watch("type")} onValueChange={(v) => form.setValue("type", v as FormValues["type"])}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {(["guest", "router", "network", "organization", "location", "revenue", "audit", "billing", "monitoring"] as const).map((t) => (
+                      {SCHEDULABLE_REPORT_TYPES.map((t) => (
                         <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
                       ))}
                     </SelectContent>
