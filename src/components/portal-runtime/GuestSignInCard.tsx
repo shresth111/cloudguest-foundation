@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Wifi, Smartphone, Mail, Ticket, KeyRound } from "lucide-react";
+import { Wifi, Smartphone, Mail, Ticket, KeyRound, MessageCircle } from "lucide-react";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, ConnectingOverlay, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
 import { Input } from "@/components/ui/input";
@@ -63,16 +63,22 @@ export function GuestSignInCard() {
   const methods: RuntimeAuthMethod[] = config ? enabledAuthMethods(config) : [];
   const hasOtpSms = methods.includes("otp_sms");
   const hasOtpEmail = methods.includes("otp_email");
-  const hasOtp = hasOtpSms || hasOtpEmail;
+  const hasOtpWhatsapp = methods.includes("otp_whatsapp");
+  const hasOtp = hasOtpSms || hasOtpEmail || hasOtpWhatsapp;
   const hasPassword = methods.includes("username_password");
   const hasVoucher = methods.includes("voucher");
 
-  const [otpChannel, setOtpChannel] = useState<"sms" | "email">(hasOtpSms ? "sms" : "email");
+  const isOtpMethod = (m: RuntimeAuthMethod | undefined) =>
+    m === "otp_sms" || m === "otp_email" || m === "otp_whatsapp";
+
+  const [otpChannel, setOtpChannel] = useState<"sms" | "email" | "whatsapp">(
+    hasOtpSms ? "sms" : hasOtpWhatsapp ? "whatsapp" : "email",
+  );
   const [tab, setTab] = useState<"otp" | "password">(() => {
     // An explicit hand-off (the expired screen's "Sign in again"/"Use OTP
     // instead" buttons, see src/routes/portal.expired.tsx) always wins.
     if (selectedMethod === "username_password" && hasPassword) return "password";
-    if ((selectedMethod === "otp_sms" || selectedMethod === "otp_email") && hasOtp) return "otp";
+    if (isOtpMethod(selectedMethod) && hasOtp) return "otp";
     // Otherwise: "OTP once, then phone/email + password from then on" --
     // this same browser having set a real password before defaults it
     // straight to the Registered-user tab (see
@@ -87,8 +93,7 @@ export function GuestSignInCard() {
   // explicit selectedMethod hand-off the same way.
   useEffect(() => {
     if (selectedMethod === "username_password" && hasPassword) setTab("password");
-    else if ((selectedMethod === "otp_sms" || selectedMethod === "otp_email") && hasOtp)
-      setTab("otp");
+    else if (isOtpMethod(selectedMethod) && hasOtp) setTab("otp");
     else if (hasPassword && deviceHasPassword()) setTab("password");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasOtp, hasPassword]);
@@ -134,7 +139,11 @@ export function GuestSignInCard() {
     return () => clearInterval(id);
   }, [resendCooldown]);
 
-  const identifierForChannel = otpChannel === "sms" ? countryCode + phone : email;
+  const identifierForChannel = otpChannel === "email" ? email : countryCode + phone;
+  const authMethodForChannel = (
+    c: "sms" | "email" | "whatsapp",
+  ): "otp_sms" | "otp_email" | "otp_whatsapp" =>
+    c === "sms" ? "otp_sms" : c === "whatsapp" ? "otp_whatsapp" : "otp_email";
 
   const sendOtp = useMutation({
     mutationFn: (identifier: string) =>
@@ -164,7 +173,7 @@ export function GuestSignInCard() {
       portalRuntimeService.loginWithOtp({
         identifier: target,
         code: c,
-        authMethod: otpChannel === "sms" ? "otp_sms" : "otp_email",
+        authMethod: authMethodForChannel(otpChannel),
         organizationId,
         locationId,
         routerId,
@@ -172,14 +181,15 @@ export function GuestSignInCard() {
       }),
     onSuccess: async (session) => {
       setOtpError(null);
-      setSelectedMethod(otpChannel === "sms" ? "otp_sms" : "otp_email");
+      setSelectedMethod(authMethodForChannel(otpChannel));
       // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's own
       // RADIUS Authorize checks this exact value, not a hardcoded one.
       setGuestIdentifier(target.trim());
-      // Mobile-OTP only, and only the very first time this guest has ever
-      // signed in -- an email-OTP or returning guest skips straight to
-      // afterLogin exactly as before.
-      if (otpChannel === "sms" && session.isNewGuest) {
+      // Phone-based channels only (SMS/WhatsApp), and only the very first
+      // time this guest has ever signed in -- an email-OTP or returning
+      // guest skips straight to afterLogin exactly as before, since a
+      // guest who signed in with email already gave us their email.
+      if ((otpChannel === "sms" || otpChannel === "whatsapp") && session.isNewGuest) {
         setPendingSession(session);
         setPhase("profile");
         return;
@@ -274,11 +284,16 @@ export function GuestSignInCard() {
 
   const onSendOtp = () => {
     const id = identifierForChannel.trim();
+    const isPhoneChannel = otpChannel !== "email";
     if (
-      otpChannel === "sms" ? id.replace(countryCode, "").trim().length < 6 : !/.+@.+\..+/.test(id)
+      isPhoneChannel ? id.replace(countryCode, "").trim().length < 6 : !/.+@.+\..+/.test(id)
     ) {
       setOtpError(
-        otpChannel === "sms" ? "Enter a valid mobile number" : "Enter a valid email address",
+        isPhoneChannel
+          ? otpChannel === "whatsapp"
+            ? "Enter a valid WhatsApp number"
+            : "Enter a valid mobile number"
+          : "Enter a valid email address",
       );
       return;
     }
@@ -329,21 +344,30 @@ export function GuestSignInCard() {
     loginPassword.mutate();
   };
 
+  const OTP_CHANNEL_META: Record<
+    "sms" | "email" | "whatsapp",
+    { label: string; icon: typeof Ticket; enabled: boolean }
+  > = {
+    sms: { label: "Use mobile number instead", icon: Smartphone, enabled: hasOtpSms },
+    email: { label: "Use email instead", icon: Mail, enabled: hasOtpEmail },
+    whatsapp: { label: "Use WhatsApp instead", icon: MessageCircle, enabled: hasOtpWhatsapp },
+  };
+
   const otherMethodLinks = useMemo(() => {
-    const links: { label: string; icon: typeof Ticket; onClick: () => void }[] = [];
-    if (tab === "otp" && hasOtpSms && hasOtpEmail) {
-      links.push({
-        label: otpChannel === "sms" ? "Use email instead" : "Use mobile number instead",
-        icon: otpChannel === "sms" ? Mail : Smartphone,
+    if (tab !== "otp") return [];
+    return (["sms", "email", "whatsapp"] as const)
+      .filter((c) => c !== otpChannel && OTP_CHANNEL_META[c].enabled)
+      .map((c) => ({
+        label: OTP_CHANNEL_META[c].label,
+        icon: OTP_CHANNEL_META[c].icon,
         onClick: () => {
-          setOtpChannel((c) => (c === "sms" ? "email" : "sms"));
+          setOtpChannel(c);
           setPhase("phone");
           setOtpError(null);
         },
-      });
-    }
-    return links;
-  }, [tab, hasOtpSms, hasOtpEmail, otpChannel]);
+      }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, hasOtpSms, hasOtpEmail, hasOtpWhatsapp, otpChannel]);
 
   const showTabs = hasOtp && hasPassword;
   const noMethods = !hasOtp && !hasPassword && !hasVoucher;
@@ -510,9 +534,13 @@ export function GuestSignInCard() {
                 ) : phase === "phone" ? (
                   <>
                     <label className="text-xs font-semibold text-slate-500">
-                      {otpChannel === "sms" ? "Mobile number" : "Email address"}
+                      {otpChannel === "email"
+                        ? "Email address"
+                        : otpChannel === "whatsapp"
+                          ? "WhatsApp number"
+                          : "Mobile number"}
                     </label>
-                    {otpChannel === "sms" ? (
+                    {otpChannel !== "email" ? (
                       <div className="grid grid-cols-[84px_1fr] gap-2">
                         <Input
                           value={countryCode}

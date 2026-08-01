@@ -4,7 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Fingerprint, IdCard, DoorOpen, Mail, Ticket, Key, GripVertical } from "lucide-react";
+import {
+  Fingerprint,
+  IdCard,
+  DoorOpen,
+  Mail,
+  Ticket,
+  Key,
+  GripVertical,
+  MessageCircle,
+} from "lucide-react";
 import { api, type AppError } from "@/services/api";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { resolveOrgId } from "@/services/customer.service";
@@ -19,16 +28,20 @@ interface LoginMethod {
   config: Record<string, any>;
 }
 
-// Only these two SmartIdPage methods have a real, persisted counterpart in
-// the backend's captive_portal_configs table (otp_email_enabled /
-// voucher_enabled -- see backend/app/domains/captive_portal/models.py).
-// Aadhaar/Passport/Room No./SSO/PIN have no backing column anywhere in the
-// backend (no identity-verification or PIN-login module exists), so
-// toggling those stays local-only -- the same honest "real field written
-// for real, no field faked as persisted" boundary portal.service.ts's own
+// Only these three SmartIdPage methods have a real, persisted counterpart
+// in the backend's captive_portal_configs table (otp_email_enabled /
+// otp_whatsapp_enabled / voucher_enabled -- see
+// backend/app/domains/captive_portal/models.py). Aadhaar/Passport/Room
+// No./SSO/PIN have no backing column anywhere in the backend (no
+// identity-verification or PIN-login module exists), so toggling those
+// stays local-only -- the same honest "real field written for real, no
+// field faked as persisted" boundary portal.service.ts's own
 // LOGIN_METHOD_FLAGS already documents for this exact backend table.
-const BACKED_FLAGS: Partial<Record<string, "otp_email_enabled" | "voucher_enabled">> = {
+const BACKED_FLAGS: Partial<
+  Record<string, "otp_email_enabled" | "otp_whatsapp_enabled" | "voucher_enabled">
+> = {
   "email-otp": "otp_email_enabled",
+  "whatsapp-otp": "otp_whatsapp_enabled",
   voucher: "voucher_enabled",
 };
 
@@ -37,6 +50,7 @@ interface BackendCaptivePortalConfig {
   organization_id: string;
   location_id: string | null;
   otp_email_enabled: boolean;
+  otp_whatsapp_enabled: boolean;
   voucher_enabled: boolean;
   is_active: boolean;
   is_default: boolean;
@@ -58,8 +72,14 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     { id: "room-no", label: "Room No.", icon: DoorOpen, enabled: false, required: false, order: 3, config: { propertyMgt: "manual" } },
     { id: "sso", label: "SSO / Email", icon: Mail, enabled: false, required: false, order: 4, config: { domain: "" } },
     { id: "email-otp", label: "Email OTP", icon: Mail, enabled: true, required: false, order: 5, config: {} },
-    { id: "voucher", label: "Voucher Code", icon: Ticket, enabled: true, required: false, order: 6, config: {} },
-    { id: "pin", label: "Set PIN", icon: Key, enabled: false, required: false, order: 7, config: { minLength: 4, maxLength: 8 } },
+    // Defaults off (unlike Email OTP) -- a real send needs a Meta-approved
+    // WhatsApp Business template configured on the backend
+    // (Settings.whatsapp_twilio_content_sid), which most orgs won't have
+    // set up yet. See backend/app/domains/captive_portal/models.py's
+    // otp_whatsapp_enabled docstring.
+    { id: "whatsapp-otp", label: "WhatsApp OTP", icon: MessageCircle, enabled: false, required: false, order: 6, config: {} },
+    { id: "voucher", label: "Voucher Code", icon: Ticket, enabled: true, required: false, order: 7, config: {} },
+    { id: "pin", label: "Set PIN", icon: Key, enabled: false, required: false, order: 8, config: { minLength: 4, maxLength: 8 } },
   ]);
 
   // orgId + the resolved captive-portal config id for this location (if

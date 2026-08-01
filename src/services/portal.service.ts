@@ -55,6 +55,7 @@ interface BackendCaptivePortalConfig {
   redirect_url: string | null;
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
+  otp_whatsapp_enabled: boolean;
   voucher_enabled: boolean;
   username_password_enabled: boolean;
   social_login_enabled: boolean;
@@ -229,6 +230,7 @@ const LOCATIONS: Array<[string, string, string]> = [
 const LOGIN_METHOD_FLAGS: Array<{ method: PortalLoginMethod; flag: keyof BackendCaptivePortalConfig }> = [
   { method: "mobile_otp", flag: "otp_sms_enabled" },
   { method: "email_otp", flag: "otp_email_enabled" },
+  { method: "whatsapp_otp", flag: "otp_whatsapp_enabled" },
   { method: "voucher", flag: "voucher_enabled" },
   { method: "social", flag: "social_login_enabled" },
 ];
@@ -242,6 +244,7 @@ function loginMethodFlags(methods: PortalLoginMethod[]): Partial<BackendCaptiveP
   return {
     otp_sms_enabled: set.has("mobile_otp"),
     otp_email_enabled: set.has("email_otp"),
+    otp_whatsapp_enabled: set.has("whatsapp_otp"),
     voucher_enabled: set.has("voucher"),
     social_login_enabled: set.has("social"),
   };

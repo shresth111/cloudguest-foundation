@@ -9,6 +9,7 @@ const EN: Dict = {
   chooseMethod: "Choose how to sign in",
   mobileOtp: "Mobile OTP",
   emailOtp: "Email OTP",
+  whatsappOtp: "WhatsApp OTP",
   passwordLogin: "Password",
   passwordLoginDesc: "Sign in with your saved password",
   voucher: "Voucher code",

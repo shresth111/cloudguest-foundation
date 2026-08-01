@@ -34,6 +34,7 @@ interface BackendCaptivePortalConfig {
   redirect_url: string | null;
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
+  otp_whatsapp_enabled: boolean;
   username_password_enabled: boolean;
   voucher_enabled: boolean;
   resolved_via_location_override: boolean;
@@ -128,6 +129,7 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     redirectUrl: c.redirect_url,
     otpSmsEnabled: c.otp_sms_enabled,
     otpEmailEnabled: c.otp_email_enabled,
+    otpWhatsappEnabled: c.otp_whatsapp_enabled,
     usernamePasswordEnabled: c.username_password_enabled,
     voucherEnabled: c.voucher_enabled,
     resolvedViaLocationOverride: c.resolved_via_location_override,
@@ -195,7 +197,7 @@ export const portalRuntimeService = {
 
   async requestOtp(params: {
     identifier: string;
-    channel: "sms" | "email";
+    channel: "sms" | "email" | "whatsapp";
     organizationId: string;
     locationId: string;
   }): Promise<void> {

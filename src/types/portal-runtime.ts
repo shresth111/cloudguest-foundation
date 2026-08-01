@@ -1,4 +1,9 @@
-export type RuntimeAuthMethod = "otp_sms" | "otp_email" | "username_password" | "voucher";
+export type RuntimeAuthMethod =
+  | "otp_sms"
+  | "otp_email"
+  | "otp_whatsapp"
+  | "username_password"
+  | "voucher";
 
 /** Every real value ``GuestSession.auth_method`` can come back as --
  * ``RuntimeAuthMethod`` above only lists the four a guest actually
@@ -36,6 +41,7 @@ export interface RuntimePortalConfig {
   redirectUrl: string | null;
   otpSmsEnabled: boolean;
   otpEmailEnabled: boolean;
+  otpWhatsappEnabled: boolean;
   usernamePasswordEnabled: boolean;
   voucherEnabled: boolean;
   resolvedViaLocationOverride: boolean;

@@ -7,6 +7,7 @@ import { otherAuthMethods, AUTH_METHOD_FALLBACK_COPY } from "@/lib/portal-auth-m
 import {
   MobileForm,
   EmailForm,
+  WhatsAppForm,
   PasswordForm,
   VoucherForm,
 } from "@/components/portal-runtime/AuthMethodForms";
@@ -20,7 +21,13 @@ export const Route = createFileRoute("/portal/auth/$method")({
   component: AuthMethodPage,
 });
 
-const METHODS: RuntimeAuthMethod[] = ["otp_sms", "otp_email", "username_password", "voucher"];
+const METHODS: RuntimeAuthMethod[] = [
+  "otp_sms",
+  "otp_email",
+  "otp_whatsapp",
+  "username_password",
+  "voucher",
+];
 
 function OtherMethodsLinks({
   config,
@@ -103,11 +110,13 @@ function AuthMethodPage() {
   const titleKey =
     m === "otp_email"
       ? "emailOtp"
-      : m === "username_password"
-        ? "passwordLogin"
-        : m === "voucher"
-          ? "voucherCode"
-          : "mobileOtp";
+      : m === "otp_whatsapp"
+        ? "whatsappOtp"
+        : m === "username_password"
+          ? "passwordLogin"
+          : m === "voucher"
+            ? "voucherCode"
+            : "mobileOtp";
 
   return (
     <PortalShell variant="light" showHeader={false}>
@@ -158,6 +167,13 @@ function AuthMethodPage() {
               organizationId={organizationId}
               locationId={locationId}
               onSent={(target) => onSent(target, "otp_email")}
+            />
+          )}
+          {m === "otp_whatsapp" && (
+            <WhatsAppForm
+              organizationId={organizationId}
+              locationId={locationId}
+              onSent={(target) => onSent(target, "otp_whatsapp")}
             />
           )}
           {m === "username_password" && (

@@ -12,13 +12,16 @@ import type { RuntimeAuthMethod, RuntimePortalConfig } from "@/types/portal-runt
  * Order is a fixed priority, not just "however the config happens to list
  * them": SMS OTP first -- the industry-default "phone number field" a
  * guest hits the instant they tap Connect on a real hotspot (Meraki/Aruba
- * ClearPass/Purple WiFi all default here), then email OTP, then password,
- * then voucher last (a real, supported method, but the least common thing
- * to lead with when something more common is also enabled).
+ * ClearPass/Purple WiFi all default here), then email OTP, then WhatsApp
+ * OTP (a real third channel, but the newest/least commonly enabled today),
+ * then password, then voucher last (a real, supported method, but the
+ * least common thing to lead with when something more common is also
+ * enabled).
  */
 export const AUTH_METHOD_PRIORITY: RuntimeAuthMethod[] = [
   "otp_sms",
   "otp_email",
+  "otp_whatsapp",
   "username_password",
   "voucher",
 ];
@@ -26,6 +29,7 @@ export const AUTH_METHOD_PRIORITY: RuntimeAuthMethod[] = [
 export const AUTH_METHOD_LABEL_KEY: Record<RuntimeAuthMethod, string> = {
   otp_sms: "mobileOtp",
   otp_email: "emailOtp",
+  otp_whatsapp: "whatsappOtp",
   username_password: "passwordLogin",
   voucher: "voucherCode",
 };
@@ -38,6 +42,7 @@ export const AUTH_METHOD_LABEL_KEY: Record<RuntimeAuthMethod, string> = {
 export const AUTH_METHOD_FALLBACK_COPY: Record<RuntimeAuthMethod, string> = {
   otp_sms: "Use a mobile number instead",
   otp_email: "Use an email address instead",
+  otp_whatsapp: "Use WhatsApp instead",
   username_password: "Sign in with a saved password instead",
   voucher: "Have a voucher code? Use it instead",
 };
@@ -48,6 +53,8 @@ function isEnabled(config: RuntimePortalConfig, method: RuntimeAuthMethod): bool
       return config.otpSmsEnabled;
     case "otp_email":
       return config.otpEmailEnabled;
+    case "otp_whatsapp":
+      return config.otpWhatsappEnabled;
     case "username_password":
       return config.usernamePasswordEnabled;
     case "voucher":

@@ -201,6 +201,7 @@ export function PortalTable() {
               <SelectItem value="all">All methods</SelectItem>
               <SelectItem value="mobile_otp">Mobile OTP</SelectItem>
               <SelectItem value="email_otp">Email OTP</SelectItem>
+              <SelectItem value="whatsapp_otp">WhatsApp OTP</SelectItem>
               <SelectItem value="voucher">Voucher</SelectItem>
               <SelectItem value="pms">PMS</SelectItem>
               <SelectItem value="social">Social</SelectItem>

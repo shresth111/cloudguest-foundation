@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Smartphone, Mail, KeyRound, Ticket } from "lucide-react";
+import { Loader2, Smartphone, Mail, KeyRound, Ticket, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -14,13 +14,13 @@ import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
 /**
- * The four sign-in forms (mobile OTP request, email OTP request, saved
- * password, voucher redeem) -- the real fields a guest fills in, shared by
- * both the single-page guest flow (src/routes/portal.welcome.tsx, the page
- * a guest actually lands on) and the deep-linkable per-method route
- * (src/routes/portal.auth.$method.tsx, kept for direct/bookmarked links)
- * so the two can never drift into different field sets or validation for
- * the same method.
+ * The five sign-in forms (mobile OTP request, email OTP request, WhatsApp
+ * OTP request, saved password, voucher redeem) -- the real fields a guest
+ * fills in, shared by both the single-page guest flow
+ * (src/routes/portal.welcome.tsx, the page a guest actually lands on) and
+ * the deep-linkable per-method route (src/routes/portal.auth.$method.tsx,
+ * kept for direct/bookmarked links) so the two can never drift into
+ * different field sets or validation for the same method.
  */
 
 export const METHOD_META: Record<
@@ -29,6 +29,11 @@ export const METHOD_META: Record<
 > = {
   otp_sms: { icon: Smartphone, labelKey: "mobileOtp", desc: "Receive a code by SMS" },
   otp_email: { icon: Mail, labelKey: "emailOtp", desc: "Receive a code by email" },
+  otp_whatsapp: {
+    icon: MessageCircle,
+    labelKey: "whatsappOtp",
+    desc: "Receive a code via WhatsApp",
+  },
   username_password: {
     icon: KeyRound,
     labelKey: "passwordLogin",
@@ -60,6 +65,56 @@ export function MobileForm({
       portalRuntimeService.requestOtp({
         identifier: v.countryCode + v.phone,
         channel: "sms",
+        organizationId,
+        locationId,
+      }),
+    onSuccess: (_r, v) => {
+      toast.success("Code sent");
+      onSent(v.countryCode + v.phone);
+    },
+    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
+  });
+  return (
+    <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
+      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
+      <div className="grid grid-cols-[90px_1fr] gap-2">
+        <Input {...form.register("countryCode")} className={PG_INPUT} />
+        <Input
+          {...form.register("phone")}
+          inputMode="tel"
+          placeholder="555 010 2200"
+          className={PG_INPUT}
+        />
+      </div>
+      {form.formState.errors.phone && (
+        <p className="text-xs text-red-600">{form.formState.errors.phone.message}</p>
+      )}
+      <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
+        {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+      </button>
+    </form>
+  );
+}
+
+export function WhatsAppForm({
+  organizationId,
+  locationId,
+  onSent,
+}: {
+  organizationId: string;
+  locationId: string;
+  onSent: (target: string) => void;
+}) {
+  const { t } = usePortalRuntime();
+  const form = useForm<z.infer<typeof mobileSchema>>({
+    resolver: zodResolver(mobileSchema),
+    defaultValues: { countryCode: "+1", phone: "" },
+  });
+  const send = useMutation({
+    mutationFn: (v: z.infer<typeof mobileSchema>) =>
+      portalRuntimeService.requestOtp({
+        identifier: v.countryCode + v.phone,
+        channel: "whatsapp",
         organizationId,
         locationId,
       }),

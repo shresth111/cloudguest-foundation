@@ -17,7 +17,7 @@ import { brandAssetService } from "@/services/brand-asset.service";
 import type { PortalLoginMethod } from "@/types/portal";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
-const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"], ["email_otp", "Email OTP"], ["voucher", "Voucher"], ["social", "Social Login"]];
+const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"], ["email_otp", "Email OTP"], ["whatsapp_otp", "WhatsApp OTP"], ["voucher", "Voucher"], ["social", "Social Login"]];
 
 function PortalDesignIllustration() {
   const shouldReduceMotion = useReducedMotion();

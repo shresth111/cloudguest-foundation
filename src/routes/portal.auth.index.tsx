@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { Smartphone, Mail, KeyRound, Ticket, ChevronRight } from "lucide-react";
+import { Smartphone, Mail, KeyRound, Ticket, ChevronRight, MessageCircle } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -42,6 +42,11 @@ const METHOD_META: Record<
 > = {
   otp_sms: { icon: Smartphone, labelKey: "mobileOtp", desc: "Receive a code by SMS" },
   otp_email: { icon: Mail, labelKey: "emailOtp", desc: "Receive a code by email" },
+  otp_whatsapp: {
+    icon: MessageCircle,
+    labelKey: "whatsappOtp",
+    desc: "Receive a code via WhatsApp",
+  },
   username_password: {
     icon: KeyRound,
     labelKey: "passwordLogin",

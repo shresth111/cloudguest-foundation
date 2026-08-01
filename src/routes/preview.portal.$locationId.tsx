@@ -207,6 +207,7 @@ function PortalPreviewPage() {
           redirectUrl: null,
           otpSmsEnabled: false,
           otpEmailEnabled: false,
+          otpWhatsappEnabled: false,
           usernamePasswordEnabled: false,
           voucherEnabled: false,
           resolvedViaLocationOverride: false,

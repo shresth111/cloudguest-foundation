@@ -47,6 +47,7 @@ const DEFAULTS: PortalWizardValues = {
   methods: {
     mobile_otp: true,
     email_otp: false,
+    whatsapp_otp: false,
     voucher: false,
     pms: false,
     social: false,
