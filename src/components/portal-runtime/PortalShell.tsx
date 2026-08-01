@@ -133,11 +133,11 @@ interface Props {
   contentClassName?: string;
   /** "dark" (default) is the original glass-on-navy look, still used by
    * every portal.* route this visual redesign didn't touch
-   * (offline/failure/ad/redirect/terms/session/auth picker). "light" is
+   * (offline/failure/ad/redirect/terms/auth picker). "light" is
    * the new spec-driven look (white card, 24px radius, soft layered
    * shadow, indigo-tinted gradient background with an animated glow
    * blob) used by the redesigned guest sign-in flow itself (welcome,
-   * success, expired, set-password). */
+   * success, session, expired, set-password). */
   variant?: "dark" | "light";
   /** When true, sizes to 100% of its parent container (`h-full`) instead
    * of the full viewport (`min-h-dvh`) -- used by the admin Portal

@@ -50,6 +50,16 @@ function PortalLoading() {
   // already connected mid-visit shouldn't suddenly get bounced to
   // "closed" just because the clock crossed the schedule boundary; the
   // closed screen only gates a *new* sign-in.
+  // Navigates the instant the real decision is known -- no artificial
+  // minimum wait. The founder wanted the login page to appear
+  // immediately on connect; the old `setTimeout(..., 900)` here fired
+  // *after* `target` was already fully resolved, so it was pure
+  // decorative pacing bolted onto an already-finished decision, not real
+  // async work. The two guard clauses above are the genuine async
+  // gating (captive-portal config still loading, or a live-session check
+  // still in flight) -- both must still resolve before this can navigate
+  // anywhere, since navigating early risks sending an already-connected
+  // guest back through sign-in.
   useEffect(() => {
     if (isLoading || !config) return;
     if (!session && deviceMac && !liveSessionChecked) return;
@@ -59,11 +69,7 @@ function PortalLoading() {
       : config.isOpenNow === false
         ? "/portal/closed"
         : "/portal/welcome";
-    const to = setTimeout(
-      () => navigate({ to: target, replace: true, search: (prev) => prev }),
-      900,
-    );
-    return () => clearTimeout(to);
+    navigate({ to: target, replace: true, search: (prev) => prev });
   }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, navigate]);
 
   if (!isLoading && error) {
