@@ -19,7 +19,7 @@ import BrandAssetPage from "@/components/features/BrandAssetPage";
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
-  IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
+  DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import {
   BasicDashboardView, BasicUsersView, BasicDevicesView, BasicAuditView, NetworkHardwareView,
@@ -58,7 +58,6 @@ export function renderFeature(id: string, ctx: { locationId?: string } = {}): Re
     case "dhcp": return <DhcpView locationId={ctx.locationId} />;
     case "vlans": return <VlansView locationId={ctx.locationId} />;
     case "voip": return <VoipView locationId={ctx.locationId} />;
-    case "isp-routing": return <IspRoutingView locationId={ctx.locationId} />;
     case "debugging": return <DebuggingView />;
     case "hotspot": return <HotspotView locationId={ctx.locationId} />;
     default: return <GenericFeatureView feature={id} />;

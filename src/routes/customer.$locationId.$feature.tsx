@@ -46,7 +46,7 @@ import { useIsDemo, useCustomerDashboard, useCustomerUsers } from "@/hooks/useCu
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
-  IspRoutingView, DebuggingView, HotspotView, GenericFeatureView,
+  DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
@@ -164,7 +164,6 @@ function FeaturePage() {
             {feature === "dhcp" && <DhcpView locationId={locationId} />}
             {feature === "vlans" && <VlansView locationId={locationId} />}
             {feature === "voip" && <VoipView locationId={locationId} />}
-            {feature === "isp-routing" && <IspRoutingView locationId={locationId} />}
             {feature === "debugging" && <DebuggingView locationId={locationId} />}
             {feature === "hotspot" && <HotspotView locationId={locationId} />}
             {/* "audit" is handled above (redirected to AdminLogsView, see

@@ -10,8 +10,8 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Activity, AlertTriangle, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
-  Network, Plus, RadioTower, Router, Shield, ShieldAlert, Signal, Terminal, Ticket, Trash2,
+  Activity, AlertTriangle, ArrowLeftRight, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
+  Network, Plus, RadioTower, RotateCcw, Router, Shield, ShieldAlert, Signal, Terminal, Ticket, Trash2,
   Wifi, XCircle, Bell, Server, Pencil, RefreshCw, History, ScrollText, Fingerprint,
   KeyRound,
 } from "lucide-react";
@@ -57,10 +57,18 @@ import { DhcpManagement } from "@/components/network/DhcpManagement";
 import { VlanManagement } from "@/components/network/VlanManagement";
 import { PortForwardingManagement } from "@/components/network/PortForwardingManagement";
 import { HotspotManagement } from "@/components/network/HotspotManagement";
-import { IspManagement } from "@/components/network/IspManagement";
+// Only the pure rule-vocabulary helpers are reused here -- the Master
+// Console's own IspManagement component (and its full uplink+rule CRUD UI)
+// stays exactly as-is at /network/isp; the customer dashboard's "Internet
+// Connection" view (IspDetailsView below) builds its own Routing Rules
+// section using these so the two surfaces can't drift on rule-type labels.
+import { matchFieldLabel, matchValueFromRule, RULE_TYPES } from "@/components/network/IspManagement";
 import { QosManagement } from "@/components/network/QosManagement";
 import type { RouterDevice } from "@/types/router";
-import type { IspLink, IspLinkRole, IspHealthCheck, IspManualHealthStatus, IspConnectionMode } from "@/types/isp";
+import type {
+  IspLink, IspLinkRole, IspHealthCheck, IspManualHealthStatus, IspConnectionMode,
+  IspRoutingRule, IspRoutingRuleType,
+} from "@/types/isp";
 import { api } from "@/services/api";
 import type { AppError } from "@/services/api";
 import { cn } from "@/lib/utils";
@@ -1085,6 +1093,110 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
   );
 }
 
+interface IspRuleFormState {
+  ispLinkId: string;
+  ruleType: IspRoutingRuleType;
+  name: string;
+  description: string;
+  priority: number;
+  matchValue: string;
+  isEnabled: boolean;
+}
+const emptyRuleForm = (defaultLinkId: string): IspRuleFormState => ({
+  ispLinkId: defaultLinkId, ruleType: "vlan", name: "", description: "", priority: 0, matchValue: "", isEnabled: true,
+});
+
+/** Create/edit dialog for a routing rule, merged in from the former
+ * "Internet Failover" page's own rule dialog (IspManagement.tsx's
+ * RuleDialog) -- same real ispService.*RoutingRule endpoints, same
+ * rule-type vocabulary (RULE_TYPES/matchFieldLabel/matchValueFromRule
+ * imported from that file rather than re-derived), just a plain-state
+ * form matching this view's own IspLinkDialog above instead of a second
+ * react-hook-form+zod stack. */
+function IspRuleDialog({
+  open, onOpenChange, editing, links, saving, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  editing: IspRoutingRule | null;
+  links: IspLink[];
+  saving: boolean;
+  onSave: (form: IspRuleFormState) => void;
+}) {
+  const [form, setForm] = useState<IspRuleFormState>(emptyRuleForm(links[0]?.id ?? ""));
+  useEffect(() => {
+    if (!open) return;
+    setForm(editing ? {
+      ispLinkId: editing.ispLinkId,
+      ruleType: editing.ruleType,
+      name: editing.name,
+      description: editing.description ?? "",
+      priority: editing.priority,
+      matchValue: matchValueFromRule(editing),
+      isEnabled: editing.isEnabled,
+    } : emptyRuleForm(links[0]?.id ?? ""));
+  }, [open, editing, links]);
+
+  const valid = form.name.trim().length > 0 && form.ispLinkId.length > 0 && form.matchValue.trim().length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit Routing Rule" : "New Routing Rule"}</DialogTitle>
+          <DialogDescription>Pin matching traffic to a specific uplink.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-1 block text-xs">Name</Label>
+            <Input placeholder="VLAN 20 via secondary uplink" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label className="mb-1 block text-xs">Uplink</Label>
+              <Select value={form.ispLinkId} onValueChange={(v) => setForm({ ...form, ispLinkId: v })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select uplink" /></SelectTrigger>
+                <SelectContent>{links.map((l) => <SelectItem key={l.id} value={l.id}>{l.providerName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs">Rule Type</Label>
+              <Select value={form.ruleType} onValueChange={(v) => setForm({ ...form, ruleType: v as IspRoutingRuleType, matchValue: "" })}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>{RULE_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">{matchFieldLabel(form.ruleType)}</Label>
+            <Input className="h-9 font-mono" value={form.matchValue} onChange={(e) => setForm({ ...form, matchValue: e.target.value })} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label className="mb-1 block text-xs">Priority</Label>
+              <Input type="number" min={0} value={form.priority} onChange={(e) => setForm({ ...form, priority: +e.target.value || 0 })} className="h-9" />
+            </div>
+            {editing && (
+              <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
+                <div className="text-sm font-medium">Enabled</div>
+                <Switch checked={form.isEnabled} onCheckedChange={(v) => setForm({ ...form, isEnabled: v })} />
+              </div>
+            )}
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs">Description (optional)</Label>
+            <Input placeholder="Notes…" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="h-9" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button disabled={!valid || saving} onClick={() => onSave(form)}>{saving ? "Saving…" : editing ? "Save Changes" : "Add Rule"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function IspDetailsView({ locationId }: { locationId?: string }) {
   const demo = isDemo();
   const [routers, setRouters] = useState<RouterDevice[]>([]);
@@ -1098,6 +1210,18 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [historyLinkId, setHistoryLinkId] = useState<string | null>(null);
+  // Routing rules + failover/failback -- merged in from the former separate
+  // "Internet Failover" nav item (isp-routing -> IspManagement.tsx), which
+  // used to make a customer navigate to a second page for exactly the same
+  // per-router ISP links this view already shows. Same real backend
+  // (ispService.triggerFailover/triggerFailback/listRoutingRules/etc, see
+  // that service's own comments) -- only the frontend surface changed.
+  const [rules, setRules] = useState<IspRoutingRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<IspRoutingRule | null>(null);
+  const [savingRule, setSavingRule] = useState(false);
+  const [failoverBusy, setFailoverBusy] = useState<"failover" | "failback" | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -1136,6 +1260,25 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   };
 
   useEffect(() => { loadLinks(selectedRouterId); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedRouterId, demo]);
+
+  const loadRules = async (routerId: string) => {
+    if (!routerId) { setRules([]); return; }
+    setRulesLoading(true);
+    try {
+      // No demo fixture for routing rules -- the demo session never calls
+      // ispService at all (see DEMO_ROUTER's own comment above), so demo
+      // mode just shows the real "no rules yet" empty state.
+      const result = demo ? { rows: [] } : await ispService.listRoutingRules({ routerId, page: 1, pageSize: 25 });
+      setRules(result.rows);
+    } catch {
+      toast.error("Could not load routing rules for this router.");
+      setRules([]);
+    } finally {
+      setRulesLoading(false);
+    }
+  };
+
+  useEffect(() => { loadRules(selectedRouterId); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedRouterId, demo]);
 
   const selectedRouter = routers.find((r) => r.id === selectedRouterId) ?? null;
 
@@ -1229,13 +1372,100 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     }
   };
 
-  // Failover/failback triggers are intentionally not exposed from this
-  // view -- this dashboard is meant to be a real, persisted view of each
-  // ISP link and its status (automated or manually set), not a control
-  // surface that pushes uplink-switching actions from the customer
-  // dashboard. The backend endpoints (`IspService.trigger_failover`/
-  // `trigger_failback`) remain real and unchanged for whichever surface
-  // still needs them; only this view's buttons were removed.
+  // Failover/failback triggers -- merged in from the former separate
+  // "Internet Failover" nav item/page (isp-routing). Router-scoped (a
+  // failover switches *this router's* active uplink among its own links),
+  // same as the uplinks/rules tables above are already scoped to
+  // `selectedRouterId`. Real backend calls (`IspService.trigger_failover`/
+  // `trigger_failback`), not a client-side toggle of `isActiveUplink`.
+  const triggerFailover = async () => {
+    if (demo) { toast.info("Failover runs against real router hardware -- not available in demo mode."); return; }
+    if (!selectedRouterId) return;
+    setFailoverBusy("failover");
+    try {
+      await ispService.triggerFailover(selectedRouterId);
+      await loadLinks(selectedRouterId);
+      toast.success("Failover triggered");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failover failed");
+    } finally {
+      setFailoverBusy(null);
+    }
+  };
+
+  const triggerFailback = async () => {
+    if (demo) { toast.info("Failback runs against real router hardware -- not available in demo mode."); return; }
+    if (!selectedRouterId) return;
+    setFailoverBusy("failback");
+    try {
+      await ispService.triggerFailback(selectedRouterId);
+      await loadLinks(selectedRouterId);
+      toast.success("Failback triggered");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failback failed");
+    } finally {
+      setFailoverBusy(null);
+    }
+  };
+
+  // Routing rules -- also merged in from the former "Internet Failover"
+  // page, same real ispService.*RoutingRule endpoints IspManagement.tsx's
+  // own rule table already used (see that file's own RULE_TYPES/
+  // matchFieldLabel/matchValueFromRule, reused here rather than
+  // re-derived).
+  const openCreateRule = () => { setEditingRule(null); setRuleDialogOpen(true); };
+  const openEditRule = (r: IspRoutingRule) => { setEditingRule(r); setRuleDialogOpen(true); };
+
+  const saveRule = async (form: IspRuleFormState) => {
+    if (demo) { toast.error("Sign in to a real account to manage routing rules."); return; }
+    if (!selectedRouterId) return;
+    setSavingRule(true);
+    try {
+      const matchFields = {
+        vlanId: form.ruleType === "vlan" ? Number(form.matchValue) : null,
+        sourceMacAddress: form.ruleType === "user" ? form.matchValue : null,
+        ipAddress: form.ruleType === "ip" ? form.matchValue : null,
+        sourceCidr: form.ruleType === "source" ? form.matchValue : null,
+        interfaceName: form.ruleType === "interface" ? form.matchValue : null,
+        policyId: form.ruleType === "policy" ? form.matchValue : null,
+      };
+      const shared = {
+        ispLinkId: form.ispLinkId,
+        ruleType: form.ruleType,
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        priority: form.priority,
+        ...matchFields,
+      };
+      if (editingRule) {
+        const updated = await ispService.updateRoutingRule(editingRule.id, { ...shared, isEnabled: form.isEnabled });
+        setRules((rs) => rs.map((r) => (r.id === updated.id ? updated : r)));
+        toast.success("Routing rule updated");
+      } else {
+        const created = await ispService.createRoutingRule({ routerId: selectedRouterId, ...shared });
+        setRules((rs) => [created, ...rs]);
+        toast.success("Routing rule added");
+      }
+      setRuleDialogOpen(false);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not save the routing rule.");
+    } finally {
+      setSavingRule(false);
+    }
+  };
+
+  const removeRule = async (rule: IspRoutingRule) => {
+    if (demo) { toast.error("Sign in to a real account to manage routing rules."); return; }
+    setRules((rs) => rs.filter((r) => r.id !== rule.id));
+    try {
+      await ispService.removeRoutingRule(rule.id);
+      toast.success("Routing rule removed");
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not remove the routing rule.");
+      setRules((rs) => [rule, ...rs]);
+    }
+  };
+
   const healthyCount = links.filter((l) => l.healthStatus === "healthy").length;
   const activeLink = links.find((l) => l.isActiveUplink);
 
@@ -1245,7 +1475,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         <div className="min-w-0 flex-1">
           <FeatureHeader
             title="Internet Connection"
-            description="Real WAN uplinks per router -- provider, bandwidth, DNS, failover priority, and live health status."
+            description="Real WAN uplinks per router -- provider, bandwidth, DNS, live health status, manual/automatic failover, and policy-based routing rules."
             icon={Globe}
             action={selectedRouterId ? <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" />Add ISP Link</Button> : undefined}
           />
@@ -1284,6 +1514,35 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
             { label: "Active Uplink", value: activeLink?.providerName ?? "—", tone: "primary", icon: Globe },
           ]} />
 
+          {links.length > 0 && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+                <div>
+                  <CardTitle className="text-sm">Failover</CardTitle>
+                  <CardDescription>Manually switch this router's active uplink, or fail back to its primary once it's healthy again.</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={failoverBusy !== null}
+                    onClick={triggerFailover}
+                  >
+                    <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" /> Trigger failover
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={failoverBusy !== null}
+                    onClick={triggerFailback}
+                  >
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Trigger failback
+                  </Button>
+                </div>
+              </CardHeader>
+            </Card>
+          )}
+
           <Card className="border-0 shadow-sm">
             <CardHeader><CardTitle className="text-sm">WAN Uplinks — {selectedRouter.name}</CardTitle><CardDescription>Every ISP link configured for this router, with real, sweep-updated health status.</CardDescription></CardHeader>
             <CardContent className="p-0">
@@ -1306,7 +1565,12 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                     <TableRow key={l.id} className="border-b">
                       <TableCell className="font-medium">{l.providerName}{l.isActiveUplink && <Badge variant="outline" className="ml-2 text-[10px]">Active</Badge>}</TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">{l.linkType.replace(/_/g, " ")}</TableCell>
-                      <TableCell className="text-xs capitalize text-muted-foreground">{l.role}</TableCell>
+                      <TableCell className="text-xs capitalize text-muted-foreground">
+                        {l.role}
+                        <p className="mt-0.5 text-[10px] normal-case text-muted-foreground/70" title="Whether this link automatically fails back to primary once healthy again, or stays on the failover uplink until switched back manually">
+                          {l.autoFailback ? "Auto-failback on" : "Auto-failback off"}
+                        </p>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {l.downloadBandwidthMbps ?? "—"}↓ / {l.uploadBandwidthMbps ?? "—"}↑ Mbps
                         {(l.currentDownloadMbps != null || l.currentUploadMbps != null) && (
@@ -1345,11 +1609,61 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
               )}
             </CardContent>
           </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm">Routing Rules</CardTitle>
+                <CardDescription>Pin matching traffic (by VLAN, device, IP, source network, interface, or policy) to a specific uplink.</CardDescription>
+              </div>
+              <Button size="sm" onClick={openCreateRule} disabled={links.length === 0}><Plus className="h-4 w-4" />New Rule</Button>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              {rulesLoading ? (
+                <div className="p-4"><LoadingSkeleton rows={3} /></div>
+              ) : rules.length === 0 ? (
+                <EmptyState icon={ArrowLeftRight} title="No routing rules yet" description={links.length === 0 ? "Add an ISP link above first, then pin specific traffic to it here." : 'Click "New Rule" above to pin matching traffic to a specific uplink.'} />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs font-medium">Name</TableHead>
+                      <TableHead className="text-xs font-medium">Type</TableHead>
+                      <TableHead className="text-xs font-medium">Match</TableHead>
+                      <TableHead className="text-xs font-medium">Uplink</TableHead>
+                      <TableHead className="text-xs font-medium">Priority</TableHead>
+                      <TableHead className="text-xs font-medium">Status</TableHead>
+                      <TableHead className="w-[80px] text-right text-xs font-medium">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rules.map((r) => (
+                      <TableRow key={r.id} className="border-b">
+                        <TableCell className="font-medium">{r.name}</TableCell>
+                        <TableCell className="text-xs uppercase text-muted-foreground">{r.ruleType}</TableCell>
+                        <TableCell className="font-mono text-xs">{matchValueFromRule(r)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{links.find((l) => l.id === r.ispLinkId)?.providerName ?? r.ispLinkId.slice(0, 8)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.priority}</TableCell>
+                        <TableCell><Badge variant={r.isEnabled ? "default" : "secondary"}>{r.isEnabled ? "Enabled" : "Disabled"}</Badge></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => openEditRule(r)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" title="Remove" onClick={() => removeRule(r)}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
 
       <IspLinkDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editingLink} saving={saving} onSave={saveLink} />
       <IspHealthHistoryDialog linkId={historyLinkId} open={historyLinkId != null} onOpenChange={(v) => !v && setHistoryLinkId(null)} />
+      <IspRuleDialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen} editing={editingRule} links={links} saving={savingRule} onSave={saveRule} />
     </div>
   );
 }
@@ -1822,18 +2136,6 @@ export function VlansView({ locationId }: { locationId?: string }) {
  * same way DhcpView/VlansView are. */
 export function VoipView({ locationId }: { locationId?: string }) {
   return <QosManagement locationId={locationId} />;
-}
-
-/* ---------- ISP Routing ----------
- * Was fully local `useState` -- "Add Route" only ever pushed into in-memory
- * arrays that a reload silently discarded; nothing was ever read from or
- * written to a backend. The real domain already exists end-to-end
- * (app.domains.isp_routing, the `isp_routing_rules` table, already-fixed
- * ispService.listRoutingRules/createRoutingRule/etc. on the frontend) and
- * already backs IspManagement's "Routing rules" section -- reused here,
- * scoped to this location, the same way DhcpView/VlansView are. */
-export function IspRoutingView({ locationId }: { locationId?: string }) {
-  return <IspManagement locationId={locationId} />;
 }
 
 /* ---------- Debugging Tools ----------

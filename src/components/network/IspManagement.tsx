@@ -76,7 +76,13 @@ import type { IspLink, IspLinkRole, IspRoutingRule, IspRoutingRuleType } from "@
 
 const PAGE_SIZE = 25;
 const ROLES: IspLinkRole[] = ["primary", "backup"];
-const RULE_TYPES: IspRoutingRuleType[] = ["vlan", "user", "ip", "source", "interface", "policy"];
+// Exported so the customer dashboard's merged "Internet Connection" view
+// (IspDetailsView in OperationsFeatures.tsx) can reuse the exact same rule
+// vocabulary/match-field logic for its own Routing Rules section, rather
+// than re-deriving a second copy that could drift from this one -- this
+// file (the Master Console's own /network/isp page) keeps its own
+// IspManagement component and full CRUD UI unchanged.
+export const RULE_TYPES: IspRoutingRuleType[] = ["vlan", "user", "ip", "source", "interface", "policy"];
 
 function healthTone(status: string): "default" | "destructive" | "secondary" {
   if (status === "healthy") return "default";
@@ -629,7 +635,7 @@ const ruleSchema = z.object({
 });
 type RuleFormValues = z.infer<typeof ruleSchema>;
 
-function matchFieldLabel(t: IspRoutingRuleType): string {
+export function matchFieldLabel(t: IspRoutingRuleType): string {
   switch (t) {
     case "vlan": return "VLAN ID";
     case "user": return "Source MAC address";
@@ -640,7 +646,7 @@ function matchFieldLabel(t: IspRoutingRuleType): string {
   }
 }
 
-function matchValueFromRule(r: IspRoutingRule): string {
+export function matchValueFromRule(r: IspRoutingRule): string {
   return String(r.vlanId ?? r.sourceMacAddress ?? r.ipAddress ?? r.sourceCidr ?? r.interfaceName ?? r.policyId ?? "");
 }
 
