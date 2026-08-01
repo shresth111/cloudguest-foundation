@@ -13,7 +13,7 @@ import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 
-const CATEGORIES = ["User Report", "Voucher Report", "Campaign Report", "Data Report", "OTP SMS Report"] as const;
+const CATEGORIES = ["Guest Activity Report", "Voucher Redemption Report", "Campaign Engagement Report", "Bandwidth & Cost Report", "OTP & SMS Delivery Report"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
@@ -45,31 +45,31 @@ const phone = (i: number) => `+9198${String(70000000 + i * 1111111).slice(0, 10)
 
 // ── report catalogs, one per category ──────────────────────────────
 const USER_REPORT_TYPES: ReportType[] = [
-  { id: "user-data", label: "User Data Consumption By Date Range", desc: "How much data each user pulled over a chosen period." },
-  { id: "user-sessions", label: "User Sessions By Date Range", desc: "Every login session with start, end and duration." },
-  { id: "user-presence", label: "Detailed User Presence Report (24 Hour Report)", desc: "Hour-by-hour presence for a single day." },
-  { id: "top-users", label: "Top 10 Users For The Current Month", desc: "The heaviest data users this month." },
-  { id: "daywise-data", label: "Day Wise User Data Consumption", desc: "Daily data totals across the period." },
-  { id: "daywise-unique", label: "Day Wise Unique Users & Devices Count", desc: "Distinct users and devices seen each day." },
-  { id: "team-report", label: "User Team Report", desc: "Usage rolled up by group or team." },
+  { id: "user-data", label: "Guest Data Usage By Date Range", desc: "How much data each user pulled over a chosen period." },
+  { id: "user-sessions", label: "Guest Dwell Time By Date Range", desc: "Every login session with start, end and duration." },
+  { id: "user-presence", label: "Hourly Guest Traffic (Single-Day Snapshot)", desc: "Hour-by-hour presence for a single day." },
+  { id: "top-users", label: "Heaviest Data Users (This Month)", desc: "The heaviest data users this month." },
+  { id: "daywise-data", label: "Daily Guest Data Trend", desc: "Daily data totals across the period." },
+  { id: "daywise-unique", label: "Daily Guest & Device Footfall", desc: "Distinct users and devices seen each day." },
+  { id: "team-report", label: "Team Usage Breakdown", desc: "Usage rolled up by group or team." },
 ];
 const VOUCHER_REPORT_TYPES: ReportType[] = [
-  { id: "voucher-usage", label: "Voucher Usage By Date Range", desc: "Every voucher redeemed, by whom and when." },
-  { id: "voucher-batch", label: "Batch-Wise Voucher Summary", desc: "Redemption rate for each generated batch." },
-  { id: "top-vouchers", label: "Top Redeemed Vouchers This Month", desc: "The most-used vouchers this month." },
+  { id: "voucher-usage", label: "Voucher Redemption Log By Date Range", desc: "Every voucher redeemed, by whom and when." },
+  { id: "voucher-batch", label: "Voucher Batch Redemption Rate", desc: "Redemption rate for each generated batch." },
+  { id: "top-vouchers", label: "Most Redeemed Vouchers (This Month)", desc: "The most-used vouchers this month." },
 ];
 const CAMPAIGN_REPORT_TYPES: ReportType[] = [
-  { id: "campaign-performance", label: "Campaign Performance By Date Range", desc: "Sent, delivered, opened and clicked per campaign." },
-  { id: "campaign-daywise", label: "Day Wise Campaign Engagement", desc: "Daily send/deliver/open totals across the period." },
-  { id: "top-campaigns", label: "Top Campaigns This Month", desc: "Best-performing campaigns by click-through rate." },
+  { id: "campaign-performance", label: "Campaign Funnel By Date Range", desc: "Sent, delivered, opened and clicked per campaign." },
+  { id: "campaign-daywise", label: "Daily Campaign Engagement Trend", desc: "Daily send/deliver/open totals across the period." },
+  { id: "top-campaigns", label: "Top Campaigns By Click-Through Rate (This Month)", desc: "Best-performing campaigns by click-through rate." },
 ];
 const DATA_REPORT_TYPES: ReportType[] = [
-  { id: "data-consumption", label: "Network Data Consumption By Date Range", desc: "Upload/download totals and peak throughput per day." },
-  { id: "data-by-location", label: "Data Usage By Business Unit", desc: "Total and average data usage broken down by location." },
+  { id: "data-consumption", label: "Bandwidth Usage & Cost By Date Range", desc: "Upload/download totals and peak throughput per day." },
+  { id: "data-by-location", label: "Bandwidth Usage By Location", desc: "Total and average data usage broken down by location." },
 ];
 const SMS_REPORT_TYPES: ReportType[] = [
-  { id: "otp-delivery", label: "OTP Delivery Report By Date Range", desc: "Every OTP sent, its delivery status and latency." },
-  { id: "sms-daywise", label: "Day Wise SMS Delivery Summary", desc: "Daily sent/delivered/failed totals across the period." },
+  { id: "otp-delivery", label: "OTP Delivery & Latency By Date Range", desc: "Every OTP sent, its delivery status and latency." },
+  { id: "sms-daywise", label: "Daily SMS Delivery Rate", desc: "Daily sent/delivered/failed totals across the period." },
 ];
 
 const COLUMNS: Record<string, ColumnDef[]> = {
@@ -152,7 +152,7 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 // types are genuinely, honestly buildable from data the backend actually
 // exposes to this session (GET /guest-sessions' bytes_uploaded/
 // bytes_downloaded per real location -- see customer.service.ts's
-// RawGuestSession): both "Data Report" sub-reports, which need no
+// RawGuestSession): both "Bandwidth & Cost Report" sub-reports, which need no
 // per-guest identity at all. Every other report type needs either
 // per-guest PII the guest-sessions list doesn't expose (name/mobile --
 // see customer.service.ts's own getUsers(), which hardcodes
@@ -168,7 +168,7 @@ const UNAVAILABLE_REASON: Record<string, string> = {
   "user-sessions": "Per-guest identity (name/mobile) isn't exposed by the real session data this account can access.",
   "user-presence": "Per-guest identity isn't exposed by the real session data this account can access.",
   "top-users": "Per-guest identity isn't exposed by the real session data this account can access.",
-  "daywise-data": "Aggregated day-wise totals need the same per-guest breakdown the backend doesn't expose yet -- see Data Report for real day-wise totals.",
+  "daywise-data": "Aggregated day-wise totals need the same per-guest breakdown the backend doesn't expose yet -- see Bandwidth & Cost Report for real day-wise totals.",
   "daywise-unique": "Unique user/device counts aren't tracked per day in the real backend yet.",
   "team-report": "Guest teams aren't tied to usage totals in the real backend yet.",
   "voucher-usage": "Individual voucher redemption events aren't exposed by the real backend yet -- only batch-level counts are.",
@@ -184,7 +184,7 @@ interface RealGuestSession { started_at: string; ended_at?: string | null; bytes
 
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
 // `page_size: int = Query(default=25, ge=1, le=100)`) -- a single page_size=500
-// request 422s outright, which silently turned every real Data Report into
+// request 422s outright, which silently turned every real Bandwidth & Cost Report into
 // either a fabricated "Could not load this report" error or a false "0 MB"
 // once the per-location Promise.allSettled in realDataByLocation swallowed
 // the rejection. Page through in 100-row chunks via has_next instead, capped
@@ -537,15 +537,15 @@ const REPORTS_QUOTES = [
 ];
 
 const CATEGORY_CONFIG: Record<Category, { reportTypes: ReportType[]; csvPrefix: string }> = {
-  "User Report": { reportTypes: USER_REPORT_TYPES, csvPrefix: "user-report" },
-  "Voucher Report": { reportTypes: VOUCHER_REPORT_TYPES, csvPrefix: "voucher-report" },
-  "Campaign Report": { reportTypes: CAMPAIGN_REPORT_TYPES, csvPrefix: "campaign-report" },
-  "Data Report": { reportTypes: DATA_REPORT_TYPES, csvPrefix: "data-report" },
-  "OTP SMS Report": { reportTypes: SMS_REPORT_TYPES, csvPrefix: "sms-report" },
+  "Guest Activity Report": { reportTypes: USER_REPORT_TYPES, csvPrefix: "user-report" },
+  "Voucher Redemption Report": { reportTypes: VOUCHER_REPORT_TYPES, csvPrefix: "voucher-report" },
+  "Campaign Engagement Report": { reportTypes: CAMPAIGN_REPORT_TYPES, csvPrefix: "campaign-report" },
+  "Bandwidth & Cost Report": { reportTypes: DATA_REPORT_TYPES, csvPrefix: "data-report" },
+  "OTP & SMS Delivery Report": { reportTypes: SMS_REPORT_TYPES, csvPrefix: "sms-report" },
 };
 
 export default function UserReports() {
-  const [category, setCategory] = useState<Category>("User Report");
+  const [category, setCategory] = useState<Category>("Guest Activity Report");
   const [quoteIndex, setQuoteIndex] = useState(0);
   const cfg = CATEGORY_CONFIG[category];
 
