@@ -36,7 +36,7 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
-import { formatPlanExpiry, maskEmail, maskMac } from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { isDemo } from "@/services/customer.service";
@@ -69,7 +69,7 @@ function FeaturePage() {
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
   const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
-  const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
+  const planExpiryIso = isDemo() ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [masked, setMasked] = useState(true);
@@ -122,7 +122,7 @@ function FeaturePage() {
             <p className="truncate text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature} · {activeLocation?.name ?? ""}</p>
           }
           locationId={locationId}
-          planExpiry={planExpiry}
+          planExpiryIso={planExpiryIso}
           masked={masked}
           setMasked={setMasked}
           onMobileMenuClick={() => setMobile(true)}

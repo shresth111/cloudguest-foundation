@@ -3,7 +3,7 @@ import { Menu, MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucid
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { PlanExpiryBadge, BookDemoButton, OtpMaskToggle } from "@/components/features/HeaderControls";
+import { PlanRenewalTicket, OtpMaskToggle } from "@/components/features/HeaderControls";
 
 interface CustomerHeaderProps {
   /** Left-side content -- each page composes its own (page title, location
@@ -11,7 +11,11 @@ interface CustomerHeaderProps {
    * identical across every customer page and lives here. */
   title: ReactNode;
   locationId: string;
-  planExpiry?: string;
+  /** Real ISO renewal date (e.g. `current_period_end`/`renewalDate` from
+   * `GET /billing/dashboard/me`), not pre-formatted -- `PlanRenewalTicket`
+   * needs the raw date to compute the real countdown/urgency tier, and
+   * formats it for display itself. */
+  planExpiryIso?: string;
   masked: boolean;
   setMasked: (fn: (m: boolean) => boolean) => void;
   onMobileMenuClick: () => void;
@@ -38,7 +42,7 @@ interface CustomerHeaderProps {
 export function CustomerHeader({
   title,
   locationId,
-  planExpiry,
+  planExpiryIso,
   masked,
   setMasked,
   onMobileMenuClick,
@@ -56,11 +60,10 @@ export function CustomerHeader({
       <button className="text-white/70 hover:text-white lg:hidden" onClick={onMobileMenuClick}><Menu className="h-5 w-5" /></button>
       <div className="min-w-0 flex-1">{title}</div>
 
-      {/* Each control now carries its own distinct default look (quiet info
-          chip / filled CTA / status toggle with a state dot) instead of one
-          shared pill class -- see HeaderControls.tsx. */}
-      <PlanExpiryBadge expiry={planExpiry} />
-      <BookDemoButton />
+      {/* Plan renewal + demo CTA are one perforated "ticket" object, and the
+          masking indicator is a notched security tag -- neither is a
+          rounded pill anymore. See HeaderControls.tsx for the reasoning. */}
+      <PlanRenewalTicket expiryIso={planExpiryIso} />
       <OtpMaskToggle masked={masked} setMasked={setMasked} />
       {onRefresh && (
         <Button variant="ghost" size="icon" className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" onClick={onRefresh}>

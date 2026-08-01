@@ -26,7 +26,7 @@ import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
-import { formatPlanExpiry, maskEmail, maskMac } from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { requireCustomerSession } from "@/lib/authGuards";
 
 /**
@@ -65,7 +65,7 @@ function CustomerUsersPage() {
   const { activeLocation } = useCustomerStore();
   const disconnect = useDisconnectSession();
   const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
-  const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
+  const planExpiryIso = isDemo() ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState("all");
   const [page, setPage] = useState(0);
@@ -115,7 +115,7 @@ function CustomerUsersPage() {
         <CustomerHeader
           title={<p className="truncate text-sm font-semibold">Connected guests · {activeLocation?.name ?? ""}</p>}
           locationId={locationId}
-          planExpiry={planExpiry}
+          planExpiryIso={planExpiryIso}
           masked={masked}
           setMasked={setMasked}
           onMobileMenuClick={() => setMobile(true)}

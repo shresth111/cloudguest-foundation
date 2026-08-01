@@ -5,7 +5,8 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { EyeOff, Clock, CalendarClock, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { Shield, Eye, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,20 +14,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { demoRequestService } from "@/services/demo-request.service";
 import type { AppError } from "@/services/api";
 
-/** Distinct default treatments for the three header controls -- previously
- * all three shared one identical pill style (border + translucent fill),
- * which reads as generic/interchangeable (bug report: "competitor ke
- * buttons bhi same hai" -- every SaaS dashboard has this exact look).
- * Now each carries its own visual role: the plan badge stays a quiet,
- * secondary info chip; Book a Demo becomes a real filled CTA since it's
- * the one thing here worth clicking; the mask toggle reads as a live
- * status control with a state dot, not just another label. */
-const INFO_CHIP_CLASS =
-  "hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/55 sm:inline-flex";
-const DEMO_CTA_CLASS =
-  "hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-indigo-950/40 transition-all hover:shadow-md hover:shadow-indigo-950/50 hover:brightness-110 sm:inline-flex";
-const MASK_TOGGLE_CLASS =
-  "hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white sm:inline-flex";
+/**
+ * Second design pass on the header controls (see git history for the first
+ * -- three identical rounded pills, then three pills with distinct colors).
+ * Founder feedback on the second pass: still reads as "generic SaaS chips,"
+ * just recolored. This pass changes the shape language and the information
+ * architecture, not just the palette:
+ *
+ * - "Plan expires" and "Book a Demo" were two disconnected chips telling
+ *   two unrelated half-stories. They're now one object, `PlanRenewalTicket`:
+ *   a boarding-pass-style card (angled cut ends, a perforated tear line
+ *   down the middle) whose left stub is a real countdown -- a 5-bar runway
+ *   gauge plus day count that only appears once the renewal is close enough
+ *   to matter -- and whose right stub is the actual CTA. One shape, one
+ *   sentence: "N days left on your plan -- talk to us." The gauge's fill
+ *   and color tier (calm indigo / warn amber / urgent rose) are computed
+ *   from the real renewal date, and only the urgent tier gets a slow pulse
+ *   on the CTA -- motion tied to real account state, not decoration.
+ * - The masking indicator was never a "button" in spirit (it's a read-only
+ *   policy statement, see `OtpMaskToggle` below), so it no longer looks
+ *   like one. It's a small notched security tag in a cool slate register
+ *   that appears nowhere else in this indigo/violet UI, signalling "this
+ *   is a compliance fact, not something to press" purely through material.
+ */
+
+/** Tailwind class applied to the read-only masking tag; kept as a constant
+ * because its notched-corner clip-path is the one piece of shared shape
+ * between its two states (masked / unmasked). */
+const MASK_TAG_BASE =
+  "hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium sm:inline-flex";
+const MASK_TAG_CLIP = "polygon(7px 0, 100% 0, 100% 100%, 0 100%, 0 7px)";
 
 /** Redacts an email's local part, e.g. "john.doe@email.com" -> "jo••••••@email.com". */
 export function maskEmail(email: string): string {
@@ -63,18 +80,30 @@ export function maskMac(mac: string): string {
  * account holder can never actually be granted here is worse than not
  * offering the control at all, so this now just states the real,
  * server-enforced policy and never flips ``masked`` to false. */
-export function OtpMaskToggle({ className }: { masked?: boolean; setMasked?: (fn: (m: boolean) => boolean) => void; className?: string }) {
+export function OtpMaskToggle({ masked = true, className }: { masked?: boolean; setMasked?: (fn: (m: boolean) => boolean) => void; className?: string }) {
   return (
     <button
       type="button"
-      onClick={() => toast.info("Sensitive data is masked per your organization's security policy. Only an administrator can change this, for a specific account, from the admin console.")}
-      className={className ?? MASK_TOGGLE_CLASS + " mr-1"}
+      title={masked
+        ? "Sensitive data is masked per your organization's security policy. Only an administrator can change this from the admin console."
+        : "This account has been granted unmasked access by an administrator. This is a privileged, admin-controlled setting -- not something you can toggle here."}
+      onClick={() => toast.info(masked
+        ? "Sensitive data is masked per your organization's security policy. Only an administrator can change this, for a specific account, from the admin console."
+        : "This account currently sees unmasked data, set by an administrator. Contact them to change it.")}
+      className={className ?? `${MASK_TAG_BASE} mr-1 ${masked ? "text-slate-300" : "text-sky-300"}`}
+      style={{ clipPath: MASK_TAG_CLIP }}
     >
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-      <EyeOff className="h-3 w-3" /> Data masked
+      {masked ? <Shield className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+      {masked ? "Data masked" : "Data visible"}
     </button>
   );
 }
+
+/** Demo-mode plan renewal date -- the header used to hardcode the display
+ * string "11-Nov-2026" directly; kept as the same calendar date but as a
+ * real ISO instant, since `PlanRenewalTicket`'s countdown/urgency math
+ * needs an actual `Date` to compute against, not a pre-formatted label. */
+export const DEMO_PLAN_RENEWAL_ISO = new Date(Date.UTC(2026, 10, 11)).toISOString();
 
 /** Formats an ISO date string (e.g. a subscription's `current_period_end`)
  * as "24-Aug-2026" to match this badge's display convention. */
@@ -85,34 +114,114 @@ export function formatPlanExpiry(iso: string): string {
     : `${String(d.getDate()).padStart(2, "0")}-${d.toLocaleString("en-US", { month: "short" })}-${d.getFullYear()}`;
 }
 
-/**
- * Renders the real subscription renewal date -- callers must pass the
- * actual `current_period_end` from `GET /billing/dashboard/me` (see
- * `useMyBillingDashboard`), already formatted via `formatPlanExpiry`.
- *
- * This used to default `expiry` to a hardcoded "11-Nov-2026" and every call
- * site rendered it unconditionally, so *every* account -- demo or real --
- * showed the same fake renewal date regardless of what plan/subscription
- * was actually provisioned for it. There is no honest fallback for a real
- * account's real subscription date, so when it hasn't loaded yet (or the
- * session has no resolvable organization) this renders nothing rather than
- * a fabricated one.
- */
-export function PlanExpiryBadge({ expiry, className }: { expiry?: string | null; className?: string }) {
-  if (!expiry) return null;
+/** Whole days between now and an ISO date, rounded up (so "expires in the
+ * next few hours" still reads as "0d", never a misleading negative-turned-
+ * positive rounding artifact). Returns `null` for a missing/unparseable
+ * date so callers can fall back to a quiet, non-urgent state instead of
+ * guessing. */
+function daysUntil(iso?: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.ceil((d.getTime() - Date.now()) / 86_400_000);
+}
+
+type PlanTier = "calm" | "warn" | "urgent";
+
+/** Three real states, not a cosmetic gradient pick: `calm` when renewal is
+ * far off (>30d or unknown), `warn` inside the last month, `urgent` inside
+ * the last week or already past. This is the actual decision window a plan
+ * owner cares about, so the badge's whole visual language -- gauge fill,
+ * color, whether the CTA pulses -- is driven by it. */
+function planTier(daysLeft: number | null): PlanTier {
+  if (daysLeft === null) return "calm";
+  if (daysLeft <= 7) return "urgent";
+  if (daysLeft <= 30) return "warn";
+  return "calm";
+}
+
+const TIER_STYLE: Record<PlanTier, { text: string; bar: string; ring: string }> = {
+  calm: { text: "text-indigo-300", bar: "bg-indigo-400", ring: "99,102,241" },
+  warn: { text: "text-amber-300", bar: "bg-amber-400", ring: "245,158,11" },
+  urgent: { text: "text-rose-300", bar: "bg-rose-400", ring: "244,63,94" },
+};
+
+/** How many of the 5 runway bars are lit. The gauge only tracks the final
+ * 30-day window before renewal -- that's the stretch where "how much is
+ * left" is actually actionable -- so anything further out reads as a full,
+ * calm tank rather than a meaningless sliver. */
+function runwayFilled(daysLeft: number | null): number {
+  if (daysLeft === null) return 5;
+  if (daysLeft <= 0) return 0;
+  return Math.max(1, Math.min(5, Math.ceil((Math.min(daysLeft, 30) / 30) * 5)));
+}
+
+/** A 5-bar "fuel gauge" for plan runway -- ascending bar heights like a
+ * signal-strength meter, filled/dimmed per `runwayFilled`. Reused nowhere
+ * else in the product on purpose: it's a one-off metaphor for "how much
+ * plan is left," not a generic progress bar. */
+function RunwayGauge({ tier, filled }: { tier: PlanTier; filled: number }) {
   return (
-    <span className={className ?? INFO_CHIP_CLASS} title="Current plan renewal date">
-      <Clock className="h-3 w-3" /> Plan expires <span className="tabular-nums text-white/75">{expiry}</span>
+    <span className="flex items-end gap-[2px]" aria-hidden="true">
+      {[5, 7, 9, 11, 13].map((h, i) => (
+        <span
+          key={h}
+          className={`w-[3px] rounded-[1px] transition-colors duration-500 ${i < filled ? TIER_STYLE[tier].bar : "bg-white/15"}`}
+          style={{ height: h }}
+        />
+      ))}
     </span>
   );
 }
 
 const emptyDemoForm = { name: "", email: "", company: "", message: "" };
 
-export function BookDemoButton({ className }: { className?: string }) {
+/**
+ * Combines what used to be two disconnected chips -- `PlanExpiryBadge` and
+ * `BookDemoButton` -- into one object, because they were never two separate
+ * facts: "your plan renews on X" and "want to talk to us" are one sentence
+ * ("N days left -- talk to us"), not two unrelated pieces of chrome sharing
+ * a toolbar. Shaped like a boarding-pass stub (angled ends via `clip-path`,
+ * a perforated tear line down the middle) instead of a rounded pill, so it
+ * reads as a distinct object rather than "another button."
+ *
+ * Left stub: real renewal data, either a quiet date (far off) or a live
+ * countdown with a runway gauge (inside the 30-day decision window) --
+ * see `planTier`/`runwayFilled`. Right stub: the real, working demo-request
+ * flow (same `demoRequestService.submit` call as before), just relabeled to
+ * "Talk to us" once the plan is actually at risk, and the one visual flourish
+ * in this whole redesign -- a slow pulse -- only fires in the `urgent` tier,
+ * because that's the one moment this chrome should actually grab attention.
+ *
+ * `expiryIso` must be the real `current_period_end`/`renewalDate` from
+ * `GET /billing/dashboard/me`; when it hasn't loaded (or there's no
+ * resolvable organization) the left stub is simply omitted rather than
+ * showing a fabricated date, same honesty contract as before.
+ */
+export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string | null; className?: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyDemoForm);
   const [submitting, setSubmitting] = useState(false);
+
+  const daysLeft = daysUntil(expiryIso);
+  const tier = planTier(daysLeft);
+  const filled = runwayFilled(daysLeft);
+  const urgent = tier === "urgent";
+  const expiryLabel = expiryIso ? formatPlanExpiry(expiryIso) : null;
+
+  const statusLabel = !expiryLabel
+    ? null
+    : daysLeft === null
+    ? `Renews ${expiryLabel}`
+    : daysLeft < 0
+    ? "Plan expired"
+    : daysLeft === 0
+    ? "Expires today"
+    : daysLeft <= 30
+    ? `${daysLeft}d left`
+    : `Renews ${expiryLabel}`;
+
+  const ctaLabel = tier === "calm" ? "Book a Demo" : "Talk to us";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,14 +249,44 @@ export function BookDemoButton({ className }: { className?: string }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className={className ?? DEMO_CTA_CLASS + " mr-1"}>
-        <CalendarClock className="h-3 w-3" /> Book a Demo
-      </button>
+      <div className={className ?? "mr-1 hidden h-9 shrink-0 items-stretch sm:flex"} title={expiryLabel ? `Plan renewal: ${expiryLabel}` : undefined}>
+        <div className="flex items-stretch overflow-hidden" style={{ clipPath: "polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%)" }}>
+          {statusLabel && (
+            <>
+              <div className="flex items-center gap-2 border-y border-l border-white/10 bg-white/[0.04] pl-4 pr-3">
+                <RunwayGauge tier={tier} filled={filled} />
+                <span className={`text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>{statusLabel}</span>
+              </div>
+              {/* Tear line: a dashed seam with two punched notches, so the
+                  two stubs read as one perforated ticket, not two chips
+                  glued together. */}
+              <div className="relative w-px shrink-0 self-stretch">
+                <span className="absolute inset-y-0 left-0 border-l border-dashed border-white/25" />
+                <span className="absolute -top-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#221f4c]" />
+                <span className="absolute -bottom-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#221f4c]" />
+              </div>
+            </>
+          )}
+          <motion.button
+            type="button"
+            onClick={() => setOpen(true)}
+            animate={urgent ? { boxShadow: [`0 0 0 0 rgba(${TIER_STYLE.urgent.ring},0.55)`, `0 0 0 6px rgba(${TIER_STYLE.urgent.ring},0)`] } : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }}
+            transition={urgent ? { duration: 1.8, repeat: Infinity, ease: "easeOut" } : undefined}
+            className={`flex items-center gap-1.5 border-y border-r ${statusLabel ? "" : "border-l"} border-white/10 bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] pl-3 pr-4 text-[11px] font-semibold text-white`}
+          >
+            <CalendarClock className="h-3 w-3" /> {ctaLabel}
+          </motion.button>
+        </div>
+      </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Book a Demo</DialogTitle>
-            <DialogDescription>Tell us a bit about your business and our team will reach out to schedule a walkthrough.</DialogDescription>
+            <DialogTitle>{tier === "calm" ? "Book a Demo" : "Talk to Us"}</DialogTitle>
+            <DialogDescription>
+              {tier === "calm"
+                ? "Tell us a bit about your business and our team will reach out to schedule a walkthrough."
+                : "Tell us a bit about your business and our team will reach out about your plan and renewal options."}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2"><Label htmlFor="hdr-demo-name">Full name</Label><Input id="hdr-demo-name" placeholder="Jane Doe" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>

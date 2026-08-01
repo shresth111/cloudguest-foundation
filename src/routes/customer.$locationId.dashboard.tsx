@@ -11,7 +11,7 @@ import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
-import { formatPlanExpiry, maskEmail } from "@/components/features/HeaderControls";
+import { maskEmail, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -416,7 +416,9 @@ function CustomerDashboardPage() {
   const { data: d, isLoading, refetch } = useCustomerDashboard(locationId);
   const { data: uData } = useCustomerUsers(locationId, { page: 1, pageSize: 6 });
   const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
-  const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
+  // Raw ISO, not pre-formatted -- CustomerHeader's PlanRenewalTicket needs
+  // the real date to compute a live countdown/urgency tier, not just a label.
+  const planExpiryIso = isDemo() ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   // The store's activeLocationId is only populated by clicking a location
   // card on /customer (see customer.index.tsx's handleSelect) -- a direct
   // deep link/bookmark/refresh of this URL arrives with it unset or
@@ -502,7 +504,7 @@ function CustomerDashboardPage() {
             </div>
           }
           locationId={locationId}
-          planExpiry={planExpiry}
+          planExpiryIso={planExpiryIso}
           masked={masked}
           setMasked={setMasked}
           onMobileMenuClick={() => setMobile(true)}
