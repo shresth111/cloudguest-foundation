@@ -76,6 +76,47 @@ function ControlButton({ icon: Icon, label, onClick, disabled }: { icon: typeof 
 const inputCls =
   "w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary";
 
+/** Matches DeviceVendor in wyfy-device-gateway's contract (PRD section 4.1)
+ * -- same string identifiers so this dropdown's value and the backend's
+ * Router.vendor column always agree. MikroTik is the only one with a real
+ * adapter/setup flow today; every other entry exists so this Master-console
+ * screen can honestly say "not yet supported" instead of hiding the
+ * hardware a customer actually has. */
+const DEVICE_VENDORS: { value: string; label: string }[] = [
+  { value: "mikrotik", label: "MikroTik" },
+  { value: "tplink_omada", label: "TP-Link Omada" },
+  { value: "ruckus", label: "Ruckus" },
+  { value: "unifi", label: "UniFi" },
+  { value: "aruba", label: "Aruba" },
+  { value: "cisco_meraki", label: "Cisco Meraki" },
+];
+
+function vendorLabel(value: string): string {
+  return DEVICE_VENDORS.find((v) => v.value === value)?.label ?? value;
+}
+
+/** Honest empty state for every vendor besides MikroTik -- wyfy-device-gateway
+ * (see PRD) only has a real, working adapter for MikroTik today; every other
+ * vendor is a stub. Rather than let the one-paste script panel below
+ * silently generate a MikroTik-flavored RouterOS script for hardware that
+ * isn't MikroTik, this replaces it outright once a different vendor is
+ * selected. Real per-vendor provisioning flows are Phase 2+, once a real
+ * adapter (e.g. UniFi) exists. */
+function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
+  const label = vendorLabel(vendor);
+  return (
+    <div className="space-y-1.5 rounded-xl border border-dashed border-border bg-card p-6 text-center">
+      <FileCode2 className="mx-auto h-5 w-5 text-muted-foreground" />
+      <p className="text-sm font-medium text-foreground">{label} support is coming soon</p>
+      <p className="mx-auto max-w-sm text-xs text-muted-foreground">
+        MikroTik is the only supported vendor today -- there's no setup script or provisioning
+        flow for {label} hardware yet. Switch the vendor back to MikroTik if this router is
+        actually a MikroTik device, or check back once {label} support ships.
+      </p>
+    </div>
+  );
+}
+
 /** One-paste MikroTik setup: fetches a provisioning token, checks the
  * router in immediately (dashboard-side, so the agent credential is known
  * up front), and renders a ready-to-paste RouterOS script -- see
@@ -417,7 +458,25 @@ function RouterFleetScreen() {
   const [routers, setRouters] = useState<RouterDevice[]>([]);
   const [rebootTarget, setRebootTarget] = useState<RouterDevice | null>(null);
   const [rebooting, setRebooting] = useState(false);
+  const [vendorSaving, setVendorSaving] = useState(false);
   const demo = isDemo();
+
+  // Persists the vendor selection against the real router record (`Router.vendor`
+  // -- router/models.py:77) and mirrors it into local state so this screen's
+  // conditional setup-script/"not yet supported" rendering below reacts
+  // immediately, without waiting on a full re-list.
+  async function updateVendor(router: RouterDevice, vendor: string) {
+    setVendorSaving(true);
+    try {
+      await api.put(`/routers/${router.id}`, { vendor });
+      setSel((prev) => (prev && prev.id === router.id ? { ...prev, vendor } : prev));
+      setRouters((prev) => prev.map((r) => (r.id === router.id ? { ...r, vendor } : r)));
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not update vendor");
+    } finally {
+      setVendorSaving(false);
+    }
+  }
 
   const confirmReboot = async () => {
     if (!rebootTarget) return;
@@ -561,7 +620,28 @@ function RouterFleetScreen() {
               </p>
             )}
 
-            {!demo && <RouterSetupScriptPanel router={sel} />}
+            {!demo && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Vendor</label>
+                <select
+                  className={inputCls}
+                  value={sel.vendor || "mikrotik"}
+                  disabled={vendorSaving}
+                  onChange={(e) => updateVendor(sel, e.target.value)}
+                >
+                  {DEVICE_VENDORS.map((v) => (
+                    <option key={v.value} value={v.value}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {!demo &&
+              ((sel.vendor || "mikrotik") === "mikrotik" ? (
+                <RouterSetupScriptPanel router={sel} />
+              ) : (
+                <VendorNotSupportedPanel vendor={sel.vendor || "mikrotik"} />
+              ))}
 
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Power &amp; Firmware</p>
