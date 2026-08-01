@@ -10,7 +10,7 @@ import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 
-const BANDWIDTH_KBPS: Record<string, number> = { "512 Kbps": 512, "1 Mbps": 1024, "2 Mbps": 2048, "5 Mbps": 5120, "10 Mbps": 10240 };
+const BANDWIDTH_KBPS: Record<string, number> = { "10 Mbps": 10240, "20 Mbps": 20480, "30 Mbps": 30720, "40 Mbps": 40960, "50 Mbps": 51200, "60 Mbps": 61440, "70 Mbps": 71680, "80 Mbps": 81920 };
 function kbpsToLabel(kbps: number): string {
   const found = Object.entries(BANDWIDTH_KBPS).find(([, v]) => v === kbps);
   return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
@@ -18,7 +18,7 @@ function kbpsToLabel(kbps: number): string {
 
 // ── constants ───────────────────────────────────────────────────
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
-const BANDWIDTH = ["Unlimited", "512 Kbps", "1 Mbps", "2 Mbps", "5 Mbps", "10 Mbps"];
+const BANDWIDTH = ["Unlimited", "10 Mbps", "20 Mbps", "30 Mbps", "40 Mbps", "50 Mbps", "60 Mbps", "70 Mbps", "80 Mbps"];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
 const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
 const IDLE_TIMEOUT = ["No Limit", "5 min", "10 min", "15 min", "30 min", "1 hr"];
