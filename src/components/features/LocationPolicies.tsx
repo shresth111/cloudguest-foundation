@@ -268,8 +268,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
         <p className="text-sm text-amber-800 dark:text-amber-200">
-          These settings apply to every guest at this location the moment you save. Check the impact before updating,
-          or contact <a href="mailto:support@zipwifi.io" className="font-medium text-indigo-600 underline dark:text-indigo-400">support@zipwifi.io</a> for help.
+          Saving takes effect immediately for every guest at this location — including anyone already connected.
+          Double-check the limits before you save, or contact <a href="mailto:support@zipwifi.io" className="font-medium text-indigo-600 underline dark:text-indigo-400">support@zipwifi.io</a> if you need help.
         </p>
       </div>
 
@@ -278,7 +278,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       <CardHeader><CardTitle className="text-sm">Usage Limits</CardTitle></CardHeader>
       <CardContent>
         <div className="grid gap-4 md:grid-cols-2">
-          <Select id="bu" label="Business Unit" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose Business Unit" err={errs.businessUnit} />
+          <Select id="bu" label="Location" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose a location" err={errs.businessUnit} />
           <Select id="bw" label="Bandwidth" required value={f.bandwidth} onChange={(v) => setField("bandwidth", v)} options={BANDWIDTH} placeholder="Choose Bandwidth" tooltip="Maximum speed per guest device." err={errs.bandwidth} />
           <Select id="st" label="Session Timeout" required value={f.sessionTimeout} onChange={(v) => setField("sessionTimeout", v)} options={SESSION_TIMEOUT} placeholder="Choose Session Timeout" tooltip="Forces a guest to re-authenticate after this time." err={errs.sessionTimeout} />
           <Select id="dl" label="Maximum Daily Session Limit" value={f.dailyLimit} onChange={(v) => setField("dailyLimit", v)} options={DAILY_LIMIT} placeholder="Choose Limit" tooltip="Total session time allowed per guest per day." />
@@ -355,7 +355,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs font-medium">Business Unit</TableHead>
+                <TableHead className="text-xs font-medium">Location</TableHead>
                 <TableHead className="text-xs font-medium">Bandwidth</TableHead>
                 <TableHead className="text-xs font-medium">Session Timeout</TableHead>
                 <TableHead className="text-xs font-medium">Idle Timeout</TableHead>

@@ -605,7 +605,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Access Tiers</h1>
-            <p className="text-sm text-muted-foreground">Map a shared network policy to a set of users.</p>
+            <p className="text-sm text-muted-foreground">Give a group of guests their own bandwidth and access limits, separate from the location default.</p>
           </div>
         </div>
         <GroupMappingIllustration />
@@ -640,7 +640,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{editingId ? "Edit Access Tier" : "Create Access Tier"}</h2>
-            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Groups set internet policies for specific users or teams. A group's settings override the location policy for its members.</p>
+            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Members of this tier get its bandwidth, timeout, and access settings instead of the location default.</p>
           </div>
           {editingId && (
             <button type="button" onClick={resetForm} className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700">

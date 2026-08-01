@@ -7,6 +7,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
+import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
@@ -473,7 +474,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               <TableRow>
                 <SortHeader k="name" label="Name" />
                 <SortHeader k="mobile" label="Mobile Number" />
-                <SortHeader k="businessUnit" label="Business Unit" />
+                <SortHeader k="businessUnit" label="Location" />
                 <SortHeader k="blockedOn" label="Blocked On" />
                 <TableHead className="text-xs font-medium">Status</TableHead>
                 <TableHead className="text-right text-xs font-medium">Action</TableHead>

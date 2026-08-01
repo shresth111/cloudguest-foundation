@@ -116,14 +116,16 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
   }, [demo, locationId]);
 
   const toggleMethod = async (id: string) => {
-    const next = !methods.find((m) => m.id === id)?.enabled;
+    const method = methods.find((m) => m.id === id);
+    const next = !method?.enabled;
+    const label = method?.label ?? "Login method";
     setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: next } : m));
 
     const flag = BACKED_FLAGS[id];
     if (demo || !flag) {
       // No backend field for this method (or a demo session) -- local-only,
       // same as before.
-      toast.success(`Login method updated`);
+      toast.success(next ? `${label} is now on — guests can use it to sign in.` : `${label} is now off.`);
       return;
     }
     if (!orgId) {
@@ -163,7 +165,7 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
         pendingConfigCreation.current = creation;
         await creation;
       }
-      toast.success(`Login method updated`);
+      toast.success(next ? `${label} is now on — guests can use it to sign in.` : `${label} is now off.`);
     } catch (err) {
       setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: !next } : m));
       toast.error((err as AppError).message || "Could not save — check the connection and try again.");

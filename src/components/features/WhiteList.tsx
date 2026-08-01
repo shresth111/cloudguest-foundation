@@ -439,7 +439,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           )}
 
           <div>
-            <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
+            <label className={labelCls}>Location <span className="text-destructive">*</span></label>
             <select value={f.businessUnit} onChange={e => setField("businessUnit", e.target.value)} className={inputCls}>
               {units.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
@@ -517,7 +517,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <TableRow>
                 <TableHead className="text-xs font-medium">Name</TableHead>
                 <TableHead className="text-xs font-medium">{tab === "number" ? "Mobile Number" : "MAC Address"}</TableHead>
-                <TableHead className="text-xs font-medium">Business Unit</TableHead>
+                <TableHead className="text-xs font-medium">Location</TableHead>
                 <TableHead className="text-xs font-medium">Start Date</TableHead>
                 <TableHead className="text-xs font-medium">End Date</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
