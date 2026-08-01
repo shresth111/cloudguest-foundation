@@ -275,7 +275,7 @@ function LoginPage() {
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" /></div>
-          <div><p className="text-xl font-bold">Wyfy Guest</p><p className="text-sm text-white/70">Guest WiFi, managed.</p></div>
+          <div><p className="text-xl font-bold">Wyfy Guest</p><p className="text-sm text-white/70">Effortless guest WiFi, at scale.</p></div>
         </motion.div>
 
         <motion.div
