@@ -1,12 +1,17 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
-import { Laptop, LogOut } from "lucide-react";
+import { Laptop, LogOut, KeyRound, Users2 } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
+import {
+  CampaignOverlay,
+  campaignHasRenderableContent,
+} from "@/components/portal-runtime/CampaignOverlay";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { campaignPortalService } from "@/services/campaign-portal.service";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/session")({
@@ -110,22 +115,59 @@ function ConnectedIllustration({ className }: { className?: string }) {
 
 /**
  * "Already connected" status page -- reached from `/portal/` when a
- * device has (or is found to still have) an active session, and from the
+ * device has (or is found to still have) an active session, from the
  * MikroTik hotspot's own status.html/alogin.html redirect (see
- * `RouterDetailTabs.tsx`'s PORTAL_OVERRIDE_FILES). Visually brought up to
- * the same "light" guest-portal treatment and polish level as
- * `portal.success.tsx` (which a guest lands on moments earlier, right
- * after actually signing in) -- these two screens show almost the same
- * real data, so they should look like the same product, not two
- * different design eras. All data below is the same real
- * `RuntimeSession` this page always rendered; only the layout/visual
- * treatment changed.
+ * `RouterDetailTabs.tsx`'s PORTAL_OVERRIDE_FILES), and now also as the
+ * real `dst` landing target of `portal.success.tsx`'s hotspot-login POST
+ * -- i.e. this is now the ONE real "you're connected" resting page a
+ * guest ever lands on and stays on, per the founder's own "login page,
+ * then session page, that's it" requirement. Everything that used to be
+ * split across a redundant second copy on `portal.success.tsx` --
+ * the set-password nudge, the "Have a team code?" nudge, and a real,
+ * currently-eligible Campaign -- now lives here instead, since this is
+ * the page a guest actually spends real time on (success.tsx is a
+ * transitional loader that navigates away within a few hundred ms, no
+ * place for content that needs a guest's attention or interaction).
  */
 function SessionPage() {
-  const { t, session, setSession } = usePortalRuntime();
+  const {
+    t,
+    config,
+    session,
+    setSession,
+    organizationId,
+    locationId,
+    routerId,
+    destinationUrl,
+  } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/session" });
+  const portalSearch = { organizationId, locationId, routerId };
+  const continueUrl = destinationUrl || config?.redirectUrl;
   const [now, setNow] = useState(0);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // Real guest-facing Campaigns integration (app.domains.campaigns) --
+  // moved here from portal.success.tsx (see that file's own note): a
+  // campaign that needs a guest's attention/interaction (a survey, a
+  // sponsored banner) can't reliably show on a page that's about to
+  // navigate away on its own within a few hundred ms. This page is the
+  // one guests actually stay on, so a real, currently-eligible campaign
+  // shows here instead, once, right on arrival -- `getNextCampaign`
+  // together with `recordImpression` (fired by `CampaignOverlay` itself
+  // once the guest is done) is what keeps this from re-showing on every
+  // later visit to this same page.
+  const { data: nextCampaign } = useQuery({
+    queryKey: ["next-campaign", session?.sessionId],
+    queryFn: () => campaignPortalService.getNextCampaign(session!.sessionId),
+    enabled: !!session?.sessionId,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const [campaignDismissed, setCampaignDismissed] = useState(false);
+
+  // Same eligibility rule portal.success.tsx used to gate its own
+  // set-password nudge with -- relocated here, not re-derived.
+  const showPasswordNudge = !!(config?.usernamePasswordEnabled && session && !session.hasPassword);
 
   // Previously this button only cleared local app state (setSession) and
   // navigated away -- the real GuestSession on the backend (and the
@@ -182,6 +224,21 @@ function SessionPage() {
   }, [hasExpiry, remainingMs]);
 
   if (!session || now === 0) return null;
+
+  // See this component's own comment on the `nextCampaign` query above --
+  // `campaignHasRenderableContent` is the same "an admin created a SURVEY
+  // with zero questions / a BANNER with no asset" guard `CampaignOverlay`
+  // itself relies on, checked here too so this never mounts that component
+  // for genuinely empty content.
+  if (nextCampaign && campaignHasRenderableContent(nextCampaign) && !campaignDismissed) {
+    return (
+      <CampaignOverlay
+        campaign={nextCampaign}
+        sessionId={session.sessionId}
+        onDone={() => setCampaignDismissed(true)}
+      />
+    );
+  }
 
   return (
     <PortalShell variant="light" showHeader={false}>
@@ -252,6 +309,54 @@ function SessionPage() {
             </div>
           </div>
         </PortalCard>
+
+        {showPasswordNudge && (
+          <Link
+            to="/portal/set-password"
+            search={portalSearch}
+            className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+          >
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+              <KeyRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-800">Set a password for next time</p>
+              <p className="truncate text-xs text-slate-500">Skip the code on your next visit</p>
+            </div>
+          </Link>
+        )}
+
+        {/* Real "Guest Teams" feature (app.domains.guest_teams) -- an
+            admin-created shared-code group a guest can optionally join
+            once already connected (see src/routes/portal.team.tsx's own
+            docstring for the full "additional step, not a login method or
+            a RADIUS bypass" reasoning). Always offered, not gated by any
+            captive-portal-config flag: a guest with no code just ignores
+            this card, and one with a wrong/unrelated code gets a real,
+            honest 404 from the join call itself. */}
+        <Link
+          to="/portal/team"
+          search={portalSearch}
+          className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+        >
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Users2 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800">Have a team code?</p>
+            <p className="truncate text-xs text-slate-500">Join your group's shared data and quota</p>
+          </div>
+        </Link>
+
+        {continueUrl && (
+          <button
+            type="button"
+            onClick={() => navigate({ to: "/portal/redirect", search: (prev) => prev })}
+            className="h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105"
+          >
+            {t("continue")}
+          </button>
+        )}
 
         <AlertBanner message={disconnectError} />
 

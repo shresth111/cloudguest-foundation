@@ -87,9 +87,13 @@ function AuthMethodPage() {
     toast.success("Signed in");
     // A password login always belongs to a guest who already has one set
     // (see GuestService.login_via_password's docstring) -- never offer the
-    // "set a password?" prompt again here.
+    // "set a password?" prompt again here. Always /portal/success: that
+    // brief transitional screen fires the real hotspot-login POST and
+    // lands the guest on /portal/session once it completes -- the legacy
+    // static-banner /portal/ad interstitial was removed (superseded by the
+    // real Campaigns feature, now shown on /portal/session).
     navigate({
-      to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+      to: "/portal/success",
       search: (prev) => prev,
     });
   };
@@ -102,7 +106,7 @@ function AuthMethodPage() {
     setSession(session);
     toast.success("Connected");
     navigate({
-      to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+      to: "/portal/success",
       search: (prev) => prev,
     });
   };

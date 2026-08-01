@@ -1074,10 +1074,14 @@ function buildPortalRedirectHtml(url: string, page: { title: string; body: strin
  * dead code under this platform's actual hotspot-profile configuration):
  *  - radvert.html: only served when the hotspot profile has an
  *    advertisement scheduled (`advertise-*` settings) -- this script never
- *    sets any. This platform's own ad experience
- *    (`config.advertisementBannerUrl`, shown by `/portal/ad`) is served
+ *    sets any. This platform's own guest-facing ad/interstitial
+ *    experience (the real Campaigns feature, `CampaignOverlay`) is served
  *    entirely inside the real portal after login instead, so RouterOS
- *    never has an ad "due" that would trigger this file.
+ *    never has an ad "due" that would trigger this file. (The older
+ *    single-static-banner `config.advertisementBannerUrl`/`/portal/ad`
+ *    mechanism this comment used to reference has been removed --
+ *    superseded by Campaigns, with no remaining admin-facing way to even
+ *    configure it.)
  *  - redirect.html: RouterOS's own documented fallback for when a
  *    preferred file (rlogin.html/alogin.html/etc.) is missing from the
  *    html-directory. This script only ever overwrites the *contents* of

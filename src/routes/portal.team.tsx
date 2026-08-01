@@ -16,7 +16,7 @@ export const Route = createFileRoute("/portal/team")({
 
 /**
  * Optional "join a team with a code" step -- reached only via the real
- * "Have a team code?" nudge on portal.success.tsx (never inserted into the
+ * "Have a team code?" nudge on portal.session.tsx (never inserted into the
  * login funnel itself, never forced).
  *
  * Design decision -- ADDITIONAL step after a real login, not a login
@@ -84,7 +84,11 @@ function TeamJoinPage() {
     onSuccess: (result) => setJoined({ alreadyMember: !result.isNewMembership }),
   });
 
-  const backToSuccess = () => navigate({ to: "/portal/success", search: (prev) => prev });
+  // Team-join never touches RadiusService/GuestSession (see this file's
+  // own docstring) -- there's no real hotspot-login POST to redo, so this
+  // returns straight to /portal/session (the real resting page this nudge
+  // now lives on), not back through the transitional /portal/success.
+  const backToSession = () => navigate({ to: "/portal/session", search: (prev) => prev });
 
   if (!session || !guestIdentifier) return null;
 
@@ -118,7 +122,7 @@ function TeamJoinPage() {
               <p className="text-xs text-slate-500">
                 Your connection isn't affected -- this only groups you with your team.
               </p>
-              <button type="button" onClick={backToSuccess} className={PG_PRIMARY_BTN}>
+              <button type="button" onClick={backToSession} className={PG_PRIMARY_BTN}>
                 Back to my connection
               </button>
             </div>
@@ -157,7 +161,7 @@ function TeamJoinPage() {
               </button>
               <button
                 type="button"
-                onClick={backToSuccess}
+                onClick={backToSession}
                 disabled={join.isPending}
                 className="h-11 w-full rounded-[14px] text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
               >

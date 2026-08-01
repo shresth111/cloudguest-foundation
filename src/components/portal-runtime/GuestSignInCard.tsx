@@ -241,12 +241,16 @@ export function GuestSignInCard() {
         .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
         .catch(() => undefined);
     }
-    // Real navigation target: the ad interstitial if this location has
-    // one configured, else straight to the success screen -- identical
-    // destination logic every other real login path in this codebase
-    // uses (see e.g. src/routes/portal.welcome.tsx's onPasswordLoggedIn).
+    // Real navigation target: the brief "connecting" transitional screen,
+    // which fires the real hotspot-login POST and lands the guest on
+    // /portal/session once it completes -- see portal.success.tsx's own
+    // docstring. The legacy static-banner /portal/ad interstitial was
+    // removed: it duplicated the newer, real Campaigns feature
+    // (CampaignOverlay, now shown on /portal/session) and had no
+    // remaining admin-facing way to even configure it, so it was purely
+    // an extra forced page a guest never needed to see.
     navigate({
-      to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+      to: "/portal/success",
       search: (prev) => prev,
     });
   }

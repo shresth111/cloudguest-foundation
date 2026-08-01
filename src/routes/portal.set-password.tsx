@@ -42,10 +42,22 @@ const passwordSetSchema = z
   });
 
 function SetPasswordPage() {
-  const { t, config, session, setSession } = usePortalRuntime();
+  const { t, session, setSession } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/set-password" });
 
-  const nextRoute = config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success";
+  // Always /portal/success: the legacy static-banner /portal/ad
+  // interstitial was removed (superseded by the real Campaigns feature,
+  // now shown on /portal/session) -- success.tsx is the brief transitional
+  // screen that fires the real hotspot-login POST and lands the guest on
+  // /portal/session once it completes. This page can be reached either
+  // right after OTP verification (the hotspot-login POST hasn't fired
+  // yet -- success.tsx must still run it) or via /portal/session's own
+  // "set a password" nudge (already connected) -- routing both cases
+  // through success.tsx keeps the real POST mechanism's firing point a
+  // single, predictable place rather than something this page has to
+  // guess about; RadiusService.authorize's username-to-session lookup is
+  // a harmless no-op to repeat for an already-active session.
+  const nextRoute = "/portal/success";
 
   useEffect(() => {
     // No just-completed login to attach this to (e.g. a guest navigated

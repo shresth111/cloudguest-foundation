@@ -37,7 +37,6 @@ import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
-import { Route as PortalAdRouteImport } from './routes/portal.ad'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
 import { Route as MasterSettingsRouteImport } from './routes/master.settings'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
@@ -288,11 +287,6 @@ const PortalClosedRoute = PortalClosedRouteImport.update({
 const PortalAuthRoute = PortalAuthRouteImport.update({
   id: '/auth',
   path: '/auth',
-  getParentRoute: () => PortalRoute,
-} as any)
-const PortalAdRoute = PortalAdRouteImport.update({
-  id: '/ad',
-  path: '/ad',
   getParentRoute: () => PortalRoute,
 } as any)
 const MasterTicketsRoute = MasterTicketsRouteImport.update({
@@ -968,7 +962,6 @@ export interface FileRoutesByFullPath {
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
-  '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1106,7 +1099,6 @@ export interface FileRoutesByTo {
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
-  '/portal/ad': typeof PortalAdRoute
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
@@ -1248,7 +1240,6 @@ export interface FileRoutesById {
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
-  '/portal/ad': typeof PortalAdRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1392,7 +1383,6 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/settings'
     | '/master/tickets'
-    | '/portal/ad'
     | '/portal/auth'
     | '/portal/closed'
     | '/portal/expired'
@@ -1530,7 +1520,6 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/settings'
     | '/master/tickets'
-    | '/portal/ad'
     | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
@@ -1671,7 +1660,6 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/settings'
     | '/master/tickets'
-    | '/portal/ad'
     | '/portal/auth'
     | '/portal/closed'
     | '/portal/expired'
@@ -1998,13 +1986,6 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/portal/auth'
       preLoaderRoute: typeof PortalAuthRouteImport
-      parentRoute: typeof PortalRoute
-    }
-    '/portal/ad': {
-      id: '/portal/ad'
-      path: '/ad'
-      fullPath: '/portal/ad'
-      preLoaderRoute: typeof PortalAdRouteImport
       parentRoute: typeof PortalRoute
     }
     '/master/tickets': {
@@ -3102,7 +3083,6 @@ const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(
 )
 
 interface PortalRouteChildren {
-  PortalAdRoute: typeof PortalAdRoute
   PortalAuthRoute: typeof PortalAuthRouteWithChildren
   PortalClosedRoute: typeof PortalClosedRoute
   PortalExpiredRoute: typeof PortalExpiredRoute
@@ -3120,7 +3100,6 @@ interface PortalRouteChildren {
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
-  PortalAdRoute: PortalAdRoute,
   PortalAuthRoute: PortalAuthRouteWithChildren,
   PortalClosedRoute: PortalClosedRoute,
   PortalExpiredRoute: PortalExpiredRoute,

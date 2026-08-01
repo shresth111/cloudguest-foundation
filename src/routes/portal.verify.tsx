@@ -81,12 +81,13 @@ function VerifyPage() {
       // never reaches here (see portal.auth.$method.tsx's own onLoggedIn),
       // so this can only ever fire right after a real OTP verification.
       const offerPasswordSetup = config?.usernamePasswordEnabled && !session.hasPassword;
+      // Always /portal/success beyond that (never /portal/ad -- the legacy
+      // static-banner interstitial was removed, superseded by the real
+      // Campaigns feature now shown on /portal/session): that brief
+      // transitional screen fires the real hotspot-login POST and lands
+      // the guest on /portal/session once it completes.
       navigate({
-        to: offerPasswordSetup
-          ? "/portal/set-password"
-          : config?.advertisementBannerUrl
-            ? "/portal/ad"
-            : "/portal/success",
+        to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
         search: (prev) => prev,
       });
     },
