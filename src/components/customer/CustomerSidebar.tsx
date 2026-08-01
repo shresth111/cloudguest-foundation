@@ -52,7 +52,7 @@ export function CustomerSidebar({
         </div>
         {expanded && (
           <div>
-            <p className="text-sm font-semibold">ZIP WiFi</p>
+            <p className="text-sm font-semibold">Wyfy Guest</p>
             <p className="text-[10px] text-white/50">{subtitle ?? "Portal"}</p>
           </div>
         )}

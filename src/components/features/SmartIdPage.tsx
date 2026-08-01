@@ -276,7 +276,7 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                     <button key={m.id} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-left text-sm hover:bg-slate-50 transition-colors"><m.icon className="h-4 w-4 text-slate-500" /><span>{m.label}</span><span className="ml-auto text-xs text-slate-400">→</span></button>
                   ))}
                 </div>
-                <p className="text-center text-[10px] text-slate-400 mt-4">Powered by ZIP WiFi</p>
+                <p className="text-center text-[10px] text-slate-400 mt-4">Powered by Wyfy Guest</p>
               </div>
             </CardContent>
           </Card>

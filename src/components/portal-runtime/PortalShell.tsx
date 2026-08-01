@@ -368,7 +368,7 @@ export function PortalShell({
                 </div>
               )}
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{config?.name ?? "ZIP WiFi"}</p>
+                <p className="truncate text-sm font-semibold">{config?.name ?? "Wyfy Guest"}</p>
                 <p className="truncate text-[11px] text-white/60">
                   {config?.splashHeadline ?? "Guest WiFi"}
                 </p>

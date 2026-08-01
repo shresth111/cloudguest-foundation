@@ -275,7 +275,7 @@ function LoginPage() {
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" /></div>
-          <div><p className="text-xl font-bold">ZIP WiFi</p><p className="text-sm text-white/70">Guest WiFi, managed.</p></div>
+          <div><p className="text-xl font-bold">Wyfy Guest</p><p className="text-sm text-white/70">Guest WiFi, managed.</p></div>
         </motion.div>
 
         <motion.div
@@ -318,7 +318,7 @@ function LoginPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
         >
-          © 2026 ZIP WiFi. All rights reserved.
+          © 2026 Wyfy Guest. All rights reserved.
         </motion.p>
 
       </div>
@@ -363,7 +363,7 @@ function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="lg:hidden flex items-center gap-2 mb-8"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div><p className="text-lg font-bold">ZIP WiFi</p></div>
+          <div className="lg:hidden flex items-center gap-2 mb-8"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div><p className="text-lg font-bold">Wyfy Guest</p></div>
           <div className="mb-8"><h1 className="text-2xl font-bold tracking-tight">Sign in</h1><p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p></div>
 
           {/* Role Selector */}

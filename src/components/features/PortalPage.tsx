@@ -492,7 +492,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                         ))}
                       </div>
                     </div>
-                    <p className="text-[10px] text-foreground/50">Powered by ZIP WiFi</p>
+                    <p className="text-[10px] text-foreground/50">Powered by Wyfy Guest</p>
                   </motion.div>
                 </AnimatePresence>
               </div>

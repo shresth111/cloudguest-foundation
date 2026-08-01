@@ -63,7 +63,7 @@ function AgentDashboard() {
         <div className="flex h-16 items-center gap-3 border-b px-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">ZIP WiFi</p>
+            <p className="truncate text-sm font-semibold">Wyfy Guest</p>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Staff Workspace</p>
           </div>
         </div>

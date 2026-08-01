@@ -29,7 +29,7 @@ import type { PlatformBrandingConfig } from "@/types/platform-branding";
  * settings panel; all three consume the service, not this file, directly.
  */
 export const DEFAULT_PLATFORM_BRANDING: PlatformBrandingConfig = {
-  companyName: "ZIP WiFi",
+  companyName: "Wyfy Guest",
   logoUrl: "/brand/mark-compact-blue.svg",
   faviconUrl: null,
   primaryColor: "oklch(0.47 0.2 265)",

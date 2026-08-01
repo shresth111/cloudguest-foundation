@@ -67,7 +67,7 @@ function SessionExpiredPage() {
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
           <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
         </div>
-        <p className="text-base font-bold">ZIP WiFi</p>
+        <p className="text-base font-bold">Wyfy Guest</p>
       </motion.div>
 
       <motion.div
@@ -129,7 +129,7 @@ function SessionExpiredPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.6 }}
       >
-        © 2026 ZIP WiFi. All rights reserved.
+        © 2026 Wyfy Guest. All rights reserved.
       </motion.p>
     </div>
   );

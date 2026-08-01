@@ -31,7 +31,7 @@ interface DisplayMessage {
 }
 
 const DEMO_WELCOME =
-  "Hi! I'm the ZIP WiFi assistant. Ask me about WiFi connectivity, billing, vouchers, routers, or guest management -- or anything else on your mind.";
+  "Hi! I'm the Wyfy Guest assistant. Ask me about WiFi connectivity, billing, vouchers, routers, or guest management -- or anything else on your mind.";
 
 // Keyword groups, checked most-specific-intent-first -- mirrors the fix in
 // the backend's LoggingAssistantProvider (app/domains/assistant/service.py)

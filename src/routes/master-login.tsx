@@ -107,7 +107,7 @@ function MasterLoginPage() {
               <img src="/brand/mark-compact-white.svg" alt="" className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-base font-semibold">ZIP WiFi</p>
+              <p className="text-base font-semibold">Wyfy Guest</p>
               <p className="text-xs uppercase tracking-[0.14em] text-white/50">Master Console</p>
             </div>
           </motion.div>
@@ -149,7 +149,7 @@ function MasterLoginPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.6 }}
           >
-            © 2026 ZIP WiFi. Internal operator tooling — not for customer distribution.
+            © 2026 Wyfy Guest. Internal operator tooling — not for customer distribution.
           </motion.p>
         </div>
 
@@ -163,7 +163,7 @@ function MasterLoginPage() {
           >
             <div className="mb-8 flex items-center gap-2.5 lg:hidden">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
-              <div><p className="text-sm font-semibold">ZIP WiFi</p><p className="text-[11px] text-muted-foreground">Master Console</p></div>
+              <div><p className="text-sm font-semibold">Wyfy Guest</p><p className="text-[11px] text-muted-foreground">Master Console</p></div>
             </div>
 
             <div className="mb-6 flex items-center gap-2.5">

@@ -85,14 +85,14 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ZIP WiFi — Enterprise Guest WiFi Management" },
+      { title: "Wyfy Guest — Enterprise Guest WiFi Management" },
       {
         name: "description",
         content:
-          "ZIP WiFi is the enterprise platform for managing guest WiFi across locations — with roles, analytics, and real-time insight.",
+          "Wyfy Guest is the enterprise platform for managing guest WiFi across locations — with roles, analytics, and real-time insight.",
       },
-      { name: "author", content: "ZIP WiFi" },
-      { property: "og:title", content: "ZIP WiFi — Enterprise Guest WiFi Management" },
+      { name: "author", content: "Wyfy Guest" },
+      { property: "og:title", content: "Wyfy Guest — Enterprise Guest WiFi Management" },
       {
         property: "og:description",
         content:

@@ -128,7 +128,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
               <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
             </div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight">ZIP WiFi</p>
+              <p className="text-sm font-semibold tracking-tight">Wyfy Guest</p>
               <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
             </div>
             <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}><X className="h-5 w-5" /></button>

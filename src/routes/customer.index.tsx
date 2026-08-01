@@ -267,7 +267,7 @@ function CustomerHomePage() {
                 <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold">ZIP WiFi</p>
+                <p className="text-sm font-semibold">Wyfy Guest</p>
                 <p className="text-[10px] text-white/60">Customer Portal</p>
               </div>
             </div>

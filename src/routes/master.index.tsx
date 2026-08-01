@@ -63,7 +63,7 @@ function PlatformOverview() {
   return (
     <MasterShell title="Platform Overview">
       <MSectionHeader
-        eyebrow="ZIP WiFi · Operator"
+        eyebrow="Wyfy Guest · Operator"
         title="Platform Overview"
         actions={
           <Link to="/master/customers">
