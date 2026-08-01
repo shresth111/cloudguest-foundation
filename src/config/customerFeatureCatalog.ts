@@ -69,7 +69,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
   {
     group: "Operations",
     items: [
-      { id: "advanced", label: "Advanced", icon: Settings2 },
       { id: "notification", label: "Notifications", icon: Bell },
       { id: "debugging", label: "Network Diagnostics", icon: Terminal },
     ],

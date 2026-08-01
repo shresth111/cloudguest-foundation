@@ -87,7 +87,6 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     id: "operations",
     label: "Operations",
     items: [
-      { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
       { id: "notification", label: "Notifications", icon: Bell, roles: ["owner"] },
       { id: "debugging", label: "Network Diagnostics", icon: Terminal, roles: ["owner"] },
     ],

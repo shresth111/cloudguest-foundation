@@ -35,29 +35,16 @@ export function maskEmail(email: string): string {
   return `${email.slice(0, 2)}${"•".repeat(Math.max(3, at - 2))}${email.slice(at)}`;
 }
 
-/** Redacts a MAC address the same way the backend already does --
- * ``app/common/masking.py::mask_mac``: ``"AA:BB:CC:DD:EE:FF"`` ->
- * ``"XX:XX:XX:XX:EE:FF"`` (first four octets replaced with literal "XX",
- * last two left visible), whichever separator (``:`` or ``-``) the input
- * already used. This used to invent its own, opposite convention (mask
- * the *last* three octets, keep the vendor/OUI prefix) -- cosmetically
- * different from, and less redacted than, what several backend responses
- * (connected-devices, mac-authorization, guest session/device schemas --
- * see ``app.common.masking.MaskedMac``) already send down pre-masked in
- * this exact "XX:XX:XX:XX:EE:FF" shape. Matching it here means (1) one
- * consistent masked format everywhere in the product, not two, and (2)
- * applying this function to an already-backend-masked value is a no-op
- * (the idempotency check below) instead of visually double-masking it.
- * Falls back to returning the input unchanged for anything that isn't a
- * real 6-octet colon/dash address, exactly like the backend function. */
-const MASKED_MAC_PATTERN = /^(?:[Xx]{2}[:-]){4}[0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}$/;
+/** No-op by explicit product decision -- MAC addresses are shown
+ * unmasked everywhere (customers need the real address to identify a
+ * device for support). Mirrors the backend's own ``mask_mac`` (see
+ * ``app/common/masking.py``), which is the actual source of truth for
+ * this: several endpoints (connected-devices, mac-authorization, guest
+ * session/device schemas) already send the real, unmasked value, so this
+ * function stays a real passthrough rather than being deleted, in case
+ * any call site still relies on it existing. */
 export function maskMac(mac: string): string {
-  if (!mac) return mac;
-  if (MASKED_MAC_PATTERN.test(mac)) return mac;
-  const separator = mac.includes("-") ? "-" : ":";
-  const octets = mac.split(separator);
-  if (octets.length !== 6) return mac;
-  return [...Array(4).fill("XX"), ...octets.slice(-2)].join(separator);
+  return mac;
 }
 
 /** Read-only PII-masking status indicator -- *not* a self-service reveal
