@@ -117,6 +117,7 @@ interface AccessRuleBase {
   locationId: string | null;
   ruleType: AccessRuleType;
   reason: string | null;
+  email: string | null;
   expiresAt: string | null;
   isActive: boolean;
   createdAt: string;
@@ -143,6 +144,7 @@ export interface CreateAccessRulePayload {
   macAddress?: string;
   ruleType: AccessRuleType;
   reason?: string;
+  email?: string;
   expiresAt?: string;
 }
 

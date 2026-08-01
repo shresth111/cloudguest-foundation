@@ -4,6 +4,7 @@
  * (Aurora Teal). Mock data -- the seam a per-location API call replaces.
  */
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle, Printer, Router, Camera, HardDrive, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,9 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
+import { maskEmail, maskMac } from "@/components/features/HeaderControls";
 
 export function BasicDashboardView({ locationId }: { locationId?: string }) {
   void locationId;
@@ -100,8 +101,8 @@ export function BasicUsersView() {
             <TableBody>
               {rows.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{u.email}</p></TableCell>
-                  <TableCell className="hidden font-mono text-xs sm:table-cell">{u.mac}</TableCell>
+                  <TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{maskEmail(u.email)}</p></TableCell>
+                  <TableCell className="hidden font-mono text-xs sm:table-cell">{maskMac(u.mac)}</TableCell>
                   <TableCell className="text-xs">{u.duration}</TableCell>
                   <TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : u.status === "idle" ? "text-amber-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : u.status === "idle" ? "bg-amber-500" : "bg-muted-foreground")} />{u.status}</span></TableCell>
                 </TableRow>
@@ -139,7 +140,7 @@ export function BasicDevicesView() {
           <TableBody>
             {devices.map((d) => (
               <TableRow key={d.m}>
-                <TableCell className="font-mono text-xs">{d.m}</TableCell>
+                <TableCell className="font-mono text-xs">{maskMac(d.m)}</TableCell>
                 <TableCell className="font-mono text-xs">{d.i}</TableCell>
                 <TableCell>{d.d}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell>
@@ -177,6 +178,38 @@ export function normalizeMac(raw: string): string | null {
  * with another location's floors. Up/down status is then derived from the
  * MAC on the monitoring side; this form only records identity, type, and
  * physical floor. */
+/**
+ * Illustrated empty state for the Network Hardware setup card -- a dormant
+ * router silhouette, same filled-flat-shape character language established
+ * elsewhere this session (ChartEmptyState/UsersEmptyState/
+ * DashboardWatchIllustration), themed specifically around "no hardware
+ * registered yet" rather than reusing an unrelated graphic. Purely
+ * decorative -- aria-hidden.
+ */
+function HardwareEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+      <svg aria-hidden="true" viewBox="0 0 120 90" className="h-20 w-28" fill="none">
+        <ellipse cx="60" cy="78" rx="40" ry="5" fill="#4f46e5" opacity="0.08" />
+        <path d="M50 32a10 10 0 0 1 20 0" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.3" strokeDasharray="2 4" />
+        <path d="M45 42l-6-14" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
+        <path d="M75 42l6-14" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
+        <circle cx="39" cy="26" r="2" fill="#a78bfa" opacity="0.5" />
+        <circle cx="81" cy="26" r="2" fill="#a78bfa" opacity="0.5" />
+        <rect x="30" y="42" width="60" height="26" rx="8" fill="#f5f0ff" stroke="#4f46e5" strokeWidth="2.5" />
+        <circle cx="42" cy="55" r="2.2" fill="#a78bfa" />
+        <circle cx="52" cy="55" r="2.2" fill="#22d3ee" />
+        <circle cx="62" cy="55" r="2.2" fill="#f0abfc" />
+        <rect x="72" y="51" width="10" height="8" rx="1.5" fill="#4f46e5" opacity="0.15" />
+      </svg>
+      <div>
+        <p className="text-sm font-medium">No hardware set up yet</p>
+        <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it.</p>
+      </div>
+    </div>
+  );
+}
+
 export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const { devices: allDevices, addDevice, removeDevice } = useDeviceStore();
   const devices = allDevices.filter((d) => d.locationId === locationId);
@@ -208,17 +241,23 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   };
 
   return (
-    <Card className="rounded-2xl">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <Card className="border-0 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-        <div>
-          <CardTitle className="text-base">Network Hardware</CardTitle>
-          <CardDescription>Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them.</CardDescription>
+        <div className="flex items-start gap-2.5">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <HardDrive className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-lg font-semibold tracking-tight">Network Hardware</CardTitle>
+            <CardDescription>Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them.</CardDescription>
+          </div>
         </div>
         <Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add Device</Button>
       </CardHeader>
       <CardContent className="p-0">
         {devices.length === 0 ? (
-          <EmptyState icon={HardDrive} title="No hardware set up yet" description="Add a device by MAC address to start monitoring it." />
+          <HardwareEmptyState />
         ) : (
         <Table>
           <TableHeader><TableRow><TableHead>Device</TableHead><TableHead>MAC</TableHead><TableHead>Floor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
@@ -227,11 +266,16 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
               const Icon = DEVICE_TYPE_ICON[d.type];
               return (
                 <TableRow key={d.id}>
-                  <TableCell><span className="inline-flex items-center gap-2 text-sm font-medium"><Icon title={d.type} className="h-4 w-4 text-primary" />{d.name}<span className="font-normal text-xs text-muted-foreground">({d.type})</span></span></TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-2 text-sm font-medium">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Icon title={d.type} className="h-3.5 w-3.5 text-white" /></span>
+                      {d.name}<span className="font-normal text-xs text-muted-foreground">({d.type})</span>
+                    </span>
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{d.mac}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
                   <TableCell>
-                    <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold", d.status === "up" ? "text-emerald-600" : "text-rose-600")}>
+                    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold", d.status === "up" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600" : "border-rose-500/20 bg-rose-500/10 text-rose-600")}>
                       <span className={cn("h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : "bg-rose-500")} />
                       {d.status === "up" ? "Up" : "Down"} · {formatSince(d.statusChangedAt)}
                     </span>
@@ -294,6 +338,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         </DialogContent>
       </Dialog>
     </Card>
+    </motion.div>
   );
 }
 

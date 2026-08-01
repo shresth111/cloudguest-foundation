@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2, Trash2, Wifi } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +20,35 @@ const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 interface DemoAsset { businessUnit: string; url: string; }
 
 const BRANDING_QUERY_KEY = ["branding", "current-organization"] as const;
+
+function BrandImageIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 80 48" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="6" y="4" width="46" height="36" rx="5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
+      <circle cx="17" cy="15" r="4" fill="#22d3ee" fillOpacity="0.8" />
+      <motion.path
+        d="M10 33l11-11 8 8 7-7 9 9"
+        stroke="#f0abfc"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.7, ease: "easeOut" }}
+      />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { y: [0, -3, 0], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        style={{ transformOrigin: "64px 24px" }}
+      >
+        <circle cx="64" cy="24" r="11" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2" />
+        <path d="M64 30v-12M59 23l5-5 5 5" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </motion.g>
+    </svg>
+  );
+}
 
 export default function BrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
   const demo = useIsDemo();
@@ -160,9 +190,17 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <ImageUp className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        <BrandImageIllustration />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
@@ -298,9 +336,17 @@ function DemoBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <ImageUp className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        <BrandImageIllustration />
       </div>
 
       <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">

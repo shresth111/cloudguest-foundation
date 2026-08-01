@@ -6,6 +6,7 @@
  * agentPermissionStore so the /agent surface reflects changes immediately.
  */
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2, ShieldCheck, Eye, ExternalLink, Check, Lock, Users2, UserCog2 } from "lucide-react";
 import { toast } from "sonner";
@@ -62,6 +63,43 @@ function passwordStrength(pw: string): { label: string; pct: number; color: stri
   ];
   const lvl = levels[Math.min(score, levels.length - 1)];
   return { ...lvl, pct: pw ? (score / 5) * 100 : 0 };
+}
+
+/**
+ * Small header-accent illustration: a staff ID badge with a shield-check,
+ * a small key/permission glyph orbiting it -- role-based access control,
+ * what this page actually manages. Same filled-flat-shape character
+ * language as the other illustrations shipped this session. Purely
+ * decorative -- aria-hidden.
+ */
+function StaffAccessIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 76 48" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="20" y="4" width="30" height="40" rx="5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
+      <circle cx="35" cy="16" r="6" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.4" />
+      <path d="M27 32c0-5 3.5-8 8-8s8 3 8 8" stroke="#22d3ee" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <rect x="26" y="36" width="18" height="2.4" rx="1.2" fill="#f0abfc" fillOpacity="0.7" />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { rotate: [0, 8, 0], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+        style={{ transformOrigin: "60px 12px" }}
+      >
+        <circle cx="60" cy="12" r="9" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2" />
+        <path d="M56 12l3 3 6-6" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </motion.g>
+      <motion.path
+        d="M28 22l-14 6"
+        stroke="#f0abfc" strokeOpacity="0.4" strokeWidth="1.3" strokeDasharray="1 4" strokeLinecap="round"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+      />
+      <circle cx="10" cy="30" r="5" fill="#2e2a5c" stroke="#f0abfc" strokeWidth="1.3" />
+      <circle cx="10" cy="28" r="1.6" fill="#f0abfc" />
+      <path d="M7.3 32.5c0-2 1.2-3 2.7-3s2.7 1 2.7 3" stroke="#f0abfc" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+    </svg>
+  );
 }
 
 export function AgentsPage({ locationId }: { locationId?: string } = {}) {
@@ -284,7 +322,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
       setForm({ name: "", email: "", mobile: "", password: "", roleId: roleOptions[0]?.id ?? "", locations: [] });
       setCreating(false);
       setSelectedId(id);
-      toast.success("Agent created");
+      toast.success("Staff member created");
       return;
     }
     if (!orgId) { toast.error("No organization found for this session."); return; }
@@ -308,9 +346,9 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
       setForm({ name: "", email: "", mobile: "", password: "", roleId: roleOptions[0]?.id ?? "", locations: [] });
       setCreating(false);
       setSelectedId(invited.user.id);
-      toast.success("Agent invited");
+      toast.success("Staff member invited");
     } catch {
-      toast.error("Could not invite the agent — check the connection and try again.");
+      toast.error("Could not invite the staff member — check the connection and try again.");
     }
   };
 
@@ -392,23 +430,31 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><ShieldCheck className="h-4 w-4 text-primary" /> Manage Agents</h1>
-        <p className="text-sm text-muted-foreground">Use role-based access control to limit the features your team can access.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <ShieldCheck className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Staff Access</h1>
+            <p className="text-sm text-muted-foreground">Use role-based access control to limit the features your team can access.</p>
+          </div>
+        </div>
+        <StaffAccessIllustration />
       </div>
 
       <div className="inline-flex rounded-xl border bg-muted/40 p-1">
         <button onClick={() => setTab("agents")} className={cn("flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors", tab === "agents" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-          <Users2 className="h-4 w-4" />Manage Agents
+          <Users2 className="h-4 w-4" />Staff
         </button>
         <button onClick={() => setTab("roles")} className={cn("flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors", tab === "roles" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-          <UserCog2 className="h-4 w-4" />Manage Roles
+          <UserCog2 className="h-4 w-4" />Roles
         </button>
       </div>
 
       {tab === "roles" && demo && (
         <div className="space-y-3">
-          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">Default Agent Role is a Read-Only role &amp; can't be modified. Its permissions are limited to Dashboard, Fair Usage Policy &amp; Whitelisting by default.</p>
+          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">Default Staff Role is a Read-Only role &amp; can't be modified. Its permissions are limited to Dashboard, Access Rules &amp; Always Allowed by default.</p>
           <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -646,15 +692,15 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
           {/* Agent list */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Agents</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Staff</h3>
               <Button size="sm" variant="outline" className="h-8" onClick={() => setCreating((v) => !v)}><Plus className="h-4 w-4" /> Add</Button>
             </div>
 
             {creating && (
               <Card className="rounded-2xl border-primary/40">
                 <CardContent className="space-y-3 p-4">
-                  <div><label className={labelCls}>Name</label><Input placeholder="Enter Agent Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" /></div>
-                  <div><label className={labelCls}>Email</label><Input placeholder="Enter Agent Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-9" /></div>
+                  <div><label className={labelCls}>Name</label><Input placeholder="Enter Staff Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" /></div>
+                  <div><label className={labelCls}>Email</label><Input placeholder="Enter Staff Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-9" /></div>
                   {demo && (
                     <div>
                       <label className={labelCls}>Password</label>
@@ -667,10 +713,10 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                       )}
                     </div>
                   )}
-                  {!demo && <p className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">A temporary password will be generated and the agent invited by email.</p>}
-                  <div><label className={labelCls}>Mobile No.</label><Input placeholder="Enter Agent's Mobile Number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })} className="h-9" /></div>
+                  {!demo && <p className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">A temporary password will be generated and the staff member invited by email.</p>}
+                  <div><label className={labelCls}>Mobile No.</label><Input placeholder="Enter Staff's Mobile Number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })} className="h-9" /></div>
                   <div>
-                    <label className={labelCls}>Agent Role</label>
+                    <label className={labelCls}>Staff Role</label>
                     <select value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })} className={inputCls}>
                       <option value="">Choose a role</option>
                       {roleOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -695,7 +741,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
             )}
 
             <div className="space-y-2">
-              {agents.length === 0 && <EmptyState icon={Users2} title="No agents yet" description="Add an agent above to invite them to your team." />}
+              {agents.length === 0 && <EmptyState icon={Users2} title="No staff yet" description="Add a staff member above to invite them to your team." />}
               {agents.map((a) => {
                 const role = roleOptions.find((r) => r.id === a.roleId);
                 return (
@@ -733,7 +779,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                 <div className="flex flex-wrap items-center gap-4">
                   <label className="flex items-center gap-2 text-sm"><Switch checked={selected.status === "active"} onCheckedChange={(v) => updateAgent(selected.id, { status: v ? "active" : "inactive" })} /> Active</label>
                   <label className="flex items-center gap-2 text-sm"><Switch checked={selected.dataMasking} onCheckedChange={(v) => updateAgent(selected.id, { dataMasking: v })} /> Data masking</label>
-                  {demo && <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}><Eye className="h-4 w-4" /> Preview as agent <ExternalLink className="h-3.5 w-3.5" /></Button>}
+                  {demo && <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}><Eye className="h-4 w-4" /> Preview as staff <ExternalLink className="h-3.5 w-3.5" /></Button>}
                   {!isOwnerRole && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { removeAgent(selected.id); setSelectedId(null); }}><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               </div>
@@ -741,7 +787,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               <Card className="rounded-2xl border-0 shadow-sm">
                 <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
                   <div>
-                    <label className={labelCls}>Agent Role</label>
+                    <label className={labelCls}>Staff Role</label>
                     <select
                       value={selected.roleId}
                       disabled={isSelf}
@@ -773,7 +819,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               {!demo && (
                 <Card className="rounded-2xl border-0 shadow-sm">
                   <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-muted-foreground">
-                    <span>Permissions are set by the role you assign to this agent, not by this page.</span>
+                    <span>Permissions are set by the role you assign to this staff member, not by this page.</span>
                     <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setTab("roles")}>View role permissions</Button>
                   </CardContent>
                 </Card>
@@ -811,7 +857,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               </Card>}
             </div>
           ) : (
-            <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">Select or create an agent to manage access.</div>
+            <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">Select or create a staff member to manage access.</div>
           )}
         </div>
       )}

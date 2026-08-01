@@ -41,9 +41,9 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
   {
     group: "Access & Policy",
     items: [
-      { id: "policies", label: "Policies", icon: ShieldCheck },
-      { id: "whitelist", label: "Whitelist", icon: Shield },
-      { id: "mac-auth", label: "MAC Auth", icon: Fingerprint },
+      { id: "policies", label: "Access Rules", icon: ShieldCheck },
+      { id: "whitelist", label: "Always Allowed", icon: Shield },
+      { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
       { id: "business-hours", label: "Business Hours", icon: Clock },
       { id: "background-image", label: "Background Image", icon: Palette },
     ],
@@ -52,28 +52,27 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Devices & Team",
     items: [
       { id: "devices", label: "Devices", icon: Monitor },
-      { id: "teams", label: "Teams", icon: UsersRound },
-      { id: "agents", label: "Agents", icon: Bot },
+      { id: "teams", label: "Guest Groups", icon: UsersRound },
+      { id: "agents", label: "Staff Access", icon: Bot },
     ],
   },
   {
     group: "Network",
     items: [
-      { id: "hotspot", label: "Hotspot", icon: Wifi },
       { id: "dhcp", label: "DHCP Pool", icon: Server },
       { id: "vlans", label: "VLANs", icon: Network },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
       { id: "voip", label: "VOIP Priority", icon: Signal },
-      { id: "isp-routing", label: "ISP Routing", icon: ArrowRightLeft },
-      { id: "isp-details", label: "ISP Details", icon: Globe },
+      { id: "isp-routing", label: "Internet Failover", icon: ArrowRightLeft },
+      { id: "isp-details", label: "Internet Connection", icon: Globe },
     ],
   },
   {
     group: "Operations",
     items: [
       { id: "advanced", label: "Advanced", icon: Settings2 },
-      { id: "notification", label: "Notification", icon: Bell },
-      { id: "debugging", label: "Debugging", icon: Terminal },
+      { id: "notification", label: "Notifications", icon: Bell },
+      { id: "debugging", label: "Network Diagnostics", icon: Terminal },
     ],
   },
   {

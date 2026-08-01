@@ -152,6 +152,7 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Wifi}
         eyebrow="Network"
         title="Hotspot Profiles"
         description="Per-router hotspot session limits, bandwidth caps, and walled-garden allowlists."
@@ -168,7 +169,7 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
         <StatCard label="Disabled" value={statDisabled} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All profiles</CardTitle>
           <div className="flex flex-wrap items-center gap-2">

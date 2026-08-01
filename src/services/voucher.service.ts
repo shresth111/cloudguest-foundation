@@ -285,4 +285,12 @@ export const voucherService = {
     });
     return res.data;
   },
+
+  async emailPdf(batchId: string, organizationId: string, recipientEmail: string): Promise<void> {
+    await api.post(
+      `/voucher-batches/${batchId}/email`,
+      { recipient_email: recipientEmail },
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+  },
 };

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import type { AppError } from "@/services/api";
 import {
   useCreateScheduledReport,
   useDeleteScheduledReport,
@@ -34,7 +35,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function ScheduledReportsPanel() {
-  const { data, isLoading, isError, refetch } = useScheduledReports();
+  const { data, isLoading, isError, error, refetch } = useScheduledReports();
   const toggle = useToggleScheduledReport();
   const remove = useDeleteScheduledReport();
   const create = useCreateScheduledReport();
@@ -139,7 +140,7 @@ export function ScheduledReportsPanel() {
         {isLoading ? (
           <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
         ) : isError ? (
-          <ErrorState onRetry={refetch} />
+          <ErrorState description={(error as unknown as AppError)?.message} onRetry={refetch} />
         ) : !data || data.length === 0 ? (
           <EmptyState title="No scheduled reports" description="Create a schedule to email reports automatically." />
         ) : (

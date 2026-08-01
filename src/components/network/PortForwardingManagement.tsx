@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, ArrowRightLeft, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, ArrowRightLeft, ShieldCheck, ShieldOff, Share2 } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -156,6 +156,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Share2}
         eyebrow="Network"
         title="Port Forwarding"
         description="Per-router NAT rules mapping a public destination port to an internal address/port."
@@ -172,7 +173,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
         <StatCard label="Disabled" value={statDisabled} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All Rules</CardTitle>
           <div className="flex flex-wrap items-center gap-2">

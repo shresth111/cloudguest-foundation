@@ -154,7 +154,7 @@ export function PasswordForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t } = usePortalRuntime();
+  const { t, setGuestIdentifier } = usePortalRuntime();
   const form = useForm<z.infer<typeof passwordLoginSchema>>({
     resolver: zodResolver(passwordLoginSchema),
     defaultValues: { identifier: "", password: "" },
@@ -168,7 +168,12 @@ export function PasswordForm({
         locationId,
         routerId,
       }),
-    onSuccess: onLoggedIn,
+    onSuccess: (session, variables) => {
+      // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
+      // own RADIUS Authorize checks this exact value, not a hardcoded one.
+      setGuestIdentifier(variables.identifier.trim());
+      onLoggedIn(session);
+    },
     // The backend deliberately returns one generic message for "wrong
     // password", "no such guest", and "guest exists but never set a
     // password" -- see GuestPasswordLoginFailedError's own docstring, and
@@ -221,7 +226,7 @@ export function VoucherForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t } = usePortalRuntime();
+  const { t, setGuestIdentifier } = usePortalRuntime();
   const form = useForm<z.infer<typeof voucherLoginSchema>>({
     resolver: zodResolver(voucherLoginSchema),
     defaultValues: { identifier: "", code: "" },
@@ -235,7 +240,12 @@ export function VoucherForm({
         locationId,
         routerId,
       }),
-    onSuccess: onLoggedIn,
+    onSuccess: (session, variables) => {
+      // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
+      // own RADIUS Authorize checks this exact value, not a hardcoded one.
+      setGuestIdentifier(variables.identifier.trim());
+      onLoggedIn(session);
+    },
     onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "voucher")),
   });
   return (

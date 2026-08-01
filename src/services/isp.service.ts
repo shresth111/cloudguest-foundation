@@ -2,6 +2,7 @@ import { api } from "@/services/api";
 import type {
   CreateIspLinkPayload,
   CreateIspRoutingRulePayload,
+  IspConnectionMode,
   IspHealthCheck,
   IspHealthCheckListQuery,
   IspHealthCheckListResult,
@@ -9,6 +10,7 @@ import type {
   IspLinkListQuery,
   IspLinkListResult,
   IspLinkRole,
+  IspManualHealthStatus,
   IspRoutingRule,
   IspRoutingRuleListQuery,
   IspRoutingRuleListResult,
@@ -47,6 +49,7 @@ interface BackendIspLink {
   location_id: string;
   provider_name: string;
   link_type: string;
+  connection_mode: string;
   role: string;
   is_active_uplink: boolean;
   auto_failback: boolean;
@@ -59,8 +62,12 @@ interface BackendIspLink {
   download_bandwidth_mbps: number | null;
   upload_bandwidth_mbps: number | null;
   health_status: string;
+  health_status_source: string;
+  unhealthy_since: string | null;
   latency_ms: number | null;
   packet_loss_percentage: number | null;
+  current_download_mbps: number | null;
+  current_upload_mbps: number | null;
   last_checked_at: string | null;
   consecutive_unhealthy_count: number;
   created_at: string;
@@ -114,6 +121,7 @@ function toIspLink(l: BackendIspLink): IspLink {
     locationId: l.location_id,
     providerName: l.provider_name,
     linkType: l.link_type,
+    connectionMode: l.connection_mode as IspConnectionMode,
     role: l.role as IspLinkRole,
     isActiveUplink: l.is_active_uplink,
     autoFailback: l.auto_failback,
@@ -126,8 +134,12 @@ function toIspLink(l: BackendIspLink): IspLink {
     downloadBandwidthMbps: l.download_bandwidth_mbps,
     uploadBandwidthMbps: l.upload_bandwidth_mbps,
     healthStatus: l.health_status,
+    healthStatusSource: l.health_status_source,
+    unhealthySince: l.unhealthy_since,
     latencyMs: l.latency_ms,
     packetLossPercentage: l.packet_loss_percentage,
+    currentDownloadMbps: l.current_download_mbps,
+    currentUploadMbps: l.current_upload_mbps,
     lastCheckedAt: l.last_checked_at,
     consecutiveUnhealthyCount: l.consecutive_unhealthy_count,
     createdAt: l.created_at,
@@ -139,9 +151,12 @@ interface BackendIspHealthCheck {
   isp_link_id: string;
   checked_at: string;
   status: string;
+  source: string;
   latency_ms: number | null;
   packet_loss_percentage: number | null;
   error_message: string | null;
+  download_mbps: number | null;
+  upload_mbps: number | null;
 }
 
 interface BackendIspHealthCheckListResponse {
@@ -161,9 +176,12 @@ function toIspHealthCheck(h: BackendIspHealthCheck): IspHealthCheck {
     ispLinkId: h.isp_link_id,
     checkedAt: h.checked_at,
     status: h.status,
+    source: h.source,
     latencyMs: h.latency_ms,
     packetLossPercentage: h.packet_loss_percentage,
     errorMessage: h.error_message,
+    downloadMbps: h.download_mbps,
+    uploadMbps: h.upload_mbps,
   };
 }
 
@@ -213,6 +231,7 @@ export const ispService = {
         router_id: payload.routerId,
         provider_name: payload.providerName,
         link_type: payload.linkType ?? "other",
+        connection_mode: payload.connectionMode ?? "static",
         role: payload.role,
         priority: payload.priority ?? 0,
         interface: payload.interface,
@@ -235,6 +254,7 @@ export const ispService = {
       {
         provider_name: payload.providerName,
         link_type: payload.linkType,
+        connection_mode: payload.connectionMode,
         role: payload.role,
         priority: payload.priority,
         interface: payload.interface,
@@ -261,6 +281,26 @@ export const ispService = {
     const { data } = await api.post<BackendIspLink>(
       `/isp/links/${id}/check-health`,
       undefined,
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return toIspLink(data);
+  },
+
+  // An admin's own manual up/down override of a link's current status --
+  // the "Internet Connection" view's one real write. Never pushes
+  // anything to the router itself (see backend
+  // IspService.set_manual_health_status's own docstring); it only
+  // records what an admin has told the platform is true right now,
+  // persisted exactly like a real health-check reading.
+  async setManualStatus(
+    id: string,
+    healthStatus: IspManualHealthStatus,
+    reason?: string,
+  ): Promise<IspLink> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendIspLink>(
+      `/isp/links/${id}/status`,
+      { health_status: healthStatus, reason: reason || undefined },
       { headers: { "X-Organization-Id": orgId } },
     );
     return toIspLink(data);

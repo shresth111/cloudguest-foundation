@@ -19,7 +19,12 @@ import type { AppError } from "@/services/api";
  * those raw shapes to plain, reassuring copy for the specific form that hit
  * them, and passes every other real backend message through unchanged.
  */
-export type GuestAuthErrorContext = "otp_request" | "otp_verify" | "password" | "voucher";
+export type GuestAuthErrorContext =
+  | "otp_request"
+  | "otp_verify"
+  | "password"
+  | "voucher"
+  | "team_join";
 
 const RAW_VALIDATION_MESSAGE = "Request validation failed";
 const RAW_IDENTIFIER_PATTERN = /is not a valid identifier for channel/i;
@@ -29,6 +34,11 @@ const FRIENDLY_BY_CONTEXT: Record<GuestAuthErrorContext, string> = {
   otp_verify: "That code didn't match -- check your messages and try again.",
   password: "Please double-check your phone number/email and password and try again.",
   voucher: "That voucher code doesn't look right -- please check it and try again.",
+  // GuestTeamJoinRequest.team_code (1-32 chars) rarely 422s past client-
+  // side `required`/`maxLength`, but keeps this consistent with every
+  // other guest-facing form's fallback for the one raw, non-guest-facing
+  // shape the backend can return.
+  team_join: "That team code doesn't look right -- please check it and try again.",
 };
 
 export function friendlyGuestAuthError(e: AppError, context: GuestAuthErrorContext): string {

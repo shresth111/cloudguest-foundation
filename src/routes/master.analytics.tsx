@@ -21,8 +21,21 @@ import { ScheduledReportsPanel } from "@/components/analytics/ScheduledReportsPa
 import { AnalyticsSettingsPanel } from "@/components/analytics/AnalyticsSettingsPanel";
 import { AnalyticsQuickActions } from "@/components/analytics/AnalyticsQuickActions";
 import { DateRangeFilter } from "@/components/analytics/DateRangeFilter";
-import { useAnalyticsSnapshot } from "@/hooks/useAnalytics";
+import { useAnalyticsSnapshot, useGenerateReport } from "@/hooks/useAnalytics";
+import type { AppError } from "@/services/api";
 import type { DateRangePreset } from "@/types/analytics";
+
+/** Mirrors ReportCenter.tsx's/workspace.reports.tsx's own identical
+ * helper -- there is no shared download util in this codebase yet. */
+function downloadBlobUrl(url: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * This used to be an `MStubPanel` -- a "coming soon" placeholder with no
@@ -43,13 +56,33 @@ function AnalyticsScreen() {
   const [tab, setTab] = useState("overview");
   const qc = useQueryClient();
   const snap = useAnalyticsSnapshot(range);
+  const generateReport = useGenerateReport();
   const state = { isLoading: snap.isLoading, isError: snap.isError, onRetry: () => snap.refetch() };
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["analytics"] });
     toast.success("Analytics refreshed");
   };
-  const exportDashboard = () => toast.success("Dashboard export started");
+  // Used to be `() => toast.success("Dashboard export started")` -- a fake
+  // success with zero API call, no file ever produced. The backend Report
+  // Engine already composes exactly this (ReportType.DASHBOARD ->
+  // DashboardService.get_super_admin_dashboard, see
+  // analytics.service.ts's REPORT_TYPE_TO_BACKEND comment), so this now
+  // calls the same real POST /reports the rest of the Reports tab uses,
+  // via the exact same generate-then-download flow as ReportCenter.tsx.
+  const exportDashboard = async () => {
+    try {
+      const res = await generateReport.mutateAsync({ type: "dashboard", format: "pdf", range });
+      if (res.url.startsWith("#unavailable/")) {
+        toast.error("Dashboard export isn't available yet");
+        return;
+      }
+      downloadBlobUrl(res.url, res.filename);
+      toast.success(`${res.filename} downloaded`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Dashboard export failed");
+    }
+  };
 
   return (
     <MasterShell title="Global Analytics">

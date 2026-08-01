@@ -102,7 +102,7 @@ const DEMO_NAV: NavItem[] = [
   { id: "analytics", label: "Analytics", module: "analytics" }, { id: "reports", label: "Reports", module: "reports" },
   { id: "campaigns", label: "Campaigns", module: "campaigns" }, { id: "portal", label: "Portal", module: "captive_portal" },
   { id: "vouchers", label: "Vouchers", module: "voucher" }, { id: "policies", label: "Policies", module: "policy" },
-  { id: "whitelist", label: "Whitelist", module: "guest_access" }, { id: "devices", label: "Devices", module: "connected_devices" },
+  { id: "whitelist", label: "Always Allowed", module: "guest_access" }, { id: "devices", label: "Devices", module: "connected_devices" },
   { id: "teams", label: "Guest Groups", module: "guest_teams" }, { id: "agents", label: "Staff Access", module: "roles" },
   { id: "networking", label: "Networking", module: "dhcp" }, { id: "advanced", label: "Advanced", module: "system_settings" },
   { id: "audit", label: "Audit Logs", module: "audit_logs" }, { id: "help", label: "Help", module: "notifications" },

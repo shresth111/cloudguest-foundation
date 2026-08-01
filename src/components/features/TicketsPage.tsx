@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { LifeBuoy, Plus, MessageSquare, CheckCircle2, X, Loader2, Send, ShieldCheck, User, ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { LifeBuoy, Plus, MessageSquare, CheckCircle2, X, Loader2, Send, ShieldCheck, User, ChevronDown, ChevronUp, Quote } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -41,6 +42,80 @@ const STATUS_STYLE: Record<string, string> = {
   closed: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
 };
 
+/** Operator-voice lines, not fabricated testimonials -- same rotating-quote
+ * pattern as the Dashboard hero (DASHBOARD_QUOTES in
+ * customer.$locationId.dashboard.tsx), written fresh for support/response
+ * time instead of reusing the WiFi-uptime set verbatim. */
+const SUPPORT_QUOTES = [
+  "A fast reply is worth more than a perfect one.",
+  "Every ticket is a guest who almost had a bad day.",
+  "The fastest support ticket is the one you never had to raise.",
+  "Track it, don't just close it.",
+  "Small issues, answered quickly, build the most trust.",
+];
+
+/**
+ * Small corner illustration for the intro band: a figure with a headset
+ * beside a checklist/ticket card, same filled-flat-shape character language
+ * as the other illustrations shipped this session (cream/violet figure,
+ * cyan/fuchsia/violet accents). Kept compact -- this page's real content is
+ * a per-location summary strip and a ticket list, so the illustration gets
+ * a slim intro band rather than a full dark hero.
+ *
+ * Purely decorative -- aria-hidden. The headset "listening" pulse and the
+ * checklist tick draw-on are the only animated pieces; both respect
+ * useReducedMotion.
+ */
+function SupportHeadsetIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 220 140" className="h-auto w-full max-w-[190px]" fill="none">
+      <defs>
+        <filter id="ticket-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="10" />
+        </filter>
+      </defs>
+      <circle cx="70" cy="76" r="46" fill="#7c3aed" opacity="0.18" filter="url(#ticket-illo-glow)" />
+      <line x1="12" y1="128" x2="208" y2="128" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
+
+      {/* seated support figure with a headset */}
+      <path d="M46 128c-3-26 4-42 18-42h4c14 0 21 16 18 42z" fill="#f5f0ff" />
+      <path d="M52 92c0-11 7-19 16-19s16 8 16 19c-5-3-10-5-16-5s-11 2-16 5z" fill="#7c3aed" />
+      <circle cx="68" cy="72" r="15" fill="#f5f0ff" />
+      <path d="M53 70a15 15 0 0 1 30 0" stroke="white" strokeOpacity="0.85" strokeWidth="2.5" fill="none" />
+      <circle cx="63" cy="73" r="1.5" fill="#1e1b4b" />
+      <circle cx="73" cy="73" r="1.5" fill="#1e1b4b" />
+      <path d="M64 79c1.6 1.4 4.4 1.4 6 0" stroke="#1e1b4b" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      {/* headset band + earcup + mic */}
+      <path d="M53 68a15 15 0 0 1 30 0" stroke="#22d3ee" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <motion.circle
+        cx="53" cy="72" r="4" fill="#22d3ee"
+        animate={shouldReduceMotion ? { opacity: 0.7 } : { opacity: [0.5, 1, 0.5] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <circle cx="83" cy="72" r="4" fill="#22d3ee" />
+      <path d="M53 76c-2 6-2 11 3 12" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" fill="none" />
+
+      {/* ticket/checklist card */}
+      <rect x="128" y="34" width="72" height="80" rx="10" fill="#241f4d" stroke="white" strokeOpacity="0.14" strokeWidth="1.5" />
+      <rect x="140" y="48" width="48" height="6" rx="3" fill="#a78bfa" fillOpacity="0.5" />
+      {[0, 1, 2].map((i) => (
+        <g key={i}>
+          <rect x="140" y={64 + i * 15} width="12" height="12" rx="3" stroke="#f0abfc" strokeWidth="2" fill="none" />
+          <motion.path
+            d={`M142 ${70 + i * 15}l3 3 5-6`}
+            stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
+            initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.4 + i * 0.15, ease: "easeOut" }}
+          />
+          <rect x="158" y={67 + i * 15} width="30" height="5" rx="2.5" fill="white" fillOpacity="0.14" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 export default function TicketsPage({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
   const { data: locations } = useCustomerLocations();
@@ -60,6 +135,7 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
 
   // Reply thread (real mode only) -- keyed by ticket id.
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [quoteIndex, setQuoteIndex] = useState(0);
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
   const [repliesByTicket, setRepliesByTicket] = useState<Record<string, TicketReply[]>>({});
   const [repliesLoading, setRepliesLoading] = useState<Record<string, boolean>>({});
@@ -86,6 +162,11 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
     refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo]);
+
+  useEffect(() => {
+    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % SUPPORT_QUOTES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (demo) {
@@ -270,11 +351,41 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><LifeBuoy className="h-4.5 w-4.5 text-primary" /> Support Tickets</h1>
-          <p className="text-sm text-muted-foreground">Raise an issue for any of your locations and track its progress.</p>
+        <div className="flex items-start gap-2.5">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <LifeBuoy className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Support Tickets</h1>
+            <p className="text-sm text-muted-foreground">Raise an issue for any of your locations and track its progress.</p>
+          </div>
         </div>
         <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"><Plus className="h-4 w-4" />Raise Ticket</button>
+      </div>
+
+      {/* Compact intro band -- illustration + rotating quote. Kept slim
+       * (not a full dark hero) since this page's real content is a
+       * per-location summary strip and a ticket list, not a handful of
+       * glance-numbers. */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] px-5 py-4 text-white shadow-lg shadow-indigo-950/20 sm:px-6">
+        <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl" />
+        <div className="relative flex flex-wrap items-center gap-4 sm:flex-nowrap">
+          <div className="shrink-0"><SupportHeadsetIllustration /></div>
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-white/70">
+            <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={quoteIndex}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.4 }}
+              >
+                {SUPPORT_QUOTES[quoteIndex]}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
 
       {/* Per-location summary */}

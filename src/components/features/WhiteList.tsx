@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
+import { maskMac } from "@/components/features/HeaderControls";
 import type { AnyAccessRule } from "@/types/guest";
 
 // ── helpers ─────────────────────────────────────────────────────
@@ -73,6 +75,85 @@ const SEED: Entry[] = [
   { id: "s3", tab: "device", identifier: "AA:BB:CC:DD:EE:FF", name: "Office Printer", email: "it@example.com", businessUnit: "Airport Lounge T3", startDate: "2026-06-23T08:00", endDate: "2026-07-21T08:00" },
 ];
 
+/**
+ * Compact intro-band illustration: a trusted device (checkmark-shield on
+ * its screen) passing clear through a gate/turnstile -- the visual for
+ * "bypass the captive portal", same filled-flat-shape character language
+ * (cream/violet fills, cyan/fuchsia/violet accents) as this session's other
+ * illustrations. Sized for a slim header band, not a full hero, since this
+ * page's real content is a form + a real data table, not glance-numbers.
+ *
+ * Purely decorative -- aria-hidden. The gate's pulse and the shield's
+ * draw-on both respect useReducedMotion.
+ */
+function TrustedAccessIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 220 120" className="h-auto w-full max-w-[200px]" fill="none">
+      <defs>
+        <filter id="wl-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="8" />
+        </filter>
+      </defs>
+
+      <circle cx="150" cy="60" r="34" fill="#7c3aed" opacity="0.18" filter="url(#wl-illo-glow)" />
+      <line x1="8" y1="104" x2="212" y2="104" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
+
+      {/* turnstile / gate */}
+      <rect x="128" y="34" width="8" height="70" rx="3" fill="#241f4d" stroke="white" strokeOpacity="0.15" />
+      <rect x="176" y="34" width="8" height="70" rx="3" fill="#241f4d" stroke="white" strokeOpacity="0.15" />
+      <motion.rect
+        x="136" y="66" width="40" height="6" rx="3" fill="#22d3ee"
+        animate={shouldReduceMotion ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* trusted phone, drifting through the gate */}
+      <motion.g
+        initial={shouldReduceMotion ? false : { x: -18, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      >
+        <rect x="26" y="38" width="46" height="66" rx="9" fill="#241f4d" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" />
+        <rect x="32" y="46" width="34" height="46" rx="3" fill="#f5f0ff" />
+        <circle cx="49" cy="69" r="12" fill="#7c3aed" fillOpacity="0.12" />
+        <motion.path
+          d="M43 69l4 4 8-8"
+          stroke="#7c3aed"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+          initial={shouldReduceMotion ? false : { pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+        />
+      </motion.g>
+
+      {/* "clear" arc trailing through the gate */}
+      {[0, 1, 2].map((i) => (
+        <motion.path
+          key={i}
+          d={`M${86 + i * 12} 71a4 4 0 0 1 0-4`}
+          stroke="#f0abfc"
+          strokeOpacity="0.7"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          initial={shouldReduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: [0, 1, 0] }}
+          transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.6, repeat: Infinity, delay: i * 0.25, ease: "easeInOut" }}
+        />
+      ))}
+
+      {/* destination pin, other side of the gate */}
+      <g transform="translate(198, 60)" stroke="white" strokeOpacity="0.6" strokeWidth="2" strokeLinejoin="round">
+        <path d="M0 -14c-5.6 0-10 4.4-10 9.9C-10 3.5 0 16 0 16s10-12.5 10-20.1C10-9.6 5.6-14 0-14z" fill="rgba(255,255,255,0.06)" />
+        <circle cx="0" cy="-4" r="3" fill="#a78bfa" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
 const PAGE_SIZE = 5;
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
@@ -83,7 +164,11 @@ function toEntry(r: AnyAccessRule): Entry {
     tab: r.kind === "device" ? "device" : "number",
     identifier: r.kind === "device" ? r.macAddress : r.identifier,
     name: r.reason ?? "—",
-    email: "",
+    email: r.email ?? "",
+    // Real rows carry a real location_id, not a name -- resolved against
+    // the caller's own `locations` list at the two call sites below
+    // (the initial fetch and the create/edit paths), the same way
+    // TicketsPage.tsx resolves its own businessUnit <-> locationId pair.
     businessUnit: "",
     startDate: r.createdAt.slice(0, 16),
     endDate: r.expiresAt ? r.expiresAt.slice(0, 16) : "",
@@ -107,6 +192,20 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const [errs, setErrs] = useState<Errors>({});
   const [toast, setToast] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  // Set while editing an existing row -- there's no PATCH endpoint for
+  // guest/device access rules (backend/app/domains/guest_access has
+  // create/list/deactivate/delete only), so "editing" a real rule means
+  // creating its replacement then deleting the original, both real,
+  // already-existing endpoints. See handleSubmit/handleDelete below.
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Real rows only carry a location_id, not a display name -- resolve it
+  // against the caller's own real locations, same pairing TicketsPage.tsx
+  // does for its own businessUnit <-> locationId round-trip.
+  const withBusinessUnit = (e: Entry, ruleLocationId: string | null | undefined): Entry => ({
+    ...e,
+    businessUnit: locations?.find((l) => l.id === ruleLocationId)?.name ?? "",
+  });
 
   useEffect(() => {
     if (demo) return;
@@ -119,12 +218,17 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         const org = await resolveOrgId();
         setOrgId(org);
         const rules = await guestService.listAccessRules(org);
-        setEntries(rules.filter((r) => r.ruleType === "whitelist").map(toEntry));
+        setEntries(
+          rules
+            .filter((r) => r.ruleType === "whitelist")
+            .map((r) => withBusinessUnit(toEntry(r), r.locationId)),
+        );
       } catch {
         // Leave entries empty -- the "no whitelist entries" state is accurate.
       }
     })();
-  }, [demo, locationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, locationId, locations]);
 
   // Default the picker to the location this page is already scoped to,
   // once its real name is known (mirrors TicketsPage.tsx's equivalent effect).
@@ -172,26 +276,55 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     if (Object.keys(v).length) return;
 
     const identifier = tab === "number" ? f.mobile : f.mac.toUpperCase();
+    const resetForm = () => setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: demo ? UNITS[0] : (units[0] ?? ""), startDate: "", endDate: "" });
     if (demo) {
-      const entry: Entry = { id: `e${Date.now()}`, tab, identifier, name: f.name, email: f.email, businessUnit: f.businessUnit, startDate: f.startDate, endDate: f.endDate };
-      setEntries(p => [entry, ...p]);
-      setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: UNITS[0], startDate: "", endDate: "" });
+      if (editingId) {
+        setEntries(p => p.map(x => x.id === editingId ? { ...x, tab, identifier, name: f.name, email: f.email, businessUnit: f.businessUnit, startDate: f.startDate, endDate: f.endDate } : x));
+        setEditingId(null);
+      } else {
+        const entry: Entry = { id: `e${Date.now()}`, tab, identifier, name: f.name, email: f.email, businessUnit: f.businessUnit, startDate: f.startDate, endDate: f.endDate };
+        setEntries(p => [entry, ...p]);
+      }
+      resetForm();
       setPage(0);
       setToast(tab === "number" ? "Number allowed." : "Device allowed.");
       setTimeout(() => setToast(null), 2500);
       return;
     }
     if (!orgId) { setToast("No organization found for this session."); setTimeout(() => setToast(null), 2500); return; }
+    // The picker lets a customer with several locations allow-list against
+    // a *different* one than whichever this page happens to be scoped to
+    // -- resolve the name they picked back to its real id (same
+    // name<->id round-trip TicketsPage.tsx does for its own businessUnit
+    // field) instead of always writing the page's own `locationId` prop,
+    // which silently ignored the picker entirely.
+    const matchedLoc = locations?.find((l) => l.name === f.businessUnit);
+    const ruleLocationId = matchedLoc?.id ?? locationId;
     try {
       const rule = await guestService.createAccessRule({
         kind: tab === "number" ? "identifier" : "device",
-        organizationId: orgId, locationId,
+        organizationId: orgId, locationId: ruleLocationId,
         identifier: tab === "number" ? identifier : undefined,
         macAddress: tab === "device" ? identifier : undefined,
-        ruleType: "whitelist", reason: f.name, expiresAt: toUtcIso(f.endDate),
+        ruleType: "whitelist", reason: f.name, email: f.email, expiresAt: toUtcIso(f.endDate),
       });
-      setEntries(p => [toEntry(rule), ...p]);
-      setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: units[0] ?? "", startDate: "", endDate: "" });
+      const newEntry = withBusinessUnit(toEntry(rule), ruleLocationId);
+      if (editingId) {
+        // No PATCH endpoint exists for access rules -- "editing" is a real
+        // create of the replacement followed by a real delete of the
+        // original. If the delete fails, the original is left in place
+        // (both now exist) rather than silently losing either row.
+        const editingEntry = entries.find((e) => e.id === editingId);
+        if (editingEntry) {
+          try { await guestService.deleteAccessRule(editingEntry.tab === "device" ? "device" : "identifier", editingEntry.id, orgId); }
+          catch { /* original left in place; not fatal to the edit itself */ }
+        }
+        setEntries(p => [newEntry, ...p.filter(e => e.id !== editingId)]);
+        setEditingId(null);
+      } else {
+        setEntries(p => [newEntry, ...p]);
+      }
+      resetForm();
       setPage(0);
       setToast(tab === "number" ? "Number allowed." : "Device allowed.");
       setTimeout(() => setToast(null), 2500);
@@ -201,10 +334,33 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     }
   };
 
+  const startEdit = (entry: Entry) => {
+    setTab(entry.tab);
+    setErrs({});
+    setEditingId(entry.id);
+    setF({
+      mobileCC: "+91",
+      mobile: entry.tab === "number" ? entry.identifier : "",
+      mac: entry.tab === "device" ? entry.identifier : "",
+      name: entry.name === "—" ? "" : entry.name,
+      email: entry.email,
+      businessUnit: entry.businessUnit || (demo ? UNITS[0] : (units[0] ?? "")),
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setErrs({});
+    setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: demo ? UNITS[0] : (units[0] ?? ""), startDate: "", endDate: "" });
+  };
+
   const handleDelete = async (id: string) => {
     const prev = entries;
     const removed = entries.find((e) => e.id === id);
     setEntries(p => p.filter(e => e.id !== id));
+    if (editingId === id) cancelEdit();
     if (!demo && removed) {
       try { await guestService.deleteAccessRule(removed.tab === "device" ? "device" : "identifier", id, orgId ?? undefined); }
       catch { setEntries(prev); }
@@ -217,10 +373,22 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
   return (
     <div className="space-y-6">
-      {/* heading */}
-      <div>
-        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><ShieldCheck className="h-5 w-5 text-primary" /> Whitelist</h1>
-        <p className="text-sm text-muted-foreground">Allow specific numbers or devices to bypass the captive portal.</p>
+      {/* intro band */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e1b4b] via-[#2b2461] to-[#4c1d95] px-5 py-4 text-white shadow-sm sm:px-6 sm:py-5">
+        <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-14 -left-6 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div>
+            <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><ShieldCheck className="h-4 w-4 text-white" /></span>
+              Always Allowed
+            </h1>
+            <p className="mt-1 text-sm text-white/70">Allow specific numbers or devices to bypass the captive portal.</p>
+          </div>
+          <div className="hidden shrink-0 opacity-90 sm:block">
+            <TrustedAccessIllustration />
+          </div>
+        </div>
       </div>
 
       {/* toast */}
@@ -233,16 +401,21 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       {/* tab switcher */}
       <div className="inline-flex rounded-xl border bg-muted/50 p-1 max-sm:flex">
         <button onClick={() => { setTab("number"); setErrs({}); setPage(0); } } className={cn("inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center", tab === "number" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-          <Smartphone className="h-4 w-4" /> Whitelist Number
+          <Smartphone className="h-4 w-4" /> Allow a Number
         </button>
         <button onClick={() => { setTab("device"); setErrs({}); setPage(0); } } className={cn("inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center", tab === "device" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-          <Laptop className="h-4 w-4" /> Whitelist Device
+          <Laptop className="h-4 w-4" /> Allow a Device
         </button>
       </div>
 
       {/* form card */}
       <form onSubmit={handleSubmit} className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
-        <CardHeader><CardTitle className="text-sm">{tab === "number" ? "Whitelist a number" : "Whitelist a device"}</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            {tab === "number" ? <Smartphone className="h-3.5 w-3.5 text-white" /> : <Laptop className="h-3.5 w-3.5 text-white" />}
+          </span>
+          <CardTitle className="text-sm">{tab === "number" ? "Allow a number" : "Allow a device"}</CardTitle>
+        </CardHeader>
         <CardContent>
         <div className="grid gap-4 md:grid-cols-2">
           {/* Mobile / MAC */}
@@ -304,9 +477,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </div>
 
         <hr className="my-6 border-border" />
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2">
+          {editingId && (
+            <button type="button" onClick={cancelEdit} className="rounded-lg border px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent">
+              Cancel
+            </button>
+          )}
           <button type="submit" className="rounded-lg bg-primary px-8 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
-            {tab === "number" ? "Allow Number" : "Allow Device"}
+            {editingId ? "Save Changes" : tab === "number" ? "Allow Number" : "Allow Device"}
           </button>
         </div>
         </CardContent>
@@ -315,11 +493,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       {/* table card */}
       <div className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-          <div>
-            <CardTitle className="text-sm">
-              Whitelisted {tab === "number" ? "Users" : "Devices"}
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">Everything currently allow-listed for this location.</p>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><ShieldCheck className="h-3.5 w-3.5 text-white" /></span>
+            <div>
+              <CardTitle className="text-sm">
+                Always Allowed {tab === "number" ? "Guests" : "Devices"}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Everything currently allow-listed for this location.</p>
+            </div>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -328,7 +509,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </CardHeader>
         <CardContent className="p-0">
         {paged.length === 0 ? (
-          <EmptyState icon={ShieldCheck} title="Nothing whitelisted yet" description="Fill the form above to add the first one." />
+          <EmptyState icon={ShieldCheck} title="Nothing allowed yet" description="Fill the form above to add the first one." />
         ) : (
         <div className="overflow-x-auto">
           <Table className="min-w-[820px]">
@@ -354,7 +535,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                         <span className="font-medium text-foreground">{e.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{e.identifier}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{e.tab === "device" ? maskMac(e.identifier) : e.identifier}</TableCell>
                     <TableCell className="text-muted-foreground">{e.businessUnit}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{fmtDT(e.startDate)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{fmtDT(e.endDate)}</TableCell>
@@ -365,7 +546,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <button aria-label={`Edit ${e.name}`} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" /></button>
+                      <button type="button" aria-label={`Edit ${e.name}`} onClick={() => startEdit(e)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" /></button>
                       <button aria-label={`Delete ${e.name}`} onClick={() => handleDelete(e.id)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                     </TableCell>
                   </TableRow>

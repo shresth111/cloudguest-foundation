@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,43 @@ import type { PortalLoginMethod } from "@/types/portal";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
 const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"], ["email_otp", "Email OTP"], ["voucher", "Voucher"], ["social", "Social Login"]];
+
+function PortalDesignIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="6" y="6" width="34" height="40" rx="5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+      <rect x="11" y="12" width="24" height="14" rx="2" fill="#1e1b4b" />
+      <motion.rect
+        x="11" y="30" width="24" height="4" rx="2" fill="#4f46e5"
+        initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
+        animate={{ scaleX: 1, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        style={{ transformOrigin: "11px 32px" }}
+      />
+      <circle cx="15" cy="38" r="1.4" fill="#a78bfa" />
+      <circle cx="21" cy="38" r="1.4" fill="#a78bfa" fillOpacity="0.6" />
+      <circle cx="27" cy="38" r="1.4" fill="#a78bfa" fillOpacity="0.6" />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { y: [0, -1.5, 0] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <rect x="46" y="10" width="30" height="30" rx="6" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.8" />
+        <path d="M53 25l5 5 12-12" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </motion.g>
+      {[0, 1].map((i) => (
+        <motion.circle
+          key={i}
+          cx={61} cy={25} r={9 + i * 5}
+          stroke="#f0abfc" strokeOpacity={0.35 - i * 0.12} strokeWidth="1.2" fill="none"
+          initial={shouldReduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
+        />
+      ))}
+    </svg>
+  );
+}
 
 export function PortalPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
@@ -232,30 +269,51 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Real, shareable preview of the actual guest-facing captive portal
-          (background image, branding, live sign-in methods) -- pulls the
-          real captive_portal_configs/brandings data for this location, not
-          the local mock state this page's own form/"Live Preview" card
-          below still runs on. Hidden in demo mode (no real backend/org to
-          preview) and until `orgId` has resolved. */}
-      {!demo && orgId && locationId && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" asChild>
-            <Link
-              to="/preview/portal/$locationId"
-              params={{ locationId }}
-              search={{ organizationId: orgId }}
-              target="_blank"
-            >
-              <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
-            </Link>
-          </Button>
+    <div className="space-y-5">
+      {/* Page intro -- this page previously opened straight into the form
+          with no title/context at all, the only page in the redesigned set
+          missing one. Icon-badge matches the established pattern (Dashboard
+          chart headers, Select Location sections). */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+            <Sparkles className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Portal</h1>
+            <p className="text-xs text-muted-foreground">Design what guests see the moment they connect.</p>
+          </div>
         </div>
-      )}
+        <div className="flex items-center gap-3">
+          {/* Real, shareable preview of the actual guest-facing captive portal
+              (background image, branding, live sign-in methods) -- pulls the
+              real captive_portal_configs/brandings data for this location, not
+              the local mock state this page's own form/"Live Preview" card
+              below still runs on. Hidden in demo mode (no real backend/org to
+              preview) and until `orgId` has resolved. */}
+          {!demo && orgId && locationId && (
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                to="/preview/portal/$locationId"
+                params={{ locationId }}
+                search={{ organizationId: orgId }}
+                target="_blank"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
+              </Link>
+            </Button>
+          )}
+          <PortalDesignIllustration />
+        </div>
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
       <Card className="shadow-sm border-0">
-        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="h-4 w-4 text-primary" />Portal Configuration</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2.5 text-sm">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Sparkles className="h-3.5 w-3.5 text-white" /></div>
+            Portal Configuration
+          </CardTitle>
+        </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
             <Label>Headline</Label>
@@ -346,16 +404,23 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       </Card>
 
       <div className="space-y-4">
-        <Card className="shadow-sm border-0 overflow-hidden">
+        <Card className="shadow-sm border-0 overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#241f52] to-[#2b2461] text-white">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm"><Smartphone className="h-4 w-4 text-primary" />Live Preview</CardTitle>
+            <CardTitle className="flex items-center gap-2.5 text-sm text-white">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10"><Smartphone className="h-3.5 w-3.5 text-white" /></div>
+              Live Preview
+              <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/70">
+                <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400" /></span>
+                Live
+              </span>
+            </CardTitle>
             <button
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
               aria-label="Refresh preview from the last saved configuration"
               title="Refresh from saved configuration"
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
             >
               {refreshing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -365,9 +430,30 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             </button>
           </CardHeader>
           <CardContent>
-            {/* Phone frame */}
-            <div className="mx-auto w-full max-w-[280px] rounded-[2rem] border-8 border-foreground/90 bg-foreground/90 p-1.5 shadow-xl">
-              <div className="overflow-hidden rounded-[1.4rem]" style={{ background: `linear-gradient(160deg, ${primary}26, ${primary}0d)` }}>
+            {/* Phone frame -- kept a light/white screen intentionally, this
+                mocks a real phone display, not the card's own dark chrome. */}
+            <div className="mx-auto w-full max-w-[280px] rounded-[2rem] border-8 border-black/80 bg-black/80 p-1.5 shadow-xl">
+              <div
+                className="relative overflow-hidden rounded-[1.4rem]"
+                style={{ background: `linear-gradient(160deg, ${primary}30, ${primary}08 55%, ${primary}18)` }}
+              >
+                {/* Faint dot texture + a soft glow behind the sign-in card,
+                    so the screen reads as a designed captive portal instead
+                    of flat color with text floating on it. */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 opacity-[0.35]"
+                  style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)", backgroundSize: "14px 14px" }}
+                />
+                <div aria-hidden className="pointer-events-none absolute -top-10 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full blur-3xl" style={{ background: `${primary}55` }} />
+
+                {/* Status bar -- small realism touch so this reads as an
+                    actual phone screen, not a generic bordered box. */}
+                <div className="relative flex items-center justify-between px-4 pt-2.5 text-[9px] font-medium text-foreground/60">
+                  <span>9:41</span>
+                  <div className="flex items-center gap-1"><Wifi className="h-2.5 w-2.5" /><span className="h-2 w-3.5 rounded-[2px] border border-current" /></div>
+                </div>
+
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={primary + msg + logo}
@@ -375,43 +461,58 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25 }}
-                    className="flex min-h-[380px] flex-col items-center justify-center gap-3 p-6 text-center"
+                    className="relative flex min-h-[360px] flex-col items-center justify-center gap-3 p-5 text-center"
                   >
                     <motion.div
-                      className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full shadow-md"
-                      style={{ background: primary, color: "white" }}
+                      className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full shadow-lg"
+                      style={{ background: primary, color: "white", boxShadow: `0 8px 24px -6px ${primary}80` }}
                       animate={{ scale: [1, 1.05, 1] }}
                       transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     >
                       {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Wifi className="h-6 w-6" />}
                     </motion.div>
-                    <p className="font-semibold leading-snug">{msg}</p>
-                    <p className="text-xs text-muted-foreground">Connect to enjoy free WiFi</p>
-                    <div className="mt-2 w-full space-y-2">
-                      <Input placeholder="Mobile number" className="h-9 bg-background/80" />
-                      <Button className="h-9 w-full" style={{ background: primary }}>Continue</Button>
+
+                    {/* The actual sign-in content now sits on its own
+                        elevated card instead of floating directly on the
+                        background gradient -- matches how a real captive
+                        portal separates its form from the ambient brand
+                        wash behind it. */}
+                    <div className="w-full space-y-3 rounded-2xl bg-white/90 p-4 shadow-lg backdrop-blur-sm">
+                      <div>
+                        <p className="font-semibold leading-snug text-foreground">{msg}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">Connect to enjoy free WiFi</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Input placeholder="Mobile number" className="h-9 border-black/10 bg-white shadow-sm" />
+                        <Button className="h-9 w-full shadow-sm" style={{ background: primary }}>Continue</Button>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
+                        {authMethods.map((m) => (
+                          <span key={m} className="rounded-full border border-black/10 bg-black/[0.03] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{m}</span>
+                        ))}
+                      </div>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
-                      {authMethods.map((m) => (
-                        <span key={m} className="rounded-full border bg-background/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{m}</span>
-                      ))}
-                    </div>
-                    <p className="mt-2 text-[10px] text-muted-foreground">Powered by ZIP WiFi</p>
+                    <p className="text-[10px] text-foreground/50">Powered by ZIP WiFi</p>
                   </motion.div>
                 </AnimatePresence>
               </div>
             </div>
-            <p className="mt-3 text-center text-[11px] text-muted-foreground">
+            <p className="mt-3 text-center text-[11px] text-white/50">
               A live mockup of your unsaved edits above. For the real, saved guest experience
               (actual branding, background image, live sign-in methods), use{" "}
-              <span className="font-medium text-foreground">Preview Portal</span> at the top of
+              <span className="font-medium text-white/80">Preview Portal</span> at the top of
               this page.
             </p>
           </CardContent>
         </Card>
 
         <Card className="shadow-sm border-0">
-          <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><QrCode className="h-4 w-4 text-primary" />QR Code Access</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2.5 text-sm">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><QrCode className="h-3.5 w-3.5 text-white" /></div>
+              QR Code Access
+            </CardTitle>
+          </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <div className="grid h-32 w-32 place-items-center rounded-2xl border-2" style={{ borderColor: `${primary}55`, background: `${primary}0d` }}>
               <QrCode className="h-16 w-16" style={{ color: primary }} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Plus, Trash2, Play, Pause, Copy, Search, ClipboardList, Image as ImageIcon, Link2, Star, MessageSquareText, Percent, Sparkles, X, ListChecks, Eye, Wifi, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,12 +10,14 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { campaignService, CAMPAIGN_STATUS_TRANSITIONS } from "@/services/campaign.service";
+import { portalService } from "@/services/portal.service";
 import type { CampaignAsset, CampaignQuestion, CampaignType, QuestionAnswerType } from "@/types/campaign";
 
 interface Campaign { id: string; name: string; type: string; status: string; businessUnit: string; startDate: string; endDate: string; impressions: number; conversions: number; }
@@ -34,8 +37,93 @@ const DEMO_SEED: Campaign[] = [
   { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", businessUnit: "Eastside Cafe", startDate: "2026-05-15", endDate: "2026-07-15", impressions: 1520, conversions: 198 },
 ];
 
+/**
+ * Hero illustration: a phone reaching guests with a survey (chat bubble)
+ * and a discount (percent-sign badge), WiFi-style signal rings radiating
+ * outward from the screen -- same filled-flat-shape character language as
+ * customer.index.tsx's HeroManagerIllustration, adapted to this page's own
+ * subject (reaching guests with campaigns) rather than reused wholesale.
+ *
+ * Purely decorative -- aria-hidden. The signal-ring pulse loops and
+ * respects useReducedMotion; the connector-line draw-on is a one-time
+ * entrance.
+ */
+function CampaignReachIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  const phone = { x: 150, y: 105 };
+  const badges = [
+    { key: "survey", x: 330, y: 40, accent: "#22d3ee" },
+    { key: "discount", x: 378, y: 130, accent: "#f0abfc" },
+  ];
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 480 210" className="h-auto w-full max-w-[280px]" fill="none">
+      <defs>
+        <filter id="camp-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="14" />
+        </filter>
+      </defs>
+
+      <circle cx="150" cy="105" r="72" fill="#7c3aed" opacity="0.16" filter="url(#camp-illo-glow)" />
+      <line x1="20" y1="188" x2="460" y2="188" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
+
+      {[26, 40, 54].map((r, i) => (
+        <motion.circle
+          key={r}
+          cx={phone.x} cy={phone.y} r={r}
+          stroke={["#22d3ee", "#a78bfa", "#f0abfc"][i]}
+          strokeOpacity="0.4"
+          strokeWidth="2"
+          fill="none"
+          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.85 }}
+          animate={shouldReduceMotion ? { opacity: 0.25 } : { opacity: [0, 0.5, 0], scale: [0.85, 1.15, 1.3] }}
+          transition={shouldReduceMotion ? undefined : { duration: 2.6, repeat: Infinity, delay: i * 0.5, ease: "easeOut" }}
+        />
+      ))}
+
+      {badges.map((b, i) => (
+        <motion.path
+          key={`line-${b.key}`}
+          d={`M${phone.x + 34} ${phone.y - 10} Q${(phone.x + b.x) / 2} ${Math.min(phone.y, b.y) - 20} ${b.x} ${b.y + 22}`}
+          stroke={b.accent}
+          strokeOpacity="0.55"
+          strokeWidth="2"
+          strokeDasharray="1 6"
+          strokeLinecap="round"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.7, delay: 0.4 + i * 0.15, ease: "easeOut" }}
+        />
+      ))}
+
+      <rect x={phone.x - 34} y={phone.y - 58} width="68" height="116" rx="14" fill="#2e2a5c" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" />
+      <rect x={phone.x - 26} y={phone.y - 46} width="52" height="80" rx="4" fill="#1e1b4b" />
+      <circle cx={phone.x} cy={phone.y - 16} r="14" fill="#22d3ee" />
+      <path d={`M${phone.x - 6} ${phone.y - 16}l4 4 8-9`} stroke="#1e1b4b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect x={phone.x - 18} y={phone.y + 6} width="36" height="8" rx="4" fill="#f0abfc" fillOpacity="0.7" />
+      <rect x={phone.x - 18} y={phone.y + 18} width="24" height="6" rx="3" fill="white" fillOpacity="0.2" />
+      <circle cx={phone.x} cy={phone.y + 44} r="4" fill="white" fillOpacity="0.3" />
+
+      <g transform={`translate(${badges[0].x}, ${badges[0].y})`}>
+        <rect width="54" height="46" rx="12" fill="#2e2a5c" stroke="white" strokeOpacity="0.12" />
+        <path d="M12 14h30a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4H24l-8 6v-6h-4a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4z" fill="#22d3ee" />
+        <circle cx="21" cy="24" r="1.6" fill="#1e1b4b" />
+        <circle cx="27" cy="24" r="1.6" fill="#1e1b4b" />
+        <circle cx="33" cy="24" r="1.6" fill="#1e1b4b" />
+      </g>
+
+      <g transform={`translate(${badges[1].x}, ${badges[1].y})`}>
+        <rect width="54" height="46" rx="12" fill="#2e2a5c" stroke="white" strokeOpacity="0.12" />
+        <circle cx="20" cy="19" r="5" stroke="#f0abfc" strokeWidth="2.4" fill="none" />
+        <circle cx="34" cy="29" r="5" stroke="#f0abfc" strokeWidth="2.4" fill="none" />
+        <path d="M18 31L36 15" stroke="#f0abfc" strokeWidth="2.4" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+
 const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", endDate: "" };
-const emptyFilters = { businessUnit: "", type: "", startDate: "" };
+const emptyFilters = { search: "", businessUnit: "", type: "", startDate: "" };
 const emptyAssetForm = { imageUrl: "", clickUrl: "" };
 
 // The only statuses a given current status may legally move to next --
@@ -95,7 +183,18 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [filters, setFilters] = useState(emptyFilters);
   const [showSearch, setShowSearch] = useState(false);
-  const [redirectUrl, setRedirectUrl] = useState("https://zipwifi.io/welcome");
+  // Post-Login Redirect URL -- a real captive_portal-config field
+  // (`redirect_url`, see portal.service.ts), not a Campaigns-domain field.
+  // This card's Save button previously only fired a success toast and never
+  // called the backend at all -- typing a URL, refreshing, and finding the
+  // old value back was the exact "fake-save button" pattern this session
+  // already found on Vouchers/Notification/Network-Diagnostics. Now backed
+  // by the same portalService.update() the real Portal Builder page uses,
+  // resolved to this location's captive-portal config.
+  const [redirectUrl, setRedirectUrl] = useState("");
+  const [portalConfigId, setPortalConfigId] = useState<string | null>(null);
+  const [redirectLoading, setRedirectLoading] = useState(false);
+  const [savingRedirect, setSavingRedirect] = useState(false);
 
   // Manage Questions -- the only real way to configure what a SURVEY
   // campaign actually asks guests. Previously there was no click path to
@@ -136,6 +235,50 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [demo, locationId]);
+
+  // Load this location's real captive-portal config so the redirect URL
+  // field shows what's actually persisted, not a hardcoded placeholder.
+  useEffect(() => {
+    if (demo) { setRedirectUrl("https://zipwifi.io/welcome"); return; }
+    if (!locationId) return;
+    let cancelled = false;
+    setRedirectLoading(true);
+    (async () => {
+      try {
+        const orgId = await campaignService.getOrganizationId();
+        const { items } = await portalService.list({
+          organizationId: orgId, page: 1, pageSize: 100, sort: { key: "name", dir: "asc" },
+        });
+        const match = items.find((p) => p.locationId === locationId) ?? null;
+        if (cancelled) return;
+        setPortalConfigId(match?.id ?? null);
+        setRedirectUrl(match?.login.redirectUrl ?? "");
+      } catch {
+        if (!cancelled) { setPortalConfigId(null); setRedirectUrl(""); }
+      } finally {
+        if (!cancelled) setRedirectLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [demo, locationId]);
+
+  const saveRedirectUrl = async () => {
+    if (demo) { toast.success("Redirect URL saved"); return; }
+    if (!portalConfigId) {
+      toast.error("No captive portal is configured for this location yet — set one up in Portal Builder first.");
+      return;
+    }
+    setSavingRedirect(true);
+    try {
+      const orgId = await campaignService.getOrganizationId();
+      await portalService.update(portalConfigId, { login: { redirectUrl } as any }, orgId);
+      toast.success("Redirect URL saved");
+    } catch {
+      toast.error("Could not save the redirect URL — check the connection and try again.");
+    } finally {
+      setSavingRedirect(false);
+    }
+  };
 
   const openCreate = (type: string) => { setForm({ ...emptyForm, type }); setErrs({}); setShowCreate(true); };
 
@@ -343,54 +486,93 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   };
 
   const filtered = items.filter((c) =>
+    (!filters.search || c.name.toLowerCase().includes(filters.search.trim().toLowerCase())) &&
     (!filters.businessUnit || c.businessUnit === filters.businessUnit) &&
     (!filters.type || c.type === filters.type) &&
     (!filters.startDate || c.startDate >= filters.startDate)
   );
-  const filtersActive = filters.businessUnit || filters.type || filters.startDate;
+  const filtersActive = filters.search || filters.businessUnit || filters.type || filters.startDate;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">Campaign</h2><p className="text-sm text-muted-foreground">Reach, survey, and re-engage guests over your WiFi.</p></div>
-        <div className="relative flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowSearch((v) => !v)}><Search className="mr-2 h-4 w-4" />Search Campaign{filtersActive && <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}</Button>
-          <Button onClick={() => openCreate("SURVEY")}><Plus className="mr-2 h-4 w-4" />Create Campaign</Button>
-
-          {showSearch && (
-            <div className="absolute right-0 top-full z-30 mt-2 w-80 rounded-2xl border bg-card p-5 shadow-xl">
-              <div className="mb-3 flex items-center justify-between">
-                <div><p className="text-sm font-semibold">Search Campaign</p><p className="text-xs text-muted-foreground">Search, edit, activate or deactivate any campaign for any Business Unit.</p></div>
-                <button onClick={() => setShowSearch(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
-              </div>
-              <div className="space-y-3">
-                {/* UNITS is demo-only seed data -- real campaigns don't carry
-                    a businessUnit (this page is already scoped to one
-                    location via its own locationId prop), so this filter
-                    would just never match anything for a real session. Same
-                    demo-only gating as the create form's Business Unit field
-                    below. */}
-                {demo && <div><Label className="text-xs">Business Unit</Label><Select value={filters.businessUnit || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All business units" /></SelectTrigger><SelectContent><SelectItem value="__all">All business units</SelectItem>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>}
-                <div><Label className="text-xs">Campaign Type</Label><Select value={filters.type || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, type: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All types" /></SelectTrigger><SelectContent><SelectItem value="__all">All types</SelectItem>{TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label className="text-xs">Campaign Start Date</Label><Input type="date" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} className="h-9" /></div>
-              </div>
-              <div className="mt-4 flex justify-end gap-2"><Button size="sm" variant="ghost" onClick={() => setFilters(emptyFilters)}>Clear</Button><Button size="sm" onClick={() => setShowSearch(false)}>Apply</Button></div>
+      {/* Hero -- this page's whole job is reaching guests through the
+       * network, the exact kind of "high-energy outreach" moment the dark
+       * indigo/violet/fuchsia hero treatment (established on the Select
+       * Location and Dashboard pages) fits naturally, unlike a purely
+       * data-scanning page. */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-6 text-white shadow-xl shadow-indigo-950/30 sm:p-8">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-fuchsia-500/30 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.15]"
+          style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+        />
+        <div className="relative grid items-center gap-6 md:grid-cols-[1fr_auto]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Reach every guest who connects</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>Campaign</h2>
+            <p className="mt-1 max-w-md text-sm text-white/70">Reach, survey, and re-engage guests over your WiFi.</p>
+            <div className="relative mt-5 flex flex-wrap items-center gap-2">
+              {/* Popover instead of a hand-rolled absolutely-positioned div --
+                  that version lived inside this hero's `overflow-hidden`
+                  wrapper (needed to clip the decorative glow blobs), so once
+                  the panel grew tall enough (adding the name-search field
+                  below) it started getting clipped instead of fully showing.
+                  A Radix Popover portals its content to the document body,
+                  so it can never be clipped by an ancestor's overflow again. */}
+              <Popover open={showSearch} onOpenChange={setShowSearch}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Search className="mr-2 h-4 w-4" />Search Campaign{filtersActive && <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-fuchsia-300" />}</Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-80 rounded-2xl p-5 text-foreground shadow-xl">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div><p className="text-sm font-semibold">Search Campaign</p><p className="text-xs text-muted-foreground">Search, edit, activate or deactivate any campaign for any Business Unit.</p></div>
+                    <button onClick={() => setShowSearch(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
+                  </div>
+                  <div className="space-y-3">
+                    {/* The button said "Search Campaign" but this panel only
+                        ever had filter dropdowns, no actual text search --
+                        clicking it and typing a campaign name did nothing. */}
+                    <div>
+                      <Label className="text-xs">Campaign name</Label>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input autoFocus placeholder="Search by name…" value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} className="h-9 pl-8" />
+                      </div>
+                    </div>
+                    {/* UNITS is demo-only seed data -- real campaigns don't carry
+                        a businessUnit (this page is already scoped to one
+                        location via its own locationId prop), so this filter
+                        would just never match anything for a real session. Same
+                        demo-only gating as the create form's Business Unit field
+                        below. */}
+                    {demo && <div><Label className="text-xs">Business Unit</Label><Select value={filters.businessUnit || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All business units" /></SelectTrigger><SelectContent><SelectItem value="__all">All business units</SelectItem>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>}
+                    <div><Label className="text-xs">Campaign Type</Label><Select value={filters.type || "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, type: v === "__all" ? "" : v }))}><SelectTrigger className="h-9"><SelectValue placeholder="All types" /></SelectTrigger><SelectContent><SelectItem value="__all">All types</SelectItem>{TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+                    <div><Label className="text-xs">Campaign Start Date</Label><Input type="date" value={filters.startDate} onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))} className="h-9" /></div>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2"><Button size="sm" variant="ghost" onClick={() => setFilters(emptyFilters)}>Clear</Button><Button size="sm" onClick={() => setShowSearch(false)}>Apply</Button></div>
+                </PopoverContent>
+              </Popover>
+              <Button className="bg-white text-[#1e1b4b] hover:bg-white/90" onClick={() => openCreate("SURVEY")}><Plus className="mr-2 h-4 w-4" />Create Campaign</Button>
             </div>
-          )}
+          </div>
+          <div className="hidden justify-self-end opacity-95 md:block">
+            <CampaignReachIllustration />
+          </div>
         </div>
       </div>
 
       {/* Types of Campaign */}
       <div>
-        <div className="mb-4 flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><h3 className="text-base font-semibold">Types of Campaign</h3></div>
+        <div className="mb-4 flex items-center gap-2.5"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Sparkles className="h-3.5 w-3.5 text-white" /></span><h3 className="text-base font-semibold tracking-tight">Types of Campaign</h3></div>
         <p className="mb-4 text-sm text-muted-foreground">Leverage WiFi as a communication platform. Run different types of campaigns &amp; promote your intentions internally &amp; externally.</p>
 
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Survey & Feedback */}
           <Card className="overflow-hidden border-0 shadow-sm">
             <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><MessageSquareText className="h-4.5 w-4.5" /></span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white shadow-sm shadow-indigo-500/20"><MessageSquareText className="h-4.5 w-4.5" /></span>
               <CardTitle className="text-sm">Survey &amp; Feedback</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -417,7 +599,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
           {/* Banner & Discounts */}
           <Card className="overflow-hidden border-0 shadow-sm">
             <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><ImageIcon className="h-4.5 w-4.5" /></span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white shadow-sm shadow-indigo-500/20"><ImageIcon className="h-4.5 w-4.5" /></span>
               <CardTitle className="text-sm">Banner &amp; Discounts</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -444,13 +626,21 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
       {/* Post-Login Redirect URL */}
       <Card className="border-0 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3 p-5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Link2 className="h-4.5 w-4.5" /></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white shadow-sm shadow-indigo-500/20"><Link2 className="h-4.5 w-4.5" /></span>
           <div className="flex-1 min-w-[220px]">
             <Label className="text-xs">Post-Login Redirect URL</Label>
             <p className="mb-1.5 text-xs text-muted-foreground">Where guests land right after they connect.</p>
-            <Input value={redirectUrl} onChange={(e) => setRedirectUrl(e.target.value)} className="h-9" />
+            <Input
+              value={redirectUrl}
+              onChange={(e) => setRedirectUrl(e.target.value)}
+              className="h-9"
+              disabled={redirectLoading}
+              placeholder={redirectLoading ? "Loading…" : "https://example.com/welcome"}
+            />
           </div>
-          <Button size="sm" onClick={() => toast.success("Redirect URL saved")}>Save</Button>
+          <Button size="sm" onClick={saveRedirectUrl} disabled={savingRedirect || redirectLoading}>
+            {savingRedirect ? "Saving…" : "Save"}
+          </Button>
         </CardContent>
       </Card>
 
@@ -661,7 +851,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
       {/* Recent Campaigns */}
       <div>
-        <h3 className="mb-1 text-base font-semibold">Recent Campaigns</h3>
+        <h3 className="mb-1 text-base font-semibold tracking-tight">Recent Campaigns</h3>
         <p className="mb-3 text-xs text-muted-foreground">This lists out all the recent communication campaigns you had setup.</p>
         <Card className="border-0 shadow-sm"><CardContent className="p-0">
           {loading ? (

@@ -1,0 +1,286 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { ArrowRight, MessageSquareText, Star, X } from "lucide-react";
+import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { campaignPortalService } from "@/services/campaign-portal.service";
+import type { CampaignAnswerValue, NextCampaign, NextCampaignQuestion } from "@/types/campaign";
+
+/** How long a *skippable* banner/redirect campaign stays up before it
+ * auto-advances on its own -- long enough to actually register (a real
+ * banner image, not a flash), short enough it never feels like it's stuck.
+ * Never applies to a SURVEY (auto-submitting a guest's unfinished answers
+ * would be dishonest) or to a non-skippable campaign (that one only ever
+ * advances on the guest's own explicit action). */
+const BANNER_AUTO_ADVANCE_MS = 15_000;
+
+/** True only when there is real, renderable content for this campaign --
+ * the founder's own live "test" campaign is a real, current, ACTIVE
+ * SURVEY with zero `CampaignQuestion` rows (a data-completeness gap on
+ * the admin side, not a bug here), and an admin could equally forget to
+ * attach a `CampaignAsset` to a BANNER/REDIRECT. Both are honestly treated
+ * as "nothing to show" rather than rendering an empty card or crashing on
+ * a missing field. */
+export function campaignHasRenderableContent(campaign: NextCampaign): boolean {
+  if (campaign.campaignType === "survey") return campaign.questions.length > 0;
+  return !!(campaign.asset?.imageUrl || campaign.asset?.clickUrl);
+}
+
+function isAnswerFilled(value: CampaignAnswerValue | undefined): boolean {
+  if (value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return true;
+}
+
+function QuestionField({
+  question,
+  value,
+  onChange,
+}: {
+  question: NextCampaignQuestion;
+  value: CampaignAnswerValue | undefined;
+  onChange: (v: CampaignAnswerValue) => void;
+}) {
+  if (question.answerType === "single_choice") {
+    return (
+      <RadioGroup
+        value={typeof value === "string" ? value : undefined}
+        onValueChange={onChange}
+        className="gap-2.5"
+      >
+        {question.options.map((opt) => (
+          <label
+            key={opt}
+            className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 transition hover:border-indigo-300 has-[[data-state=checked]]:border-indigo-400 has-[[data-state=checked]]:bg-indigo-50/60"
+          >
+            <RadioGroupItem value={opt} className="border-slate-300 text-indigo-600" />
+            {opt}
+          </label>
+        ))}
+      </RadioGroup>
+    );
+  }
+
+  if (question.answerType === "multi_choice") {
+    const selected = Array.isArray(value) ? value : [];
+    return (
+      <div className="grid gap-2.5">
+        {question.options.map((opt) => {
+          const checked = selected.includes(opt);
+          return (
+            <label
+              key={opt}
+              className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 transition hover:border-indigo-300 has-[[data-state=checked]]:border-indigo-400 has-[[data-state=checked]]:bg-indigo-50/60"
+            >
+              <Checkbox
+                checked={checked}
+                className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                onCheckedChange={(v) =>
+                  onChange(v ? [...selected, opt] : selected.filter((o) => o !== opt))
+                }
+              />
+              {opt}
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (question.answerType === "rating_5") {
+    const rating = typeof value === "number" ? value : 0;
+    return (
+      <div className="flex items-center justify-center gap-2">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={`${n} star${n > 1 ? "s" : ""}`}
+            onClick={() => onChange(n)}
+            className="p-1"
+          >
+            <Star
+              className="h-8 w-8 transition"
+              strokeWidth={1.5}
+              fill={n <= rating ? "#f59e0b" : "none"}
+              stroke={n <= rating ? "#f59e0b" : "#cbd5e1"}
+            />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // free_text
+  return (
+    <Textarea
+      value={typeof value === "string" ? value : ""}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Type your answer…"
+      rows={3}
+      className="rounded-xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
+    />
+  );
+}
+
+interface Props {
+  campaign: NextCampaign;
+  sessionId: string;
+  /** Called exactly once, after the guest is done with this campaign one
+   * way or another (submitted, skipped, clicked through, or the
+   * auto-advance timer elapsed) -- the caller reveals whatever it would
+   * have shown next. */
+  onDone: () => void;
+}
+
+/**
+ * The real guest-facing Campaigns screen -- the thing this whole feature
+ * was missing (see this module's own PR: a founder could build a real
+ * survey/banner campaign through the admin UI and it would never reach an
+ * actual guest). Rendered by `portal.success.tsx` as a full replacement
+ * for its own connected-confirmation content while a real, currently-
+ * eligible campaign is being shown -- see that file's own comment on why
+ * this never delays the real hotspot-login POST underneath it.
+ */
+export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
+  const [answers, setAnswers] = useState<Record<string, CampaignAnswerValue>>({});
+  const finished = useRef(false);
+
+  const finish = (outcome: { wasSkipped: boolean; wasClicked: boolean }) => {
+    if (finished.current) return;
+    finished.current = true;
+    // Best-effort telemetry -- a failed impression/response write should
+    // never trap a guest on this screen (they already got real value, or
+    // explicitly chose to skip; see this file's own module docstring).
+    campaignPortalService
+      .recordImpression(campaign.campaignId, { guestSessionId: sessionId, ...outcome })
+      .catch(() => undefined);
+    onDone();
+  };
+
+  const submitSurvey = useMutation({
+    mutationFn: () =>
+      campaignPortalService.submitResponse(campaign.campaignId, {
+        guestSessionId: sessionId,
+        answers,
+      }),
+    onSuccess: () => finish({ wasSkipped: false, wasClicked: false }),
+    // A submission that genuinely fails server-side (expired mid-fill,
+    // network drop) still shouldn't strand a guest waiting for their
+    // internet -- treat it the same as a skip rather than retry-looping
+    // them on a captive-portal screen.
+    onError: () => finish({ wasSkipped: false, wasClicked: false }),
+  });
+
+  const requiredQuestions = useMemo(
+    () => campaign.questions.filter((q) => q.isRequired),
+    [campaign.questions],
+  );
+  const canSubmit = requiredQuestions.every((q) => isAnswerFilled(answers[q.id]));
+
+  // Skippable BANNER/REDIRECT campaigns auto-advance on their own after a
+  // fixed delay -- never a SURVEY (see BANNER_AUTO_ADVANCE_MS's own
+  // docstring), never a non-skippable campaign (that one only advances on
+  // the guest's own explicit action).
+  useEffect(() => {
+    if (campaign.campaignType === "survey" || !campaign.isSkippable) return;
+    const id = setTimeout(() => finish({ wasSkipped: false, wasClicked: false }), BANNER_AUTO_ADVANCE_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.campaignType, campaign.isSkippable]);
+
+  const skip = () => finish({ wasSkipped: true, wasClicked: false });
+
+  const openBanner = () => {
+    if (campaign.asset?.clickUrl) {
+      window.open(campaign.asset.clickUrl, "_blank", "noopener,noreferrer");
+    }
+    finish({ wasSkipped: false, wasClicked: !!campaign.asset?.clickUrl });
+  };
+
+  return (
+    <PortalShell variant="light" showHeader={false}>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="flex flex-1 flex-col gap-5"
+      >
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+            <MessageSquareText className="h-3.5 w-3.5" />
+            {campaign.campaignType === "survey" ? "Quick question" : "Sponsored"}
+          </span>
+          {campaign.isSkippable && (
+            <button
+              type="button"
+              onClick={skip}
+              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              Skip <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {campaign.campaignType === "survey" ? (
+          <>
+            <PortalCard variant="light" className="space-y-6">
+              {campaign.questions
+                .slice()
+                .sort((a, b) => a.orderIndex - b.orderIndex)
+                .map((q) => (
+                  <div key={q.id} className="space-y-2.5">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {q.questionText}
+                      {q.isRequired && <span className="ml-1 text-red-500">*</span>}
+                    </p>
+                    <QuestionField
+                      question={q}
+                      value={answers[q.id]}
+                      onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
+                    />
+                  </div>
+                ))}
+            </PortalCard>
+            <button
+              type="button"
+              disabled={!canSubmit || submitSurvey.isPending}
+              onClick={() => submitSurvey.mutate()}
+              className={PG_PRIMARY_BTN}
+            >
+              {submitSurvey.isPending ? "Submitting…" : "Submit"}
+            </button>
+          </>
+        ) : (
+          <>
+            <PortalCard variant="light" className="overflow-hidden p-0">
+              {campaign.asset?.imageUrl ? (
+                <button type="button" onClick={openBanner} className="block w-full">
+                  <img
+                    src={campaign.asset.imageUrl}
+                    alt={campaign.asset.altText ?? ""}
+                    className="w-full object-cover"
+                  />
+                </button>
+              ) : (
+                <div className="p-8 text-center">
+                  <p className="text-sm text-slate-500">A sponsor has a message for you.</p>
+                </div>
+              )}
+            </PortalCard>
+            <button type="button" onClick={openBanner} className={PG_PRIMARY_BTN}>
+              <span className="inline-flex items-center justify-center gap-2">
+                Continue <ArrowRight className="h-4 w-4" />
+              </span>
+            </button>
+          </>
+        )}
+      </motion.div>
+    </PortalShell>
+  );
+}

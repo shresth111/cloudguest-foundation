@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Loader2, FileBarChart, Download, Printer, FileDown, Info,
+  Loader2, FileBarChart, Download, Printer, FileDown, Info, Quote,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -510,6 +510,18 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
   );
 }
 
+/** Operator-voice lines, not fabricated testimonials -- same rotating-quote
+ * pattern as the Dashboard hero, written for this page's own subject
+ * (checking your own numbers) rather than reused WiFi-uptime lines. */
+const REPORTS_QUOTES = [
+  "The report you never run is the trend you never catch.",
+  "Real data beats a good guess, every time.",
+  "Export it -- don't just eyeball it.",
+  "A number nobody checks might as well not exist.",
+  "Yesterday's data only helps if you actually open it.",
+  "Guesswork is expensive. Reports are free.",
+];
+
 const CATEGORY_CONFIG: Record<Category, { reportTypes: ReportType[]; csvPrefix: string }> = {
   "User Report": { reportTypes: USER_REPORT_TYPES, csvPrefix: "user-report" },
   "Voucher Report": { reportTypes: VOUCHER_REPORT_TYPES, csvPrefix: "voucher-report" },
@@ -520,13 +532,52 @@ const CATEGORY_CONFIG: Record<Category, { reportTypes: ReportType[]; csvPrefix: 
 
 export default function UserReports() {
   const [category, setCategory] = useState<Category>("User Report");
+  const [quoteIndex, setQuoteIndex] = useState(0);
   const cfg = CATEGORY_CONFIG[category];
+
+  useEffect(() => {
+    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % REPORTS_QUOTES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <div className="space-y-6">
-      <div className="print:hidden">
-        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><FileBarChart className="h-4.5 w-4.5 text-primary" /> Reports</h1>
-        <p className="text-sm text-muted-foreground">Run and export usage, voucher, campaign, data, and SMS reports.</p>
+      {/* A right-sized banner, not a full glance-dashboard hero -- this is
+       * a utility tool (pick a report, run it, export it), so the dark
+       * treatment carries the framing and a rotating quote rather than big
+       * KPI numbers this page doesn't have. */}
+      <div className="print:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-6 text-white shadow-xl shadow-indigo-950/30 sm:p-8">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-fuchsia-500/25 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+        />
+        <div className="relative flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
+            <FileBarChart className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Your data, on demand</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>Reports</h1>
+            <p className="mt-1 text-sm text-white/70">Run and export usage, voucher, campaign, data, and SMS reports.</p>
+          </div>
+        </div>
+        <div className="relative mt-5 flex items-center gap-2 border-t border-white/10 pt-4 text-xs text-white/50">
+          <Quote className="h-3 w-3 shrink-0 text-white/30" />
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={quoteIndex}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.4 }}
+            >
+              {REPORTS_QUOTES[quoteIndex]}
+            </motion.span>
+          </AnimatePresence>
+        </div>
       </div>
 
       <div className="print:hidden overflow-x-auto rounded-xl border bg-muted/40 p-1">
@@ -535,7 +586,7 @@ export default function UserReports() {
             const active = label === category;
             return (
               <button key={label} onClick={() => setCategory(label)} aria-current={active ? "page" : undefined}
-                className={cn("relative flex-1 rounded-lg px-3 py-2.5 text-center text-sm font-medium transition-colors", active ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                className={cn("relative flex-1 rounded-lg px-3 py-2.5 text-center text-sm font-medium transition-colors", active ? "bg-card text-[#4f46e5] shadow-sm" : "text-muted-foreground hover:text-foreground")}>
                 {label}
               </button>
             );

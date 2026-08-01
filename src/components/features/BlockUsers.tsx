@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle, HelpCircle, X, Search, ChevronUp, ChevronDown,
   ChevronLeft, ChevronRight, Trash2, RotateCcw, Undo2, Ban,
@@ -10,6 +11,14 @@ import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type { AnyAccessRule } from "@/types/guest";
+import { maskMac } from "@/components/features/HeaderControls";
+
+// `mobile` holds either a phone number or a MAC (see toBlockedUser below,
+// which -- like guest_access's own rule tables -- doesn't keep a separate
+// identifier-kind column) -- format-detect the MAC case to mask it, the
+// same PII posture applied to every other MAC display in the customer
+// dashboard (HeaderControls.tsx's maskMac).
+const MOBILE_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
@@ -29,7 +38,7 @@ function Tooltip({ text }: { text: string }) {
   const close = useCallback(() => setOpen(false), []);
   return (
     <span className="relative inline-flex">
-      <button type="button" aria-label="Help" onClick={() => setOpen((p) => !p)} onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget)) close(); }} className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+      <button type="button" aria-label="Help" onClick={() => setOpen((p) => !p)} onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget)) close(); }} className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
       {open && (
@@ -53,6 +62,39 @@ function toBlockedUser(r: AnyAccessRule): BlockedUser {
     blockedOn: r.createdAt,
     status: r.isActive ? "Blocked" : "Unblocked",
   };
+}
+
+/**
+ * Small header-accent illustration: a phone with a "blocked" glyph and a
+ * signal line cut off by a barrier, same filled-flat-shape character
+ * language as the other illustrations shipped this session. Kept compact,
+ * inline with the header row -- this page's real content is a dense
+ * number-entry form + a real blocked-users table, so personality lives in
+ * a small corner accent, not a full hero. Purely decorative -- aria-hidden.
+ */
+function BlockedAccessIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 56" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
+      <rect x="30" y="6" width="24" height="40" rx="5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
+      <rect x="34" y="12" width="16" height="24" rx="1.5" fill="#1e1b4b" />
+      <circle cx="42" cy="40" r="1.6" fill="#a78bfa" />
+      <motion.path
+        d="M22 26a20 20 0 0 1 8-8"
+        stroke="#22d3ee" strokeOpacity="0.6" strokeWidth="2" strokeLinecap="round" strokeDasharray="1 5"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <circle cx="64" cy="20" r="12" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="2" />
+        <path d="M58 14l12 12M70 14l-12 12" stroke="#f0abfc" strokeWidth="2.2" strokeLinecap="round" />
+      </motion.g>
+    </svg>
+  );
 }
 
 export default function BlockUsers({ locationId }: { locationId?: string } = {}) {
@@ -176,7 +218,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     return (
       <TableHead className="cursor-pointer select-none text-xs font-medium" onClick={() => toggleSort(k)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
         <span className="inline-flex items-center gap-1">
-          {label} <Icon className={`h-3 w-3 ${active ? "text-orange-500" : "text-slate-300"}`} />
+          {label} <Icon className={`h-3 w-3 ${active ? "text-indigo-500" : "text-slate-300"}`} />
         </span>
       </TableHead>
     );
@@ -315,7 +357,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       {toast && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900">
           <span>{toast}</span>
-          {undoPayload && <button onClick={handleUndo} className="font-medium text-orange-400 underline hover:text-orange-300 dark:text-orange-600">Undo</button>}
+          {undoPayload && <button onClick={handleUndo} className="font-medium text-indigo-400 underline hover:text-indigo-300 dark:text-indigo-600">Undo</button>}
         </div>
       )}
 
@@ -328,15 +370,24 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             </div>
             <p className="mt-3 text-sm text-slate-500">Their current sessions will end right away.</p>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => { setShowModal(false); triggerRef.current?.focus(); }} className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">Cancel</button>
-              <button onClick={handleBlock} className="rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">Block numbers</button>
+              <button onClick={() => { setShowModal(false); triggerRef.current?.focus(); }} className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">Cancel</button>
+              <button onClick={handleBlock} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">Block numbers</button>
             </div>
           </div>
         </div>
       )}
 
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Block Users</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <Ban className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Blocked Guests</h1>
+            <p className="text-sm text-muted-foreground">Cut off a number's access to your network immediately.</p>
+          </div>
+        </div>
+        <BlockedAccessIllustration />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -344,7 +395,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           <CardTitle className="text-sm">Block User</CardTitle>
           <div>
             <label htmlFor="bu-select" className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Applies to</label>
-            <select id="bu-select" value={bu} onChange={(e) => { setBu(e.target.value); setPage(0); }} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+            <select id="bu-select" value={bu} onChange={(e) => { setBu(e.target.value); setPage(0); }} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
           </div>
       </CardHeader>
       <CardContent>
@@ -355,16 +406,16 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
 
         <div className="mt-5">
           <label htmlFor="block-ta" className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-            Mobile numbers <span className="text-orange-500">*</span>
+            Mobile numbers <span className="text-indigo-500">*</span>
             <Tooltip text="Paste one or more numbers separated by commas. Include the country code, e.g. +919876543210." />
           </label>
-          <textarea id="block-ta" rows={6} placeholder="+919876543210, +919812345678" value={textarea} onChange={(e) => setTextarea(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
+          <textarea id="block-ta" rows={6} placeholder="+919876543210, +919812345678" value={textarea} onChange={(e) => setTextarea(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
         </div>
 
         <div aria-live="polite" className="mt-2 flex flex-wrap items-center gap-2 text-xs">
           <span className="font-medium text-slate-600 dark:text-slate-300">{parsed.valid.length} numbers ready</span>
           {parsed.duplicates.length > 0 && <span className="text-slate-400">· {parsed.duplicates.length} duplicate removed</span>}
-          {parsed.invalid.length > 0 && <span className="text-orange-500">· {parsed.invalid.length} invalid</span>}
+          {parsed.invalid.length > 0 && <span className="text-indigo-500">· {parsed.invalid.length} invalid</span>}
           {parsed.alreadyBlocked.length > 0 && <span className="text-slate-400">· {parsed.alreadyBlocked.length} already blocked</span>}
         </div>
 
@@ -374,7 +425,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               <span key={i} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 c.status === "valid" ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" :
                 c.status === "blocked" ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500" :
-                "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+                "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400"
               }`} title={c.status === "invalid" ? "Invalid number" : c.status === "blocked" ? "Already blocked" : ""}>
                 {c.num}
                 {c.status !== "blocked" && (
@@ -387,7 +438,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
 
         <hr className="my-5 border-slate-100 dark:border-slate-600" />
         <div className="flex justify-center">
-          <button ref={triggerRef} disabled={textarea.trim() === ""} onClick={handlePrimaryClick} className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-60">
+          <button ref={triggerRef} disabled={textarea.trim() === ""} onClick={handlePrimaryClick} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60">
             Block {parsed.valid.length > 0 ? `${parsed.valid.length} number${parsed.valid.length > 1 ? "s" : ""}` : "numbers"}
           </button>
         </div>
@@ -403,7 +454,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
+              <input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
             </div>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
               {PAGE_SIZE_OPTS.map((n) => (
@@ -432,15 +483,15 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               {paged.map((b) => (
                   <TableRow key={b.id} className="border-b">
                     <TableCell className="font-medium">{b.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell className="font-mono text-xs">{b.mobile}</TableCell>
+                    <TableCell className="font-mono text-xs">{MOBILE_MAC_RE.test(b.mobile) ? maskMac(b.mobile) : b.mobile}</TableCell>
                     <TableCell className="text-xs">{b.businessUnit}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">{fmtDT(b.blockedOn)}</TableCell>
                     <TableCell>
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${b.status === "Blocked" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400" : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"}`}>{b.status}</span>
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${b.status === "Blocked" ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400" : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"}`}>{b.status}</span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <button aria-label={b.status === "Blocked" ? `Unblock ${b.mobile}` : `Block ${b.mobile}`} onClick={() => toggleStatus(b.id)} className="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:hover:bg-slate-700">{b.status === "Blocked" ? "Unblock" : "Block again"}</button>
-                      <button aria-label={confirmingId === b.id ? "Confirm delete" : `Delete ${b.mobile}`} onClick={() => handleDelete(b.id)} className={`ml-1 inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirmingId === b.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}>
+                      <button aria-label={b.status === "Blocked" ? `Unblock ${b.mobile}` : `Block ${b.mobile}`} onClick={() => toggleStatus(b.id)} className="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700">{b.status === "Blocked" ? "Unblock" : "Block again"}</button>
+                      <button aria-label={confirmingId === b.id ? "Confirm delete" : `Delete ${b.mobile}`} onClick={() => handleDelete(b.id)} className={`ml-1 inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === b.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}>
                         {confirmingId === b.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                       </button>
                     </TableCell>
@@ -455,8 +506,8 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
             <span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-1">
-              <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronLeft className="h-4 w-4" /></button>
-              <button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronRight className="h-4 w-4" /></button>
+              <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronLeft className="h-4 w-4" /></button>
+              <button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronRight className="h-4 w-4" /></button>
             </div>
           </div>
         )}

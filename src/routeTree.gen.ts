@@ -27,6 +27,7 @@ import { Route as AgentIndexRouteImport } from './routes/agent.index'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
 import { Route as PortalTermsRouteImport } from './routes/portal.terms'
+import { Route as PortalTeamRouteImport } from './routes/portal.team'
 import { Route as PortalSuccessRouteImport } from './routes/portal.success'
 import { Route as PortalSetPasswordRouteImport } from './routes/portal.set-password'
 import { Route as PortalSessionRouteImport } from './routes/portal.session'
@@ -237,6 +238,11 @@ const PortalVerifyRoute = PortalVerifyRouteImport.update({
 const PortalTermsRoute = PortalTermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalTeamRoute = PortalTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalSuccessRoute = PortalSuccessRouteImport.update({
@@ -972,6 +978,7 @@ export interface FileRoutesByFullPath {
   '/portal/session': typeof PortalSessionRoute
   '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
+  '/portal/team': typeof PortalTeamRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
@@ -1108,6 +1115,7 @@ export interface FileRoutesByTo {
   '/portal/session': typeof PortalSessionRoute
   '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
+  '/portal/team': typeof PortalTeamRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
@@ -1250,6 +1258,7 @@ export interface FileRoutesById {
   '/portal/session': typeof PortalSessionRoute
   '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
+  '/portal/team': typeof PortalTeamRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
@@ -1393,6 +1402,7 @@ export interface FileRouteTypes {
     | '/portal/session'
     | '/portal/set-password'
     | '/portal/success'
+    | '/portal/team'
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
@@ -1529,6 +1539,7 @@ export interface FileRouteTypes {
     | '/portal/session'
     | '/portal/set-password'
     | '/portal/success'
+    | '/portal/team'
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
@@ -1670,6 +1681,7 @@ export interface FileRouteTypes {
     | '/portal/session'
     | '/portal/set-password'
     | '/portal/success'
+    | '/portal/team'
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
@@ -1916,6 +1928,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/portal/terms'
       preLoaderRoute: typeof PortalTermsRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/team': {
+      id: '/portal/team'
+      path: '/team'
+      fullPath: '/portal/team'
+      preLoaderRoute: typeof PortalTeamRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/success': {
@@ -3093,6 +3112,7 @@ interface PortalRouteChildren {
   PortalSessionRoute: typeof PortalSessionRoute
   PortalSetPasswordRoute: typeof PortalSetPasswordRoute
   PortalSuccessRoute: typeof PortalSuccessRoute
+  PortalTeamRoute: typeof PortalTeamRoute
   PortalTermsRoute: typeof PortalTermsRoute
   PortalVerifyRoute: typeof PortalVerifyRoute
   PortalWelcomeRoute: typeof PortalWelcomeRoute
@@ -3110,6 +3130,7 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalSessionRoute: PortalSessionRoute,
   PortalSetPasswordRoute: PortalSetPasswordRoute,
   PortalSuccessRoute: PortalSuccessRoute,
+  PortalTeamRoute: PortalTeamRoute,
   PortalTermsRoute: PortalTermsRoute,
   PortalVerifyRoute: PortalVerifyRoute,
   PortalWelcomeRoute: PortalWelcomeRoute,

@@ -31,6 +31,10 @@ interface AuthContextValue {
   login: (creds: LoginCredentials) => Promise<AuthSession>;
   logout: () => Promise<void>;
   can: (permission: string) => boolean;
+  /** Pushes a freshly-saved user (e.g. from a real PUT /me profile update)
+   * into context + localStorage so the rest of the app (sidebar, header,
+   * account page) reflects it immediately without a full reload. */
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -198,6 +202,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const can = useCallback((permission: string) => permissions.has(permission), [permissions]);
 
+  const updateUser = useCallback((next: User) => {
+    setUser(next);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -209,8 +218,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       can,
+      updateUser,
     }),
-    [user, roles, organizations, status, login, logout, can],
+    [user, roles, organizations, status, login, logout, can, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

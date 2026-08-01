@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { Loader2, Eye, EyeOff, ShieldCheck, UserRound, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
@@ -144,6 +144,29 @@ function LoginPage() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", message: "" });
   const [demoSubmitting, setDemoSubmitting] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // A freshly-provisioned owner's welcome-email temporary password can't be
+  // used for an ordinary login -- the backend raises a distinct 403 asking
+  // for a new password in the same call (see AuthService.login's
+  // must_change_password branch). Real incident: this used to have no
+  // in-app path at all -- the raw error just told the customer to use the
+  // (separate, email-dependent) forgot-password flow, so the temporary
+  // password in their welcome email was effectively unusable.
+  const [mustChangePasswordOpen, setMustChangePasswordOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [settingNewPassword, setSettingNewPassword] = useState(false);
+
+  const selectRole = (next: LoginRole) => {
+    setRole(next);
+    // Choosing a role doesn't submit anything by itself -- without this,
+    // the click looked like a dead end (card just highlights) and people
+    // pressed it expecting to be signed in, then had to find and press the
+    // real submit button separately. Carrying focus into the email field
+    // makes the one click visibly continue the flow toward sign-in.
+    emailInputRef.current?.focus();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,8 +182,31 @@ function LoginPage() {
         navigate({ to: redirect || "/customer", replace: true });
       }, 50);
     } catch (err) {
-      toast.error((err as AppError).message || "Login failed");
+      const appError = err as AppError;
+      if (appError.status === 403 && appError.message?.toLowerCase().includes("password change required")) {
+        setMustChangePasswordOpen(true);
+      } else {
+        toast.error(appError.message || "Login failed");
+      }
     } finally { setLoading(false); }
+  };
+
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 12) { toast.error("New password must be at least 12 characters."); return; }
+    if (newPassword !== confirmNewPassword) { toast.error("Passwords don't match."); return; }
+    setSettingNewPassword(true);
+    try {
+      localStorage.setItem("cg_login_role", role);
+      await login({ email, password, newPassword });
+      toast.success("Password set. Welcome!");
+      setMustChangePasswordOpen(false);
+      setTimeout(() => {
+        navigate({ to: redirect || "/customer", replace: true });
+      }, 50);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not set new password. Please try again.");
+    } finally { setSettingNewPassword(false); }
   };
 
   const handleDemoSubmit = async (e: React.FormEvent) => {
@@ -194,7 +240,7 @@ function LoginPage() {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
-      className="btn-glow fixed right-5 top-5 z-50 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 backdrop-blur transition-colors hover:bg-primary/90"
+      className="btn-glow fixed right-5 top-5 z-50 inline-flex items-center gap-2 rounded-full bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#4f46e5]/20 backdrop-blur transition-colors hover:bg-[#4338ca]"
     >
       <CalendarClock className="h-4 w-4" /> Book a Demo
     </motion.button>
@@ -286,7 +332,7 @@ function LoginPage() {
        * indigo/violet hero on the left -- this form should look the same,
        * clean and light, for every visitor. */}
       <div
-        className="flex w-full lg:w-1/2 items-center justify-center bg-white px-6 py-12 text-slate-900"
+        className="relative flex w-full lg:w-1/2 items-center justify-center bg-white px-6 py-12 text-slate-900"
         style={
           {
             "--background": "oklch(0.984 0.005 220)",
@@ -295,8 +341,8 @@ function LoginPage() {
             "--card-foreground": "oklch(0.22 0.03 235)",
             "--popover": "oklch(1 0 0)",
             "--popover-foreground": "oklch(0.22 0.03 235)",
-            "--primary": "oklch(0.52 0.115 208)",
-            "--primary-foreground": "oklch(0.99 0.01 200)",
+            "--primary": "#4f46e5",
+            "--primary-foreground": "#ffffff",
             "--secondary": "oklch(0.955 0.012 216)",
             "--secondary-foreground": "oklch(0.26 0.03 232)",
             "--muted": "oklch(0.962 0.008 218)",
@@ -307,7 +353,7 @@ function LoginPage() {
             "--destructive-foreground": "oklch(0.99 0.005 250)",
             "--border": "oklch(0.905 0.012 220)",
             "--input": "oklch(0.925 0.012 220)",
-            "--ring": "oklch(0.58 0.12 205)",
+            "--ring": "#6366f1",
           } as React.CSSProperties
         }
       >
@@ -326,7 +372,7 @@ function LoginPage() {
             <div className="grid grid-cols-2 gap-3">
               <motion.button
                 type="button"
-                onClick={() => setRole("owner")}
+                onClick={() => selectRole("owner")}
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 className={cn("relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-colors", role === "owner" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30")}
@@ -340,7 +386,7 @@ function LoginPage() {
               </motion.button>
               <motion.button
                 type="button"
-                onClick={() => setRole("agent")}
+                onClick={() => selectRole("agent")}
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 className={cn("relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-colors", role === "agent" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30")}
@@ -356,7 +402,7 @@ function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus /></div>
+            <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input ref={emailInputRef} id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus /></div>
             <div className="space-y-2">
               <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div>
               <div className="relative"><Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
@@ -383,11 +429,73 @@ function LoginPage() {
             <img src="/brand/cloud/aws.svg" alt="AWS" className="h-3.5 w-auto" />
           </motion.div>
         </motion.div>
+
+        <motion.div
+          className="absolute inset-x-0 bottom-4 flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.7 }}
+        >
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-[11px] font-medium text-foreground/70">
+            <span aria-hidden className="flex h-2.5 w-3.5 flex-col overflow-hidden rounded-[1px] ring-1 ring-black/5">
+              <span className="h-[1px] flex-1 bg-[#FF9933]" />
+              <span className="h-[1px] flex-1 bg-white" />
+              <span className="h-[1px] flex-1 bg-[#138808]" />
+            </span>
+            Made in India, for the world
+          </span>
+        </motion.div>
       </div>
     </div>
 
+    <Dialog open={mustChangePasswordOpen} onOpenChange={setMustChangePasswordOpen}>
+      <DialogContent
+        className="sm:max-w-sm"
+        style={
+          {
+            "--primary": "#4f46e5",
+            "--primary-foreground": "#ffffff",
+            "--ring": "#6366f1",
+          } as React.CSSProperties
+        }
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" />Set a new password</DialogTitle>
+          <DialogDescription>
+            This is your first sign-in with a temporary password. Choose a new password (min. 12 characters, with uppercase, lowercase, a digit, and a special character) to finish signing in.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSetNewPassword} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New password</Label>
+            <Input id="new-password" type="password" placeholder="Enter a new password" autoFocus value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-new-password">Confirm new password</Label>
+            <Input id="confirm-new-password" type="password" placeholder="Re-enter the new password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMustChangePasswordOpen(false)} disabled={settingNewPassword}>Cancel</Button>
+            <Button type="submit" disabled={settingNewPassword}>
+              {settingNewPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {settingNewPassword ? "Setting…" : "Set password & sign in"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+
     <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        style={
+          {
+            "--primary": "#4f46e5",
+            "--primary-foreground": "#ffffff",
+            "--ring": "#6366f1",
+          } as React.CSSProperties
+        }
+      >
         <DialogHeader>
           <DialogTitle>Book a Demo</DialogTitle>
           <DialogDescription>Tell us a bit about your business and our team will reach out to schedule a walkthrough.</DialogDescription>

@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, ShieldCheck, Clock, CalendarClock, Loader2 } from "lucide-react";
+import { EyeOff, Clock, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { demoRequestService } from "@/services/demo-request.service";
 import type { AppError } from "@/services/api";
 
-const PILL_CLASS = "hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex";
+/** Distinct default treatments for the three header controls -- previously
+ * all three shared one identical pill style (border + translucent fill),
+ * which reads as generic/interchangeable (bug report: "competitor ke
+ * buttons bhi same hai" -- every SaaS dashboard has this exact look).
+ * Now each carries its own visual role: the plan badge stays a quiet,
+ * secondary info chip; Book a Demo becomes a real filled CTA since it's
+ * the one thing here worth clicking; the mask toggle reads as a live
+ * status control with a state dot, not just another label. */
+const INFO_CHIP_CLASS =
+  "hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/55 sm:inline-flex";
+const DEMO_CTA_CLASS =
+  "hidden items-center gap-1.5 rounded-full bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-indigo-950/40 transition-all hover:shadow-md hover:shadow-indigo-950/50 hover:brightness-110 sm:inline-flex";
+const MASK_TOGGLE_CLASS =
+  "hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white sm:inline-flex";
 
 /** Redacts an email's local part, e.g. "john.doe@email.com" -> "jo••••••@email.com". */
 export function maskEmail(email: string): string {
@@ -22,47 +35,57 @@ export function maskEmail(email: string): string {
   return `${email.slice(0, 2)}${"•".repeat(Math.max(3, at - 2))}${email.slice(at)}`;
 }
 
-/** Data-masking toggle gated behind an OTP step -- revealing (or re-hiding)
- * guest data requires verifying a 6-digit code first, same as a real
- * sensitive-action confirmation would. */
-export function OtpMaskToggle({ masked, setMasked, className }: { masked: boolean; setMasked: (fn: (m: boolean) => boolean) => void; className?: string }) {
-  const [open, setOpen] = useState(false);
-  const [otp, setOtp] = useState("");
+/** Redacts a MAC address the same way the backend already does --
+ * ``app/common/masking.py::mask_mac``: ``"AA:BB:CC:DD:EE:FF"`` ->
+ * ``"XX:XX:XX:XX:EE:FF"`` (first four octets replaced with literal "XX",
+ * last two left visible), whichever separator (``:`` or ``-``) the input
+ * already used. This used to invent its own, opposite convention (mask
+ * the *last* three octets, keep the vendor/OUI prefix) -- cosmetically
+ * different from, and less redacted than, what several backend responses
+ * (connected-devices, mac-authorization, guest session/device schemas --
+ * see ``app.common.masking.MaskedMac``) already send down pre-masked in
+ * this exact "XX:XX:XX:XX:EE:FF" shape. Matching it here means (1) one
+ * consistent masked format everywhere in the product, not two, and (2)
+ * applying this function to an already-backend-masked value is a no-op
+ * (the idempotency check below) instead of visually double-masking it.
+ * Falls back to returning the input unchanged for anything that isn't a
+ * real 6-octet colon/dash address, exactly like the backend function. */
+const MASKED_MAC_PATTERN = /^(?:[Xx]{2}[:-]){4}[0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}$/;
+export function maskMac(mac: string): string {
+  if (!mac) return mac;
+  if (MASKED_MAC_PATTERN.test(mac)) return mac;
+  const separator = mac.includes("-") ? "-" : ":";
+  const octets = mac.split(separator);
+  if (octets.length !== 6) return mac;
+  return [...Array(4).fill("XX"), ...octets.slice(-2)].join(separator);
+}
 
-  const verify = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.trim().length !== 6) { toast.error("Enter the 6-digit code sent to your registered mobile."); return; }
-    setMasked((m) => !m);
-    toast.success(masked ? "Data unmasked" : "Data masked");
-    setOtp("");
-    setOpen(false);
-  };
-
+/** Read-only PII-masking status indicator -- *not* a self-service reveal
+ * control. Previously this rendered an "unmask" dialog that accepted any
+ * 6-digit string as an "OTP" (the correct code was printed on the dialog
+ * itself, "Demo OTP: 123456") and, on "verifying", just flipped local
+ * React state -- no backend call at all. That was actively misleading,
+ * not just unfinished: the backend's own masking policy
+ * (``app.domains.user.schemas``'s ``data_masking_enabled`` -- "True
+ * (masked) is the default for every account -- administrators explicitly
+ * flip this to False for privileged users, never the other way around
+ * via self-service") makes self-service PII unmasking a capability that
+ * cannot legitimately exist on this, the customer's own dashboard --
+ * mirroring the same customer/admin boundary already drawn for
+ * WireGuard internals. Faking a working OTP gate for a privilege the
+ * account holder can never actually be granted here is worse than not
+ * offering the control at all, so this now just states the real,
+ * server-enforced policy and never flips ``masked`` to false. */
+export function OtpMaskToggle({ className }: { masked?: boolean; setMasked?: (fn: (m: boolean) => boolean) => void; className?: string }) {
   return (
-    <>
-      <button onClick={() => { setOtp(""); setOpen(true); }} className={className ?? PILL_CLASS + " mr-1"}>
-        {masked ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} {masked ? "Data masked" : "Data visible"}
-      </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" />Verify to {masked ? "unmask" : "mask"} data</DialogTitle>
-            <DialogDescription>Enter the 6-digit OTP sent to your registered mobile to {masked ? "reveal" : "hide"} sensitive user data.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={verify} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="mask-otp">One-time code</Label>
-              <Input id="mask-otp" autoFocus inputMode="numeric" maxLength={6} placeholder="••••••" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} className="text-center text-lg tracking-[0.5em]" />
-            </div>
-            <p className="text-center text-xs text-muted-foreground">Demo OTP: <span className="font-mono font-semibold text-foreground">123456</span></p>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit">Verify &amp; {masked ? "Unmask" : "Mask"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+    <button
+      type="button"
+      onClick={() => toast.info("Sensitive data is masked per your organization's security policy. Only an administrator can change this, for a specific account, from the admin console.")}
+      className={className ?? MASK_TOGGLE_CLASS + " mr-1"}
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
+      <EyeOff className="h-3 w-3" /> Data masked
+    </button>
   );
 }
 
@@ -91,8 +114,8 @@ export function formatPlanExpiry(iso: string): string {
 export function PlanExpiryBadge({ expiry, className }: { expiry?: string | null; className?: string }) {
   if (!expiry) return null;
   return (
-    <span className={className ?? PILL_CLASS} title="Current plan renewal date">
-      <Clock className="h-3 w-3" /> Plan expires {expiry}
+    <span className={className ?? INFO_CHIP_CLASS} title="Current plan renewal date">
+      <Clock className="h-3 w-3" /> Plan expires <span className="tabular-nums text-white/75">{expiry}</span>
     </span>
   );
 }
@@ -130,7 +153,7 @@ export function BookDemoButton({ className }: { className?: string }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className={className ?? PILL_CLASS + " mr-1"}>
+      <button onClick={() => setOpen(true)} className={className ?? DEMO_CTA_CLASS + " mr-1"}>
         <CalendarClock className="h-3 w-3" /> Book a Demo
       </button>
       <Dialog open={open} onOpenChange={setOpen}>

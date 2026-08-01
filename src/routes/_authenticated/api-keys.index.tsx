@@ -16,7 +16,7 @@ import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
 import {
   useApiKeys, useCreateApiKey, useCreateWebhook, useDeleteWebhook, useRevokeApiKey,
-  useRotateApiKey, useWebhooks,
+  useWebhooks,
 } from "@/hooks/useSystem";
 
 export const Route = createFileRoute("/_authenticated/api-keys/")({
@@ -31,7 +31,6 @@ function ApiKeysPage() {
   const hooks = useWebhooks();
   const create = useCreateApiKey();
   const revoke = useRevokeApiKey();
-  const rotate = useRotateApiKey();
   const createHook = useCreateWebhook();
   const delHook = useDeleteWebhook();
 
@@ -131,7 +130,7 @@ function ApiKeysPage() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => copy(k.key)}><Copy className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => rotate.mutate(k.id, { onSuccess: () => toast.success("Key rotated") })}><RefreshCw className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => toast.info("Rotating in place isn't supported -- create a new key and revoke this one instead.")}><RefreshCw className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => revoke.mutate(k.id, { onSuccess: () => toast.success("Key revoked") })}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
                     </TableCell>

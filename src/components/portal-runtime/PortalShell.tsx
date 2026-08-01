@@ -163,13 +163,38 @@ export function PortalShell({
   // across routes with different search shapes, so there's no single
   // `from` route TanStack Router could type that callback against.
   const portalSearch = { organizationId, locationId, routerId };
-  const heightCls = constrained ? "h-full" : "min-h-dvh";
+  // `min-h-full`, not `h-full` -- the sole `constrained` caller (the Portal
+  // Preview's laptop mockup) used to pair `h-full` with a fixed-height
+  // parent box, which clipped (or forced an internal scrollbar on) any
+  // guest-flow state taller than that box: "ye complete page nahi dikha
+  // sakte ho... sahi se full page scroll nahi kr paunga". `min-h-full`
+  // only sets a floor, so this shell (and its fixed-height-turned-min-height
+  // parent) can grow to fit whatever the real content needs instead of
+  // ever clipping or needing to scroll.
+  const heightCls = constrained ? "min-h-full" : "min-h-dvh";
 
   if (variant === "light") {
     return (
       <div
         className={cn(
-          "pg-shell relative w-full overflow-hidden lg:flex lg:items-center lg:justify-center",
+          "pg-shell relative w-full overflow-hidden",
+          // The two-column desktop composition below is driven by Tailwind's
+          // `lg:` *viewport*-width media query, not this element's own
+          // (container) width -- fine for the real full-page guest route,
+          // where the two always match, but not for the Portal Preview's
+          // `constrained` mockup, which renders this same component inside
+          // a much narrower fixed-width "laptop bezel" box while the
+          // browser window itself can still be arbitrarily wide. Confirmed
+          // live: on a real >=1024px browser window, `lg:grid-cols-
+          // [minmax(0,1fr)_480px]` still activated inside that ~700px box,
+          // collapsing the `1fr` BrandPanel column down to a sliver and
+          // wrapping its heading to one word per line -- exactly the
+          // "broken/garbled" preview the founder reported. Skipping the
+          // whole `lg:` two-column treatment when constrained keeps this
+          // to the single-column composition that already renders
+          // correctly below that breakpoint, regardless of the real
+          // window's width.
+          !constrained && "lg:flex lg:items-center lg:justify-center",
           heightCls,
           highContrast && "contrast-125 saturate-150",
           largeText && "text-[17px]",
@@ -226,14 +251,26 @@ export function PortalShell({
         <div
           className={cn(
             "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]",
-            "lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_480px] lg:items-center lg:gap-16 lg:px-12 lg:py-10 xl:gap-24",
+            // See this component's own top-level comment on `constrained` --
+            // these `lg:` classes assume this element's width tracks the
+            // real browser viewport, which isn't true inside the Portal
+            // Preview's narrower fixed-width mockup.
+            !constrained &&
+              "lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_480px] lg:items-center lg:gap-16 lg:px-12 lg:py-10 xl:gap-24",
             heightCls,
           )}
         >
-          <div className="hidden lg:block">
-            <BrandPanel venueName={config?.name} />
-          </div>
-          <div className="flex w-full flex-col lg:mx-auto lg:w-full lg:max-w-[480px]">
+          {!constrained && (
+            <div className="hidden lg:block">
+              <BrandPanel venueName={config?.name} />
+            </div>
+          )}
+          <div
+            className={cn(
+              "flex w-full flex-col",
+              !constrained && "lg:mx-auto lg:w-full lg:max-w-[480px]",
+            )}
+          >
             <div className="mb-2 flex items-center justify-end gap-1.5">
               <LanguageSwitcher tone="light" />
               <A11yMenu tone="light" />

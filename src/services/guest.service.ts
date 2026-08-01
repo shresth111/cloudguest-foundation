@@ -85,6 +85,7 @@ interface BackendAccessRule {
   identifier: string;
   rule_type: AccessRuleType;
   reason: string | null;
+  email: string | null;
   expires_at: string | null;
   is_active: boolean;
   created_at: string;
@@ -98,6 +99,7 @@ interface BackendDeviceAccessRule {
   mac_address: string;
   rule_type: AccessRuleType;
   reason: string | null;
+  email: string | null;
   expires_at: string | null;
   is_active: boolean;
   created_at: string;
@@ -205,6 +207,7 @@ function toAccessRule(r: BackendAccessRule): GuestAccessRule {
     identifier: r.identifier,
     ruleType: r.rule_type,
     reason: r.reason,
+    email: r.email,
     expiresAt: r.expires_at,
     isActive: r.is_active,
     createdAt: r.created_at,
@@ -221,6 +224,7 @@ function toDeviceAccessRule(r: BackendDeviceAccessRule): DeviceAccessRule {
     macAddress: r.mac_address,
     ruleType: r.rule_type,
     reason: r.reason,
+    email: r.email,
     expiresAt: r.expires_at,
     isActive: r.is_active,
     createdAt: r.created_at,
@@ -536,6 +540,7 @@ export const guestService = {
             identifier: payload.identifier,
             rule_type: payload.ruleType,
             reason: payload.reason,
+            email: payload.email,
             expires_at: payload.expiresAt,
           }
         : {
@@ -544,6 +549,7 @@ export const guestService = {
             mac_address: payload.macAddress,
             rule_type: payload.ruleType,
             reason: payload.reason,
+            email: payload.email,
             expires_at: payload.expiresAt,
           };
     const { data } = await api.post<BackendAccessRule | BackendDeviceAccessRule>(path, body, {

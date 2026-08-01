@@ -1,9 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Laptop, LogOut } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
 import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { portalRuntimeService } from "@/services/portal-runtime.service";
+import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/session")({
   component: SessionPage,
@@ -20,6 +24,31 @@ function SessionPage() {
   const { t, session, setSession } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/session" });
   const [now, setNow] = useState(0);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // Previously this button only cleared local app state (setSession) and
+  // navigated away -- the real GuestSession on the backend (and the
+  // router's own RADIUS-authorized hotspot session) stayed ACTIVE, since
+  // nothing ever told the server. A guest tapping "Log out" here looked
+  // logged out in this app while still actually connected -- confirmed
+  // live via the "disconnect wala page kaam nahi karta" report. Mirrors
+  // portal.success.tsx's own disconnect mutation exactly, since guests
+  // now reach this same "already connected" page from the hotspot's own
+  // status.html/alogin.html redirect (see RouterDetailTabs.tsx's
+  // PORTAL_OVERRIDE_FILES), not just success.tsx.
+  const disconnect = useMutation({
+    mutationFn: () =>
+      portalRuntimeService.disconnectSession({
+        guestId: session?.guestId ?? "",
+        sessionId: session?.sessionId ?? "",
+        reason: "guest tapped disconnect",
+      }),
+    onSuccess: () => {
+      setSession(undefined);
+      navigate({ to: "/portal/expired", search: (prev) => prev });
+    },
+    onError: (e: AppError) => setDisconnectError(e.message),
+  });
 
   useEffect(() => {
     if (!session) {
@@ -94,15 +123,14 @@ function SessionPage() {
             </div>
           </div>
         </PortalCard>
+        <AlertBanner message={disconnectError} />
         <Button
           variant="outline"
           className="h-11 w-full border-white/15 bg-white/[0.06] text-white hover:bg-white/10 hover:text-white"
-          onClick={() => {
-            setSession(undefined);
-            navigate({ to: "/portal/expired", search: (prev) => prev });
-          }}
+          disabled={disconnect.isPending}
+          onClick={() => disconnect.mutate()}
         >
-          <LogOut className="me-2 h-4 w-4" /> {t("logout")}
+          <LogOut className="me-2 h-4 w-4" /> {disconnect.isPending ? "Disconnecting…" : t("logout")}
         </Button>
       </div>
     </PortalShell>

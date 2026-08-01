@@ -55,6 +55,7 @@ export function GuestSignInCard() {
     termsAccepted,
     setTermsAccepted,
     previewMode,
+    setGuestIdentifier,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = { organizationId, locationId, routerId };
@@ -107,7 +108,7 @@ export function GuestSignInCard() {
   );
 
   // ---- OTP tab state -------------------------------------------------
-  const [phase, setPhase] = useState<"phone" | "code">("phone");
+  const [phase, setPhase] = useState<"phone" | "code" | "profile">("phone");
   const [countryCode, setCountryCode] = useState("+1");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -115,6 +116,17 @@ export function GuestSignInCard() {
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // ---- Post-OTP "tell us about yourself" prompt -----------------------
+  // Shown once, only to a brand-new guest, only right after mobile-OTP
+  // (not email-OTP or password/voucher) -- entirely skippable, never
+  // blocks network access. `pendingSession` holds the just-verified
+  // session until the guest fills it in or skips, since `afterLogin`
+  // (real navigation onward) only fires once this phase resolves.
+  const [pendingSession, setPendingSession] = useState<RuntimeSession | null>(null);
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -161,6 +173,17 @@ export function GuestSignInCard() {
     onSuccess: async (session) => {
       setOtpError(null);
       setSelectedMethod(otpChannel === "sms" ? "otp_sms" : "otp_email");
+      // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's own
+      // RADIUS Authorize checks this exact value, not a hardcoded one.
+      setGuestIdentifier(target.trim());
+      // Mobile-OTP only, and only the very first time this guest has ever
+      // signed in -- an email-OTP or returning guest skips straight to
+      // afterLogin exactly as before.
+      if (otpChannel === "sms" && session.isNewGuest) {
+        setPendingSession(session);
+        setPhase("profile");
+        return;
+      }
       await afterLogin(session);
     },
     // A wrong/expired code 400/410s with a real, already-plain-English
@@ -189,6 +212,7 @@ export function GuestSignInCard() {
     onSuccess: async (session) => {
       setPasswordError(null);
       setSelectedMethod("username_password");
+      setGuestIdentifier(identifier.trim());
       await afterLogin(session);
     },
     onError: (e: AppError) => setPasswordError(friendlyGuestAuthError(e, "password")),
@@ -216,6 +240,37 @@ export function GuestSignInCard() {
       search: (prev) => prev,
     });
   }
+
+  const onSaveProfile = async () => {
+    if (!pendingSession) return;
+    const name = profileName.trim();
+    const emailInput = profileEmail.trim();
+    if (!name && !emailInput) {
+      await afterLogin(pendingSession);
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await portalRuntimeService.updateGuestProfile({
+        guestId: pendingSession.guestId,
+        sessionId: pendingSession.sessionId,
+        displayName: name || undefined,
+        email: emailInput || undefined,
+      });
+    } catch {
+      // Never blocks getting online -- the guest already has a real,
+      // active session at this point (this is a courtesy detail, not a
+      // login step), so a failure here just skips silently.
+    } finally {
+      setSavingProfile(false);
+      await afterLogin(pendingSession);
+    }
+  };
+
+  const onSkipProfile = async () => {
+    if (!pendingSession) return;
+    await afterLogin(pendingSession);
+  };
 
   const onSendOtp = () => {
     const id = identifierForChannel.trim();
@@ -410,7 +465,49 @@ export function GuestSignInCard() {
 
             {tab === "otp" && hasOtp && (
               <div className="space-y-3.5">
-                {phase === "phone" ? (
+                {phase === "profile" ? (
+                  <>
+                    <p className="text-center text-sm text-slate-500">
+                      You're connected! Tell us a bit about yourself <span className="text-slate-400">(optional)</span>.
+                    </p>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500">Name</label>
+                      <Input
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        placeholder="Jane Doe"
+                        autoFocus
+                        className={PG_INPUT}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500">Email address</label>
+                      <Input
+                        value={profileEmail}
+                        onChange={(e) => setProfileEmail(e.target.value)}
+                        type="email"
+                        placeholder="you@example.com"
+                        className={PG_INPUT}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onSaveProfile}
+                      disabled={savingProfile}
+                      className={PG_PRIMARY_BTN}
+                    >
+                      {savingProfile ? "Saving…" : "Continue"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onSkipProfile}
+                      disabled={savingProfile}
+                      className="w-full text-center text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                    >
+                      Skip for now
+                    </button>
+                  </>
+                ) : phase === "phone" ? (
                   <>
                     <label className="text-xs font-semibold text-slate-500">
                       {otpChannel === "sms" ? "Mobile number" : "Email address"}

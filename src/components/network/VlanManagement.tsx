@@ -122,6 +122,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Network}
         eyebrow="Network"
         title="VLAN Management"
         description="Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."
@@ -138,7 +139,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
         <StatCard label="Disabled" value={kpis?.disabled ?? 0} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All VLANs</CardTitle>
           <div className="flex flex-wrap items-center gap-2">

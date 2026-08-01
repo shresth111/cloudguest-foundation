@@ -87,6 +87,25 @@ interface BackendGuestLoginResponse {
   device: BackendGuestDevice | null;
 }
 
+interface BackendGuestTeamMember {
+  id: string;
+  team_id: string;
+  guest_id: string;
+  joined_at: string;
+  is_active: boolean;
+  left_at: string | null;
+  removal_reason: string | null;
+}
+
+interface BackendGuestTeamJoinResponse {
+  team_id: string;
+  guest_id: string;
+  identifier: string;
+  is_new_guest: boolean;
+  is_new_membership: boolean;
+  membership: BackendGuestTeamMember;
+}
+
 function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
   return {
     id: c.id,
@@ -303,5 +322,51 @@ export const portalRuntimeService = {
       captive_portal_config_id: params.captivePortalConfigId,
       terms_version: params.termsVersion,
     });
+  },
+
+  /** The skippable "tell us about yourself" prompt shown once, right after
+   * a brand-new guest's first mobile-OTP login -- `guestId`/`sessionId` are
+   * the exact same proof-of-just-completed-OTP-session pair
+   * `setGuestPassword` would use, from the `RuntimeSession` that same OTP
+   * login just returned. Never blocks network access -- the caller only
+   * invokes this if the guest actually filled something in. */
+  async updateGuestProfile(params: {
+    guestId: string;
+    sessionId: string;
+    displayName?: string;
+    email?: string;
+  }): Promise<void> {
+    await guestPortalApi.post("/guest/profile", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+      display_name: params.displayName || undefined,
+      email: params.email || undefined,
+    });
+  },
+
+  /** Guest-initiated "join a team" -- `POST /guest-teams/join`
+   * (`GuestTeamService.join_team`), the real no-RBAC guest-facing endpoint
+   * an admin's generated `teamCode` (GuestTeamManagement.tsx) is meant to
+   * be redeemed against. `identifier` is deliberately the *same* real
+   * phone/email `guestIdentifier` this browsing session already proved
+   * ownership of via OTP/password/voucher (see PortalRuntimeState's own
+   * docstring) -- this call never re-proves identity, it only attaches an
+   * already-authenticated guest to a team. Idempotent on the backend
+   * (`is_new_membership: false` if already a member) rather than erroring,
+   * surfaced here as a distinct, still-successful outcome rather than a
+   * generic error. */
+  async joinTeam(params: {
+    teamCode: string;
+    identifier: string;
+    deviceMac?: string;
+    deviceName?: string;
+  }): Promise<{ isNewMembership: boolean }> {
+    const { data } = await guestPortalApi.post<BackendGuestTeamJoinResponse>("/guest-teams/join", {
+      team_code: params.teamCode,
+      identifier: params.identifier,
+      device_mac: params.deviceMac,
+      device_name: params.deviceName,
+    });
+    return { isNewMembership: data.is_new_membership };
   },
 };

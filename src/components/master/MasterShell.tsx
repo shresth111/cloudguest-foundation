@@ -34,18 +34,68 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
 ];
 
-/** Operator capability model. Super Admin gets everything; other operator
- * roles would receive a narrower set from the API. Flat list checked by
- * usePermission-style membership so nav, routes and actions can gate on it. */
+/** Maps each Master console capability key to the real backend
+ * `permission_key`(s) (`{module}.{action}`, per
+ * `app/domains/rbac/enums.py`'s `PermissionModule`/`PermissionAction`) that
+ * unlock it -- confirmed against the actual `RequirePermission(...)`
+ * dependency each nav destination's own backend router enforces (e.g.
+ * `app/domains/audit/router.py` requires `audit_logs.read`,
+ * `app/domains/billing/router.py` requires `billing.read`/`billing.update`,
+ * `app/domains/provisioning_engine/router.py`'s device-console-command
+ * endpoint requires `device_console.execute`). A capability is granted iff
+ * at least one of its listed keys is present in the operator's own
+ * effective grants.
+ *
+ * `impersonate` has no corresponding permission anywhere in the RBAC model
+ * (no `PermissionModule`/action pair, no `RequirePermission("*impersonate*")`
+ * call site) because no impersonation feature exists in the console yet --
+ * this key itself has zero call sites today (nothing calls
+ * `caps.has("impersonate")`). Gated on `users.manage`, the closest existing
+ * permission, as a conservative placeholder; wiring an actual "log in as
+ * this customer" feature needs its own dedicated `users.impersonate`
+ * permission_key added to the backend first, a product/RBAC decision, not
+ * something to invent here.
+ */
+const CAP_PERMISSIONS: Record<string, string[]> = {
+  overview: ["dashboard.view"],
+  customers: ["organizations.read"],
+  locations: ["locations.read"],
+  billing: ["billing.read"],
+  nas: ["radius.read"],
+  routers: ["routers.read"],
+  console: ["device_console.read", "device_console.execute"],
+  analytics: ["analytics.read", "analytics.view"],
+  health: ["monitoring.read", "monitoring.view"],
+  tickets: ["support_tickets.read"],
+  "demo-requests": ["demo_requests.read"],
+  audit: ["audit_logs.read"],
+  settings: ["system_settings.read"],
+  "billing.edit": ["billing.update", "billing.manage"],
+  "router.control": ["routers.execute", "routers.manage"],
+  "nas.generate": ["radius.execute", "radius.manage"],
+  impersonate: ["users.manage"],
+};
+
+/** Operator capability model. Previously returned the *same* full capability
+ * set regardless of role ("return new Set(isSuper ? all : all)" -- both
+ * branches were identical, so every authenticated Master-console operator,
+ * not just Super Admin, saw and could act on every nav item and every
+ * gated action). Real operator roles are genuinely narrower -- e.g.
+ * "Platform Support" is READ-only outside a handful of overrides and holds
+ * no `system_settings.*`/`billing.*` grants at all, "Billing Manager" holds
+ * no `organizations.*`/`locations.*`/`routers.*` grants (see
+ * `app/domains/rbac/seed.py`'s `SYSTEM_ROLES`) -- so this now checks each
+ * capability against the operator's real, backend-issued effective
+ * permissions (`useAuth().can()`, populated from `GET /me/permissions`,
+ * itself resolved from the operator's actual role grants in Postgres --
+ * never client-side-only state or a hardcoded default). */
 export function useOperatorCaps(): Set<string> {
-  const { roles } = useAuth();
-  const isSuper = roles.some((r) =>
-    ["super-admin", "super_admin", "platform-admin", "owner"].includes(r.roleSlug ?? ""),
-  );
-  const all = MASTER_NAV.map((n) => n.cap!).concat(["impersonate", "billing.edit", "router.control", "nas.generate"]);
-  // Default to full access in demo/super context; real non-super operators
-  // would intersect against their granted caps here.
-  return new Set(isSuper ? all : all);
+  const { can } = useAuth();
+  const granted = new Set<string>();
+  for (const [cap, permissionKeys] of Object.entries(CAP_PERMISSIONS)) {
+    if (permissionKeys.some((key) => can(key))) granted.add(cap);
+  }
+  return granted;
 }
 
 export function MasterShell({ title, children }: { title: string; children: React.ReactNode }) {

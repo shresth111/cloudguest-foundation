@@ -41,19 +41,19 @@ export function CustomerSidebar({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all lg:static lg:z-auto",
+        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/10 bg-gradient-to-b from-[#1e1b4b] to-[#181530] text-white transition-all lg:static lg:z-auto",
         expanded ? "w-60" : "w-0 lg:w-16 overflow-hidden",
         mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
       )}
     >
-      <div className="flex items-center gap-3 px-4 h-16 border-b shrink-0">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm">
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm">
           <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
         </div>
         {expanded && (
           <div>
             <p className="text-sm font-semibold">ZIP WiFi</p>
-            <p className="text-[10px] text-muted-foreground">{subtitle ?? "Portal"}</p>
+            <p className="text-[10px] text-white/50">{subtitle ?? "Portal"}</p>
           </div>
         )}
       </div>
@@ -61,7 +61,7 @@ export function CustomerSidebar({
         {navGroups.map((g) => (
           <div key={g.id} className="space-y-0.5">
             {expanded && (
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
                 {g.label}
               </p>
             )}
@@ -75,16 +75,14 @@ export function CustomerSidebar({
                   title={item.label}
                   className={cn(
                     // A left border on the active item (and a neutral, not
-                    // primary-tinted, hover fill) so hovering a nearby item
-                    // can never read as "also selected" -- `--accent` sits
-                    // close enough to `--primary`'s own hue that hovering
-                    // one item while the real active item is highlighted
-                    // elsewhere used to look like two items were selected
-                    // at once.
+                    // brand-tinted, hover fill) so hovering a nearby item
+                    // can never read as "also selected" -- a hover fill in
+                    // the same hue as the active state used to look like
+                    // two items were selected at once.
                     "flex w-full items-center gap-3 rounded-lg border-l-2 px-3 py-2 text-sm text-left transition-all",
                     active
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                      ? "border-[#4f46e5] bg-[#4f46e5]/20 text-white font-medium"
+                      : "border-transparent text-white/60 hover:bg-white/10 hover:text-white",
                     !expanded && "justify-center",
                   )}
                 >
@@ -96,10 +94,10 @@ export function CustomerSidebar({
           </div>
         ))}
       </nav>
-      <div className="border-t p-2 hidden lg:block">
+      <div className="border-t border-white/10 p-2 hidden lg:block">
         <button
           onClick={onToggleCollapsed}
-          className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent"
+          className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white"
         >
           {expanded ? "◄" : "►"}
         </button>

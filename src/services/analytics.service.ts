@@ -646,9 +646,14 @@ interface BackendScheduledReport {
   is_active: boolean;
 }
 
-// Only these six ReportType values exist on both sides -- backend also has
-// "dashboard"/"health" (no frontend equivalent yet); frontend also has
+// These seven ReportType values exist on both sides -- backend also has
+// "health" (no frontend equivalent yet); frontend also has
 // "audit"/"billing"/"monitoring" (no backend ReportType composes those).
+// "dashboard" is the Master Console's own platform-wide Super Admin
+// Dashboard report (ReportType.DASHBOARD -> DashboardService
+// .get_super_admin_dashboard, GLOBAL-scoped, no organization_id/header
+// needed -- see report_service.py's own generate() branch for it), used by
+// master.analytics.tsx's "Export" header action.
 const REPORT_TYPE_TO_BACKEND: Partial<Record<ReportType, string>> = {
   guest: "guest",
   router: "router",
@@ -656,6 +661,7 @@ const REPORT_TYPE_TO_BACKEND: Partial<Record<ReportType, string>> = {
   organization: "organization",
   location: "location",
   revenue: "revenue",
+  dashboard: "dashboard",
 };
 
 const BACKEND_TO_REPORT_TYPE: Record<string, ReportType> = {
@@ -665,8 +671,8 @@ const BACKEND_TO_REPORT_TYPE: Record<string, ReportType> = {
   organization: "organization",
   location: "location",
   revenue: "revenue",
-  // No direct frontend equivalent for these two -- approximated.
-  dashboard: "organization",
+  dashboard: "dashboard",
+  // No direct frontend equivalent for this one -- approximated.
   health: "monitoring",
 };
 

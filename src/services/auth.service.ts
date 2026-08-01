@@ -159,6 +159,7 @@ export const authService = {
       email: creds.email,
       password: creds.password,
       mfa_code: creds.mfaCode,
+      new_password: creds.newPassword,
     });
     return toSession(data);
   },
@@ -176,6 +177,28 @@ export const authService = {
 
   async me(): Promise<User> {
     const { data } = await api.get<BackendUser>("/auth/me");
+    return toUser(data);
+  },
+
+  // Self-service profile update (PUT /me, app.domains.user.router
+  // .update_my_profile). Only first_name/last_name/phone/timezone/language/
+  // profile_photo are self-editable (see MeUpdateRequest's own docstring) --
+  // designation/department/employee_id are org-managed and require a
+  // different actor with the users.update permission.
+  async updateMyProfile(input: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    timezone?: string;
+    language?: string;
+  }): Promise<User> {
+    const { data } = await api.put<BackendUser>("/me", {
+      first_name: input.firstName,
+      last_name: input.lastName,
+      phone: input.phone,
+      timezone: input.timezone,
+      language: input.language,
+    });
     return toUser(data);
   },
 

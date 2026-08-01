@@ -59,7 +59,7 @@ function Tooltip({ id, text }: { id: string; text: string }) {
         aria-label={`Help for ${id}`}
         onClick={() => setOpen((p) => !p)}
         onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget)) close(); }}
-        className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-slate-500 dark:hover:text-slate-300"
+        className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-500 dark:hover:text-slate-300"
       >
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
@@ -87,16 +87,16 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
   return (
     <div>
       <label htmlFor={id} className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-        {label}{required && <span className="text-orange-500">*</span>}
+        {label}{required && <span className="text-indigo-500">*</span>}
         {tooltip && <Tooltip id={id} text={tooltip} />}
       </label>
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
       >
         {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-      {err && <p className="mt-0.5 text-xs text-orange-500">{err}</p>}
+      {err && <p className="mt-0.5 text-xs text-indigo-500">{err}</p>}
     </div>
   );
 }
@@ -208,13 +208,23 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
       const existingId = realIds[f.businessUnit];
       const saved = await bandwidthPolicyService.save({ id: existingId, name: f.businessUnit, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps }, orgId ?? undefined);
+      // Saving only creates/updates the policy's own rules -- it was never
+      // actually applied anywhere (confirmed live: a saved policy had zero
+      // rows in policy_assignments), since a Policy and its
+      // location-scoped PolicyAssignment are two separate backend
+      // concepts. bandwidthPolicyService.mapToLocation already exists
+      // (CreateGroup.tsx's own "Map group" step uses it) and is
+      // idempotent, so this is the one missing call, not new backend work.
+      if (locationId) {
+        await bandwidthPolicyService.mapToLocation(saved.id, locationId, orgId ?? undefined);
+      }
       setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
       const row: Policy = { id: saved.id, ...f, dataLimit };
       setPolicies((prev) => {
         const existing = prev.findIndex((p) => p.id === saved.id);
         return existing >= 0 ? prev.map((p, i) => i === existing ? row : p) : [row, ...prev];
       });
-      setToast("Policies updated.");
+      setToast(locationId ? "Policy saved and applied to this location." : "Policies updated.");
       setTimeout(() => setToast(null), 2500);
     } catch {
       setToast("Could not save — check the connection and try again.");
@@ -243,7 +253,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
   // ── helpers ───────────────────────────────────────────────────
   const showToast = toast;
-  const Err = ({ k }: { k: keyof PolicyForm }) => errs[k] ? <p className="mt-0.5 text-xs text-orange-500">{errs[k]}</p> : null;
+  const Err = ({ k }: { k: keyof PolicyForm }) => errs[k] ? <p className="mt-0.5 text-xs text-indigo-500">{errs[k]}</p> : null;
 
   return (
     <div className="space-y-6">
@@ -259,13 +269,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
         <p className="text-sm text-amber-800 dark:text-amber-200">
           These settings apply to every guest at this location the moment you save. Check the impact before updating,
-          or contact <a href="mailto:support@zipwifi.io" className="font-medium text-orange-600 underline dark:text-orange-400">support@zipwifi.io</a> for help.
+          or contact <a href="mailto:support@zipwifi.io" className="font-medium text-indigo-600 underline dark:text-indigo-400">support@zipwifi.io</a> for help.
         </p>
       </div>
 
       {/* form card */}
       <Card className="border-0 shadow-sm">
-      <CardHeader><CardTitle className="text-sm">Location Policies</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-sm">Usage Limits</CardTitle></CardHeader>
       <CardContent>
         <div className="grid gap-4 md:grid-cols-2">
           <Select id="bu" label="Business Unit" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose Business Unit" err={errs.businessUnit} />
@@ -282,10 +292,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           onClick={() => setDataLimitOpen((p) => !p)}
           aria-expanded={dataLimitOpen}
           aria-controls="data-limit-panel"
-          className="mt-5 flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:hover:bg-slate-700"
+          className="mt-5 flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
         >
           <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-            <Plus className="h-4 w-4 text-orange-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span>
+            <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span>
           </span>
           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`} />
         </button>
@@ -294,16 +304,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div id="data-limit-panel" className="mt-4 grid gap-4 md:grid-cols-3">
             <div>
               <label htmlFor="dl-quota" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Data quota</label>
-              <input id="dl-quota" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-              {errs.dataLimit && <p className="mt-0.5 text-xs text-orange-500">{errs.dataLimit}</p>}
+              <input id="dl-quota" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+              {errs.dataLimit && <p className="mt-0.5 text-xs text-indigo-500">{errs.dataLimit}</p>}
             </div>
             <div>
               <label htmlFor="dl-unit" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Unit</label>
-              <select id="dl-unit" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+              <select id="dl-unit" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
             </div>
             <div>
               <label htmlFor="dl-resets" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Resets</label>
-              <select id="dl-resets" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+              <select id="dl-resets" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
             </div>
           </div>
         )}
@@ -322,13 +332,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       <Card className="border-0 shadow-sm">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
-            <CardTitle className="text-sm">Current Location Policies</CardTitle>
+            <CardTitle className="text-sm">Current Usage Limits</CardTitle>
             <p className="text-xs text-muted-foreground">The policies currently active for the selected space.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
+              <input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
             </div>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
               {PAGE_SIZE_OPTS.map((n) => (
@@ -366,11 +376,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   <TableCell>{p.devicesPerUser}</TableCell>
                   <TableCell className="text-xs">{p.dataLimit ? `${p.dataLimit.quota} ${p.dataLimit.unit} / ${p.dataLimit.resets}` : <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="text-right">
-                    <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
+                    <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
                     <button
                       aria-label={confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`}
                       onClick={() => handleDelete(p.id)}
-                      className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirming === p.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}
+                      className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirming === p.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}
                     >
                       {confirming === p.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                     </button>
@@ -386,8 +396,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
             <span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-1">
-              <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronLeft className="h-4 w-4" /></button>
-              <button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronRight className="h-4 w-4" /></button>
+              <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronLeft className="h-4 w-4" /></button>
+              <button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronRight className="h-4 w-4" /></button>
             </div>
           </div>
         )}

@@ -18,6 +18,7 @@ import type {
 import { RTL_LANGS, translate } from "@/lib/portal-i18n";
 
 const SESSION_STORAGE_KEY = "cloudguest_portal_session";
+const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
 
 function loadPersistedSession(): RuntimeSession | undefined {
   if (typeof window === "undefined") return undefined;
@@ -33,6 +34,17 @@ function persistSession(session: RuntimeSession | undefined) {
   if (typeof window === "undefined") return;
   if (session) window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+function loadPersistedIdentifier(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.sessionStorage.getItem(IDENTIFIER_STORAGE_KEY) ?? undefined;
+}
+
+function persistIdentifier(identifier: string | undefined) {
+  if (typeof window === "undefined") return;
+  if (identifier) window.sessionStorage.setItem(IDENTIFIER_STORAGE_KEY, identifier);
+  else window.sessionStorage.removeItem(IDENTIFIER_STORAGE_KEY);
 }
 
 interface PortalRuntimeState {
@@ -74,6 +86,22 @@ interface PortalRuntimeState {
   setSession: (s?: RuntimeSession) => void;
   termsAccepted: boolean;
   setTermsAccepted: (v: boolean) => void;
+  /** The real identifier (phone/email, normalized the same way the login
+   * call itself sent it) this guest just proved ownership of via OTP/
+   * password/voucher -- NOT the same thing as `session.guestId` (an
+   * internal UUID). Real incident: the hotspot login POST
+   * (portal.success.tsx) used to send a hardcoded shared username
+   * ("guest") regardless of who actually logged in -- harmless against a
+   * hotspot profile with `use-radius=no` (checks a local user list), but
+   * every `use-radius=yes` profile's RADIUS Authorize
+   * (`RadiusService.authorize`) checks whether *this exact username* has
+   * a currently-active GuestSession, so a hardcoded "guest" that has no
+   * session of its own always got rejected -- silently, since RADIUS has
+   * no "why" in its reply, just accept/reject. Persisted the same way
+   * `session` is (survives the real top-level navigation to the NAS and
+   * back), since that's exactly when it's needed. */
+  guestIdentifier?: string;
+  setGuestIdentifier: (v?: string) => void;
 }
 
 const Ctx = createContext<PortalRuntimeState | null>(null);
@@ -135,10 +163,18 @@ export function PortalRuntimeProvider({
     loadPersistedSession(),
   );
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [guestIdentifier, setGuestIdentifierState] = useState<string | undefined>(() =>
+    loadPersistedIdentifier(),
+  );
 
   const setSession = useCallback((s: RuntimeSession | undefined) => {
     setSessionState(s);
     persistSession(s);
+  }, []);
+
+  const setGuestIdentifier = useCallback((v: string | undefined) => {
+    setGuestIdentifierState(v);
+    persistIdentifier(v);
   }, []);
 
   useEffect(() => {
@@ -204,6 +240,8 @@ export function PortalRuntimeProvider({
       setSession,
       termsAccepted,
       setTermsAccepted,
+      guestIdentifier,
+      setGuestIdentifier,
     }),
     [
       organizationId,
@@ -225,6 +263,8 @@ export function PortalRuntimeProvider({
       session,
       setSession,
       termsAccepted,
+      guestIdentifier,
+      setGuestIdentifier,
     ],
   );
 

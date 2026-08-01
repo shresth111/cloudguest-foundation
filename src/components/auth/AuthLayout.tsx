@@ -92,8 +92,8 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             "--card-foreground": "oklch(0.22 0.03 235)",
             "--popover": "oklch(1 0 0)",
             "--popover-foreground": "oklch(0.22 0.03 235)",
-            "--primary": "oklch(0.52 0.115 208)",
-            "--primary-foreground": "oklch(0.99 0.01 200)",
+            "--primary": "#4f46e5",
+            "--primary-foreground": "#ffffff",
             "--secondary": "oklch(0.955 0.012 216)",
             "--secondary-foreground": "oklch(0.26 0.03 232)",
             "--muted": "oklch(0.962 0.008 218)",
@@ -104,7 +104,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             "--destructive-foreground": "oklch(0.99 0.005 250)",
             "--border": "oklch(0.905 0.012 220)",
             "--input": "oklch(0.925 0.012 220)",
-            "--ring": "oklch(0.58 0.12 205)",
+            "--ring": "#6366f1",
           } as React.CSSProperties
         }
       >

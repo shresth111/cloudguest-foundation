@@ -201,7 +201,11 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
       </TabsContent>
 
       <TabsContent value="setup-script">
-        <SetupScriptTab routerId={router.id} />
+        <SetupScriptTab
+          routerId={router.id}
+          organizationId={router.organizationId}
+          locationId={router.locationId}
+        />
       </TabsContent>
       <TabsContent value="wireguard">
         <WireGuardTab routerId={router.id} />
@@ -237,7 +241,7 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         <ProvisioningTab routerId={router.id} />
       </TabsContent>
       <TabsContent value="diagnostics">
-        <DiagnosticsTab routerId={router.id} />
+        <DiagnosticsTab routerId={router.id} organizationId={router.organizationId} />
       </TabsContent>
       <TabsContent value="audit">
         <RouterAuditTab routerId={router.id} />
@@ -746,11 +750,11 @@ function ProvisioningTab({ routerId }: { routerId: string }) {
   );
 }
 
-function DiagnosticsTab({ routerId }: { routerId: string }) {
+function DiagnosticsTab({ routerId, organizationId }: { routerId: string; organizationId?: string }) {
   const [target, setTarget] = useState("");
-  const runs = useDiagnosticRuns(routerId);
-  const ping = usePingRouter(routerId);
-  const traceroute = useTracerouteRouter(routerId);
+  const runs = useDiagnosticRuns(routerId, organizationId);
+  const ping = usePingRouter(routerId, organizationId);
+  const traceroute = useTracerouteRouter(routerId, organizationId);
 
   async function handlePing() {
     if (!target.trim()) return;
@@ -969,6 +973,233 @@ export interface WireguardPeerInfo {
   serverEndpointHost: string;
   serverEndpointPort: string;
   tunnelSubnet: string;
+  /** The hub's own address *inside* the tunnel (e.g. "10.20.0.1") -- see
+   * ``WireGuardTunnelCreateResponse.hub_tunnel_ip_address``'s own
+   * docstring. This, not the hub's public IP, is what a generated
+   * `/radius add address=...` line should point at: at least one real
+   * site's ISP silently drops outbound RADIUS UDP (1812/1813) straight to
+   * the hub's public IP, but never touches WireGuard's own UDP port,
+   * which every router already has an open tunnel through. */
+  hubTunnelIpAddress: string;
+}
+
+/** Escapes a string for embedding inside a RouterOS double-quoted string
+ * literal -- RouterOS's own parser evaluates `$(...)`/`$var` even inside
+ * double quotes, so `$` must be escaped too, not just `"`/`\`. Order
+ * matters: backslashes first, then quotes/dollar (each adds a NEW
+ * backslash that must not be re-escaped), real newlines last. Apply this
+ * ONCE for a value embedded directly as a top-level command argument, or
+ * TWICE for a value embedded inside a second, already-escaped layer (e.g.
+ * the heartbeat scheduler's `on-event=(...)` string, itself built via
+ * RouterOS string concatenation with its own backslash-escaped quotes). */
+function escapeForRouterOsString(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/\n/g, "\\n");
+}
+
+/** Shared by both `buildRouterSetupScript` and `buildRouterSetupScriptChunks`
+ * -- whichever of the two generated a given router's script, the guest-
+ * facing result (which stock MikroTik pages get overridden, and what URL
+ * they redirect to) must be identical. */
+export interface PortalOverrideConfig {
+  frontendBase: string;
+  organizationId: string;
+  locationId: string;
+  routerId: string;
+}
+
+/** The real `/portal` entry route's own `validateSearch` (src/routes/
+ * portal.tsx) requires exactly these three IDs and optionally reads
+ * `mac`/`dst`/`link-login-only`. All three optional params are RouterOS's
+ * own *general* hotspot variables -- documented as available on every
+ * stock page, not just login.html -- so the same URL shape is reused for
+ * every file `PORTAL_OVERRIDE_FILES` overrides below, even ones
+ * (status.html/logout.html) where a login-only POST doesn't apply: it lets
+ * `/portal`'s own existing routing (src/routes/portal.index.tsx -- a
+ * persisted session or a live `checkActiveSession` lookup sends an
+ * already-authenticated guest straight to `/portal/session`, anyone else to
+ * the normal sign-in flow) decide what to do with them, instead of this
+ * script guessing per file. An unused param costs nothing. */
+function buildPortalUrl(portalUrl: PortalOverrideConfig): string {
+  return (
+    `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
+    `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
+    `&mac=$(mac)&dst=$(link-orig)&link-login-only=$(link-login-only)`
+  );
+}
+
+/** One small, self-refreshing HTML page that immediately redirects to the
+ * real portal -- the same shape already confirmed live for login.html,
+ * reused for every file in `PORTAL_OVERRIDE_FILES`. Caller applies
+ * `escapeForRouterOsString` once, when embedding this as a RouterOS string
+ * literal -- not done here, so this stays plain, readable HTML. */
+function buildPortalRedirectHtml(url: string, page: { title: string; body: string }): string {
+  return [
+    "<!DOCTYPE html>",
+    '<html><head><meta charset="utf-8">',
+    `<meta http-equiv="refresh" content="2;url=${url}">`,
+    `<title>${page.title}</title>`,
+    "<style>body{font-family:-apple-system,sans-serif;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px}",
+    ".box{max-width:360px}h1{font-size:20px;margin:0 0 8px}p{color:#94a3b8;font-size:14px;margin:0}</style>",
+    "</head>",
+    '<body><div class="box">',
+    `<h1>${page.title}</h1>`,
+    `<p>${page.body}</p>`,
+    "</div>",
+    `<script>window.location.href = "${url}";</script>`,
+    "</body></html>",
+  ].join("\n");
+}
+
+/** Every stock MikroTik hotspot template file this script overwrites with a
+ * redirect to the real portal, and why -- checked against RouterOS's own
+ * documented page-serving rules (MikroTik "Hotspot customisation" docs),
+ * not assumed:
+ *  - login.html: served to a guest who is NOT yet authenticated.
+ *  - rlogin.html: served to a NOT-yet-authenticated guest whose request hit
+ *    a destination the walled garden disallows -- given the walled-garden
+ *    entry this script adds below (only the portal host itself is let
+ *    through pre-auth), that's almost every destination a guest's
+ *    browser/OS tries first, making this at least as reachable as
+ *    login.html itself, not a rare corner case.
+ *  - alogin.html: served once the guest IS already authenticated (right
+ *    after a login succeeds, or when an already-authorized device's
+ *    browser hits the hotspot again -- e.g. an OS's periodic
+ *    captive-portal-detection probe). A real, distinct entry into
+ *    "you're already connected", not a login-flow page despite the name.
+ *  - status.html: served at the hotspot's own address (its LAN IP) to an
+ *    already-authenticated guest who navigates there directly.
+ *  - logout.html: served once RouterOS finishes processing a real
+ *    `$(link-logout)`-triggered logout.
+ * Deliberately left as MikroTik's stock files (overriding them would be
+ * dead code under this platform's actual hotspot-profile configuration):
+ *  - radvert.html: only served when the hotspot profile has an
+ *    advertisement scheduled (`advertise-*` settings) -- this script never
+ *    sets any. This platform's own ad experience
+ *    (`config.advertisementBannerUrl`, shown by `/portal/ad`) is served
+ *    entirely inside the real portal after login instead, so RouterOS
+ *    never has an ad "due" that would trigger this file.
+ *  - redirect.html: RouterOS's own documented fallback for when a
+ *    preferred file (rlogin.html/alogin.html/etc.) is missing from the
+ *    html-directory. This script only ever overwrites the *contents* of
+ *    files that already ship in RouterOS's stock "hotspot" folder (via
+ *    `/file set`), never deletes one -- that "file not found" condition
+ *    can never actually occur here. */
+const PORTAL_OVERRIDE_FILES: { path: string; title: string; body: string }[] = [
+  {
+    path: "flash/hotspot/login.html",
+    title: "Sign-in required",
+    body: "You must sign in to access the internet on this network. Redirecting you to the sign-in page...",
+  },
+  {
+    path: "flash/hotspot/rlogin.html",
+    title: "Sign-in required",
+    body: "You must sign in to access the internet on this network. Redirecting you to the sign-in page...",
+  },
+  {
+    path: "flash/hotspot/alogin.html",
+    title: "You're connected",
+    body: "Redirecting you to your connection status...",
+  },
+  {
+    path: "flash/hotspot/status.html",
+    title: "You're connected",
+    body: "Redirecting you to your connection status...",
+  },
+  {
+    path: "flash/hotspot/logout.html",
+    title: "Signed out",
+    body: "Redirecting you back to sign-in...",
+  },
+];
+
+/** One `/file set ...` RouterOS command per `PORTAL_OVERRIDE_FILES` entry,
+ * each pointed at the same real portal URL. Returned as `{ label, line }`
+ * pairs rather than one joined string so a caller can decide for itself
+ * whether to paste them as one chunk or several (see
+ * `buildRouterSetupScriptChunks`'s own per-file chunking, done for the same
+ * WinBox-paste-reliability reason as everything else in that function). */
+function buildPortalOverrideFileSetLines(
+  portalUrl: PortalOverrideConfig,
+): { label: string; line: string }[] {
+  const url = buildPortalUrl(portalUrl);
+  return PORTAL_OVERRIDE_FILES.map((page) => ({
+    label: page.path.replace("flash/hotspot/", ""),
+    line: `/file set [find name="${page.path}"] contents="${escapeForRouterOsString(buildPortalRedirectHtml(url, page))}"`,
+  }));
+}
+
+/** Lets an unauthenticated guest's browser actually reach the real portal
+ * at all -- without this, the hotspot's own captive-portal interception
+ * blocks it exactly like any other pre-auth destination (see
+ * `PORTAL_OVERRIDE_FILES`' own note on rlogin.html). Returns `null` if
+ * `frontendBase` isn't a parseable URL (nothing sensible to wall in). IP
+ * literal vs. real hostname decides `dst-address` (IP-level walled garden)
+ * vs. `dst-host` (host-based) -- using the wrong one silently does nothing,
+ * RouterOS won't reject a malformed `dst-address` the way you'd hope. */
+function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
+  const portalHost = (() => {
+    try {
+      return new URL(portalUrl.frontendBase).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  if (!portalHost) return null;
+  const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
+  return isIpLiteral
+    ? `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`
+    : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`;
+}
+
+/** Every WAN interface name this script references is taken literally,
+ * exactly once, from whatever the "WAN N interface" field currently says
+ * -- it never re-discovers or renames anything on the device. Confirmed
+ * live: a field engineer ran `/interface ethernet set
+ * [find default-name=ether1] name=WAN1` on the device *after* generating
+ * a script that (correctly, consistently) referenced "ether1" throughout
+ * -- every subsequent `find where interface="ether1"` in that script then
+ * silently matched nothing, since the interface no longer had that name.
+ * The bridge-port-removal step became a silent no-op, and the very next
+ * "add every other physical port to the LAN bridge" loop then swept the
+ * (unrecognized) renamed WAN port straight into the guest LAN bridge --
+ * a real L2 security hole (guests L2-adjacent to the WAN) as well as a
+ * broken WAN. **Do not rename a WAN interface, on the device, at any
+ * point before or while pasting this script.** If you want a friendlier
+ * name than the factory default, check the CURRENT name first
+ * (`/interface print`), enter that exact name in the "WAN N interface"
+ * field above, generate, and only rename afterward if you must -- never
+ * in between. */
+const WAN_RENAME_WARNING_HEADER = [
+  "# =====================================================================",
+  "# WARNING: do NOT rename any WAN interface (e.g. `/interface ethernet",
+  "# set ... name=...`) before or while pasting this script. Every line",
+  '# below refers to it by the exact name shown in "WAN N interface"',
+  "# above -- renaming it first makes every later match on that name",
+  "# silently fail, and the unrecognized port then gets swept into the",
+  "# LAN bridge instead (WAN/LAN on one L2 segment). Re-generate the",
+  "# script with the device's CURRENT interface name if it does not",
+  "# match, instead of renaming the interface to match the script.",
+  "# =====================================================================",
+].join("\n");
+
+/** Emits, for each configured WAN interface, a loud (not silent) check
+ * that it actually exists on the device under that exact name *before*
+ * anything else runs -- the direct fix for the failure mode
+ * ``WAN_RENAME_WARNING_HEADER`` documents: if the name was changed (or
+ * simply mistyped) after all, this turns "WAN port silently ends up in
+ * the LAN bridge" into an impossible-to-miss banner in the terminal,
+ * printed once per missing interface, immediately. */
+function wanExistenceCheckLines(wanIfNameExprs: string[]): string[] {
+  const lines: string[] = [];
+  wanIfNameExprs.forEach((expr) => {
+    lines.push(
+      `:if ([:len [/interface ethernet find where name=${expr}]] = 0) do={`,
+      `  :put ("*** ERROR: WAN interface \\"" . ${expr} . "\\" was not found on this device. Did you rename it? Re-check /interface print and re-generate this script with the CURRENT name -- do NOT rename the interface to match the script. Aborting before touching bridge/NAT config. ***")`,
+      `  :error ("cloudguest-setup: WAN interface " . ${expr} . " not found")`,
+      `}`,
+    );
+  });
+  return lines;
 }
 
 export function buildRouterSetupScript(opts: {
@@ -991,8 +1222,13 @@ export function buildRouterSetupScript(opts: {
    * router this script provisions starts with Device Console permanently
    * disabled for it ("no credentials"), needing a separate manual step. */
   apiAccess?: { username: string; secret: string };
+  /** See `buildRouterSetupScriptChunks`'s identical field for the full
+   * rationale -- overwrites MikroTik's stock hotspot template pages
+   * (login/rlogin/alogin/status/logout) to redirect to this platform's own
+   * real guest portal instead. */
+  portalUrl?: PortalOverrideConfig;
 }): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess } = opts;
+  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, portalUrl } = opts;
   const octets = lanIp.split(".");
   const base3 = octets.slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1001,6 +1237,7 @@ export function buildRouterSetupScript(opts: {
 
   const lines: string[] = [];
   lines.push("{");
+  lines.push(WAN_RENAME_WARNING_HEADER);
   lines.push(`:local apiBase "${apiBase}"`);
   lines.push(`:local agentCredential "${agentCredential}"`);
   lines.push(`:local lanBridge "${lanBridge}"`);
@@ -1030,6 +1267,12 @@ export function buildRouterSetupScript(opts: {
   // know which this link is. This script only wires each already-connected
   // WAN interface into the "WAN" interface list and NAT, which is the same
   // regardless of how the IP itself was obtained.
+  // See WAN_RENAME_WARNING_HEADER / wanExistenceCheckLines' own docstring:
+  // this must run BEFORE any bridge-port-removal or NAT below, since those
+  // silently no-op (rather than error) when the name doesn't match
+  // anything -- exactly the failure mode that let a renamed WAN interface
+  // end up a member of the LAN bridge instead.
+  lines.push(...wanExistenceCheckLines(wanIfs.map((wanIf) => `"${wanIf}"`)));
   wanIfs.forEach((wanIf, idx) => {
     const n = idx + 1;
     const v = `wan${n}If`;
@@ -1056,12 +1299,15 @@ export function buildRouterSetupScript(opts: {
   // detaches a port from whatever bridge it's currently in (if any) before
   // re-attaching it to ours, rather than skipping it just because it
   // already belonged to *some* bridge.
-  const wanNameLiterals = wanIfs.map((w) => `"${w}"`).join("; ");
-  lines.push(`:local wanIfNames {${wanNameLiterals}}`);
+  // "Is this a WAN port" is decided by querying the "WAN" interface list
+  // this same script just populated above (RouterOS's own live state),
+  // not by re-comparing against a second, separately-hardcoded copy of
+  // the WAN names -- one fewer place for the two to silently drift apart,
+  // and it stays correct even if a future edit changes how the WAN
+  // section above decides what counts as WAN.
   lines.push(`:foreach eth in=[/interface ethernet find] do={`);
   lines.push(`  :local ethName [/interface ethernet get $eth name]`);
-  lines.push(`  :local isWan false`);
-  lines.push(`  :foreach w in=$wanIfNames do={ :if ($w = $ethName) do={ :set isWan true } }`);
+  lines.push(`  :local isWan ([:len [/interface list member find where interface=$ethName list="WAN"]] > 0)`);
   lines.push(`  :if (!$isWan) do={`);
   lines.push(`    :local existingPort [/interface bridge port find where interface=$ethName]`);
   lines.push(`    :if ([:len $existingPort] > 0) do={`);
@@ -1091,14 +1337,47 @@ export function buildRouterSetupScript(opts: {
   lines.push(`  /ip dhcp-server network add address=$lanNetwork gateway=$lanIp dns-server=$lanIp`);
   lines.push(`}`);
   lines.push(`:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={`);
-  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=cloudguest-hotspot`);
+  // Uses RouterOS's own *stock* hotspot template ("hotspot", not a custom-
+  // uploaded one) -- present with all its supporting CSS/error/logout pages
+  // on every fresh device out of the box. This used to point at a
+  // never-uploaded custom folder ("cloudguest-hotspot") -- confirmed to be
+  // exactly the same one-off mistake buildRouterSetupScriptChunks's own
+  // "Portal Redirect Page" comment already documented and fixed there;
+  // this copy of the same logic had drifted and never got that fix. Only
+  // the specific files in PORTAL_OVERRIDE_FILES below need to be ours; the
+  // stock folder already has everything else they depend on.
+  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=hotspot`);
   lines.push(`}`);
+  // RouterOS's own default login-by (cookie,http-chap) can't be satisfied
+  // by a plain external-portal form POST of username+password -- CHAP
+  // needs a challenge/response computed from a chap-id this script's
+  // guest-facing login page never fetches, so the NAS silently rejects
+  // every login regardless of how correct the username/password are.
+  // Confirmed live (Haldwani): the login POST reached the router fine,
+  // the router's own hotspot gate just never opened. An unconditional
+  // `set` (not nested in the profile-creation `:if`, which only runs
+  // for a brand-new profile) so this also fixes a router whose hsprof1
+  // already existed before this line was added.
+  lines.push(`/ip hotspot profile set [find name="hsprof1"] login-by=http-pap`);
   lines.push(`:if ([:len [/ip hotspot find where interface=$lanBridge]] = 0) do={`);
   lines.push(`  /ip hotspot add name="hotspot1" interface=$lanBridge address-pool="hotspot-pool" profile="hsprof1" disabled=no`);
   lines.push(`}`);
   lines.push(`:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={`);
   lines.push(`  /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1"`);
   lines.push(`}`);
+
+  if (portalUrl) {
+    lines.push("");
+    // See PORTAL_OVERRIDE_FILES' own docstring for exactly which stock
+    // MikroTik hotspot pages this replaces and why the rest are left
+    // alone. Without this, an unauthenticated guest's browser navigating
+    // to the real portal (an ordinary external address as far as the
+    // hotspot's concerned) is silently blocked -- the walled garden below
+    // is what lets it through before login.
+    const walledGarden = buildWalledGardenLine(portalUrl);
+    if (walledGarden) lines.push(walledGarden);
+    buildPortalOverrideFileSetLines(portalUrl).forEach(({ line }) => lines.push(line));
+  }
 
   if (enableFirewall) {
     lines.push("");
@@ -1141,7 +1420,14 @@ export function buildRouterSetupScript(opts: {
   if (radius) {
     lines.push("");
     lines.push(`:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`);
-    lines.push(`  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}"`);
+    // RouterOS's own default RADIUS timeout is 300ms -- far too aggressive
+    // for any real WAN path (let alone one tunneled over WireGuard), and
+    // confirmed live to cause routers to report "RADIUS server is not
+    // responding" on links with completely ordinary latency. 3s gives a
+    // real round trip (including a WireGuard-tunneled one) room to
+    // complete before RouterOS gives up and falls back to rejecting the
+    // login.
+    lines.push(`  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}" timeout=3s`);
     lines.push(`}`);
     lines.push(`/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`);
   }
@@ -1157,10 +1443,30 @@ export function buildRouterSetupScript(opts: {
   }
 
   lines.push("");
+  // Confirmed live: `management_ip_address`/`public_ip_address` stay NULL
+  // on the Router row forever, even for a router that has been happily
+  // heartbeating as `status=online`/`health_status=healthy` for weeks --
+  // because this call's body was always the literal, empty `"{}"`, never
+  // actually reporting anything for the backend's own
+  // `AgentHeartbeatRequest.management_ip_address` to persist. Once a
+  // WireGuard tunnel exists, its tunnel IP *is* this router's one
+  // reliably-reachable management address (the router's real WAN IP is
+  // often dynamic/behind NAT/CGNAT and not something this script can
+  // discover reliably) -- reporting it here is what finally lets
+  // BE-008/an admin reach this router's own RouterOS API after
+  // provisioning, without hand-typing IPs from a live SSH session onto
+  // the RADIUS/WireGuard hub. Escaped once for the plain call below, and
+  // AGAIN for the scheduler's `on-event=(...)`, which is itself already
+  // one layer of RouterOS string-literal nesting deep.
+  const heartbeatJson = wireguard
+    ? `{"management_ip_address":"${wireguard.routerTunnelIp}"}`
+    : "{}";
+  const heartbeatDataOnce = escapeForRouterOsString(heartbeatJson);
+  const heartbeatDataTwice = escapeForRouterOsString(heartbeatDataOnce);
   lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
-  lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . $apiBase . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . $agentCredential . "\\" http-data=\\"{}\\" output=none")`);
+  lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . $apiBase . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . $agentCredential . "\\" http-data=\\"${heartbeatDataTwice}\\" output=none")`);
   lines.push(`}`);
-  lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="{}" output=none`);
+  lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="${heartbeatDataOnce}" output=none`);
   lines.push("");
   const extras = [wireguard && "WireGuard", radius && "RADIUS", apiAccess && "API access"].filter(Boolean).join(" + ");
   lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat${extras ? " + " + extras : ""} sab set ho gaya."`);
@@ -1204,17 +1510,19 @@ export function buildRouterSetupScriptChunks(opts: {
    * engineer connecting to a random router in the fleet immediately knows
    * which site it is, without cross-referencing the dashboard. */
   identity?: string;
-  /** When provided, overwrites the *stock* MikroTik hotspot template's
-   * login.html (flash/hotspot/login.html -- present on every fresh
-   * RouterOS device out of the box, no manual asset upload needed) to
-   * redirect to this platform's own real guest portal instead of
-   * MikroTik's bare default form. Confirmed live: a router provisioned
-   * without this redirects nowhere real, and an earlier hand-edited
-   * version of this exact file was found pointing at a since-deleted
-   * organization/location/router (a previous session's one-off manual
-   * fix that no automated flow ever kept in sync) -- this makes the
-   * correct, per-router values part of the repeatable script instead. */
-  portalUrl?: { frontendBase: string; organizationId: string; locationId: string; routerId: string };
+  /** When provided, overwrites every *stock* MikroTik hotspot template
+   * page this platform's guest can actually reach (see
+   * `PORTAL_OVERRIDE_FILES` -- login/rlogin/alogin/status/logout.html, all
+   * present on every fresh RouterOS device out of the box, no manual asset
+   * upload needed) to redirect to this platform's own real guest portal
+   * instead of any of MikroTik's bare default pages. Confirmed live: a
+   * router provisioned without this redirects nowhere real, and an earlier
+   * hand-edited version of just login.html was found pointing at a
+   * since-deleted organization/location/router (a previous session's
+   * one-off manual fix that no automated flow ever kept in sync) -- this
+   * makes the correct, per-router values part of the repeatable script
+   * instead. */
+  portalUrl?: PortalOverrideConfig;
 }): RouterSetupScriptChunk[] {
   const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
@@ -1225,9 +1533,15 @@ export function buildRouterSetupScriptChunks(opts: {
 
   {
     const lines: string[] = [];
+    lines.push(WAN_RENAME_WARNING_HEADER);
     lines.push(`:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`);
     lines.push(`:if ([:len [/interface bridge find where name="${lanBridge}"]] = 0) do={ /interface bridge add name="${lanBridge}" }`);
     lines.push(`/interface bridge set [find name="${lanBridge}"] disabled=no`);
+    // See WAN_RENAME_WARNING_HEADER / wanExistenceCheckLines' own
+    // docstring: must run before any bridge-port-removal/NAT below, which
+    // otherwise silently no-op (rather than error) on a name that no
+    // longer matches anything on the device.
+    lines.push(...wanExistenceCheckLines(wanIfs.map((wanIf) => `"${wanIf}"`)));
     wanIfs.forEach((wanIf, idx) => {
       const n = idx + 1;
       lines.push(`:local wan${n}Port [/interface bridge port find where interface="${wanIf}"]`);
@@ -1252,13 +1566,17 @@ export function buildRouterSetupScriptChunks(opts: {
     // guest device could get an IP at all). Now unconditionally detaches
     // from whatever bridge a port is currently in (if any) before
     // re-attaching it to ours, regardless of that other bridge's name.
-    const wanNameLiterals = wanIfs.map((w) => `"${w}"`).join("; ");
+    // "Is this a WAN port" is decided by querying the "WAN" interface list
+    // the previous chunk just populated (RouterOS's own live state), not
+    // by re-comparing against a second, separately-hardcoded copy of the
+    // WAN names -- one fewer place for the two to silently drift apart
+    // (and the exact duplication that made a renamed WAN interface
+    // invisible to this loop in the first place -- see
+    // WAN_RENAME_WARNING_HEADER).
     const lines = [
-      `:local wanIfNames {${wanNameLiterals}}`,
       `:foreach eth in=[/interface ethernet find] do={`,
       `  :local ethName [/interface ethernet get $eth name]`,
-      `  :local isWan false`,
-      `  :foreach w in=$wanIfNames do={ :if ($w = $ethName) do={ :set isWan true } }`,
+      `  :local isWan ([:len [/interface list member find where interface=$ethName list="WAN"]] > 0)`,
       `  :if (!$isWan) do={`,
       `    :local existingPort [/interface bridge port find where interface=$ethName]`,
       `    :if ([:len $existingPort] > 0) do={`,
@@ -1300,6 +1618,17 @@ export function buildRouterSetupScriptChunks(opts: {
       // Redirect Page" chunk below), and the stock folder already has
       // everything else login.html depends on.
       `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot }`,
+      // RouterOS's own default login-by (cookie,http-chap) can't be
+      // satisfied by a plain external-portal form POST of username+
+      // password -- CHAP needs a challenge/response this script's
+      // guest-facing login page never fetches, so the NAS silently
+      // rejects every login regardless of how correct the credentials
+      // are. Confirmed live (Haldwani): login reached the router fine,
+      // its own hotspot gate just never opened. Unconditional (not
+      // nested in the profile-creation `:if` above, which only runs for
+      // a brand-new profile) so re-running this chunk also fixes a
+      // router whose hsprof1 already existed before this line was added.
+      `/ip hotspot profile set [find name="hsprof1"] login-by=http-pap`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
       `:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={ /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1" }`,
     ];
@@ -1311,70 +1640,28 @@ export function buildRouterSetupScriptChunks(opts: {
     // navigating to the real portal (an ordinary external address as far
     // as the hotspot is concerned) is silently blocked -- that's the whole
     // point of a captive portal, the platform's own server is no
-    // exception unless explicitly walled off. Host-based walled-garden
-    // entries only apply to the ports the hotspot's own HTTP proxy
-    // intercepts (80/443/etc.) -- this platform's frontend/API run on
-    // other ports (e.g. :3000/:8000), so this uses the IP-level walled
-    // garden instead, which isn't port-restricted.
-    const portalHost = (() => {
-      try {
-        return new URL(portalUrl.frontendBase).hostname;
-      } catch {
-        return "";
-      }
-    })();
-    if (portalHost) {
-      // /^[\d.]+$/ is enough to tell an IPv4 literal from a real hostname
-      // (the only two shapes frontendBase's hostname can take here) -- an
-      // IP needs the IP-level walled garden (dst-address), a real domain
-      // needs the host-based one (dst-host); using the wrong one silently
-      // does nothing; RouterOS won't reject a malformed dst-address the
-      // way you'd hope.
-      const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
-      const script = isIpLiteral
-        ? `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`
-        : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`;
-      chunks.push({ label: "Walled Garden (let unauthenticated guests reach the portal)", script });
+    // exception unless explicitly walled off. See `buildWalledGardenLine`'s
+    // own docstring for the IP-literal-vs-hostname distinction.
+    const walledGarden = buildWalledGardenLine(portalUrl);
+    if (walledGarden) {
+      chunks.push({ label: "Walled Garden (let unauthenticated guests reach the portal)", script: walledGarden });
     }
 
-    const url =
-      `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
-      `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
-      `&mac=$(mac)&dst=$(link-orig)&link-login-only=$(link-login-only)`;
     // RouterOS's own string-literal parser evaluates $(...) as command
     // substitution even inside double quotes (confirmed live -- without
-    // this escaping, $(mac)/$(link-orig)/$(link-login-only) silently
-    // evaluate to empty instead of surviving as literal text for the
-    // hotspot's *own*, separate template engine to substitute later when
-    // it actually serves this file to a connecting guest). Order matters:
-    // backslashes first, then quotes/dollar (each adds a NEW backslash
-    // that must not be re-escaped), real newlines last.
-    const escapeForRouterOsString = (s: string) =>
-      s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/\n/g, "\\n");
-    // A brief, visible "you must sign in" message before the redirect
-    // (2s, not instant) -- for the guest who does land on this page (via a
-    // successfully-intercepted plain-HTTP request) but whose OS never
-    // auto-popped this up, so this may be the first and only thing they
-    // see explaining why the network isn't working yet.
-    const html = [
-      "<!DOCTYPE html>",
-      '<html><head><meta charset="utf-8">',
-      `<meta http-equiv="refresh" content="2;url=${url}">`,
-      "<title>Sign in required</title>",
-      "<style>body{font-family:-apple-system,sans-serif;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px}",
-      ".box{max-width:360px}h1{font-size:20px;margin:0 0 8px}p{color:#94a3b8;font-size:14px;margin:0}</style>",
-      "</head>",
-      '<body><div class="box">',
-      "<h1>Sign-in required</h1>",
-      "<p>You must sign in to access the internet on this network. Redirecting you to the sign-in page...</p>",
-      "</div>",
-      `<script>window.location.href = "${url}";</script>`,
-      "</body></html>",
-    ].join("\n");
-    const lines = [
-      `/file set [find name="flash/hotspot/login.html"] contents="${escapeForRouterOsString(html)}"`,
-    ];
-    chunks.push({ label: "Portal Redirect Page", script: lines.join("\n") });
+    // the `escapeForRouterOsString` call inside
+    // `buildPortalOverrideFileSetLines`, $(mac)/$(link-orig)/
+    // $(link-login-only) would silently evaluate to empty instead of
+    // surviving as literal text for the hotspot's *own*, separate template
+    // engine to substitute later when it actually serves one of these
+    // files to a connecting guest). One chunk per file (not one big paste)
+    // for the same WinBox-paste-reliability reason as every other chunk in
+    // this function -- see `PORTAL_OVERRIDE_FILES` for exactly which stock
+    // pages this covers and why (login/rlogin for a not-yet-authenticated
+    // guest, alogin/status/logout for an already-authenticated one).
+    buildPortalOverrideFileSetLines(portalUrl).forEach(({ label, line }) => {
+      chunks.push({ label: `Portal Redirect Page (${label})`, script: line });
+    });
   }
 
   // Confirmed live: an unauthenticated guest's browser can silently bypass
@@ -1489,7 +1776,10 @@ export function buildRouterSetupScriptChunks(opts: {
   if (radius) {
     const lines = [
       `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`,
-      `  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}"`,
+      // See buildRouterSetupScript's identical comment: RouterOS's own
+      // default RADIUS timeout is 300ms, confirmed live to be too
+      // aggressive for any real (let alone WireGuard-tunneled) WAN path.
+      `  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}" timeout=3s`,
       `}`,
       `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
     ];
@@ -1497,11 +1787,21 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   {
+    // See buildRouterSetupScript's identical comment: reports this
+    // router's WireGuard tunnel IP (its one reliably-reachable management
+    // address) as `management_ip_address` on every heartbeat, instead of
+    // the previous always-empty `"{}"` body that left that column NULL
+    // forever regardless of how many heartbeats arrived.
+    const heartbeatJson = wireguard
+      ? `{"management_ip_address":"${wireguard.routerTunnelIp}"}`
+      : "{}";
+    const heartbeatDataOnce = escapeForRouterOsString(heartbeatJson);
+    const heartbeatDataTwice = escapeForRouterOsString(heartbeatDataOnce);
     const lines = [
       `:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`,
-      `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . "${apiBase}" . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . "${agentCredential}" . "\\" http-data=\\"{}\\" output=none")`,
+      `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . "${apiBase}" . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . "${agentCredential}" . "\\" http-data=\\"${heartbeatDataTwice}\\" output=none")`,
       `}`,
-      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data="{}" output=none`,
+      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data="${heartbeatDataOnce}" output=none`,
     ];
     chunks.push({ label: "Heartbeat", script: lines.join("\n") });
   }
@@ -1509,7 +1809,15 @@ export function buildRouterSetupScriptChunks(opts: {
   return chunks;
 }
 
-function SetupScriptTab({ routerId }: { routerId: string }) {
+function SetupScriptTab({
+  routerId,
+  organizationId,
+  locationId,
+}: {
+  routerId: string;
+  organizationId: string;
+  locationId: string;
+}) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
   const [script, setScript] = useState<string | null>(null);
@@ -1561,6 +1869,11 @@ function SetupScriptTab({ routerId }: { routerId: string }) {
           agentCredential,
           wanIfs: wanIfs.slice(0, ispCount),
           enableFirewall,
+          // window.location.origin -- wherever this dashboard is being
+          // viewed from is, by construction, the same deployment's real
+          // frontend, so it's always correct for a guest-facing link too
+          // (same convention as master.routers.tsx's own RouterSetupScriptPanel).
+          portalUrl: { frontendBase: window.location.origin, organizationId, locationId, routerId },
           ...form,
         }),
       );

@@ -1,68 +1,79 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { CheckCircle2, Wifi, Database, Laptop, Clock, KeyRound, LogOut } from "lucide-react";
+import { CheckCircle2, Wifi, Database, Laptop, Clock, KeyRound, LogOut, Users2 } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
+import { CampaignOverlay, campaignHasRenderableContent } from "@/components/portal-runtime/CampaignOverlay";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { campaignPortalService } from "@/services/campaign-portal.service";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/success")({
   component: SuccessPage,
 });
 
-// Matches the local hotspot user every router's Setup Script provisions by
-// default (see RouterSetupScriptPanel's "Hotspot username/password"
-// fields, default "guest"/"welcome123") -- this platform's own login
-// (OTP/password/voucher) only proves who the guest is to *us*; the NAS
-// itself still needs a login-by=cookie,http-chap POST to actually open its
-// gate. TODO: once per-location hotspot credentials are configurable and
-// exposed to this portal, use those instead of this shared default.
-const HOTSPOT_SHARED_USERNAME = "guest";
-const HOTSPOT_SHARED_PASSWORD = "welcome123";
+// Real incident #2, found live at Haldwani: a hardcoded shared
+// "guest"/"welcome123" here only ever worked for a hotspot profile with
+// `use-radius=no` (RouterOS checks its own local `/ip hotspot user`
+// list). Every `use-radius=yes` profile (the real, RADIUS-integrated
+// setup this whole platform is built around -- GuestSession, RadiusNasClient,
+// etc.) forwards the login to `RadiusService.authorize`, which checks
+// whether *this exact username* has a currently-ACTIVE GuestSession --
+// never checks the password at all (RADIUS has no "why", only
+// accept/reject, and this backend's Authorize phase is purely a
+// username-to-session lookup). A hardcoded "guest" username has no
+// session of its own, so it was rejected on every single attempt,
+// silently -- "redirect karne ke baad nahi chal raha hai internet" even
+// after confirming the login succeeded, the router was online, and (a
+// dead end) resetting the local hotspot user's password. The real fix is
+// `guestIdentifier` -- see PortalRuntimeState's own docstring -- the
+// actual phone/email this guest just verified via OTP/password/voucher,
+// which *does* have an active session under that exact identifier.
+const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 
-/** Submits username/password to RouterOS's `$(link-login-only)` URL via a
- * hidden iframe form POST -- a real cross-origin form submission, not
- * fetch(), since the NAS bridge this hits has no CORS support (confirmed
- * live) and a plain form POST doesn't need any. Using an iframe (not
- * navigating the whole tab) keeps the guest on this success page while the
- * browser completes the handshake and the NAS sets its own access cookie
- * for this origin. */
-function submitHotspotLogin(loginUrl: string) {
-  const iframe = document.createElement("iframe");
-  iframe.style.display = "none";
-  document.body.appendChild(iframe);
-  const cleanup = () => {
-    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+/** Submits username/password to RouterOS's `$(link-login-only)` URL.
+ *
+ * Real incident #1: this used to POST via a hidden iframe so the guest
+ * never left this success page. That silently failed on real devices --
+ * this portal is served over HTTPS, `loginUrl` is always a plain-HTTP
+ * address on the venue's own LAN (RouterOS has no TLS cert to offer a
+ * guest's browser), and browsers treat a subresource navigation like an
+ * iframe's as mixed content: Chrome's mixed-content autoupgrade rewrites
+ * the iframe's target to `https://`, that request fails against a NAS
+ * with no HTTPS listener, and the POST that would have opened the NAS's
+ * gate never happens at all -- with nothing visible telling the guest or
+ * us it failed.
+ *
+ * A real *top-level* navigation isn't subject to that restriction (only
+ * embedded subresource loads are), so this now submits a normal,
+ * full-page form POST -- the same mechanism RouterOS's own bundled
+ * hotspot login page uses. A `dst` field (RouterOS's standard "where to
+ * send the browser after a successful hotspot login" field) points back
+ * at this exact success-page URL, so once the NAS's gate opens the guest
+ * lands right back here -- this page's own state (session, countdown,
+ * etc.) survives the round trip via PortalRuntimeContext's persisted
+ * session, not a page-memory value that a real navigation would drop. */
+function submitHotspotLogin(loginUrl: string, username: string) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = loginUrl;
+  form.style.display = "none";
+  const addField = (name: string, value: string) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
   };
-  try {
-    const iframeDoc = iframe.contentWindow?.document;
-    if (!iframeDoc) {
-      cleanup();
-      return;
-    }
-    const form = iframeDoc.createElement("form");
-    form.method = "POST";
-    form.action = loginUrl;
-    const addField = (name: string, value: string) => {
-      const input = iframeDoc.createElement("input");
-      input.type = "hidden";
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    };
-    addField("username", HOTSPOT_SHARED_USERNAME);
-    addField("password", HOTSPOT_SHARED_PASSWORD);
-    iframeDoc.body.appendChild(form);
-    form.submit();
-  } catch {
-    cleanup();
-    return;
-  }
-  setTimeout(cleanup, 8000);
+  addField("username", username);
+  addField("password", HOTSPOT_FALLBACK_PASSWORD);
+  addField("dst", window.location.href);
+  document.body.appendChild(form);
+  form.submit();
 }
 
 function formatDataLimit(mb: number | null): string {
@@ -115,12 +126,36 @@ function SuccessPage() {
     routerId,
     destinationUrl,
     hotspotLoginUrl,
+    guestIdentifier,
   } = usePortalRuntime();
   const continueUrl = destinationUrl || config?.redirectUrl;
   const navigate = useNavigate({ from: "/portal/success" });
   const portalSearch = { organizationId, locationId, routerId };
   const [now, setNow] = useState(() => Date.now());
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // Real guest-facing Campaigns integration (app.domains.campaigns) --
+  // completely separate from, and never gating, the hotspot-login POST
+  // effect right below. This query fires on the exact same render/mount as
+  // that effect (both are keyed off the same `session` becoming available),
+  // never sequentially before it -- so a guest with no eligible campaign
+  // (the common case) reaches their real "connected" screen exactly as fast
+  // as before this feature existed; there is no added round trip on that
+  // path. When a real, currently-eligible campaign *does* resolve, this
+  // page's own JSX (see the `showCampaign` branch below, right after the
+  // `!session` guard) swaps to `CampaignOverlay` in its place -- the
+  // guest sees the campaign before the connected confirmation, while the
+  // hotspot-login POST (and every effect above) keeps running unaffected
+  // underneath, since none of that logic is conditioned on this state at
+  // all.
+  const { data: nextCampaign } = useQuery({
+    queryKey: ["next-campaign", session?.sessionId],
+    queryFn: () => campaignPortalService.getNextCampaign(session!.sessionId),
+    enabled: !!session?.sessionId,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const [campaignDismissed, setCampaignDismissed] = useState(false);
 
   // Our own login (OTP/password/voucher) only just created a session in
   // this platform's own database -- the NAS's own gate is a completely
@@ -129,10 +164,15 @@ function SuccessPage() {
   // Guarded to fire at most once per mount, not on every re-render.
   const hotspotLoginSubmitted = useRef(false);
   useEffect(() => {
-    if (!session || !hotspotLoginUrl || hotspotLoginSubmitted.current) return;
+    // No guestIdentifier means there's no real phone/email this platform
+    // ever verified for this browsing session (e.g. a page reload that
+    // lost it) -- submitting anything else is guaranteed to be rejected
+    // by RadiusService.authorize's username-to-session lookup, so this
+    // skips rather than firing a doomed request.
+    if (!session || !hotspotLoginUrl || !guestIdentifier || hotspotLoginSubmitted.current) return;
     hotspotLoginSubmitted.current = true;
-    submitHotspotLogin(hotspotLoginUrl);
-  }, [session, hotspotLoginUrl]);
+    submitHotspotLogin(hotspotLoginUrl, guestIdentifier);
+  }, [session, hotspotLoginUrl, guestIdentifier]);
 
   useEffect(() => {
     if (!session) {
@@ -207,6 +247,23 @@ function SuccessPage() {
 
   if (!session) return null;
 
+  // See this component's own comment on the `nextCampaign` query above --
+  // `campaignHasRenderableContent` is the same "an admin created a SURVEY
+  // with zero questions / a BANNER with no asset" guard `CampaignOverlay`
+  // itself relies on, checked here too so this never mounts that component
+  // for genuinely empty content (confirmed live against the founder's own
+  // real "test" campaign, an ACTIVE survey with zero CampaignQuestion rows
+  // -- a real data-completeness gap on the admin side, not a bug here).
+  if (nextCampaign && campaignHasRenderableContent(nextCampaign) && !campaignDismissed) {
+    return (
+      <CampaignOverlay
+        campaign={nextCampaign}
+        sessionId={session.sessionId}
+        onDone={() => setCampaignDismissed(true)}
+      />
+    );
+  }
+
   return (
     <PortalShell variant="light" showHeader={false}>
       <div className="flex flex-1 flex-col gap-5">
@@ -275,6 +332,29 @@ function SuccessPage() {
             </div>
           </Link>
         )}
+
+        {/* Real "Guest Teams" feature (app.domains.guest_teams) -- an
+            admin-created shared-code group a guest can optionally join
+            once already connected (see src/routes/portal.team.tsx's own
+            docstring for the full "additional step, not a login method or
+            a RADIUS bypass" reasoning). Always offered, not gated by any
+            captive-portal-config flag: a guest with no code just ignores
+            this card, and one with a wrong/unrelated code gets a real,
+            honest 404 from the join call itself -- no location-level
+            toggle would meaningfully add to that. */}
+        <Link
+          to="/portal/team"
+          search={portalSearch}
+          className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+        >
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Users2 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800">Have a team code?</p>
+            <p className="truncate text-xs text-slate-500">Join your group's shared data and quota</p>
+          </div>
+        </Link>
 
         {continueUrl && (
           <button

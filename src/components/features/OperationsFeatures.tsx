@@ -7,11 +7,13 @@
  * are the seam a per-location backend call replaces.
  */
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Activity, AlertTriangle, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
   Network, Plus, RadioTower, Router, Shield, ShieldAlert, Signal, Terminal, Ticket, Trash2,
-  Wifi, XCircle, Bell, Server, ArrowRightLeft, Pencil, RefreshCw, History,
+  Wifi, XCircle, Bell, Server, Pencil, RefreshCw, History, ScrollText, Fingerprint,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,9 @@ import {
 } from "@/services/business-hours.service";
 import { routerService } from "@/services/router.service";
 import { ispService } from "@/services/isp.service";
+import { networkDiagnosticsService } from "@/services/network-diagnostics.service";
+import { guestService } from "@/services/guest.service";
+import type { DiagnosticRun } from "@/types/network-diagnostics";
 import { DhcpManagement } from "@/components/network/DhcpManagement";
 import { VlanManagement } from "@/components/network/VlanManagement";
 import { PortForwardingManagement } from "@/components/network/PortForwardingManagement";
@@ -55,7 +60,7 @@ import { HotspotManagement } from "@/components/network/HotspotManagement";
 import { IspManagement } from "@/components/network/IspManagement";
 import { QosManagement } from "@/components/network/QosManagement";
 import type { RouterDevice } from "@/types/router";
-import type { IspLink, IspLinkRole, IspHealthCheck } from "@/types/isp";
+import type { IspLink, IspLinkRole, IspHealthCheck, IspManualHealthStatus, IspConnectionMode } from "@/types/isp";
 import { api } from "@/services/api";
 import type { AppError } from "@/services/api";
 import { cn } from "@/lib/utils";
@@ -73,16 +78,29 @@ function FeatureHeader({
   title,
   description,
   action,
+  icon: Icon,
 }: {
   title: string;
   description: string;
   action?: React.ReactNode;
+  /** Optional icon-badge (gradient indigo/violet box, established this
+   * session on Dashboard's chart headers) shown left of the title. Omitted
+   * by default so existing callers outside this polish pass render
+   * unchanged. */
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      <div className="flex items-center gap-3">
+        {Icon && (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+            <Icon className="h-[18px] w-[18px] text-white" />
+          </div>
+        )}
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
       </div>
       {action}
     </div>
@@ -100,7 +118,7 @@ function ToggleRow({
 }) {
   const [on, setOn] = useState(defaultOn);
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border bg-card px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
       <div className="min-w-0">
         <p className="text-sm font-medium text-foreground">{label}</p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -144,22 +162,46 @@ const TONE_ICON_TEXT: Record<StatTone, string> = {
   info: "text-sky-500",
 };
 
+// Soft tone-tinted badge background so a KpiRow tile's own status (danger/
+// warning/success/etc.) still reads through the icon badge, instead of a
+// flat neutral circle that lost the tone's meaning -- while "primary"/
+// "default" fall back to the brand gradient used everywhere else.
+const TONE_ICON_BADGE: Record<StatTone, string> = {
+  default: "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]",
+  primary: "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]",
+  success: "bg-emerald-500/15",
+  warning: "bg-amber-500/15",
+  danger: "bg-rose-500/15",
+  info: "bg-sky-500/15",
+};
+const TONE_ICON_ON_BADGE: Record<StatTone, string> = {
+  default: "text-white",
+  primary: "text-white",
+  success: "text-emerald-500",
+  warning: "text-amber-500",
+  danger: "text-rose-500",
+  info: "text-sky-500",
+};
+
 function KpiRow({ items }: { items: { label: string; value: string; tone?: StatTone; icon?: React.ComponentType<{ className?: string }> }[] }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {items.map((k) => (
-        <div key={k.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
-          {k.icon && (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-              <k.icon className={cn("h-5 w-5", TONE_ICON_TEXT[k.tone ?? "default"])} />
+      {items.map((k) => {
+        const tone = k.tone ?? "default";
+        return (
+          <div key={k.label} className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
+            {k.icon && (
+              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", TONE_ICON_BADGE[tone])}>
+                <k.icon className={cn("h-5 w-5", TONE_ICON_ON_BADGE[tone])} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
+              <p className="truncate text-lg font-bold">{k.value}</p>
             </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">{k.label}</p>
-            <p className="truncate text-lg font-bold">{k.value}</p>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -210,33 +252,50 @@ export function AlertsView() {
     : s === "warning" ? <AlertTriangle className="h-4 w-4 text-amber-500" />
     : s === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
     : <Activity className="h-4 w-4 text-sky-500" />;
+  const leftBorder = (s: string) =>
+    s === "error" ? "border-l-rose-500" : s === "warning" ? "border-l-amber-500" : s === "success" ? "border-l-emerald-500" : "border-l-sky-500";
+  const statusBadge = (status: string) =>
+    status === "resolved" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+    : status === "acknowledged" ? "border-sky-500/20 bg-sky-500/10 text-sky-600"
+    : "border-amber-500/20 bg-amber-500/10 text-amber-600";
   const active = alerts.filter((a) => a.status === "open" || a.status === "acknowledged").length;
   const warnings = alerts.filter((a) => a.sev === "warning").length;
   const resolved = alerts.filter((a) => a.status === "resolved").length;
   return (
     <div className="space-y-6">
-      <FeatureHeader title="Alerts" description="Live operational alerts across routers, ISPs and the captive portal." action={<Button variant="outline" size="sm">Mark all read</Button>} />
+      {/* "Mark all read" used to sit here with no onClick at all -- a fully
+       * dead button on a real customer's alerts page. Removed rather than
+       * wired to an unverified endpoint. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FeatureHeader title="Alerts" description="Live operational alerts across routers, ISPs and the captive portal." icon={Bell} />
+        </div>
+        <AlertsIllustration />
+      </div>
       <KpiRow items={[
-        { label: "Active", value: String(active), tone: "danger", icon: AlertTriangle },
+        { label: "Open", value: String(active), tone: "danger", icon: AlertTriangle },
         { label: "Warnings", value: String(warnings), tone: "warning", icon: AlertTriangle },
         { label: "Resolved", value: String(resolved), tone: "success", icon: CheckCircle2 },
         { label: "Total", value: String(alerts.length), tone: "primary", icon: Activity },
       ]} />
       <Card className="border-0 shadow-sm">
         <CardHeader><CardTitle className="text-sm">Recent alerts</CardTitle></CardHeader>
-        <CardContent className={cn("p-0", alerts.length > 0 && !loading && "divide-y")}>
+        <CardContent className={cn("space-y-2", alerts.length > 0 && !loading ? "p-3" : "p-0")}>
           {loading ? (
             <div className="px-6 py-4"><LoadingSkeleton rows={4} /></div>
           ) : alerts.length === 0 ? (
-            <EmptyState icon={Bell} title="No alerts" description="Operational alerts across routers, ISPs and the captive portal will show up here." />
+            <EmptyState icon={Bell} title="All clear" description="No issues right now. We'll flag anything across your routers, ISPs, or captive portal here the moment it happens." />
           ) : alerts.map((a, i) => (
-            <div key={i} className="flex items-start gap-3 px-6 py-3.5">
+            <div key={i} className={cn("flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3", leftBorder(a.sev))}>
               <span className="mt-0.5 shrink-0">{icon(a.sev)}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground">{a.title}</p>
                 <p className="text-xs text-muted-foreground">{a.src}</p>
               </div>
-              <span className="shrink-0 text-xs text-muted-foreground">{a.t}</span>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize", statusBadge(a.status))}>{a.status}</span>
+                <span className="text-xs text-muted-foreground">{a.t}</span>
+              </div>
             </div>
           ))}
         </CardContent>
@@ -271,6 +330,169 @@ const DEMO_BH_SCHEDULE: BusinessHoursSchedule = Object.fromEntries(
     i < 6 ? { open: true, start: "09:00", end: "21:00" } : { open: false },
   ]),
 ) as BusinessHoursSchedule;
+
+/** Header-accent illustrations for the 5 views below that had an icon-badge
+ * but no illustration yet -- same filled-flat-shape language established
+ * elsewhere this session (see BlockUsers.tsx/CampaignsPage.tsx etc.).
+ * Purely decorative, aria-hidden. */
+function AlertsIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <path d="M42 10c-7 0-12 5.5-12 13v6l-4 6h32l-4-6v-6c0-7.5-5-13-12-13z" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M37 35a5 5 0 0 0 10 0" stroke="#a78bfa" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      <motion.circle
+        cx="42" cy="12" r="3.4" fill="#f0abfc"
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.25, 1], opacity: [0.75, 1, 0.75] }}
+        transition={shouldReduceMotion ? undefined : { duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+      />
+      {[0, 1, 2].map((i) => (
+        <motion.path
+          key={i}
+          d={`M${42 - (16 + i * 6)} 12a${16 + i * 6} ${16 + i * 6} 0 0 1 ${32 + i * 12} 0`}
+          stroke="#22d3ee" strokeOpacity={0.55 - i * 0.12} strokeWidth="1.4" strokeLinecap="round" fill="none"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function BusinessHoursIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <circle cx="34" cy="26" r="20" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+      <motion.path
+        d="M34 15v11l8 5"
+        stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      />
+      {[0, 1, 2, 3].map((i) => (
+        <circle key={i} cx={34 + 20 * Math.cos((i * Math.PI) / 2)} cy={26 + 20 * Math.sin((i * Math.PI) / 2)} r="1.3" fill="#a78bfa" fillOpacity="0.5" />
+      ))}
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <circle cx="66" cy="14" r="10" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="2" />
+        <path d="M61 14l3.5 3.5L71 10" stroke="#f0abfc" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </motion.g>
+    </svg>
+  );
+}
+
+function NotificationIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 76 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <path d="M28 12c0-4.4 3.6-8 8-8s8 3.6 8 8v6c0 6 3 9 5 11H23c2-2 5-5 5-11z" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M32 33a4 4 0 0 0 8 0" stroke="#a78bfa" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      <motion.circle
+        cx="46" cy="10" r="10" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.8"
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.15, 1], opacity: [0.8, 1, 0.8] }}
+        transition={shouldReduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <circle cx="46" cy="10" r="3" fill="#22d3ee" />
+      {[0, 1, 2].map((i) => (
+        <motion.path
+          key={i}
+          d={`M${58 + i * 4} ${8 - i * 2}q4 1 5 5`}
+          stroke="#f0abfc" strokeOpacity="0.55" strokeWidth="1.4" strokeLinecap="round" fill="none"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.12 * i, ease: "easeOut" }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function IspDetailsIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <circle cx="30" cy="26" r="18" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+      <ellipse cx="30" cy="26" rx="18" ry="7" stroke="#4f46e5" strokeOpacity="0.6" strokeWidth="1.2" fill="none" />
+      <path d="M30 8v36M12 26h36" stroke="#4f46e5" strokeOpacity="0.6" strokeWidth="1.2" />
+      {[0, 1, 2].map((i) => (
+        <motion.path
+          key={i}
+          d={`M52 ${20 + i * 3}q${10 + i * 3} ${1 - i} ${16 + i * 5} ${6 + i * 3}`}
+          stroke={["#22d3ee", "#f0abfc", "#a78bfa"][i]}
+          strokeOpacity="0.65" strokeWidth="1.6" strokeLinecap="round" fill="none"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
+        />
+      ))}
+      <motion.circle
+        cx="30" cy="26" r="3" fill="#22d3ee"
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { opacity: [0.6, 1, 0.6] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+    </svg>
+  );
+}
+
+function MacAuthIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="8" y="10" width="26" height="32" rx="4" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+      <rect x="12" y="15" width="18" height="12" rx="1.5" fill="#1e1b4b" />
+      <circle cx="21" cy="34" r="1.4" fill="#a78bfa" />
+      <motion.path
+        d="M40 26h14"
+        stroke="#22d3ee" strokeOpacity="0.6" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 4"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <path d="M68 8l14 5v9c0 10-6 16-14 19-8-3-14-9-14-19v-9z" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M62 22l4 4 8-8" stroke="#f0abfc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </motion.g>
+    </svg>
+  );
+}
+
+function DebuggingIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="6" y="8" width="50" height="32" rx="4" fill="#1e1b4b" stroke="#a78bfa" strokeWidth="1.6" />
+      <rect x="6" y="8" width="50" height="32" rx="4" fill="url(#dbg-scan)" fillOpacity="0.08" />
+      <defs>
+        <linearGradient id="dbg-scan" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#f0abfc" />
+        </linearGradient>
+      </defs>
+      <motion.path
+        d="M12 28h6l4-10 5 18 4-14 3 6h22"
+        stroke="url(#dbg-scan)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }}
+        transition={shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <circle cx="70" cy="24" r="10" fill="#2e2a5c" stroke="#22d3ee" strokeWidth="1.8" />
+        <path d="M66 24h3l1.5-4 2 8 1.5-4h2" stroke="#22d3ee" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </motion.g>
+    </svg>
+  );
+}
 
 export function BusinessHoursView({ locationId }: { locationId?: string } = {}) {
   const demo = isDemo();
@@ -354,15 +576,21 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
 
   return (
     <div className="space-y-6">
-      <FeatureHeader
-        title="Business Hours"
-        description="Outside these hours, guests see a 'we're closed' screen instead of the sign-in page."
-        action={
-          <Button size="sm" onClick={handleApply} disabled={loading || saving}>
-            {saving ? "Applying…" : "Apply"}
-          </Button>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FeatureHeader
+            title="Business Hours"
+            description="Outside these hours, guests see a 'we're closed' screen instead of the sign-in page."
+            icon={Clock}
+            action={
+              <Button size="sm" onClick={handleApply} disabled={loading || saving}>
+                {saving ? "Applying…" : "Apply"}
+              </Button>
+            }
+          />
+        </div>
+        <BusinessHoursIllustration />
+      </div>
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
@@ -383,7 +611,7 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
               {BH_DAYS.map(({ key, label }) => {
                 const d = dayState(key);
                 return (
-                  <div key={key} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3">
+                  <div key={key} className="flex flex-wrap items-center gap-3 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
                     <span className="w-24 text-sm font-medium">{label}</span>
                     <Switch checked={d.open} onCheckedChange={(v) => setDay(key, { open: v })} />
                     <span className={`text-xs ${d.open ? "text-foreground" : "text-muted-foreground"}`}>
@@ -441,7 +669,12 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
 export function NotificationView() {
   return (
     <div className="space-y-6">
-      <FeatureHeader title="Notifications" description="Choose how and when your team is notified about network events." action={<Button size="sm" onClick={() => toast.success("Preferences saved")}>Save</Button>} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FeatureHeader title="Notifications" description="Choose how and when your team is notified about network events." icon={Bell} action={<Button size="sm" onClick={() => toast.success("Preferences saved")}>Save</Button>} />
+        </div>
+        <NotificationIllustration />
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-0 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Channels</CardTitle></CardHeader>
@@ -522,6 +755,25 @@ const LINK_TYPES: { value: string; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+// The router's own WAN-facing interface this link terminates on --
+// informational only (see backend IspLink.interface's own comment), same
+// "not branched on internally" scope as LINK_TYPES above. A select of the
+// common MikroTik interface names rather than a free-text box -- an admin
+// picking from a short, familiar list beats typing a slug from memory,
+// and this field was never validated against the router's real interface
+// list anyway (this view never contacts the router to fetch one).
+const INTERFACE_OPTIONS: { value: string; label: string }[] = [
+  { value: "ether1", label: "ether1" },
+  { value: "ether2", label: "ether2" },
+  { value: "ether3", label: "ether3" },
+  { value: "ether4", label: "ether4" },
+  { value: "ether5", label: "ether5" },
+  { value: "sfp1", label: "sfp1" },
+  { value: "wlan1", label: "wlan1" },
+  { value: "lte1", label: "lte1 (4G/5G)" },
+  { value: "other", label: "Other" },
+];
+
 const HEALTH_BADGE: Record<string, { label: string; dot: string; text: string }> = {
   healthy: { label: "Online", dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400" },
   degraded: { label: "Degraded", dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" },
@@ -529,18 +781,133 @@ const HEALTH_BADGE: Record<string, { label: string; dot: string; text: string }>
   unknown: { label: "Unknown", dot: "bg-muted-foreground/40", text: "text-muted-foreground" },
 };
 
-function HealthBadge({ status }: { status: string }) {
+/** `source` is optional -- callers rendering a bare health-check row (no
+ * notion of "current state override") simply omit it. When present and
+ * `"manual"`, a small outline tag makes clear this status was an admin's
+ * own override, not the real health-check sweep's own reading (see
+ * `IspLink.healthStatusSource` / `IspHealthCheck.source`). */
+function HealthBadge({ status, source }: { status: string; source?: string }) {
   const b = HEALTH_BADGE[status] ?? HEALTH_BADGE.unknown;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", b.text)}>
-      <span className={cn("h-1.5 w-1.5 rounded-full", b.dot)} />{b.label}
+    <span className="inline-flex items-center gap-1.5">
+      <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", b.text)}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", b.dot)} />{b.label}
+      </span>
+      {source === "manual" && (
+        <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal text-muted-foreground" title="Manually set by an admin, not the automated health-check sweep">
+          Manual
+        </Badge>
+      )}
     </span>
+  );
+}
+
+const TIMELINE_TICK_DOT: Record<string, string> = {
+  healthy: "bg-emerald-500",
+  degraded: "bg-amber-500",
+  unhealthy: "bg-rose-500",
+  unknown: "bg-muted-foreground/30",
+};
+
+/** A small, proportionate "up/down over time" visual -- not a historical-
+ * uptime analytics system, just the last dozen real `IspHealthCheck` rows
+ * (oldest -> newest, left to right) rendered as colored ticks, built
+ * entirely from real, persisted history (never computed/fabricated
+ * client-side). A manually-set reading (see `HealthBadge`'s own comment)
+ * renders with a ring around its tick so it reads as distinct from a real
+ * ping. Fetches its own data independently per link/row -- the same
+ * "small, self-contained" scope `IspHealthHistoryDialog` above already
+ * establishes for a link's own history. */
+function IspStatusTimeline({ link, demo }: { link: IspLink; demo: boolean }) {
+  const [checks, setChecks] = useState<IspHealthCheck[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (demo) {
+      const rows: IspHealthCheck[] = (DEMO_HEALTH_HISTORY[link.id] ?? []).map((status, i) => ({
+        id: `${link.id}-demo-check-${i}`,
+        ispLinkId: link.id,
+        checkedAt: new Date(Date.now() - (11 - i) * 5 * 60000).toISOString(),
+        status,
+        source: "automated",
+        latencyMs: null,
+        packetLossPercentage: null,
+        errorMessage: null,
+        // Illustrative-only traffic figures for the demo sparkline below --
+        // never fetched from ispService while isDemo() is true.
+        downloadMbps: status === "unhealthy" ? null : Math.round((80 + 40 * Math.sin(i)) * 10) / 10,
+        uploadMbps: status === "unhealthy" ? null : Math.round((20 + 10 * Math.cos(i)) * 10) / 10,
+      }));
+      setChecks(rows);
+      return;
+    }
+    setChecks(null);
+    ispService.listHealthChecks(link.id, { page: 1, pageSize: 12 })
+      .then((r) => { if (alive) setChecks(r.rows); })
+      .catch(() => { if (alive) setChecks([]); });
+    return () => { alive = false; };
+  }, [link.id, demo]);
+
+  if (checks == null) {
+    return (
+      <div className="flex items-center gap-0.5" aria-hidden="true">
+        {Array.from({ length: 8 }).map((_, i) => <span key={i} className="h-4 w-1.5 animate-pulse rounded-sm bg-muted" />)}
+      </div>
+    );
+  }
+  if (checks.length === 0) {
+    return <span className="text-xs text-muted-foreground">No history yet</span>;
+  }
+  const ordered = [...checks].reverse();
+  const hasTraffic = ordered.some((c) => c.downloadMbps != null || c.uploadMbps != null);
+  const maxMbps = Math.max(1, ...ordered.flatMap((c) => [c.downloadMbps ?? 0, c.uploadMbps ?? 0]));
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-0.5">
+        {ordered.map((c) => (
+          <span
+            key={c.id}
+            title={`${new Date(c.checkedAt).toLocaleString()} — ${HEALTH_BADGE[c.status]?.label ?? c.status}${c.source === "manual" ? " (manually set)" : ""}`}
+            className={cn(
+              "h-4 w-1.5 rounded-sm",
+              TIMELINE_TICK_DOT[c.status] ?? TIMELINE_TICK_DOT.unknown,
+              c.source === "manual" && "ring-1 ring-foreground/50 ring-offset-1 ring-offset-background",
+            )}
+          />
+        ))}
+      </div>
+      {/* Traffic load -- real IspHealthCheck.downloadMbps/uploadMbps rows
+       * (the exact same fetch above, never a second call), rendered as a
+       * compact two-tone sparkline: download (teal) over upload (violet),
+       * height proportional to this window's own max Mbps. Nothing to
+       * show (a tick with no computed rate yet) renders as a bare dot,
+       * never a fabricated bar. */}
+      {hasTraffic && (
+        <div className="flex h-3 items-end gap-0.5" title="Traffic load — download (teal) / upload (violet)">
+          {ordered.map((c) => (
+            <span key={`${c.id}-traffic`} className="flex h-3 w-1.5 flex-col-reverse items-center gap-px">
+              <span
+                className="w-full rounded-sm bg-teal-500/70"
+                style={{ height: c.downloadMbps != null ? `${Math.max(15, (c.downloadMbps / maxMbps) * 100)}%` : "2px" }}
+                title={c.downloadMbps != null ? `${c.downloadMbps.toFixed(1)} Mbps down` : "No traffic reading yet"}
+              />
+              <span
+                className="w-full rounded-sm bg-violet-500/70"
+                style={{ height: c.uploadMbps != null ? `${Math.max(15, (c.uploadMbps / maxMbps) * 100)}%` : "2px" }}
+                title={c.uploadMbps != null ? `${c.uploadMbps.toFixed(1)} Mbps up` : "No traffic reading yet"}
+              />
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 interface IspLinkFormState {
   providerName: string;
   linkType: string;
+  connectionMode: IspConnectionMode;
   role: IspLinkRole;
   priority: number;
   interfaceName: string;
@@ -552,7 +919,7 @@ interface IspLinkFormState {
   autoFailback: boolean;
 }
 const emptyLinkForm = (): IspLinkFormState => ({
-  providerName: "", linkType: "fiber", role: "primary", priority: 0, interfaceName: "",
+  providerName: "", linkType: "fiber", connectionMode: "static", role: "primary", priority: 0, interfaceName: "",
   gatewayIpAddress: "", dnsPrimary: "", dnsSecondary: "", downloadBandwidthMbps: "", uploadBandwidthMbps: "", autoFailback: true,
 });
 
@@ -570,9 +937,18 @@ const DEMO_ROUTER: RouterDevice = {
   hasApiCredentials: true, settings: {}, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(), updatedAt: new Date().toISOString(),
 };
 const DEMO_LINKS: IspLink[] = [
-  { id: "isp-demo-1", routerId: DEMO_ROUTER.id, organizationId: "org-demo", locationId: "demo-location", providerName: "Airtel", linkType: "fiber", role: "primary", isActiveUplink: true, autoFailback: true, isEnabled: true, priority: 0, interface: "ether1", gatewayIpAddress: "203.0.113.1", dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8", downloadBandwidthMbps: 500, uploadBandwidthMbps: 200, healthStatus: "healthy", latencyMs: 12.4, packetLossPercentage: 0, lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 30 * 86400000).toISOString() },
-  { id: "isp-demo-2", routerId: DEMO_ROUTER.id, organizationId: "org-demo", locationId: "demo-location", providerName: "Jio", linkType: "wireless_4g", role: "backup", isActiveUplink: false, autoFailback: true, isEnabled: true, priority: 1, interface: "lte1", gatewayIpAddress: "203.0.113.9", dnsPrimary: "1.1.1.1", dnsSecondary: null, downloadBandwidthMbps: 100, uploadBandwidthMbps: 40, healthStatus: "degraded", latencyMs: 89.1, packetLossPercentage: 3.2, lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 30 * 86400000).toISOString() },
+  { id: "isp-demo-1", routerId: DEMO_ROUTER.id, organizationId: "org-demo", locationId: "demo-location", providerName: "Airtel", linkType: "fiber", connectionMode: "static", role: "primary", isActiveUplink: true, autoFailback: true, isEnabled: true, priority: 0, interface: "ether1", gatewayIpAddress: "203.0.113.1", dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8", downloadBandwidthMbps: 500, uploadBandwidthMbps: 200, healthStatus: "healthy", healthStatusSource: "automated", unhealthySince: null, latencyMs: 12.4, packetLossPercentage: 0, currentDownloadMbps: 118.2, currentUploadMbps: 24.6, lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 30 * 86400000).toISOString() },
+  { id: "isp-demo-2", routerId: DEMO_ROUTER.id, organizationId: "org-demo", locationId: "demo-location", providerName: "Jio", linkType: "wireless_4g", connectionMode: "dhcp", role: "backup", isActiveUplink: false, autoFailback: true, isEnabled: true, priority: 1, interface: "lte1", gatewayIpAddress: "203.0.113.9", dnsPrimary: "1.1.1.1", dnsSecondary: null, downloadBandwidthMbps: 100, uploadBandwidthMbps: 40, healthStatus: "degraded", healthStatusSource: "automated", unhealthySince: null, latencyMs: 89.1, packetLossPercentage: 3.2, currentDownloadMbps: 31.5, currentUploadMbps: 8.1, lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 30 * 86400000).toISOString() },
 ];
+
+// Small, deterministic local fixture backing IspStatusTimeline's demo-mode
+// rendering -- the demo session never calls ispService (see DEMO_ROUTER's
+// own comment above), so the timeline's last-12-checks sparkline needs its
+// own illustrative-only history rather than a real /health-checks call.
+const DEMO_HEALTH_HISTORY: Record<string, string[]> = {
+  "isp-demo-1": ["healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "degraded", "healthy", "healthy", "healthy", "healthy", "healthy"],
+  "isp-demo-2": ["degraded", "degraded", "healthy", "healthy", "degraded", "unhealthy", "degraded", "healthy", "degraded", "healthy", "degraded", "degraded"],
+};
 
 function IspLinkDialog({
   open, onOpenChange, editing, saving, onSave,
@@ -589,6 +965,7 @@ function IspLinkDialog({
     setForm(editing ? {
       providerName: editing.providerName,
       linkType: editing.linkType,
+      connectionMode: editing.connectionMode,
       role: editing.role,
       priority: editing.priority,
       interfaceName: editing.interface ?? "",
@@ -619,19 +996,39 @@ function IspLinkDialog({
             <div><Label className="mb-1 block text-xs">Role</Label><Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as IspLinkRole })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="backup">Backup</SelectItem></SelectContent></Select></div>
             <div><Label className="mb-1 block text-xs">Priority</Label><Input type="number" min={0} value={form.priority} onChange={(e) => setForm({ ...form, priority: +e.target.value || 0 })} className="h-9" /></div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><Label className="mb-1 block text-xs">Download (Mbps)</Label><Input type="number" min={0} placeholder="500" value={form.downloadBandwidthMbps} onChange={(e) => setForm({ ...form, downloadBandwidthMbps: e.target.value })} className="h-9" /></div>
-            <div><Label className="mb-1 block text-xs">Upload (Mbps)</Label><Input type="number" min={0} placeholder="200" value={form.uploadBandwidthMbps} onChange={(e) => setForm({ ...form, uploadBandwidthMbps: e.target.value })} className="h-9" /></div>
+          <div>
+            <Label className="mb-1 block text-xs">Connection Type</Label>
+            <Select value={form.connectionMode} onValueChange={(v) => setForm({ ...form, connectionMode: v as IspConnectionMode })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="static">Static IP</SelectItem>
+                <SelectItem value="dhcp">DHCP Client</SelectItem>
+                <SelectItem value="pppoe">PPPoE</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div><Label className="mb-1 block text-xs">Gateway IP</Label><Input placeholder="203.0.113.1" value={form.gatewayIpAddress} onChange={(e) => setForm({ ...form, gatewayIpAddress: e.target.value })} className="h-9 font-mono" /></div>
-            <div><Label className="mb-1 block text-xs">Interface</Label><Input placeholder="ether1" value={form.interfaceName} onChange={(e) => setForm({ ...form, interfaceName: e.target.value })} className="h-9 font-mono" /></div>
+            <div>
+              <Label className="mb-1 block text-xs">Interface{form.connectionMode === "pppoe" && " *"}</Label>
+              <Select value={form.interfaceName} onValueChange={(v) => setForm({ ...form, interfaceName: v })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select interface" /></SelectTrigger>
+                <SelectContent>{INTERFACE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+              {form.connectionMode === "pppoe" && (
+                <p className="mt-1 text-[11px] text-muted-foreground">This interface's own connection state is the health signal for PPPoE.</p>
+              )}
+            </div>
+            {form.connectionMode === "static" ? (
+              <div><Label className="mb-1 block text-xs">Gateway IP (optional)</Label><Input placeholder="203.0.113.1" value={form.gatewayIpAddress} onChange={(e) => setForm({ ...form, gatewayIpAddress: e.target.value })} className="h-9 font-mono" /></div>
+            ) : (
+              <div>
+                <Label className="mb-1 block text-xs">Gateway IP</Label>
+                <div className="flex h-9 items-center rounded-md border border-dashed px-3 text-[11px] text-muted-foreground">
+                  {form.connectionMode === "dhcp" ? "Detected automatically from the router's live DHCP lease" : "Not applicable for PPPoE"}
+                </div>
+              </div>
+            )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><Label className="mb-1 block text-xs">DNS Primary</Label><Input placeholder="1.1.1.1" value={form.dnsPrimary} onChange={(e) => setForm({ ...form, dnsPrimary: e.target.value })} className="h-9 font-mono" /></div>
-            <div><Label className="mb-1 block text-xs">DNS Secondary</Label><Input placeholder="8.8.8.8" value={form.dnsSecondary} onChange={(e) => setForm({ ...form, dnsSecondary: e.target.value })} className="h-9 font-mono" /></div>
-          </div>
-          <label className="flex items-center gap-2 text-sm"><Switch checked={form.autoFailback} onCheckedChange={(v) => setForm({ ...form, autoFailback: v })} />Auto failback to this link once healthy again</label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -674,7 +1071,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
             <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet -- the next sweep runs within 60 seconds, or trigger one manually.</p>
           ) : checks.map((c) => (
             <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
-              <div className="flex items-center gap-2"><HealthBadge status={c.status} /><span className="text-muted-foreground">{new Date(c.checkedAt).toLocaleString()}</span></div>
+              <div className="flex items-center gap-2"><HealthBadge status={c.status} source={c.source} /><span className="text-muted-foreground">{new Date(c.checkedAt).toLocaleString()}</span></div>
               <div className="text-right text-muted-foreground">
                 {c.latencyMs != null ? `${c.latencyMs.toFixed(1)} ms` : "—"} · {c.packetLossPercentage != null ? `${c.packetLossPercentage.toFixed(1)}% loss` : "—"}
                 {c.errorMessage && <p className="mt-0.5 text-rose-600 dark:text-rose-400">{c.errorMessage}</p>}
@@ -699,8 +1096,8 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   const [editingLink, setEditingLink] = useState<IspLink | null>(null);
   const [saving, setSaving] = useState(false);
   const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [historyLinkId, setHistoryLinkId] = useState<string | null>(null);
-  const [failoverBusy, setFailoverBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -754,10 +1151,15 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         routerId: selectedRouterId,
         providerName: form.providerName.trim(),
         linkType: form.linkType,
+        connectionMode: form.connectionMode,
         role: form.role,
         priority: form.priority,
         interface: form.interfaceName.trim() || null,
-        gatewayIpAddress: form.gatewayIpAddress.trim() || null,
+        // Only a STATIC link ever has a manually-entered gateway -- DHCP
+        // resolves it live every check, PPPoE has no gateway concept at
+        // all (see backend IspService.ping_link's own docstring), so
+        // never send a stale/hidden-field value for either.
+        gatewayIpAddress: form.connectionMode === "static" ? form.gatewayIpAddress.trim() || null : null,
         dnsPrimary: form.dnsPrimary.trim() || null,
         dnsSecondary: form.dnsSecondary.trim() || null,
         downloadBandwidthMbps: form.downloadBandwidthMbps ? +form.downloadBandwidthMbps : null,
@@ -807,63 +1209,60 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     }
   };
 
-  const triggerFailover = async () => {
-    if (demo || !selectedRouterId) return;
-    setFailoverBusy(true);
+  // An admin's own manual up/down override of a link's current status --
+  // the one real write this view offers beyond the pre-existing CRUD/
+  // failover/failback (never pushes anything to the router; see
+  // ispService.setManualStatus's own comment). The very next automated
+  // health check (sweep or "Check health now") reclaims the link back to
+  // its real, sweep-driven status regardless of this override.
+  const setLinkManualStatus = async (link: IspLink, healthStatus: IspManualHealthStatus) => {
+    if (demo) { toast.info("Manual status overrides aren't available in demo mode."); return; }
+    setStatusBusyId(link.id);
     try {
-      await ispService.triggerFailover(selectedRouterId);
-      toast.success("Failover triggered");
-      await loadLinks(selectedRouterId);
+      const updated = await ispService.setManualStatus(link.id, healthStatus);
+      setLinks((ls) => ls.map((l) => (l.id === updated.id ? updated : l)));
+      toast.success(`${link.providerName} marked ${healthStatus === "healthy" ? "Up" : "Down"}`);
     } catch (err) {
-      toast.error((err as AppError).message || "Could not trigger failover.");
+      toast.error((err as AppError).message || "Could not update ISP link status.");
     } finally {
-      setFailoverBusy(false);
+      setStatusBusyId(null);
     }
   };
 
-  const triggerFailback = async () => {
-    if (demo || !selectedRouterId) return;
-    setFailoverBusy(true);
-    try {
-      await ispService.triggerFailback(selectedRouterId);
-      toast.success("Failback triggered");
-      await loadLinks(selectedRouterId);
-    } catch (err) {
-      toast.error((err as AppError).message || "Could not trigger failback.");
-    } finally {
-      setFailoverBusy(false);
-    }
-  };
-
+  // Failover/failback triggers are intentionally not exposed from this
+  // view -- this dashboard is meant to be a real, persisted view of each
+  // ISP link and its status (automated or manually set), not a control
+  // surface that pushes uplink-switching actions from the customer
+  // dashboard. The backend endpoints (`IspService.trigger_failover`/
+  // `trigger_failback`) remain real and unchanged for whichever surface
+  // still needs them; only this view's buttons were removed.
   const healthyCount = links.filter((l) => l.healthStatus === "healthy").length;
   const activeLink = links.find((l) => l.isActiveUplink);
 
   return (
     <div className="space-y-6">
-      <FeatureHeader
-        title="ISP Details"
-        description="Real WAN uplinks per router -- provider, bandwidth, DNS, failover priority, and live health status."
-        action={selectedRouterId ? <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" />Add ISP Link</Button> : undefined}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FeatureHeader
+            title="Internet Connection"
+            description="Real WAN uplinks per router -- provider, bandwidth, DNS, failover priority, and live health status."
+            icon={Globe}
+            action={selectedRouterId ? <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" />Add ISP Link</Button> : undefined}
+          />
+        </div>
+        <IspDetailsIllustration />
+      </div>
 
       <Card className="border-0 shadow-sm">
         <CardContent className="space-y-4 p-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label className="mb-1.5 block text-sm">Router *</Label>
-              <Select value={selectedRouterId} onValueChange={setSelectedRouterId} disabled={routersLoading || routers.length === 0}>
-                <SelectTrigger className="h-9"><SelectValue placeholder={routersLoading ? "Loading routers…" : "Select a router"} /></SelectTrigger>
-                <SelectContent>
-                  {routers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name} <span className="text-muted-foreground">({r.locationName || r.serialNumber})</span></SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {selectedRouter && (
-              <div className="flex items-end gap-2">
-                <Button variant="outline" size="sm" disabled={failoverBusy || links.length < 2} onClick={triggerFailover}><ArrowRightLeft className="h-4 w-4" />Trigger Failover</Button>
-                <Button variant="outline" size="sm" disabled={failoverBusy || links.length < 2} onClick={triggerFailback}><RefreshCw className="h-4 w-4" />Trigger Failback</Button>
-              </div>
-            )}
+          <div>
+            <Label className="mb-1.5 block text-sm">Router *</Label>
+            <Select value={selectedRouterId} onValueChange={setSelectedRouterId} disabled={routersLoading || routers.length === 0}>
+              <SelectTrigger className="h-9 sm:w-1/2"><SelectValue placeholder={routersLoading ? "Loading routers…" : "Select a router"} /></SelectTrigger>
+              <SelectContent>
+                {routers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name} <span className="text-muted-foreground">({r.locationName || r.serialNumber})</span></SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           {!routersLoading && routers.length === 0 && (
@@ -898,7 +1297,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                   <TableRow>
                     <TableHead className="text-xs font-medium">Provider</TableHead><TableHead className="text-xs font-medium">Type</TableHead><TableHead className="text-xs font-medium">Role</TableHead>
                     <TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">DNS</TableHead><TableHead className="text-xs font-medium">Priority</TableHead>
-                    <TableHead className="text-xs font-medium">Health</TableHead><TableHead className="text-xs font-medium">Latency / Loss</TableHead><TableHead className="text-xs font-medium">Last Checked</TableHead>
+                    <TableHead className="text-xs font-medium">Health</TableHead><TableHead className="text-xs font-medium">Status Timeline</TableHead><TableHead className="text-xs font-medium">Latency / Loss</TableHead><TableHead className="text-xs font-medium">Last Checked</TableHead>
                     <TableHead className="text-right text-xs font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -908,14 +1307,31 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                       <TableCell className="font-medium">{l.providerName}{l.isActiveUplink && <Badge variant="outline" className="ml-2 text-[10px]">Active</Badge>}</TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">{l.linkType.replace(/_/g, " ")}</TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">{l.role}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{l.downloadBandwidthMbps ?? "—"}↓ / {l.uploadBandwidthMbps ?? "—"}↑ Mbps</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {l.downloadBandwidthMbps ?? "—"}↓ / {l.uploadBandwidthMbps ?? "—"}↑ Mbps
+                        {(l.currentDownloadMbps != null || l.currentUploadMbps != null) && (
+                          <p className="mt-0.5 text-[10px] text-teal-600 dark:text-teal-400" title="Live measured traffic load, not the provisioned plan capacity above">
+                            Live: {l.currentDownloadMbps?.toFixed(1) ?? "—"}↓ / {l.currentUploadMbps?.toFixed(1) ?? "—"}↑ Mbps
+                          </p>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{[l.dnsPrimary, l.dnsSecondary].filter(Boolean).join(", ") || "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{l.priority}</TableCell>
-                      <TableCell><HealthBadge status={l.healthStatus} /></TableCell>
+                      <TableCell>
+                        <HealthBadge status={l.healthStatus} source={l.healthStatusSource} />
+                        {l.healthStatus === "unhealthy" && l.unhealthySince && (
+                          <p className="mt-0.5 text-[10px] text-rose-600 dark:text-rose-400" title={new Date(l.unhealthySince).toLocaleString()}>
+                            Down since {timeAgo(l.unhealthySince)}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell><IspStatusTimeline link={l} demo={demo} /></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{l.latencyMs != null ? `${l.latencyMs.toFixed(1)} ms` : "—"} / {l.packetLossPercentage != null ? `${l.packetLossPercentage.toFixed(1)}%` : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{l.lastCheckedAt ? timeAgo(l.lastCheckedAt) : "Never"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 dark:text-emerald-400" title="Mark as Up (healthy)" disabled={statusBusyId === l.id} onClick={() => setLinkManualStatus(l, "healthy")}><CheckCircle2 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-600 dark:text-rose-400" title="Mark as Down (unhealthy)" disabled={statusBusyId === l.id} onClick={() => setLinkManualStatus(l, "unhealthy")}><XCircle className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Check health now" disabled={checkingId === l.id} onClick={() => checkHealth(l)}><RefreshCw className={cn("h-4 w-4", checkingId === l.id && "animate-spin")} /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Health history" onClick={() => setHistoryLinkId(l.id)}><History className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => openEdit(l)}><Pencil className="h-4 w-4" /></Button>
@@ -939,6 +1355,42 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
 }
 
 /* ---------- Admin Logs ---------- */
+
+/** Small illustrated empty-state for a log section with zero real rows --
+ * a dormant activity pulse, same filled-flat-shape language as
+ * ChartEmptyState/UsersEmptyState elsewhere this session (each of those is
+ * scoped to its own page file, not exported, so this is a local twin
+ * rather than a cross-file import). Purely decorative -- aria-hidden. */
+function LogsEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+      <svg aria-hidden="true" viewBox="0 0 100 70" className="h-14 w-20" fill="none">
+        <ellipse cx="50" cy="60" rx="32" ry="4" fill="#4f46e5" opacity="0.08" />
+        <rect x="26" y="24" width="48" height="30" rx="6" fill="#f5f0ff" stroke="#a78bfa" strokeWidth="2" />
+        <path d="M34 34h32M34 41h22" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" opacity="0.35" />
+        <circle cx="66" cy="20" r="4" fill="#22d3ee" opacity="0.6" />
+      </svg>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+/** Section header for one of the three log tables below -- a distinct
+ * gradient hue per section (still within the established indigo/violet/
+ * fuchsia brand family) so a reader can tell at a glance which of the
+ * three dense tables they're scanning, without reading the title text
+ * first. Left-accent bar on the card echoes the same hue. */
+function LogSectionHeader({ icon: Icon, title, gradient }: { icon: React.ComponentType<{ className?: string }>; title: string; gradient: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br", gradient)}>
+        <Icon className="h-3.5 w-3.5 text-white" />
+      </div>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+    </div>
+  );
+}
+
 export function AdminLogsView({ locationId }: { locationId?: string }) {
   // Owner-only, render-time check -- defense in depth alongside the
   // sidebar/route-nav guard (customerNav.ts / customer.$locationId.$feature
@@ -963,6 +1415,13 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
   const [loginsPage, setLoginsPage] = useState(1);
   const [routerPage, setRouterPage] = useState(1);
   const [activityPage, setActivityPage] = useState(1);
+  // Tabbed instead of three long tables stacked one after another -- each
+  // section can run to 25+ rows per page, so reaching "Account Activity"
+  // used to mean scrolling past two entirely unrelated tables first. All
+  // three queries still run unconditionally (below), so switching tabs is
+  // instant with no refetch, and each section's own page number is
+  // preserved even while its tab isn't active.
+  const [section, setSection] = useState<"logins" | "router" | "activity">("logins");
   const loginsQuery = useAdminLogsDashboardLogins(loginsPage, ADMIN_LOGS_PAGE_SIZE);
   const routerQuery = useAdminLogsRouterEvents(routerPage, ADMIN_LOGS_PAGE_SIZE);
   const activityQuery = useAdminLogsAccountActivity(activityPage, ADMIN_LOGS_PAGE_SIZE);
@@ -970,7 +1429,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
   if (role !== "owner") {
     return (
       <div className="space-y-6">
-        <FeatureHeader title="Logs" description="Who logged into the dashboard and when, router activity, and account changes across every location." />
+        <FeatureHeader title="Logs" description="Who logged into the dashboard and when, router activity, and account changes across every location." icon={ScrollText} />
         <Card className="border-0 shadow-sm">
           <CardContent>
             <EmptyState
@@ -991,18 +1450,42 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
   const routerTotalPages = routerQuery.data?.meta.totalPages ?? 0;
   const activityTotalPages = activityQuery.data?.meta.totalPages ?? 0;
 
-  return (
-    <div className="space-y-8">
-      <FeatureHeader title="Logs" description="Real login activity, router events, and account/config changes across every location in your organization." />
+  const TABS: { id: typeof section; label: string; icon: React.ComponentType<{ className?: string }>; count: number }[] = [
+    { id: "logins", label: "Dashboard Logins", icon: KeyRound, count: loginsQuery.data?.meta.totalItems ?? logins.length },
+    { id: "router", label: "Router Logs", icon: Router, count: routerQuery.data?.meta.totalItems ?? routerLogs.length },
+    { id: "activity", label: "Account Activity", icon: History, count: activityQuery.data?.meta.totalItems ?? accountActivity.length },
+  ];
 
+  return (
+    <div className="space-y-6">
+      <FeatureHeader title="Logs" description="Real login activity, router events, and account/config changes across every location in your organization." icon={ScrollText} />
+
+      <div className="flex flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setSection(t.id)}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              section === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <t.icon className="h-4 w-4" />
+            {t.label}
+            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", section === t.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{t.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {section === "logins" && (
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Dashboard Logins</h3>
-        <Card className="border-0 shadow-sm">
+        <LogSectionHeader icon={KeyRound} title="Dashboard Logins" gradient="from-[#4f46e5] to-[#818cf8]" />
+        <Card className="border-0 border-l-4 border-l-[#4f46e5] shadow-sm">
           <CardContent className="p-0">
             {loginsQuery.isLoading ? (
               <div className="p-4"><LoadingSkeleton rows={5} /></div>
             ) : logins.length === 0 ? (
-              <EmptyState icon={History} title="No dashboard logins yet" description="Login activity for this organization will appear here." />
+              <LogsEmptyState label="No dashboard logins yet -- login activity for this organization will appear here." />
             ) : (
             <Table>
               <TableHeader>
@@ -1011,15 +1494,15 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
               <TableBody>
                 {logins.map((l) => (
                   <TableRow key={l.id} className="border-b">
-                    <TableCell className="font-medium">{l.email}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{l.ipAddress}</TableCell>
-                    <TableCell>
-                      <span className={cn("inline-flex items-center gap-1 text-xs font-medium", l.success ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                    <TableCell className="py-2 font-medium">{l.email}</TableCell>
+                    <TableCell className="py-2 font-mono text-xs text-muted-foreground">{l.ipAddress}</TableCell>
+                    <TableCell className="py-2">
+                      <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", l.success ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400")}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", l.success ? "bg-emerald-500" : "bg-rose-500")} />
                         {l.success ? "Success" : (l.failureReason ?? "Failed")}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{l.time}</TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">{l.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -1033,15 +1516,17 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
           )}
         </Card>
       </div>
+      )}
 
+      {section === "router" && (
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Router Logs by Location</h3>
-        <Card className="border-0 shadow-sm">
+        <LogSectionHeader icon={Router} title="Router Logs by Location" gradient="from-[#7c3aed] to-[#a78bfa]" />
+        <Card className="border-0 border-l-4 border-l-[#7c3aed] shadow-sm">
           <CardContent className="p-0">
             {routerQuery.isLoading ? (
               <div className="p-4"><LoadingSkeleton rows={5} /></div>
             ) : routerLogs.length === 0 ? (
-              <EmptyState icon={Router} title="No router events yet" description="Router activity across your locations will appear here." />
+              <LogsEmptyState label="No router events yet -- router activity across your locations will appear here." />
             ) : (
             <Table>
               <TableHeader>
@@ -1050,16 +1535,16 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
               <TableBody>
                 {routerLogs.map((e) => (
                   <TableRow key={e.id} className="border-b">
-                    <TableCell className="font-medium">{e.locationName}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{e.routerName}</TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 font-medium">{e.locationName}</TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">{e.routerName}</TableCell>
+                    <TableCell className="py-2">
                       <span className={cn("inline-flex items-center gap-1 text-xs font-medium", e.isError ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", e.isError ? "bg-rose-500" : "bg-slate-400")} />
                         {e.eventType.replace(/_/g, " ")}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{e.message ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{e.time}</TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">{e.message ?? "—"}</TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">{e.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -1073,7 +1558,9 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
           )}
         </Card>
       </div>
+      )}
 
+      {section === "activity" && (
       <div className="space-y-3">
         {/* Real administrative change-audit trail (role assignments,
             location/member changes, etc.) -- what used to be the
@@ -1085,13 +1572,13 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
             Fetched with exclude_view_events=true, so this is only real
             changes -- never the "*_viewed" access-logging noise that
             would otherwise bury it. */}
-        <h3 className="text-sm font-semibold text-foreground">Account Activity</h3>
-        <Card className="border-0 shadow-sm">
+        <LogSectionHeader icon={History} title="Account Activity" gradient="from-[#c026d3] to-[#f0abfc]" />
+        <Card className="border-0 border-l-4 border-l-[#c026d3] shadow-sm">
           <CardContent className="p-0">
             {activityQuery.isLoading ? (
               <div className="p-4"><LoadingSkeleton rows={5} /></div>
             ) : accountActivity.length === 0 ? (
-              <EmptyState icon={Shield} title="No account activity yet" description="Role assignments and account/config changes across your organization will appear here." />
+              <LogsEmptyState label="No account activity yet -- role assignments and account/config changes across your organization will appear here." />
             ) : (
             <Table>
               <TableHeader>
@@ -1100,7 +1587,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
               <TableBody>
                 {accountActivity.map((a) => (
                   <TableRow key={a.id} className="border-b">
-                    <TableCell>
+                    <TableCell className="py-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", actionTone(a.action))}>
                           {formatAuditAction(a.action)}
@@ -1108,8 +1595,8 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
                         {a.description && <span className="text-sm text-foreground">{a.description}</span>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{a.actor}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">{a.actor}</TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground whitespace-nowrap">{a.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -1123,6 +1610,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
           )}
         </Card>
       </div>
+      )}
     </div>
   );
 }
@@ -1223,7 +1711,12 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
 
   return (
     <div className="space-y-6">
-      <FeatureHeader title="MAC Authorization" description="Bypass hotspot authentication on a few devices." action={<Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add MAC</Button>} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FeatureHeader title="Trusted Devices" description="Bypass hotspot authentication on a few devices." icon={Fingerprint} action={<Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add MAC</Button>} />
+        </div>
+        <MacAuthIllustration />
+      </div>
       <Card className="border-0 shadow-sm">
         <CardHeader><CardTitle className="text-sm">Authorized Devices</CardTitle><CardDescription>Devices allowed onto the network without going through the captive portal.</CardDescription></CardHeader>
         <CardContent className="p-0">
@@ -1343,64 +1836,188 @@ export function IspRoutingView({ locationId }: { locationId?: string }) {
   return <IspManagement locationId={locationId} />;
 }
 
-/* ---------- Debugging Tools ---------- */
-const DNS_SERVERS: Record<string, string> = { google: "Google 8.8.8.8", cf: "Cloudflare 1.1.1.1" };
+/* ---------- Debugging Tools ----------
+ * Was 100% fake: "DNS Lookup" resolved to Math.random() octets behind a
+ * setTimeout, "Reset User Session" never called anything, and "Controller
+ * Logs" only ever echoed those two fabricated actions back to themselves.
+ * A real domain already exists end-to-end for exactly this
+ * (backend/app.domains.network_diagnostics -- real ping/traceroute
+ * against a real router's RouterOS `/tool/ping`+`/tool/traceroute`, see
+ * that domain's own module docstring/docs/network_diagnostics/FLOW.md)
+ * with a real frontend service+hook already wired for the Master
+ * console's RouterDetailTabs (network-diagnostics.service.ts /
+ * useNetworkDiagnostics.ts) -- reused here directly, scoped to this
+ * location's own router(s) via routerService.listForLocation(), the same
+ * pairing IspDetailsView above already establishes. "Reset session" now
+ * really looks the IP up among this location's active guest sessions and
+ * calls the real terminate endpoint (guestService.terminateSession) --
+ * there is no diagnostics-domain concept of "reset by raw IP with no
+ * session," so an IP with no matching active session now honestly says
+ * so instead of pretending to have done something.
+ */
 const IP_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
 
-export function DebuggingView() {
-  const [logs, setLogs] = useState<string[]>([]);
-  const pushLog = (line: string) => setLogs((l) => [...l.slice(-49), `[${new Date().toLocaleTimeString()}] ${line}`]);
+function DiagnosticResultView({ run }: { run: DiagnosticRun }) {
+  if (run.status !== "success") {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg border bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
+        <XCircle className="h-3.5 w-3.5 shrink-0" /> {run.errorMessage || "Diagnostic failed."}
+      </div>
+    );
+  }
+  if (run.diagnosticType === "traceroute") {
+    const hops = (run.result.hops as { hop_number: number; address: string | null; packet_loss_percentage: number; avg_rtt_ms: number | null }[]) ?? [];
+    return (
+      <div className="max-h-48 overflow-y-auto rounded-lg border">
+        <Table>
+          <TableHeader><TableRow><TableHead className="text-xs">Hop</TableHead><TableHead className="text-xs">Address</TableHead><TableHead className="text-xs">Loss</TableHead><TableHead className="text-xs">RTT</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {hops.length === 0 ? (
+              <TableRow><TableCell colSpan={4} className="py-4 text-center text-xs text-muted-foreground">No hops recorded.</TableCell></TableRow>
+            ) : hops.map((h) => (
+              <TableRow key={h.hop_number}>
+                <TableCell className="text-xs">{h.hop_number}</TableCell>
+                <TableCell className="font-mono text-xs">{h.address ?? "*"}</TableCell>
+                <TableCell className="text-xs">{h.packet_loss_percentage}%</TableCell>
+                <TableCell className="text-xs">{h.avg_rtt_ms != null ? `${h.avg_rtt_ms}ms` : "—"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+  const sent = Number(run.result.sent ?? 0);
+  const received = Number(run.result.received ?? 0);
+  const loss = run.result.packet_loss_percentage as number | undefined;
+  const rtt = run.result.avg_rtt_ms as number | null | undefined;
+  return (
+    <div className="flex items-center justify-between rounded-lg border bg-emerald-50 px-3 py-2 text-xs dark:bg-emerald-500/10">
+      <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />{run.target} — {received}/{sent} received{loss != null ? ` (${loss}% loss)` : ""}</span>
+      <span className="text-muted-foreground">{rtt != null ? `${rtt}ms avg` : "—"}</span>
+    </div>
+  );
+}
 
-  const [domain, setDomain] = useState("");
-  const [dnsServer, setDnsServer] = useState("google");
-  const [dnsRunning, setDnsRunning] = useState(false);
-  const [dnsResult, setDnsResult] = useState<{ domain: string; ip: string; latencyMs: number; ok: boolean } | null>(null);
+export function DebuggingView({ locationId }: { locationId?: string } = {}) {
+  const demo = isDemo();
+  const [routers, setRouters] = useState<RouterDevice[]>([]);
+  const [routersLoading, setRoutersLoading] = useState(true);
+  const [selectedRouterId, setSelectedRouterId] = useState("");
+  const [target, setTarget] = useState("");
+  const [running, setRunning] = useState<"ping" | "traceroute" | null>(null);
+  const [lastRun, setLastRun] = useState<DiagnosticRun | null>(null);
+  const [runs, setRuns] = useState<DiagnosticRun[]>([]);
 
-  const runDnsLookup = () => {
-    const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    if (!clean || !clean.includes(".")) { toast.error("Enter a valid domain, e.g. google.com"); return; }
-    setDnsRunning(true);
-    setDnsResult(null);
-    pushLog(`DNS lookup: ${clean} via ${DNS_SERVERS[dnsServer]}…`);
-    setTimeout(() => {
-      const octet = () => Math.floor(Math.random() * 254) + 1;
-      const ip = `${octet()}.${octet()}.${octet()}.${octet()}`;
-      const latencyMs = Math.floor(Math.random() * 80) + 15;
-      setDnsResult({ domain: clean, ip, latencyMs, ok: true });
-      pushLog(`${clean} resolved to ${ip} (${latencyMs}ms via ${DNS_SERVERS[dnsServer]})`);
-      setDnsRunning(false);
-      toast.success(`${clean} resolved to ${ip}`);
-    }, 900);
+  useEffect(() => {
+    if (demo) { setRoutersLoading(false); return; }
+    let alive = true;
+    (async () => {
+      setRoutersLoading(true);
+      try {
+        const rows = locationId ? await routerService.listForLocation(locationId, await resolveOrgId()) : [];
+        if (!alive) return;
+        setRouters(rows);
+        setSelectedRouterId((prev) => (prev && rows.some((r) => r.id === prev)) ? prev : (rows[0]?.id ?? ""));
+      } catch {
+        if (alive) toast.error("Could not load routers for this location.");
+      } finally {
+        if (alive) setRoutersLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [locationId, demo]);
+
+  const selectedRouterOrgId = routers.find((r) => r.id === selectedRouterId)?.organizationId;
+
+  const loadRuns = async (routerId: string, organizationId?: string) => {
+    if (demo || !routerId) { setRuns([]); return; }
+    try {
+      const res = await networkDiagnosticsService.listRuns(routerId, organizationId, 1, 10);
+      setRuns(res.rows);
+    } catch {
+      setRuns([]);
+    }
+  };
+  useEffect(() => { loadRuns(selectedRouterId, selectedRouterOrgId); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedRouterId]);
+
+  const runDiagnostic = async (kind: "ping" | "traceroute") => {
+    const clean = target.trim();
+    if (!clean) { toast.error("Enter a hostname or IP address, e.g. 8.8.8.8"); return; }
+    if (demo) {
+      toast.error("Sign in to a real account to run diagnostics against a real router.");
+      return;
+    }
+    if (!selectedRouterId) { toast.error("No router is registered at this location yet."); return; }
+    setRunning(kind);
+    try {
+      const run = kind === "ping"
+        ? await networkDiagnosticsService.ping(selectedRouterId, clean, selectedRouterOrgId)
+        : await networkDiagnosticsService.traceroute(selectedRouterId, clean, selectedRouterOrgId);
+      setLastRun(run);
+      setRuns((r) => [run, ...r].slice(0, 10));
+      if (run.status === "success") toast.success(`${kind === "ping" ? "Ping" : "Traceroute"} to ${clean} completed`);
+      else toast.error(run.errorMessage || `${kind === "ping" ? "Ping" : "Traceroute"} failed`);
+    } catch {
+      toast.error("Could not reach the router to run this diagnostic.");
+    } finally {
+      setRunning(null);
+    }
   };
 
   const [sessionIp, setSessionIp] = useState("");
-  const resetSession = () => {
-    if (!IP_RE.test(sessionIp.trim())) { toast.error("Enter a valid IP address, e.g. 10.0.1.42"); return; }
-    pushLog(`Session reset requested for ${sessionIp.trim()} — forcing re-authentication.`);
-    toast.success(`Session reset for ${sessionIp.trim()}`);
-    setSessionIp("");
+  const [resettingSession, setResettingSession] = useState(false);
+  const resetSession = async () => {
+    const ip = sessionIp.trim();
+    if (!IP_RE.test(ip)) { toast.error("Enter a valid IP address, e.g. 10.0.1.42"); return; }
+    if (demo) { toast.error("Sign in to a real account to reset a real guest's session."); return; }
+    setResettingSession(true);
+    try {
+      const result = await guestService.listSessions({ search: ip, status: "active", locationId: locationId ?? "all", page: 1, pageSize: 5 });
+      const match = result.rows.find((s) => s.ipAddress === ip);
+      if (!match) { toast.error(`No active session found for ${ip}.`); return; }
+      await guestService.terminateSession(match.id, "Session reset from Network Diagnostics");
+      toast.success(`Session reset for ${ip} — they'll be sent back to the login page.`);
+      setSessionIp("");
+    } catch {
+      toast.error("Could not reset this session — check the connection and try again.");
+    } finally {
+      setResettingSession(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <FeatureHeader title="Debugging Tools" description="Trouble connecting or opening a site? Debug it right here." />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FeatureHeader title="Network Diagnostics" description="Trouble connecting or opening a site? Debug it right here." icon={Terminal} />
+        </div>
+        <DebuggingIllustration />
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-primary" /> DNS Lookup</CardTitle>
-            <CardDescription>Check if a website resolves on any ISP.</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-primary" /> Ping / Traceroute</CardTitle>
+            <CardDescription>Runs a real command on this location's own router.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="Domain name" value={domain} onChange={(e) => setDomain(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runDnsLookup()} className="h-9" />
-            <div className="flex gap-2">
-              <Select value={dnsServer} onValueChange={setDnsServer}><SelectTrigger className="h-9"><SelectValue placeholder="DNS server" /></SelectTrigger><SelectContent><SelectItem value="google">Google 8.8.8.8</SelectItem><SelectItem value="cf">Cloudflare 1.1.1.1</SelectItem></SelectContent></Select>
-              <Button size="sm" disabled={dnsRunning} onClick={runDnsLookup}>{dnsRunning ? "Testing…" : "Test"}</Button>
-            </div>
-            {dnsResult && (
-              <div className="flex items-center justify-between rounded-lg border bg-emerald-50 px-3 py-2 text-xs dark:bg-emerald-500/10">
-                <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />{dnsResult.domain} → {dnsResult.ip}</span>
-                <span className="text-muted-foreground">{dnsResult.latencyMs}ms</span>
-              </div>
+            {!demo && routers.length > 1 && (
+              <Select value={selectedRouterId} onValueChange={setSelectedRouterId}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Router" /></SelectTrigger>
+                <SelectContent>{routers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+            {!demo && !routersLoading && routers.length === 0 ? (
+              <EmptyState icon={Router} title="No router at this location" description="Register a router here before running diagnostics." />
+            ) : (
+              <>
+                <Input placeholder="Hostname or IP, e.g. 8.8.8.8" value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runDiagnostic("ping")} className="h-9 font-mono" />
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={running !== null} onClick={() => runDiagnostic("ping")}>{running === "ping" ? "Pinging…" : "Ping"}</Button>
+                  <Button size="sm" variant="outline" disabled={running !== null} onClick={() => runDiagnostic("traceroute")}>{running === "traceroute" ? "Tracing…" : "Traceroute"}</Button>
+                </div>
+                {lastRun && <DiagnosticResultView run={lastRun} />}
+              </>
             )}
           </CardContent>
         </Card>
@@ -1411,16 +2028,34 @@ export function DebuggingView() {
           </CardHeader>
           <CardContent className="space-y-3">
             <Input placeholder="User IP address" value={sessionIp} onChange={(e) => setSessionIp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && resetSession()} className="h-9 font-mono" />
-            <Button size="sm" variant="outline" onClick={resetSession}>Reset session</Button>
+            <Button size="sm" variant="outline" disabled={resettingSession} onClick={resetSession}>{resettingSession ? "Resetting…" : "Reset session"}</Button>
           </CardContent>
         </Card>
       </div>
       <Card className="border-0 shadow-sm">
-        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Terminal className="h-4 w-4 text-primary" /> Controller Logs</CardTitle></CardHeader>
-        <CardContent>
-          <div className="h-56 overflow-auto rounded-xl border bg-[oklch(0.16_0.02_236)] p-4 font-mono text-xs text-emerald-300/90">
-            {logs.length === 0 ? <span className="text-white/40">No logs to display… run a DNS lookup or session reset above.</span> : logs.map((l, i) => <div key={i}>{l}</div>)}
-          </div>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Terminal className="h-4 w-4 text-primary" /> Recent Diagnostic Runs</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {demo || runs.length === 0 ? (
+            <div className="p-4"><EmptyState icon={Terminal} title="No runs yet" description="Run a ping or traceroute above — real results land here." /></div>
+          ) : (
+            <div className="overflow-x-auto"><Table>
+              <TableHeader><TableRow><TableHead className="text-xs">Type</TableHead><TableHead className="text-xs">Target</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs">When</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {runs.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-xs capitalize">{r.diagnosticType}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.target}</TableCell>
+                    <TableCell className="text-xs">
+                      <span className={cn("inline-flex items-center gap-1", r.status === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", r.status === "success" ? "bg-emerald-500" : "bg-rose-500")} />{r.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table></div>
+          )}
         </CardContent>
       </Card>
     </div>

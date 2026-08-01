@@ -168,6 +168,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Signal}
         eyebrow="Network"
         title="VOIP Priority"
         description="Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."
@@ -184,7 +185,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
         <StatCard label="SIP rules (5060/5061)" value={voiceCount} icon={Signal} tone="info" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All Rules</CardTitle>
           <div className="flex flex-wrap items-center gap-2">

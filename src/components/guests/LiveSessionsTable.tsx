@@ -123,7 +123,15 @@ function toCsv(rows: GuestSession[]): string {
 
 export function LiveSessionsTable() {
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<GuestSessionStatus | "all">("all");
+  // Always "active" -- this table's own name/purpose is "live" sessions.
+  // Previously a status dropdown defaulted to "all" (later just
+  // defaulted to "active" but stayed switchable), meaning every
+  // historical disconnected session ever recorded (e.g. every retry
+  // during a login-flow debugging session) could show up here alongside
+  // real, currently-connected guests. Per explicit direction, this page
+  // is now exclusively real-time -- no filter, no way to see history
+  // here (a separate report/export is the right place for that).
+  const status: GuestSessionStatus | "all" = "active";
   const [locationId, setLocationId] = useState<string | "all">("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -197,25 +205,6 @@ export function LiveSessionsTable() {
               className="pl-9"
             />
           </div>
-          <Select
-            value={status}
-            onValueChange={(v) => {
-              setStatus(v as GuestSessionStatus | "all");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="disconnected">Disconnected</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-              <SelectItem value="terminated">Terminated</SelectItem>
-            </SelectContent>
-          </Select>
           <Select
             value={locationId}
             onValueChange={(v) => {

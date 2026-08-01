@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   HelpCircle, X, Plus, ChevronDown, Search, Pencil, Copy, Trash2,
   ChevronLeft, ChevronRight, Loader2, User, Network, MapPin, MapPinOff, Users, UserPlus,
@@ -40,10 +41,53 @@ function labelFromMinutes(minutes: number | null | undefined, table: Record<stri
   return found?.[0] ?? fallback;
 }
 
+/**
+ * Small header-accent illustration: three user nodes wired into one shared
+ * policy hub -- exactly what a "group" is on this page (a set of users
+ * mapped to one shared network policy). Same filled-flat-shape character
+ * language as the other illustrations shipped this session. Purely
+ * decorative -- aria-hidden.
+ */
+function GroupMappingIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  const users = [
+    { x: 16, y: 8, color: "#22d3ee" },
+    { x: 68, y: 6, color: "#f0abfc" },
+    { x: 68, y: 42, color: "#a78bfa" },
+  ];
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
+      {users.map((u, i) => (
+        <motion.line
+          key={i}
+          x1="42" y1="26" x2={u.x} y2={u.y}
+          stroke={u.color} strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="1 4" strokeLinecap="round"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.12 * i, ease: "easeOut" }}
+        />
+      ))}
+      {users.map((u, i) => (
+        <g key={i} transform={`translate(${u.x}, ${u.y})`}>
+          <circle r="7" fill="#2e2a5c" stroke={u.color} strokeWidth="1.5" />
+          <circle cy="-1.5" r="2.2" fill={u.color} />
+          <path d="M-3.5 4c0-3 1.8-4.5 3.5-4.5S3.5 1 3.5 4" stroke={u.color} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+        </g>
+      ))}
+      <motion.circle
+        cx="42" cy="26" r="9" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2"
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <path d="M38 26h8M42 22v8" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const STEPS = [
-  { num: 1, label: "Create group", icon: Plus, caption: "" },
-  { num: 2, label: "Map group", icon: Network, caption: "Not started" },
-  { num: 3, label: "Map users", icon: User, caption: "Not started" },
+  { num: 1, label: "Create tier", icon: Plus, caption: "" },
+  { num: 2, label: "Map tier", icon: Network, caption: "Not started" },
+  { num: 3, label: "Map guests", icon: User, caption: "Not started" },
 ];
 const BANDWIDTH = ["Unlimited", "512 Kbps", "1 Mbps", "2 Mbps", "5 Mbps", "10 Mbps"];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
@@ -82,7 +126,7 @@ function Tooltip({ text }: { text: string }) {
   const close = useCallback(() => setOpen(false), []);
   return (
     <span className="relative inline-flex">
-      <button type="button" aria-label="Help" onClick={() => setOpen((p) => !p)} onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget)) close(); }} className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+      <button type="button" aria-label="Help" onClick={() => setOpen((p) => !p)} onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget)) close(); }} className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
       {open && (
@@ -102,16 +146,16 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
   return (
     <div>
       <label htmlFor={id} className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-        {label}{required && <span className="text-orange-500">*</span>}
+        {label}{required && <span className="text-indigo-500">*</span>}
         {tooltip && <Tooltip text={tooltip} />}
       </label>
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
       >
         {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-      {err && <p className="mt-0.5 text-xs text-orange-500">{err}</p>}
+      {err && <p className="mt-0.5 text-xs text-indigo-500">{err}</p>}
     </div>
   );
 }
@@ -258,7 +302,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         }
         setSaving(false); setStep1Done(true); setPage(0);
         resetForm();
-        setToast(isEdit ? "Group updated." : "Group created.");
+        setToast(isEdit ? "Access tier updated." : "Access tier created.");
         setTimeout(() => setToast(null), 3500);
       }, 500);
       return;
@@ -289,10 +333,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       }
       setStep1Done(true); setPage(0);
       resetForm();
-      setToast(isEdit ? "Group updated." : "Group created.");
+      setToast(isEdit ? "Access tier updated." : "Access tier created.");
       setTimeout(() => setToast(null), 3500);
     } catch {
-      setToast(isEdit ? "Could not update the group — check the connection and try again." : "Could not create the group — check the connection and try again.");
+      setToast(isEdit ? "Could not update the access tier — check the connection and try again." : "Could not create the access tier — check the connection and try again.");
       setTimeout(() => setToast(null), 3500);
     } finally {
       setSaving(false);
@@ -554,7 +598,18 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         </div>
       )}
 
-      <h1 className="text-lg font-semibold tracking-tight">Create Group</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <Users className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Access Tiers</h1>
+            <p className="text-sm text-muted-foreground">Map a shared network policy to a set of users.</p>
+          </div>
+        </div>
+        <GroupMappingIllustration />
+      </div>
 
       <ol className="flex items-center gap-0" aria-label="Progress">
         {STEPS.map((s, i) => {
@@ -569,13 +624,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           return (
             <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
               <div className="flex flex-col items-center min-w-0">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${done ? "bg-orange-500" : s.num === 1 ? "bg-slate-900" : "bg-slate-100 dark:bg-slate-700"}`}>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-slate-900" : "bg-slate-100 dark:bg-slate-700"}`}>
                   <s.icon className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
                 </div>
                 <p className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
-                {caption && <p className={`text-[10px] ${done ? "text-orange-500" : "text-slate-400 dark:text-slate-500"}`}>{caption}</p>}
+                {caption && <p className={`text-[10px] ${done ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}>{caption}</p>}
               </div>
-              {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-orange-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
+              {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
             </li>
           );
         })}
@@ -584,11 +639,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       <Card id="create-group-form" className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{editingId ? "Edit Group" : "Create Group"}</h2>
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{editingId ? "Edit Access Tier" : "Create Access Tier"}</h2>
             <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Groups set internet policies for specific users or teams. A group's settings override the location policy for its members.</p>
           </div>
           {editingId && (
-            <button type="button" onClick={resetForm} className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-slate-400 dark:hover:bg-slate-700">
+            <button type="button" onClick={resetForm} className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700">
               Cancel edit
             </button>
           )}
@@ -596,9 +651,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div>
-            <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Group Name <span className="text-orange-500">*</span></label>
-            <input id="g-name" type="text" placeholder="e.g. Staff, Long-stay guests" value={name} onChange={(e) => setField("name", e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
-            {errs.name && <p className="mt-0.5 text-xs text-orange-500">{errs.name}</p>}
+            <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Tier Name <span className="text-indigo-500">*</span></label>
+            <input id="g-name" type="text" placeholder="e.g. Staff, Long-stay guests" value={name} onChange={(e) => setField("name", e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
+            {errs.name && <p className="mt-0.5 text-xs text-indigo-500">{errs.name}</p>}
           </div>
           <Select id="g-bw" label="Bandwidth" required tooltip="Maximum speed per device in this group." value={bw} onChange={(v) => setField("bw", v)} options={BANDWIDTH} placeholder="Choose bandwidth limit" err={errs.bw} />
           <Select id="g-st" label="Session Timeout" required tooltip="Forces re-authentication after this time." value={st} onChange={(v) => setField("st", v)} options={SESSION_TIMEOUT} placeholder="Choose session timeout" err={errs.st} />
@@ -609,7 +664,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
         <div className="mt-5 flex items-center justify-between rounded-md border border-slate-200 px-4 py-3 dark:border-slate-600">
           <span className="flex items-center gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">Restrict login hours <Tooltip text="Limit when members can connect. Off means any time." /></span>
-          <button role="switch" aria-checked={loginOn} onClick={() => setLoginOn((p) => !p)} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${loginOn ? "bg-slate-900 dark:bg-white" : "bg-slate-200 dark:bg-slate-600"}`}>
+          <button role="switch" aria-checked={loginOn} onClick={() => setLoginOn((p) => !p)} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginOn ? "bg-slate-900 dark:bg-white" : "bg-slate-200 dark:bg-slate-600"}`}>
             <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${loginOn ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
           </button>
         </div>
@@ -619,29 +674,29 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           <div className="mt-3 space-y-3">
             <div className="flex flex-wrap gap-1.5">
               {DAYS.map((d) => (
-                <button key={d} onClick={() => toggleDay(d)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${loginDays.includes(d) ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}>{d}</button>
+                <button key={d} onClick={() => toggleDay(d)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginDays.includes(d) ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}>{d}</button>
               ))}
             </div>
-            {errs.loginDays && <p className="text-xs text-orange-500">{errs.loginDays}</p>}
+            {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
             <div className="flex gap-3">
-              <div><label htmlFor="g-lf" className="mb-0.5 block text-xs text-slate-500">From</label><input id="g-lf" type="time" value={loginFrom} onChange={(e) => setLoginFrom(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
-              <div><label htmlFor="g-lt" className="mb-0.5 block text-xs text-slate-500">To</label><input id="g-lt" type="time" value={loginTo} onChange={(e) => setLoginTo(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
+              <div><label htmlFor="g-lf" className="mb-0.5 block text-xs text-slate-500">From</label><input id="g-lf" type="time" value={loginFrom} onChange={(e) => setLoginFrom(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
+              <div><label htmlFor="g-lt" className="mb-0.5 block text-xs text-slate-500">To</label><input id="g-lt" type="time" value={loginTo} onChange={(e) => setLoginTo(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
             </div>
-            {errs.loginTo && <p className="text-xs text-orange-500">{errs.loginTo}</p>}
+            {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
             <p className="text-xs text-slate-400">Members can only get online during these hours.</p>
           </div>
         )}
 
-        <button type="button" onClick={() => setDlOpen((p) => !p)} aria-expanded={dlOpen} aria-controls="dl-panel" className="mt-5 flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:hover:bg-slate-700">
-          <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"><Plus className="h-4 w-4 text-orange-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span></span>
+        <button type="button" onClick={() => setDlOpen((p) => !p)} aria-expanded={dlOpen} aria-controls="dl-panel" className="mt-5 flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700">
+          <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"><Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span></span>
           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dlOpen ? "rotate-180" : ""}`} />
         </button>
 
         {dlOpen && (
           <div id="dl-panel" className="mt-4 grid gap-4 md:grid-cols-3">
-            <div><label htmlFor="g-dq" className="mb-1 block text-sm font-medium text-slate-600">Quota</label><input id="g-dq" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />{errs.dlQuota && <p className="mt-0.5 text-xs text-orange-500">{errs.dlQuota}</p>}</div>
-            <div><label htmlFor="g-du" className="mb-1 block text-sm font-medium text-slate-600">Unit</label><select id="g-du" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>
-            <div><label htmlFor="g-dr" className="mb-1 block text-sm font-medium text-slate-600">Resets</label><select id="g-dr" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r}>{r}</option>)}</select></div>
+            <div><label htmlFor="g-dq" className="mb-1 block text-sm font-medium text-slate-600">Quota</label><input id="g-dq" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />{errs.dlQuota && <p className="mt-0.5 text-xs text-indigo-500">{errs.dlQuota}</p>}</div>
+            <div><label htmlFor="g-du" className="mb-1 block text-sm font-medium text-slate-600">Unit</label><select id="g-du" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>
+            <div><label htmlFor="g-dr" className="mb-1 block text-sm font-medium text-slate-600">Resets</label><select id="g-dr" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r}>{r}</option>)}</select></div>
           </div>
         )}
 
@@ -657,7 +712,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Groups</h3>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Access Tiers</h3>
             <p className="text-xs text-slate-400 dark:text-slate-500">
               {!showAllGroups && locationId
                 ? `Mapped to ${activeLocationName ?? "this location"} -- other groups in the account are hidden.`
@@ -681,7 +736,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 </button>
               </div>
             )}
-            <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
+            <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">{PAGE_SIZE_OPTS.map((n) => (<button key={n} onClick={() => { setPageSize(n); setPage(0); }} className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}>{n}</button>))}</div>
           </div>
         </div>
@@ -696,7 +751,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <div className="overflow-x-auto">
           <Table className="min-w-[1000px]">
             <TableHeader><TableRow>
-              <TableHead className="text-xs font-medium">Group Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Location</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
+              <TableHead className="text-xs font-medium">Tier Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Location</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
             </TableRow></TableHeader>
             <TableBody>{paged.map((g) => (
               <TableRow key={g.id} className="border-b">
@@ -714,7 +769,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     disabled={mappingBusy.has(g.id) || !locationId}
                     title={!locationId ? "Select a location to map this group." : undefined}
                     onClick={() => handleToggleMap(g)}
-                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-300" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
                   >
                     {mappingBusy.has(g.id) ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -732,16 +787,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     disabled={!g.mappedAssignmentId}
                     title={!g.mappedAssignmentId ? "Map this group to the location first." : undefined}
                     onClick={() => openUsersModal(g)}
-                    className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                    className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                   >
                     <Users className="h-3 w-3" />
                     Map users
                   </button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Pencil className="h-4 w-4" /></button>
-                  <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><Copy className="h-4 w-4" /></button>
-                  <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${confirmingId === g.id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-red-500"}`}>
+                  <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Pencil className="h-4 w-4" /></button>
+                  <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Copy className="h-4 w-4" /></button>
+                  <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === g.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-red-500"}`}>
                     {confirmingId === g.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                   </button>
                 </TableCell>
@@ -751,7 +806,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         )}
         {filtered.length > 0 && (
           <div className="mt-4 flex items-center justify-between text-xs text-slate-500"><span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
-            <div className="flex gap-1"><button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronLeft className="h-4 w-4" /></button><button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-orange-500"><ChevronRight className="h-4 w-4" /></button></div>
+            <div className="flex gap-1"><button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronLeft className="h-4 w-4" /></button><button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronRight className="h-4 w-4" /></button></div>
           </div>
         )}
       </CardContent></Card>
@@ -761,10 +816,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="map-users-title">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 id="map-users-title" className="text-lg font-semibold text-slate-800 dark:text-slate-100">Map users — {usersModalGroup.name}</h3>
+                <h3 id="map-users-title" className="text-lg font-semibold text-slate-800 dark:text-slate-100">Map guests — {usersModalGroup.name}</h3>
                 <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Guests mapped here get this group's policy instead of the location default.</p>
               </div>
-              <button aria-label="Close" onClick={() => setUsersModalGroup(null)} className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setUsersModalGroup(null)} className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><X className="h-4 w-4" /></button>
             </div>
 
             <div className="mt-4 flex gap-2">
@@ -774,7 +829,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 onChange={(e) => setGuestSearch(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") searchGuests(); }}
                 placeholder="Search by mobile or email…"
-                className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+                className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
               />
               <button onClick={searchGuests} disabled={guestSearchBusy || !guestSearch.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                 {guestSearchBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
@@ -796,14 +851,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{guest.displayName ?? guest.identifier}</p>
                         <p className="truncate text-xs text-slate-400">{guest.identifier}</p>
-                        {inOtherGroup && <p className="truncate text-xs text-orange-500">Already in {other.policyName}</p>}
+                        {inOtherGroup && <p className="truncate text-xs text-indigo-500">Already in {other.policyName}</p>}
                       </div>
                       {inOtherGroup ? (
                         <button
                           disabled={guestActionBusy.has(guest.id)}
                           onClick={() => switchGuestGroup(guest, other)}
                           title={`Unmap from ${other.policyName} and map into ${usersModalGroup.name} instead.`}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:hover:bg-orange-900/20"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
                         >
                           {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
                           Switch group
@@ -812,7 +867,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                         <button
                           disabled={already || guestActionBusy.has(guest.id)}
                           onClick={() => mapGuest(guest)}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:hover:bg-orange-900/20"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
                         >
                           {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
                           {already ? "Mapped" : "Map"}
@@ -841,7 +896,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     <button
                       disabled={guestActionBusy.has(m.guestId)}
                       onClick={() => unmapGuest(m)}
-                      className="inline-flex shrink-0 items-center justify-center rounded p-1 text-slate-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
+                      className="inline-flex shrink-0 items-center justify-center rounded p-1 text-slate-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                       aria-label={`Unmap ${m.label}`}
                     >
                       {guestActionBusy.has(m.guestId) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}

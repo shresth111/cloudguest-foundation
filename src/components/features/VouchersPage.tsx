@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import type { Voucher as BackendVoucherModel, VoucherBatchStats } from "@/types/
 
 interface Voucher { code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; }
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const DEMO_SEED: Voucher[] = [
   { code: "VCH-8821", plan: "1h", status: "active", used: 3, businessUnit: "Marina Bay Hotel", redeemedAt: "Marina Bay Hotel" },
@@ -30,6 +32,44 @@ const DEMO_SEED: Voucher[] = [
  * a batch row here (name = quantity + status) stands in for that entity,
  * distinct from demo mode's per-code rows which have no backend match. */
 interface BatchRow { id: string; code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; organizationId: string }
+
+/**
+ * Small header-accent illustration: two perforated voucher tickets, one
+ * with a code stub, connected by a dashed hand-off line -- "issue a code,
+ * a guest redeems it." Same filled-flat-shape character language as the
+ * other illustrations shipped this session. Purely decorative --
+ * aria-hidden.
+ */
+function VoucherIssueIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 96 48" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <g transform="translate(4, 8)">
+        <path d="M0 4a4 4 0 0 1 4-4h30a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4z" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
+        <circle cx="22" cy="0" r="2.4" fill="#f8f9fc" />
+        <circle cx="22" cy="26" r="2.4" fill="#f8f9fc" />
+        <line x1="22" y1="4" x2="22" y2="22" stroke="#a78bfa" strokeOpacity="0.4" strokeDasharray="1.5 2" strokeWidth="1.2" />
+        <rect x="4" y="9" width="12" height="8" rx="1.5" fill="#22d3ee" fillOpacity="0.25" stroke="#22d3ee" strokeWidth="1.1" />
+        <rect x="25" y="9" width="6" height="1.6" rx="0.8" fill="#f0abfc" />
+        <rect x="25" y="13" width="8" height="1.6" rx="0.8" fill="#f0abfc" fillOpacity="0.6" />
+      </g>
+      <motion.path
+        d="M42 20q10 -6 20 0"
+        stroke="#22d3ee" strokeOpacity="0.6" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 4" fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      />
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.06, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <circle cx="80" cy="14" r="12" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="2" />
+        <path d="M75 14l3.5 3.5L86 10" stroke="#f0abfc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </motion.g>
+    </svg>
+  );
+}
 
 export function VouchersPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
@@ -47,6 +87,64 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
   const [viewVouchers, setViewVouchers] = useState<BackendVoucherModel[]>([]);
   const [viewStats, setViewStats] = useState<VoucherBatchStats | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+
+  // Export CSV / download PDF / email -- real backend endpoints
+  // (voucher.service.ts's exportCsv/downloadPdf/emailPdf, backed by
+  // backend/app/domains/voucher's .../export, .../download, .../email)
+  // that the page-level "CSV"/"Print"/"Email" buttons below never called;
+  // they just toasted. Real actions need a real batch, so they live here,
+  // in the batch-scoped view dialog, not floating at the page level.
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailing, setEmailing] = useState(false);
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportBatchCsv = async (b: BatchRow) => {
+    setExporting("csv");
+    try {
+      const blob = await voucherService.exportCsv(b.id, b.organizationId);
+      downloadBlob(blob, `voucher_batch_${b.id}.csv`);
+      toast.success("CSV exported");
+    } catch {
+      toast.error("Could not export the CSV — check the connection and try again.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const downloadBatchPdf = async (b: BatchRow) => {
+    setExporting("pdf");
+    try {
+      const blob = await voucherService.downloadPdf(b.id, b.organizationId);
+      downloadBlob(blob, `voucher_batch_${b.id}.pdf`);
+      toast.success("PDF downloaded");
+    } catch {
+      toast.error("Could not download the PDF — check the connection and try again.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const emailBatch = async (b: BatchRow) => {
+    if (!EMAIL_RE.test(emailTo.trim())) { toast.error("Enter a valid email address."); return; }
+    setEmailing(true);
+    try {
+      await voucherService.emailPdf(b.id, b.organizationId, emailTo.trim());
+      toast.success(`Voucher batch queued for delivery to ${emailTo.trim()}`);
+      setEmailTo("");
+    } catch {
+      toast.error("Could not send the email — check the connection and try again.");
+    } finally {
+      setEmailing(false);
+    }
+  };
 
   const openView = async (row: BatchRow | Voucher) => {
     setViewBatch(row);
@@ -68,7 +166,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
       setViewLoading(false);
     }
   };
-  const closeView = () => { setViewBatch(null); setViewVouchers([]); setViewStats(null); };
+  const closeView = () => { setViewBatch(null); setViewVouchers([]); setViewStats(null); setEmailTo(""); };
 
   useEffect(() => {
     if (demo) return;
@@ -144,7 +242,13 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div><h2 className="text-lg font-semibold">Voucher Batches</h2><p className="text-sm text-muted-foreground">{rows.length} {demo ? "vouchers" : "batches"}</p></div>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <Ticket className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div><h2 className="text-lg font-semibold tracking-tight">Voucher Batches</h2><p className="text-sm text-muted-foreground">{rows.length} {demo ? "vouchers" : "batches"}</p></div>
+          <VoucherIssueIllustration />
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => toast.success("Bulk import started")}>Import CSV</Button>
           <Dialog open={open} onOpenChange={setOpen}>
@@ -196,11 +300,18 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
         )}
       </CardContent></Card>
 
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => toast.success("CSV exported")}><Download className="mr-1.5 h-3.5 w-3.5" />CSV</Button>
-        <Button variant="outline" size="sm" onClick={() => toast.success("Print job queued")}><Printer className="mr-1.5 h-3.5 w-3.5" />Print</Button>
-        <Button variant="outline" size="sm" onClick={() => toast.success("Email sent")}><Mail className="mr-1.5 h-3.5 w-3.5" />Email</Button>
-      </div>
+      {demo && (
+        // Demo mode has no real batch to export/print/email -- these stay
+        // toast-only illustrations of the flow, same as the rest of this
+        // page's demo seed data. The real actions live in the "View batch"
+        // dialog below, scoped to one real batch (voucher.export requires
+        // a batch_id -- there's no page-wide "export everything" endpoint).
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => toast.success("CSV exported")}><Download className="mr-1.5 h-3.5 w-3.5" />CSV</Button>
+          <Button variant="outline" size="sm" onClick={() => toast.success("Print job queued")}><Printer className="mr-1.5 h-3.5 w-3.5" />Print</Button>
+          <Button variant="outline" size="sm" onClick={() => toast.success("Email sent")}><Mail className="mr-1.5 h-3.5 w-3.5" />Email</Button>
+        </div>
+      )}
 
       <Dialog open={!!viewBatch} onOpenChange={(o) => { if (!o) closeView(); }}>
         <DialogContent className="sm:max-w-lg">
@@ -238,6 +349,23 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+              <div className="space-y-2 rounded-lg border p-3">
+                <p className="text-xs font-medium text-muted-foreground">Export / send this batch</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled={exporting !== null} onClick={() => exportBatchCsv(viewBatch as BatchRow)}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" />{exporting === "csv" ? "Exporting…" : "Export CSV"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled={exporting !== null} onClick={() => downloadBatchPdf(viewBatch as BatchRow)}>
+                    <Printer className="mr-1.5 h-3.5 w-3.5" />{exporting === "pdf" ? "Downloading…" : "Download PDF"}
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <input type="email" placeholder="name@company.com" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" />
+                  <Button size="sm" className="h-8 text-xs" disabled={emailing || !emailTo.trim()} onClick={() => emailBatch(viewBatch as BatchRow)}>
+                    <Mail className="mr-1.5 h-3.5 w-3.5" />{emailing ? "Sending…" : "Email PDF"}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

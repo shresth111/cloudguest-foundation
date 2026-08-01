@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -16,6 +15,7 @@ import { requireCustomerSession } from "@/lib/authGuards";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CUSTOMER_NAVS } from "@/lib/customerNav";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
@@ -36,8 +36,7 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry } from "@/components/features/HeaderControls";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { formatPlanExpiry, maskEmail, maskMac } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { isDemo } from "@/services/customer.service";
@@ -55,8 +54,8 @@ import {
   ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  LogOut, Menu, Wifi, Users, ShieldCheck, CheckCircle,
-  AlertTriangle, Activity, XCircle, Download, KeyRound, MapPinned,
+  Wifi, Users, CheckCircle,
+  AlertTriangle, Activity, XCircle, Download, Quote,
 } from "lucide-react";
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
@@ -73,17 +72,35 @@ function FeaturePage() {
   const planExpiry = isDemo() ? "11-Nov-2026" : billing.data ? formatPlanExpiry(billing.data.renewalDate) : undefined;
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
-  const [menu, setMenu] = useState(false);
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/customer" }); };
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
+    <div
+      className="flex min-h-screen bg-muted/30"
+      style={
+        {
+          // The indigo brand accent from login/select-location/dashboard
+          // never reached this shell -- every feature page nested under it
+          // (Reports, Campaigns, Portal, Vouchers, Policies, Whitelist,
+          // Devices, Teams, Agents, Alerts, Business Hours, Notification,
+          // ISP Details, Admin Logs, Mac Auth, Port Forwarding, DHCP,
+          // VLANs, VOIP, ISP Routing, Debugging, Hotspot, Tickets) was
+          // still rendering every `text-primary`/`bg-primary`/`ring-primary`
+          // utility with the old teal token, which is what kept reading as
+          // "still old" no matter how many individual pages got polished.
+          // One override here fixes it everywhere at once.
+          "--primary": "#4f46e5",
+          "--primary-foreground": "#ffffff",
+          "--ring": "#6366f1",
+        } as React.CSSProperties
+      }
+    >
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
       <CustomerSidebar
         activeId={feature}
@@ -95,45 +112,38 @@ function FeaturePage() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 backdrop-blur-xl px-4 sm:px-6">
-          <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
-          {/* "admin-logs" is special-cased to "Logs" here too -- otherwise
-              this generic feature-id breadcrumb (CSS `capitalize`, which
-              treats the hyphen as a word boundary) would still show the
-              retired "Admin-Logs" label even though the sidebar/page title
-              below both say "Logs" now. */}
-          <div className="flex-1"><p className="text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature} · {activeLocation?.name ?? ""}</p></div>
-
-          <PlanExpiryBadge expiry={planExpiry} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex" />
-          <BookDemoButton className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
-          <OtpMaskToggle masked={masked} setMasked={setMasked} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent sm:inline-flex" />
-
-          <NotificationBell scope="org" viewAllPath={`/customer/${locationId}/alerts`} />
-
-          <div className="relative"><button onClick={() => setMenu(!menu)}><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
-            {menu && (<div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
-              <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
-              <div className="border-t my-1" />
-              <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
-              <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
-              <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
-              <div className="border-t my-1" />
-              <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
-            </div>)}
-          </div>
-        </header>
+        <CustomerHeader
+          title={
+            // "admin-logs" is special-cased to "Logs" here too -- otherwise
+            // this generic feature-id breadcrumb (CSS `capitalize`, which
+            // treats the hyphen as a word boundary) would still show the
+            // retired "Admin-Logs" label even though the sidebar/page title
+            // below both say "Logs" now.
+            <p className="truncate text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature} · {activeLocation?.name ?? ""}</p>
+          }
+          locationId={locationId}
+          planExpiry={planExpiry}
+          masked={masked}
+          setMasked={setMasked}
+          onMobileMenuClick={() => setMobile(true)}
+          user={user}
+          onSwitchLocation={handleSwitchLocation}
+          onChangePassword={() => setChangePwOpen(true)}
+          onTfaSettings={() => setTfaOpen(true)}
+          onLogout={handleLogout}
+        />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
             {feature === "dashboard" && <DashboardView locationId={locationId} />}
-            {feature === "users" && <UsersView locationId={locationId} />}
+            {feature === "users" && <UsersView locationId={locationId} masked={masked} />}
             {feature === "reports" && <UserReports />}
             {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
             {feature === "portal" && <PortalPage locationId={locationId} />}
             {feature === "vouchers" && <VouchersPage locationId={locationId} />}
             {feature === "policies" && <PoliciesHub locationId={locationId} />}
             {feature === "whitelist" && <WhiteList locationId={locationId} />}
-            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} /></div>}
+            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} masked={masked} /></div>}
             {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
             {feature === "agents" && <AgentsPage locationId={locationId} />}
             {feature === "advanced" && <AdvancedPage />}
@@ -144,7 +154,7 @@ function FeaturePage() {
             {feature === "audit" && <AdminLogsView locationId={locationId} />}
             {feature === "tickets" && <TicketsPage locationId={locationId} />}
             {feature === "alerts" && <AlertsView />}
-            {feature === "business-hours" && <BusinessHoursView />}
+            {feature === "business-hours" && <BusinessHoursView locationId={locationId} />}
             {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
             {feature === "notification" && <NotificationView />}
             {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
@@ -155,7 +165,7 @@ function FeaturePage() {
             {feature === "vlans" && <VlansView locationId={locationId} />}
             {feature === "voip" && <VoipView locationId={locationId} />}
             {feature === "isp-routing" && <IspRoutingView locationId={locationId} />}
-            {feature === "debugging" && <DebuggingView />}
+            {feature === "debugging" && <DebuggingView locationId={locationId} />}
             {feature === "hotspot" && <HotspotView locationId={locationId} />}
             {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it
@@ -172,6 +182,108 @@ function FeaturePage() {
 }
 
 // ── Dashboard ───────────────────────────────────────────────
+/** Operator-voice lines, not fabricated testimonials -- same idea as the
+ * Select Location page's rotating quotes, scoped to this location's own
+ * dashboard so the hero's secondary-stat row doesn't leave dead space next
+ * to the corner illustration. */
+const DASHBOARD_QUOTES = [
+  "Uptime is a feature nobody thanks you for — until it's gone.",
+  "Check it before a guest has to tell you it's down.",
+  "The best network is the one nobody notices.",
+  "A dropped connection is a dropped guest.",
+  "Numbers you check daily are numbers that stay healthy.",
+];
+
+/**
+ * Compact corner illustration for the Dashboard hero card: a small figure
+ * beside a live pulse-monitor with a calm "all clear" checkmark, and a
+ * signal-bars motif -- same filled-flat-shape character language as the
+ * Select Location page's HeroManagerIllustration, but a quieter pose sized
+ * for a hero-card corner accent rather than a full side panel, since this
+ * page is a data-first "check the numbers" moment, not a "which venue"
+ * moment. Kept small and semi-transparent so it never competes with the
+ * three big KPI numbers already carrying this card.
+ *
+ * Purely decorative -- aria-hidden. The pulse sweep and "all clear" ring
+ * loop, so both respect useReducedMotion.
+ */
+function DashboardWatchIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 300 210"
+      className="h-auto w-full max-w-[260px] opacity-90"
+      fill="none"
+    >
+      <defs>
+        <filter id="watch-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="12" />
+        </filter>
+        <linearGradient id="watch-pulse-stroke" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#f0abfc" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="215" cy="70" r="46" fill="#7c3aed" opacity="0.16" filter="url(#watch-illo-glow)" />
+
+      <rect x="118" y="46" width="118" height="80" rx="10" fill="#241f4d" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <rect x="118" y="46" width="118" height="80" rx="10" fill="url(#watch-pulse-stroke)" fillOpacity="0.05" />
+      <motion.path
+        d="M130 90h16l8-22 10 40 8-28 6 10h56"
+        stroke="url(#watch-pulse-stroke)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
+      />
+      <rect x="164" y="126" width="26" height="10" rx="2" fill="#241f4d" />
+      <rect x="150" y="136" width="54" height="5" rx="2.5" fill="white" fillOpacity="0.1" />
+
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <circle cx="228" cy="54" r="13" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="2" />
+        <path d="M222 54l4 4 8-8" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </motion.g>
+
+      <path d="M62 190c-3-30 4-48 20-48h4c16 0 23 18 20 48z" fill="#f5f0ff" />
+      <path d="M68 152c0-12 7-21 18-21s18 9 18 21c-5-3-11-5-18-5s-13 2-18 5z" fill="#7c3aed" />
+      <circle cx="86" cy="130" r="16" fill="#f5f0ff" />
+      <path d="M70 123c0-10 7-17 16-17s16 7 16 17c-5-3-10-5-16-5s-11 2-16 5z" fill="#7c3aed" />
+      <circle cx="80" cy="131" r="1.6" fill="#1e1b4b" />
+      <circle cx="91" cy="131" r="1.6" fill="#1e1b4b" />
+      <path d="M81 137c1.6 1.6 4.8 1.6 6.4 0" stroke="#1e1b4b" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <path d="M100 160c8-3 14-10 17-19" stroke="#7c3aed" strokeWidth="3" strokeLinecap="round" fill="none" />
+
+      <g>
+        {[0, 1, 2, 3].map((i) => (
+          <motion.rect
+            key={i}
+            x={20 + i * 10}
+            y={188 - (i + 1) * 9}
+            width="6"
+            height={(i + 1) * 9}
+            rx="2"
+            fill={["#a78bfa", "#22d3ee", "#f0abfc", "#a78bfa"][i]}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.6 + i * 0.08, ease: "easeOut" }}
+          />
+        ))}
+      </g>
+
+      <line x1="10" y1="196" x2="250" y2="196" stroke="white" strokeOpacity="0.1" strokeWidth="1" />
+    </svg>
+  );
+}
+
 // Real data via useCustomerDashboard (customerService.getDashboard) --
 // this used to be entirely hardcoded literal arrays ("John Doe", "1,247
 // Online Users") shown to every real customer, not just demo sessions.
@@ -180,6 +292,13 @@ function FeaturePage() {
 function DashboardView({ locationId }: { locationId: string }) {
   const navigate = useNavigate();
   const { data, isLoading } = useCustomerDashboard(locationId);
+  const { activeLocation } = useCustomerStore();
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % DASHBOARD_QUOTES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   if (isLoading) {
     return (
@@ -194,11 +313,16 @@ function DashboardView({ locationId }: { locationId: string }) {
       <EmptyState
         icon={Activity}
         title="No dashboard data yet"
-        description="This location hasn't reported any activity yet."
+        description="This location hasn't started reporting activity. Check back shortly."
       />
     );
   }
 
+  // Consolidated from three separate tile styles (hero numbers + gradient
+  // KPI tiles + bordered health tiles) telling the same "how's this
+  // location doing" story three times before a single chart rendered.
+  // Now: one hero (3 big numbers + a secondary stat line), one thin status
+  // strip underneath, then the charts.
   const healthCards = [
     { icon: CheckCircle, label: "System", value: data.health.systemHealth, tone: "primary" as const },
     { icon: Wifi, label: "Routers", value: data.health.routersOnline, tone: "violet" as const },
@@ -210,16 +334,16 @@ function DashboardView({ locationId }: { locationId: string }) {
     { label: "Active sessions", value: data.kpis.activeSessions.toLocaleString() },
     { label: "SLA uptime", value: `${data.kpis.slaUptime}%` },
   ];
-  const secondaryKpis = [
-    { label: "Routers Online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}`, icon: Wifi, grad: "from-violet-600 to-indigo-600" },
-    { label: "Today's Guests", value: data.kpis.todayGuests.toLocaleString(), icon: Users, grad: "from-cyan-500 to-blue-600" },
-    { label: "Avg Session", value: `${data.kpis.avgSession} min`, icon: Activity, grad: "from-fuchsia-500 to-pink-600" },
+  const secondaryStats = [
+    { label: "routers online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },
+    { label: "guests today", value: data.kpis.todayGuests.toLocaleString() },
+    { label: "avg session", value: `${data.kpis.avgSession} min` },
   ];
-  const TONE_BG: Record<string, string> = {
-    primary: "bg-primary/10 text-primary",
-    violet: "bg-violet-50 text-violet-600",
-    sky: "bg-sky-50 text-sky-600",
-    fuchsia: "bg-fuchsia-50 text-fuchsia-600",
+  const TONE_TEXT: Record<string, string> = {
+    primary: "text-primary",
+    violet: "text-violet-600",
+    sky: "text-sky-600",
+    fuchsia: "text-fuchsia-600",
   };
   const DEVICE_COLORS = ["#6366f1", "#06b6d4", "#a855f7", "#f472b6", "#22c55e", "#f59e0b"];
   const chartTooltip = {
@@ -234,11 +358,13 @@ function DashboardView({ locationId }: { locationId: string }) {
     "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Hero band -- a rich dark gradient instead of the flat neutral
        * admin-tool look everywhere else, carrying the 3 numbers a customer
        * checks first at real size. Ambient glow blobs + a faint dot-grid
-       * texture give it depth without needing an uploaded image. */}
+       * texture give it depth without needing an uploaded image. The
+       * secondary stat line below the numbers absorbs what used to be a
+       * separate gradient KPI tile row -- same real values, one home. */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-6 text-white shadow-xl shadow-indigo-950/30 sm:p-8">
         <div
           aria-hidden
@@ -256,9 +382,15 @@ function DashboardView({ locationId }: { locationId: string }) {
             backgroundSize: "22px 22px",
           }}
         />
+        <div className="pointer-events-none absolute -bottom-2 right-4 hidden sm:block">
+          <DashboardWatchIllustration />
+        </div>
         <div className="relative">
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
-            Live overview
+            This location, right now
+          </p>
+          <p className="mt-1 text-sm text-white/70">
+            How {activeLocation?.name ?? "this location"} is running for your guests at this moment.
           </p>
           <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {heroKpis.map((k, i) => (
@@ -278,50 +410,52 @@ function DashboardView({ locationId }: { locationId: string }) {
               </motion.div>
             ))}
           </div>
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-4 text-xs tabular-nums text-white/70">
+            {secondaryStats.map((s) => (
+              <span key={s.label}>
+                <span className="font-semibold text-white">{s.value}</span>{" "}
+                <span className="text-white/50">{s.label}</span>
+              </span>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
+            <Quote className="h-3 w-3 shrink-0 text-white/30" />
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={quoteIndex}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.4 }}
+              >
+                {DASHBOARD_QUOTES[quoteIndex]}
+              </motion.span>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {secondaryKpis.map((k, i) => (
-          <motion.div
-            key={k.label}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className={cn(
-              "relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-md",
-              k.grad,
-              cardLift,
-            )}
-          >
-            <k.icon className="absolute -right-3 -top-3 h-16 w-16 text-white/15" />
-            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
-              <k.icon className="h-4 w-4" />
-            </div>
-            <p className="relative mt-3 text-xs font-medium uppercase tracking-wide text-white/80">{k.label}</p>
-            <p className="relative mt-0.5 text-2xl font-bold tabular-nums">{k.value}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {healthCards.map((h) => (
-          <div key={h.label} className={cn("flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm", cardLift)}>
-            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", TONE_BG[h.tone])}>
-              <h.icon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase text-muted-foreground">{h.label}</p>
-              <p className="truncate text-sm font-bold">{h.value}</p>
-            </div>
-          </div>
-        ))}
+      {/* Status strip -- the 4 health checks as the hero's footnote, not a
+       * second competing card row: one line, icon + label + value. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border bg-card px-5 py-3.5 shadow-sm">
+        <p className="shrink-0 text-xs font-medium text-muted-foreground">Core systems, checked continuously</p>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {healthCards.map((h) => (
+            <span key={h.label} className="inline-flex items-center gap-1.5 text-sm">
+              <h.icon className={cn("h-3.5 w-3.5", TONE_TEXT[h.tone])} />
+              <span className="text-muted-foreground">{h.label}</span>
+              <span className="font-semibold">{h.value}</span>
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Real charts, real data -- usersTrend/deviceDistribution/
        * hourlySessions all come from the same getDashboard() response
        * already fetched above, just never rendered before now. */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div>
+        <p className="mb-3 text-xs font-medium text-muted-foreground">Guest activity over the last 24 hours</p>
+        <div className="grid gap-6 lg:grid-cols-3">
         <Card className={cn("border-0 shadow-sm lg:col-span-2", cardLift)}>
           <CardHeader>
             <CardTitle className="text-sm">Users online (last 24h)</CardTitle>
@@ -382,6 +516,7 @@ function DashboardView({ locationId }: { locationId: string }) {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       {data.hourlySessions.length > 0 && (
@@ -407,7 +542,9 @@ function DashboardView({ locationId }: { locationId: string }) {
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div>
+        <p className="mb-3 text-xs font-medium text-muted-foreground">Who's connected, and what needs your attention.</p>
+        <div className="grid gap-6 lg:grid-cols-2">
         <Card className={cn("border-0 shadow-sm", cardLift)}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm">Recent Users</CardTitle>
@@ -423,7 +560,7 @@ function DashboardView({ locationId }: { locationId: string }) {
           <CardContent className="p-0">
             {data.recentUsers.length === 0 ? (
               <p className="px-6 py-8 text-center text-xs text-muted-foreground">
-                No guests have connected yet.
+                No guests have connected yet — check back once someone joins the network.
               </p>
             ) : (
               <div className="divide-y">
@@ -494,6 +631,7 @@ function DashboardView({ locationId }: { locationId: string }) {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
@@ -504,7 +642,7 @@ function DashboardView({ locationId }: { locationId: string }) {
 // as DashboardView above, see its own comment. Server-side paginated
 // (page is 1-indexed) and server-side filtered by status/search, not a
 // client-side slice of a fabricated in-memory array.
-function UsersView({ locationId }: { locationId: string }) {
+function UsersView({ locationId, masked }: { locationId: string; masked: boolean }) {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(1);
@@ -577,9 +715,9 @@ function UsersView({ locationId }: { locationId: string }) {
                   <TableRow key={u.id} className="border-b">
                     <TableCell>
                       <p className="text-sm font-medium">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                      <p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p>
                     </TableCell>
-                    <TableCell className="hidden font-mono text-xs sm:table-cell">{u.mac}</TableCell>
+                    <TableCell className="hidden font-mono text-xs sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
                     <TableCell className="text-xs">{u.duration}</TableCell>
                     <TableCell className="text-xs">{u.download}</TableCell>
                     <TableCell>
@@ -655,14 +793,69 @@ const DEMO_DEVICES = [
   {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
 ];
 
-function DevicesView({ locationId }: { locationId: string }) {
+function ConnectedDevicesIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  const nodes = [
+    { x: 12, y: 10, color: "#22d3ee" },
+    { x: 12, y: 34, color: "#f0abfc" },
+    { x: 68, y: 8, color: "#a78bfa" },
+    { x: 70, y: 36, color: "#22d3ee" },
+  ];
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 46" className="hidden h-11 w-auto shrink-0 sm:block" fill="none">
+      {nodes.map((n, i) => (
+        <motion.line key={i} x1="42" y1="23" x2={n.x} y2={n.y}
+          stroke={n.color} strokeOpacity="0.5" strokeWidth="1.4" strokeDasharray="1 4" strokeLinecap="round"
+          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 * i, ease: "easeOut" }} />
+      ))}
+      {nodes.map((n, i) => (
+        <g key={i} transform={`translate(${n.x}, ${n.y})`}>
+          <rect x="-6" y="-5" width="12" height="10" rx="2.5" fill="#2e2a5c" stroke={n.color} strokeWidth="1.3" />
+          <circle cx="0" cy="0" r="1.4" fill={n.color} />
+        </g>
+      ))}
+      <motion.circle cx="42" cy="23" r="9" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2"
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.3, repeat: Infinity, ease: "easeInOut" }} />
+      <path d="M38 23h8M42 19v8" stroke="#a78bfa" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DevicesView({ locationId, masked }: { locationId: string; masked: boolean }) {
   const { data, isLoading } = useCustomerFeatureData("devices", locationId);
   const demo = useIsDemo();
   const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (demo ? DEMO_DEVICES : []);
-  return (<Card className="shadow-sm border-0"><CardHeader><CardTitle className="text-sm">Connected Devices</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader><TableBody>
-    {isLoading ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell></TableRow>
-    : devices.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">No connected devices yet.</TableCell></TableRow>
-    : devices.map(d=>(<TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>))}
-  </TableBody></Table></CardContent></Card>);
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2.5 space-y-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <Wifi className="h-3.5 w-3.5 text-white" />
+          </div>
+          <CardTitle className="text-sm">Connected Devices</CardTitle>
+        </div>
+        <ConnectedDevicesIllustration />
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="p-4"><LoadingSkeleton rows={4} /></div>
+        ) : devices.length === 0 ? (
+          <EmptyState icon={Wifi} title="No connected devices yet" description="Devices that connect to this location's network will show up here." />
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {devices.map((d) => (
+                <TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{masked ? maskMac(d.m) : d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 

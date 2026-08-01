@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft, LogOut, Settings, Moon, Wifi, Router, Activity, Users, TrendingUp, TrendingDown,
-  CheckCircle, XCircle, AlertTriangle, Download, Upload, Clock, Signal, Search, RefreshCw, Menu,
-  KeyRound, MapPinned, ShieldCheck,
+  ArrowLeft, Wifi, Router, Activity, Users, TrendingUp, Globe,
+  CheckCircle, XCircle, AlertTriangle, RefreshCw, Quote,
 } from "lucide-react";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { toast } from "sonner";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
-import { OtpMaskToggle, PlanExpiryBadge, BookDemoButton, formatPlanExpiry, maskEmail } from "@/components/features/HeaderControls";
+import { formatPlanExpiry, maskEmail } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +24,384 @@ import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { requireCustomerSession } from "@/lib/authGuards";
+import { ispService } from "@/services/isp.service";
+import type { IspLink, IspHealthCheck } from "@/types/isp";
 
-const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+// Categorical, brand-checked -- indigo/cyan/magenta/orange/violet. The old
+// palette here included green, which conflicts with this project's
+// "never green as a decorative/brand accent" rule (semantic status green
+// elsewhere is a different, intentional thing).
+const DEVICE_COLORS = ["#4338ca", "#0891b2", "#c026d3", "#c2410c", "#6d28d9"];
+
+/** Operator-voice lines, not fabricated testimonials -- same pattern used
+ * on the Select Location page's hero, scoped here so the hero's secondary
+ * stat row doesn't leave dead space beside the corner illustration. */
+const DASHBOARD_QUOTES = [
+  "Uptime is a feature nobody thanks you for — until it's gone.",
+  "Check it before a guest has to tell you it's down.",
+  "The best network is the one nobody notices.",
+  "A dropped connection is a dropped guest.",
+  "Numbers you check daily are numbers that stay healthy.",
+  "A quiet dashboard is the goal, not a boring one.",
+];
+
+/**
+ * Shared empty-state graphic for any chart/table on this page with no data
+ * yet -- a dormant signal dish, same filled-flat-shape character language
+ * as the hero illustration, so "nothing here yet" still feels designed
+ * instead of a bare sentence on white. Purely decorative -- aria-hidden.
+ */
+function ChartEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 py-6 text-center">
+      <svg aria-hidden="true" viewBox="0 0 100 70" className="h-14 w-20" fill="none">
+        <ellipse cx="50" cy="60" rx="34" ry="4" fill="#4f46e5" opacity="0.08" />
+        <path d="M50 55V30" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="50" cy="55" r="4" fill="#7c3aed" />
+        <path d="M28 30a22 22 0 0 1 44 0" stroke="#4f46e5" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.35" />
+        <circle cx="50" cy="22" r="3" fill="#22d3ee" opacity="0.6" />
+      </svg>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+/** Real per-router-uplink connectivity status, keyed off the same
+ * `app.domains.isp` domain the "Internet Connection" feature page
+ * (`IspDetailsView`, see `customer.$locationId.$feature.tsx`) already
+ * reads/writes. Deliberately distinct from the hero's own "Core systems"
+ * strip ISP pill above (`d.health.isp`) -- that value is only ever
+ * "Active"/"Unknown", derived from whether `/dashboard/organization`
+ * answered at all (see `customer.service.ts`'s `getDashboard`), never a
+ * real per-link ping. This card is the real thing: `IspLink.healthStatus`
+ * plus its last dozen `IspHealthCheck` rows, so a founder can tell whether
+ * THIS location's actual uplink is up without opening Internet Connection.
+ */
+const WAN_HEALTH_STYLE: Record<string, { label: string; dot: string; text: string; bar: string }> = {
+  healthy: { label: "Online", dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" },
+  degraded: { label: "Degraded", dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
+  unhealthy: { label: "Offline", dot: "bg-rose-500", text: "text-rose-600 dark:text-rose-400", bar: "bg-rose-500" },
+  unknown: { label: "Unknown", dot: "bg-muted-foreground/40", text: "text-muted-foreground", bar: "bg-muted-foreground/30" },
+};
+const WAN_CONNECTION_MODE_LABEL: Record<string, string> = { static: "Static IP", dhcp: "DHCP", pppoe: "PPPoE" };
+
+/** "Down since 3h 12m ago" -- built from `IspLink.unhealthySince`, which is
+ * itself computed server-side from real health-check history (never
+ * calculated client-side, see the field's own doc comment in
+ * `types/isp.ts`). Only ever called while healthStatus is "unhealthy". */
+function formatDownDuration(sinceIso: string): string {
+  const ms = Date.now() - new Date(sinceIso).getTime();
+  if (ms < 60_000) return "under a minute";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ${hrs % 24}h`;
+}
+
+/** Demo-session fixture -- this app's own established "a demo login never
+ * calls the real backend" convention (see `getDashboard`'s DEMO branch
+ * above, or `OperationsFeatures.tsx`'s identical `DEMO_LINKS`/
+ * `DEMO_HEALTH_HISTORY` pair). Kept local and self-contained rather than
+ * importing the Internet Connection page's own demo fixture, matching
+ * every other rebuilt view's "each real surface stays self-contained"
+ * precedent. "Tata Communications" echoes the same provider name the
+ * hero's own demo `d.health.isp` value already uses, so the two don't
+ * contradict each other on screen.
+ */
+const DEMO_WAN_LINK: IspLink = {
+  id: "isp-demo-dashboard", routerId: "router-demo", organizationId: "org-demo", locationId: "demo-location",
+  providerName: "Tata Communications", linkType: "fiber", connectionMode: "static", role: "primary",
+  isActiveUplink: true, autoFailback: true, isEnabled: true, priority: 0, interface: "ether1",
+  gatewayIpAddress: "203.0.113.1", dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8",
+  downloadBandwidthMbps: 500, uploadBandwidthMbps: 200, healthStatus: "healthy", healthStatusSource: "automated",
+  unhealthySince: null, latencyMs: 14.2, packetLossPercentage: 0, currentDownloadMbps: 132.4, currentUploadMbps: 28.1,
+  lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+};
+const DEMO_WAN_CHECKS: IspHealthCheck[] = ["healthy", "healthy", "healthy", "degraded", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy"]
+  .map((status, i) => ({
+    id: `demo-wan-check-${i}`, ispLinkId: DEMO_WAN_LINK.id, checkedAt: new Date(Date.now() - (11 - i) * 5 * 60000).toISOString(),
+    status, source: "automated", latencyMs: status === "degraded" ? 92 : 12 + i, packetLossPercentage: status === "degraded" ? 2.1 : 0,
+    errorMessage: null, downloadMbps: 100 + i * 2, uploadMbps: 20 + i,
+  }));
+
+type WanSummaryState =
+  | { status: "loading" }
+  | { status: "empty" }
+  | { status: "ready"; link: IspLink; checks: IspHealthCheck[] };
+
+/** Picks the one uplink worth surfacing at a glance for this location: the
+ * active primary link if one exists, else the highest-priority link. A
+ * location with several routers/links still gets one clear answer here --
+ * "Manage" links through to Internet Connection for the full breakdown. */
+function useWanSummary(locationId: string): WanSummaryState {
+  const [state, setState] = useState<WanSummaryState>({ status: "loading" });
+  useEffect(() => {
+    let alive = true;
+    setState({ status: "loading" });
+    if (isDemo()) {
+      setState({ status: "ready", link: DEMO_WAN_LINK, checks: DEMO_WAN_CHECKS });
+      return;
+    }
+    (async () => {
+      try {
+        const { rows } = await ispService.listLinks({ page: 1, pageSize: 100 });
+        const link = rows
+          .filter((l) => l.locationId === locationId)
+          .sort((a, b) => {
+            if (a.isActiveUplink !== b.isActiveUplink) return a.isActiveUplink ? -1 : 1;
+            if (a.role !== b.role) return a.role === "primary" ? -1 : 1;
+            return a.priority - b.priority;
+          })[0];
+        if (!alive) return;
+        if (!link) { setState({ status: "empty" }); return; }
+        const checks = await ispService.listHealthChecks(link.id, { page: 1, pageSize: 12 }).then((r) => r.rows).catch(() => []);
+        if (!alive) return;
+        setState({ status: "ready", link, checks });
+      } catch {
+        // Covers both "genuinely nothing configured yet" and any read
+        // failure (e.g. a staff role without isp.read) -- same lenient
+        // fallback IspStatusTimeline's own fetch already uses on this
+        // domain. The empty-state copy below is worded to stay honest
+        // either way, never asserting a specific cause it can't confirm.
+        if (alive) setState({ status: "empty" });
+      }
+    })();
+    return () => { alive = false; };
+  }, [locationId]);
+  return state;
+}
+
+/** Oldest -> newest, left to right -- the exact same "last dozen real
+ * checks as colored ticks" reading `IspStatusTimeline` (Internet
+ * Connection page) already established, so this widget's timeline isn't a
+ * visually-unrelated second idiom for the same underlying data. */
+function WanRecentChecks({ checks }: { checks: IspHealthCheck[] }) {
+  if (checks.length === 0) {
+    return <p className="text-xs text-muted-foreground">No health-check history yet.</p>;
+  }
+  const ordered = [...checks].reverse();
+  return (
+    <div className="flex items-center gap-1" title="Recent health checks, oldest to newest">
+      {ordered.map((c) => {
+        const style = WAN_HEALTH_STYLE[c.status] ?? WAN_HEALTH_STYLE.unknown;
+        return (
+          <span
+            key={c.id}
+            title={`${new Date(c.checkedAt).toLocaleString()} — ${style.label}`}
+            className={cn("h-5 w-1.5 rounded-sm", style.bar)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Empty-state illustration for the WAN Status card: a router waiting on a
+ * dashed, animated link up to an outline-only globe -- deliberately never
+ * a solid connected line or filled globe, either of which would visually
+ * claim a connection that doesn't exist yet. Same filled-flat-shape
+ * language and palette as this file's own `ChartEmptyState`/
+ * `DashboardWatchIllustration` (indigo/violet/cyan), sized for a light
+ * card background rather than the hero's dark one. Purely decorative --
+ * aria-hidden. The dashed line and one LED loop, both respecting
+ * useReducedMotion.
+ */
+function WanSetupIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 200 130" className="h-24 w-auto" fill="none">
+      <ellipse cx="100" cy="119" rx="66" ry="5" fill="#4f46e5" opacity="0.07" />
+
+      <circle cx="136" cy="42" r="24" stroke="#a78bfa" strokeWidth="2" strokeDasharray="4 5" opacity="0.55" />
+      <path d="M112 42h48M136 18a32 32 0 0 1 0 48 32 32 0 0 1 0-48z" stroke="#a78bfa" strokeWidth="1.4" opacity="0.4" />
+
+      <motion.path
+        d="M92 100C100 78 114 58 126 48"
+        stroke="#22d3ee"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeDasharray="1 7"
+        animate={shouldReduceMotion ? undefined : { strokeDashoffset: [0, -16] }}
+        transition={shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "linear" }}
+      />
+
+      <rect x="48" y="90" width="58" height="28" rx="7" fill="#4338ca" />
+      <rect x="48" y="90" width="58" height="28" rx="7" fill="#7c3aed" opacity="0.15" />
+      <rect x="56" y="84" width="4" height="8" rx="2" fill="#4338ca" />
+      <rect x="94" y="84" width="4" height="8" rx="2" fill="#4338ca" />
+      <circle cx="60" cy="104" r="2.6" fill="white" />
+      <motion.circle
+        cx="70" cy="104" r="2.6" fill="#22d3ee"
+        animate={shouldReduceMotion ? { opacity: 0.7 } : { opacity: [0.25, 1, 0.25] }}
+        transition={shouldReduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <circle cx="80" cy="104" r="2.6" fill="white" opacity="0.5" />
+    </svg>
+  );
+}
+
+/**
+ * The dashboard's own WAN/Internet Connection status widget: real up/down
+ * state + a real recent-history timeline for this location's primary
+ * uplink, or an honest setup prompt when no `IspLink` is configured yet.
+ * Visual weight (border-0 shadow-sm card, same header pattern) matches its
+ * row-mates (Recent Users/Recent Alerts) exactly so it doesn't read as a
+ * bolted-on afterthought.
+ */
+function WanStatusCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
+  const wan = useWanSummary(locationId);
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Globe className="h-3.5 w-3.5 text-white" /></div>
+          <CardTitle className="text-sm">Internet Connection</CardTitle>
+        </div>
+        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
+      </CardHeader>
+      <CardContent>
+        {wan.status === "loading" && (
+          <div className="space-y-3">
+            <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+            <div className="flex items-center gap-1">{Array.from({ length: 10 }).map((_, i) => <span key={i} className="h-5 w-1.5 animate-pulse rounded-sm bg-muted" />)}</div>
+          </div>
+        )}
+        {wan.status === "empty" && (
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+            <WanSetupIllustration />
+            <div>
+              <p className="text-sm font-semibold text-foreground">No WAN link configured</p>
+              <p className="mt-1 text-xs text-muted-foreground">Connect this location's internet uplink to see live up/down status here.</p>
+            </div>
+            <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up Internet Connection</Button>
+          </div>
+        )}
+        {wan.status === "ready" && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="flex items-center gap-2">
+                <span className={cn("h-2 w-2 rounded-full", WAN_HEALTH_STYLE[wan.link.healthStatus]?.dot ?? WAN_HEALTH_STYLE.unknown.dot)} />
+                <span className={cn("text-sm font-semibold", WAN_HEALTH_STYLE[wan.link.healthStatus]?.text ?? WAN_HEALTH_STYLE.unknown.text)}>
+                  {WAN_HEALTH_STYLE[wan.link.healthStatus]?.label ?? "Unknown"}
+                </span>
+                {wan.link.healthStatusSource === "manual" && (
+                  <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal text-muted-foreground" title="Manually set by an admin, not the automated health-check sweep">Manual</Badge>
+                )}
+              </div>
+              <span className="truncate text-xs text-muted-foreground">{wan.link.providerName} · {WAN_CONNECTION_MODE_LABEL[wan.link.connectionMode] ?? wan.link.connectionMode}</span>
+            </div>
+
+            {wan.link.healthStatus === "unhealthy" && wan.link.unhealthySince && (
+              <p className="text-xs font-medium text-rose-600 dark:text-rose-400">Down for {formatDownDuration(wan.link.unhealthySince)}</p>
+            )}
+
+            <WanRecentChecks checks={wan.checks} />
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {wan.link.latencyMs != null && <span><span className="font-medium text-foreground">{wan.link.latencyMs.toFixed(0)}ms</span> latency</span>}
+              {wan.link.packetLossPercentage != null && <span><span className="font-medium text-foreground">{wan.link.packetLossPercentage.toFixed(1)}%</span> loss</span>}
+              {wan.link.currentDownloadMbps != null && <span><span className="font-medium text-foreground">{wan.link.currentDownloadMbps.toFixed(0)}</span> Mbps ↓</span>}
+              {wan.link.currentUploadMbps != null && <span><span className="font-medium text-foreground">{wan.link.currentUploadMbps.toFixed(0)}</span> Mbps ↑</span>}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Compact corner illustration for the Dashboard hero card: a small figure
+ * beside a live pulse-monitor with a calm "all clear" checkmark, and a
+ * signal-bars motif -- same filled-flat-shape character language as the
+ * Select Location page's HeroManagerIllustration, but a quieter pose sized
+ * for a hero-card corner accent rather than a full side panel, since this
+ * page is a data-first "check the numbers" moment, not a "which venue"
+ * moment. Kept small and semi-transparent so it never competes with the
+ * three big KPI numbers already carrying this card.
+ *
+ * Purely decorative -- aria-hidden. The pulse sweep and "all clear" ring
+ * loop, so both respect useReducedMotion.
+ */
+function DashboardWatchIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 300 210"
+      className="h-auto w-full max-w-[260px] opacity-90"
+      fill="none"
+    >
+      <defs>
+        <filter id="watch-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="12" />
+        </filter>
+        <linearGradient id="watch-pulse-stroke" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#f0abfc" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="215" cy="70" r="46" fill="#7c3aed" opacity="0.16" filter="url(#watch-illo-glow)" />
+
+      <rect x="118" y="46" width="118" height="80" rx="10" fill="#241f4d" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <rect x="118" y="46" width="118" height="80" rx="10" fill="url(#watch-pulse-stroke)" fillOpacity="0.05" />
+      <motion.path
+        d="M130 90h16l8-22 10 40 8-28 6 10h56"
+        stroke="url(#watch-pulse-stroke)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
+      />
+      <rect x="164" y="126" width="26" height="10" rx="2" fill="#241f4d" />
+      <rect x="150" y="136" width="54" height="5" rx="2.5" fill="white" fillOpacity="0.1" />
+
+      <motion.g
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <circle cx="228" cy="54" r="13" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="2" />
+        <path d="M222 54l4 4 8-8" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </motion.g>
+
+      <path d="M62 190c-3-30 4-48 20-48h4c16 0 23 18 20 48z" fill="#f5f0ff" />
+      <path d="M68 152c0-12 7-21 18-21s18 9 18 21c-5-3-11-5-18-5s-13 2-18 5z" fill="#7c3aed" />
+      <circle cx="86" cy="130" r="16" fill="#f5f0ff" />
+      <path d="M70 123c0-10 7-17 16-17s16 7 16 17c-5-3-10-5-16-5s-11 2-16 5z" fill="#7c3aed" />
+      <circle cx="80" cy="131" r="1.6" fill="#1e1b4b" />
+      <circle cx="91" cy="131" r="1.6" fill="#1e1b4b" />
+      <path d="M81 137c1.6 1.6 4.8 1.6 6.4 0" stroke="#1e1b4b" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <path d="M100 160c8-3 14-10 17-19" stroke="#7c3aed" strokeWidth="3" strokeLinecap="round" fill="none" />
+
+      <g>
+        {[0, 1, 2, 3].map((i) => (
+          <motion.rect
+            key={i}
+            x={20 + i * 10}
+            y={188 - (i + 1) * 9}
+            width="6"
+            height={(i + 1) * 9}
+            rx="2"
+            fill={["#a78bfa", "#22d3ee", "#f0abfc", "#a78bfa"][i]}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.6 + i * 0.08, ease: "easeOut" }}
+          />
+        ))}
+      </g>
+
+      <line x1="10" y1="196" x2="250" y2="196" stroke="white" strokeOpacity="0.1" strokeWidth="1" />
+    </svg>
+  );
+}
 
 export const Route = createFileRoute("/customer/$locationId/dashboard")({
   beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
@@ -59,11 +433,16 @@ function CustomerDashboardPage() {
   }, [locationId, activeLocationId, locationsList, setActiveLocation]);
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
-  const [menu, setMenu] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % DASHBOARD_QUOTES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   if (activeLocationId !== locationId) {
     if (locationsLoading) return <div className="flex min-h-screen items-center justify-center"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
@@ -81,10 +460,19 @@ function CustomerDashboardPage() {
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { setMenu(false); navigate({ to: "/customer" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/customer" }); };
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
+    <div
+      className="flex min-h-screen bg-muted/30"
+      style={
+        {
+          "--primary": "#4f46e5",
+          "--primary-foreground": "#ffffff",
+          "--ring": "#6366f1",
+        } as React.CSSProperties
+      }
+    >
       {/* Mobile overlay */}
       {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
 
@@ -104,38 +492,27 @@ function CustomerDashboardPage() {
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 backdrop-blur-xl px-4 sm:px-6">
-          <button className="lg:hidden text-muted-foreground" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Wifi className="h-5 w-5 text-primary shrink-0" />
-            <p className="text-sm font-semibold truncate">{activeLocation?.name ?? "Dashboard"}</p>
-            <span className={cn("h-2 w-2 rounded-full", activeLocation?.status === "online" ? "bg-emerald-500" : activeLocation?.status === "degraded" ? "bg-amber-500" : "bg-rose-500")} />
-            <span className="hidden sm:inline text-xs text-muted-foreground capitalize">{activeLocation?.status}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <PlanExpiryBadge expiry={planExpiry} className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-flex mr-1" />
-            <BookDemoButton />
-            <OtpMaskToggle masked={masked} setMasked={setMasked} />
-            <Button variant="ghost" size="icon" className="h-9 w-9"><Search className="h-4 w-4" /></Button>
-            <NotificationBell scope="org" viewAllPath={`/customer/${locationId}/alerts`} />
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="h-4 w-4" /></Button>
-            <div className="relative">
-              <button onClick={() => setMenu(!menu)} className="ml-2"><Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{user?.firstName?.[0] ?? "A"}{user?.lastName?.[0] ?? "U"}</AvatarFallback></Avatar></button>
-              {menu && (
-                <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl z-50">
-                  <div className="px-3 py-2"><p className="text-sm font-medium">{user?.name ?? "Admin"}</p><p className="text-xs text-muted-foreground">{user?.email}</p></div>
-                  <div className="border-t my-1" />
-                  <button onClick={handleSwitchLocation} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><MapPinned className="h-4 w-4" />Switch location</button>
-                  <button onClick={() => { setMenu(false); setChangePwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><KeyRound className="h-4 w-4" />Change password</button>
-                  <button onClick={() => { setMenu(false); setTfaOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"><ShieldCheck className="h-4 w-4" />2FA settings</button>
-                  <div className="border-t my-1" />
-                  <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><LogOut className="h-4 w-4" />Sign out</button>
-                </div>
-              )}
+        <CustomerHeader
+          title={
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <Wifi className="h-5 w-5 shrink-0 text-white/70" />
+              <p className="truncate text-sm font-semibold">{activeLocation?.name ?? "Dashboard"}</p>
+              <span className={cn("h-2 w-2 rounded-full", activeLocation?.status === "online" ? "bg-emerald-400" : activeLocation?.status === "degraded" ? "bg-amber-400" : "bg-rose-400")} />
+              <span className="hidden text-xs capitalize text-white/60 sm:inline">{activeLocation?.status}</span>
             </div>
-          </div>
-        </header>
+          }
+          locationId={locationId}
+          planExpiry={planExpiry}
+          masked={masked}
+          setMasked={setMasked}
+          onMobileMenuClick={() => setMobile(true)}
+          onRefresh={() => refetch()}
+          user={user}
+          onSwitchLocation={handleSwitchLocation}
+          onChangePassword={() => setChangePwOpen(true)}
+          onTfaSettings={() => setTfaOpen(true)}
+          onLogout={handleLogout}
+        />
 
         {/* Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
@@ -146,79 +523,215 @@ function CustomerDashboardPage() {
               <div className="grid gap-4 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-72 rounded-2xl bg-muted" />)}</div>
             </div>
           ) : d ? (
-            <div className="mx-auto max-w-7xl space-y-6">
-              {/* Health Row */}
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {[
-                  { icon: CheckCircle, label: "System Health", value: d.health.systemHealth, color: "text-emerald-500" },
-                  { icon: Router, label: "Routers", value: d.health.routersOnline, color: "text-emerald-500" },
-                  { icon: Activity, label: "ISP Status", value: d.health.isp, color: "text-emerald-500" },
-                  { icon: Wifi, label: "Network Load", value: d.health.networkLoad, color: "text-emerald-500" },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10"><item.icon className={cn("h-5 w-5", item.color)} /></div>
-                    <div><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{item.label}</p><p className="text-lg font-bold">{item.value}</p></div>
+            <div>
+              {/* Full-bleed dark section -- was a floating rounded-3xl card
+               * on a plain page (4 surface changes: dark card -> light page
+               * -> light status strip -> light charts). Now the hero AND
+               * the status strip live on one continuous dark surface that
+               * spans the content column edge-to-edge (negative margins
+               * cancel <main>'s own padding), and the page transitions from
+               * dark to light exactly once, right before the charts. */}
+              <div className="-mx-4 -mt-4 relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white shadow-xl shadow-indigo-950/30 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+                <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-fuchsia-500/30 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 opacity-[0.15]"
+                  style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+                />
+                <div className="relative mx-auto max-w-7xl px-4 pt-6 pb-8 sm:px-6 sm:pt-8 sm:pb-10 lg:px-8">
+                  {/* Illustration scoped to its own relative sub-container
+                   * covering only the eyebrow/headline/3-number portion --
+                   * it was previously absolute-positioned against the WHOLE
+                   * hero including the status strip below, so once that
+                   * strip moved into this same dark section the card grew
+                   * taller and the "bottom-right" anchor drifted down onto
+                   * the status strip instead of sitting quietly in this
+                   * top portion's corner. */}
+                  <div className="relative">
+                    <div className="pointer-events-none absolute -top-2 right-0 hidden w-[170px] sm:block lg:w-[260px]">
+                      <DashboardWatchIllustration />
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">This location, right now</p>
+                    <p className="mt-1 text-sm text-white/70">How {activeLocation?.name ?? "this location"} is running for your guests at this moment.</p>
+                    <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                      {[
+                        { label: "Online right now", value: d.kpis.onlineUsers.toLocaleString() },
+                        { label: "Active sessions", value: d.kpis.activeSessions.toLocaleString() },
+                        { label: "SLA uptime", value: `${d.kpis.slaUptime}%` },
+                      ].map((k, i) => (
+                        <motion.div key={k.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                          <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-[3.25rem] sm:leading-none" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{k.value}</p>
+                          <p className="mt-2 text-sm text-white/70">{k.label}</p>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                  <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-4 text-xs tabular-nums text-white/70">
+                    {[
+                      { label: "routers online", value: `${d.kpis.routersOnline}/${d.kpis.totalRouters}` },
+                      { label: "guests today", value: d.kpis.todayGuests.toLocaleString() },
+                      { label: "avg session", value: `${d.kpis.avgSession} min` },
+                    ].map((s) => (
+                      <span key={s.label}><span className="font-semibold text-white">{s.value}</span> <span className="text-white/50">{s.label}</span></span>
+                    ))}
+                  </div>
+                  {/* Surfaced only when it matters -- a security-relevant
+                   * number that was in the data but never shown anywhere.
+                   * Silent when zero, so it never clutters a clean day. */}
+                  {d.kpis.failedLogins > 0 && (
+                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-200">
+                      <AlertTriangle className="h-3 w-3" />
+                      {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"} today
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
+                    <Quote className="h-3 w-3 shrink-0 text-white/30" />
+                    <AnimatePresence mode="wait">
+                      <motion.span key={quoteIndex} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.4 }}>
+                        {DASHBOARD_QUOTES[quoteIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Status strip -- the 4 health checks as the hero's own
+                   * footnote, same dark surface, not a separate light card
+                   * one scroll-tick below it. */}
+                  <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3.5 backdrop-blur-sm">
+                    <p className="shrink-0 text-xs font-medium text-white/60">Core systems, checked continuously</p>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                      {[
+                        { icon: CheckCircle, label: "System", value: d.health.systemHealth },
+                        { icon: Router, label: "Routers", value: d.health.routersOnline },
+                        { icon: Activity, label: "ISP", value: d.health.isp },
+                        { icon: Wifi, label: "Load", value: d.health.networkLoad },
+                      ].map((item) => (
+                        <span key={item.label} className="inline-flex items-center gap-1.5 text-sm">
+                          <item.icon className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="text-white/60">{item.label}</span>
+                          <span className="font-semibold text-white">{item.value}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* KPI Grid */}
-              {/* Router count already shown in the Health Row above (as
-                  d.health.routersOnline, the same "online/total" figure) --
-                  don't repeat it here, that produced a literal duplicate
-                  "Routers" tile on the dashboard. */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                {[
-                  { l: "Online Users", v: d.kpis.onlineUsers, c: TrendingUp },
-                  { l: "Active Sessions", v: d.kpis.activeSessions, c: Activity },
-                  { l: "Today's Guests", v: d.kpis.todayGuests, c: Users },
-                  { l: "Avg Session", v: `${d.kpis.avgSession}m`, c: Clock },
-                  { l: "SLA Uptime", v: `${d.kpis.slaUptime}%`, c: CheckCircle },
-                ].map((kpi) => (
-                  <motion.div key={kpi.l} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border bg-card p-4 shadow-sm transition-all hover:shadow-md">
-                    <div className="flex items-center justify-between mb-2"><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.l}</p><kpi.c className="h-4 w-4 text-muted-foreground" /></div>
-                    <p className="text-2xl font-bold tracking-tight">{kpi.v}</p>
-                  </motion.div>
-                ))}
-              </div>
+              <div className="mx-auto max-w-7xl space-y-8 pt-8">
+                {/* Charts */}
+                <div>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">Traffic and hardware, over the last 24 hours.</p>
+                  <div className="grid gap-6 lg:grid-cols-3">
+                    <Card className="lg:col-span-1 border-0 shadow-sm">
+                      <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><TrendingUp className="h-3.5 w-3.5 text-white" /></div>
+                        <CardTitle className="text-sm">Guests online, last 24h</CardTitle>
+                      </CardHeader>
+                      <CardContent><div className="h-56">
+                        {d.usersTrend.length === 0 ? <ChartEmptyState label="No trend data yet." /> : (
+                          <ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }} /><Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#ug)" strokeWidth={2} /></AreaChart></ResponsiveContainer>
+                        )}
+                      </div></CardContent>
+                    </Card>
+                    <Card className="lg:col-span-1 border-0 shadow-sm">
+                      <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Router className="h-3.5 w-3.5 text-white" /></div>
+                        <CardTitle className="text-sm">What's connected</CardTitle>
+                      </CardHeader>
+                      <CardContent><div className="h-56">
+                        {d.deviceDistribution.length === 0 ? <ChartEmptyState label="No devices reporting yet." /> : (
+                          <div className="flex h-full flex-col justify-center gap-2.5">
+                            {(() => {
+                              const max = Math.max(...d.deviceDistribution.map((x) => x.value), 1);
+                              return d.deviceDistribution.map((item, i) => (
+                                <div key={item.name} className="flex items-center gap-3">
+                                  <span className="w-20 shrink-0 truncate text-xs text-muted-foreground">{item.name}</span>
+                                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${(item.value / max) * 100}%`, backgroundColor: DEVICE_COLORS[i % DEVICE_COLORS.length] }} /></div>
+                                  <span className="w-6 shrink-0 text-right text-xs font-semibold tabular-nums">{item.value}</span>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        )}
+                      </div></CardContent>
+                    </Card>
+                    <Card className="lg:col-span-1 border-0 shadow-sm">
+                      <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Activity className="h-3.5 w-3.5 text-white" /></div>
+                        <CardTitle className="text-sm">Sessions by hour</CardTitle>
+                      </CardHeader>
+                      <CardContent><div className="h-56">
+                        {d.hourlySessions.length === 0 ? <ChartEmptyState label="No session activity yet today." /> : (
+                          <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px" }} /><Bar dataKey="sessions" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer>
+                        )}
+                      </div></CardContent>
+                    </Card>
+                  </div>
+                </div>
 
-              {/* Charts */}
-              <div className="grid gap-4 lg:grid-cols-3">
-                <Card className="lg:col-span-1 border-0 shadow-sm">
-                  <CardHeader><CardTitle className="text-sm">Users Trend (24h)</CardTitle></CardHeader>
-                  <CardContent><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }} /><Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#ug)" strokeWidth={2} /></AreaChart></ResponsiveContainer></div></CardContent>
-                </Card>
-                <Card className="lg:col-span-1 border-0 shadow-sm">
-                  <CardHeader><CardTitle className="text-sm">Device Distribution</CardTitle></CardHeader>
-                  <CardContent><div className="h-56"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={d.deviceDistribution} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value">{d.deviceDistribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div></CardContent>
-                </Card>
-                <Card className="lg:col-span-1 border-0 shadow-sm">
-                  <CardHeader><CardTitle className="text-sm">Hourly Sessions</CardTitle></CardHeader>
-                  <CardContent><div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px" }} /><Bar dataKey="sessions" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div></CardContent>
-                </Card>
-              </div>
-
-              {/* Tables */}
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="border-0 shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
-                  <CardContent className="p-0"><Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Time</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead></TableRow></TableHeader>
-                  <TableBody>{(d.recentUsers.length === 0 ? [{ id: "0", name: "No users", email: "", device: "", time: "", status: "offline" }] : d.recentUsers).map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table></CardContent>
-                </Card>
-                <Card className="border-0 shadow-sm">
-                  <CardHeader><CardTitle className="text-sm">Recent Alerts</CardTitle></CardHeader>
-                  <CardContent className="divide-y">{d.recentAlerts.map((a) => (<div key={a.msg} className="flex items-start gap-3 py-3">
-                    {a.type === "error" && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />}
-                    {a.type === "warning" && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />}
-                    {a.type === "success" && <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />}
-                    {a.type === "info" && <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />}
-                    <div className="min-w-0 flex-1"><p className="text-sm">{a.msg}</p><p className="text-xs text-muted-foreground">{a.time}</p></div>
-                  </div>))}</CardContent>
-                </Card>
+                {/* Activity -- Recent Users stays a data table (it already
+                 * is one, correctly); Recent Alerts becomes a left-accent
+                 * timeline instead of a second plain list, so the two cards
+                 * read as different kinds of information, not visual
+                 * twins. Their `time` fields are pre-formatted strings
+                 * ("2 min ago"), not real timestamps, so they aren't
+                 * safely mergeable into one interleaved feed. */}
+                <div>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">Who showed up, what needed a look, and whether the internet's up.</p>
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <Card className="border-0 shadow-sm">
+                      <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
+                      <CardContent className="p-0">
+                        {d.recentUsers.length === 0 ? (
+                          <p className="px-6 py-8 text-center text-xs text-muted-foreground">No guests have connected yet — check back once someone joins the network.</p>
+                        ) : (
+                          <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Time</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead></TableRow></TableHeader>
+                          <TableBody>{d.recentUsers.map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                    {/* Right column holds two cards, not one -- Recent
+                     * Alerts alone here used to get CSS Grid's default
+                     * row-stretch treatment against Recent Users' taller
+                     * table, leaving a genuinely blank strip at its own
+                     * bottom on any day with only a few alerts (the common
+                     * case). Stacking WanStatusCard underneath it in its
+                     * own flex column fills that real dead space with a
+                     * second, real, useful card instead of leaving it as
+                     * padding -- Recent Users and Recent Alerts are both
+                     * untouched otherwise. */}
+                    <div className="flex flex-col gap-6">
+                      <Card className="border-0 shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Alerts</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("alerts")}>All →</Button></CardHeader>
+                        <CardContent className="space-y-2 p-3">
+                          {d.recentAlerts.length === 0 ? (
+                            <p className="py-8 text-center text-xs text-muted-foreground">All clear. Nothing needs your attention right now.</p>
+                          ) : d.recentAlerts.map((a, i) => {
+                            const border = a.type === "error" ? "border-rose-500" : a.type === "warning" ? "border-amber-500" : a.type === "success" ? "border-emerald-500" : "border-sky-500";
+                            return (
+                              <div key={i} className={cn("flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3", border)}>
+                                {a.type === "error" && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />}
+                                {a.type === "warning" && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />}
+                                {a.type === "success" && <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />}
+                                {a.type === "info" && <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />}
+                                <div className="min-w-0 flex-1"><p className="text-sm">{a.msg}</p><p className="text-xs text-muted-foreground">{a.time}</p></div>
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                      <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground"><p className="mb-4">Failed to load</p><Button variant="outline" onClick={() => refetch()}>Retry</Button></div>
+            <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+              <p className="mb-1 font-medium text-foreground">Couldn't load this dashboard</p>
+              <p className="mb-4 text-sm">Your connection or our servers hiccuped — try again.</p>
+              <Button variant="outline" onClick={() => refetch()}>Retry</Button>
+            </div>
           )}
         </main>
       </div>

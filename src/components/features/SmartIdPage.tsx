@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Fingerprint, IdCard, DoorOpen, Mail, Ticket, Key, GripVertical } from "lucide-react";
-import { api } from "@/services/api";
+import { api, type AppError } from "@/services/api";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { resolveOrgId } from "@/services/customer.service";
 
@@ -67,6 +67,17 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
   // on the first backed toggle (see toggleMethod below).
   const [orgId, setOrgId] = useState<string | null>(null);
   const [configId, setConfigId] = useState<string | null>(null);
+  // Guards the lazy-create-on-first-toggle path below: if two different
+  // methods are toggled before the first POST resolves, `configId` is still
+  // null for both calls, which would otherwise fire two
+  // `POST /captive-portal-configs` for the same (organization_id,
+  // location_id) -- the backend allows several configs per location by
+  // design (drafts, see CaptivePortalConfig's own docstring), so it will
+  // not reject the second one as a duplicate, and the second toggle's flag
+  // would silently end up on a row this component never learns the id of.
+  // Any toggle that finds this set (a create is already in flight) awaits
+  // the same promise instead of starting its own.
+  const pendingConfigCreation = useRef<Promise<string> | null>(null);
 
   useEffect(() => {
     if (demo) return;
@@ -124,23 +135,38 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
       const headers = { "X-Organization-Id": orgId };
       if (configId) {
         await api.put(`/captive-portal-configs/${configId}`, { [flag]: next }, { headers });
+      } else if (pendingConfigCreation.current) {
+        // Another toggle already kicked off the lazy-create -- reuse its
+        // result instead of creating a second row, then apply this
+        // toggle's own flag on top of it.
+        const createdId = await pendingConfigCreation.current;
+        await api.put(`/captive-portal-configs/${createdId}`, { [flag]: next }, { headers });
       } else {
-        const { data } = await api.post<BackendCaptivePortalConfig>(
-          "/captive-portal-configs",
-          {
-            organization_id: orgId,
-            location_id: locationId || null,
-            name: "Guest WiFi Login",
-            [flag]: next,
-          },
-          { headers },
-        );
-        setConfigId(data.id);
+        const creation = api
+          .post<BackendCaptivePortalConfig>(
+            "/captive-portal-configs",
+            {
+              organization_id: orgId,
+              location_id: locationId || null,
+              name: "Guest WiFi Login",
+              [flag]: next,
+            },
+            { headers },
+          )
+          .then(({ data }) => {
+            setConfigId(data.id);
+            return data.id;
+          })
+          .finally(() => {
+            pendingConfigCreation.current = null;
+          });
+        pendingConfigCreation.current = creation;
+        await creation;
       }
       toast.success(`Login method updated`);
-    } catch {
+    } catch (err) {
       setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: !next } : m));
-      toast.error("Could not save — check the connection and try again.");
+      toast.error((err as AppError).message || "Could not save — check the connection and try again.");
     }
   };
 
@@ -155,16 +181,16 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Smart ID Configuration</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Sign-in Methods</h1>
           <p className="text-sm text-muted-foreground">Configure login methods for the captive portal — guests can use any enabled method.</p>
         </div>
       </div>
 
       <Tabs defaultValue="methods">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
-          <TabsTrigger value="methods" className="rounded-none border-b-2 border-transparent data-[state=active]:border-orange-500 data-[state=active]:text-orange-600 px-4 py-2">Login Methods</TabsTrigger>
-          <TabsTrigger value="pin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-orange-500 data-[state=active]:text-orange-600 px-4 py-2">Set PIN</TabsTrigger>
-          <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-orange-500 data-[state=active]:text-orange-600 px-4 py-2">Portal Preview</TabsTrigger>
+          <TabsTrigger value="methods" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Login Methods</TabsTrigger>
+          <TabsTrigger value="pin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Set PIN</TabsTrigger>
+          <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Portal Preview</TabsTrigger>
         </TabsList>
 
         <TabsContent value="methods" className="mt-4 space-y-3">

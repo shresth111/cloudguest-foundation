@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Share2, ShieldCheck, ShieldOff } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Plus, Search, Trash2, Pencil, Share2, ShieldCheck, ShieldOff, Server } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -76,6 +77,36 @@ const dhcpSchema = z.object({
 });
 type DhcpFormValues = z.infer<typeof dhcpSchema>;
 
+function DhcpIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="6" y="16" width="24" height="20" rx="4" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+      <circle cx="18" cy="26" r="4.5" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.4" />
+      <path d="M18 23v3l2 2" stroke="#22d3ee" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <motion.path
+        d="M30 26h12"
+        stroke="#4f46e5" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 4"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+      <rect x="42" y="8" width="36" height="36" rx="6" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="1.6" />
+      {[0, 1, 2].map((i) => (
+        <motion.rect
+          key={i}
+          x={49} y={16 + i * 8} width={22 - i * 4} height="4" rx="2"
+          fill={["#a78bfa", "#22d3ee", "#f0abfc"][i]} fillOpacity="0.7"
+          initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: 1 }}
+          transition={{ duration: 0.45, delay: 0.12 * i, ease: "easeOut" }}
+          style={{ transformOrigin: `49px ${18 + i * 8}px` }}
+        />
+      ))}
+    </svg>
+  );
+}
+
 export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
@@ -149,9 +180,11 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Server}
         eyebrow="Network"
         title="DHCP Pool Management"
         description="Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."
+        illustration={<DhcpIllustration />}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Pool
@@ -165,7 +198,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
         <StatCard label="Disabled" value={rows.length - enabledCount} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All DHCP Pools</CardTitle>
           <div className="flex flex-wrap items-center gap-2">

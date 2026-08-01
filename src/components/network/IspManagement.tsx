@@ -9,6 +9,7 @@ import {
   Activity,
   ArrowLeftRight,
   RotateCcw,
+  Globe,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
@@ -133,8 +134,9 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Globe}
         eyebrow="Network"
-        title="ISP Uplinks & Routing"
+        title="Internet Failover"
         description="Per-router uplinks, health checks, manual failover/failback, and policy-based routing rules that pin traffic to a specific link."
         actions={
           <Button onClick={() => setCreatingLink(true)} disabled={!routerId}>
@@ -149,7 +151,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
         <StatCard label="Unhealthy / Unknown" value={rows.length - healthyCount} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">Router</CardTitle>
           <Select value={routerId} onValueChange={setRouterId}>
@@ -202,14 +204,14 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
       </Card>
 
       {!routerId ? (
-        <Card className="border-border/60">
+        <Card className="border-0 shadow-sm">
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             Select a router above to view its uplinks and routing rules.
           </CardContent>
         </Card>
       ) : (
         <>
-          <Card className="border-border/60">
+          <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base font-semibold">Uplinks</CardTitle>
             </CardHeader>
@@ -296,7 +298,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
             </CardContent>
           </Card>
 
-          <Card className="border-border/60">
+          <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base font-semibold">Routing rules</CardTitle>
               <Button size="sm" onClick={() => setCreatingRule(true)} disabled={rows.length === 0}>

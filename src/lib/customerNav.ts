@@ -56,8 +56,8 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     id: "access-policy",
     label: "Access & Policy",
     items: [
-      { id: "policies", label: "Policies", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Whitelist", icon: Shield, roles: ["owner"] },
+      { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
+      { id: "whitelist", label: "Always Allowed", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
       { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
       { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
@@ -76,8 +76,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     id: "network",
     label: "Network",
     items: [
-      { id: "hotspot", label: "Hotspot", icon: Wifi, roles: ["owner"] },
-      { id: "dhcp", label: "IP Address Pool", icon: Server, roles: ["owner"] },
+      { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
       { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
       { id: "voip", label: "VOIP Priority", icon: Signal, roles: ["owner"] },
@@ -90,7 +89,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Operations",
     items: [
       { id: "advanced", label: "Advanced", icon: Settings2, roles: ["owner"] },
-      { id: "notification", label: "Notification", icon: Bell, roles: ["owner"] },
+      { id: "notification", label: "Notifications", icon: Bell, roles: ["owner"] },
       { id: "debugging", label: "Network Diagnostics", icon: Terminal, roles: ["owner"] },
     ],
   },

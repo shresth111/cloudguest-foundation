@@ -48,7 +48,7 @@ function AgentDashboard() {
       <div className="flex min-h-screen items-center justify-center bg-muted/30 p-6 text-center">
         <div className="max-w-sm space-y-3">
           <Inbox className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No agent profile is configured. Ask your business owner to create your agent account under <span className="font-medium text-foreground">Agents</span>.</p>
+          <p className="text-sm text-muted-foreground">No staff profile is configured. Ask your business owner to create your staff account under <span className="font-medium text-foreground">Staff Access</span>.</p>
         </div>
       </div>
     );
@@ -64,7 +64,7 @@ function AgentDashboard() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">ZIP WiFi</p>
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Agent Workspace</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Staff Workspace</p>
           </div>
         </div>
         <nav className="flex-1 space-y-3 overflow-y-auto px-2 py-3">
@@ -100,7 +100,7 @@ function AgentDashboard() {
           <button className="lg:hidden" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{activeLabel}</p>
-            <p className="text-xs text-muted-foreground">Agent workspace</p>
+            <p className="text-xs text-muted-foreground">Staff workspace</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             {agent.dataMasking && (
@@ -114,7 +114,7 @@ function AgentDashboard() {
                 <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Switch agent (demo)</DropdownMenuLabel>
+                <DropdownMenuLabel>Switch staff member (demo)</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {agents.map((a) => (
                   <DropdownMenuItem key={a.id} onClick={() => { setCurrentAgent(a.id); setFeature("dashboard"); }}>

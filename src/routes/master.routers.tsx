@@ -80,11 +80,17 @@ const inputCls =
  * router in immediately (dashboard-side, so the agent credential is known
  * up front), and renders a ready-to-paste RouterOS script -- see
  * buildRouterSetupScript's own doc comment for exactly what it covers. */
-// The RADIUS server's own address, baked into the generated RouterOS
-// script's `/radius add address=...` line -- the actual bridge calls that
-// used to need matching secrets here now live server-side (see
-// api.post(".../allocate-external"/".../register-external") below).
-const RADIUS_SERVER_ADDRESS = "20.219.72.235";
+// NOTE: the RADIUS server's address baked into the generated RouterOS
+// script's `/radius add address=...` line is deliberately NOT a constant
+// here anymore -- it used to be the hub's public IP (20.219.72.235),
+// confirmed live to leave a router stuck with "RADIUS server is not
+// responding" forever at any site whose ISP blocks outbound RADIUS UDP
+// (1812/1813) but never touches WireGuard's own single UDP port every
+// router already tunnels through. RADIUS requires WireGuard (enforced by
+// the checkbox below), so `wireguard.hubTunnelIpAddress` -- the hub's own
+// address *inside* that tunnel -- is always available by the time RADIUS
+// is wired up, and is what gets used instead. See where `radius` is built
+// below.
 
 /** RouterOS API login the platform itself uses for this router's control-plane
  * calls (Device Console, VLAN/DHCP pushes, diagnostics) -- distinct from the
@@ -167,6 +173,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             hub_endpoint_host: string;
             hub_endpoint_port: number;
             tunnel_network_cidr: string;
+            hub_tunnel_ip_address: string;
           }>(`/routers/${router.id}/wireguard-peer/allocate-external`);
           wireguard = {
             routerPrivateKey: wg.data.peer_private_key,
@@ -175,6 +182,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             serverEndpointHost: wg.data.hub_endpoint_host,
             serverEndpointPort: String(wg.data.hub_endpoint_port),
             tunnelSubnet: wg.data.tunnel_network_cidr,
+            hubTunnelIpAddress: wg.data.hub_tunnel_ip_address,
           };
         } catch (err) {
           wireguard = undefined;
@@ -198,7 +206,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           const nas = await api.post<{ shared_secret: string }>(
             `/radius/nas/register-external/${router.id}`,
           );
-          radius = { serverAddress: RADIUS_SERVER_ADDRESS, sharedSecret: nas.data.shared_secret };
+          // The hub's tunnel-side IP, not its public one -- see this
+          // panel's own module-level comment above for why.
+          radius = { serverAddress: wireguard.hubTunnelIpAddress, sharedSecret: nas.data.shared_secret };
         } catch (err) {
           radius = undefined;
           toast.error(
@@ -274,9 +284,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       <ol className="list-decimal space-y-1 rounded-lg border border-border bg-muted/30 p-2.5 pl-6 text-[11px] text-muted-foreground">
         <li>Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH session, and not a browser.</li>
         <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there.</li>
+        <li><strong>Do not rename a WAN interface</strong> (e.g. <code className="rounded bg-background px-1 py-0.5">/interface ethernet set ... name=...</code>) at any point before or while pasting this script — every line below refers to it by the exact name entered in step above. Renaming it first (even to something more readable) makes every later match on that name silently fail, and that unrecognized port then gets swept into the guest LAN bridge instead of staying on the WAN side (confirmed live). If you want a friendlier name, rename it only <strong>after</strong> the whole script has run successfully.</li>
         <li>Get each WAN interface online <strong>first</strong>: run <code className="rounded bg-background px-1 py-0.5">/ip dhcp-client add interface=&lt;name&gt; disabled=no</code> if the ISP hands out an IP automatically, or <code className="rounded bg-background px-1 py-0.5">/ip address add address=&lt;ip/cidr&gt; interface=&lt;name&gt;</code> + a default route if it's a static/leased-line IP — whichever this specific link actually is.</li>
         <li>Back in the dashboard, fill in the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
-        <li>The script appears below in numbered pieces — copy and paste each one into WinBox's New Terminal <strong>one at a time, in order</strong>, pressing Enter after each. This avoids WinBox's terminal dropping characters on one huge paste.</li>
+        <li>The script appears below in numbered pieces — copy and paste each one into WinBox's New Terminal <strong>one at a time, in order</strong>, pressing Enter after each. This avoids WinBox's terminal dropping characters on one huge paste. If a piece prints a loud <code className="rounded bg-background px-1 py-0.5">*** ERROR ***</code> banner about a missing WAN interface, stop and fix the interface name (do not continue pasting further pieces) before re-running.</li>
       </ol>
 
       <div className="flex gap-1.5">

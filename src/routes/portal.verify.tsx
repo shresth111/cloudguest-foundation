@@ -28,6 +28,7 @@ function VerifyPage() {
     setSession,
     termsAccepted,
     setTermsAccepted,
+    setGuestIdentifier,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/verify" });
   const [code, setCode] = useState("");
@@ -65,6 +66,9 @@ function VerifyPage() {
     onSuccess: async (session) => {
       toast.success("Verified");
       setSession(session);
+      // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
+      // own RADIUS Authorize checks this exact value, not a hardcoded one.
+      setGuestIdentifier(otpTarget?.trim());
       if (requiresTerms && termsAccepted) {
         portalRuntimeService
           .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })

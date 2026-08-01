@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Plus, Users, UserCog, Upload, UploadCloud, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,46 @@ function QuickNotes({ items }: { items: string[] }) {
         {items.map((n, i) => <li key={i}>{i + 1}. {n}</li>)}
       </ol>
     </div>
+  );
+}
+
+/**
+ * Small header-accent illustration: three separate user clusters (teams),
+ * each a pair of nodes, connected loosely into one grouping -- what this
+ * page actually does (grouping guests into teams with shared quotas).
+ * Same filled-flat-shape character language as the other illustrations
+ * shipped this session. Purely decorative -- aria-hidden.
+ */
+function TeamClustersIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  const clusters = [
+    { cx: 14, cy: 14, color: "#22d3ee" },
+    { cx: 44, cy: 8, color: "#f0abfc" },
+    { cx: 72, cy: 20, color: "#a78bfa" },
+  ];
+  return (
+    <svg aria-hidden="true" viewBox="0 0 88 44" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <motion.path
+        d="M18 16Q32 26 42 12Q54 -2 70 18"
+        stroke="#4f46e5" strokeOpacity="0.4" strokeWidth="1.3" strokeDasharray="1 4" strokeLinecap="round" fill="none"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.7, ease: "easeOut" }}
+      />
+      {clusters.map((c, i) => (
+        <motion.g
+          key={i}
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15 * i, ease: "easeOut" }}
+        >
+          <circle cx={c.cx - 4} cy={c.cy + 2} r="6" fill="#2e2a5c" stroke={c.color} strokeWidth="1.4" />
+          <circle cx={c.cx + 5} cy={c.cy - 2} r="6" fill="#2e2a5c" stroke={c.color} strokeWidth="1.4" />
+          <circle cx={c.cx - 4} cy={c.cy} r="1.7" fill={c.color} />
+          <circle cx={c.cx + 5} cy={c.cy - 4} r="1.7" fill={c.color} />
+        </motion.g>
+      ))}
+    </svg>
   );
 }
 
@@ -180,9 +221,17 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Users className="h-4 w-4 text-primary" /> Manage Teams</h1>
-        <p className="text-sm text-muted-foreground">Group guests into teams with shared data quotas and manage them in bulk.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <Users className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Guest Groups</h1>
+            <p className="text-sm text-muted-foreground">Group guests into teams with shared data quotas and manage them in bulk.</p>
+          </div>
+        </div>
+        <TeamClustersIllustration />
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-muted/40 p-1">
@@ -225,7 +274,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {teams.filter((t) => t.status !== "revoked").map((t) => (
-              <Card key={t.id} className="border shadow-none">
+              <Card key={t.id} className="border-0 bg-muted/40 shadow-sm">
                 <CardContent className="p-4">
                   <div className="mb-1 flex items-center justify-between"><p className="text-sm font-semibold">{t.name}</p><Badge variant="outline">{t.members} members</Badge></div>
                   <p className="mb-2 text-xs text-muted-foreground">{t.businessUnit}</p>

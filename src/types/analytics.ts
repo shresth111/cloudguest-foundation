@@ -133,6 +133,7 @@ export type ReportType =
   | "organization"
   | "location"
   | "revenue"
+  | "dashboard"
   | "audit"
   | "billing"
   | "monitoring";
