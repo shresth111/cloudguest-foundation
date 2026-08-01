@@ -3,9 +3,9 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Wifi, Smartphone, Mail, Ticket, KeyRound, MessageCircle } from "lucide-react";
+import { Smartphone, Mail, Ticket, KeyRound, MessageCircle } from "lucide-react";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
-import { AlertBanner, ConnectingOverlay, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
+import { AlertBanner, ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -403,20 +403,15 @@ export function GuestSignInCard() {
   return (
     <div className="flex flex-1 flex-col gap-5">
       <div className="flex flex-col items-center text-center">
-        {config?.logoUrl ? (
-          <img
-            src={config.logoUrl}
-            alt=""
-            className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
-          />
-        ) : (
-          <div
-            className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25 sm:h-16 sm:w-16 md:h-20 md:w-20"
-            style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-          >
-            <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
-          </div>
-        )}
+        {/* Real per-location logo always wins when configured; otherwise
+            fall back to the actual Wyfy Guest brand mark (not a generic
+            placeholder icon) so an un-customized location's guests still
+            see real branding. */}
+        <img
+          src={config?.logoUrl || DEFAULT_PORTAL_LOGO_SRC}
+          alt=""
+          className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
+        />
         <h1
           className="mt-4 text-[26px] font-bold leading-tight text-slate-900"
           style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}

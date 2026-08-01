@@ -8,6 +8,21 @@ import { AlertCircle, Loader2 } from "lucide-react";
  * same alert banner and connecting overlay everywhere they appear.
  */
 
+/**
+ * The real Wyfy Guest brand mark (the corrected, symmetric hand-drawn
+ * dot+arcs glyph -- see public/brand/*.svg), shown on the guest sign-in
+ * screen (GuestSignInCard) and shell header (PortalShell) whenever a
+ * location hasn't configured its own logo (`config.logoUrl` is falsy).
+ * Previously both spots fell back to a generic lucide `Wifi` icon inside a
+ * gradient badge -- a placeholder, not the actual product mark -- so a
+ * guest at any location that hadn't uploaded a custom logo never saw real
+ * Wyfy Guest branding at all. `mark-compact-blue` (not the full
+ * horizontal lockup) matches the square/round slot both callers render a
+ * logo into. This never overrides a location's real uploaded logo, which
+ * still wins whenever `logoUrl` is set.
+ */
+export const DEFAULT_PORTAL_LOGO_SRC = "/brand/mark-compact-blue.svg";
+
 /** Inline red alert banner -- "invalid mobile, wrong OTP, wrong password,
  * terms unchecked" per the design spec. Renders nothing when `message` is
  * falsy so callers can pass a possibly-undefined error message directly. */

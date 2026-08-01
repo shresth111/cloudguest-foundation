@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
+import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 
 // A static "network" mesh -- a handful of connected nodes, a couple of
 // concentric range rings, and a faint grid -- replacing the two blurred
@@ -351,22 +352,15 @@ export function PortalShell({
         {showHeader && (
           <header className="mb-6 flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              {config?.logoUrl ? (
-                <img
-                  src={config.logoUrl}
-                  alt=""
-                  className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12 md:h-14 md:w-14"
-                />
-              ) : (
-                <div
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg font-semibold text-white shadow-lg sm:h-12 sm:w-12 md:h-14 md:w-14"
-                  style={{
-                    background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))`,
-                  }}
-                >
-                  <Wifi className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                </div>
-              )}
+              {/* Real per-location logo always wins when configured;
+                  otherwise fall back to the actual Wyfy Guest brand mark
+                  (not a generic placeholder icon) -- see GuestSignInCard's
+                  identical fallback and DEFAULT_PORTAL_LOGO_SRC's own doc. */}
+              <img
+                src={config?.logoUrl || DEFAULT_PORTAL_LOGO_SRC}
+                alt=""
+                className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12 md:h-14 md:w-14"
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{config?.name ?? "Wyfy Guest"}</p>
                 <p className="truncate text-[11px] text-white/60">
