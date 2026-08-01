@@ -227,7 +227,12 @@ async function realDataConsumption(orgId: string, locationId: string, from: stri
       const upGB = up / 1e9;
       const downGB = down / 1e9;
       const totalGB = upGB + downGB;
-      return { date, uploadGB: upGB, downloadGB: downGB, totalGB, peakMbps: 0, cost: ratePerGb ? totalGB * ratePerGb : null };
+      // peakMbps: null, not 0 -- the backend doesn't track per-day peak
+      // throughput anywhere in guest-sessions, so a real 0 would be
+      // fabricated. fmtCell already renders null as "--" for every other
+      // honestly-unavailable field (see `cost` below); do the same here
+      // instead of a made-up zero that reads as a real (if bad) measurement.
+      return { date, uploadGB: upGB, downloadGB: downGB, totalGB, peakMbps: null, cost: ratePerGb ? totalGB * ratePerGb : null };
     });
 }
 
@@ -317,7 +322,16 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
   const fmtCell = (key: string, val: string | number | null): string => {
     if (val == null) return "—";
     if (key === "cost") return `₹${(+val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-    if (["data", "totalData", "avgPerUser", "avgPerMember", "totalGB", "uploadGB", "downloadGB", "peakMbps"].includes(key)) return typeof val === "number" && ["totalGB", "uploadGB", "downloadGB", "peakMbps"].includes(key) ? `${val.toFixed(1)}${key === "peakMbps" ? " Mbps" : " GB"}` : fmtBytes(+val);
+    if (key === "peakMbps") return `${(+val).toFixed(1)} Mbps`;
+    // uploadGB/downloadGB/totalGB are computed in GB (see realDataConsumption),
+    // but a fixed one-decimal GB display rounds every real account under
+    // ~50 MB/day straight to "0.0 GB" across the whole row -- indistinguishable
+    // from a broken report for a normal (non-enterprise-scale) real account.
+    // Route through the same adaptive MB/GB formatter data-by-location's
+    // totalData/avgPerUser already use (fmtBytes, MB in, "6 MB" or "1.2 GB"
+    // out) instead of losing all resolution below 100 MB.
+    if (["totalGB", "uploadGB", "downloadGB"].includes(key)) return fmtBytes(+val * 1000);
+    if (["data", "totalData", "avgPerUser", "avgPerMember"].includes(key)) return fmtBytes(+val);
     if (key === "duration") return fmtDur(+val);
     if (["sessionStart", "sessionEnd", "firstSeen", "lastSeen", "redeemedAt", "sentAt"].includes(key)) return fmtDT(String(val));
     return String(val);
