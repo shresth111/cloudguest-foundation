@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -76,80 +76,64 @@ const SEED: Entry[] = [
 ];
 
 /**
- * Compact intro-band illustration: a trusted device (checkmark-shield on
- * its screen) passing clear through a gate/turnstile -- the visual for
- * "bypass the captive portal", same filled-flat-shape character language
- * (cream/violet fills, cyan/fuchsia/violet accents) as this session's other
- * illustrations. Sized for a slim header band, not a full hero, since this
- * page's real content is a form + a real data table, not glance-numbers.
- *
- * Purely decorative -- aria-hidden. The gate's pulse and the shield's
- * draw-on both respect useReducedMotion.
+ * Header-accent illustration: a trusted phone drifting clear through a
+ * gate/turnstile -- the visual for "bypass the captive portal". Was a full
+ * dark-hero band (viewBox 220x120, its own gradient background) -- the
+ * only header in the whole Guest Access sub-section built that way, so
+ * flipping between this tab and its sibling "Blocked Guests" tab (a plain
+ * white card with a small corner icon, same treatment PoliciesHub.tsx's
+ * own header uses) was a jarring style change for no functional reason.
+ * Shrunk to the same compact corner-icon convention (viewBox 84x56, h-14)
+ * used by BlockedAccessIllustration/PolicyShieldIllustration, and the
+ * checkmark recolored from decorative violet to the emerald GuestBadges.tsx
+ * already uses for "whitelist" and this same file's own "Active" status
+ * pill -- so the illustration, the tab accent, and the status pill all
+ * agree on one color for "allowed" instead of three different ones.
+ * Purely decorative -- aria-hidden. The gate's pulse and the phone's
+ * entrance both respect useReducedMotion.
  */
 function TrustedAccessIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 220 120" className="h-auto w-full max-w-[200px]" fill="none">
-      <defs>
-        <filter id="wl-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="8" />
-        </filter>
-      </defs>
-
-      <circle cx="150" cy="60" r="34" fill="#7c3aed" opacity="0.18" filter="url(#wl-illo-glow)" />
-      <line x1="8" y1="104" x2="212" y2="104" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
-
+    <svg aria-hidden="true" viewBox="0 0 84 56" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
       {/* turnstile / gate */}
-      <rect x="128" y="34" width="8" height="70" rx="3" fill="#241f4d" stroke="white" strokeOpacity="0.15" />
-      <rect x="176" y="34" width="8" height="70" rx="3" fill="#241f4d" stroke="white" strokeOpacity="0.15" />
+      <rect x="52" y="8" width="6" height="40" rx="2.5" fill="#241f4d" stroke="#a78bfa" strokeOpacity="0.4" strokeWidth="1.3" />
+      <rect x="74" y="8" width="6" height="40" rx="2.5" fill="#241f4d" stroke="#a78bfa" strokeOpacity="0.4" strokeWidth="1.3" />
       <motion.rect
-        x="136" y="66" width="40" height="6" rx="3" fill="#22d3ee"
+        x="52" y="14" width="28" height="4" rx="2" fill="#22d3ee"
         animate={shouldReduceMotion ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
         transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
       />
 
       {/* trusted phone, drifting through the gate */}
       <motion.g
-        initial={shouldReduceMotion ? false : { x: -18, opacity: 0 }}
+        initial={shouldReduceMotion ? false : { x: -6, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
       >
-        <rect x="26" y="38" width="46" height="66" rx="9" fill="#241f4d" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" />
-        <rect x="32" y="46" width="34" height="46" rx="3" fill="#f5f0ff" />
-        <circle cx="49" cy="69" r="12" fill="#7c3aed" fillOpacity="0.12" />
+        <rect x="8" y="16" width="22" height="30" rx="4.5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.4" />
+        <rect x="11.5" y="20.5" width="15" height="19" rx="1.5" fill="#1e1b4b" />
+        <circle cx="19" cy="30" r="6" fill="#10b981" fillOpacity="0.2" />
         <motion.path
-          d="M43 69l4 4 8-8"
-          stroke="#7c3aed"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
+          d="M16.2 30l2 2 3.8-4"
+          stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
           initial={shouldReduceMotion ? false : { pathLength: 0 }}
           animate={{ pathLength: 1 }}
-          transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.5, delay: 0.3, ease: "easeOut" }}
         />
       </motion.g>
 
-      {/* "clear" arc trailing through the gate */}
-      {[0, 1, 2].map((i) => (
+      {/* "clear" arcs trailing through the gate */}
+      {[0, 1].map((i) => (
         <motion.path
           key={i}
-          d={`M${86 + i * 12} 71a4 4 0 0 1 0-4`}
-          stroke="#f0abfc"
-          strokeOpacity="0.7"
-          strokeWidth="2.5"
-          strokeLinecap="round"
+          d={`M${36 + i * 7} 30a2.5 2.5 0 0 1 0-3`}
+          stroke="#f0abfc" strokeOpacity="0.7" strokeWidth="1.8" strokeLinecap="round"
           initial={shouldReduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: [0, 1, 0] }}
-          transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.6, repeat: Infinity, delay: i * 0.25, ease: "easeInOut" }}
+          transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.6, repeat: Infinity, delay: i * 0.3, ease: "easeInOut" }}
         />
       ))}
-
-      {/* destination pin, other side of the gate */}
-      <g transform="translate(198, 60)" stroke="white" strokeOpacity="0.6" strokeWidth="2" strokeLinejoin="round">
-        <path d="M0 -14c-5.6 0-10 4.4-10 9.9C-10 3.5 0 16 0 16s10-12.5 10-20.1C10-9.6 5.6-14 0-14z" fill="rgba(255,255,255,0.06)" />
-        <circle cx="0" cy="-4" r="3" fill="#a78bfa" stroke="none" />
-      </g>
     </svg>
   );
 }
@@ -198,6 +182,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // creating its replacement then deleting the original, both real,
   // already-existing endpoints. See handleSubmit/handleDelete below.
   const [editingId, setEditingId] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Real rows only carry a location_id, not a display name -- resolve it
   // against the caller's own real locations, same pairing TicketsPage.tsx
@@ -373,22 +358,21 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
   return (
     <div className="space-y-6">
-      {/* intro band */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e1b4b] via-[#2b2461] to-[#4c1d95] px-5 py-4 text-white shadow-sm sm:px-6 sm:py-5">
-        <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-14 -left-6 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
-        <div className="relative flex items-center justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><ShieldCheck className="h-4 w-4 text-white" /></span>
-              Always Allowed
-            </h1>
-            <p className="mt-1 text-sm text-white/70">Allow specific numbers or devices to bypass the captive portal.</p>
+      {/* header -- matches the compact icon-badge + title + corner
+       * illustration convention this same page's Blocked Guests tab and
+       * PoliciesHub.tsx's own header already use, instead of the one-off
+       * dark hero band this used to be. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <ShieldCheck className="h-4.5 w-4.5 text-white" />
           </div>
-          <div className="hidden shrink-0 opacity-90 sm:block">
-            <TrustedAccessIllustration />
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Always Allowed</h1>
+            <p className="text-sm text-muted-foreground">Allow specific numbers or devices to bypass the captive portal.</p>
           </div>
         </div>
+        <TrustedAccessIllustration />
       </div>
 
       {/* toast */}
@@ -409,7 +393,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       </div>
 
       {/* form card */}
-      <form onSubmit={handleSubmit} className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
+      <form ref={formRef} onSubmit={handleSubmit} className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
         <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
             {tab === "number" ? <Smartphone className="h-3.5 w-3.5 text-white" /> : <Laptop className="h-3.5 w-3.5 text-white" />}
@@ -509,7 +493,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </CardHeader>
         <CardContent className="p-0">
         {paged.length === 0 ? (
-          <EmptyState icon={ShieldCheck} title="Nothing allowed yet" description="Fill the form above to add the first one." />
+          <EmptyState
+            icon={ShieldCheck}
+            title="Nothing allowed yet"
+            description="Fill the form above to let a trusted number or device skip the portal."
+            action={{ label: "Allow a number or device", onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus() }}
+          />
         ) : (
         <div className="overflow-x-auto">
           <Table className="min-w-[820px]">

@@ -68,10 +68,16 @@ function toBlockedUser(r: AnyAccessRule): BlockedUser {
 /**
  * Small header-accent illustration: a phone with a "blocked" glyph and a
  * signal line cut off by a barrier, same filled-flat-shape character
- * language as the other illustrations shipped this session. Kept compact,
- * inline with the header row -- this page's real content is a dense
- * number-entry form + a real blocked-users table, so personality lives in
- * a small corner accent, not a full hero. Purely decorative -- aria-hidden.
+ * language as the other illustrations shipped this session. The "no
+ * entry" badge is recolored from decorative fuchsia to the rose that
+ * GuestBadges.tsx and OperationsFeatures.tsx already use everywhere else
+ * in this product for "blocklist"/"blocked" -- so the illustration reads
+ * as *this specific state* (blocked) rather than a generic accent color,
+ * and matches the same rose now used on the status pill below and the
+ * Blocked Guests tab in PoliciesHub.tsx. Kept compact, inline with the
+ * header row -- this page's real content is a dense number-entry form + a
+ * real blocked-users table, so personality lives in a small corner
+ * accent, not a full hero. Purely decorative -- aria-hidden.
  */
 function BlockedAccessIllustration() {
   const shouldReduceMotion = useReducedMotion();
@@ -91,8 +97,8 @@ function BlockedAccessIllustration() {
         animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
         transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
       >
-        <circle cx="64" cy="20" r="12" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="2" />
-        <path d="M58 14l12 12M70 14l-12 12" stroke="#f0abfc" strokeWidth="2.2" strokeLinecap="round" />
+        <circle cx="64" cy="20" r="12" fill="#1e1b4b" stroke="#fb7185" strokeWidth="2" />
+        <path d="M58 14l12 12M70 14l-12 12" stroke="#fb7185" strokeWidth="2.2" strokeLinecap="round" />
       </motion.g>
     </svg>
   );
@@ -466,7 +472,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       </CardHeader>
       <CardContent className="p-0">
         {paged.length === 0 ? (
-          <EmptyState icon={Ban} title="Nobody is blocked" description="Paste a number above to block one." />
+          <EmptyState
+            icon={Ban}
+            title="Nobody is blocked"
+            description="Paste a number above to block one -- it takes effect immediately."
+            action={{ label: "Block a number", onClick: () => document.getElementById("block-ta")?.focus() }}
+          />
         ) : (
         <div className="overflow-x-auto">
           <Table className="min-w-[860px]">
@@ -488,7 +499,17 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                     <TableCell className="text-xs">{b.businessUnit}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">{fmtDT(b.blockedOn)}</TableCell>
                     <TableCell>
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${b.status === "Blocked" ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400" : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"}`}>{b.status}</span>
+                      {/* Was an indigo pill for "Blocked" -- indigo is this
+                       * page's own brand/action color (buttons, focus
+                       * rings), so a "Blocked" row read as neutral instead
+                       * of restrictive. Switched to the same rose dot+label
+                       * WhiteList.tsx uses for its own "Active" state
+                       * (mirrored, not copied verbatim) and GuestBadges.tsx
+                       * already uses for "blocklist" everywhere else. */}
+                      <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", b.status === "Blocked" ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full", b.status === "Blocked" ? "bg-rose-500" : "bg-slate-400")} />
+                        {b.status}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <button aria-label={b.status === "Blocked" ? `Unblock ${b.mobile}` : `Block ${b.mobile}`} onClick={() => toggleStatus(b.id)} className="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700">{b.status === "Blocked" ? "Unblock" : "Block again"}</button>
