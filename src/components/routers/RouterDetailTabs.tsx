@@ -1155,6 +1155,45 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
     : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`;
 }
 
+/** The `dns-name` this script sets on `hsprof1` (RouterOS's own
+ * `/ip hotspot profile` field) -- once set, RouterOS's hotspot redirect
+ * uses this hostname instead of the hotspot's raw LAN IP when it sends a
+ * newly-connected, not-yet-authenticated guest to the login page, e.g.
+ * `http://${HOTSPOT_DNS_NAME}/login` instead of `http://10.5.50.1/login`
+ * in the guest's own address bar (confirmed against MikroTik's published
+ * `/ip hotspot profile` reference). A short, memorable pseudo-TLD
+ * (`.portal`) rather than a real, registrable domain -- deliberately, so
+ * nothing here implies a public DNS record exists or needs to be bought/
+ * maintained; every guest resolves it purely locally, off this router's
+ * own DNS responder (see the static record added alongside it below).
+ *
+ * `dns-name` alone only changes the *redirect URL* -- it does not, by
+ * itself, make that hostname resolve to anything. MikroTik's own
+ * documentation for this exact feature says a `dns-name` must separately
+ * be made to resolve to the hotspot's own address, and the standard way to
+ * do that for a name with no real public DNS record is a plain
+ * `/ip dns static` entry -- which is why this script adds one, pointed at
+ * `$lanIp`, immediately after setting `dns-name`. Guests already get this
+ * router as their own DNS server via the hotspot DHCP server's own
+ * `dns-server=$lanIp` (set earlier in this same script), and
+ * `/ip dns set ... allow-remote-requests=yes` (also already set earlier)
+ * is what makes the router answer that query at all -- no real domain
+ * registration or public DNS anywhere in this scheme.
+ *
+ * **Not independently confirmed against a real device this session**,
+ * unlike most of the other decisions in this file that carry an explicit
+ * "confirmed live" note: whether RouterOS's hotspot-specific DNS
+ * interception for an unauthenticated client takes precedence over,
+ * conflicts with, or is simply additive to, a plain `/ip dns static`
+ * answer for the same name was not tested live here. The static record is
+ * the documented, standard-pattern fallback regardless, so it's included
+ * rather than relying on `dns-name`'s redirect-only behavior alone -- but
+ * a real device test (connect an unauthenticated guest, confirm the
+ * address bar shows the hostname AND the page actually loads rather than
+ * an NXDOMAIN/timeout) is real, outstanding verification this constant's
+ * own addition does not perform, flagged here rather than assumed. */
+const HOTSPOT_DNS_NAME = "wyfy.portal";
+
 /** Every WAN interface name this script references is taken literally,
  * exactly once, from whatever the "WAN N interface" field currently says
  * -- it never re-discovers or renames anything on the device. Confirmed
@@ -1350,7 +1389,19 @@ export function buildRouterSetupScript(opts: {
   // this copy of the same logic had drifted and never got that fix. Only
   // the specific files in PORTAL_OVERRIDE_FILES below need to be ours; the
   // stock folder already has everything else they depend on.
-  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=hotspot`);
+  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=hotspot dns-name="${HOTSPOT_DNS_NAME}"`);
+  lines.push(`}`);
+  // Unconditional `set` (not nested in the profile-creation `:if` above)
+  // so re-running this script also fixes a router whose hsprof1 already
+  // existed before this line was added -- same reasoning as the
+  // login-by=http-pap `set` immediately below. See HOTSPOT_DNS_NAME's own
+  // docstring for why dns-name alone isn't enough and this static record
+  // is required alongside it.
+  lines.push(`/ip hotspot profile set [find name="hsprof1"] dns-name="${HOTSPOT_DNS_NAME}"`);
+  lines.push(`:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={`);
+  lines.push(`  /ip dns static add name="${HOTSPOT_DNS_NAME}" address=$lanIp comment="cloudguest-hotspot-dns-name"`);
+  lines.push(`} else={`);
+  lines.push(`  /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=$lanIp`);
   lines.push(`}`);
   // RouterOS's own default login-by (cookie,http-chap) can't be satisfied
   // by a plain external-portal form POST of username+password -- CHAP
@@ -1621,7 +1672,7 @@ export function buildRouterSetupScriptChunks(opts: {
       // covers; only login.html itself needs to be ours (see the "Portal
       // Redirect Page" chunk below), and the stock folder already has
       // everything else login.html depends on.
-      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot }`,
+      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot dns-name="${HOTSPOT_DNS_NAME}" }`,
       // RouterOS's own default login-by (cookie,http-chap) can't be
       // satisfied by a plain external-portal form POST of username+
       // password -- CHAP needs a challenge/response this script's
@@ -1633,6 +1684,13 @@ export function buildRouterSetupScriptChunks(opts: {
       // a brand-new profile) so re-running this chunk also fixes a
       // router whose hsprof1 already existed before this line was added.
       `/ip hotspot profile set [find name="hsprof1"] login-by=http-pap`,
+      // Same "unconditional set fixes an already-existing profile" logic
+      // as login-by above, for the address-bar-friendly hostname this
+      // profile's own redirect now uses -- see HOTSPOT_DNS_NAME's own
+      // docstring for why dns-name and this static record are a pair,
+      // not either one alone.
+      `/ip hotspot profile set [find name="hsprof1"] dns-name="${HOTSPOT_DNS_NAME}"`,
+      `:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={ /ip dns static add name="${HOTSPOT_DNS_NAME}" address=${lanIp} comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=${lanIp} }`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
       `:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={ /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1" }`,
     ];
