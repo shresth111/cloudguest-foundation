@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { Loader2, Eye, EyeOff, ShieldCheck, UserRound, CalendarClock } from "lucide-react";
@@ -11,14 +11,20 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
 import { demoRequestService } from "@/services/demo-request.service";
+import { ForgotPasswordPage } from "./forgot-password";
 
 export type LoginRole = "owner" | "agent";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { redirect?: string } =>
     typeof s.redirect === "string" ? { redirect: s.redirect } : {},
-  component: LoginPage,
+  component: LoginRouteComponent,
 });
+
+function LoginRouteComponent() {
+  const { redirect } = Route.useSearch();
+  return <LoginPage redirectTo={redirect} />;
+}
 
 const STATS = [
   { v: 10000, suffix: "K+", divide: 1000, l: "Networks" },
@@ -132,10 +138,22 @@ function HeroWifiIllustration() {
   );
 }
 
-function LoginPage() {
+/**
+ * Rendered both at the dedicated `/login` route (via `LoginRouteComponent`,
+ * which supplies `redirectTo` from that route's own `?redirect=` search
+ * param) and directly at `/` for anonymous visitors -- so opening the bare
+ * app URL shows the sign-in form without the address bar ever changing to
+ * `/login`. Takes `redirectTo` as a prop rather than reading route search
+ * params itself so it works under either route.
+ */
+export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { redirect } = Route.useSearch();
+  const redirect = redirectTo;
+  // "Forgot password?" renders ForgotPasswordPage in place of the login
+  // form instead of navigating to the /forgot-password route -- so the
+  // address bar never leaves the bare login URL during this pre-login flow.
+  const [view, setView] = useState<"login" | "forgot-password">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<LoginRole>("owner");
@@ -232,6 +250,10 @@ function LoginPage() {
       setDemoSubmitting(false);
     }
   };
+
+  if (view === "forgot-password") {
+    return <ForgotPasswordPage onBack={() => setView("login")} />;
+  }
 
   return (
     <>
@@ -404,7 +426,7 @@ function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input ref={emailInputRef} id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus /></div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div>
+              <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><button type="button" onClick={() => setView("forgot-password")} className="text-xs font-medium text-primary hover:underline">Forgot password?</button></div>
               <div className="relative"><Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
                 <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
             </div>

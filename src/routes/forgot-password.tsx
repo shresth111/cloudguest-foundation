@@ -17,10 +17,27 @@ const schema = z.object({ email: z.string().email("Enter a valid email") });
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/forgot-password")({
-  component: ForgotPasswordPage,
+  component: ForgotPasswordRouteComponent,
 });
 
-function ForgotPasswordPage() {
+// Standalone route entry point -- used only for direct/deep links to
+// /forgot-password (e.g. if it's ever linked from outside the app). The
+// login page itself renders `ForgotPasswordPage` inline instead of visiting
+// this route, so the address bar never changes for that in-app click (see
+// login.tsx).
+function ForgotPasswordRouteComponent() {
+  return <ForgotPasswordPage />;
+}
+
+/**
+ * Rendered both at the dedicated `/forgot-password` route (via
+ * `ForgotPasswordRouteComponent`, with no `onBack` -- "Back to sign in"
+ * navigates to the real `/login` route) and inline from `LoginPage` when the
+ * visitor clicks "Forgot password?" (with `onBack` supplied to flip the
+ * login page's local view state back instead of navigating) -- so that
+ * in-app click never changes the address bar to `/forgot-password`.
+ */
+export function ForgotPasswordPage({ onBack }: { onBack?: () => void } = {}) {
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: "" } });
@@ -37,16 +54,26 @@ function ForgotPasswordPage() {
     }
   };
 
+  const backToSignIn = onBack ? (
+    <button
+      type="button"
+      onClick={onBack}
+      className="font-medium text-primary hover:underline"
+    >
+      Back to sign in
+    </button>
+  ) : (
+    <Link to="/login" className="font-medium text-primary hover:underline">
+      Back to sign in
+    </Link>
+  );
+
   if (sent) {
     return (
       <AuthLayout
         title="Check your email"
         subtitle="If an account exists with that email, we've sent a password reset link."
-        footer={
-          <Link to="/login" className="font-medium text-primary hover:underline">
-            Back to sign in
-          </Link>
-        }
+        footer={backToSignIn}
       >
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -76,10 +103,7 @@ function ForgotPasswordPage() {
       subtitle="Enter your email and we'll send you a password reset link."
       footer={
         <>
-          Remembered it?{" "}
-          <Link to="/login" className="font-medium text-primary hover:underline">
-            Back to sign in
-          </Link>
+          Remembered it? {backToSignIn}
         </>
       }
     >
