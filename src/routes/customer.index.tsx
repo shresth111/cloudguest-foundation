@@ -15,6 +15,7 @@ import { useDeviceStore, FLOORS, formatSince, deriveCpu, type DeviceType } from 
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
+import { IspProviderIcon } from "@/components/icons/isp";
 
 export const Route = createFileRoute("/customer/")({
   beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
@@ -454,7 +455,10 @@ function CustomerHomePage() {
                 </div>
 
                 <div title={`Last synced ${loc.lastSync}`} className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] text-white/40">
-                  <span className="truncate">{loc.isp} · {loc.bandwidth}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <IspProviderIcon providerName={loc.isp} className="h-3.5 w-3.5" />
+                    {loc.isp} · {loc.bandwidth}
+                  </span>
                   <span className="shrink-0">{loc.routerHealth}% health</span>
                 </div>
 

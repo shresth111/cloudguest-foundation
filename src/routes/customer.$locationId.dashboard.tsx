@@ -26,6 +26,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { requireCustomerSession } from "@/lib/authGuards";
 import { ispService } from "@/services/isp.service";
 import type { IspLink, IspHealthCheck } from "@/types/isp";
+import { IspProviderIcon } from "@/components/icons/isp";
 
 // Categorical, brand-checked -- indigo/cyan/magenta/orange/violet. The old
 // palette here included green, which conflicts with this project's
@@ -112,11 +113,30 @@ function formatDownDuration(sinceIso: string): string {
  */
 const DEMO_WAN_LINK: IspLink = {
   id: "isp-demo-dashboard", routerId: "router-demo", organizationId: "org-demo", locationId: "demo-location",
-  providerName: "Tata Communications", linkType: "fiber", connectionMode: "static", role: "primary",
+  providerName: "Airtel Business", linkType: "fiber", connectionMode: "static", role: "primary",
   isActiveUplink: true, autoFailback: true, isEnabled: true, priority: 0, interface: "ether1",
   gatewayIpAddress: "203.0.113.1", dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8",
   downloadBandwidthMbps: 500, uploadBandwidthMbps: 200, healthStatus: "healthy", healthStatusSource: "automated",
   unhealthySince: null, latencyMs: 14.2, packetLossPercentage: 0, currentDownloadMbps: 132.4, currentUploadMbps: 28.1,
+  lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+};
+/** The demo's backup uplink -- standby, never carrying live traffic, which
+ * is exactly why it has no `currentDownloadMbps`/`currentUploadMbps` (that
+ * field only ever gets a real value once a link is actually the active
+ * uplink, see its own doc comment above). Its `autoFailback: true` is what
+ * `WanStatusCard` reads to say the primary reclaims traffic automatically
+ * once it's healthy again -- the *initial* failover onto this link,
+ * separately, is always automatic once the primary crosses its unhealthy
+ * threshold (see backend `IspService._maybe_transition_uplink`), not
+ * gated by any per-link flag.
+ */
+const DEMO_WAN_BACKUP_LINK: IspLink = {
+  id: "isp-demo-dashboard-backup", routerId: "router-demo", organizationId: "org-demo", locationId: "demo-location",
+  providerName: "Jio Fiber", linkType: "fiber", connectionMode: "dhcp", role: "backup",
+  isActiveUplink: false, autoFailback: true, isEnabled: true, priority: 1, interface: "ether2",
+  gatewayIpAddress: null, dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8",
+  downloadBandwidthMbps: 300, uploadBandwidthMbps: 150, healthStatus: "healthy", healthStatusSource: "automated",
+  unhealthySince: null, latencyMs: 19.6, packetLossPercentage: 0, currentDownloadMbps: null, currentUploadMbps: null,
   lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
 };
 const DEMO_WAN_CHECKS: IspHealthCheck[] = ["healthy", "healthy", "healthy", "degraded", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy"]
@@ -129,36 +149,39 @@ const DEMO_WAN_CHECKS: IspHealthCheck[] = ["healthy", "healthy", "healthy", "deg
 type WanSummaryState =
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "ready"; link: IspLink; checks: IspHealthCheck[] };
+  | { status: "ready"; links: IspLink[]; checks: IspHealthCheck[] };
 
-/** Picks the one uplink worth surfacing at a glance for this location: the
- * active primary link if one exists, else the highest-priority link. A
- * location with several routers/links still gets one clear answer here --
- * "Manage" links through to Internet Connection for the full breakdown. */
+/** Picks the uplink(s) worth surfacing at a glance for this location: the
+ * active link first, then its standby backup if one is configured (at
+ * most 2 -- a location with more links than that still gets one clear
+ * primary/backup story here; "Manage" links through to Internet
+ * Connection for the full breakdown). Health-check history is fetched for
+ * whichever link sorts first (the active one, almost always the primary). */
 function useWanSummary(locationId: string): WanSummaryState {
   const [state, setState] = useState<WanSummaryState>({ status: "loading" });
   useEffect(() => {
     let alive = true;
     setState({ status: "loading" });
     if (isDemo()) {
-      setState({ status: "ready", link: DEMO_WAN_LINK, checks: DEMO_WAN_CHECKS });
+      setState({ status: "ready", links: [DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK], checks: DEMO_WAN_CHECKS });
       return;
     }
     (async () => {
       try {
         const { rows } = await ispService.listLinks({ page: 1, pageSize: 100 });
-        const link = rows
+        const links = rows
           .filter((l) => l.locationId === locationId)
           .sort((a, b) => {
             if (a.isActiveUplink !== b.isActiveUplink) return a.isActiveUplink ? -1 : 1;
             if (a.role !== b.role) return a.role === "primary" ? -1 : 1;
             return a.priority - b.priority;
-          })[0];
+          })
+          .slice(0, 2);
         if (!alive) return;
-        if (!link) { setState({ status: "empty" }); return; }
-        const checks = await ispService.listHealthChecks(link.id, { page: 1, pageSize: 12 }).then((r) => r.rows).catch(() => []);
+        if (links.length === 0) { setState({ status: "empty" }); return; }
+        const checks = await ispService.listHealthChecks(links[0].id, { page: 1, pageSize: 12 }).then((r) => r.rows).catch(() => []);
         if (!alive) return;
-        setState({ status: "ready", link, checks });
+        setState({ status: "ready", links, checks });
       } catch {
         // Covers both "genuinely nothing configured yet" and any read
         // failure (e.g. a staff role without isp.read) -- same lenient
@@ -279,35 +302,87 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
             <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up Internet Connection</Button>
           </div>
         )}
-        {wan.status === "ready" && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <div className="flex items-center gap-2">
-                <span className={cn("h-2 w-2 rounded-full", WAN_HEALTH_STYLE[wan.link.healthStatus]?.dot ?? WAN_HEALTH_STYLE.unknown.dot)} />
-                <span className={cn("text-sm font-semibold", WAN_HEALTH_STYLE[wan.link.healthStatus]?.text ?? WAN_HEALTH_STYLE.unknown.text)}>
-                  {WAN_HEALTH_STYLE[wan.link.healthStatus]?.label ?? "Unknown"}
-                </span>
-                {wan.link.healthStatusSource === "manual" && (
-                  <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal text-muted-foreground" title="Manually set by an admin, not the automated health-check sweep">Manual</Badge>
+        {wan.status === "ready" && (() => {
+          const active = wan.links.find((l) => l.isActiveUplink) ?? wan.links[0];
+          const backup = wan.links.find((l) => l.id !== active.id);
+          // Auto fail-BACK (returning to primary once it's healthy again)
+          // is gated by the *primary* link's own `autoFailback` flag, not
+          // whichever link happens to be active right now -- see backend
+          // `IspService._maybe_transition_uplink`'s own primary-role check.
+          const primary = wan.links.find((l) => l.role === "primary") ?? active;
+          const style = WAN_HEALTH_STYLE[active.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+          const hasBandwidth = active.currentDownloadMbps != null || active.currentUploadMbps != null;
+          return (
+            <div className="space-y-4">
+              {/* Connection status -- the headline: is the guest network up
+               * right now, on what provider, and (if not) for how long. */}
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("h-2 w-2 rounded-full", style.dot)} />
+                    <span className={cn("text-base font-semibold leading-none", style.text)}>{style.label}</span>
+                    {active.healthStatusSource === "manual" && (
+                      <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal text-muted-foreground" title="Manually set by an admin, not the automated health-check sweep">Manual</Badge>
+                    )}
+                  </div>
+                  <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <IspProviderIcon providerName={active.providerName} className="h-4 w-4" />
+                    <span className="truncate">{active.providerName} · {WAN_CONNECTION_MODE_LABEL[active.connectionMode] ?? active.connectionMode}</span>
+                  </span>
+                </div>
+                {active.healthStatus === "unhealthy" && active.unhealthySince && (
+                  <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">Down for {formatDownDuration(active.unhealthySince)}</p>
+                )}
+                <div className="mt-2"><WanRecentChecks checks={wan.checks} /></div>
+              </div>
+
+              {/* Bandwidth -- the one number worth calling out on its own,
+               * separated from the denser uplink details below rather than
+               * buried in the same inline stat row as latency/loss. */}
+              {hasBandwidth && (
+                <div className="rounded-lg bg-muted/40 px-3 py-2">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bandwidth · live</p>
+                  <div className="mt-0.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
+                    {active.currentDownloadMbps != null && (
+                      <span className="text-lg font-semibold tabular-nums text-foreground">{active.currentDownloadMbps.toFixed(0)} <span className="text-xs font-normal text-muted-foreground">Mbps ↓</span></span>
+                    )}
+                    {active.currentUploadMbps != null && (
+                      <span className="text-lg font-semibold tabular-nums text-foreground">{active.currentUploadMbps.toFixed(0)} <span className="text-xs font-normal text-muted-foreground">Mbps ↑</span></span>
+                    )}
+                    {active.latencyMs != null && <span className="text-xs text-muted-foreground">{active.latencyMs.toFixed(0)}ms latency</span>}
+                    {active.packetLossPercentage != null && <span className="text-xs text-muted-foreground">{active.packetLossPercentage.toFixed(1)}% loss</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Uplinks -- primary + backup side by side, so the failover
+               * story (who's active, who's standing by, whether it fails
+               * back automatically) is visible at a glance instead of only
+               * ever showing the one currently-active link. */}
+              <div className="space-y-1.5 border-t border-border/60 pt-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Uplinks</p>
+                {wan.links.map((l) => (
+                  <div key={l.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <IspProviderIcon providerName={l.providerName} className="h-4 w-4" />
+                      <span className="truncate font-medium text-foreground">{l.providerName}</span>
+                      <span className="shrink-0 text-muted-foreground">{l.role === "primary" ? "Primary" : "Backup"}</span>
+                    </span>
+                    <Badge variant={l.isActiveUplink ? "default" : "secondary"} className="h-5 shrink-0 px-1.5 text-[10px]">
+                      {l.isActiveUplink ? "Active" : "Standby"}
+                    </Badge>
+                  </div>
+                ))}
+                {backup && (
+                  <p className="pt-0.5 text-[11px] text-muted-foreground">
+                    Automatic failover armed — switches to Backup if Primary fails repeated health checks
+                    {primary.autoFailback ? ", and returns automatically once Primary recovers." : "; a manual failback is required once Primary recovers."}
+                  </p>
                 )}
               </div>
-              <span className="truncate text-xs text-muted-foreground">{wan.link.providerName} · {WAN_CONNECTION_MODE_LABEL[wan.link.connectionMode] ?? wan.link.connectionMode}</span>
             </div>
-
-            {wan.link.healthStatus === "unhealthy" && wan.link.unhealthySince && (
-              <p className="text-xs font-medium text-rose-600 dark:text-rose-400">Down for {formatDownDuration(wan.link.unhealthySince)}</p>
-            )}
-
-            <WanRecentChecks checks={wan.checks} />
-
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {wan.link.latencyMs != null && <span><span className="font-medium text-foreground">{wan.link.latencyMs.toFixed(0)}ms</span> latency</span>}
-              {wan.link.packetLossPercentage != null && <span><span className="font-medium text-foreground">{wan.link.packetLossPercentage.toFixed(1)}%</span> loss</span>}
-              {wan.link.currentDownloadMbps != null && <span><span className="font-medium text-foreground">{wan.link.currentDownloadMbps.toFixed(0)}</span> Mbps ↓</span>}
-              {wan.link.currentUploadMbps != null && <span><span className="font-medium text-foreground">{wan.link.currentUploadMbps.toFixed(0)}</span> Mbps ↑</span>}
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </CardContent>
     </Card>
   );

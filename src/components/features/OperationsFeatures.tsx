@@ -74,6 +74,7 @@ import type { AppError } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
 import { normalizeMac } from "@/components/customer/BasicFeatureViews";
+import { IspProviderIcon } from "@/components/icons/isp";
 
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -1563,7 +1564,13 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                 <TableBody>
                   {links.map((l) => (
                     <TableRow key={l.id} className="border-b">
-                      <TableCell className="font-medium">{l.providerName}{l.isActiveUplink && <Badge variant="outline" className="ml-2 text-[10px]">Active</Badge>}</TableCell>
+                      <TableCell className="font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <IspProviderIcon providerName={l.providerName} className="h-4 w-4" />
+                          {l.providerName}
+                          {l.isActiveUplink && <Badge variant="outline" className="text-[10px]">Active</Badge>}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">{l.linkType.replace(/_/g, " ")}</TableCell>
                       <TableCell className="text-xs capitalize text-muted-foreground">
                         {l.role}
