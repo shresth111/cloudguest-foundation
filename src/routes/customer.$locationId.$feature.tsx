@@ -135,9 +135,9 @@ function FeaturePage() {
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
-            {feature === "dashboard" && <DashboardView locationId={locationId} />}
+            {feature === "dashboard" && <DashboardView locationId={locationId} masked={masked} />}
             {feature === "users" && <UsersView locationId={locationId} masked={masked} />}
-            {feature === "reports" && <UserReports />}
+            {feature === "reports" && <UserReports masked={masked} />}
             {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
             {feature === "portal" && <PortalPage locationId={locationId} />}
             {feature === "vouchers" && <VouchersPage locationId={locationId} />}
@@ -288,7 +288,7 @@ function DashboardWatchIllustration() {
 // Online Users") shown to every real customer, not just demo sessions.
 // isDemo() gating already lives correctly inside getDashboard() itself;
 // this component just has to actually call it.
-function DashboardView({ locationId }: { locationId: string }) {
+function DashboardView({ locationId, masked }: { locationId: string; masked: boolean }) {
   const navigate = useNavigate();
   const { data, isLoading } = useCustomerDashboard(locationId);
   const { activeLocation } = useCustomerStore();
@@ -570,7 +570,7 @@ function DashboardView({ locationId }: { locationId: string }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{u.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{u.email || u.time}</p>
+                      <p className="truncate text-xs text-muted-foreground">{u.email ? (masked ? maskEmail(u.email) : u.email) : u.time}</p>
                     </div>
                     <span
                       className={cn(

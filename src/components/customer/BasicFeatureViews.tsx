@@ -378,12 +378,18 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   );
 }
 
-export function BasicAuditView() {
+/** `masked` -- same per-agent `dataMasking` ctx `renderFeature` threads into
+ * every other guest-PII view (see `BasicUsersView` above) -- only the first
+ * row's "guest@email.com" is a real guest email (the other three actors are
+ * staff/system, never masked). Defaults to `true` so an unmasked demo guest
+ * address doesn't leak through this view regardless of the previewed
+ * agent's setting. */
+export function BasicAuditView({ masked = true }: { masked?: boolean } = {}) {
   const items = [
-    { a: "Guest login via OTP", w: "guest@email.com", t: "2 min ago" },
-    { a: "Voucher batch created", w: "reception", t: "18 min ago" },
-    { a: "Router restart completed", w: "system", t: "1 hour ago" },
-    { a: "Portal branding updated", w: "manager", t: "3 hours ago" },
+    { a: "Guest login via OTP", w: "guest@email.com", t: "2 min ago", guest: true },
+    { a: "Voucher batch created", w: "reception", t: "18 min ago", guest: false },
+    { a: "Router restart completed", w: "system", t: "1 hour ago", guest: false },
+    { a: "Portal branding updated", w: "manager", t: "3 hours ago", guest: false },
   ];
   return (
     <Card className="rounded-2xl">
@@ -392,7 +398,7 @@ export function BasicAuditView() {
         {items.map((ev, i) => (
           <div key={i} className="flex items-start gap-3 py-3">
             <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-            <div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="truncate text-xs text-muted-foreground">{ev.w} · {ev.t}</p></div>
+            <div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="truncate text-xs text-muted-foreground">{ev.guest && masked ? maskEmail(ev.w) : ev.w} · {ev.t}</p></div>
           </div>
         ))}
       </CardContent>

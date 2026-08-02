@@ -42,9 +42,9 @@ export function renderFeature(id: string, ctx: { locationId?: string; masked?: b
     case "dashboard": return <BasicDashboardView locationId={ctx.locationId} masked={ctx.masked} />;
     case "users": return <BasicUsersView masked={ctx.masked} />;
     case "devices": return <div className="space-y-4"><NetworkHardwareView locationId={ctx.locationId} /><BasicDevicesView /></div>;
-    case "audit": return <BasicAuditView />;
+    case "audit": return <BasicAuditView masked={ctx.masked} />;
     case "tickets": return <TicketsPage locationId={ctx.locationId} />;
-    case "reports": return <UserReports />;
+    case "reports": return <UserReports masked={ctx.masked} />;
     case "campaigns": return <CampaignsPage locationId={ctx.locationId} />;
     case "portal": return <PortalPage locationId={ctx.locationId} />;
     case "vouchers": return <VouchersPage locationId={ctx.locationId} />;

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,16 +8,29 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wifi, Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import { Download, ImageUp, Sparkles, Smartphone, QrCode, RefreshCw, ExternalLink, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
+import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
+import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import type { PortalLoginMethod } from "@/types/portal";
+import type { RuntimeLanguage, RuntimePortalConfig } from "@/types/portal-runtime";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
 const AUTH_OPTIONS: [PortalLoginMethod, string][] = [["mobile_otp", "Mobile OTP"], ["email_otp", "Email OTP"], ["whatsapp_otp", "WhatsApp OTP"], ["voucher", "Voucher"], ["social", "Social Login"]];
+
+// Same allow-list src/services/portal-runtime.service.ts's resolveConfig
+// validates a real backend config's languages against -- this page's free-text
+// "Languages" field can contain anything, so the live preview below falls
+// back the exact same way a real guest device would for an unrecognized code.
+const RUNTIME_LANGUAGES: RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
+function toRuntimeLanguage(v: string): RuntimeLanguage {
+  return (RUNTIME_LANGUAGES as string[]).includes(v) ? (v as RuntimeLanguage) : "en";
+}
 
 function PortalDesignIllustration() {
   const shouldReduceMotion = useReducedMotion();
@@ -189,6 +202,47 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setAuthMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   };
 
+  // The real, unsaved-edits-aware config fed into the actual guest-facing
+  // components below (GuestSignInCard/PortalShell) -- built straight from
+  // this page's own live form state, not a fetch, so every keystroke/color
+  // pick/toggle above re-renders the Live Preview panel with the exact same
+  // component a guest's own device runs, immediately, before "Save
+  // Configuration" is ever clicked. Shaped as a RuntimePortalConfig (the
+  // same type `GET /captive-portal/resolve` returns) so this can never
+  // silently drift from what that real component actually expects --
+  // see src/routes/preview.portal.$locationId.tsx for the equivalent
+  // preview built from the last *saved* config instead of in-progress edits.
+  const langList = form.lang.split(",").map((l) => l.trim()).filter(Boolean);
+  const livePreviewConfig: RuntimePortalConfig = useMemo(() => ({
+    id: portalId ?? "live-preview",
+    name: "",
+    theme: "light",
+    logoUrl: logo,
+    backgroundImageUrl: null,
+    primaryColor: primary,
+    secondaryColor: primary,
+    defaultLanguage: toRuntimeLanguage(langList[0] ?? "en"),
+    supportedLanguages: langList.length ? langList.map(toRuntimeLanguage) : ["en"],
+    advertisementBannerUrl: null,
+    advertisementBannerLink: null,
+    termsAndConditionsText: form.terms || null,
+    termsAndConditionsUrl: null,
+    privacyPolicyText: null,
+    privacyPolicyUrl: null,
+    splashHeadline: headline || null,
+    splashWelcomeMessage: msg || null,
+    redirectUrl: form.redirectUrl || null,
+    otpSmsEnabled: authMethods.includes("mobile_otp"),
+    otpEmailEnabled: authMethods.includes("email_otp"),
+    otpWhatsappEnabled: authMethods.includes("whatsapp_otp"),
+    usernamePasswordEnabled: false,
+    voucherEnabled: authMethods.includes("voucher"),
+    resolvedViaLocationOverride: true,
+    isOpenNow: true,
+    businessHoursClosedMessage: null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [portalId, logo, primary, form.lang, form.terms, form.redirectUrl, headline, msg, authMethods]);
+
   // Real upload, backed by app.domains.branding's MinIO/S3-compatible
   // object storage -- replaces the old flow, which only ever called
   // `URL.createObjectURL(file)` and stopped there: a browser-local
@@ -287,10 +341,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         <div className="flex items-center gap-3">
           {/* Real, shareable preview of the actual guest-facing captive portal
               (background image, branding, live sign-in methods) -- pulls the
-              real captive_portal_configs/brandings data for this location, not
-              the local mock state this page's own form/"Live Preview" card
-              below still runs on. Hidden in demo mode (no real backend/org to
-              preview) and until `orgId` has resolved. */}
+              real, currently-*saved* captive_portal_configs/brandings data
+              for this location, opened in a new tab. The "Live Preview" card
+              below renders that same real component tree too, but fed this
+              page's in-progress *unsaved* edits instead -- the two together
+              cover both "what does my last save look like" and "what would
+              this new edit look like". Hidden in demo mode (no real
+              backend/org to preview) and until `orgId` has resolved. */}
           {!demo && orgId && locationId && (
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -430,76 +487,36 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             </button>
           </CardHeader>
           <CardContent>
-            {/* Phone frame -- kept a light/white screen intentionally, this
-                mocks a real phone display, not the card's own dark chrome. */}
-            <div className="mx-auto w-full max-w-[280px] rounded-[2rem] border-8 border-black/80 bg-black/80 p-1.5 shadow-xl">
-              <div
-                className="relative overflow-hidden rounded-[1.4rem]"
-                style={{ background: `linear-gradient(160deg, ${primary}30, ${primary}08 55%, ${primary}18)` }}
-              >
-                {/* Faint dot texture + a soft glow behind the sign-in card,
-                    so the screen reads as a designed captive portal instead
-                    of flat color with text floating on it. */}
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 opacity-[0.35]"
-                  style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)", backgroundSize: "14px 14px" }}
-                />
-                <div aria-hidden className="pointer-events-none absolute -top-10 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full blur-3xl" style={{ background: `${primary}55` }} />
-
-                {/* Status bar -- small realism touch so this reads as an
-                    actual phone screen, not a generic bordered box. */}
-                <div className="relative flex items-center justify-between px-4 pt-2.5 text-[9px] font-medium text-foreground/60">
-                  <span>9:41</span>
-                  <div className="flex items-center gap-1"><Wifi className="h-2.5 w-2.5" /><span className="h-2 w-3.5 rounded-[2px] border border-current" /></div>
-                </div>
-
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={primary + msg + logo}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="relative flex min-h-[360px] flex-col items-center justify-center gap-3 p-5 text-center"
-                  >
-                    <motion.div
-                      className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full shadow-lg"
-                      style={{ background: primary, color: "white", boxShadow: `0 8px 24px -6px ${primary}80` }}
-                      animate={{ scale: [1, 1.05, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Wifi className="h-6 w-6" />}
-                    </motion.div>
-
-                    {/* The actual sign-in content now sits on its own
-                        elevated card instead of floating directly on the
-                        background gradient -- matches how a real captive
-                        portal separates its form from the ambient brand
-                        wash behind it. */}
-                    <div className="w-full space-y-3 rounded-2xl bg-white/90 p-4 shadow-lg backdrop-blur-sm">
-                      <div>
-                        <p className="font-semibold leading-snug text-foreground">{msg}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">Connect to enjoy free WiFi</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Input placeholder="Mobile number" className="h-9 border-black/10 bg-white shadow-sm" />
-                        <Button className="h-9 w-full shadow-sm" style={{ background: primary }}>Continue</Button>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
-                        {authMethods.map((m) => (
-                          <span key={m} className="rounded-full border border-black/10 bg-black/[0.03] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{m}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-foreground/50">Powered by Wyfy Guest</p>
-                  </motion.div>
-                </AnimatePresence>
+            {/* Phone frame -- a real device bezel wrapping the *actual*
+                guest-facing components (GuestSignInCard/PortalShell), not a
+                hand-drawn approximation of them. `livePreviewConfig` above
+                is rebuilt from this page's own live form state on every
+                render, so every keystroke/color pick/toggle re-renders this
+                exact real component immediately -- previously this panel
+                was a fully self-contained mockup (its own hardcoded phone
+                UI, an inert "Continue" button, a plain wifi glyph for the
+                logo) that never read `authMethods`/`headline` beyond a
+                couple of cosmetic props, and was an entirely different
+                component tree than what a guest's device actually renders. */}
+            <div className="mx-auto w-full max-w-[340px] rounded-[2rem] border-8 border-black/80 bg-black/80 p-1.5 shadow-xl">
+              <div className="relative min-h-[560px] overflow-hidden rounded-[1.4rem] bg-white">
+                <PortalRuntimeProvider
+                  organizationId={orgId ?? "preview"}
+                  locationId={locationId ?? "preview"}
+                  routerId="preview"
+                  previewMode
+                  presetConfig={livePreviewConfig}
+                  presetConfigLoading={false}
+                >
+                  <PortalShell variant="light" showHeader={false} constrained>
+                    <GuestSignInCard />
+                  </PortalShell>
+                </PortalRuntimeProvider>
               </div>
             </div>
             <p className="mt-3 text-center text-[11px] text-white/50">
-              A live mockup of your unsaved edits above. For the real, saved guest experience
-              (actual branding, background image, live sign-in methods), use{" "}
+              This is the real guest sign-in component, live-rendered with your unsaved edits
+              above. For the exact, currently-saved config a guest would see right now, use{" "}
               <span className="font-medium text-white/80">Preview Portal</span> at the top of
               this page.
             </p>

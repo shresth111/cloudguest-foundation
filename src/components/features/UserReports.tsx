@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
+import { maskPhone } from "@/components/features/HeaderControls";
 
 const CATEGORIES = ["Guest Activity Report", "Voucher Redemption Report", "Campaign Engagement Report", "Bandwidth & Cost Report", "OTP & SMS Delivery Report"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -105,6 +106,16 @@ const NEEDS_RANGE = new Set([
 ]);
 const NEEDS_CAMPAIGN_TYPE = new Set(["campaign-performance", "campaign-daywise", "top-campaigns"]);
 const NEEDS_RATE = new Set(["data-consumption", "data-by-location"]);
+
+/** Columns that carry a real guest phone number ("mobile" -- Guest Activity
+ * and OTP & SMS reports -- and "redeemedBy" -- Voucher Redemption reports,
+ * see `phone(i)` in `mockRow` above) rather than an opaque code/id. Masked
+ * the same way every other guest phone display in this app is (see
+ * `maskPhone`, `BasicUsersView`/`customer.$locationId.users.tsx`) whenever
+ * this report is viewed with masking on -- previously these reports never
+ * masked anything at all, unmasked or not, so an agent previewing with
+ * "Data masking" ON still saw every guest's real number here. */
+const PHONE_COLUMNS = new Set(["mobile", "redeemedBy"]);
 
 function mockRow(reportType: string, i: number, count: number, campaignType?: string, ratePerGb?: number): Row {
   const r: Row = { rank: i + 1 };
@@ -248,7 +259,14 @@ async function realDataByLocation(orgId: string, locations: { id: string; name: 
 }
 
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
-function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; csvPrefix: string }) {
+/** `masked` is the current viewer's data-masking state -- the owner's own
+ * (always-on, see CustomerHeader's read-only OtpMaskToggle) or, when this
+ * page renders inside the `/agent` staff-preview dashboard via
+ * `renderFeature`, the previewed agent's real per-agent `dataMasking` flag
+ * (AgentsPage.tsx's "Data masking" switch). Defaults to `true` so any other
+ * caller keeps the safer-by-default behavior every other guest-PII view in
+ * this app already follows. */
+function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: ReportType[]; csvPrefix: string; masked?: boolean }) {
   // UNITS ("Marina Bay Hotel" etc.) is demo-only seed data -- a real
   // customer only has their own real locations, same real-vs-demo split
   // WhiteList.tsx/TicketsPage.tsx already use for their own "Business
@@ -321,6 +339,7 @@ function ReportPanel({ reportTypes, csvPrefix }: { reportTypes: ReportType[]; cs
 
   const fmtCell = (key: string, val: string | number | null): string => {
     if (val == null) return "—";
+    if (PHONE_COLUMNS.has(key)) return masked ? maskPhone(String(val)) : String(val);
     if (key === "cost") return `₹${(+val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
     if (key === "peakMbps") return `${(+val).toFixed(1)} Mbps`;
     // uploadGB/downloadGB/totalGB are computed in GB (see realDataConsumption),
@@ -544,7 +563,13 @@ const CATEGORY_CONFIG: Record<Category, { reportTypes: ReportType[]; csvPrefix: 
   "OTP & SMS Delivery Report": { reportTypes: SMS_REPORT_TYPES, csvPrefix: "sms-report" },
 };
 
-export default function UserReports() {
+/** `masked` -- see `ReportPanel`'s own doc comment just above it -- is
+ * threaded in from both real call sites: the owner's Reports feature page
+ * (`customer.$locationId.$feature.tsx`'s own `masked` header state, always
+ * `true` for the owner by design) and the `/agent` staff-preview dashboard
+ * (`renderFeature`'s `masked` ctx, the previewed agent's real
+ * `dataMasking` flag). Defaults to `true`, matching `ReportPanel`. */
+export default function UserReports({ masked = true }: { masked?: boolean } = {}) {
   const [category, setCategory] = useState<Category>("Guest Activity Report");
   const [quoteIndex, setQuoteIndex] = useState(0);
   const cfg = CATEGORY_CONFIG[category];
@@ -616,7 +641,7 @@ export default function UserReports() {
           exit={{ opacity: 0, x: -12 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
-          <ReportPanel reportTypes={cfg.reportTypes} csvPrefix={cfg.csvPrefix} />
+          <ReportPanel reportTypes={cfg.reportTypes} csvPrefix={cfg.csvPrefix} masked={masked} />
         </motion.div>
       </AnimatePresence>
     </div>
