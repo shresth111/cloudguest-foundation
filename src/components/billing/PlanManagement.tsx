@@ -25,6 +25,53 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
+// -1 is this app's "Unlimited" sentinel for the four included-limit
+// fields (see billing.service.ts's featureLimit()/toBackendLimit()).
+function limitLabel(value: number, thousands = false): string {
+  if (value === -1) return "Unlimited";
+  return thousands ? value.toLocaleString() : String(value);
+}
+
+/** A number field for one of the four included-limit fields, with an
+ * "Unlimited" toggle alongside it -- typing a number was previously the
+ * only option, with no way to express "no cap" short of typing something
+ * absurdly large. Toggling on stores -1 (this app's Unlimited sentinel,
+ * see limitLabel()/featureLimit() above); toggling off restores the last
+ * typed number (remembered locally, not lost when flipping back and
+ * forth) or a sane default. */
+function LimitField({ label, value, onChange, defaultValue = 1 }: { label: string; value: number; onChange: (v: number) => void; defaultValue?: number }) {
+  const [lastNumber, setLastNumber] = useState(value === -1 ? defaultValue : value);
+  const unlimited = value === -1;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Switch
+            checked={unlimited}
+            onCheckedChange={(checked) => onChange(checked ? -1 : lastNumber)}
+            className="scale-75"
+          />
+          Unlimited
+        </label>
+      </div>
+      <Input
+        type="number"
+        min={1}
+        className="mt-1"
+        disabled={unlimited}
+        value={unlimited ? "" : value}
+        placeholder={unlimited ? "Unlimited" : undefined}
+        onChange={(e) => {
+          const next = Number(e.target.value) || 0;
+          setLastNumber(next);
+          onChange(next);
+        }}
+      />
+    </div>
+  );
+}
+
 const TIER_ICON: Record<PlanTier, typeof Sparkles> = {
   starter: Sparkles,
   professional: Zap,
@@ -75,10 +122,10 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <Feature label={`${p.includedLocations} locations`} />
-                  <Feature label={`${p.includedRouters} routers`} />
-                  <Feature label={`${p.includedGuests.toLocaleString()} guests / mo`} />
-                  <Feature label={`${p.storageLimitGb} GB storage`} />
+                  <Feature label={`${limitLabel(p.includedLocations)} locations`} />
+                  <Feature label={`${limitLabel(p.includedRouters)} routers`} />
+                  <Feature label={`${limitLabel(p.includedGuests, true)} guests / mo`} />
+                  <Feature label={`${limitLabel(p.storageLimitGb)} GB storage`} />
                   <Feature label="API access" ok={p.apiAccess} />
                   <Feature label="White label" ok={p.whiteLabel} />
                   <Feature label="PMS integration" ok={p.pmsIntegration} />
@@ -251,10 +298,10 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
               {formatMoney((form.watch("monthlyPrice") || 0) * 12, form.watch("currency"))} / year
             </p>
           </div>
-          <div><Label>Locations</Label><Input type="number" className="mt-1" {...form.register("includedLocations", { valueAsNumber: true })} /></div>
-          <div><Label>Routers</Label><Input type="number" className="mt-1" {...form.register("includedRouters", { valueAsNumber: true })} /></div>
-          <div><Label>Guests</Label><Input type="number" className="mt-1" {...form.register("includedGuests", { valueAsNumber: true })} /></div>
-          <div><Label>Storage (GB)</Label><Input type="number" className="mt-1" {...form.register("storageLimitGb", { valueAsNumber: true })} /></div>
+          <LimitField label="Locations" value={form.watch("includedLocations")} onChange={(v) => form.setValue("includedLocations", v)} />
+          <LimitField label="Routers" value={form.watch("includedRouters")} onChange={(v) => form.setValue("includedRouters", v)} />
+          <LimitField label="Guests" value={form.watch("includedGuests")} onChange={(v) => form.setValue("includedGuests", v)} defaultValue={100} />
+          <LimitField label="Storage (GB)" value={form.watch("storageLimitGb")} onChange={(v) => form.setValue("storageLimitGb", v)} defaultValue={10} />
 
           {(["apiAccess", "whiteLabel", "pmsIntegration", "aiFeatures"] as const).map((k) => (
             <div key={k} className="col-span-2 flex items-center justify-between rounded-lg border p-3">

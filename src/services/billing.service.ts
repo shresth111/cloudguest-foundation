@@ -385,8 +385,20 @@ function planTier(planType: string): PlanTier {
   return (PLAN_TIERS.has(planType) ? planType : "custom") as PlanTier;
 }
 
+// -1 is this app's "Unlimited" sentinel for Plan.includedLocations/
+// includedRouters/includedGuests/storageLimitGb -- the real backend
+// represents the identical concept as a null PlanFeatureCreateRequest.
+// limit_value (see that field's own docstring). Kept as dedicated
+// helpers, not folded into the generic n() above, since n() is used
+// everywhere else (prices, amounts, usage stats) where a missing value
+// genuinely means 0, not "no limit."
 function featureLimit(features: BackendPlanFeature[], key: string): number {
-  return n(features.find((f) => f.feature_key === key)?.limit_value);
+  const raw = features.find((f) => f.feature_key === key)?.limit_value;
+  if (raw === null || raw === undefined) return -1;
+  return Number(raw) || 0;
+}
+function toBackendLimit(v: number): number | null {
+  return v === -1 ? null : v;
 }
 
 function featureBool(features: BackendPlanFeature[], key: string): boolean {
@@ -414,7 +426,7 @@ function toPlan(p: BackendPlan): Plan {
     includedLocations: featureLimit(p.features, "max_locations"),
     includedRouters: featureLimit(p.features, "max_routers"),
     includedGuests: featureLimit(p.features, "max_guests"),
-    storageLimitGb: Math.round(featureLimit(p.features, "storage_quota_mb") / 1024),
+    storageLimitGb: (() => { const mb = featureLimit(p.features, "storage_quota_mb"); return mb === -1 ? -1 : Math.round(mb / 1024); })(),
     apiAccess: featureBool(p.features, "api_access"),
     whiteLabel: featureBool(p.features, "white_label"),
     pmsIntegration: featureBool(p.features, "pms_integration"),
@@ -1084,10 +1096,10 @@ export const billingService = {
       return created;
     }
     const features = [
-      { feature_key: "max_locations", feature_type: "limit", limit_value: input.includedLocations },
-      { feature_key: "max_routers", feature_type: "limit", limit_value: input.includedRouters },
-      { feature_key: "max_guests", feature_type: "limit", limit_value: input.includedGuests },
-      { feature_key: "storage_quota_mb", feature_type: "limit", limit_value: input.storageLimitGb * 1024 },
+      { feature_key: "max_locations", feature_type: "limit", limit_value: toBackendLimit(input.includedLocations) },
+      { feature_key: "max_routers", feature_type: "limit", limit_value: toBackendLimit(input.includedRouters) },
+      { feature_key: "max_guests", feature_type: "limit", limit_value: toBackendLimit(input.includedGuests) },
+      { feature_key: "storage_quota_mb", feature_type: "limit", limit_value: toBackendLimit(input.storageLimitGb) === null ? null : input.storageLimitGb * 1024 },
       { feature_key: "api_access", feature_type: "boolean", is_enabled: input.apiAccess },
       { feature_key: "white_label", feature_type: "boolean", is_enabled: input.whiteLabel },
       { feature_key: "pms_integration", feature_type: "boolean", is_enabled: input.pmsIntegration },

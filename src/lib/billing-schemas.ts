@@ -26,10 +26,15 @@ export const planSchema = z.object({
   // per plan, never a separate monthly and annual price (see
   // PlanManagement.tsx's onSubmit comment). It used to be an editable
   // input here that silently did nothing on save.
-  includedLocations: z.coerce.number().int().min(1),
-  includedRouters: z.coerce.number().int().min(1),
-  includedGuests: z.coerce.number().int().min(1),
-  storageLimitGb: z.coerce.number().int().min(1),
+  // -1 is the app-wide "Unlimited" sentinel for these four fields (see
+  // PlanManagement.tsx's Unlimited toggle) -- translated to/from the real
+  // backend's own null-means-unlimited PlanFeatureCreateRequest.limit_value
+  // at the API boundary (billing.service.ts's n()/savePlan()). Any other
+  // value must be a real positive count.
+  includedLocations: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  includedRouters: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  includedGuests: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  storageLimitGb: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
   apiAccess: z.boolean(),
   whiteLabel: z.boolean(),
   pmsIntegration: z.boolean(),
