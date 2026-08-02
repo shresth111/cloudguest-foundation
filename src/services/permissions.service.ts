@@ -164,9 +164,15 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
     // FE-025: Platform Console is Super-Admin ONLY. No operational modules.
     ...PLATFORM_CONSOLE,
-    // Extras kept accessible via deep-link for platform admin work
+    // Extras kept accessible via deep-link for platform admin work --
+    // "routers" added alongside "locations": Location Master's own detail
+    // page (super_admin-reachable via the "locations" carve-out right
+    // below) has a "Routers" tab linking into a location's real router
+    // inventory/remote-access info -- without this, that tab silently
+    // vanished for the one role that's supposed to use Location Master.
     "organizations",
     "locations",
+    "routers",
   ],
   org_admin: [
     "dashboard",
