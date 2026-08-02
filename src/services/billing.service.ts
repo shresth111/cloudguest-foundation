@@ -1275,6 +1275,36 @@ export const billingService = {
     return { url, fileName: `${id}.pdf` };
   },
 
+  /** POST /invoices/generate-and-send -- Master Console's manual "generate
+   * a new invoice right now and email it to the customer" trigger (see
+   * backend/app/domains/billing/router.py's own docstring on this
+   * endpoint). `subscriptionId` is optional; omit it to use the
+   * organization's one current subscription (this platform's
+   * single-subscription-per-org model). A failed/unconfigured email send
+   * still returns success (the invoice itself was genuinely created) --
+   * `emailSent`/`emailError` tell the caller whether to show a plain
+   * success toast or a partial-failure one. */
+  async generateAndSendInvoice(organizationId: string, subscriptionId?: string) {
+    const { data } = await api.post<{
+      invoice: { invoice_number: string; total_amount: string; currency: string };
+      email_sent: boolean;
+      email_recipient: string;
+      email_error: string | null;
+    }>(
+      "/invoices/generate-and-send",
+      { subscription_id: subscriptionId ?? null },
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+    return {
+      invoiceNumber: data.invoice.invoice_number,
+      totalAmount: data.invoice.total_amount,
+      currency: data.invoice.currency,
+      emailSent: data.email_sent,
+      emailRecipient: data.email_recipient,
+      emailError: data.email_error,
+    };
+  },
+
   // No reminder-dispatch endpoint exists in backend/app/domains/billing --
   // kept mocked.
   async sendReminder(id: string, _frequency?: ReportFrequency) {

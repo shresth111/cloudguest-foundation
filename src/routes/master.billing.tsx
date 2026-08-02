@@ -95,7 +95,7 @@ function BillingScreen() {
         </TabsContent>
 
         <TabsContent value="invoices" className="mt-4">
-          <InvoiceManagement data={snap.data?.invoices} {...state} />
+          <InvoiceManagement data={snap.data?.invoices} subscriptions={snap.data?.subscriptions} {...state} />
         </TabsContent>
 
         <TabsContent value="tax-rates" className="mt-4">

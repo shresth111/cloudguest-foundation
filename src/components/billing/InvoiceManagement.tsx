@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { Download, FileText, Loader2, Printer } from "lucide-react";
+import { Download, FileText, Loader2, Mail, Printer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,23 +9,61 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PaymentStatusBadge, InvoiceTypeLabel } from "./BillingBadges";
 import type { Invoice } from "@/types/billing";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useDownloadInvoice } from "@/hooks/useBilling";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDownloadInvoice, useGenerateAndSendInvoice } from "@/hooks/useBilling";
+import type { Subscription } from "@/types/billing";
+import type { AppError } from "@/services/api";
 
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 interface Props {
   data?: Invoice[];
+  subscriptions?: Subscription[];
   isLoading?: boolean;
   isError?: boolean;
   onRetry?: () => void;
 }
 
-export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) {
+export function InvoiceManagement({ data, subscriptions, isLoading, isError, onRetry }: Props) {
   const [previewing, setPreviewing] = useState<Invoice | null>(null);
   const download = useDownloadInvoice();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateOrgId, setGenerateOrgId] = useState("");
+  const generateAndSend = useGenerateAndSendInvoice();
+  // An invoice is generated against an organization's existing
+  // subscription (InvoiceService.resolve_subscription_for_organization
+  // defaults to it when no subscription_id is given) -- so the picker
+  // needs orgs that HAVE one, the opposite of CreateSubscriptionDialog's
+  // useOrganizationsList() (which deliberately excludes orgs that already
+  // have a subscription, since that dialog is for provisioning a new
+  // one). De-duplicated since an org could theoretically show up via more
+  // than one subscription row (e.g. a cancelled one alongside a current
+  // one).
+  const invoiceableOrgs = Array.from(
+    new Map((subscriptions ?? []).map((s) => [s.organizationId, s.organizationName])).entries(),
+  ).map(([id, name]) => ({ id, name }));
+
+  function handleGenerateAndSend() {
+    generateAndSend.mutate(
+      { organizationId: generateOrgId },
+      {
+        onSuccess: (res) => {
+          if (res.emailSent) {
+            toast.success(`Invoice ${res.invoiceNumber} generated and emailed to ${res.emailRecipient}`);
+          } else {
+            toast.warning(`Invoice ${res.invoiceNumber} generated, but the email couldn't be sent (${res.emailError ?? "unknown error"}). Download it manually from the table below.`);
+          }
+          setGenerateOpen(false);
+          setGenerateOrgId("");
+        },
+        onError: (err) => toast.error((err as unknown as AppError).message || "Could not generate the invoice."),
+      },
+    );
+  }
 
   function handleDownload(inv: Invoice) {
     setDownloadingId(inv.id);
@@ -53,6 +91,9 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
             <CardTitle className="text-base">Invoices</CardTitle>
             <p className="text-xs text-muted-foreground">GST tax invoices, credit and debit notes. Generated automatically each billing cycle.</p>
           </div>
+          <Button size="sm" onClick={() => setGenerateOpen(true)}>
+            <Mail className="mr-1.5 h-4 w-4" /> Generate &amp; send
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoading ? (
@@ -153,6 +194,33 @@ export function InvoiceManagement({ data, isLoading, isError, onRetry }: Props) 
             <Button variant="outline" onClick={() => window.print()}><Printer className="mr-1.5 h-4 w-4" /> Print</Button>
             <Button disabled={!!downloadingId} onClick={() => previewing && handleDownload(previewing)}>
               {downloadingId === previewing?.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={generateOpen} onOpenChange={(o) => { setGenerateOpen(o); if (!o) setGenerateOrgId(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate &amp; send invoice</DialogTitle>
+            <DialogDescription>
+              Creates a real GST invoice for the organization's current subscription and emails it to their billing contact as a PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label>Organization</Label>
+            <Select value={generateOrgId} onValueChange={setGenerateOrgId}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Select organization" /></SelectTrigger>
+              <SelectContent>
+                {invoiceableOrgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenerateOpen(false)}>Cancel</Button>
+            <Button disabled={!generateOrgId || generateAndSend.isPending} onClick={handleGenerateAndSend}>
+              {generateAndSend.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}
+              Generate &amp; send
             </Button>
           </DialogFooter>
         </DialogContent>

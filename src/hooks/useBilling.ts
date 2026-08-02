@@ -144,6 +144,15 @@ export function useDownloadInvoice() {
   });
 }
 
+export function useGenerateAndSendInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ organizationId, subscriptionId }: { organizationId: string; subscriptionId?: string }) =>
+      billingService.generateAndSendInvoice(organizationId, subscriptionId),
+    onSuccess: () => invalidate(qc),
+  });
+}
+
 // Tenant-facing "my billing" summary (real GET /billing/dashboard/me) --
 // used by the Subscription center and workspace Billing pages, which are a
 // different, org-scoped audience than useBillingSnapshot's Super Admin view.
