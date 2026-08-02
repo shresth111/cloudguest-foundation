@@ -12,7 +12,6 @@ import {
   EyeOff,
   FileText,
   Gauge,
-  Globe,
   History,
   KeyRound,
   Loader2,
@@ -34,7 +33,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -2264,13 +2262,10 @@ function WireGuardTab({ routerId }: { routerId: string }) {
  * eagerly or caches it in a query, only on an explicit click, matching
  * the endpoint's own "who saw this and when" intent.
  */
-function RemoteAccessCard({ routerId }: { routerId: string }) {
+export function RemoteAccessCard({ routerId }: { routerId: string }) {
   const [conn, setConn] = useState<{ host: string | null; username: string | null; password: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  const [webfigOpen, setWebfigOpen] = useState(false);
-  const [webfigLoading, setWebfigLoading] = useState(false);
-  const [webfigUrl, setWebfigUrl] = useState<string | null>(null);
 
   async function reveal() {
     setLoading(true);
@@ -2285,82 +2280,38 @@ function RemoteAccessCard({ routerId }: { routerId: string }) {
     }
   }
 
-  async function openWebConsole() {
-    setWebfigLoading(true);
-    try {
-      const { sessionToken } = await routerService.createWebfigSession(routerId);
-      setWebfigUrl(routerService.webfigProxyUrl(routerId, sessionToken));
-      setWebfigOpen(true);
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Could not open the web console");
-    } finally {
-      setWebfigLoading(false);
-    }
-  }
-
   return (
-    <>
-      <Card className="rounded-2xl border-border/70">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base">Remote access</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              WinBox/RouterOS API login for this device, reachable only over the tunnel above.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={openWebConsole} disabled={webfigLoading}>
-              {webfigLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-              <span className="ml-2">Open web console</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => (revealed ? setRevealed(false) : reveal())}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span className="ml-2">{revealed ? "Hide" : "Reveal"}</span>
-            </Button>
-          </div>
-        </CardHeader>
-        {revealed && conn && (
-          <CardContent className="space-y-2">
-            <KeyRow label="Connect to (WinBox / API)" value={conn.host ?? "Not available -- no reported management IP yet"} />
-            <KeyRow label="Login" value={conn.username ?? "—"} />
-            <KeyRow label="Password" value={conn.password ?? "—"} />
-            <p className="text-xs text-muted-foreground">
-              Only reachable from a machine on the WireGuard tunnel network -- viewing this was just logged to this router's Audit Logs tab.
-            </p>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* WinBox itself is a native desktop app (proprietary binary
-       * protocol) and cannot run inside a browser tab -- this embeds
-       * RouterOS's own official browser-based GUI (WebFig), proxied
-       * through this backend's WireGuard tunnel access, which is the real
-       * "manage this router visually, no WinBox install needed"
-       * capability a browser can actually offer. If WebFig prompts for
-       * login again inside the frame, the credentials above (Reveal
-       * button) are the ones to use -- proxy Basic-Auth injection covers
-       * most but not all RouterOS versions. */}
-      <Dialog open={webfigOpen} onOpenChange={(o) => { setWebfigOpen(o); if (!o) setWebfigUrl(null); }}>
-        <DialogContent className="h-[85vh] max-w-5xl p-0">
-          <DialogHeader className="border-b px-4 py-3">
-            <DialogTitle className="text-sm">Web console -- RouterOS WebFig (via tunnel)</DialogTitle>
-          </DialogHeader>
-          {webfigUrl && (
-            <iframe
-              src={webfigUrl}
-              title="RouterOS WebFig"
-              className="h-full w-full flex-1 border-0"
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+    <Card className="rounded-2xl border-border/70">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base">Remote access</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            WinBox/RouterOS API login for this device, reachable only over the tunnel above.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => (revealed ? setRevealed(false) : reveal())}
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          <span className="ml-2">{revealed ? "Hide" : "Reveal"}</span>
+        </Button>
+      </CardHeader>
+      {revealed && conn && (
+        <CardContent className="space-y-2">
+          <KeyRow label="Connect to (WinBox / API)" value={conn.host ?? "Not available -- no reported management IP yet"} />
+          <KeyRow label="Login" value={conn.username ?? "—"} />
+          <KeyRow label="Password" value={conn.password ?? "—"} />
+          <p className="text-xs text-muted-foreground">
+            Open WinBox on your machine and connect to the address above -- only reachable from a
+            machine on the WireGuard tunnel network. Viewing this was just logged to this router's
+            Audit Logs tab.
+          </p>
+        </CardContent>
+      )}
+    </Card>
   );
 }
 

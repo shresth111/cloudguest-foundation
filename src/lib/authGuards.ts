@@ -44,9 +44,18 @@ export function requireCustomerSession(
 
   const hasCustomerRole = auth?.roles?.some((r) => r.scopeType !== "global") ?? true;
   if (auth?.status === "authenticated" && !hasCustomerRole && !isDemoSession) {
-    // A pure operator has no organization/location-scoped role at all --
-    // nothing to legitimately view on this surface. Send them back to
-    // their own console instead of silently rendering as them here.
-    throw redirect({ to: "/master" });
+    // Zero customer-scoped roles doesn't necessarily mean "this is an
+    // operator" -- it also matches a genuinely broken/unprovisioned account
+    // (e.g. an org membership created without a role ever being assigned).
+    // Only redirect to the Master Console for an *actual* operator (a real
+    // global-scope role); otherwise `/master`'s own guard would immediately
+    // reject them too (see master.tsx's `isOperator` check) and bounce them
+    // on to `/master-login` -- leaking the internal operator console's
+    // existence/branding to a broken customer session instead of showing a
+    // customer-appropriate "your account isn't fully set up" state here.
+    const isOperator = auth?.roles?.some((r) => r.scopeType === "global") ?? false;
+    if (isOperator) {
+      throw redirect({ to: "/master" });
+    }
   }
 }

@@ -357,24 +357,6 @@ export const routerService = {
     return data;
   },
 
-  /** Mints a short-lived, single-router-scoped token for the WebFig proxy
-   * iframe below (see backend router.py's create_webfig_session -- the
-   * real routers.manage authorization happens there; the token itself is
-   * a narrow capability, not the caller's own session). */
-  async createWebfigSession(routerId: string): Promise<{ sessionToken: string; expiresIn: number }> {
-    const { data } = await api.post<{ session_token: string; expires_in: number }>(`/routers/${routerId}/webfig-session`);
-    return { sessionToken: data.session_token, expiresIn: data.expires_in };
-  },
-
-  /** Base URL for the WebFig proxy iframe -- resolved against this app's
-   * own API base (relative in production, so no CORS/mixed-origin issue),
-   * with the session token as a query param since an <iframe src> can't
-   * carry an Authorization header. */
-  webfigProxyUrl(routerId: string, sessionToken: string): string {
-    const base = (api.defaults.baseURL ?? "/api/v1").replace(/\/$/, "");
-    return `${base}/routers/${routerId}/webfig/?session=${encodeURIComponent(sessionToken)}`;
-  },
-
   async getDeviceInterfaces(routerId: string, organizationId?: string): Promise<DeviceInterface[]> {
     interface BackendDeviceInterface {
       name: string;

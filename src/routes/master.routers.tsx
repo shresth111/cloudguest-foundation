@@ -17,7 +17,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE } from "@/components/routers/RouterDetailTabs";
+import { buildRouterSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
 import api from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
@@ -600,20 +600,9 @@ function RouterFleetScreen() {
           demo ? (
             <MButton variant="primary" className="w-full justify-center" onClick={() => act(`Opening remote console for ${sel.name}`)}><TerminalSquare /> Open Remote Console</MButton>
           ) : (
-            <div className="flex w-full gap-2">
-              {/* WinBox/RouterOS credentials + the WebFig-in-browser web
-               * console both live on this router's own detail page
-               * (RouterDetailTabs.tsx's "Remote access" card, WireGuard
-               * tab) rather than duplicating that UI here -- this is
-               * just the door to it, since Router Fleet's own drawer
-               * doesn't have that RB750r2 tunnel-IP-scoped panel. */}
-              <Link to="/routers/$routerId" params={{ routerId: sel.id }} search={{ tab: "wireguard" }} className="flex-1">
-                <MButton variant="outline" className="w-full justify-center"><Globe /> Remote access</MButton>
-              </Link>
-              <Link to="/master/console" className="flex-1">
-                <MButton variant="primary" className="w-full justify-center"><TerminalSquare /> Open Device Console</MButton>
-              </Link>
-            </div>
+            <Link to="/master/console" className="w-full">
+              <MButton variant="primary" className="w-full justify-center"><TerminalSquare /> Open Device Console</MButton>
+            </Link>
           )
         )}
       >
@@ -654,6 +643,10 @@ function RouterFleetScreen() {
               ) : (
                 <VendorNotSupportedPanel vendor={sel.vendor || "mikrotik"} />
               ))}
+
+            {!demo && (sel.managementIpAddress || sel.publicIpAddress) && (
+              <RemoteAccessCard routerId={sel.id} />
+            )}
 
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Power &amp; Firmware</p>
