@@ -1161,24 +1161,34 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
  * newly-connected, not-yet-authenticated guest to the login page, e.g.
  * `http://${HOTSPOT_DNS_NAME}/login` instead of `http://10.5.50.1/login`
  * in the guest's own address bar (confirmed against MikroTik's published
- * `/ip hotspot profile` reference). A short, memorable pseudo-TLD
- * (`.portal`) rather than a real, registrable domain -- deliberately, so
- * nothing here implies a public DNS record exists or needs to be bought/
- * maintained; every guest resolves it purely locally, off this router's
- * own DNS responder (see the static record added alongside it below).
+ * `/ip hotspot profile` reference).
  *
- * `dns-name` alone only changes the *redirect URL* -- it does not, by
- * itself, make that hostname resolve to anything. MikroTik's own
- * documentation for this exact feature says a `dns-name` must separately
- * be made to resolve to the hotspot's own address, and the standard way to
- * do that for a name with no real public DNS record is a plain
- * `/ip dns static` entry -- which is why this script adds one, pointed at
- * `$lanIp`, immediately after setting `dns-name`. Guests already get this
- * router as their own DNS server via the hotspot DHCP server's own
- * `dns-server=$lanIp` (set earlier in this same script), and
- * `/ip dns set ... allow-remote-requests=yes` (also already set earlier)
- * is what makes the router answer that query at all -- no real domain
- * registration or public DNS anywhere in this scheme.
+ * A real subdomain of this platform's own registered `wyfyguest.com`
+ * (already trusted by this app's CORS allowlist for `wyfyguest.com`/
+ * `app.wyfyguest.com`), not a fabricated pseudo-TLD -- this constant
+ * originally used `wyfy.portal` for exactly the reason a pseudo-TLD is
+ * usually the safer default (see the git history for that reasoning), but
+ * the founder chose a real subdomain of the platform's own domain instead,
+ * which is safe for the identical reason: this platform, not an unrelated
+ * third party, controls what `portal.wyfyguest.com` means. A public A
+ * record for it was separately added in the platform's own GoDaddy DNS
+ * zone as a belt-and-suspenders fallback.
+ *
+ * **That public record is a fallback, not what this feature actually
+ * depends on.** `dns-name` alone only changes the *redirect URL* -- it
+ * does not, by itself, make that hostname resolve to anything. MikroTik's
+ * own documentation for this exact feature says a `dns-name` must
+ * separately be made to resolve to the hotspot's own address, and for a
+ * hostname with no fixed single IP (every router's own LAN IP is
+ * different -- a public record can only ever point at one address, never
+ * "whichever router the guest happens to be on"), the standard way to do
+ * that per-router is a plain `/ip dns static` entry -- which is why this
+ * script adds one, pointed at `$lanIp`, immediately after setting
+ * `dns-name`. Guests already get this router as their own DNS server via
+ * the hotspot DHCP server's own `dns-server=$lanIp` (set earlier in this
+ * same script), and `/ip dns set ... allow-remote-requests=yes` (also
+ * already set earlier) is what makes the router answer that query
+ * locally, before it would ever reach GoDaddy's public record at all.
  *
  * **Not independently confirmed against a real device this session**,
  * unlike most of the other decisions in this file that carry an explicit
@@ -1192,7 +1202,7 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
  * address bar shows the hostname AND the page actually loads rather than
  * an NXDOMAIN/timeout) is real, outstanding verification this constant's
  * own addition does not perform, flagged here rather than assumed. */
-const HOTSPOT_DNS_NAME = "wyfy.portal";
+const HOTSPOT_DNS_NAME = "portal.wyfyguest.com";
 
 /** Every WAN interface name this script references is taken literally,
  * exactly once, from whatever the "WAN N interface" field currently says
