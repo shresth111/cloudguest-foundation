@@ -1160,49 +1160,52 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
  * uses this hostname instead of the hotspot's raw LAN IP when it sends a
  * newly-connected, not-yet-authenticated guest to the login page, e.g.
  * `http://${HOTSPOT_DNS_NAME}/login` instead of `http://10.5.50.1/login`
- * in the guest's own address bar (confirmed against MikroTik's published
- * `/ip hotspot profile` reference).
+ * in the guest's own address bar (confirmed live against a real device).
  *
- * A real subdomain of this platform's own registered `wyfyguest.com`
- * (already trusted by this app's CORS allowlist for `wyfyguest.com`/
- * `app.wyfyguest.com`), not a fabricated pseudo-TLD -- this constant
- * originally used `wyfy.portal` for exactly the reason a pseudo-TLD is
- * usually the safer default (see the git history for that reasoning), but
- * the founder chose a real subdomain of the platform's own domain instead,
- * which is safe for the identical reason: this platform, not an unrelated
- * third party, controls what `portal.wyfyguest.com` means. A public A
- * record for it was separately added in the platform's own GoDaddy DNS
- * zone as a belt-and-suspenders fallback.
- *
- * **That public record is a fallback, not what this feature actually
- * depends on.** `dns-name` alone only changes the *redirect URL* -- it
- * does not, by itself, make that hostname resolve to anything. MikroTik's
- * own documentation for this exact feature says a `dns-name` must
- * separately be made to resolve to the hotspot's own address, and for a
- * hostname with no fixed single IP (every router's own LAN IP is
- * different -- a public record can only ever point at one address, never
- * "whichever router the guest happens to be on"), the standard way to do
- * that per-router is a plain `/ip dns static` entry -- which is why this
- * script adds one, pointed at `$lanIp`, immediately after setting
- * `dns-name`. Guests already get this router as their own DNS server via
- * the hotspot DHCP server's own `dns-server=$lanIp` (set earlier in this
- * same script), and `/ip dns set ... allow-remote-requests=yes` (also
- * already set earlier) is what makes the router answer that query
- * locally, before it would ever reach GoDaddy's public record at all.
- *
- * **Not independently confirmed against a real device this session**,
- * unlike most of the other decisions in this file that carry an explicit
- * "confirmed live" note: whether RouterOS's hotspot-specific DNS
- * interception for an unauthenticated client takes precedence over,
- * conflicts with, or is simply additive to, a plain `/ip dns static`
- * answer for the same name was not tested live here. The static record is
- * the documented, standard-pattern fallback regardless, so it's included
- * rather than relying on `dns-name`'s redirect-only behavior alone -- but
- * a real device test (connect an unauthenticated guest, confirm the
- * address bar shows the hostname AND the page actually loads rather than
- * an NXDOMAIN/timeout) is real, outstanding verification this constant's
- * own addition does not perform, flagged here rather than assumed. */
-const HOTSPOT_DNS_NAME = "portal.wyfyguest.com";
+ * **Deliberately NOT the same name as the real portal domain
+ * (`GUEST_PORTAL_PUBLIC_BASE` below), and this is load-bearing, not a
+ * style choice.** An earlier version of this script used the same name
+ * (`portal.wyfyguest.com`) for both purposes, on the theory that a single
+ * consistent hostname would look cleanest in the guest's address bar. That
+ * was confirmed BROKEN against a real device: `dns-name` works by making
+ * RouterOS answer DNS queries for that name, from THAT router's own guests,
+ * with THAT router's own LAN IP (guests get the router itself as their DNS
+ * server via DHCP, and RouterOS auto-manages both the DNS answer and a
+ * matching walled-garden entry once `dns-name` is set -- no manual `/ip
+ * dns static` entry is needed for this local name, RouterOS does it
+ * itself). That local override is absolute for connected guests -- it is
+ * NOT a fallback that a public DNS record for the same name could ever
+ * override for them. So if the *real* portal (the actual sign-in
+ * app, hosted on this platform's cloud backend, not on the router) were
+ * ever addressed by this same name, every guest's browser would try to
+ * reach it AT THE ROUTER'S OWN ADDRESS -- which only ever serves the small
+ * local redirect page, never the real app -- and the guest would loop
+ * back to the same redirect page instead of reaching sign-in. Confirmed
+ * live: guests got stuck exactly this way before this name was split in
+ * two. `HOTSPOT_DNS_NAME` must stay a name that is ONLY EVER used for this
+ * local, per-router, RouterOS-auto-managed redirect -- never reused as a
+ * real publicly-hosted destination. */
+const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
+
+/** The real, publicly-hosted guest portal's own domain -- a genuine GoDaddy
+ * DNS A record pointing at this platform's cloud backend (confirmed live:
+ * `dig portal.wyfyguest.com` resolves publicly, and the backend serves a
+ * real TLS cert for it, provisioned via the same nginx/certbot setup as
+ * `app.wyfyguest.com`). This is what a guest's browser actually lands on
+ * after the local `HOTSPOT_DNS_NAME` redirect page hands off -- see that
+ * constant's own docstring for why these two names must never be the same
+ * one. Hardcoded here rather than derived from `window.location.origin`
+ * (the previous approach) on purpose: `window.location.origin` bakes in
+ * whatever URL the Master-console admin happened to be browsing from at
+ * script-generation time (e.g. a temporary sslip.io address, or this
+ * dashboard's own `app.wyfyguest.com`, which is the ADMIN dashboard, not a
+ * guest-facing domain) -- confirmed live as the root cause of a real
+ * incident where an already-provisioned router's guest portal broke
+ * because its script had been generated before this domain existed.
+ * Hardcoding the real, stable, guest-facing domain here means every
+ * future-generated script points at the correct destination regardless of
+ * whatever URL Master console happens to be served from that day. */
+export const GUEST_PORTAL_PUBLIC_BASE = "https://portal.wyfyguest.com";
 
 /** Every WAN interface name this script references is taken literally,
  * exactly once, from whatever the "WAN N interface" field currently says
@@ -1941,11 +1944,11 @@ function SetupScriptTab({
           agentCredential,
           wanIfs: wanIfs.slice(0, ispCount),
           enableFirewall,
-          // window.location.origin -- wherever this dashboard is being
-          // viewed from is, by construction, the same deployment's real
-          // frontend, so it's always correct for a guest-facing link too
-          // (same convention as master.routers.tsx's own RouterSetupScriptPanel).
-          portalUrl: { frontendBase: window.location.origin, organizationId, locationId, routerId },
+          // GUEST_PORTAL_PUBLIC_BASE, not window.location.origin -- see that
+          // constant's own docstring for why: this must be the real,
+          // stable, guest-facing portal domain regardless of whatever URL
+          // Master console itself happens to be served from.
+          portalUrl: { frontendBase: GUEST_PORTAL_PUBLIC_BASE, organizationId, locationId, routerId },
           ...form,
         }),
       );

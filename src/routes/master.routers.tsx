@@ -17,7 +17,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScriptChunks } from "@/components/routers/RouterDetailTabs";
+import { buildRouterSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE } from "@/components/routers/RouterDetailTabs";
 import api from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
@@ -289,12 +289,13 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           radius,
           apiAccess,
           identity: router.locationName,
-          // window.location.origin -- wherever this Master dashboard is
-          // being viewed from is, by construction, the same deployment's
-          // real frontend, so it's always correct for a guest-facing link
-          // too (no separate "frontend URL" setting to keep in sync).
+          // GUEST_PORTAL_PUBLIC_BASE, not window.location.origin -- see
+          // that constant's own docstring in RouterDetailTabs.tsx: this
+          // must be the real, stable, guest-facing portal domain
+          // regardless of whatever URL Master console itself happens to be
+          // served from.
           portalUrl: {
-            frontendBase: window.location.origin,
+            frontendBase: GUEST_PORTAL_PUBLIC_BASE,
             organizationId: router.organizationId,
             locationId: router.locationId,
             routerId: router.id,
