@@ -145,7 +145,7 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
       ? {
           name: plan.name,
           tier: plan.tier,
-          currency: plan.currency === "INR" || plan.currency === "USD" ? plan.currency : "INR",
+          currency: "INR",
           monthlyPrice: plan.monthlyPrice,
           includedLocations: plan.includedLocations,
           includedRouters: plan.includedRouters,
@@ -236,13 +236,7 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           </div>
           <div>
             <Label>Currency</Label>
-            <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v as "INR" | "USD")}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="INR">INR (₹) — GST applies</SelectItem>
-                <SelectItem value="USD">USD ($)</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">₹ INR — GST applies</p>
           </div>
           <div />
           <div>

@@ -1305,6 +1305,33 @@ export const billingService = {
     };
   },
 
+  /** POST /invoices/manual -- the operator-typed-line-items counterpart to
+   * generateAndSendInvoice() above: instead of pulling a fixed amount off
+   * the organization's subscribed plan, bills for exactly the line items
+   * given (description/quantity/unit price each) -- a one-off charge or
+   * custom quote, not tied to any subscription. Same real GST computation
+   * and email-send outcome shape as the subscription-based call. */
+  async createManualInvoice(organizationId: string, lineItems: { description: string; quantity: number; unitPrice: number }[]) {
+    const { data } = await api.post<{
+      invoice: { invoice_number: string; total_amount: string; currency: string };
+      email_sent: boolean;
+      email_recipient: string;
+      email_error: string | null;
+    }>(
+      "/invoices/manual",
+      { line_items: lineItems.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: i.unitPrice })) },
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+    return {
+      invoiceNumber: data.invoice.invoice_number,
+      totalAmount: data.invoice.total_amount,
+      currency: data.invoice.currency,
+      emailSent: data.email_sent,
+      emailRecipient: data.email_recipient,
+      emailError: data.email_error,
+    };
+  },
+
   // No reminder-dispatch endpoint exists in backend/app/domains/billing --
   // kept mocked.
   async sendReminder(id: string, _frequency?: ReportFrequency) {

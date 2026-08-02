@@ -15,7 +15,12 @@ export type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 export const planSchema = z.object({
   name: z.string().min(2, "Name is required"),
   tier: z.enum(["starter", "professional", "enterprise", "custom"]),
-  currency: z.enum(["INR", "USD"]),
+  // INR only -- the real GST tax engine (compute_tax_breakdown, backend/
+  // app/domains/billing/validators.py) is India-specific by construction
+  // (CGST/SGST vs IGST is a purely Indian-jurisdiction distinction), so a
+  // USD-priced plan never actually got a coherent tax treatment. This
+  // platform's plans/invoices are INR-only, not "INR by default."
+  currency: z.literal("INR"),
   monthlyPrice: z.coerce.number().min(0),
   // No annualPrice field -- the real backend Plan model has one base_price
   // per plan, never a separate monthly and annual price (see
