@@ -53,7 +53,8 @@ import {
   useDeleteDhcpPool,
 } from "@/hooks/useDhcp";
 import { routerService } from "@/services/router.service";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import type { DhcpPool } from "@/types/dhcp";
 
@@ -115,15 +116,31 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DhcpPool | null>(null);
 
+  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
+  // `enabled` (i.e. affects the very first render's query state): isDemo()
+  // reads localStorage synchronously, so it resolves differently during
+  // the server render pass (no window -> false) than during the client's
+  // first hydration pass (real token -> true) -- react-query's isLoading
+  // for that instant differs right along with it (a real "Hydration
+  // failed" on this page's "Loading…"/"No pools match your filters" text,
+  // not just a flash). useIsDemo() instead starts at the same value on
+  // both sides and only flips post-mount, same fix as AlertsView/
+  // BusinessHoursView elsewhere in this session.
+  const demoFlag = useIsDemo();
+
   // `list_pools`/etc. resolve their tenant scope from CurrentOrganization
   // (X-Organization-Id) -- an ordinary org-owner session holds no
   // GLOBAL-scope fallback, so the location-scoped (customer dashboard) case
   // must resolve and thread its real org id. The master console's
   // unscoped view deliberately leaves it unset (spans every org).
+  // Demo mode never needs a real org id (dhcpService.list()/DEMO_ROUTERS
+  // below both short-circuit on isDemo() before touching it) -- resolving
+  // it anyway meant the demo account's DHCP page always fired one real,
+  // 401ing `/me/organizations` request on load for a value nothing used.
   const { data: scopedOrgId } = useQuery({
     queryKey: ["dhcp", "org-id"],
     queryFn: resolveOrgId,
-    enabled: !!locationId,
+    enabled: !!locationId && !demoFlag,
   });
 
   // The backend's `GET /dhcp-pools` only filters by `router_id`, not
@@ -138,7 +155,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? !!scopedOrgId : true },
+    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
   );
   const del = useDeleteDhcpPool();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -149,7 +166,12 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       // "all routers" path fans out through the platform-wide
       // `GET /organizations`, which an ordinary org-owner session 403s on.
       if (locationId) {
-        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        // Demo mode: routerService.listForLocation() already ignores this
+        // arg (returns DEMO_ROUTERS), so skip resolving a real org id for
+        // it -- resolveOrgId() itself has no demo guard and would still
+        // fire a real (401ing) request even though its result goes unused.
+        const orgId = isDemo() ? "" : await resolveOrgId();
+        const rows = await routerService.listForLocation(locationId, orgId);
         return { rows, total: rows.length };
       }
       return routerService.list({ page: 1, pageSize: 100 });

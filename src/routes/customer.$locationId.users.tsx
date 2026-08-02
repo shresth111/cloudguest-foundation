@@ -20,8 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerUsers, useDisconnectSession } from "@/hooks/useCustomerDashboard";
-import { isDemo } from "@/services/customer.service";
+import { useCustomerUsers, useDisconnectSession, useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
@@ -64,8 +63,15 @@ function CustomerUsersPage() {
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
   const disconnect = useDisconnectSession();
-  const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
-  const planExpiryIso = isDemo() ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
+  // useIsDemo(), not isDemo() directly -- see the identical fix in
+  // customer.$locationId.$feature.tsx/dashboard.tsx: calling isDemo()
+  // straight in render flips between the SSR pass (no window -> false)
+  // and the client's first hydration pass (real token -> true), which
+  // changes whether PlanRenewalTicket's chip renders and threw a real
+  // "Hydration failed" (#418) on every hard load of this page.
+  const demoFlag = useIsDemo();
+  const billing = useMyBillingDashboard(demoFlag ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState("all");
   const [page, setPage] = useState(0);

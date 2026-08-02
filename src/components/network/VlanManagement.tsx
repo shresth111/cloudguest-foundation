@@ -53,7 +53,7 @@ import {
   useDeleteVlan,
 } from "@/hooks/useVlan";
 import { routerService } from "@/services/router.service";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { Vlan } from "@/types/vlan";
 
@@ -97,7 +97,12 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
       // "all routers" path fans out through the platform-wide
       // `GET /organizations`, which an ordinary org-owner session 403s on.
       if (locationId) {
-        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        // Demo mode: routerService.listForLocation() already ignores this
+        // arg (returns DEMO_ROUTERS), so skip resolving a real org id for
+        // it -- resolveOrgId() itself has no demo guard and would still
+        // fire a real (401ing) request even though its result goes unused.
+        const orgId = isDemo() ? "" : await resolveOrgId();
+        const rows = await routerService.listForLocation(locationId, orgId);
         return { rows, total: rows.length };
       }
       return routerService.list({ page: 1, pageSize: 100 });

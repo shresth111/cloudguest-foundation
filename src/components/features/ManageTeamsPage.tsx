@@ -12,14 +12,14 @@ import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
 
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 
 interface Team { id: string; name: string; businessUnit: string; members: number; quota: number; status: "active" | "expired" | "revoked" }
 
 const DEMO_TEAMS: Team[] = [
-  { id: "1", name: "Sales Team", businessUnit: "Marina Bay Hotel", members: 12, quota: 85, status: "active" },
-  { id: "2", name: "Executive VIP", businessUnit: "Downtown CoWork", members: 5, quota: 42, status: "active" },
-  { id: "3", name: "Contractors", businessUnit: "Eastside Cafe", members: 8, quota: 100, status: "active" },
+  { id: "1", name: "Sales Team", businessUnit: "Mumbai HQ", members: 12, quota: 85, status: "active" },
+  { id: "2", name: "Executive VIP", businessUnit: "Delhi Office", members: 5, quota: 42, status: "active" },
+  { id: "3", name: "Contractors", businessUnit: "Bangalore DC", members: 8, quota: 100, status: "active" },
 ];
 
 const TABS = [

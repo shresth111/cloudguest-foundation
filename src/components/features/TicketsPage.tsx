@@ -11,7 +11,7 @@ import { ticketService, resolveOrgId } from "@/services/ticket.service";
 import { useSupportTicketsSocket } from "@/hooks/useSupportTicketRealtime";
 import type { SupportTicket, TicketPriority, TicketReply } from "@/types/support-ticket";
 
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 const PRIORITIES: TicketPriority[] = ["low", "medium", "high", "urgent"];
 const CATEGORIES = ["network", "billing", "feature_request", "device_support", "other"];
 const CATEGORY_LABEL: Record<string, string> = {
@@ -26,9 +26,9 @@ interface DemoTicket {
 }
 
 const SEED: DemoTicket[] = [
-  { id: "T-1042", subject: "Guest WiFi dropping every 20 minutes", businessUnit: "Marina Bay Hotel", category: "Network Issue", priority: "High", status: "in-progress", createdAt: "2026-07-20", description: "Multiple guests reporting disconnects." },
-  { id: "T-1038", subject: "Need extra vouchers for weekend event", businessUnit: "Downtown CoWork", category: "Feature Request", priority: "Normal", status: "resolved", createdAt: "2026-07-15", description: "Requesting 200 additional 1-day vouchers." },
-  { id: "T-1031", subject: "Invoice mismatch for June", businessUnit: "Eastside Cafe", category: "Billing", priority: "Low", status: "resolved", createdAt: "2026-07-05", description: "June invoice shows wrong plan tier." },
+  { id: "T-1042", subject: "Guest WiFi dropping every 20 minutes", businessUnit: "Mumbai HQ", category: "Network Issue", priority: "High", status: "in-progress", createdAt: "2026-07-20", description: "Multiple guests reporting disconnects." },
+  { id: "T-1038", subject: "Need extra vouchers for weekend event", businessUnit: "Delhi Office", category: "Feature Request", priority: "Normal", status: "resolved", createdAt: "2026-07-15", description: "Requesting 200 additional 1-day vouchers." },
+  { id: "T-1031", subject: "Invoice mismatch for June", businessUnit: "Bangalore DC", category: "Billing", priority: "Low", status: "resolved", createdAt: "2026-07-05", description: "June invoice shows wrong plan tier." },
 ];
 
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";

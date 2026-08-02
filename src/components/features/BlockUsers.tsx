@@ -21,7 +21,7 @@ import { maskMac } from "@/components/features/HeaderControls";
 // dashboard (HeaderControls.tsx's maskMac).
 const MOBILE_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
 interface BlockedUser {
@@ -114,12 +114,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // Fixed dates, not Date.now()-relative -- see WhiteList.tsx's SEED
   // comment for why a relative computation here hydration-mismatches.
   const [blocked, setBlocked] = useState<BlockedUser[]>(demo ? [
-    { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Marina Bay Hotel", blockedOn: "2026-07-20T10:00:00.000Z", status: "Blocked" },
-    { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Downtown CoWork", blockedOn: "2026-07-18T10:00:00.000Z", status: "Blocked" },
-    { id: "b3", name: "Priya Kapoor", mobile: "+919900001111", businessUnit: "Marina Bay Hotel", blockedOn: "2026-07-22T10:00:00.000Z", status: "Blocked" },
-    { id: "b4", name: "Amit Patel", mobile: "+919722233344", businessUnit: "Eastside Cafe", blockedOn: "2026-07-13T10:00:00.000Z", status: "Unblocked" },
-    { id: "b5", name: "Sana Khan", mobile: "+919833344455", businessUnit: "Airport Lounge T3", blockedOn: "2026-07-21T10:00:00.000Z", status: "Blocked" },
-    { id: "b6", name: "John Doe", mobile: "+919655566677", businessUnit: "Downtown CoWork", blockedOn: "2026-07-16T10:00:00.000Z", status: "Blocked" },
+    { id: "b1", name: "Ravi Sharma", mobile: "+919876543210", businessUnit: "Mumbai HQ", blockedOn: "2026-07-20T10:00:00.000Z", status: "Blocked" },
+    { id: "b2", name: null, mobile: "+919812345678", businessUnit: "Delhi Office", blockedOn: "2026-07-18T10:00:00.000Z", status: "Blocked" },
+    { id: "b3", name: "Priya Kapoor", mobile: "+919900001111", businessUnit: "Mumbai HQ", blockedOn: "2026-07-22T10:00:00.000Z", status: "Blocked" },
+    { id: "b4", name: "Amit Patel", mobile: "+919722233344", businessUnit: "Bangalore DC", blockedOn: "2026-07-13T10:00:00.000Z", status: "Unblocked" },
+    { id: "b5", name: "Sana Khan", mobile: "+919833344455", businessUnit: "Chennai Office", blockedOn: "2026-07-21T10:00:00.000Z", status: "Blocked" },
+    { id: "b6", name: "John Doe", mobile: "+919655566677", businessUnit: "Delhi Office", blockedOn: "2026-07-16T10:00:00.000Z", status: "Blocked" },
   ] : []);
   const [orgId, setOrgId] = useState<string | null>(null);
 
@@ -140,7 +140,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   }, [demo, locationId]);
 
   const [textarea, setTextarea] = useState("");
-  const [bu, setBu] = useState(demo ? "Marina Bay Hotel" : "");
+  const [bu, setBu] = useState(demo ? "Mumbai HQ" : "");
 
   // Default "Applies to" to the location this page is already scoped to,
   // once its real name is known (mirrors WhiteList.tsx's equivalent effect).

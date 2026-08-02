@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   CreateQosRulePayload,
   QosListQuery,
@@ -64,6 +65,15 @@ function orgHeaders(organizationId?: string) {
 // dhcp.service.ts/vlan.service.ts/port-forwarding.service.ts's own orgHeaders.
 export const qosService = {
   async list(q: QosListQuery): Promise<QosListResult> {
+    // The demo account's token isn't a real backend session -- every call
+    // here 401'd on a plain page load (spamming the console the moment
+    // VOIP Priority is opened in the demo). No curated demo fixture
+    // exists for this domain, so this honestly reports zero rather than
+    // inventing fake rules, same convention as dhcp.service.ts/
+    // vlan.service.ts/port-forwarding.service.ts's own demo guards.
+    if (isDemo()) {
+      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
+    }
     const { data } = await api.get<BackendQosListResponse>("/qos-rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
       ...orgHeaders(q.organizationId),

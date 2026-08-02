@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   CreatePortForwardingPayload,
   PortForwardingKpis,
@@ -71,6 +72,15 @@ function orgHeaders(organizationId?: string) {
 // dhcp.service.ts's orgHeaders.
 export const portForwardingService = {
   async list(q: PortForwardingListQuery): Promise<PortForwardingListResult> {
+    // The demo account's token isn't a real backend session -- every call
+    // here 401'd on a plain page load (spamming the console the moment
+    // Port Forwarding is opened in the demo). No curated demo fixture
+    // exists for this domain, so this honestly reports zero rather than
+    // inventing fake rules, same convention as dhcp.service.ts/
+    // vlan.service.ts's own demo guards.
+    if (isDemo()) {
+      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
+    }
     const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
       ...orgHeaders(q.organizationId),
@@ -85,6 +95,7 @@ export const portForwardingService = {
   },
 
   async getKpis(organizationId?: string): Promise<PortForwardingKpis> {
+    if (isDemo()) return { total: 0, enabled: 0, disabled: 0 };
     // No dedicated stats endpoint -- fetch a large page and compute real
     // counts client-side, same convention as vlan.service.ts's getKpis.
     const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {

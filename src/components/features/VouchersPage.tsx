@@ -18,14 +18,17 @@ import { resolveOrgId } from "@/services/customer.service";
 import type { Voucher as BackendVoucherModel, VoucherBatchStats } from "@/types/voucher";
 
 interface Voucher { code: string; plan: string; status: string; used: number; businessUnit: string; redeemedAt: string | null; }
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Clamps a (possibly NaN, from an emptied number input) value into [lo, hi], falling back to `fallback` when NaN. */
+const clamp = (n: number, fallback: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number.isNaN(n) ? fallback : n));
+
 const DEMO_SEED: Voucher[] = [
-  { code: "VCH-8821", plan: "1h", status: "active", used: 3, businessUnit: "Marina Bay Hotel", redeemedAt: "Marina Bay Hotel" },
-  { code: "VCH-8822", plan: "24h", status: "active", used: 12, businessUnit: "Downtown CoWork", redeemedAt: "Downtown CoWork" },
-  { code: "VCH-8823", plan: "1h", status: "active", used: 1, businessUnit: "Eastside Cafe", redeemedAt: "Eastside Cafe" },
-  { code: "VCH-8824", plan: "3d", status: "unused", used: 0, businessUnit: "Airport Lounge T3", redeemedAt: null },
+  { code: "VCH-8821", plan: "1h", status: "active", used: 3, businessUnit: "Mumbai HQ", redeemedAt: "Mumbai HQ" },
+  { code: "VCH-8822", plan: "24h", status: "active", used: 12, businessUnit: "Delhi Office", redeemedAt: "Delhi Office" },
+  { code: "VCH-8823", plan: "1h", status: "active", used: 1, businessUnit: "Bangalore DC", redeemedAt: "Bangalore DC" },
+  { code: "VCH-8824", plan: "3d", status: "unused", used: 0, businessUnit: "Chennai Office", redeemedAt: null },
 ];
 
 /** Real vouchers are issued in batches (backend/app/domains/voucher) --
@@ -258,12 +261,12 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
               <div className="grid grid-cols-2 gap-3 py-2">
                 <div className="col-span-2"><Label>Batch Name</Label><Input placeholder="e.g. Summer Promo 2026" value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
                 {demo && <div className="col-span-2"><Label>Business Unit</Label><Select value={form.businessUnit} onValueChange={v => setForm({...form,businessUnit:v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent></Select></div>}
-                <div><Label>Quantity</Label><Input type="number" min={1} max={100} value={form.quantity} onChange={e => setForm({...form,quantity:parseInt(e.target.value)||1})} /></div>
-                <div><Label>Validity (min)</Label><Input type="number" min={1} value={form.validMin} onChange={e => setForm({...form,validMin:parseInt(e.target.value)||60})} /></div>
+                <div><Label>Quantity</Label><Input type="number" min={1} max={100} value={form.quantity} onChange={e => setForm({...form,quantity:clamp(parseInt(e.target.value),1,1,100)})} /></div>
+                <div><Label>Validity (min)</Label><Input type="number" min={1} max={43200} value={form.validMin} onChange={e => setForm({...form,validMin:clamp(parseInt(e.target.value),60,1,43200)})} /></div>
                 <div><Label>Code Prefix</Label><Input value={form.prefix} onChange={e => setForm({...form,prefix:e.target.value})} /></div>
-                <div><Label>Code Length</Label><Input type="number" min={4} max={16} value={form.codeLen} onChange={e => setForm({...form,codeLen:parseInt(e.target.value)||8})} /></div>
-                <div><Label>Data Limit (MB)</Label><Input type="number" min={0} value={form.dataLimit} onChange={e => setForm({...form,dataLimit:parseInt(e.target.value)||0})} /></div>
-                <div><Label>Max Uses</Label><Input type="number" min={1} value={form.maxUses} onChange={e => setForm({...form,maxUses:parseInt(e.target.value)||1})} /></div>
+                <div><Label>Code Length</Label><Input type="number" min={4} max={16} value={form.codeLen} onChange={e => setForm({...form,codeLen:clamp(parseInt(e.target.value),8,4,16)})} /></div>
+                <div><Label>Data Limit (MB)</Label><Input type="number" min={0} max={102400} placeholder="0 = unlimited" value={form.dataLimit} onChange={e => setForm({...form,dataLimit:clamp(parseInt(e.target.value),0,0,102400)})} /></div>
+                <div><Label>Max Uses</Label><Input type="number" min={1} max={1000} value={form.maxUses} onChange={e => setForm({...form,maxUses:clamp(parseInt(e.target.value),1,1,1000)})} /></div>
               </div>
               <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={handleGenerate}>Generate {form.quantity} Vouchers</Button></DialogFooter>
             </DialogContent>
@@ -284,7 +287,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
             <TableCell className="font-mono text-xs">{v.code}</TableCell>
             {demo && <TableCell className="text-xs text-muted-foreground">{v.businessUnit}</TableCell>}
             {demo ? (
-              <TableCell><Select defaultValue={v.plan} onValueChange={val => toast.success(`Plan: ${formatPlan(val)}`)}><SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger><SelectContent>{planOpts.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent></Select></TableCell>
+              <TableCell><Select value={v.plan} onValueChange={val => { setItems(its => its.map(it => it.code === v.code ? { ...it, plan: val } : it)); toast.success(`Plan updated to ${formatPlan(val)}`); }}><SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger><SelectContent>{planOpts.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent></Select></TableCell>
             ) : (
               <TableCell className="text-xs text-muted-foreground">{v.plan}</TableCell>
             )}

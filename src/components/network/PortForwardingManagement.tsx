@@ -53,7 +53,8 @@ import {
   useDeletePortForwardingRule,
 } from "@/hooks/usePortForwarding";
 import { routerService } from "@/services/router.service";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import type { PortForwardingRule } from "@/types/port-forwarding";
 
@@ -82,15 +83,28 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<PortForwardingRule | null>(null);
 
+  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
+  // `enabled` -- see DhcpManagement's identical comment: isDemo() resolves
+  // differently between the server render pass and the client's first
+  // hydration pass, which threw a real "Hydration failed" on this page's
+  // loading/empty-state text. useIsDemo() starts at the same value on
+  // both sides and only flips post-mount.
+  const demoFlag = useIsDemo();
+
   // `list_port_forwarding_rules`/etc. resolve their tenant scope from
   // CurrentOrganization (X-Organization-Id) -- an ordinary org-owner session
   // holds no GLOBAL-scope fallback, so the location-scoped (customer
   // dashboard) case must resolve and thread its real org id. The master
   // console's unscoped view deliberately leaves it unset (spans every org).
+  // Demo mode never needs a real org id (portForwardingService's list/kpis
+  // and DEMO_ROUTERS below both short-circuit on isDemo() before touching
+  // it) -- resolving it anyway meant the demo account's Port Forwarding
+  // page always fired one real, 401ing `/me/organizations` request on load
+  // for a value nothing used.
   const { data: scopedOrgId } = useQuery({
     queryKey: ["port-forwarding", "org-id"],
     queryFn: resolveOrgId,
-    enabled: !!locationId,
+    enabled: !!locationId && !demoFlag,
   });
 
   // The backend's `GET /port-forwarding/rules` only filters by `router_id`,
@@ -104,10 +118,10 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? !!scopedOrgId : true },
+    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
   );
   const { data: kpis } = usePortForwardingKpis(locationId ? scopedOrgId : undefined, {
-    enabled: locationId ? !!scopedOrgId : true,
+    enabled: locationId ? (demoFlag || !!scopedOrgId) : true,
   });
   const del = useDeletePortForwardingRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -118,7 +132,12 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
       // "all routers" path fans out through the platform-wide
       // `GET /organizations`, which an ordinary org-owner session 403s on.
       if (locationId) {
-        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        // Demo mode: routerService.listForLocation() already ignores this
+        // arg (returns DEMO_ROUTERS), so skip resolving a real org id for
+        // it -- resolveOrgId() itself has no demo guard and would still
+        // fire a real (401ing) request even though its result goes unused.
+        const orgId = isDemo() ? "" : await resolveOrgId();
+        const rows = await routerService.listForLocation(locationId, orgId);
         return { rows, total: rows.length };
       }
       return routerService.list({ page: 1, pageSize: 100 });

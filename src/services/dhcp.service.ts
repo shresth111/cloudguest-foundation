@@ -1,5 +1,5 @@
 import { api } from "@/services/api";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type {
   CreateDhcpPoolPayload,
   DhcpPool,
@@ -72,6 +72,17 @@ export const dhcpService = {
   // convention as mac-authorization.service.ts's resolveOrganizationId /
   // vlan.service.ts's resolveOrganizationId.
   async list(q: DhcpPoolListQuery): Promise<DhcpPoolListResult> {
+    // The demo account's "demo-access-token" isn't a real session the
+    // backend recognizes -- every call here 401'd on a plain page load
+    // (DhcpManagement fires this on mount), spamming the console with
+    // real failed requests on every visit to DHCP Pool in the demo. No
+    // curated demo fixture exists for this domain (unlike most other
+    // features), so rather than inventing fake pools, this honestly
+    // reports zero -- the same empty state a real customer with no pools
+    // configured yet would see, minus the 401 underneath it.
+    if (isDemo()) {
+      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
+    }
     const { data } = await api.get<BackendDhcpPoolListResponse>("/dhcp-pools", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
       ...orgHeaders(q.organizationId),

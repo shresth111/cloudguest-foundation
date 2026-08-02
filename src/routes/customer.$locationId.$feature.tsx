@@ -39,7 +39,6 @@ import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import { maskEmail, maskMac, maskPhone, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
-import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
 import { useIsDemo, useCustomerDashboard, useCustomerUsers } from "@/hooks/useCustomerDashboard";
@@ -68,8 +67,17 @@ function FeaturePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation } = useCustomerStore();
-  const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
-  const planExpiryIso = isDemo() ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
+  // Read through the SSR-safe useIsDemo() hook, not isDemo() directly --
+  // isDemo() reads localStorage synchronously, so calling it straight in
+  // render flips value between the server pass (no window -> false) and
+  // the client's first hydration pass (real token -> true), which changes
+  // whether PlanRenewalTicket's chip renders at all and threw a real
+  // "Hydration failed" (#418) on every feature page load (dashboard's own
+  // equivalent computation happened to dodge it, but the same fragile
+  // pattern -- fixed here rather than left as a footgun).
+  const demoFlag = useIsDemo();
+  const billing = useMyBillingDashboard(demoFlag ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [masked, setMasked] = useState(true);

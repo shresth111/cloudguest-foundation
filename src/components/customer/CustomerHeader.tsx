@@ -62,9 +62,22 @@ export function CustomerHeader({
 
       {/* Plan renewal + demo CTA are one perforated "ticket" object, and the
           masking indicator is a notched security tag -- neither is a
-          rounded pill anymore. See HeaderControls.tsx for the reasoning. */}
-      <PlanRenewalTicket expiryIso={planExpiryIso} />
-      <OtpMaskToggle masked={masked} setMasked={setMasked} />
+          rounded pill anymore. See HeaderControls.tsx for the reasoning.
+          Both default to appearing from `sm:` (640px) up, which -- once the
+          location name/status title on the left and the refresh/bell/avatar
+          icons on the right are also in the row -- left almost no room for
+          the title in the ~640-1024px tablet band specifically: it measured
+          out to an 8px-wide `min-w-0` remainder, rendering as a single
+          clipped letter ("M" instead of "Mumbai HQ") with no visible
+          overflow to point at. Pushed to `lg:` (1024px) here instead, so
+          the tablet band gets the same hidden treatment phones already get,
+          rather than a half-shown one. */}
+      <PlanRenewalTicket expiryIso={planExpiryIso} className="mr-1 hidden h-9 shrink-0 items-stretch lg:flex" />
+      <OtpMaskToggle
+        masked={masked}
+        setMasked={setMasked}
+        className={`hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium lg:inline-flex mr-1 cursor-default ${masked ? "text-slate-300" : "text-sky-300"}`}
+      />
       {onRefresh && (
         <Button variant="ghost" size="icon" className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" onClick={onRefresh}>
           <RefreshCw className="h-4 w-4" />

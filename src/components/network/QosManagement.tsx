@@ -52,7 +52,8 @@ import {
   useDeleteQosRule,
 } from "@/hooks/useQos";
 import { routerService } from "@/services/router.service";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import type { QosTrafficRule } from "@/types/qos";
 
@@ -116,10 +117,23 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<QosTrafficRule | null>(null);
 
+  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
+  // `enabled` -- see DhcpManagement's identical comment: isDemo() resolves
+  // differently between the server render pass and the client's first
+  // hydration pass, which threw a real "Hydration failed" on this page's
+  // loading/empty-state text. useIsDemo() starts at the same value on
+  // both sides and only flips post-mount.
+  const demoFlag = useIsDemo();
+
+  // Demo mode never needs a real org id (qosService.list() and
+  // DEMO_ROUTERS below both short-circuit on isDemo() before touching
+  // it) -- resolving it anyway meant the demo account's VOIP Priority
+  // page always fired one real, 401ing `/me/organizations` request on
+  // load for a value nothing used.
   const { data: scopedOrgId } = useQuery({
     queryKey: ["qos", "org-id"],
     queryFn: resolveOrgId,
-    enabled: !!locationId,
+    enabled: !!locationId && !demoFlag,
   });
 
   // The backend's `GET /qos-rules` only filters by `router_id`, not
@@ -134,14 +148,19 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? !!scopedOrgId : true },
+    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
   );
   const del = useDeleteQosRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["qos", "router-options", locationId],
     queryFn: async () => {
       if (locationId) {
-        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        // Demo mode: routerService.listForLocation() already ignores this
+        // arg (returns DEMO_ROUTERS), so skip resolving a real org id for
+        // it -- resolveOrgId() itself has no demo guard and would still
+        // fire a real (401ing) request even though its result goes unused.
+        const orgId = isDemo() ? "" : await resolveOrgId();
+        const rows = await routerService.listForLocation(locationId, orgId);
         return { rows, total: rows.length };
       }
       return routerService.list({ page: 1, pageSize: 100 });

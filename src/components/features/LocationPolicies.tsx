@@ -17,7 +17,7 @@ function kbpsToLabel(kbps: number): string {
 }
 
 // ── constants ───────────────────────────────────────────────────
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 const BANDWIDTH = ["Unlimited", "10 Mbps", "20 Mbps", "30 Mbps", "40 Mbps", "50 Mbps", "60 Mbps", "70 Mbps", "80 Mbps"];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
 const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
@@ -40,9 +40,9 @@ interface Policy {
 type PolicyForm = Omit<Policy, "id">;
 
 const SEED: Policy[] = [
-  { id: "p1", businessUnit: "Marina Bay Hotel", bandwidth: "5 Mbps", sessionTimeout: "4 hr", dailyLimit: "No Limit", idleTimeout: "15 min", devicesPerUser: "3", dataLimit: { quota: 5, unit: "GB", resets: "Daily" } },
-  { id: "p2", businessUnit: "Downtown CoWork", bandwidth: "2 Mbps", sessionTimeout: "24 hr", dailyLimit: "2 hr", idleTimeout: "30 min", devicesPerUser: "Unlimited", dataLimit: null },
-  { id: "p3", businessUnit: "Eastside Cafe", bandwidth: "512 Kbps", sessionTimeout: "1 hr", dailyLimit: "1 hr", idleTimeout: "10 min", devicesPerUser: "2", dataLimit: { quota: 1, unit: "GB", resets: "Weekly" } },
+  { id: "p1", businessUnit: "Mumbai HQ", bandwidth: "5 Mbps", sessionTimeout: "4 hr", dailyLimit: "No Limit", idleTimeout: "15 min", devicesPerUser: "3", dataLimit: { quota: 5, unit: "GB", resets: "Daily" } },
+  { id: "p2", businessUnit: "Delhi Office", bandwidth: "2 Mbps", sessionTimeout: "24 hr", dailyLimit: "2 hr", idleTimeout: "30 min", devicesPerUser: "Unlimited", dataLimit: null },
+  { id: "p3", businessUnit: "Bangalore DC", bandwidth: "512 Kbps", sessionTimeout: "1 hr", dailyLimit: "1 hr", idleTimeout: "10 min", devicesPerUser: "2", dataLimit: { quota: 1, unit: "GB", resets: "Weekly" } },
 ];
 
 // ── Tooltip popover ──────────────────────────────────────────────
@@ -269,7 +269,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
         <p className="text-sm text-amber-800 dark:text-amber-200">
           Saving takes effect immediately for every guest at this location — including anyone already connected.
-          Double-check the limits before you save, or contact <a href="mailto:support@zipwifi.io" className="font-medium text-indigo-600 underline dark:text-indigo-400">support@zipwifi.io</a> if you need help.
+          Double-check the limits before you save, or contact <a href="mailto:support@wyfyguest.com" className="font-medium text-indigo-600 underline dark:text-indigo-400">support@wyfyguest.com</a> if you need help.
         </p>
       </div>
 

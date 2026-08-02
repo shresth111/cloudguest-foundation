@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   CreateVlanPayload,
   UpdateVlanPayload,
@@ -76,6 +77,14 @@ async function resolveOrganizationId(): Promise<string> {
 
 export const vlanService = {
   async list(q: VlanListQuery): Promise<VlanListResult> {
+    // The demo account's token isn't a real backend session -- every call
+    // here 401'd on a plain page load (spamming the console the moment
+    // VLANs is opened in the demo). No curated demo fixture exists for
+    // this domain, so this honestly reports zero rather than inventing
+    // fake VLANs, same convention as dhcp.service.ts's own demo guard.
+    if (isDemo()) {
+      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
+    }
     const orgId = await resolveOrganizationId();
     const { data } = await api.get<BackendVlanListResponse>("/vlans", {
       params: {
@@ -104,6 +113,7 @@ export const vlanService = {
   },
 
   async getKpis(): Promise<VlanKpis> {
+    if (isDemo()) return { total: 0, enabled: 0, disabled: 0 };
     // No dedicated stats endpoint exists -- fetch a large page and compute
     // real counts client-side, same convention as other list-derived KPIs.
     const orgId = await resolveOrganizationId();

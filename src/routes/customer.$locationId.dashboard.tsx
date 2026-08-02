@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerDashboard, useCustomerLocations, useCustomerUsers } from "@/hooks/useCustomerDashboard";
+import { useCustomerDashboard, useCustomerLocations, useCustomerUsers, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
@@ -493,10 +493,18 @@ function CustomerDashboardPage() {
   const { activeLocation, activeLocationId, setActiveLocation } = useCustomerStore();
   const { data: d, isLoading, refetch } = useCustomerDashboard(locationId);
   const { data: uData } = useCustomerUsers(locationId, { page: 1, pageSize: 6 });
-  const billing = useMyBillingDashboard(isDemo() ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  // Read through the SSR-safe useIsDemo() hook, not isDemo() directly --
+  // isDemo() reads localStorage synchronously, so calling it straight in
+  // render can flip value between the server pass (no window -> false)
+  // and the client's first hydration pass (real token -> true), which
+  // changes whether PlanRenewalTicket's chip renders at all (a real
+  // "Hydration failed" #418 -- see the sibling fix in
+  // customer.$locationId.$feature.tsx for the concrete repro).
+  const demoFlag = useIsDemo();
+  const billing = useMyBillingDashboard(demoFlag ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
   // Raw ISO, not pre-formatted -- CustomerHeader's PlanRenewalTicket needs
   // the real date to compute a live countdown/urgency tier, not just a label.
-  const planExpiryIso = isDemo() ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
+  const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   // The store's activeLocationId is only populated by clicking a location
   // card on /customer (see customer.index.tsx's handleSelect) -- a direct
   // deep link/bookmark/refresh of this URL arrives with it unset or

@@ -82,7 +82,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [headline, setHeadline] = useState("");
   const [msg, setMsg] = useState("Welcome! Connect to enjoy free WiFi");
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
-  const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://zipwifi.io/welcome", terms: "By connecting you agree to fair-use terms." });
+  const [form, setForm] = useState({ theme: "enterprise", font: "inter", lang: "en, hi, ar", redirectUrl: "https://wyfyguest.com/welcome", terms: "By connecting you agree to fair-use terms." });
   const [logo, setLogo] = useState<string | null>(null);
   // True once `logo` is a blob: URL from a real uploaded file (needs
   // URL.revokeObjectURL on the way out, and enables the "Remove" button
@@ -516,9 +516,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             </div>
             <p className="mt-3 text-center text-[11px] text-white/50">
               This is the real guest sign-in component, live-rendered with your unsaved edits
-              above. For the exact, currently-saved config a guest would see right now, use{" "}
-              <span className="font-medium text-white/80">Preview Portal</span> at the top of
-              this page.
+              above.
+              {!demo && (
+                <>
+                  {" "}For the exact, currently-saved config a guest would see right now, use{" "}
+                  <span className="font-medium text-white/80">Preview Portal</span> at the top of
+                  this page.
+                </>
+              )}
             </p>
           </CardContent>
         </Card>
@@ -534,7 +539,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             <div className="grid h-32 w-32 place-items-center rounded-2xl border-2" style={{ borderColor: `${primary}55`, background: `${primary}0d` }}>
               <QrCode className="h-16 w-16" style={{ color: primary }} />
             </div>
-            <p className="text-xs text-muted-foreground">portal.zipwifi.io</p>
+            <p className="text-xs text-muted-foreground">portal.wyfyguest.com</p>
             <Button variant="outline" size="sm" onClick={() => toast.success("QR code downloaded")}><Download className="mr-1.5 h-3.5 w-3.5" />Download QR</Button>
           </CardContent>
         </Card>

@@ -23,7 +23,7 @@ import type { CampaignAsset, CampaignQuestion, CampaignType, QuestionAnswerType 
 interface Campaign { id: string; name: string; type: string; status: string; businessUnit: string; startDate: string; endDate: string; impressions: number; conversions: number; }
 const TYPES = ["SURVEY", "BANNER", "REDIRECT"];
 const STATUSES = ["draft", "scheduled", "active", "paused", "ended"];
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 
 const SURVEY_QUESTIONS = [
   { q: "Rate our food quality?", options: ["Excellent", "Good", "Average", "Could be better"] },
@@ -32,9 +32,9 @@ const SURVEY_QUESTIONS = [
 ];
 
 const DEMO_SEED: Campaign[] = [
-  { id: "1", name: "Summer Promo", type: "BANNER", status: "active", businessUnit: "Marina Bay Hotel", startDate: "2026-06-01", endDate: "2026-08-31", impressions: 2841, conversions: 423 },
-  { id: "2", name: "Guest Feedback", type: "SURVEY", status: "draft", businessUnit: "Downtown CoWork", startDate: "2026-07-01", endDate: "2026-09-30", impressions: 0, conversions: 0 },
-  { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", businessUnit: "Eastside Cafe", startDate: "2026-05-15", endDate: "2026-07-15", impressions: 1520, conversions: 198 },
+  { id: "1", name: "Summer Promo", type: "BANNER", status: "active", businessUnit: "Mumbai HQ", startDate: "2026-06-01", endDate: "2026-08-31", impressions: 2841, conversions: 423 },
+  { id: "2", name: "Guest Feedback", type: "SURVEY", status: "draft", businessUnit: "Delhi Office", startDate: "2026-07-01", endDate: "2026-09-30", impressions: 0, conversions: 0 },
+  { id: "3", name: "Weekend Special", type: "REDIRECT", status: "paused", businessUnit: "Bangalore DC", startDate: "2026-05-15", endDate: "2026-07-15", impressions: 1520, conversions: 198 },
 ];
 
 /**
@@ -170,7 +170,7 @@ const demoQuestionSeed = (campaignId: string): CampaignQuestion[] => SURVEY_QUES
 // mode still has something real-shaped to show -- mirrors the "Flat 20%
 // off" illustration already used elsewhere on this page.
 const demoAssetSeed = (campaignId: string): CampaignAsset[] => [{
-  id: `${campaignId}-demo-asset`, campaignId, imageUrl: null, clickUrl: "https://zipwifi.io/promo",
+  id: `${campaignId}-demo-asset`, campaignId, imageUrl: null, clickUrl: "https://wyfyguest.com/promo",
   altText: "Flat 20% off this weekend", locale: null,
 }];
 
@@ -239,7 +239,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   // Load this location's real captive-portal config so the redirect URL
   // field shows what's actually persisted, not a hardcoded placeholder.
   useEffect(() => {
-    if (demo) { setRedirectUrl("https://zipwifi.io/welcome"); return; }
+    if (demo) { setRedirectUrl("https://wyfyguest.com/welcome"); return; }
     if (!locationId) return;
     let cancelled = false;
     setRedirectLoading(true);

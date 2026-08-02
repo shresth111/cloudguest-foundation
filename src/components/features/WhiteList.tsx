@@ -39,7 +39,7 @@ const COUNTRIES = [
   { code: "+61", label: "🇦🇺 +61" },
   { code: "+971", label: "🇦🇪 +971" },
 ];
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 
 type Tab = "number" | "device";
 interface Entry {
@@ -70,9 +70,9 @@ type Errors = Partial<Record<keyof FormData, string>>;
 // moments (server module load vs. client bundle load) and hydration-
 // mismatches the instant those two moments land in different minutes.
 const SEED: Entry[] = [
-  { id: "s1", tab: "number", identifier: "9876543210", name: "Ravi Sharma", email: "ravi@example.com", businessUnit: "Marina Bay Hotel", startDate: "2026-07-22T10:00", endDate: "2026-07-26T10:00" },
-  { id: "s2", tab: "number", identifier: "8765432109", name: "Priya Kapoor", email: "priya@example.com", businessUnit: "Downtown CoWork", startDate: "2026-07-21T09:00", endDate: "2026-07-30T09:00" },
-  { id: "s3", tab: "device", identifier: "AA:BB:CC:DD:EE:FF", name: "Office Printer", email: "it@example.com", businessUnit: "Airport Lounge T3", startDate: "2026-06-23T08:00", endDate: "2026-07-21T08:00" },
+  { id: "s1", tab: "number", identifier: "9876543210", name: "Ravi Sharma", email: "ravi@example.com", businessUnit: "Mumbai HQ", startDate: "2026-07-22T10:00", endDate: "2026-07-26T10:00" },
+  { id: "s2", tab: "number", identifier: "8765432109", name: "Priya Kapoor", email: "priya@example.com", businessUnit: "Delhi Office", startDate: "2026-07-21T09:00", endDate: "2026-07-30T09:00" },
+  { id: "s3", tab: "device", identifier: "AA:BB:CC:DD:EE:FF", name: "Office Printer", email: "it@example.com", businessUnit: "Chennai Office", startDate: "2026-06-23T08:00", endDate: "2026-07-21T08:00" },
 ];
 
 /**

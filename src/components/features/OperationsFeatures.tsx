@@ -229,11 +229,23 @@ const DEMO_ALERTS: AlertRow[] = [
 interface RawAlert { severity: string; message: string; triggered_at: string; status: string; router_id: string | null }
 
 export function AlertsView() {
-  const [alerts, setAlerts] = useState<AlertRow[]>(isDemo() ? DEMO_ALERTS : []);
-  const [loading, setLoading] = useState(!isDemo());
+  // Both start neutral (empty/loading) on server and client alike --
+  // seeding straight from isDemo() here (server: no window -> false,
+  // client's first hydration pass: real token -> true) made the KPI
+  // row's counts (and the empty-vs-populated list below it) disagree
+  // between the SSR'd HTML and the client's hydration render, which is a
+  // real "Hydration failed" (#418), not just a cosmetic flash. The demo
+  // seed (or the real fetch) is applied from the effect below instead,
+  // strictly post-mount.
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isDemo()) return;
+    if (isDemo()) {
+      setAlerts(DEMO_ALERTS);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -504,19 +516,37 @@ function DebuggingIllustration() {
 }
 
 export function BusinessHoursView({ locationId }: { locationId?: string } = {}) {
+  // `demo` itself (a plain isDemo() read, not the SSR-safe useIsDemo()
+  // hook) is fine to use in effects/handlers below -- those only ever run
+  // client-side. What isn't safe is seeding useState's *initial* value
+  // from it directly: isDemo() reads localStorage synchronously, so it
+  // resolves differently during the server render pass (no window ->
+  // false) than during the client's very first hydration pass (real
+  // token -> true), and React throws a real "Hydration failed" the
+  // instant that changes a day's Switch/Input's checked/value/disabled
+  // attributes (exactly what happened here). Both `schedule` and
+  // `loading` below now start at the same neutral value on server and
+  // client; the effect fills in the demo seed (or the real fetch)
+  // strictly post-mount, which is a normal state update, not a
+  // hydration diff.
   const demo = isDemo();
   const [configId, setConfigId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
-  const [schedule, setSchedule] = useState<BusinessHoursSchedule>(demo ? DEMO_BH_SCHEDULE : {});
+  const [schedule, setSchedule] = useState<BusinessHoursSchedule>({});
   const [closedMessage, setClosedMessage] = useState(
     "We're currently closed. Please check back during business hours.",
   );
   const [isOpenNow, setIsOpenNow] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(!demo);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (demo || !locationId) return;
+    if (demo) {
+      setSchedule(DEMO_BH_SCHEDULE);
+      setLoading(false);
+      return;
+    }
+    if (!locationId) return;
     let cancelled = false;
     businessHoursService
       .get(locationId)
