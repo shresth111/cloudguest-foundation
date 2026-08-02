@@ -1,22 +1,32 @@
 import type { SVGProps } from "react";
 
 /**
- * Not Jio's actual (trademarked) logo -- a circular badge in Jio's real,
- * recognizable corporate blue with a bold "J", same convention as every
- * other file in this folder. See `AirtelIcon.tsx` for the rationale.
+ * Not Jio's actual (trademarked) logo -- a badge in Jio's real,
+ * recognizable corporate blue with a bold "J", same refined convention
+ * (gradient + ring + centered glyph) as every other file in this folder.
+ * See `AirtelIcon.tsx` for the rationale.
  */
 export function JioIcon(props: SVGProps<SVGSVGElement>) {
+  const id = "jio-icon-grad";
   return (
     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <circle cx="12" cy="12" r="12" fill="#0033A0" />
+      <defs>
+        <linearGradient id={id} x1="4" y1="2" x2="20" y2="22">
+          <stop offset="0%" stopColor="#1A4FC4" />
+          <stop offset="100%" stopColor="#00227A" />
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11.25" fill={`url(#${id})`} stroke="rgba(255,255,255,0.35)" strokeWidth="0.75" />
       <text
         x="12"
-        y="16.3"
+        y="12"
         textAnchor="middle"
-        fontSize="12"
+        dominantBaseline="central"
+        fontSize="12.5"
         fontWeight="700"
-        fontFamily="Arial, Helvetica, sans-serif"
+        fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
         fill="#ffffff"
+        letterSpacing="-0.2"
       >
         J
       </text>
