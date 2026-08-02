@@ -265,14 +265,7 @@ function CustomerHomePage() {
           <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
             <div className="flex items-center gap-3">
               <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
-                <svg viewBox="0 0 149 149" className="h-5 w-5" fill="none" aria-hidden="true">
-                  <g stroke="#FFFFFF" fill="none" strokeLinecap="round">
-                    <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
-                    <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
-                    <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />
-                    <circle cx="75" cy="101" r="4.5" fill="#34d399" stroke="none" />
-                  </g>
-                </svg>
+                <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
                 <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1e1b4b]" />
