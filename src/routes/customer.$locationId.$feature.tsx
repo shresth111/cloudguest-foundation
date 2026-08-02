@@ -194,14 +194,17 @@ const DASHBOARD_QUOTES = [
 ];
 
 /**
- * Compact corner illustration for the Dashboard hero card: a small figure
- * beside a live pulse-monitor with a calm "all clear" checkmark, and a
- * signal-bars motif -- same filled-flat-shape character language as the
- * Select Location page's HeroManagerIllustration, but a quieter pose sized
+ * Compact corner illustration for the Dashboard hero card: a mini brand
+ * shield-and-signal mark beside a live pulse-monitor with a calm "all
+ * clear" checkmark, and a signal-bars motif -- same filled-flat-shape
+ * character language as the Select Location page's hero illustration
+ * (both now built from the same shield mark), but a quieter pose sized
  * for a hero-card corner accent rather than a full side panel, since this
  * page is a data-first "check the numbers" moment, not a "which venue"
  * moment. Kept small and semi-transparent so it never competes with the
- * three big KPI numbers already carrying this card.
+ * three big KPI numbers already carrying this card. Replaces the earlier
+ * cartoon figure, which read as consumer clip-art rather than enterprise
+ * network monitoring.
  *
  * Purely decorative -- aria-hidden. The pulse sweep and "all clear" ring
  * loop, so both respect useReducedMotion.
@@ -223,6 +226,10 @@ function DashboardWatchIllustration() {
         <linearGradient id="watch-pulse-stroke" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#22d3ee" />
           <stop offset="100%" stopColor="#f0abfc" />
+        </linearGradient>
+        <linearGradient id="watch-shield-grad" x1="54" y1="114" x2="115" y2="190" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
 
@@ -252,14 +259,10 @@ function DashboardWatchIllustration() {
         <path d="M222 54l4 4 8-8" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </motion.g>
 
-      <path d="M62 190c-3-30 4-48 20-48h4c16 0 23 18 20 48z" fill="#f5f0ff" />
-      <path d="M68 152c0-12 7-21 18-21s18 9 18 21c-5-3-11-5-18-5s-13 2-18 5z" fill="#7c3aed" />
-      <circle cx="86" cy="130" r="16" fill="#f5f0ff" />
-      <path d="M70 123c0-10 7-17 16-17s16 7 16 17c-5-3-10-5-16-5s-11 2-16 5z" fill="#7c3aed" />
-      <circle cx="80" cy="131" r="1.6" fill="#1e1b4b" />
-      <circle cx="91" cy="131" r="1.6" fill="#1e1b4b" />
-      <path d="M81 137c1.6 1.6 4.8 1.6 6.4 0" stroke="#1e1b4b" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-      <path d="M100 160c8-3 14-10 17-19" stroke="#7c3aed" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M84.5 116 L112.68 127.07 V147.8 C112.68 165.69 101.25 179.6 84.5 185.5 C67.75 179.6 56.32 165.69 56.32 147.8 V127.07 Z" fill="url(#watch-shield-grad)" />
+      <path d="M65.26 138.76a27.54 27.54 0 0 1 38.48 0" stroke="#ffffff" strokeWidth="5.45" strokeLinecap="round" fill="none" opacity="0.75" />
+      <path d="M73.43 148.71a16.76 16.76 0 0 1 22.15 0" stroke="#ffffff" strokeWidth="5.45" strokeLinecap="round" fill="none" />
+      <circle cx="84.5" cy="157.58" r="4.3" fill="#ffffff" />
 
       <g>
         {[0, 1, 2, 3].map((i) => (

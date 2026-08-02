@@ -59,48 +59,66 @@ function CountUp({ target }: { target: number }) {
 }
 
 /**
- * Hero illustration: a manager at a monitor, watching over a café, a hotel,
- * and a coworking space -- flat filled shapes (not thin outline strokes)
- * connected to a pulsing WiFi orb by dashed signal lines, so the scene reads
- * as "one person watching over your venues" instead of a generic network
- * diagram. Replaces the earlier line-art router illustration and the
- * separate Coffee/Building2/Briefcase icon strip -- both ideas now live
- * inside this one illustration instead of being shown twice.
+ * Hero illustration: the Wyfy Guest shield-and-signal brand mark as a
+ * central monitoring hub, with a radar-style pulse ring and dashed signal
+ * lines fanning out to three location nodes -- flat filled shapes (not
+ * cartoon figures) so the scene reads as "your network, watched centrally"
+ * instead of a person-at-a-desk vignette. Replaces the earlier
+ * manager-at-a-monitor illustration (and its cafe/hotel/coworking building
+ * badges), which read as consumer/hospitality clip-art rather than
+ * enterprise network monitoring.
  *
- * Purely decorative -- aria-hidden. The signal-line draw-on is a one-time
- * entrance; the orb pulse and steam wisps loop, so both respect
- * useReducedMotion.
+ * Purely decorative -- aria-hidden. The signal-line draw-on and the radar
+ * ping are one-time/looping entrances respectively; both the ping and the
+ * hub glow collapse to a static state when the visitor prefers reduced
+ * motion.
  */
 function HeroManagerIllustration() {
   const shouldReduceMotion = useReducedMotion();
-  const badges = [
-    { key: "cafe", x: 336, y: 34, accent: "#f0abfc" },
-    { key: "hotel", x: 410, y: 92, accent: "#22d3ee" },
-    { key: "coworking", x: 346, y: 148, accent: "#a78bfa" },
+  const nodes = [
+    { key: "node-a", x: 336, y: 34, accent: "#f0abfc" },
+    { key: "node-b", x: 410, y: 92, accent: "#22d3ee" },
+    { key: "node-c", x: 346, y: 148, accent: "#a78bfa" },
   ];
-  const orb = { x: 153, y: 88 };
+  const hub = { x: 140, y: 112.5 };
+  const shieldPath =
+    "M140 55 L185.68 73.27 V107.67 C185.68 137.76 166.87 160.33 140 170 " +
+    "C113.13 160.33 94.32 137.76 94.32 107.67 V73.27 Z";
 
   return (
     <svg aria-hidden="true" viewBox="0 0 520 210" className="h-auto w-full max-w-[300px]" fill="none">
       <defs>
-        <filter id="mgr-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
+        <filter id="net-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur stdDeviation="14" />
         </filter>
-        <linearGradient id="mgr-monitor-bars" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="50%" stopColor="#a78bfa" />
-          <stop offset="100%" stopColor="#f0abfc" />
+        <linearGradient id="net-illo-shield" x1="94" y1="55" x2="186" y2="170" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
 
-      <circle cx="140" cy="130" r="70" fill="#7c3aed" opacity="0.18" filter="url(#mgr-illo-glow)" />
+      <circle cx="140" cy="112.5" r="78" fill="#7c3aed" opacity="0.18" filter="url(#net-illo-glow)" />
       <line x1="20" y1="192" x2="500" y2="192" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
 
-      {badges.map((b, i) => (
+      {/* faint globe meridians behind the hub -- "network topology" flavor,
+          low-opacity so it reads as texture, not a competing shape */}
+      <ellipse cx="140" cy="112.5" rx="98" ry="98" stroke="white" strokeOpacity="0.07" strokeWidth="1" fill="none" />
+      <ellipse cx="140" cy="112.5" rx="40" ry="98" stroke="white" strokeOpacity="0.06" strokeWidth="1" fill="none" />
+
+      {/* one-time radar ping expanding out from the hub */}
+      <motion.circle
+        cx={hub.x} cy={hub.y} r="46" stroke="#a78bfa" strokeWidth="1.5" fill="none"
+        initial={shouldReduceMotion ? false : { opacity: 0.5, scale: 0.4 }}
+        animate={shouldReduceMotion ? { opacity: 0 } : { opacity: [0.5, 0], scale: [0.4, 1.3] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeOut" }}
+        style={{ transformOrigin: `${hub.x}px ${hub.y}px` }}
+      />
+
+      {nodes.map((n, i) => (
         <motion.path
-          key={`line-${b.key}`}
-          d={`M${orb.x} ${orb.y} Q${(orb.x + b.x) / 2} ${Math.min(orb.y, b.y) - 20} ${b.x} ${b.y + 22}`}
-          stroke={b.accent}
+          key={`line-${n.key}`}
+          d={`M${hub.x} ${hub.y} Q${(hub.x + n.x) / 2} ${Math.min(hub.y, n.y) - 20} ${n.x} ${n.y + 22}`}
+          stroke={n.accent}
           strokeOpacity="0.55"
           strokeWidth="2"
           strokeDasharray="1 6"
@@ -111,68 +129,31 @@ function HeroManagerIllustration() {
         />
       ))}
 
-      <rect x="95" y="150" width="112" height="13" rx="6" fill="#2e2a5c" />
-      <rect x="95" y="150" width="112" height="4" rx="2" fill="#f0abfc" fillOpacity="0.25" />
-
-      <path d="M113 192c-3-34 5-56 27-56h6c22 0 30 22 27 56z" fill="#f5f0ff" />
-      <path d="M119 150c0-14 8-24 21-24s21 10 21 24" fill="#7c3aed" fillOpacity="0.9" />
-      <circle cx="140" cy="112" r="18" fill="#f5f0ff" />
-      <path d="M122 104c0-11 8-19 18-19s18 8 18 19c-6-4-13-6-18-6s-12 2-18 6z" fill="#7c3aed" />
-      <circle cx="134" cy="113" r="1.8" fill="#1e1b4b" />
-      <circle cx="146" cy="113" r="1.8" fill="#1e1b4b" />
-      <path d="M134 120c2 2 6 2 8 0" stroke="#1e1b4b" strokeWidth="1.6" strokeLinecap="round" fill="none" />
-
-      <path d="M176 146h14a5 5 0 0 1 5 5v3a6 6 0 0 1-6 6h-13a6 6 0 0 1-6-6v-3a5 5 0 0 1 5-5z" fill="#f0abfc" />
-      <path d="M195 149h3a3 3 0 0 1 0 6h-3" stroke="#f0abfc" strokeWidth="2" fill="none" />
-      {[0, 1].map((i) => (
-        <motion.path
-          key={`steam-${i}`}
-          d={`M${182 + i * 8} 142c2-4-2-6 0-10`}
-          stroke="white"
-          strokeOpacity="0.35"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          fill="none"
-          animate={shouldReduceMotion ? { opacity: 0.3 } : { y: [0, -4, 0], opacity: [0.15, 0.4, 0.15] }}
-          transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, delay: i * 0.4, ease: "easeInOut" }}
-        />
-      ))}
-
-      <rect x="128" y="110" width="48" height="34" rx="5" fill="#1e1b4b" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" />
-      {[0, 1, 2].map((i) => (
-        <rect key={`bar-${i}`} x={140 + i * 9} y={136 - (i + 1) * 6} width="5" height={(i + 1) * 6} rx="1.5" fill="url(#mgr-monitor-bars)" />
-      ))}
-
+      {/* central hub -- the brand shield-and-signal mark, scaled up (same
+          proportions as public/brand/mark-*-blue.svg's shield+signal glyph:
+          gradient shield fill, solid white signal glyph on top), so the
+          hero literally is the logo watching over the network. */}
+      <path d={shieldPath} fill="url(#net-illo-shield)" />
+      <path d="M109.37 98.53a46.22 46.22 0 0 1 61.26 0" stroke="#ffffff" strokeWidth="9.14" strokeLinecap="round" fill="none" opacity="0.75" />
+      <path d="M121.73 113.58a26.87 26.87 0 0 1 36.54 0" stroke="#ffffff" strokeWidth="9.14" strokeLinecap="round" fill="none" />
       <motion.circle
-        cx={orb.x} cy={orb.y} r="9" fill="#22d3ee" filter="url(#mgr-illo-glow)"
-        animate={shouldReduceMotion ? { opacity: 0.35 } : { opacity: [0.2, 0.45, 0.2], scale: [1, 1.25, 1] }}
+        cx="140" cy="127.01" r="7.26" fill="#ffffff"
+        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: [0.75, 1, 0.75] }}
         transition={shouldReduceMotion ? undefined : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
       />
-      <circle cx={orb.x} cy={orb.y} r="5" fill="#22d3ee" />
 
-      <g transform={`translate(${badges[0].x}, ${badges[0].y})`}>
-        <rect width="54" height="46" rx="12" fill="#2e2a5c" stroke="white" strokeOpacity="0.12" />
-        <path d="M15 20h18a4 4 0 0 1 4 4v3a9 9 0 0 1-9 9h-8a9 9 0 0 1-9-9v-3a4 4 0 0 1 4-4z" fill="#f0abfc" />
-        <path d="M37 22h3a3 3 0 0 1 0 6h-3" stroke="#f0abfc" strokeWidth="2" fill="none" />
-        <path d="M20 14c1-2-1-3 0-5" stroke="white" strokeOpacity="0.4" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-      </g>
-
-      <g transform={`translate(${badges[1].x}, ${badges[1].y})`}>
-        <rect width="54" height="46" rx="12" fill="#2e2a5c" stroke="white" strokeOpacity="0.12" />
-        <rect x="14" y="10" width="26" height="28" rx="3" fill="#22d3ee" />
-        <rect x="19" y="16" width="4" height="4" fill="#1e1b4b" />
-        <rect x="27" y="16" width="4" height="4" fill="#1e1b4b" />
-        <rect x="19" y="24" width="4" height="4" fill="#1e1b4b" />
-        <rect x="27" y="24" width="4" height="4" fill="#1e1b4b" />
-        <rect x="23" y="32" width="8" height="6" fill="#1e1b4b" />
-      </g>
-
-      <g transform={`translate(${badges[2].x}, ${badges[2].y})`}>
-        <rect width="54" height="46" rx="12" fill="#2e2a5c" stroke="white" strokeOpacity="0.12" />
-        <rect x="12" y="16" width="30" height="18" rx="2" fill="#a78bfa" />
-        <rect x="16" y="20" width="22" height="10" rx="1" fill="#1e1b4b" />
-        <rect x="10" y="34" width="34" height="4" rx="2" fill="#a78bfa" fillOpacity="0.6" />
-      </g>
+      {/* three location nodes -- a pin + rising signal bars each, standing
+          in for "your venues" without a literal building/venue-type icon */}
+      {nodes.map((n) => (
+        <g key={`badge-${n.key}`} transform={`translate(${n.x}, ${n.y})`}>
+          <rect width="54" height="46" rx="12" fill="#2e2a5c" stroke="white" strokeOpacity="0.12" />
+          <path d="M20 30c-6-8-9-14-9-19a9 9 0 0 1 18 0c0 5-3 11-9 19z" fill={n.accent} />
+          <circle cx="20" cy="11" r="3.4" fill="#1e1b4b" />
+          {[0, 1, 2].map((i) => (
+            <rect key={`bar-${i}`} x={34 + i * 6} y={30 - (i + 1) * 5} width="4" height={(i + 1) * 5} rx="1.2" fill={n.accent} fillOpacity={0.45 + i * 0.22} />
+          ))}
+        </g>
+      ))}
     </svg>
   );
 }
