@@ -14,7 +14,19 @@ export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: ({ context, location }) => {
     if (context.auth?.status === "anonymous") {
-      throw redirect({ to: "/login", search: { redirect: location.href } });
+      // This layout also serves Platform Console pages (e.g.
+      // /routers/$routerId) that live outside the /master/* route tree
+      // but are only ever reached on master.wyfyguest.com -- an
+      // unauthenticated visit there (a stale/expired session, or a
+      // direct link opened cold) used to unconditionally bounce to
+      // /login, the CUSTOMER sign-in form, on the master hostname. Safe
+      // to read window here: this route is ssr:false, so beforeLoad only
+      // ever runs client-side, no hydration-mismatch risk.
+      const isMasterHost = typeof window !== "undefined" && window.location.hostname === "master.wyfyguest.com";
+      throw redirect({
+        to: isMasterHost ? "/master-login" : "/login",
+        search: { redirect: location.href },
+      });
     }
   },
   component: AuthenticatedLayout,

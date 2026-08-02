@@ -4,7 +4,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import {
   Search, Power, RefreshCw, ArrowUpCircle, RotateCcw, Network, Shield, Waypoints,
-  MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2,
+  MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -600,9 +600,20 @@ function RouterFleetScreen() {
           demo ? (
             <MButton variant="primary" className="w-full justify-center" onClick={() => act(`Opening remote console for ${sel.name}`)}><TerminalSquare /> Open Remote Console</MButton>
           ) : (
-            <Link to="/master/console" className="w-full">
-              <MButton variant="primary" className="w-full justify-center"><TerminalSquare /> Open Device Console</MButton>
-            </Link>
+            <div className="flex w-full gap-2">
+              {/* WinBox/RouterOS credentials + the WebFig-in-browser web
+               * console both live on this router's own detail page
+               * (RouterDetailTabs.tsx's "Remote access" card, WireGuard
+               * tab) rather than duplicating that UI here -- this is
+               * just the door to it, since Router Fleet's own drawer
+               * doesn't have that RB750r2 tunnel-IP-scoped panel. */}
+              <Link to="/routers/$routerId" params={{ routerId: sel.id }} search={{ tab: "wireguard" }} className="flex-1">
+                <MButton variant="outline" className="w-full justify-center"><Globe /> Remote access</MButton>
+              </Link>
+              <Link to="/master/console" className="flex-1">
+                <MButton variant="primary" className="w-full justify-center"><TerminalSquare /> Open Device Console</MButton>
+              </Link>
+            </div>
           )
         )}
       >
