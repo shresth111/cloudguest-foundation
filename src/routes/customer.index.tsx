@@ -439,14 +439,6 @@ function CustomerHomePage() {
                 <div className="flex items-start gap-3">
                   <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
                     <LocationIcon className="h-5 w-5 text-white" />
-                    {loc.status === "online" && (
-                      <motion.span
-                        aria-hidden
-                        className="absolute inset-0 rounded-xl ring-2 ring-emerald-400"
-                        animate={{ opacity: [0.5, 0, 0.5], scale: [1, 1.18, 1] }}
-                        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                      />
-                    )}
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
                     <p className="truncate text-lg font-semibold text-white" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{loc.name}</p>
