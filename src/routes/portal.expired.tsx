@@ -39,10 +39,7 @@ function ExpiredPage() {
           <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-50 text-amber-500">
             <Clock className="h-10 w-10" />
           </div>
-          <h1
-            className="mt-5 text-2xl font-bold text-slate-900"
-            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-          >
+          <h1 className="font-display mt-5 text-2xl font-bold tracking-tight text-slate-900">
             {t("sessionExpired")}
           </h1>
           <p className="mt-1 text-sm text-slate-500">You've been disconnected from the network.</p>

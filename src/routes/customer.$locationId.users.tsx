@@ -144,7 +144,7 @@ function CustomerUsersPage() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Users className="h-4 w-4 text-white" /></div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Total guests</p>
-                  <p className="text-lg font-bold tabular-nums leading-tight">{data.total.toLocaleString()}</p>
+                  <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">{data.total.toLocaleString()}</p>
                 </div>
               </div>
             )}
@@ -156,7 +156,7 @@ function CustomerUsersPage() {
 
             <div className="rounded-2xl overflow-x-auto premium-card">
               <Table>
-                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Duration</TableHead><TableHead className="text-xs font-medium uppercase hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead><TableHead className="text-xs font-medium uppercase text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
                   : !data || data.users.length === 0 ? (

@@ -511,7 +511,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         <div className="relative grid items-center gap-6 md:grid-cols-[1fr_auto]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Reach every guest who connects</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>Campaign</h2>
+            <h2 className="font-display mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Campaign</h2>
             <p className="mt-1 max-w-md text-sm text-white/70">Reach, survey, and re-engage guests over your WiFi.</p>
             <div className="relative mt-5 flex flex-wrap items-center gap-2">
               {/* Popover instead of a hand-rolled absolutely-positioned div --
@@ -647,7 +647,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setShowCreate(false)}>
           <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold">Create Campaign</h3>
+            <h3 className="text-base font-semibold tracking-tight">Create Campaign</h3>
             <p className="mb-4 text-xs text-muted-foreground">This helps you to create different types of campaigns.</p>
             <div className="space-y-3">
               <div>
@@ -685,7 +685,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closeManage}>
           <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="font-semibold">Manage Questions — {manageFor.name}</h3>
+              <h3 className="text-base font-semibold tracking-tight">Manage Questions — {manageFor.name}</h3>
               <button onClick={closeManage} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">Guests answer these when this survey campaign is shown at login.</p>
@@ -737,7 +737,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={closePreview}>
           <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="font-semibold">Guest Preview — {previewFor.name}</h3>
+              <h3 className="text-base font-semibold tracking-tight">Guest Preview — {previewFor.name}</h3>
               <button onClick={closePreview} className="rounded-lg p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
             </div>
             <p className="mb-3 text-xs text-muted-foreground">
@@ -765,7 +765,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                     <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white shadow-lg" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}>
                       {previewFor.type === "SURVEY" ? <MessageSquareText className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
                     </div>
-                    <h4 className="mt-2 text-sm font-bold leading-tight" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>
+                    <h4 className="font-display mt-2 text-sm font-bold tracking-tight leading-tight">
                       {previewFor.type === "SURVEY" ? "Quick feedback?" : "Welcome!"}
                     </h4>
                     <p className="mt-0.5 text-[10px] text-slate-500">
@@ -863,7 +863,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
               description={filtersActive ? "No campaigns match your search." : "Create a campaign above to reach guests over your WiFi."}
             />
           ) : (
-          <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Impressions</TableHead><TableHead>Conversions</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+          <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">Name</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Type</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Impressions</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Conversions</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
           <TableBody>
             {filtered.map(c => (
               <TableRow key={c.id} className="border-b">

@@ -115,10 +115,7 @@ function BrandPanel({ venueName }: { venueName?: string }) {
       <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700 backdrop-blur">
         <Wifi className="h-3.5 w-3.5" /> Guest network
       </span>
-      <h2
-        className="mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]"
-        style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-      >
+      <h2 className="font-display mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]">
         Fast, secure WiFi{venueName ? <>, courtesy of {venueName}</> : null}.
       </h2>
       <p className="mt-5 max-w-md text-[16px] leading-relaxed text-slate-500">

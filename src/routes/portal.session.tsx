@@ -245,10 +245,7 @@ function SessionPage() {
       <div className="flex flex-1 flex-col gap-5">
         <div className="text-center">
           <ConnectedIllustration className="mx-auto h-28 w-auto sm:h-32" />
-          <h1
-            className="mt-3 text-2xl font-bold text-slate-900"
-            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-          >
+          <h1 className="font-display mt-3 text-2xl font-bold tracking-tight text-slate-900">
             {t("connectedTitle")}
           </h1>
           <p className="mt-1 text-sm text-slate-500">{t("connectedSubtitle")}</p>

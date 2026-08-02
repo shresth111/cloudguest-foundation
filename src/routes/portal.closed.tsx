@@ -25,10 +25,7 @@ function ClosedPage() {
           <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-slate-100 text-slate-500">
             <Moon className="h-10 w-10" />
           </div>
-          <h1
-            className="mt-5 text-2xl font-bold text-slate-900"
-            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-          >
+          <h1 className="font-display mt-5 text-2xl font-bold tracking-tight text-slate-900">
             {config?.name ? `${config.name} is currently closed` : "Currently closed"}
           </h1>
         </div>

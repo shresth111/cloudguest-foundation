@@ -412,10 +412,7 @@ export function GuestSignInCard() {
           alt=""
           className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
         />
-        <h1
-          className="mt-4 text-[26px] font-bold leading-tight text-slate-900"
-          style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-        >
+        <h1 className="font-display mt-4 text-[26px] font-bold tracking-tight leading-tight text-slate-900">
           {heading}
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">{subtext}</p>
@@ -586,8 +583,7 @@ export function GuestSignInCard() {
                             <InputOTPSlot
                               key={i}
                               index={i}
-                              className="h-14 w-11 rounded-2xl border-slate-200 bg-white text-xl font-semibold text-slate-900 shadow-none transition-all duration-150 first:rounded-2xl last:rounded-2xl"
-                              style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
+                              className="font-display h-14 w-11 rounded-2xl border-slate-200 bg-white text-xl font-semibold tabular-nums text-slate-900 shadow-none transition-all duration-150 first:rounded-2xl last:rounded-2xl"
                             />
                           ))}
                         </InputOTPGroup>

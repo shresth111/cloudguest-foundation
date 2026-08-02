@@ -405,10 +405,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
                 transition={{ delay: i * 0.06 }}
               >
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
-                <p
-                  className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl sm:leading-none"
-                  style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-                >
+                <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl sm:leading-none">
                   {k.value}
                 </p>
                 {k.context && <p className="mt-1.5 text-xs font-medium text-white/60">{k.context}</p>}
@@ -708,12 +705,12 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs font-medium">User</TableHead>
-                  <TableHead className="hidden text-xs font-medium sm:table-cell">Phone</TableHead>
-                  <TableHead className="hidden text-xs font-medium sm:table-cell">MAC</TableHead>
-                  <TableHead className="text-xs font-medium">Duration</TableHead>
-                  <TableHead className="text-xs font-medium">Download</TableHead>
-                  <TableHead className="text-xs font-medium">Status</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead>
+                  <TableHead className="hidden text-xs font-medium uppercase tracking-wide sm:table-cell">Phone</TableHead>
+                  <TableHead className="hidden text-xs font-medium uppercase tracking-wide sm:table-cell">MAC</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">Download</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -853,7 +850,7 @@ function DevicesView({ locationId, masked }: { locationId: string; masked: boole
           <EmptyState icon={Wifi} title="No connected devices yet" description="Devices that connect to this location's network will show up here." />
         ) : (
           <Table>
-            <TableHeader><TableRow><TableHead className="text-xs font-medium">MAC</TableHead><TableHead className="text-xs font-medium">IP</TableHead><TableHead className="text-xs font-medium">Device</TableHead><TableHead className="text-xs font-medium">First Seen</TableHead><TableHead className="text-xs font-medium">Last Seen</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">IP</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">First Seen</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Last Seen</TableHead></TableRow></TableHeader>
             <TableBody>
               {devices.map((d) => (
                 <TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{masked ? maskMac(d.m) : d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>

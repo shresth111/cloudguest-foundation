@@ -283,10 +283,7 @@ function CustomerHomePage() {
           <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Every location, watched live</p>
-              <h1
-                className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl"
-                style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-              >
+              <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">
                 Which venue are we looking after today?
               </h1>
 
@@ -309,10 +306,7 @@ function CustomerHomePage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.3 + i * 0.1, ease: "easeOut" }}
                     >
-                      <p
-                        className="text-2xl font-bold tabular-nums"
-                        style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-                      >
+                      <p className="font-display text-2xl font-bold tracking-tight tabular-nums">
                         <CountUp target={s.value} />
                       </p>
                       <p className="text-xs text-white/60">{s.label}</p>
@@ -414,14 +408,14 @@ function CustomerHomePage() {
                     <LocationIcon className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
-                    <p className="truncate text-lg font-semibold text-white" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{loc.name}</p>
+                    <p className="font-display truncate text-lg font-semibold tracking-tight text-white">{loc.name}</p>
                     <p className="text-xs text-white/50">{loc.city} · {loc.organizationName}</p>
                   </div>
                 </div>
 
                 <div className="mt-4 flex items-end justify-between">
                   <div>
-                    <p className="text-2xl font-bold tabular-nums text-white" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{loc.onlineUsers}</p>
+                    <p className="font-display text-2xl font-bold tracking-tight tabular-nums text-white">{loc.onlineUsers}</p>
                     <p className="text-[11px] text-white/45">guests online</p>
                   </div>
                   <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold", statusPill)}>

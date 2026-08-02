@@ -651,7 +651,7 @@ function CustomerDashboardPage() {
                       ].map((k, i) => (
                         <motion.div key={k.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
-                          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl sm:leading-none" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{k.value}</p>
+                          <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl sm:leading-none">{k.value}</p>
                           {k.context && <p className="mt-1 text-xs font-medium text-white/60">{k.context}</p>}
                         </motion.div>
                       ))}
@@ -776,7 +776,7 @@ function CustomerDashboardPage() {
                         {d.recentUsers.length === 0 ? (
                           <p className="px-6 py-8 text-center text-xs text-muted-foreground">No guests have connected yet — check back once someone joins the network.</p>
                         ) : (
-                          <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Time</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead></TableRow></TableHeader>
+                          <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Time</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead></TableRow></TableHeader>
                           <TableBody>{d.recentUsers.map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table>
                         )}
                       </CardContent>

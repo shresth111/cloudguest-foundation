@@ -515,15 +515,15 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
               </div>
             </CardHeader>
             <CardContent>
-            <div className="hidden print:block mb-4"><h3 className="text-base font-semibold">{rt?.label}</h3><p className="text-xs text-muted-foreground">{bu} · {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} · {sortedRows.length} rows</p></div>
+            <div className="hidden print:block mb-4"><h3 className="text-base font-semibold tracking-tight">{rt?.label}</h3><p className="text-xs text-muted-foreground">{bu} · {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} · {sortedRows.length} rows</p></div>
             <div className="overflow-x-auto rounded-xl border">
               <Table className="min-w-[900px]">
                 <TableHeader><TableRow>{cols.map((c) => {
                   const active = sortKey === c.key;
-                  return <TableHead key={c.key} className={cn("text-xs font-medium cursor-pointer select-none print:cursor-default", c.key === "rank" && "w-8")} onClick={() => toggleSort(c.key)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                  return <TableHead key={c.key} className={cn("text-xs font-medium uppercase tracking-wide cursor-pointer select-none print:cursor-default", c.key === "rank" && "w-8")} onClick={() => toggleSort(c.key)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                     <span className="inline-flex items-center gap-1">{c.label}{active ? <ChevronUp className="h-3 w-3 text-primary print:hidden" /> : null}</span>
                   </TableHead>;
-                })}<TableHead className="text-right text-xs font-medium print:hidden">Actions</TableHead></TableRow></TableHeader>
+                })}<TableHead className="text-right text-xs font-medium uppercase tracking-wide print:hidden">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>{paged.map((r, i) => (
                   <TableRow key={i} className="border-b">
                     {cols.map((c) => (
@@ -599,7 +599,7 @@ export default function UserReports({ masked = true }: { masked?: boolean } = {}
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Your data, on demand</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>Reports</h1>
+            <h1 className="font-display mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Reports</h1>
             <p className="mt-1 text-sm text-white/70">Run and export usage, voucher, campaign, data, and SMS reports.</p>
           </div>
         </div>

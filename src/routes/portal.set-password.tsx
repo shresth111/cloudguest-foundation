@@ -99,10 +99,7 @@ function SetPasswordPage() {
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
             <KeyRound className="h-6 w-6" />
           </div>
-          <h1
-            className="mt-4 text-2xl font-bold text-slate-900"
-            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-          >
+          <h1 className="font-display mt-4 text-2xl font-bold tracking-tight text-slate-900">
             {t("setPasswordTitle")}
           </h1>
           <p className="mt-1 text-sm text-slate-500">{t("setPasswordSubtitle")}</p>

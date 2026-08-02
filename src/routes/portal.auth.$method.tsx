@@ -149,10 +149,7 @@ function AuthMethodPage() {
               <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
             </div>
           )}
-          <h1
-            className="mt-4 text-[26px] font-bold leading-tight text-slate-900"
-            style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
-          >
+          <h1 className="font-display mt-4 text-[26px] font-bold tracking-tight leading-tight text-slate-900">
             {t(titleKey)}
           </h1>
           <p className="mt-1.5 text-sm text-slate-500">Complete the form below to get online.</p>
