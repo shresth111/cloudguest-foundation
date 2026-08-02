@@ -303,7 +303,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
              * shared /brand/*.svg files, which stay white everywhere else
              * this mark is used. */}
             <svg viewBox="0 0 149 149" className="h-7 w-7" fill="none" aria-hidden="true">
-              <g stroke="#34d399" fill="none" strokeLinecap="round">
+              <g stroke="#FFFFFF" fill="none" strokeLinecap="round">
                 <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
                 <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
                 <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />
@@ -406,7 +406,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
               <svg viewBox="0 0 149 149" className="h-5 w-5" fill="none" aria-hidden="true">
-                <g stroke="#34d399" fill="none" strokeLinecap="round">
+                <g stroke="#FFFFFF" fill="none" strokeLinecap="round">
                   <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
                   <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
                   <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />

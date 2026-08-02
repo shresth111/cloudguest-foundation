@@ -49,7 +49,7 @@ export function CustomerSidebar({
       <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
         <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm">
           <svg viewBox="0 0 149 149" className="h-5 w-5" fill="none" aria-hidden="true">
-            <g stroke="#34d399" fill="none" strokeLinecap="round">
+            <g stroke="#FFFFFF" fill="none" strokeLinecap="round">
               <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
               <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
               <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />

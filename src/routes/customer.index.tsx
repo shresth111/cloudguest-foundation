@@ -266,7 +266,7 @@ function CustomerHomePage() {
             <div className="flex items-center gap-3">
               <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
                 <svg viewBox="0 0 149 149" className="h-5 w-5" fill="none" aria-hidden="true">
-                  <g stroke="#34d399" fill="none" strokeLinecap="round">
+                  <g stroke="#FFFFFF" fill="none" strokeLinecap="round">
                     <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
                     <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
                     <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />
