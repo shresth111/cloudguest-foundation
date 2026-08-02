@@ -185,6 +185,14 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // The static InitialLoader in RootShell has no removal logic of its own
+  // -- it's plain HTML rendered before React exists to remove it. Once this
+  // component actually mounts, real content is ready, so the loader's job
+  // is done.
+  useEffect(() => {
+    document.getElementById("initial-loader")?.remove();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
