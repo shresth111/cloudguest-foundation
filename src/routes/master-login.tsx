@@ -338,7 +338,7 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Operator email</Label>
-                <Input id="email" type="email" placeholder="operator@zipwifi.io" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus />
+                <Input id="email" type="email" placeholder="operator@wyfyguest.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password">Password</Label>

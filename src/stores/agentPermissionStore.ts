@@ -43,7 +43,7 @@ const SEED_ROLES: AgentRole[] = [
 
 const SEED_AGENTS: AgentRecord[] = [
   { id: "ag-1", name: "Front Desk", email: "frontdesk@stay.com", mobile: "+919876543210", status: "active", dataMasking: true, roleId: "role-front-desk", locations: ["Marina Bay Hotel"] },
-  { id: "ag-2", name: "Network Engineer", email: "neteng@stay.com", mobile: "+919812345678", status: "active", dataMasking: false, roleId: "role-net-eng", locations: LOCATIONS },
+  { id: "ag-2", name: "Network Engineer", email: "neteng@stay.com", mobile: "+919812345678", status: "active", dataMasking: true, roleId: "role-net-eng", locations: LOCATIONS },
   { id: "ag-3", name: "Marketing", email: "marketing@stay.com", mobile: "+919900001111", status: "active", dataMasking: true, roleId: "role-marketing", locations: ["Marina Bay Hotel", "Downtown CoWork"] },
 ];
 
