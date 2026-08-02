@@ -119,6 +119,41 @@ export const Route = createRootRouteWithContext<{
   errorComponent: ErrorComponent,
 });
 
+// Renders synchronously with the raw HTML, before any JS bundle loads or
+// React hydrates -- eliminates the blank white flash that routes with
+// `ssr: false` (e.g. /portal, seen by guests on a fresh WiFi connection,
+// often on slow first-hop mobile data) would otherwise show for as long as
+// the JS bundle takes to arrive. `RootComponent`'s own mount effect removes
+// this node once real content is ready to take over.
+function InitialLoader() {
+  return (
+    <div
+      id="initial-loader"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f8fafc",
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: "9999px",
+          border: "3px solid rgba(79,70,229,0.15)",
+          borderTopColor: "#4f46e5",
+          animation: "initial-loader-spin 0.7s linear infinite",
+        }}
+      />
+      <style>{"@keyframes initial-loader-spin{to{transform:rotate(360deg)}}"}</style>
+    </div>
+  );
+}
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
@@ -126,6 +161,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <InitialLoader />
         {children}
         <Scripts />
       </body>
