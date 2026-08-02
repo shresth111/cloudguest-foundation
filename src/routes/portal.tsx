@@ -100,7 +100,21 @@ function IncompletePortalLinkError() {
 }
 
 export const Route = createFileRoute("/portal")({
-  ssr: false,
+  // Was `ssr: false` from this route's very first commit (7c09a9c) --
+  // there is no comment or blocker recorded for it, and an audit of every
+  // window/document/localStorage/sessionStorage access anywhere under
+  // /portal (this file, PortalRuntimeContext, GuestSignInCard, PortalShell,
+  // portal.success/redirect/team/etc.) shows every single one is already
+  // guarded (`typeof window === "undefined"`) or confined to an effect/
+  // event handler -- never at module scope or in a render body -- so there
+  // is nothing here that actually requires a browser to evaluate. With
+  // `ssr: false`, a guest's very first response for this page was an empty
+  // `<body>` (just the app-wide `InitialLoader` spinner) until the full JS
+  // bundle downloaded, parsed, executed, and hydrated -- on the weak/
+  // cellular connection a guest is often still on mid-handoff, that is
+  // exactly the "noticeably long blank screen" the founder saw live.
+  // Enabling SSR lets the server send real, branded markup (this route's
+  // actual loading/welcome screen) in the first response instead.
   validateSearch: searchSchema,
   head: () => ({
     meta: [
