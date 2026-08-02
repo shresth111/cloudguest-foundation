@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { demoRequestService } from "@/services/demo-request.service";
 import type { AppError } from "@/services/api";
 
@@ -84,38 +85,82 @@ export function maskMac(mac: string): string {
   return mac;
 }
 
-/** Read-only PII-masking status indicator -- *not* a self-service reveal
- * control. Previously this rendered an "unmask" dialog that accepted any
- * 6-digit string as an "OTP" (the correct code was printed on the dialog
- * itself, "Demo OTP: 123456") and, on "verifying", just flipped local
- * React state -- no backend call at all. That was actively misleading,
- * not just unfinished: the backend's own masking policy
- * (``app.domains.user.schemas``'s ``data_masking_enabled`` -- "True
- * (masked) is the default for every account -- administrators explicitly
- * flip this to False for privileged users, never the other way around
- * via self-service") makes self-service PII unmasking a capability that
- * cannot legitimately exist on this, the customer's own dashboard --
- * mirroring the same customer/admin boundary already drawn for
- * WireGuard internals. Faking a working OTP gate for a privilege the
- * account holder can never actually be granted here is worse than not
- * offering the control at all, so this now just states the real,
- * server-enforced policy and never flips ``masked`` to false. */
-export function OtpMaskToggle({ masked = true, className }: { masked?: boolean; setMasked?: (fn: (m: boolean) => boolean) => void; className?: string }) {
+/** Self-service PII-masking toggle. Click sends a real OTP (see
+ * `useDataMasking` in `useCustomerDashboard.ts`) and opens
+ * `DataMaskingOtpDialog` to collect it -- the actual state flip only
+ * happens once that code verifies. Two earlier revisions got this wrong in
+ * opposite directions: one faked the OTP entirely (accepted any 6-digit
+ * string, the correct code printed on the dialog itself); the next
+ * over-corrected into a read-only tag with no self-service path at all,
+ * on the theory that the backend's ``data_masking_enabled`` field is
+ * "administrator-only." That theory didn't survive contact with the
+ * actual endpoint though (see ``app.domains.user.router``'s ``/me/data-
+ * masking`` docstring) -- there's no reason this can't be a real,
+ * OTP-verified self-service control, so now it is one. */
+export function OtpMaskToggle({ masked = true, onClick, loading, className }: { masked?: boolean; onClick?: () => void; loading?: boolean; className?: string }) {
   return (
     <button
       type="button"
+      disabled={loading}
+      onClick={onClick}
       title={masked
-        ? "Sensitive data is masked per your organization's security policy. Only an administrator can change this from the admin console."
-        : "This account has been granted unmasked access by an administrator. This is a privileged, admin-controlled setting -- not something you can toggle here."}
-      onClick={() => toast.info(masked
-        ? "Sensitive data is masked per your organization's security policy. Only an administrator can change this, for a specific account, from the admin console."
-        : "This account currently sees unmasked data, set by an administrator. Contact them to change it.")}
-      className={className ?? `${MASK_TAG_BASE} mr-1 ${masked ? "text-slate-300" : "text-sky-300"}`}
+        ? "Sensitive guest data is masked. Click to verify and show it unmasked."
+        : "Guest data is shown unmasked for this account. Click to mask it again."}
+      className={className ?? `${MASK_TAG_BASE} mr-1 transition-colors hover:bg-slate-500/20 disabled:opacity-60 ${masked ? "text-slate-300" : "text-sky-300"}`}
       style={{ clipPath: MASK_TAG_CLIP }}
     >
-      {masked ? <Shield className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : masked ? <Shield className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
       {masked ? "Data masked" : "Data visible"}
     </button>
+  );
+}
+
+/** The OTP-entry dialog `OtpMaskToggle` opens. Purely a controlled
+ * presentational shell -- all the actual send/verify logic (and the demo-
+ * vs-real branching) lives in `useDataMasking`; this just renders whatever
+ * state that hook is in. */
+export function DataMaskingOtpDialog({
+  open, maskingOn, sentTo, verifying, onVerify, onCancel,
+}: {
+  open: boolean;
+  /** The masking state being switched TO, for copy purposes only. */
+  maskingOn: boolean | null;
+  /** e.g. "via sms to +91••••••210" or "via email to ad••••@example.com" --
+   * the backend's own message (or, in demo mode, an equivalent client-built
+   * string), so this dialog never has to guess which channel was used. */
+  sentTo?: string | null;
+  verifying: boolean;
+  onVerify: (code: string) => Promise<boolean>;
+  onCancel: () => void;
+}) {
+  const [code, setCode] = useState("");
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setCode(""); onCancel(); } }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Verify it's you</DialogTitle>
+          <DialogDescription>
+            Enter the 6-digit code sent {sentTo ?? "to your registered mobile/email"} to {maskingOn ? "mask" : "unmask"} guest data on this dashboard.
+          </DialogDescription>
+        </DialogHeader>
+        <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
+          <InputOTPGroup className="mx-auto">
+            {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
+          </InputOTPGroup>
+        </InputOTP>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={() => { setCode(""); onCancel(); }} disabled={verifying}>Cancel</Button>
+          <Button
+            disabled={code.length !== 6 || verifying}
+            onClick={async () => { const ok = await onVerify(code); if (!ok) setCode(""); }}
+          >
+            {verifying ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+            Verify
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

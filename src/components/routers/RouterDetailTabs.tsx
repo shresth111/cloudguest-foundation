@@ -8,10 +8,13 @@ import {
   CheckCircle2,
   Copy,
   DatabaseBackup,
+  Eye,
+  EyeOff,
   FileText,
   Gauge,
   History,
   KeyRound,
+  Loader2,
   Network,
   RefreshCw,
   RotateCw,
@@ -25,6 +28,7 @@ import {
   Wifi,
   Workflow,
 } from "lucide-react";
+import { routerService } from "@/services/router.service";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1496,6 +1500,23 @@ export function buildRouterSetupScript(opts: {
     lines.push(`:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`);
     lines.push(`  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`);
     lines.push(`}`);
+    // The tunnel is only ever reachable by the platform's own WireGuard hub
+    // (a single trusted peer, not the public internet) -- treating it as a
+    // management-trusted interface, the same as cloudguest-fw-allow-lan
+    // above, is what makes WinBox/API remote access to this router
+    // actually work once RouterOS has any input-chain firewall rules at
+    // all. Without this, remote access happens to work today only because
+    // the generated ruleset never adds a final default-drop -- traffic
+    // from an interface matched by no rule just falls through to accept.
+    // That's fragile (a future stricter default policy would silently cut
+    // off remote management with no rule anyone would think to blame), so
+    // this makes the real intent an explicit, permanent rule instead of an
+    // accident of what the ruleset happens to not block yet.
+    if (enableFirewall) {
+      lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`);
+      lines.push(`  /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`);
+      lines.push(`}`);
+    }
   }
 
   if (radius) {
@@ -1857,6 +1878,17 @@ export function buildRouterSetupScriptChunks(opts: {
       `:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`,
       `  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`,
       `}`,
+      // See buildRouterSetupScript's identical rule for why this is needed:
+      // the tunnel is only ever reachable by the platform's own WireGuard
+      // hub, so treating it as management-trusted (like the LAN rule) is
+      // what makes WinBox/API remote access actually work once any
+      // input-chain firewall rules exist, rather than relying on an
+      // accident of the ruleset never adding a final default-drop.
+      ...(enableFirewall ? [
+        `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`,
+        `  /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
+        `}`,
+      ] : []),
     ];
     chunks.push({ label: "WireGuard Tunnel", script: lines.join("\n") });
   }
@@ -2212,7 +2244,72 @@ function WireGuardTab({ routerId }: { routerId: string }) {
           )}
         </CardContent>
       </Card>
+
+      {peer && <RemoteAccessCard routerId={routerId} />}
     </div>
+  );
+}
+
+/**
+ * WinBox/RouterOS-API connection details for an operator who needs to
+ * reach this specific device directly (e.g. from WinBox, outside this
+ * console) -- only reachable at all via the WireGuard tunnel above, since
+ * these routers sit behind NAT/CGNAT at the venue. Credentials stay
+ * hidden until explicitly revealed: `GET /routers/{id}/device-connection`
+ * is `routers.manage`-gated AND audited server-side
+ * (`AuditAction.ROUTER_CREDENTIALS_REVEALED`) precisely because this is a
+ * real secret, not metadata -- so this component never fetches it
+ * eagerly or caches it in a query, only on an explicit click, matching
+ * the endpoint's own "who saw this and when" intent.
+ */
+function RemoteAccessCard({ routerId }: { routerId: string }) {
+  const [conn, setConn] = useState<{ host: string | null; username: string | null; password: string | null } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  async function reveal() {
+    setLoading(true);
+    try {
+      const data = await routerService.getDeviceConnection(routerId);
+      setConn(data);
+      setRevealed(true);
+    } catch (err) {
+      toast.error((err as unknown as AppError).message || "Failed to fetch connection details");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card className="rounded-2xl border-border/70">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base">Remote access</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            WinBox/RouterOS API login for this device, reachable only over the tunnel above.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => (revealed ? setRevealed(false) : reveal())}
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          <span className="ml-2">{revealed ? "Hide" : "Reveal"}</span>
+        </Button>
+      </CardHeader>
+      {revealed && conn && (
+        <CardContent className="space-y-2">
+          <KeyRow label="Connect to (WinBox / API)" value={conn.host ?? "Not available -- no reported management IP yet"} />
+          <KeyRow label="Login" value={conn.username ?? "—"} />
+          <KeyRow label="Password" value={conn.password ?? "—"} />
+          <p className="text-xs text-muted-foreground">
+            Only reachable from a machine on the WireGuard tunnel network -- viewing this was just logged to this router's Audit Logs tab.
+          </p>
+        </CardContent>
+      )}
+    </Card>
   );
 }
 

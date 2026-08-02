@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerUsers, useDisconnectSession, useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useCustomerUsers, useDisconnectSession, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
@@ -77,7 +77,8 @@ function CustomerUsersPage() {
   const [page, setPage] = useState(0);
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
-  const [masked, setMasked] = useState(true);
+  const dataMasking = useDataMasking();
+  const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
   const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; device: string; duration: string; download: string; status: string } | null>(null);
@@ -122,8 +123,7 @@ function CustomerUsersPage() {
           title={<p className="truncate text-sm font-semibold">Connected guests · {activeLocation?.name ?? ""}</p>}
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          masked={masked}
-          setMasked={setMasked}
+          dataMasking={dataMasking}
           onMobileMenuClick={() => setMobile(true)}
           onRefresh={() => refetch()}
           user={user}

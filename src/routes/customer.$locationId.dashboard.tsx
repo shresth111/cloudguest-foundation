@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerDashboard, useCustomerLocations, useCustomerUsers, useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useCustomerDashboard, useCustomerLocations, useCustomerUsers, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
@@ -522,7 +522,8 @@ function CustomerDashboardPage() {
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [masked, setMasked] = useState(true);
+  const dataMasking = useDataMasking();
+  const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -591,8 +592,7 @@ function CustomerDashboardPage() {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          masked={masked}
-          setMasked={setMasked}
+          dataMasking={dataMasking}
           onMobileMenuClick={() => setMobile(true)}
           onRefresh={() => refetch()}
           user={user}

@@ -3,7 +3,8 @@ import { Menu, MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucid
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { PlanRenewalTicket, OtpMaskToggle } from "@/components/features/HeaderControls";
+import { PlanRenewalTicket, OtpMaskToggle, DataMaskingOtpDialog } from "@/components/features/HeaderControls";
+import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 interface CustomerHeaderProps {
   /** Left-side content -- each page composes its own (page title, location
@@ -16,8 +17,11 @@ interface CustomerHeaderProps {
    * needs the raw date to compute the real countdown/urgency tier, and
    * formats it for display itself. */
   planExpiryIso?: string;
-  masked: boolean;
-  setMasked: (fn: (m: boolean) => boolean) => void;
+  /** The whole `useDataMasking()` return value, called once by the page and
+   * passed through -- the page also needs `.masked` itself (to thread into
+   * whatever feature view it renders), so the hook can't just live inside
+   * this component alone. */
+  dataMasking: ReturnType<typeof useDataMasking>;
   onMobileMenuClick: () => void;
   /** Shown only on pages that actually have something to refresh. */
   onRefresh?: () => void;
@@ -43,8 +47,7 @@ export function CustomerHeader({
   title,
   locationId,
   planExpiryIso,
-  masked,
-  setMasked,
+  dataMasking,
   onMobileMenuClick,
   onRefresh,
   user,
@@ -74,9 +77,18 @@ export function CustomerHeader({
           rather than a half-shown one. */}
       <PlanRenewalTicket expiryIso={planExpiryIso} className="mr-1 hidden h-9 shrink-0 items-stretch lg:flex" />
       <OtpMaskToggle
-        masked={masked}
-        setMasked={setMasked}
-        className={`hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium lg:inline-flex mr-1 cursor-default ${masked ? "text-slate-300" : "text-sky-300"}`}
+        masked={dataMasking.masked}
+        onClick={dataMasking.requestToggle}
+        loading={dataMasking.sending}
+        className={`hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium transition-colors hover:bg-slate-500/20 disabled:opacity-60 lg:inline-flex mr-1 ${dataMasking.masked ? "text-slate-300" : "text-sky-300"}`}
+      />
+      <DataMaskingOtpDialog
+        open={dataMasking.otpOpen}
+        maskingOn={dataMasking.pendingTarget}
+        sentTo={dataMasking.sentTo}
+        verifying={dataMasking.verifying}
+        onVerify={dataMasking.verifyToggle}
+        onCancel={dataMasking.cancel}
       />
       {onRefresh && (
         <Button variant="ghost" size="icon" className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" onClick={onRefresh}>

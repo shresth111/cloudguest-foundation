@@ -86,15 +86,19 @@ export interface CustomerFeatureData {
 
 /* ── Demo Data ─────────────────────────────────────────────── */
 
+// Every demo location runs a single router (one venue, one gateway --
+// the realistic small-business topology this product actually targets),
+// and ISPs are kept to the two carriers guests will actually recognize
+// (Airtel/Jio) rather than a grab-bag of every regional ISP name.
 const DEMO_LOCATIONS: CustomerLocationSummary[] = [
-  { id: "loc-1", name: "Mumbai HQ", city: "Mumbai", status: "online", onlineUsers: 142, routerHealth: 98, bandwidth: "450 Mbps", isp: "Tata Communications", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 4, routersOnline: 4, sessionsActive: 142, sessionsTotal: 892, propertyType: "office" },
-  { id: "loc-2", name: "Delhi Office", city: "Delhi", status: "online", onlineUsers: 98, routerHealth: 95, bandwidth: "300 Mbps", isp: "Airtel", lastSync: "2 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 3, routersOnline: 3, sessionsActive: 98, sessionsTotal: 456, propertyType: "office" },
-  { id: "loc-3", name: "Bangalore DC", city: "Bangalore", status: "degraded", onlineUsers: 76, routerHealth: 72, bandwidth: "180 Mbps", isp: "Jio", lastSync: "5 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 1, sessionsActive: 76, sessionsTotal: 312, propertyType: "coworking_space" },
-  { id: "loc-4", name: "Chennai Office", city: "Chennai", status: "online", onlineUsers: 54, routerHealth: 99, bandwidth: "250 Mbps", isp: "ACT Fibernet", lastSync: "1 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 54, sessionsTotal: 234, propertyType: "cafe" },
-  { id: "loc-5", name: "Hyderabad DC", city: "Hyderabad", status: "offline", onlineUsers: 0, routerHealth: 0, bandwidth: "0 Mbps", isp: "Airtel", lastSync: "15 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 0, sessionsActive: 0, sessionsTotal: 0, propertyType: "hotel" },
-  { id: "loc-6", name: "Kolkata Office", city: "Kolkata", status: "online", onlineUsers: 32, routerHealth: 91, bandwidth: "200 Mbps", isp: "Tata Communications", lastSync: "3 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 32, sessionsTotal: 156, propertyType: null },
-  { id: "loc-7", name: "Pune Office", city: "Pune", status: "online", onlineUsers: 67, routerHealth: 97, bandwidth: "350 Mbps", isp: "Jio", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 67, sessionsTotal: 345, propertyType: "restaurant" },
-  { id: "loc-8", name: "Ahmedabad DC", city: "Ahmedabad", status: "online", onlineUsers: 89, routerHealth: 93, bandwidth: "280 Mbps", isp: "BSNL", lastSync: "4 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 89, sessionsTotal: 423, propertyType: "hospital" },
+  { id: "loc-1", name: "Mumbai HQ", city: "Mumbai", status: "online", onlineUsers: 142, routerHealth: 98, bandwidth: "450 Mbps", isp: "Airtel", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 142, sessionsTotal: 892, propertyType: "office" },
+  { id: "loc-2", name: "Delhi Office", city: "Delhi", status: "online", onlineUsers: 98, routerHealth: 95, bandwidth: "300 Mbps", isp: "Jio", lastSync: "2 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 98, sessionsTotal: 456, propertyType: "office" },
+  { id: "loc-3", name: "Bangalore DC", city: "Bangalore", status: "degraded", onlineUsers: 76, routerHealth: 72, bandwidth: "180 Mbps", isp: "Jio", lastSync: "5 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 76, sessionsTotal: 312, propertyType: "coworking_space" },
+  { id: "loc-4", name: "Chennai Office", city: "Chennai", status: "online", onlineUsers: 54, routerHealth: 99, bandwidth: "250 Mbps", isp: "Airtel", lastSync: "1 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 54, sessionsTotal: 234, propertyType: "cafe" },
+  { id: "loc-5", name: "Hyderabad DC", city: "Hyderabad", status: "offline", onlineUsers: 0, routerHealth: 0, bandwidth: "0 Mbps", isp: "Airtel", lastSync: "15 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 0, sessionsActive: 0, sessionsTotal: 0, propertyType: "hotel" },
+  { id: "loc-6", name: "Kolkata Office", city: "Kolkata", status: "online", onlineUsers: 32, routerHealth: 91, bandwidth: "200 Mbps", isp: "Jio", lastSync: "3 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 32, sessionsTotal: 156, propertyType: null },
+  { id: "loc-7", name: "Pune Office", city: "Pune", status: "online", onlineUsers: 67, routerHealth: 97, bandwidth: "350 Mbps", isp: "Jio", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 67, sessionsTotal: 345, propertyType: "restaurant" },
+  { id: "loc-8", name: "Ahmedabad DC", city: "Ahmedabad", status: "online", onlineUsers: 89, routerHealth: 93, bandwidth: "280 Mbps", isp: "Airtel", lastSync: "4 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 89, sessionsTotal: 423, propertyType: "hospital" },
 ];
 
 /** Realistic (but fake) guest identities for demo mode -- previously
@@ -322,9 +326,14 @@ export const customerService = {
   /* ── Executive Dashboard ───────────────────────────────── */
   async getDashboard(locationId: string): Promise<DashboardDataResult> {
     if (isDemo()) {
+      // Each location has its own single router and ISP (see DEMO_LOCATIONS)
+      // -- this dashboard used to return one hardcoded Mumbai-shaped snapshot
+      // ("4/4" routers, Tata Communications) no matter which location was
+      // open, so switching locations never changed the "Core systems" strip.
+      const loc = DEMO_LOCATIONS.find((l) => l.id === locationId) ?? DEMO_LOCATIONS[0];
       return {
-        health: { systemHealth: "98%", routersOnline: "4/4", isp: "Tata Communications", networkLoad: "42%" },
-        kpis: { onlineUsers: 1247, activeSessions: 892, routersOnline: 18, totalRouters: 20, todayGuests: 456, avgSession: 34, peakConcurrent: 234, failedLogins: 12, newToday: 89, slaUptime: 99.97 },
+        health: { systemHealth: loc.status === "offline" ? "0%" : `${loc.routerHealth}%`, routersOnline: `${loc.routersOnline}/${loc.routersTotal}`, isp: loc.isp, networkLoad: "42%" },
+        kpis: { onlineUsers: loc.onlineUsers, activeSessions: loc.sessionsActive, routersOnline: loc.routersOnline, totalRouters: loc.routersTotal, todayGuests: 456, avgSession: 34, peakConcurrent: 234, failedLogins: 12, newToday: 89, slaUptime: 99.97 },
         usersTrend: Array.from({ length: 24 }, (_, i) => ({ hour: `${i}`, users: 20 + ((i * 17) % 120) })),
         deviceDistribution: [{ name: "iOS", value: 35 }, { name: "Android", value: 28 }, { name: "Windows", value: 18 }, { name: "macOS", value: 12 }, { name: "Linux", value: 5 }, { name: "Other", value: 2 }],
         hourlySessions: [{ hour: "00", sessions: 45 }, { hour: "04", sessions: 22 }, { hour: "08", sessions: 156 }, { hour: "12", sessions: 289 }, { hour: "16", sessions: 342 }, { hour: "20", sessions: 198 }],
@@ -333,7 +342,7 @@ export const customerService = {
           device: ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop"][i],
           time: `${[2, 5, 12, 18, 25, 32][i]} min ago`, status: i < 5 ? "online" : "offline",
         })),
-        recentAlerts: [{ type: "warning" as const, msg: "Router GW-02 signal degradation", time: "2 min ago" }, { type: "success" as const, msg: "ISP failover completed", time: "8 min ago" }, { type: "error" as const, msg: "Bandwidth threshold at Mumbai HQ", time: "15 min ago" }, { type: "info" as const, msg: "Firmware update for GW-05", time: "22 min ago" }],
+        recentAlerts: [{ type: "warning" as const, msg: "Router signal degradation", time: "2 min ago" }, { type: "success" as const, msg: "ISP failover completed", time: "8 min ago" }, { type: "error" as const, msg: `Bandwidth threshold at ${loc.name}`, time: "15 min ago" }, { type: "info" as const, msg: "Firmware update available", time: "22 min ago" }],
       };
     }
     // Real API composition. Deliberately not routerService.list()/

@@ -383,6 +383,25 @@ export const rbacService = {
     return toUser(data);
   },
 
+  // Self-service data-masking OTP step-up (see backend
+  // app/domains/user/router.py's "/me/data-masking..." endpoints) --
+  // distinct from updateUser() above, which is the admin-on-someone-else
+  // path (or, for AgentsPage.tsx, an owner managing staff). These two
+  // always act on the CALLER's own account; the backend derives the OTP
+  // identifier from the session (SMS to their phone if one's on file,
+  // email otherwise), never a client-supplied id/email/phone. Returns the
+  // backend's own message ("Verification code sent via sms to
+  // +91••••••210") so the UI never has to guess which channel was used.
+  async requestOwnDataMaskingOtp(): Promise<string> {
+    const { data } = await api.post<{ message: string }>("/me/data-masking/otp");
+    return data.message;
+  },
+
+  async verifyOwnDataMaskingOtp(code: string, masked: boolean): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>("/me/data-masking", { code, masked });
+    return toUser(data);
+  },
+
   async activateUser(id: string, organizationId?: string): Promise<RbacUser> {
     const { data } = await api.post<BackendUser>(`/users/${id}/activate`, undefined, {
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,

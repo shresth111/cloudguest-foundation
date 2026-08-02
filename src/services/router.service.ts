@@ -344,6 +344,19 @@ export const routerService = {
     await api.post(`/routers/${routerId}/reboot`);
   },
 
+  /** Decrypted RouterOS connection details for Master Console's "Remote
+   * Access" panel (WinBox/API login) -- `routers.manage`-gated, and every
+   * call is audited server-side (`AuditAction.ROUTER_CREDENTIALS_REVEALED`)
+   * since this hands back a real secret, not just metadata. `host` is the
+   * router's WireGuard tunnel IP when one exists (the only address
+   * reliably reachable for a remote router behind NAT/CGNAT). */
+  async getDeviceConnection(routerId: string): Promise<{ host: string | null; username: string | null; password: string | null }> {
+    const { data } = await api.get<{ host: string | null; username: string | null; password: string | null }>(
+      `/routers/${routerId}/device-connection`,
+    );
+    return data;
+  },
+
   async getDeviceInterfaces(routerId: string, organizationId?: string): Promise<DeviceInterface[]> {
     interface BackendDeviceInterface {
       name: string;

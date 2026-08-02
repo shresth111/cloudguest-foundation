@@ -134,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           lastName: "User",
           name: "Admin User",
           email: creds.email,
+          phone: "+919876543210",
           username: "admin",
           timezone: "Asia/Kolkata",
           language: "en",

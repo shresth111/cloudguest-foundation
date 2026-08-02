@@ -523,13 +523,12 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
                   return <TableHead key={c.key} className={cn("text-xs font-medium uppercase tracking-wide cursor-pointer select-none print:cursor-default", c.key === "rank" && "w-8")} onClick={() => toggleSort(c.key)} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                     <span className="inline-flex items-center gap-1">{c.label}{active ? <ChevronUp className="h-3 w-3 text-primary print:hidden" /> : null}</span>
                   </TableHead>;
-                })}<TableHead className="text-right text-xs font-medium uppercase tracking-wide print:hidden">Actions</TableHead></TableRow></TableHeader>
+                })}</TableRow></TableHeader>
                 <TableBody>{paged.map((r, i) => (
                   <TableRow key={i} className="border-b">
                     {cols.map((c) => (
                       <TableCell key={c.key} className="text-xs text-foreground">{fmtCell(c.key, r[c.key] ?? null)}</TableCell>
                     ))}
-                    <TableCell className="text-right print:hidden"><button className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="View details"><ChevronRight className="h-4 w-4" /></button></TableCell>
                   </TableRow>
                 ))}</TableBody>
               </Table>

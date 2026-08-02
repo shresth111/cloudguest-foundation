@@ -41,7 +41,7 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
-import { useIsDemo, useCustomerDashboard, useCustomerUsers } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerDashboard, useCustomerUsers, useDataMasking } from "@/hooks/useCustomerDashboard";
 import {
   AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -80,7 +80,8 @@ function FeaturePage() {
   const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
-  const [masked, setMasked] = useState(true);
+  const dataMasking = useDataMasking();
+  const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
 
@@ -131,8 +132,7 @@ function FeaturePage() {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          masked={masked}
-          setMasked={setMasked}
+          dataMasking={dataMasking}
           onMobileMenuClick={() => setMobile(true)}
           user={user}
           onSwitchLocation={handleSwitchLocation}
