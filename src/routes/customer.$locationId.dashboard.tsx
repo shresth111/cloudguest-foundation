@@ -564,7 +564,7 @@ function CustomerDashboardPage() {
         mobileOpen={mobile}
         onNavigate={handleNav}
         onToggleCollapsed={() => setSidebar(!sidebar)}
-        subtitle={activeLocation?.name ?? "Portal"}
+        subtitle="Portal"
       />
 
       {/* Main */}

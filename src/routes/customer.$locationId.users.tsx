@@ -108,7 +108,7 @@ function CustomerUsersPage() {
         mobileOpen={mobile}
         onNavigate={handleNav}
         onToggleCollapsed={() => setSidebar(!sidebar)}
-        subtitle={activeLocation?.name ?? "Users"}
+        subtitle="Portal"
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
