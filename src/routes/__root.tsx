@@ -103,12 +103,6 @@ export const Route = createRootRouteWithContext<{
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap",
-      },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon-180.png" },
     ],
@@ -154,6 +148,24 @@ function InitialLoader() {
   );
 }
 
+// Loads the Google Fonts stylesheet AFTER first paint, off the main
+// render path -- a plain <link rel="stylesheet"> in <head> is
+// render-blocking by spec, which is fatal on /portal: a guest hits that
+// page before their device has real internet access (only the captive
+// portal's own walled-garden host is reachable pre-authentication), so a
+// render-blocking request to fonts.googleapis.com would hang for a full
+// browser connection-timeout before anything ever painted. Injecting the
+// link via script after mount means the browser never blocks on it --
+// worst case (guest portal, fonts unreachable) the request just fails
+// quietly in the background and the page already rendered with its
+// system-font fallback.
+const LOAD_FONTS_SCRIPT = `(function(){
+  var l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap";
+  document.head.appendChild(l);
+})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
@@ -164,6 +176,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <InitialLoader />
         {children}
         <Scripts />
+        <script dangerouslySetInnerHTML={{ __html: LOAD_FONTS_SCRIPT }} />
       </body>
     </html>
   );
