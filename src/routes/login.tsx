@@ -297,7 +297,19 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-            <img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" />
+            {/* Login-page-only: signal arcs tinted emerald (matching the
+             * online-status dot) to read as "connected," not the shared
+             * brand mark's neutral white -- deliberately not edited in the
+             * shared /brand/*.svg files, which stay white everywhere else
+             * this mark is used. */}
+            <svg viewBox="0 0 149 149" className="h-7 w-7" fill="none" aria-hidden="true">
+              <g stroke="#34d399" fill="none" strokeLinecap="round">
+                <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
+                <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
+                <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />
+                <circle cx="75" cy="101" r="4.5" fill="#34d399" stroke="none" />
+              </g>
+            </svg>
             <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#312e81]" />
@@ -393,7 +405,14 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
         >
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-              <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
+              <svg viewBox="0 0 149 149" className="h-5 w-5" fill="none" aria-hidden="true">
+                <g stroke="#34d399" fill="none" strokeLinecap="round">
+                  <path d="M20 62a90 90 0 0 1 110 0" strokeWidth="4" opacity="0.35" />
+                  <path d="M37.5 76a56 56 0 0 1 75 0" strokeWidth="4" opacity="0.65" />
+                  <path d="M55 90a27.5 27.5 0 0 1 40 0" strokeWidth="4" opacity="1" />
+                  <circle cx="75" cy="101" r="4.5" fill="#34d399" stroke="none" />
+                </g>
+              </svg>
               <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white" />
