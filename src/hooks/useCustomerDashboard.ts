@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService, isDemo } from "@/services/customer.service";
+import type { CustomerUsersData } from "@/services/customer.service";
 
 /** SSR-safe demo-mode flag. isDemo() reads localStorage, which doesn't
  * exist during server render -- calling it directly during render (e.g. in
@@ -94,5 +95,22 @@ export function useAdminLogsAccountActivity(page: number, pageSize = 25) {
 
 export function useDisconnectSession() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (sessionId: string) => customerService.disconnectSession(sessionId), onSuccess: () => qc.invalidateQueries({ queryKey: ["customer"] }) });
+  return useMutation({
+    mutationFn: (sessionId: string) => customerService.disconnectSession(sessionId),
+    onSuccess: (_void, sessionId) => {
+      // Patch every cached Users-list page in place so the row we just
+      // disconnected visibly flips to offline right away. Demo mode's
+      // disconnectSession() is intentionally a no-op (there's no real
+      // session to kill) and getUsers() always regenerates the same static
+      // fixture -- an invalidate-and-refetch there would silently undo this
+      // click and make "Disconnect" look like it did nothing. Real sessions
+      // still get a follow-up invalidate below so the eventual server truth
+      // (already-ended session, updated counts) replaces this local patch.
+      qc.setQueriesData({ queryKey: ["customer", "users"] }, (old: CustomerUsersData | undefined) => {
+        if (!old) return old;
+        return { ...old, users: old.users.map((u) => (u.id === sessionId ? { ...u, status: "offline" as const } : u)) };
+      });
+      if (!isDemo()) qc.invalidateQueries({ queryKey: ["customer"] });
+    },
+  });
 }
