@@ -296,7 +296,13 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" /></div>
+          <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+            <img src="/brand/mark-compact-white.svg" alt="" className="h-7 w-7" />
+            <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#312e81]" />
+            </span>
+          </div>
           <div><p className="text-xl font-bold">Wyfy Guest</p><p className="text-sm text-white/70">Effortless guest WiFi, at scale.</p></div>
         </motion.div>
 
@@ -385,7 +391,16 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="lg:hidden flex items-center gap-2 mb-8"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div><p className="text-lg font-bold">Wyfy Guest</p></div>
+          <div className="lg:hidden flex items-center gap-2 mb-8">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+              <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
+              <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white" />
+              </span>
+            </div>
+            <p className="text-lg font-bold">Wyfy Guest</p>
+          </div>
           <div className="mb-8"><h1 className="text-2xl font-bold tracking-tight">Sign in</h1><p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p></div>
 
           {/* Role Selector */}

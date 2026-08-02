@@ -118,7 +118,7 @@ export const Route = createFileRoute("/portal")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Guest WiFi — Sign in" },
+      { title: "Wyfy Guest" },
       { name: "description", content: "Connect to complimentary guest WiFi." },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#0F172A" },
