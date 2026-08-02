@@ -1027,26 +1027,39 @@ function buildPortalUrl(portalUrl: PortalOverrideConfig): string {
   );
 }
 
-/** One small, self-refreshing HTML page that immediately redirects to the
- * real portal -- the same shape already confirmed live for login.html,
- * reused for every file in `PORTAL_OVERRIDE_FILES`. Caller applies
+/** One small, self-refreshing HTML page that redirects to the real portal
+ * as close to instantly as RouterOS's own architecture allows -- reused for
+ * every file in `PORTAL_OVERRIDE_FILES`. Caller applies
  * `escapeForRouterOsString` once, when embedding this as a RouterOS string
- * literal -- not done here, so this stays plain, readable HTML. */
+ * literal -- not done here, so this stays plain, readable HTML.
+ *
+ * Deliberately mirrors the real portal SPA's own dark gradient
+ * (`linear-gradient(135deg,#0F172A,#1E293B)`, confirmed against the actual
+ * server-rendered `/portal` page) and a plain spinner instead of a
+ * "Sign-in required" text block -- a guest who briefly sees this page
+ * before the redirect completes should perceive ONE continuous loading
+ * transition into the real app, not two visually distinct pages. The
+ * redirect itself runs as the very first thing in `<head>`, synchronously,
+ * before the browser has any body content to paint -- as close to zero
+ * visible flash as a real, separately-served HTML page can get (RouterOS's
+ * hotspot must serve *something* for the guest's very first request; there
+ * is no way to skip straight to the real portal without serving a page
+ * first, this minimizes what that page shows and how long it's visible
+ * for). `location.replace` (not `.href`) so this page never enters the
+ * guest's browser history -- back-navigation lands them on the real portal
+ * or wherever they were, never back on this intermediate page. */
 function buildPortalRedirectHtml(url: string, page: { title: string; body: string }): string {
   return [
     "<!DOCTYPE html>",
     '<html><head><meta charset="utf-8">',
-    `<meta http-equiv="refresh" content="2;url=${url}">`,
+    `<script>location.replace("${url}");</script>`,
+    `<meta http-equiv="refresh" content="0;url=${url}">`,
     `<title>${page.title}</title>`,
-    "<style>body{font-family:-apple-system,sans-serif;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px}",
-    ".box{max-width:360px}h1{font-size:20px;margin:0 0 8px}p{color:#94a3b8;font-size:14px;margin:0}</style>",
+    "<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0F172A,#1E293B)}",
+    ".spin{width:28px;height:28px;border-radius:9999px;border:3px solid rgba(255,255,255,0.15);border-top-color:#fff;animation:s 0.7s linear infinite}",
+    "@keyframes s{to{transform:rotate(360deg)}}</style>",
     "</head>",
-    '<body><div class="box">',
-    `<h1>${page.title}</h1>`,
-    `<p>${page.body}</p>`,
-    "</div>",
-    `<script>window.location.href = "${url}";</script>`,
-    "</body></html>",
+    '<body><div class="spin"></div></body></html>',
   ].join("\n");
 }
 
