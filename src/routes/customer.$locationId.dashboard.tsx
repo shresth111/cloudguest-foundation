@@ -56,10 +56,10 @@ function ChartEmptyState({ label }: { label: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 py-6 text-center">
       <svg aria-hidden="true" viewBox="0 0 100 70" className="h-14 w-20" fill="none">
-        <ellipse cx="50" cy="60" rx="34" ry="4" fill="#4f46e5" opacity="0.08" />
-        <path d="M50 55V30" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" />
+        <ellipse cx="50" cy="60" rx="34" ry="4" fill="#6C4EFF" opacity="0.08" />
+        <path d="M50 55V30" stroke="#8B5CF6" strokeWidth="3" strokeLinecap="round" />
         <circle cx="50" cy="55" r="4" fill="#7c3aed" />
-        <path d="M28 30a22 22 0 0 1 44 0" stroke="#4f46e5" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.35" />
+        <path d="M28 30a22 22 0 0 1 44 0" stroke="#6C4EFF" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.35" />
         <circle cx="50" cy="22" r="3" fill="#22d3ee" opacity="0.6" />
       </svg>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -236,10 +236,10 @@ function WanSetupIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
     <svg aria-hidden="true" viewBox="0 0 200 130" className="h-24 w-auto" fill="none">
-      <ellipse cx="100" cy="119" rx="66" ry="5" fill="#4f46e5" opacity="0.07" />
+      <ellipse cx="100" cy="119" rx="66" ry="5" fill="#6C4EFF" opacity="0.07" />
 
-      <circle cx="136" cy="42" r="24" stroke="#a78bfa" strokeWidth="2" strokeDasharray="4 5" opacity="0.55" />
-      <path d="M112 42h48M136 18a32 32 0 0 1 0 48 32 32 0 0 1 0-48z" stroke="#a78bfa" strokeWidth="1.4" opacity="0.4" />
+      <circle cx="136" cy="42" r="24" stroke="#8B5CF6" strokeWidth="2" strokeDasharray="4 5" opacity="0.55" />
+      <path d="M112 42h48M136 18a32 32 0 0 1 0 48 32 32 0 0 1 0-48z" stroke="#8B5CF6" strokeWidth="1.4" opacity="0.4" />
 
       <motion.path
         d="M92 100C100 78 114 58 126 48"
@@ -277,10 +277,10 @@ function WanSetupIllustration() {
 function WanStatusCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
   const wan = useWanSummary(locationId);
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="premium-card premium-card-hover">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Globe className="h-3.5 w-3.5 text-white" /></div>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Globe className="h-3.5 w-3.5 text-white" /></div>
           <CardTitle className="text-sm">Internet Connection</CardTitle>
         </div>
         <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
@@ -465,7 +465,7 @@ function DashboardWatchIllustration() {
             width="6"
             height={(i + 1) * 9}
             rx="2"
-            fill={["#a78bfa", "#22d3ee", "#f0abfc", "#a78bfa"][i]}
+            fill={["#8B5CF6", "#22d3ee", "#f0abfc", "#8B5CF6"][i]}
             initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.6 + i * 0.08, ease: "easeOut" }}
@@ -544,7 +544,7 @@ function CustomerDashboardPage() {
       className="flex min-h-screen bg-muted/30"
       style={
         {
-          "--primary": "#4f46e5",
+          "--primary": "#6C4EFF",
           "--primary-foreground": "#ffffff",
           "--ring": "#6366f1",
         } as React.CSSProperties
@@ -609,14 +609,14 @@ function CustomerDashboardPage() {
                * cancel <main>'s own padding), and the page transitions from
                * dark to light exactly once, right before the charts. */}
               <div className="-mx-4 -mt-4 relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white shadow-xl shadow-indigo-950/30 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
-                <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-fuchsia-500/30 blur-3xl" />
-                <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#6C4EFF]/30 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-[#8B5CF6]/20 blur-3xl" />
                 <div
                   aria-hidden
                   className="pointer-events-none absolute inset-0 opacity-[0.15]"
                   style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
                 />
-                <div className="relative mx-auto max-w-7xl px-4 pt-6 pb-8 sm:px-6 sm:pt-8 sm:pb-10 lg:px-8">
+                <div className="relative mx-auto max-w-7xl px-4 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-5 lg:px-8">
                   {/* Illustration scoped to its own relative sub-container
                    * covering only the eyebrow/headline/3-number portion --
                    * it was previously absolute-positioned against the WHOLE
@@ -626,25 +626,35 @@ function CustomerDashboardPage() {
                    * the status strip instead of sitting quietly in this
                    * top portion's corner. */}
                   <div className="relative">
-                    <div className="pointer-events-none absolute -top-2 right-0 hidden w-[170px] sm:block lg:w-[260px]">
+                    <div className="pointer-events-none absolute -top-2 right-0 hidden w-[110px] sm:block lg:w-[160px]">
                       <DashboardWatchIllustration />
                     </div>
                     <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">This location, right now</p>
-                    <p className="mt-1 text-sm text-white/70">How {activeLocation?.name ?? "this location"} is running for your guests at this moment.</p>
-                    <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                    {/* Each metric gets a label above the number and, only
+                     * where a real comparison value actually exists in
+                     * `d.kpis` (never fabricated), a context line below it --
+                     * "Online right now" is the one metric with a genuine
+                     * same-day reference point (peakConcurrent, derived from
+                     * real hourly session counts, see customer.service.ts).
+                     * Active sessions/SLA uptime have no real day-over-day
+                     * or prior-period figure to compare against yet, so they
+                     * intentionally show label + number only rather than
+                     * inventing a trend. */}
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
                       {[
-                        { label: "Online right now", value: d.kpis.onlineUsers.toLocaleString() },
-                        { label: "Active sessions", value: d.kpis.activeSessions.toLocaleString() },
-                        { label: "SLA uptime", value: `${d.kpis.slaUptime}%` },
+                        { label: "Online right now", value: d.kpis.onlineUsers.toLocaleString(), context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}` },
+                        { label: "Active sessions", value: d.kpis.activeSessions.toLocaleString(), context: null },
+                        { label: "SLA uptime", value: `${d.kpis.slaUptime}%`, context: null },
                       ].map((k, i) => (
                         <motion.div key={k.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-                          <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-[3.25rem] sm:leading-none" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{k.value}</p>
-                          <p className="mt-2 text-sm text-white/70">{k.label}</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
+                          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl sm:leading-none" style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}>{k.value}</p>
+                          {k.context && <p className="mt-1 text-xs font-medium text-white/60">{k.context}</p>}
                         </motion.div>
                       ))}
                     </div>
                   </div>
-                  <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-4 text-xs tabular-nums text-white/70">
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-2.5 text-xs tabular-nums text-white/70">
                     {[
                       { label: "routers online", value: `${d.kpis.routersOnline}/${d.kpis.totalRouters}` },
                       { label: "guests today", value: d.kpis.todayGuests.toLocaleString() },
@@ -652,17 +662,17 @@ function CustomerDashboardPage() {
                     ].map((s) => (
                       <span key={s.label}><span className="font-semibold text-white">{s.value}</span> <span className="text-white/50">{s.label}</span></span>
                     ))}
+                    {/* Surfaced only when it matters -- a security-relevant
+                     * number that was in the data but never shown anywhere.
+                     * Silent when zero, so it never clutters a clean day. */}
+                    {d.kpis.failedLogins > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-2.5 py-0.5 font-medium text-rose-200">
+                        <AlertTriangle className="h-3 w-3" />
+                        {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"} today
+                      </span>
+                    )}
                   </div>
-                  {/* Surfaced only when it matters -- a security-relevant
-                   * number that was in the data but never shown anywhere.
-                   * Silent when zero, so it never clutters a clean day. */}
-                  {d.kpis.failedLogins > 0 && (
-                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-200">
-                      <AlertTriangle className="h-3 w-3" />
-                      {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"} today
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
+                  <div className="mt-2.5 flex items-center gap-2 text-xs text-white/50">
                     <Quote className="h-3 w-3 shrink-0 text-white/30" />
                     <AnimatePresence mode="wait">
                       <motion.span key={quoteIndex} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.4 }}>
@@ -670,38 +680,39 @@ function CustomerDashboardPage() {
                       </motion.span>
                     </AnimatePresence>
                   </div>
-
-                  {/* Status strip -- the 4 health checks as the hero's own
-                   * footnote, same dark surface, not a separate light card
-                   * one scroll-tick below it. */}
-                  <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3.5 backdrop-blur-sm">
-                    <p className="shrink-0 text-xs font-medium text-white/60">Core systems, checked continuously</p>
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                      {[
-                        { icon: CheckCircle, label: "System", value: d.health.systemHealth },
-                        { icon: Router, label: "Routers", value: d.health.routersOnline },
-                        { icon: Activity, label: "ISP", value: d.health.isp },
-                        { icon: Wifi, label: "Load", value: d.health.networkLoad },
-                      ].map((item) => (
-                        <span key={item.label} className="inline-flex items-center gap-1.5 text-sm">
-                          <item.icon className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="text-white/60">{item.label}</span>
-                          <span className="font-semibold text-white">{item.value}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <div className="mx-auto max-w-7xl space-y-8 pt-8">
+              <div className="mx-auto max-w-7xl space-y-8 pt-6">
+                {/* Status strip -- moved out of the dark hero into its own
+                 * light card (same treatment as the chart cards below it)
+                 * so the hero itself stays short instead of the health
+                 * checks adding another full row of dark-surface height. */}
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3 premium-card">
+                  <p className="shrink-0 text-xs font-medium text-muted-foreground">Core systems, checked continuously</p>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    {[
+                      { icon: CheckCircle, label: "System", value: d.health.systemHealth },
+                      { icon: Router, label: "Routers", value: d.health.routersOnline },
+                      { icon: Activity, label: "ISP", value: d.health.isp },
+                      { icon: Wifi, label: "Load", value: d.health.networkLoad },
+                    ].map((item) => (
+                      <span key={item.label} className="inline-flex items-center gap-1.5 text-sm">
+                        <item.icon className="h-3.5 w-3.5 text-emerald-500" />
+                        <span className="text-muted-foreground">{item.label}</span>
+                        <span className="font-semibold text-foreground">{item.value}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Charts */}
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">Traffic and hardware, over the last 24 hours.</p>
                   <div className="grid gap-6 lg:grid-cols-3">
-                    <Card className="lg:col-span-1 border-0 shadow-sm">
+                    <Card className="lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><TrendingUp className="h-3.5 w-3.5 text-white" /></div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><TrendingUp className="h-3.5 w-3.5 text-white" /></div>
                         <CardTitle className="text-sm">Guests online, last 24h</CardTitle>
                       </CardHeader>
                       <CardContent><div className="h-56">
@@ -710,9 +721,9 @@ function CustomerDashboardPage() {
                         )}
                       </div></CardContent>
                     </Card>
-                    <Card className="lg:col-span-1 border-0 shadow-sm">
+                    <Card className="lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Router className="h-3.5 w-3.5 text-white" /></div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Router className="h-3.5 w-3.5 text-white" /></div>
                         <CardTitle className="text-sm">What's connected</CardTitle>
                       </CardHeader>
                       <CardContent><div className="h-56">
@@ -732,9 +743,9 @@ function CustomerDashboardPage() {
                         )}
                       </div></CardContent>
                     </Card>
-                    <Card className="lg:col-span-1 border-0 shadow-sm">
+                    <Card className="lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Activity className="h-3.5 w-3.5 text-white" /></div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Activity className="h-3.5 w-3.5 text-white" /></div>
                         <CardTitle className="text-sm">Sessions by hour</CardTitle>
                       </CardHeader>
                       <CardContent><div className="h-56">
@@ -756,7 +767,7 @@ function CustomerDashboardPage() {
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">Who showed up, what needed a look, and whether the internet's up.</p>
                   <div className="grid gap-6 lg:grid-cols-2">
-                    <Card className="border-0 shadow-sm">
+                    <Card className="premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
                       <CardContent className="p-0">
                         {d.recentUsers.length === 0 ? (
@@ -778,7 +789,7 @@ function CustomerDashboardPage() {
                      * padding -- Recent Users and Recent Alerts are both
                      * untouched otherwise. */}
                     <div className="flex flex-col gap-6">
-                      <Card className="border-0 shadow-sm">
+                      <Card className="premium-card premium-card-hover">
                         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Alerts</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("alerts")}>All →</Button></CardHeader>
                         <CardContent className="space-y-2 p-3">
                           {d.recentAlerts.length === 0 ? (

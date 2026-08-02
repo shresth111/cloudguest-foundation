@@ -235,7 +235,7 @@ function CustomerHomePage() {
       className="relative min-h-screen overflow-x-hidden bg-[#181530] text-white"
       style={
         {
-          "--primary": "#4f46e5",
+          "--primary": "#6C4EFF",
           "--primary-foreground": "#ffffff",
           "--ring": "#6366f1",
         } as React.CSSProperties
@@ -245,9 +245,8 @@ function CustomerHomePage() {
        * top to bottom -- viewport-fixed so it stays present as the page
        * scrolls past a tall grid, instead of a hero band being the only
        * "designed" part and everything below reverting to plain admin UI. */}
-      <div aria-hidden className="pointer-events-none fixed -right-24 -top-24 h-96 w-96 rounded-full bg-fuchsia-500/20 blur-3xl" />
-      <div aria-hidden className="pointer-events-none fixed -bottom-32 -left-16 h-96 w-96 rounded-full bg-cyan-400/15 blur-3xl" />
-      <div aria-hidden className="pointer-events-none fixed left-1/2 top-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-violet-500/10 blur-3xl" />
+      <div aria-hidden className="pointer-events-none fixed -right-24 -top-24 h-96 w-96 rounded-full bg-[#6C4EFF]/20 blur-3xl" />
+      <div aria-hidden className="pointer-events-none fixed -bottom-32 -left-16 h-96 w-96 rounded-full bg-[#8B5CF6]/15 blur-3xl" />
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 opacity-[0.07]"
@@ -272,8 +271,8 @@ function CustomerHomePage() {
                 </span>
               </div>
               <div>
-                <p className="text-sm font-semibold">Wyfy Guest</p>
-                <p className="text-[10px] text-white/60">Customer Portal</p>
+                <p className="text-sm font-bold tracking-tight">Wyfy Guest</p>
+                <p className="text-[10px] font-normal tracking-wide text-white/50">Customer Portal</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -299,8 +298,8 @@ function CustomerHomePage() {
           </div>
         </header>
 
-        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
-          <div className="grid items-center gap-8 md:grid-cols-[1fr_auto]">
+        <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Every location, watched live</p>
               <h1
@@ -372,7 +371,7 @@ function CustomerHomePage() {
       <main className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
               <MapPin className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -423,14 +422,14 @@ function CustomerHomePage() {
                 role="button" tabIndex={0}
                 onClick={() => handleSelect(loc)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(loc); } }}
-                className={cn("group relative cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:ring-2 w-full", ringColor)}
+                className={cn("group relative cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2 w-full", ringColor)}
               >
                 <button onClick={(e) => { e.stopPropagation(); toggleFav(loc.id); }} className="absolute right-4 top-4 text-white/40 hover:text-amber-400 transition-colors">
                   <Star className={cn("h-4 w-4", favorites.includes(loc.id) && "fill-amber-400 text-amber-400")} />
                 </button>
 
                 <div className="flex items-start gap-3">
-                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
                     <LocationIcon className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
@@ -509,7 +508,7 @@ function CustomerHomePage() {
                   className={cn(
                     "rounded-xl border p-3 text-center backdrop-blur-sm transition-all",
                     onFloor.length > 0 ? "cursor-pointer hover:-translate-y-0.5" : "cursor-default opacity-50",
-                    floorActive ? "border-[#4f46e5]/60 bg-[#4f46e5]/15 ring-1 ring-[#4f46e5]/40" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
+                    floorActive ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 ring-1 ring-[#6C4EFF]/40" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
                   )}
                 >
                   <p className="text-sm font-bold text-white">{f}</p>
@@ -526,7 +525,7 @@ function CustomerHomePage() {
                             title={`Filter: ${t}`}
                             onClick={(e) => { e.stopPropagation(); setTypeFilter(active ? null : t); }}
                             onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setTypeFilter(active ? null : t); } }}
-                            className={cn("rounded-full p-1 transition-all hover:scale-125 hover:bg-white/15 hover:text-white", active ? "bg-[#4f46e5]/30 text-white" : "text-white/50")}
+                            className={cn("rounded-full p-1 transition-all hover:scale-125 hover:bg-white/15 hover:text-white", active ? "bg-[#6C4EFF]/30 text-white" : "text-white/50")}
                           >
                             <Icon className="h-3 w-3" />
                           </span>
@@ -545,12 +544,12 @@ function CustomerHomePage() {
               <div className="flex items-center gap-2">
                 <p className="text-xs text-white/50">{downCount} of {devices.length} devices down</p>
                 {typeFilter && (
-                  <button onClick={() => setTypeFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-[#4f46e5]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#4f46e5]/30">
+                  <button onClick={() => setTypeFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30">
                     {typeFilter} <span className="text-indigo-200/60">×</span>
                   </button>
                 )}
                 {floorFilter && (
-                  <button onClick={() => setFloorFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-[#4f46e5]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#4f46e5]/30">
+                  <button onClick={() => setFloorFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30">
                     Floor {floorFilter} <span className="text-indigo-200/60">×</span>
                   </button>
                 )}

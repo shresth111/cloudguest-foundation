@@ -41,12 +41,12 @@ function UsersEmptyState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
       <svg aria-hidden="true" viewBox="0 0 100 80" className="h-16 w-20" fill="none">
-        <ellipse cx="50" cy="68" rx="30" ry="4" fill="#4f46e5" opacity="0.08" />
-        <path d="M50 20a18 18 0 0 1 18 18" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.35" />
+        <ellipse cx="50" cy="68" rx="30" ry="4" fill="#6C4EFF" opacity="0.08" />
+        <path d="M50 20a18 18 0 0 1 18 18" stroke="#8B5CF6" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.35" />
         <circle cx="50" cy="46" r="3" fill="#22d3ee" opacity="0.6" />
-        <circle cx="42" cy="34" r="14" stroke="#4f46e5" strokeWidth="3" fill="#f5f0ff" />
-        <path d="M52 44l9 9" stroke="#4f46e5" strokeWidth="3.5" strokeLinecap="round" />
-        <circle cx="42" cy="34" r="5" fill="#a78bfa" opacity="0.3" />
+        <circle cx="42" cy="34" r="14" stroke="#6C4EFF" strokeWidth="3" fill="#f5f0ff" />
+        <path d="M52 44l9 9" stroke="#6C4EFF" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx="42" cy="34" r="5" fill="#8B5CF6" opacity="0.3" />
       </svg>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
@@ -90,7 +90,7 @@ function CustomerUsersPage() {
       className="flex min-h-screen bg-muted/30"
       style={
         {
-          "--primary": "#4f46e5",
+          "--primary": "#6C4EFF",
           "--primary-foreground": "#ffffff",
           "--ring": "#6366f1",
         } as React.CSSProperties
@@ -129,7 +129,7 @@ function CustomerUsersPage() {
         {/* Slim on-brand accent instead of a full dark hero -- this page's
          * job is fast row-scanning, not a glance-dashboard, so a tall hero
          * would just push the actual table below the fold. */}
-        <div aria-hidden className="h-[3px] bg-gradient-to-r from-[#4f46e5] via-[#a78bfa] to-transparent" />
+        <div aria-hidden className="h-[3px] bg-gradient-to-r from-[#6C4EFF] via-[#8B5CF6] to-transparent" />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-4">
@@ -140,8 +140,8 @@ function CustomerUsersPage() {
              * while reading as a location-wide live count. Collapsed to
              * the one number that's actually real: data.total. */}
             {data && (
-              <div className="inline-flex items-center gap-3 rounded-2xl border bg-card px-4 py-3 shadow-sm">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Users className="h-4 w-4 text-white" /></div>
+              <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-3 premium-card premium-card-hover">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Users className="h-4 w-4 text-white" /></div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Total guests</p>
                   <p className="text-lg font-bold tabular-nums leading-tight">{data.total.toLocaleString()}</p>
@@ -154,7 +154,7 @@ function CustomerUsersPage() {
               <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">{["all", "online", "offline"].map((tab) => (<button key={tab} onClick={() => { setStatusTab(tab); setPage(0); }} className={cn("px-3 py-1.5 text-xs font-medium rounded-md capitalize", statusTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground")}>{tab}</button>))}</div>
             </div>
 
-            <div className="rounded-2xl border bg-card shadow-sm overflow-x-auto">
+            <div className="rounded-2xl overflow-x-auto premium-card">
               <Table>
                 <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Duration</TableHead><TableHead className="text-xs font-medium uppercase hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead><TableHead className="text-xs font-medium uppercase text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -171,7 +171,7 @@ function CustomerUsersPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.03 }}
                       onClick={() => setDetailUser(u)}
-                      className="cursor-pointer border-b border-l-2 border-l-transparent transition-colors last:border-b-0 hover:border-l-[#4f46e5] hover:bg-accent/50"
+                      className="cursor-pointer border-b border-l-2 border-l-transparent transition-colors last:border-b-0 hover:border-l-[#6C4EFF] hover:bg-accent/50"
                     >
                       <TableCell>
                         <div className="flex items-center gap-2.5">
@@ -231,7 +231,7 @@ function CustomerUsersPage() {
               <div className="flex items-center justify-between border-b p-5">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div aria-hidden className="absolute -inset-1 rounded-full bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] opacity-20 blur-md" />
+                    <div aria-hidden className="absolute -inset-1 rounded-full bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] opacity-20 blur-md" />
                     <Avatar className="relative h-11 w-11"><AvatarFallback className="bg-primary/10 font-semibold text-primary">{detailUser.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
                   </div>
                   <div><p className="font-semibold">{detailUser.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(detailUser.email) : detailUser.email}</p></div>

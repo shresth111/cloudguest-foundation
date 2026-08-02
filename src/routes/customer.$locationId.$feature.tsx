@@ -95,7 +95,7 @@ function FeaturePage() {
           // utility with the old teal token, which is what kept reading as
           // "still old" no matter how many individual pages got polished.
           // One override here fixes it everywhere at once.
-          "--primary": "#4f46e5",
+          "--primary": "#6C4EFF",
           "--primary-foreground": "#ffffff",
           "--ring": "#6366f1",
         } as React.CSSProperties
@@ -270,7 +270,7 @@ function DashboardWatchIllustration() {
             width="6"
             height={(i + 1) * 9}
             rx="2"
-            fill={["#a78bfa", "#22d3ee", "#f0abfc", "#a78bfa"][i]}
+            fill={["#8B5CF6", "#22d3ee", "#f0abfc", "#8B5CF6"][i]}
             initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.6 + i * 0.08, ease: "easeOut" }}
@@ -328,10 +328,14 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
     { icon: Activity, label: "ISP", value: data.health.isp, tone: "sky" as const },
     { icon: Activity, label: "Load", value: data.health.networkLoad, tone: "fuchsia" as const },
   ];
+  // Context line only where a real same-day reference value exists
+  // (peakConcurrent, derived from real hourly session counts in
+  // customer.service.ts) -- never a fabricated "vs yesterday" percentage
+  // for the other two metrics, which have no real prior-period figure yet.
   const heroKpis = [
-    { label: "Online right now", value: data.kpis.onlineUsers.toLocaleString() },
-    { label: "Active sessions", value: data.kpis.activeSessions.toLocaleString() },
-    { label: "SLA uptime", value: `${data.kpis.slaUptime}%` },
+    { label: "Online right now", value: data.kpis.onlineUsers.toLocaleString(), context: `Today's peak: ${data.kpis.peakConcurrent.toLocaleString()}` },
+    { label: "Active sessions", value: data.kpis.activeSessions.toLocaleString(), context: null as string | null },
+    { label: "SLA uptime", value: `${data.kpis.slaUptime}%`, context: null as string | null },
   ];
   const secondaryStats = [
     { label: "routers online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },
@@ -353,8 +357,6 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
     padding: "8px 10px",
     boxShadow: "0 12px 32px -12px rgba(15,23,42,0.25)",
   } as const;
-  const cardLift =
-    "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg";
 
   return (
     <div className="space-y-8">
@@ -364,14 +366,14 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
        * texture give it depth without needing an uploaded image. The
        * secondary stat line below the numbers absorbs what used to be a
        * separate gradient KPI tile row -- same real values, one home. */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-6 text-white shadow-xl shadow-indigo-950/30 sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-5 text-white shadow-xl shadow-indigo-950/30 sm:p-6">
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-fuchsia-500/30 blur-3xl"
+          className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#6C4EFF]/30 blur-3xl"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl"
+          className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-[#8B5CF6]/20 blur-3xl"
         />
         <div
           aria-hidden
@@ -391,7 +393,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
           <p className="mt-1 text-sm text-white/70">
             How {activeLocation?.name ?? "this location"} is running for your guests at this moment.
           </p>
-          <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-3">
             {heroKpis.map((k, i) => (
               <motion.div
                 key={k.label}
@@ -399,17 +401,18 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
               >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
                 <p
-                  className="text-4xl font-bold tabular-nums tracking-tight sm:text-[3.25rem] sm:leading-none"
+                  className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl sm:leading-none"
                   style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif" }}
                 >
                   {k.value}
                 </p>
-                <p className="mt-2 text-sm text-white/70">{k.label}</p>
+                {k.context && <p className="mt-1.5 text-xs font-medium text-white/60">{k.context}</p>}
               </motion.div>
             ))}
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-4 text-xs tabular-nums text-white/70">
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-3 text-xs tabular-nums text-white/70">
             {secondaryStats.map((s) => (
               <span key={s.label}>
                 <span className="font-semibold text-white">{s.value}</span>{" "}
@@ -436,7 +439,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
 
       {/* Status strip -- the 4 health checks as the hero's footnote, not a
        * second competing card row: one line, icon + label + value. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border bg-card px-5 py-3.5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3.5 premium-card">
         <p className="shrink-0 text-xs font-medium text-muted-foreground">Core systems, checked continuously</p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {healthCards.map((h) => (
@@ -455,7 +458,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
       <div>
         <p className="mb-3 text-xs font-medium text-muted-foreground">Guest activity over the last 24 hours</p>
         <div className="grid gap-6 lg:grid-cols-3">
-        <Card className={cn("border-0 shadow-sm lg:col-span-2", cardLift)}>
+        <Card className={cn("premium-card premium-card-hover lg:col-span-2")}>
           <CardHeader>
             <CardTitle className="text-sm">Users online (last 24h)</CardTitle>
           </CardHeader>
@@ -484,7 +487,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card className={cn("border-0 shadow-sm", cardLift)}>
+        <Card className={cn("premium-card premium-card-hover")}>
           <CardHeader>
             <CardTitle className="text-sm">Devices</CardTitle>
           </CardHeader>
@@ -519,7 +522,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
       </div>
 
       {data.hourlySessions.length > 0 && (
-        <Card className={cn("border-0 shadow-sm", cardLift)}>
+        <Card className={cn("premium-card premium-card-hover")}>
           <CardHeader>
             <CardTitle className="text-sm">Sessions by hour</CardTitle>
           </CardHeader>
@@ -544,7 +547,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
       <div>
         <p className="mb-3 text-xs font-medium text-muted-foreground">Who's connected, and what needs your attention.</p>
         <div className="grid gap-6 lg:grid-cols-2">
-        <Card className={cn("border-0 shadow-sm", cardLift)}>
+        <Card className={cn("premium-card premium-card-hover")}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm">Recent Users</CardTitle>
             <Button
@@ -592,7 +595,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
             )}
           </CardContent>
         </Card>
-        <Card className={cn("border-0 shadow-sm", cardLift)}>
+        <Card className={cn("premium-card premium-card-hover")}>
           <CardHeader>
             <CardTitle className="text-sm">Alerts</CardTitle>
           </CardHeader>
@@ -688,7 +691,7 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
           ))}
         </div>
       </div>
-      <Card className="border-0 shadow-sm">
+      <Card className="premium-card premium-card-hover">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
@@ -783,7 +786,7 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
 
 // ── Reports ───────────────────────────────────────────────
 function ReportsView() {
-  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report"},{n:"Bandwidth Report"},{n:"Revenue Report"},{n:"Router Report"},{n:"Voucher Report"},{n:"Portal Report"}].map(r=>(<Card key={r.n} className="shadow-sm border-0 hover:shadow-md cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{r.n}</p><p className="text-xs text-muted-foreground mt-1">Last generated 3d ago</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>PDF</Button><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>CSV</Button></div></CardContent></Card>))}</div>);
+  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report"},{n:"Bandwidth Report"},{n:"Revenue Report"},{n:"Router Report"},{n:"Voucher Report"},{n:"Portal Report"}].map(r=>(<Card key={r.n} className="premium-card premium-card-hover cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{r.n}</p><p className="text-xs text-muted-foreground mt-1">Last generated 3d ago</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>PDF</Button><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>CSV</Button></div></CardContent></Card>))}</div>);
 }
 
 // ── Devices ───────────────────────────────────────────────
@@ -799,7 +802,7 @@ function ConnectedDevicesIllustration() {
   const nodes = [
     { x: 12, y: 10, color: "#22d3ee" },
     { x: 12, y: 34, color: "#f0abfc" },
-    { x: 68, y: 8, color: "#a78bfa" },
+    { x: 68, y: 8, color: "#8B5CF6" },
     { x: 70, y: 36, color: "#22d3ee" },
   ];
   return (
@@ -817,10 +820,10 @@ function ConnectedDevicesIllustration() {
           <circle cx="0" cy="0" r="1.4" fill={n.color} />
         </g>
       ))}
-      <motion.circle cx="42" cy="23" r="9" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2"
+      <motion.circle cx="42" cy="23" r="9" fill="#1e1b4b" stroke="#6C4EFF" strokeWidth="2"
         animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
         transition={shouldReduceMotion ? undefined : { duration: 2.3, repeat: Infinity, ease: "easeInOut" }} />
-      <path d="M38 23h8M42 19v8" stroke="#a78bfa" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M38 23h8M42 19v8" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -830,10 +833,10 @@ function DevicesView({ locationId, masked }: { locationId: string; masked: boole
   const demo = useIsDemo();
   const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (demo ? DEMO_DEVICES : []);
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="premium-card premium-card-hover">
       <CardHeader className="flex flex-row items-center justify-between gap-2.5 space-y-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
             <Wifi className="h-3.5 w-3.5 text-white" />
           </div>
           <CardTitle className="text-sm">Connected Devices</CardTitle>

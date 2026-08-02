@@ -70,7 +70,7 @@ function HeroWifiIllustration() {
   const arcs = [
     { r: 10, color: "#f0abfc" },
     { r: 18, color: "#22d3ee" },
-    { r: 26, color: "#a78bfa" },
+    { r: 26, color: "#8B5CF6" },
   ];
 
   return (
@@ -262,7 +262,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
-      className="btn-glow fixed right-5 top-5 z-50 inline-flex items-center gap-2 rounded-full bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#4f46e5]/20 backdrop-blur transition-colors hover:bg-[#4338ca]"
+      className="btn-glow fixed right-5 top-5 z-50 inline-flex items-center gap-2 rounded-full bg-[#6C4EFF] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#6C4EFF]/20 backdrop-blur transition-colors hover:bg-[#5A3AE0]"
     >
       <CalendarClock className="h-4 w-4" /> Book a Demo
     </motion.button>
@@ -273,11 +273,11 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-12 text-white overflow-hidden">
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-fuchsia-500/25 blur-3xl"
+          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[#6C4EFF]/25 blur-3xl"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-cyan-400/20 blur-3xl"
+          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-[#8B5CF6]/20 blur-3xl"
         />
         {/* Faint dot-grid for depth */}
         <div
@@ -310,7 +310,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#312e81]" />
             </span>
           </div>
-          <div><p className="text-xl font-bold">Wyfy Guest</p><p className="text-sm text-white/70">Effortless guest WiFi, at scale.</p></div>
+          <div><p className="text-xl font-extrabold tracking-tight">Wyfy Guest</p><p className="text-sm font-normal tracking-wide text-white/70">Effortless guest WiFi, at scale.</p></div>
         </motion.div>
 
         <motion.div
@@ -376,7 +376,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             "--card-foreground": "oklch(0.22 0.03 235)",
             "--popover": "oklch(1 0 0)",
             "--popover-foreground": "oklch(0.22 0.03 235)",
-            "--primary": "#4f46e5",
+            "--primary": "#6C4EFF",
             "--primary-foreground": "#ffffff",
             "--secondary": "oklch(0.955 0.012 216)",
             "--secondary-foreground": "oklch(0.26 0.03 232)",
@@ -406,7 +406,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white" />
               </span>
             </div>
-            <p className="text-lg font-bold">Wyfy Guest</p>
+            <p className="text-lg font-extrabold tracking-tight">Wyfy Guest</p>
           </div>
           <div className="mb-8"><h1 className="text-2xl font-bold tracking-tight">Sign in</h1><p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p></div>
 
@@ -497,7 +497,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
         className="sm:max-w-sm"
         style={
           {
-            "--primary": "#4f46e5",
+            "--primary": "#6C4EFF",
             "--primary-foreground": "#ffffff",
             "--ring": "#6366f1",
           } as React.CSSProperties
@@ -534,7 +534,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
         className="sm:max-w-md"
         style={
           {
-            "--primary": "#4f46e5",
+            "--primary": "#6C4EFF",
             "--primary-foreground": "#ffffff",
             "--ring": "#6366f1",
           } as React.CSSProperties
