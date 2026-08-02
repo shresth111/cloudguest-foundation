@@ -26,7 +26,7 @@ import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
-import { maskEmail, maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, maskPhone, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { requireCustomerSession } from "@/lib/authGuards";
 
 /**
@@ -74,7 +74,7 @@ function CustomerUsersPage() {
   const [masked, setMasked] = useState(true);
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; mac: string; device: string; duration: string; download: string; status: string } | null>(null);
+  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; device: string; duration: string; download: string; status: string } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState<{ id: string; name: string } | null>(null);
   const PAGE_SIZE = 8;
 
@@ -156,11 +156,11 @@ function CustomerUsersPage() {
 
             <div className="rounded-2xl border bg-card shadow-sm overflow-x-auto">
               <Table>
-                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Duration</TableHead><TableHead className="text-xs font-medium uppercase hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead><TableHead className="text-xs font-medium uppercase text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase">User</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase">Duration</TableHead><TableHead className="text-xs font-medium uppercase hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase">Status</TableHead><TableHead className="text-xs font-medium uppercase text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
+                  {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
                   : !data || data.users.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="p-0">
+                    <TableRow><TableCell colSpan={8} className="p-0">
                       <UsersEmptyState label={search || statusTab !== "all" ? "No guests match your search or filter." : "No guests have connected yet."} />
                     </TableCell></TableRow>
                   )
@@ -179,6 +179,7 @@ function CustomerUsersPage() {
                           <div className="min-w-0"><p className="truncate text-sm font-medium">{u.name}</p><p className="truncate text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></div>
                         </div>
                       </TableCell>
+                      <TableCell className="text-xs hidden sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
                       <TableCell className="font-mono text-xs hidden sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
                       <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
                       <TableCell className="text-xs">{u.duration}</TableCell>
@@ -256,6 +257,7 @@ function CustomerUsersPage() {
                   <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Device</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Smartphone className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.device}</p></div>
                   <div className="rounded-xl border p-3 col-span-2"><p className="text-[11px] font-medium text-muted-foreground">Data used</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Download className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.download}</p></div>
                 </div>
+                <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Phone</p><p className="mt-1 text-sm">{masked ? maskPhone(detailUser.phone) : detailUser.phone}</p></div>
                 <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">MAC Address</p><p className="mt-1 font-mono text-sm">{masked ? maskMac(detailUser.mac) : detailUser.mac}</p></div>
               </div>
               <div className="border-t p-4">

@@ -17,9 +17,28 @@ import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
-import { maskEmail, maskMac } from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 
-export function BasicDashboardView({ locationId }: { locationId?: string }) {
+/** Realistic (but fake) guest identities shared by this file's demo/preview
+ * views -- see customer.service.ts's own `DEMO_GUEST_IDENTITIES` for why
+ * these carry a real-looking phone number and a varied email domain rather
+ * than the generic `user{n}@email.com` placeholders these views used to
+ * show (no phone field existed at all). Kept as its own small copy here
+ * rather than importing customer.service.ts's list -- this file's views are
+ * pure local mock data with no `isDemo()`/API seam, used only by the
+ * per-agent preview dashboard (`/agent`), and importing from a `services/`
+ * module would wrongly imply these views participate in that data-fetching
+ * path. */
+const GUEST_IDENTITIES: { name: string; email: string; phone: string }[] = [
+  { name: "John Doe", email: "john.doe83@gmail.com", phone: "+91 98765 43210" },
+  { name: "Jane Smith", email: "jane.smith22@yahoo.com", phone: "+91 91234 56780" },
+  { name: "Raj Kumar", email: "raj.kumar99@outlook.com", phone: "+91 90000 12345" },
+  { name: "Priya Sharma", email: "priya.sharma7@gmail.com", phone: "+91 88888 22334" },
+  { name: "Alex Chen", email: "alex.chen@hotmail.com", phone: "+91 99887 76655" },
+  { name: "Sarah Wilson", email: "sarah.wilson1@gmail.com", phone: "+91 97654 32109" },
+];
+
+export function BasicDashboardView({ locationId, masked = true }: { locationId?: string; masked?: boolean }) {
   void locationId;
   const kpis = [
     { l: "Online Users", v: "1,247", t: "primary" as const },
@@ -30,10 +49,10 @@ export function BasicDashboardView({ locationId }: { locationId?: string }) {
     { l: "SLA Uptime", v: "99.9%", t: "success" as const },
   ];
   const users = [
-    { n: "John Doe", e: "john@email.com", t: "2m ago", s: "online" },
-    { n: "Jane Smith", e: "jane@email.com", t: "5m ago", s: "online" },
-    { n: "Raj Kumar", e: "raj@email.com", t: "12m ago", s: "online" },
-    { n: "Alex Chen", e: "alex@email.com", t: "25m ago", s: "offline" },
+    { n: GUEST_IDENTITIES[0].name, e: GUEST_IDENTITIES[0].email, t: "2m ago", s: "online" },
+    { n: GUEST_IDENTITIES[1].name, e: GUEST_IDENTITIES[1].email, t: "5m ago", s: "online" },
+    { n: GUEST_IDENTITIES[2].name, e: GUEST_IDENTITIES[2].email, t: "12m ago", s: "online" },
+    { n: GUEST_IDENTITIES[4].name, e: GUEST_IDENTITIES[4].email, t: "25m ago", s: "offline" },
   ];
   const alerts = [
     { t: "warning", m: "GW-02 signal degradation" },
@@ -55,7 +74,7 @@ export function BasicDashboardView({ locationId }: { locationId?: string }) {
               <TableBody>
                 {users.map((u) => (
                   <TableRow key={u.n}>
-                    <TableCell><p className="text-sm font-medium">{u.n}</p><p className="text-xs text-muted-foreground">{u.e}</p></TableCell>
+                    <TableCell><p className="text-sm font-medium">{u.n}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.e) : u.e}</p></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{u.t}</TableCell>
                     <TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.s === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.s === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.s}</span></TableCell>
                   </TableRow>
@@ -80,16 +99,32 @@ export function BasicDashboardView({ locationId }: { locationId?: string }) {
   );
 }
 
-export function BasicUsersView() {
+/**
+ * `masked` reflects the *currently previewed* staff member's per-agent
+ * data-masking setting (`AgentRecord.dataMasking`, toggled from the owner's
+ * Staff Access page -- see AgentsPage.tsx -- and threaded in from
+ * agent.index.tsx's "Preview as staff" flow via `renderFeature`'s `masked`
+ * ctx). Previously this always called `maskEmail`/`maskMac` unconditionally,
+ * so flipping that switch had no visible effect here at all -- the one place
+ * meant to demonstrate the feature working. Defaults to `true` (masked) so
+ * any other caller that doesn't pass it keeps the previous, safer-by-default
+ * behavior. MAC stays passed through `maskMac` regardless of `masked`, same
+ * as everywhere else in the app -- see that function's own comment: MAC is
+ * never masked, by product decision, so it isn't part of this toggle. */
+export function BasicUsersView({ masked = true }: { masked?: boolean } = {}) {
   const [q, setQ] = useState("");
-  const all = Array.from({ length: 12 }, (_, i) => ({
-    id: `u-${i}`,
-    name: ["John Doe", "Jane Smith", "Raj Kumar", "Priya Sharma", "Alex Chen", "Sarah Wilson"][i % 6],
-    email: `user${i + 1}@email.com`,
-    mac: `00:1A:${10 + i}`,
-    duration: `${15 + (i % 6) * 10}m`,
-    status: ["online", "online", "online", "idle", "offline", "online"][i % 6],
-  }));
+  const all = Array.from({ length: 12 }, (_, i) => {
+    const identity = GUEST_IDENTITIES[i % GUEST_IDENTITIES.length];
+    return {
+      id: `u-${i}`,
+      name: identity.name,
+      email: identity.email,
+      phone: identity.phone,
+      mac: `00:1A:${10 + i}`,
+      duration: `${15 + (i % 6) * 10}m`,
+      status: ["online", "online", "online", "idle", "offline", "online"][i % 6],
+    };
+  });
   const rows = all.filter((u) => !q || u.name.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="space-y-4">
@@ -97,11 +132,12 @@ export function BasicUsersView() {
       <Card className="rounded-2xl">
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><TableHead>User</TableHead><TableHead className="hidden sm:table-cell">MAC</TableHead><TableHead>Duration</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>User</TableHead><TableHead className="hidden sm:table-cell">Phone</TableHead><TableHead className="hidden sm:table-cell">MAC</TableHead><TableHead>Duration</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
             <TableBody>
               {rows.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{maskEmail(u.email)}</p></TableCell>
+                  <TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell>
+                  <TableCell className="hidden text-xs sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
                   <TableCell className="hidden font-mono text-xs sm:table-cell">{maskMac(u.mac)}</TableCell>
                   <TableCell className="text-xs">{u.duration}</TableCell>
                   <TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : u.status === "idle" ? "text-amber-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : u.status === "idle" ? "bg-amber-500" : "bg-muted-foreground")} />{u.status}</span></TableCell>

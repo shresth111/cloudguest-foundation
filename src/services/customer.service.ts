@@ -47,7 +47,7 @@ export interface CustomerDashboardData {
   hourlySessions: { hour: string; sessions: number }[];
 }
 
-export interface CustomerUsersData { users: { id: string; name: string; email: string; device: string; mac: string; ip: string; duration: string; download: string; status: "online" | "offline" | "idle"; }[]; total: number; page: number; pageSize: number; }
+export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; download: string; status: "online" | "offline" | "idle"; }[]; total: number; page: number; pageSize: number; }
 
 /** Real server-side pagination metadata -- this codebase's established
  * `PaginationMeta` shape (see backend/app/database/utils/pagination.py),
@@ -95,6 +95,28 @@ const DEMO_LOCATIONS: CustomerLocationSummary[] = [
   { id: "loc-6", name: "Kolkata Office", city: "Kolkata", status: "online", onlineUsers: 32, routerHealth: 91, bandwidth: "200 Mbps", isp: "Tata Communications", lastSync: "3 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 1, routersOnline: 1, sessionsActive: 32, sessionsTotal: 156, propertyType: null },
   { id: "loc-7", name: "Pune Office", city: "Pune", status: "online", onlineUsers: 67, routerHealth: 97, bandwidth: "350 Mbps", isp: "Jio", lastSync: "Just now", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 67, sessionsTotal: 345, propertyType: "restaurant" },
   { id: "loc-8", name: "Ahmedabad DC", city: "Ahmedabad", status: "online", onlineUsers: 89, routerHealth: 93, bandwidth: "280 Mbps", isp: "BSNL", lastSync: "4 min ago", organizationId: "org-1", organizationName: "Acme Corp", routersTotal: 2, routersOnline: 2, sessionsActive: 89, sessionsTotal: 423, propertyType: "hospital" },
+];
+
+/** Realistic (but fake) guest identities for demo mode -- previously
+ * `getUsers()`/`getDashboard()` paired a real-looking name with a generic
+ * `user{n}@email.com` address and no phone number at all, so a demo account
+ * (used for sales walkthroughs and marketing-site screenshots) never had
+ * anything to actually show off on the "data-masking" feature: there was no
+ * phone field to mask, and every email looked like the same auto-generated
+ * placeholder. One identity per name, reused everywhere that name is reused
+ * (getUsers cycles through these by index, same as it already cycled through
+ * names/devices) so the same demo guest carries the same email/phone across
+ * rows -- more realistic than a fresh fake address per row, and gives
+ * `maskEmail`/`maskPhone` real, varied strings to redact. */
+const DEMO_GUEST_IDENTITIES: { name: string; email: string; phone: string }[] = [
+  { name: "John Doe", email: "john.doe83@gmail.com", phone: "+91 98765 43210" },
+  { name: "Jane Smith", email: "jane.smith22@yahoo.com", phone: "+91 91234 56780" },
+  { name: "Raj Kumar", email: "raj.kumar99@outlook.com", phone: "+91 90000 12345" },
+  { name: "Priya Sharma", email: "priya.sharma7@gmail.com", phone: "+91 88888 22334" },
+  { name: "Alex Chen", email: "alex.chen@hotmail.com", phone: "+91 99887 76655" },
+  { name: "Sarah Wilson", email: "sarah.wilson1@gmail.com", phone: "+91 97654 32109" },
+  { name: "Mike Brown", email: "mike.brown44@yahoo.com", phone: "+91 96543 21098" },
+  { name: "Emily Davis", email: "emily.davis5@gmail.com", phone: "+91 95432 10987" },
 ];
 
 const DEMO_NAV: NavItem[] = [
@@ -306,7 +328,11 @@ export const customerService = {
         usersTrend: Array.from({ length: 24 }, (_, i) => ({ hour: `${i}`, users: 20 + ((i * 17) % 120) })),
         deviceDistribution: [{ name: "iOS", value: 35 }, { name: "Android", value: 28 }, { name: "Windows", value: 18 }, { name: "macOS", value: 12 }, { name: "Linux", value: 5 }, { name: "Other", value: 2 }],
         hourlySessions: [{ hour: "00", sessions: 45 }, { hour: "04", sessions: 22 }, { hour: "08", sessions: 156 }, { hour: "12", sessions: 289 }, { hour: "16", sessions: 342 }, { hour: "20", sessions: 198 }],
-        recentUsers: [{ id: "u1", name: "John Doe", email: "john@email.com", device: "iPhone 15", time: "2 min ago", status: "online" }, { id: "u2", name: "Jane Smith", email: "jane@email.com", device: "Samsung S24", time: "5 min ago", status: "online" }, { id: "u3", name: "Raj Kumar", email: "raj@email.com", device: "MacBook Pro", time: "12 min ago", status: "online" }, { id: "u4", name: "Priya Sharma", email: "priya@email.com", device: "Pixel 8", time: "18 min ago", status: "online" }, { id: "u5", name: "Alex Chen", email: "alex@email.com", device: "iPad Air", time: "25 min ago", status: "online" }, { id: "u6", name: "Sarah Wilson", email: "sarah@email.com", device: "Windows Laptop", time: "32 min ago", status: "offline" }],
+        recentUsers: DEMO_GUEST_IDENTITIES.slice(0, 6).map((identity, i) => ({
+          id: `u${i + 1}`, name: identity.name, email: identity.email,
+          device: ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop"][i],
+          time: `${[2, 5, 12, 18, 25, 32][i]} min ago`, status: i < 5 ? "online" : "offline",
+        })),
         recentAlerts: [{ type: "warning" as const, msg: "Router GW-02 signal degradation", time: "2 min ago" }, { type: "success" as const, msg: "ISP failover completed", time: "8 min ago" }, { type: "error" as const, msg: "Bandwidth threshold at Mumbai HQ", time: "15 min ago" }, { type: "info" as const, msg: "Firmware update for GW-05", time: "22 min ago" }],
       };
     }
@@ -364,12 +390,15 @@ export const customerService = {
   /* ── Users ─────────────────────────────────────────────── */
   async getUsers(locationId: string, search?: string, status?: string, page = 1, pageSize = 20): Promise<CustomerUsersData> {
     if (isDemo()) {
-      const all = Array.from({ length: 24 }, (_, i) => ({
-        id: `u-${i}`, name: ["John Doe", "Jane Smith", "Raj Kumar", "Priya Sharma", "Alex Chen", "Sarah Wilson", "Mike Brown", "Emily Davis"][i % 8],
-        email: `user${i + 1}@email.com`, device: ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop"][i % 6],
-        mac: `00:1A:${10 + i}`, ip: `10.0.${Math.floor(i / 8) + 1}.${100 + i}`, duration: `${15 + (i % 6) * 10} min`,
-        download: `${(Math.random() * 500).toFixed(0)} MB`, status: (i < 16 ? "online" : i < 20 ? "idle" : "offline") as "online" | "offline" | "idle",
-      }));
+      const all = Array.from({ length: 24 }, (_, i) => {
+        const identity = DEMO_GUEST_IDENTITIES[i % DEMO_GUEST_IDENTITIES.length];
+        return {
+          id: `u-${i}`, name: identity.name, email: identity.email, phone: identity.phone,
+          device: ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop"][i % 6],
+          mac: `00:1A:${10 + i}`, ip: `10.0.${Math.floor(i / 8) + 1}.${100 + i}`, duration: `${15 + (i % 6) * 10} min`,
+          download: `${(Math.random() * 500).toFixed(0)} MB`, status: (i < 16 ? "online" : i < 20 ? "idle" : "offline") as "online" | "offline" | "idle",
+        };
+      });
       let f = [...all]; if (search) { const q = search.toLowerCase(); f = f.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)); }
       if (status && status !== "all") f = f.filter((u) => u.status === status);
       return { users: f.slice((page - 1) * pageSize, page * pageSize), total: f.length, page, pageSize };
@@ -388,7 +417,7 @@ export const customerService = {
         // device row that actually carries those, so show the honest
         // user-agent-derived label / "Unknown" instead of that UUID
         // masquerading as either column.
-        id: s.id, name: "Guest", email: "", device: deviceLabelFrom(s.user_agent), mac: "Unknown",
+        id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent), mac: "Unknown",
         ip: s.ip_address ?? "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
         download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
       }));

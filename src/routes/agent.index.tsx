@@ -133,7 +133,13 @@ function AgentDashboard() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl">{renderFeature(active)}</div>
+          {/* agent.dataMasking is this staff member's real per-agent masking
+           * setting (set from the owner's Staff Access page) -- threading it
+           * through here is what makes the "Data masked" badge above an
+           * actual, effective setting rather than just a static label: flip
+           * it off for this agent and the Users view now shows real guest
+           * email/phone, flip it back on and they're redacted again. */}
+          <div className="mx-auto max-w-7xl">{renderFeature(active, { masked: agent.dataMasking })}</div>
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />

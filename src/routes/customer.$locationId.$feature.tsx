@@ -36,7 +36,7 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
-import { maskEmail, maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, maskPhone, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { isDemo } from "@/services/customer.service";
@@ -703,6 +703,7 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs font-medium">User</TableHead>
+                  <TableHead className="hidden text-xs font-medium sm:table-cell">Phone</TableHead>
                   <TableHead className="hidden text-xs font-medium sm:table-cell">MAC</TableHead>
                   <TableHead className="text-xs font-medium">Duration</TableHead>
                   <TableHead className="text-xs font-medium">Download</TableHead>
@@ -716,6 +717,7 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
                       <p className="text-sm font-medium">{u.name}</p>
                       <p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p>
                     </TableCell>
+                    <TableCell className="hidden text-xs sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
                     <TableCell className="hidden font-mono text-xs sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
                     <TableCell className="text-xs">{u.duration}</TableCell>
                     <TableCell className="text-xs">{u.download}</TableCell>

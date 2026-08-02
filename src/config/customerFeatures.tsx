@@ -30,11 +30,17 @@ export {
 } from "@/config/customerFeatureCatalog";
 export type { FeatureDef } from "@/config/customerFeatureCatalog";
 
-/** Render a feature by id. `locationId` is threaded to views that need it. */
-export function renderFeature(id: string, ctx: { locationId?: string } = {}): ReactNode {
+/** Render a feature by id. `locationId` is threaded to views that need it.
+ * `masked` is the viewing agent's per-agent data-masking setting (see
+ * AgentsPage.tsx's "Data masking" switch / agentPermissionStore's
+ * `AgentRecord.dataMasking`) -- threaded to whichever views actually show
+ * guest PII (email/phone) so the switch has a real, visible effect on the
+ * `/agent` staff-preview dashboard that renders through here. Omitted
+ * (`undefined`) callers get each view's own safer-by-default fallback. */
+export function renderFeature(id: string, ctx: { locationId?: string; masked?: boolean } = {}): ReactNode {
   switch (id) {
-    case "dashboard": return <BasicDashboardView locationId={ctx.locationId} />;
-    case "users": return <BasicUsersView />;
+    case "dashboard": return <BasicDashboardView locationId={ctx.locationId} masked={ctx.masked} />;
+    case "users": return <BasicUsersView masked={ctx.masked} />;
     case "devices": return <div className="space-y-4"><NetworkHardwareView locationId={ctx.locationId} /><BasicDevicesView /></div>;
     case "audit": return <BasicAuditView />;
     case "tickets": return <TicketsPage locationId={ctx.locationId} />;

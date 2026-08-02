@@ -52,6 +52,26 @@ export function maskEmail(email: string): string {
   return `${email.slice(0, 2)}${"•".repeat(Math.max(3, at - 2))}${email.slice(at)}`;
 }
 
+/** Redacts a phone number's digits, keeping the leading country code/first
+ * two digits and the trailing three visible (e.g. "+91 98765 43210" ->
+ * "+91 9•••• ••210"), same "some structure survives, PII doesn't" shape as
+ * `maskEmail` above. Operates on digit *positions* only so any existing
+ * formatting (spaces, dashes, the leading "+") passes through untouched
+ * rather than being collapsed into the mask. Numbers too short to usefully
+ * redact (<=5 digits) are returned as-is. */
+export function maskPhone(phone: string): string {
+  const digitIndexes: number[] = [];
+  for (let i = 0; i < phone.length; i++) {
+    if (phone[i] >= "0" && phone[i] <= "9") digitIndexes.push(i);
+  }
+  if (digitIndexes.length <= 5) return phone;
+  const toMask = new Set(digitIndexes.slice(2, digitIndexes.length - 3));
+  return phone
+    .split("")
+    .map((ch, i) => (toMask.has(i) ? "•" : ch))
+    .join("");
+}
+
 /** No-op by explicit product decision -- MAC addresses are shown
  * unmasked everywhere (customers need the real address to identify a
  * device for support). Mirrors the backend's own ``mask_mac`` (see
