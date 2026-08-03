@@ -412,11 +412,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         </div>
 
         <div className="mt-5">
-          <label htmlFor="block-ta" className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
+          <label htmlFor="block-ta" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
             Mobile numbers <span className="text-indigo-500">*</span>
-            <Tooltip text="Paste one or more numbers separated by commas. Include the country code, e.g. +919876543210." />
           </label>
           <textarea id="block-ta" rows={6} placeholder="+919876543210, +919812345678" value={textarea} onChange={(e) => setTextarea(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
+          {/* Persistent caption instead of a click-to-reveal tooltip -- same
+              consistency fix just applied to Guest WiFi Limits: the format
+              hint shouldn't require a discovery click. */}
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Paste one or more numbers separated by commas. Include the country code, e.g. +919876543210.</p>
         </div>
 
         <div aria-live="polite" className="mt-2 flex flex-wrap items-center gap-2 text-xs">
