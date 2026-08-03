@@ -862,38 +862,46 @@ function CustomerDashboardPage() {
                  * read as different kinds of information, not visual
                  * twins. Their `time` fields are pre-formatted strings
                  * ("2 min ago"), not real timestamps, so they aren't
-                 * safely mergeable into one interleaved feed. */}
+                 * safely mergeable into one interleaved feed.
+                 *
+                 * Both columns are a real 2-card stack, not a 1-vs-3 split.
+                 * An earlier pass put Recent Alerts, Internet Connection,
+                 * AND Network Hardware all in the right column with
+                 * `items-start` so the short Recent Users table stopped
+                 * being CSS-stretched to match -- that fixed the stretch
+                 * bug but not the actual complaint: the right column still
+                 * ran ~2x taller than the left, leaving a wide strip of
+                 * empty page background beside Recent Users. Moving
+                 * Network Hardware over here (a compact per-type summary,
+                 * not a big card) instead of leaving it in the tall stack
+                 * brings both columns to comparable real content height --
+                 * a genuine rebalance, not another alignment tweak. */}
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">Who showed up, what needed a look, and whether the internet's up.</p>
-                  {/* items-start: the right column now stacks three cards
-                   * (Recent Alerts, Internet Connection, Network Hardware),
-                   * taller than Recent Users' own ~6-row table -- CSS
-                   * Grid's default row-stretch was forcing Recent Users'
-                   * Card to match that height, leaving a large blank strip
-                   * below its actual table content. items-start lets each
-                   * column size to its own real content instead. */}
+                  {/* items-start still matters even with two balanced 2-card
+                   * columns: their exact heights won't ever match to the
+                   * pixel (a table's row count vs. prose content), so this
+                   * keeps each column sized to its own content rather than
+                   * Grid stretching one to match the other. */}
                   <div className="grid items-start gap-6 lg:grid-cols-2">
-                    <Card className="premium-card premium-card-hover">
-                      <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
-                      <CardContent className="p-0">
-                        {d.recentUsers.length === 0 ? (
-                          <p className="px-6 py-8 text-center text-xs text-muted-foreground">No guests have connected yet — check back once someone joins the network.</p>
-                        ) : (
-                          <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Time</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead></TableRow></TableHeader>
-                          <TableBody>{d.recentUsers.map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table>
-                        )}
-                      </CardContent>
-                    </Card>
-                    {/* Right column holds two cards, not one -- Recent
-                     * Alerts alone here used to get CSS Grid's default
-                     * row-stretch treatment against Recent Users' taller
-                     * table, leaving a genuinely blank strip at its own
-                     * bottom on any day with only a few alerts (the common
-                     * case). Stacking WanStatusCard underneath it in its
-                     * own flex column fills that real dead space with a
-                     * second, real, useful card instead of leaving it as
-                     * padding -- Recent Users and Recent Alerts are both
-                     * untouched otherwise. */}
+                    <div className="flex flex-col gap-6">
+                      <Card className="premium-card premium-card-hover">
+                        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
+                        <CardContent className="p-0">
+                          {d.recentUsers.length === 0 ? (
+                            <p className="px-6 py-8 text-center text-xs text-muted-foreground">No guests have connected yet — check back once someone joins the network.</p>
+                          ) : (
+                            <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Time</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead></TableRow></TableHeader>
+                            <TableBody>{d.recentUsers.map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table>
+                          )}
+                        </CardContent>
+                      </Card>
+                      {/* Network Hardware lives here, alongside Recent
+                       * Users, rather than stacked into the right column
+                       * with Recent Alerts + Internet Connection -- see the
+                       * comment above this grid for why. */}
+                      <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
+                    </div>
                     <div className="flex flex-col gap-6">
                       <Card className="premium-card premium-card-hover">
                         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Alerts</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("alerts")}>All →</Button></CardHeader>
@@ -915,7 +923,6 @@ function CustomerDashboardPage() {
                         </CardContent>
                       </Card>
                       <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
-                      <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
                     </div>
                   </div>
                 </div>
