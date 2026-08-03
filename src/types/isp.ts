@@ -194,6 +194,12 @@ export interface IspHealthCheck {
 export interface IspHealthCheckListQuery {
   page?: number;
   pageSize?: number;
+  /** Optional ISO-8601 date-range filter -- both additive/optional, an
+   * omitted pair means "no restriction" (the endpoint's original,
+   * unchanged behavior). See backend `GET /isp/links/{id}/health-checks`'s
+   * own `start_date`/`end_date` query params. */
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface IspHealthCheckListResult {
@@ -206,4 +212,30 @@ export interface IspHealthCheckListResult {
    * a fabricated 100%/0% placeholder) -- see backend
    * `IspService.compute_availability_percentage`. */
   availabilityPercentage: number | null;
+}
+
+/** One SQL-side aggregated time bucket from the history dialog's uptime
+ * chart -- see backend `IspService.get_health_check_summary`. Never one
+ * row per real health check: a 30-day window at the sweep's real
+ * 60-second cadence is tens of thousands of rows, so the backend
+ * aggregates by hour (spans <= 7 days) or by day (longer spans) before
+ * this ever reaches the client. */
+export interface IspHealthCheckBucket {
+  bucketStart: string;
+  totalChecks: number;
+  healthyCount: number;
+  degradedCount: number;
+  unhealthyCount: number;
+  /** Null only when `totalChecks` is 0 (an empty bucket is never
+   * rendered -- see `ispService.getHealthCheckSummary`'s own filtering). */
+  uptimePercentage: number | null;
+  avgLatencyMs: number | null;
+  avgPacketLossPercentage: number | null;
+}
+
+export interface IspHealthCheckSummary {
+  bucketUnit: "hour" | "day";
+  start: string;
+  end: string;
+  buckets: IspHealthCheckBucket[];
 }

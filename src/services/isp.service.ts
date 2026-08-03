@@ -4,8 +4,10 @@ import type {
   CreateIspRoutingRulePayload,
   IspConnectionMode,
   IspHealthCheck,
+  IspHealthCheckBucket,
   IspHealthCheckListQuery,
   IspHealthCheckListResult,
+  IspHealthCheckSummary,
   IspLink,
   IspLinkListQuery,
   IspLinkListResult,
@@ -170,6 +172,37 @@ interface BackendIspHealthCheckListResponse {
   availability_percentage: number | null;
 }
 
+interface BackendIspHealthCheckBucket {
+  bucket_start: string;
+  total_checks: number;
+  healthy_count: number;
+  degraded_count: number;
+  unhealthy_count: number;
+  uptime_percentage: number | null;
+  avg_latency_ms: number | null;
+  avg_packet_loss_percentage: number | null;
+}
+
+interface BackendIspHealthCheckSummaryResponse {
+  bucket_unit: "hour" | "day";
+  start: string;
+  end: string;
+  buckets: BackendIspHealthCheckBucket[];
+}
+
+function toIspHealthCheckBucket(b: BackendIspHealthCheckBucket): IspHealthCheckBucket {
+  return {
+    bucketStart: b.bucket_start,
+    totalChecks: b.total_checks,
+    healthyCount: b.healthy_count,
+    degradedCount: b.degraded_count,
+    unhealthyCount: b.unhealthy_count,
+    uptimePercentage: b.uptime_percentage,
+    avgLatencyMs: b.avg_latency_ms,
+    avgPacketLossPercentage: b.avg_packet_loss_percentage,
+  };
+}
+
 function toIspHealthCheck(h: BackendIspHealthCheck): IspHealthCheck {
   return {
     id: h.id,
@@ -314,7 +347,12 @@ export const ispService = {
     const { data } = await api.get<BackendIspHealthCheckListResponse>(
       `/isp/links/${linkId}/health-checks`,
       {
-        params: { page: q.page ?? 1, page_size: q.pageSize ?? 10 },
+        params: {
+          page: q.page ?? 1,
+          page_size: q.pageSize ?? 10,
+          start_date: q.startDate,
+          end_date: q.endDate,
+        },
         headers: { "X-Organization-Id": orgId },
       },
     );
@@ -325,6 +363,31 @@ export const ispService = {
       hasNext: data.has_next,
       hasPrevious: data.has_previous,
       availabilityPercentage: data.availability_percentage,
+    };
+  },
+
+  // Backs the history dialog's "Last 24 hours / 7 days / 30 days" uptime
+  // chart -- real SQL-side time-bucketed aggregation
+  // (backend IspService.get_health_check_summary), never individual
+  // rows, so a 30-day window at the sweep's real 60-second cadence (~43k
+  // rows per link) comes back as ~30 aggregated buckets instead.
+  async getHealthCheckSummary(
+    linkId: string,
+    range: { startDate: string; endDate: string },
+  ): Promise<IspHealthCheckSummary> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<BackendIspHealthCheckSummaryResponse>(
+      `/isp/links/${linkId}/health-checks/summary`,
+      {
+        params: { start_date: range.startDate, end_date: range.endDate },
+        headers: { "X-Organization-Id": orgId },
+      },
+    );
+    return {
+      bucketUnit: data.bucket_unit,
+      start: data.start,
+      end: data.end,
+      buckets: data.buckets.map(toIspHealthCheckBucket),
     };
   },
 

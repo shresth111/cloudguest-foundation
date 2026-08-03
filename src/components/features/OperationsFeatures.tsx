@@ -6,7 +6,7 @@
  * pick up the Aurora Teal identity automatically. Mock data only -- these
  * are the seam a per-location backend call replaces.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -30,6 +30,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
+} from "recharts";
 import type { StatTone } from "@/components/ui-ext/StatCard";
 import { NumberedPagination } from "@/components/ui-ext/NumberedPagination";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -66,7 +70,7 @@ import { matchFieldLabel, matchValueFromRule, RULE_TYPES } from "@/components/ne
 import { QosManagement } from "@/components/network/QosManagement";
 import type { RouterDevice } from "@/types/router";
 import type {
-  IspLink, IspLinkRole, IspHealthCheck, IspManualHealthStatus, IspConnectionMode,
+  IspLink, IspLinkRole, IspHealthCheck, IspHealthCheckSummary, IspManualHealthStatus, IspConnectionMode,
   IspRoutingRule, IspRoutingRuleType,
 } from "@/types/isp";
 import { api } from "@/services/api";
@@ -903,16 +907,38 @@ function IspStatusTimeline({ link, demo }: { link: IspLink; demo: boolean }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-0.5">
+        {/* Each tick's timestamp/status used to be hover-only (the `title`
+         * attribute below) -- no help at all on a touch device, where
+         * hover doesn't really exist. A click/tap now opens the same
+         * detail in a small popover that stays open until dismissed;
+         * the `title` stays too, so a desktop mouse-hover still works
+         * exactly as before -- purely additive. */}
         {ordered.map((c) => (
-          <span
-            key={c.id}
-            title={`${new Date(c.checkedAt).toLocaleString()} — ${HEALTH_BADGE[c.status]?.label ?? c.status}${c.source === "manual" ? " (manually set)" : ""}`}
-            className={cn(
-              "h-4 w-1.5 rounded-sm",
-              TIMELINE_TICK_DOT[c.status] ?? TIMELINE_TICK_DOT.unknown,
-              c.source === "manual" && "ring-1 ring-foreground/50 ring-offset-1 ring-offset-background",
-            )}
-          />
+          <Popover key={c.id}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                title={`${new Date(c.checkedAt).toLocaleString()} — ${HEALTH_BADGE[c.status]?.label ?? c.status}${c.source === "manual" ? " (manually set)" : ""}`}
+                className={cn(
+                  "h-4 w-1.5 shrink-0 appearance-none rounded-sm border-0 p-0 outline-none transition-transform hover:scale-125 focus-visible:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+                  TIMELINE_TICK_DOT[c.status] ?? TIMELINE_TICK_DOT.unknown,
+                  c.source === "manual" && "ring-1 ring-foreground/50 ring-offset-1 ring-offset-background",
+                )}
+              />
+            </PopoverTrigger>
+            <PopoverContent align="center" className="w-56 space-y-1.5 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-foreground">{new Date(c.checkedAt).toLocaleString()}</span>
+                <HealthBadge status={c.status} source={c.source} />
+              </div>
+              <p className="text-muted-foreground">
+                {c.latencyMs != null ? `${c.latencyMs.toFixed(1)} ms` : "No latency reading"}
+                {" · "}
+                {c.packetLossPercentage != null ? `${c.packetLossPercentage.toFixed(1)}% loss` : "No loss reading"}
+              </p>
+              {c.errorMessage && <p className="text-rose-600 dark:text-rose-400">{c.errorMessage}</p>}
+            </PopoverContent>
+          </Popover>
         ))}
       </div>
       {/* Each tick's own timestamp was previously hover-only (the `title`
@@ -1087,46 +1113,158 @@ function IspLinkDialog({
   );
 }
 
+// Range picker for the history dialog below -- real, backend-enforced date
+// windows (start/end sent straight to ispService.listHealthChecks /
+// getHealthCheckSummary as start_date/end_date), not a client-side slice
+// of an already-fetched page. 30 days is the founder-requested cap; at the
+// sweep's real 60-second cadence that's ~43k rows per link, which is
+// exactly why the chart below renders the backend's own bucketed summary
+// (hourly/daily aggregates) rather than one bar per raw check.
+const HISTORY_RANGES: { value: "24h" | "7d" | "30d"; label: string; hours: number }[] = [
+  { value: "24h", label: "Last 24 hours", hours: 24 },
+  { value: "7d", label: "Last 7 days", hours: 24 * 7 },
+  { value: "30d", label: "Last 30 days", hours: 24 * 30 },
+];
+
+/** Uptime-percentage -> bar color, same emerald/amber/rose vocabulary as
+ * HEALTH_BADGE/TIMELINE_TICK_DOT elsewhere in this view. */
+function bucketColor(uptime: number): string {
+  if (uptime >= 99.5) return "#10b981"; // emerald-500
+  if (uptime >= 90) return "#f59e0b"; // amber-500
+  return "#f43f5e"; // rose-500
+}
+
+function formatBucketLabel(iso: string, unit: "hour" | "day"): string {
+  const d = new Date(iso);
+  return unit === "day"
+    ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : d.toLocaleTimeString(undefined, { hour: "numeric" });
+}
+
 function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string | null; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [range, setRange] = useState<"24h" | "7d" | "30d">("24h");
   const [checks, setChecks] = useState<IspHealthCheck[]>([]);
-  const [availability, setAvailability] = useState<number | null>(null);
+  const [summary, setSummary] = useState<IspHealthCheckSummary | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Back to the default range every time the dialog closes, so reopening
+  // it (possibly for a different link) never starts on a stale selection.
+  useEffect(() => { if (!open) setRange("24h"); }, [open]);
 
   useEffect(() => {
     if (!open || !linkId) return;
     let alive = true;
     setLoading(true);
-    ispService.listHealthChecks(linkId, { page: 1, pageSize: 10 })
-      .then((r) => { if (alive) { setChecks(r.rows); setAvailability(r.availabilityPercentage); } })
+    const hours = HISTORY_RANGES.find((r) => r.value === range)?.hours ?? 24;
+    const endDate = new Date().toISOString();
+    const startDate = new Date(Date.now() - hours * 3600_000).toISOString();
+    Promise.all([
+      // The raw, individual-row list below the chart -- always just the
+      // most recent page (10 rows) *within the selected range*, never
+      // every row in a 7/30-day window.
+      ispService.listHealthChecks(linkId, { page: 1, pageSize: 10, startDate, endDate }),
+      ispService.getHealthCheckSummary(linkId, { startDate, endDate }),
+    ])
+      .then(([list, sum]) => {
+        if (!alive) return;
+        setChecks(list.rows);
+        setSummary(sum);
+      })
       .catch(() => { if (alive) toast.error("Could not load health-check history."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [open, linkId]);
+  }, [open, linkId, range]);
+
+  const buckets = summary?.buckets ?? [];
+  const totalChecksInRange = buckets.reduce((sum, b) => sum + b.totalChecks, 0);
+  const overallUptime = totalChecksInRange > 0
+    ? (100 * buckets.reduce((sum, b) => sum + (b.totalChecks - b.unhealthyCount), 0)) / totalChecksInRange
+    : null;
+  const chartData = summary
+    ? buckets.map((b) => ({
+        label: formatBucketLabel(b.bucketStart, summary.bucketUnit),
+        uptime: b.uptimePercentage ?? 0,
+      }))
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Recent Health Checks</DialogTitle>
+          <DialogTitle>Health History</DialogTitle>
           <DialogDescription>
-            {availability != null ? `${availability.toFixed(1)}% availability over the last ${checks.length} checks.` : "Real /tool/ping results from this link's scheduled health-check sweep."}
+            {overallUptime != null
+              ? `${overallUptime.toFixed(1)}% uptime across ${totalChecksInRange.toLocaleString()} checks in the selected range.`
+              : "Real /tool/ping results from this link's scheduled health-check sweep."}
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-80 space-y-2 overflow-y-auto">
-          {loading ? (
-            <LoadingSkeleton rows={3} />
-          ) : checks.length === 0 ? (
-            <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet -- the next sweep runs within 60 seconds, or trigger one manually.</p>
-          ) : checks.map((c) => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
-              <div className="flex items-center gap-2"><HealthBadge status={c.status} source={c.source} /><span className="text-muted-foreground">{new Date(c.checkedAt).toLocaleString()}</span></div>
-              <div className="text-right text-muted-foreground">
-                {c.latencyMs != null ? `${c.latencyMs.toFixed(1)} ms` : "—"} · {c.packetLossPercentage != null ? `${c.packetLossPercentage.toFixed(1)}% loss` : "—"}
-                {c.errorMessage && <p className="mt-0.5 text-rose-600 dark:text-rose-400">{c.errorMessage}</p>}
-              </div>
-            </div>
+
+        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
+          {HISTORY_RANGES.map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => setRange(r.value)}
+              className={cn(
+                "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                range === r.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {r.label}
+            </button>
           ))}
         </div>
+
+        {loading ? (
+          <LoadingSkeleton rows={3} />
+        ) : buckets.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet in this range -- the next sweep runs within 60 seconds, or trigger one manually.</p>
+        ) : (
+          <div className="space-y-1">
+            {/* Bucketed uptime chart -- backend-aggregated (hourly for 24h/
+             * 7d, daily for 30d; see IspService.get_health_check_summary),
+             * never one bar per raw check. */}
+            <div className="h-36 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" interval="preserveStartEnd" />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" width={32} />
+                  <RechartsTooltip
+                    contentStyle={{ background: "hsl(var(--popover, 0 0% 100%))", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12, padding: "8px 10px" }}
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, "Uptime"]}
+                  />
+                  <Bar dataKey="uptime" radius={[3, 3, 0, 0]}>
+                    {chartData.map((d, i) => <Cell key={i} fill={bucketColor(d.uptime)} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-center text-[10px] text-muted-foreground">
+              {summary?.bucketUnit === "day" ? "Daily" : "Hourly"} uptime buckets, {new Date(summary!.start).toLocaleDateString()} → {new Date(summary!.end).toLocaleDateString()}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Most recent checks in this range</p>
+          <div className="max-h-56 space-y-2 overflow-y-auto">
+            {loading ? (
+              <LoadingSkeleton rows={2} />
+            ) : checks.length === 0 ? (
+              <p className="py-4 text-center text-xs text-muted-foreground">No individual checks to show.</p>
+            ) : checks.map((c) => (
+              <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
+                <div className="flex items-center gap-2"><HealthBadge status={c.status} source={c.source} /><span className="text-muted-foreground">{new Date(c.checkedAt).toLocaleString()}</span></div>
+                <div className="text-right text-muted-foreground">
+                  {c.latencyMs != null ? `${c.latencyMs.toFixed(1)} ms` : "—"} · {c.packetLossPercentage != null ? `${c.packetLossPercentage.toFixed(1)}% loss` : "—"}
+                  {c.errorMessage && <p className="mt-0.5 text-rose-600 dark:text-rose-400">{c.errorMessage}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1281,9 +1419,14 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     return () => { alive = false; };
   }, [locationId, demo]);
 
-  const loadLinks = async (routerId: string) => {
+  // `quiet` backs the auto-refresh poll below: a background refetch
+  // shouldn't flash the table into its loading-skeleton state every 20
+  // seconds, and a transient failure on one poll tick shouldn't spam an
+  // error toast -- the table just keeps showing its last known-good
+  // state until the next successful tick.
+  const loadLinks = async (routerId: string, opts: { quiet?: boolean } = {}) => {
     if (!routerId) { setLinks([]); return; }
-    setLinksLoading(true);
+    if (!opts.quiet) setLinksLoading(true);
     try {
       if (demo) {
         setLinks(routerId === DEMO_ROUTER.id ? DEMO_LINKS : []);
@@ -1292,14 +1435,65 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         setLinks(result.rows);
       }
     } catch {
-      toast.error("Could not load ISP links for this router.");
-      setLinks([]);
+      if (!opts.quiet) {
+        toast.error("Could not load ISP links for this router.");
+        setLinks([]);
+      }
     } finally {
-      setLinksLoading(false);
+      if (!opts.quiet) setLinksLoading(false);
     }
   };
 
   useEffect(() => { loadLinks(selectedRouterId); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedRouterId, demo]);
+
+  // Auto-refresh -- an operator previously had to manually reload the
+  // whole page to see a link flip healthy/unhealthy after the backend's
+  // own 60-second sweep updates it server-side (real, verified live: a
+  // WAN disconnect on a real test router correctly flips this table's
+  // health status within ~60-90s of the backend's own check). A plain
+  // `setInterval` poll -- this file's own established useEffect/useState
+  // fetching pattern, no React Query/websocket infra anywhere in this
+  // view -- re-fetches this router's links every 20s while the tab is
+  // visible, paused via the Page Visibility API while backgrounded so a
+  // minimized/unfocused tab doesn't keep hammering the API for nothing.
+  const checkingIdRef = useRef(checkingId);
+  const statusBusyIdRef = useRef(statusBusyId);
+  useEffect(() => { checkingIdRef.current = checkingId; }, [checkingId]);
+  useEffect(() => { statusBusyIdRef.current = statusBusyId; }, [statusBusyId]);
+
+  const ISP_LINKS_POLL_INTERVAL_MS = 20_000;
+  useEffect(() => {
+    if (demo || !selectedRouterId) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      // Skip a tick that lands mid-manual-action ("Check health now" /
+      // Mark Up / Mark Down) -- that action's own response already
+      // updates `links` with the freshest state; a same-moment poll
+      // re-fetch racing it could otherwise clobber it right back with a
+      // response that started before the manual write landed.
+      if (checkingIdRef.current != null || statusBusyIdRef.current != null) return;
+      loadLinks(selectedRouterId, { quiet: true });
+    };
+    const start = () => { if (timer == null) timer = setInterval(tick, ISP_LINKS_POLL_INTERVAL_MS); };
+    const stop = () => { if (timer != null) { clearInterval(timer); timer = null; } };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // Catch up immediately on refocus instead of waiting out
+        // whatever's left of the interval, then resume the normal cadence.
+        tick();
+        start();
+      } else {
+        stop();
+      }
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRouterId, demo]);
 
   const loadRules = async (routerId: string) => {
     if (!routerId) { setRules([]); return; }
