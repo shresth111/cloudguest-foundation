@@ -464,10 +464,27 @@ function CustomerHomePage() {
                   </div>
                 )}
 
+                {/* customer.service.ts's real (non-demo) listLocations() has
+                 * no per-location ISP provider name to give -- fetching one
+                 * means a router lookup then an /isp/links call per router,
+                 * which this already-N-calls-per-card picker deliberately
+                 * doesn't do (see that file's own fan-out comments). It
+                 * fills `isp` with the literal string "Active" as a stand-in
+                 * (same placeholder customer.service.ts's getDashboard()
+                 * uses for its own "ISP" health pill), which isn't a real
+                 * provider name -- showing it next to a brand icon here
+                 * read as "your ISP is called Active," so only render the
+                 * icon+name when it's an actual brand (demo data has real
+                 * ones like "Airtel"/"Jio"), otherwise just show bandwidth. */}
                 <div title={`Last synced ${loc.lastSync}`} className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] text-white/40">
                   <span className="flex min-w-0 items-center gap-1.5 truncate">
-                    <IspProviderIcon providerName={loc.isp} className="h-3.5 w-3.5" />
-                    {loc.isp} · {loc.bandwidth}
+                    {loc.isp && loc.isp !== "Active" && loc.isp !== "Unknown" && (
+                      <>
+                        <IspProviderIcon providerName={loc.isp} className="h-3.5 w-3.5" />
+                        {loc.isp} ·{" "}
+                      </>
+                    )}
+                    {loc.bandwidth}
                   </span>
                   <span className="shrink-0">{loc.routerHealth}% health</span>
                 </div>
