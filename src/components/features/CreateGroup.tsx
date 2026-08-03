@@ -8,6 +8,27 @@ import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
+// A group's "Devices Per User" field lives on a completely separate
+// PolicyType.DEVICE policy from its bandwidth policy -- real per-guest
+// device-count enforcement (guest/service.py's _resolve_device_limit) reads
+// DevicePolicyRules.max_devices_per_guest off that policy, never
+// BandwidthPolicyRules.devices_per_user (which is written but genuinely
+// never read anywhere in app/domains). Mirrors the identical fix already
+// shipped for LocationPolicies.tsx: a paired DEVICE policy, kept in lockstep
+// with every real create/update/delete/map/unmap this file already does to
+// the group's bandwidth policy. bandwidthPolicyService's own
+// map/unmap/listLocationMappings/guestMappings methods are policy-type-
+// agnostic (they only take a policyId and hit the generic
+// /policies/{id}/assignments endpoints), so the paired DEVICE policy's
+// assignments are mirrored by calling those same methods again with the
+// DEVICE policy's id -- no changes to bandwidth-policy.service.ts needed.
+import {
+  createPolicyWithRules,
+  updatePolicyRules,
+  listPolicyDetails,
+  latestVersion,
+  deactivatePolicy,
+} from "@/services/policy-engine";
 import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,9 +59,46 @@ const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = { "No Limit": null, 
 const DAILY_LIMIT_MINUTES: Record<string, number | null> = { "No Limit": null, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480 };
 const DEVICES_COUNT: Record<string, number | null> = { "Unlimited": null, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 };
 
+// DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
+// -- there's no real "unlimited" value in that schema today, so "Unlimited"
+// here is represented as this large practical ceiling rather than left
+// unenforced (same sentinel/reasoning as LocationPolicies.tsx's own fix).
+const UNLIMITED_DEVICES_SENTINEL = 9999;
+
 function labelFromMinutes(minutes: number | null | undefined, table: Record<string, number | null>, fallback: string): string {
   const found = Object.entries(table).find(([, v]) => v === (minutes ?? null));
   return found?.[0] ?? fallback;
+}
+
+// Mirrors a group's real bandwidth-policy location/guest assignment onto
+// its paired DEVICE policy. bandwidthPolicyService's mapToLocation/
+// unmapFromLocation/mapGuestToLocation/unmapGuestFromLocation/
+// listLocationMappings/guestMappings are policy-type-agnostic (they only
+// take a policyId and hit the generic /policies/{id}/assignments
+// endpoints -- see that service's own file for confirmation), so calling
+// them again with the DEVICE policy's id is the real, live mirror
+// operation, not a simulation. `deviceId` is undefined whenever a group
+// predates this fix and has no paired DEVICE policy yet -- each helper
+// no-ops in that case rather than throwing, so a bandwidth-only mapping
+// action still succeeds even if its DEVICE mirror can't be attempted.
+async function mirrorDeviceLocationMap(deviceId: string | undefined, locationId: string, organizationId: string | undefined): Promise<void> {
+  if (!deviceId) return;
+  await bandwidthPolicyService.mapToLocation(deviceId, locationId, organizationId);
+}
+async function mirrorDeviceLocationUnmap(deviceId: string | undefined, locationId: string, organizationId: string | undefined): Promise<void> {
+  if (!deviceId) return;
+  const assignmentId = await bandwidthPolicyService.locationMapping(deviceId, locationId, organizationId);
+  if (assignmentId) await bandwidthPolicyService.unmapFromLocation(deviceId, assignmentId, organizationId);
+}
+async function mirrorDeviceGuestMap(deviceId: string | undefined, locationId: string, guestId: string, organizationId: string | undefined): Promise<void> {
+  if (!deviceId) return;
+  await bandwidthPolicyService.mapGuestToLocation(deviceId, locationId, guestId, organizationId);
+}
+async function mirrorDeviceGuestUnmap(deviceId: string | undefined, locationId: string, guestId: string, organizationId: string | undefined): Promise<void> {
+  if (!deviceId) return;
+  const mappings = await bandwidthPolicyService.guestMappings(deviceId, locationId, organizationId);
+  const match = mappings.find((m) => m.guestId === guestId);
+  if (match) await bandwidthPolicyService.unmapGuestFromLocation(deviceId, match.assignmentId, organizationId);
 }
 
 /**
@@ -200,6 +258,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // does) -- default the list to this location's mapped groups, with an
   // explicit toggle to browse/map from the full account catalog.
   const [showAllGroups, setShowAllGroups] = useState(false);
+  // Paired DEVICE policy id per group, keyed by group name (group names are
+  // already enforced unique -- see validate()'s duplicate-name check below).
+  // Populated on load (from real, is_active DEVICE policies) and kept in
+  // sync by handleCreate (create/update)/handleDelete (deactivate).
+  const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (demo) return;
@@ -207,13 +270,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const real = await bandwidthPolicyService.list(org);
+        const [real, deviceDetailsAll] = await Promise.all([
+          bandwidthPolicyService.list(org),
+          listPolicyDetails("device", org).catch(() => []),
+        ]);
         // Backend's GET /policies has no is_active filter -- it returns
         // deactivated (deleted) policies right alongside active ones, so a
         // group removed via handleDelete's deactivatePolicy() call would
         // otherwise silently reappear here on next load/reload. Drop
         // archived entries client-side so "deleted" actually stays deleted.
         const active = real.filter((p) => p.status !== "archived");
+        // Same filter for the paired DEVICE policies -- a deactivated
+        // DEVICE policy has no reactivate path (see policy-engine.ts's
+        // statusOf comment), so keeping a dead id keyed by name here would
+        // mean the next save for a same-named group silently republished a
+        // new version onto a policy resolve_effective_policy can never see.
+        const deviceDetails = deviceDetailsAll.filter((d) => d.is_active);
+        const deviceByName = new Map(
+          deviceDetails.map((d) => [d.name, latestVersion(d)?.rules?.max_devices_per_guest as number | undefined]),
+        );
+        setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         // One assignments lookup per group -- listLocationMappings returns
         // *every* active location this group is mapped to in one call, so
         // this seeds both the "Map group" toggle's current-location state
@@ -238,13 +314,23 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               mappedAssignmentId = null;
               mappedLocationIds = [];
             }
+            // Real per-guest device enforcement reads the paired DEVICE
+            // policy's max_devices_per_guest, never this bandwidth policy's
+            // own (unread) devices_per_user field -- so the display value
+            // reads back from the DEVICE policy when one exists, falling
+            // back to the legacy bandwidth field only for a group that
+            // predates this fix and has no paired DEVICE policy yet.
+            const deviceMax = deviceByName.get(p.name);
+            const devicesPerUser = deviceMax != null
+              ? (deviceMax >= UNLIMITED_DEVICES_SENTINEL ? "Unlimited" : String(deviceMax))
+              : labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, "");
             return {
               id: p.id,
               name: p.name,
               bandwidth: kbpsToLabel(p.downloadRateKbps),
               sessionTimeout: labelFromMinutes(p.sessionTimeoutMinutes, SESSION_TIMEOUT_MINUTES, ""),
               idleTimeout: labelFromMinutes(p.idleTimeoutMinutes, IDLE_TIMEOUT_MINUTES, ""),
-              devicesPerUser: labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, ""),
+              devicesPerUser,
               dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
               loginHours: p.loginHours ?? null,
               dataLimit: p.dataLimit ?? null,
@@ -372,6 +458,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         },
         orgId ?? undefined,
       );
+
+      // Mirror the paired DEVICE policy -- the real, backend-enforced
+      // per-guest device limit (guest/service.py's _resolve_device_limit)
+      // reads DevicePolicyRules.max_devices_per_guest off this separate
+      // policy, not the bandwidth policy's devices_per_user field above
+      // (that field is written but never read anywhere). Only the policy's
+      // own rules are created/updated here -- no location assignment,
+      // matching how the bandwidth policy itself has zero real effect
+      // until it's explicitly mapped via handleToggleMap/
+      // handleSaveMapModal/mapGuest below.
+      const maxDevices = dp === "Unlimited" ? UNLIMITED_DEVICES_SENTINEL : parseInt(dp, 10);
+      const deviceRules = { max_devices_per_guest: maxDevices };
+      const existingDeviceId = deviceRealIds[name];
+      if (existingDeviceId) {
+        await updatePolicyRules({ id: existingDeviceId, rules: deviceRules, publish: true, archive: false, organizationId: orgId ?? undefined });
+      } else {
+        const createdDevice = await createPolicyWithRules({ policyType: "device", name, description: null, rules: deviceRules, publish: true, organizationId: orgId ?? undefined });
+        setDeviceRealIds((prev) => ({ ...prev, [name]: createdDevice.id }));
+      }
+
       if (isEdit) {
         setGroups((prev) => prev.map((g) => (g.id === saved.id ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
       } else {
@@ -392,10 +498,23 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const handleDelete = (id: string) => {
     if (confirmingId === id) {
       const prev = groups;
+      const groupName = groups.find((g) => g.id === id)?.name;
       setGroups((p) => p.filter((g) => g.id !== id)); setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (!demo) {
         bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => { setGroups(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+        // Removing a tier means all of its real effects go away, not just
+        // bandwidth -- deactivate its paired DEVICE policy too, if one was
+        // ever saved for this tier. Cleared from deviceRealIds up front
+        // (before the network call settles) so a same-session re-save under
+        // this same name creates a fresh DEVICE policy instead of reviving
+        // the one just deactivated -- same reasoning as bandwidth's own id
+        // handling via the id-in-`groups` state above.
+        if (groupName) {
+          const deviceId = deviceRealIds[groupName];
+          setDeviceRealIds((prevIds) => { const n = { ...prevIds }; delete n[groupName]; return n; });
+          if (deviceId) deactivatePolicy(deviceId, orgId ?? undefined).catch(() => {});
+        }
       }
     } else { setConfirmingId(id); if (confirmTimer.current) clearTimeout(confirmTimer.current); confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000); }
   };
@@ -425,9 +544,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         } : x)));
       } else if (wasMapped) {
         await bandwidthPolicyService.unmapFromLocation(g.id, g.mappedAssignmentId as string, orgId ?? undefined);
+        await mirrorDeviceLocationUnmap(deviceRealIds[g.name], locationId, orgId ?? undefined);
         setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: null, mappedLocationIds: x.mappedLocationIds.filter((id) => id !== locationId) } : x)));
       } else {
         const assignmentId = await bandwidthPolicyService.mapToLocation(g.id, locationId, orgId ?? undefined);
+        await mirrorDeviceLocationMap(deviceRealIds[g.name], locationId, orgId ?? undefined);
         setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: assignmentId, mappedLocationIds: [...new Set([...x.mappedLocationIds, locationId])] } : x)));
       }
       setToast(wasMapped ? `${g.name} unmapped from this location.` : `${g.name} mapped to this location.`);
@@ -511,9 +632,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         finalMap = {};
         mapModalSelected.forEach((locId) => { finalMap[locId] = mapModalInitial[locId] ?? `demo-${g.id}-${locId}`; });
       } else {
+        const deviceId = deviceRealIds[g.name];
         const [addResults] = await Promise.all([
-          Promise.all(toAdd.map(async (locId) => ({ locId, assignmentId: await bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined) }))),
-          Promise.all(toRemove.map((locId) => bandwidthPolicyService.unmapFromLocation(g.id, mapModalInitial[locId], orgId ?? undefined))),
+          Promise.all(toAdd.map(async (locId) => {
+            const [assignmentId] = await Promise.all([
+              bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined),
+              mirrorDeviceLocationMap(deviceId, locId, orgId ?? undefined),
+            ]);
+            return { locId, assignmentId };
+          })),
+          Promise.all(toRemove.map((locId) => Promise.all([
+            bandwidthPolicyService.unmapFromLocation(g.id, mapModalInitial[locId], orgId ?? undefined),
+            mirrorDeviceLocationUnmap(deviceId, locId, orgId ?? undefined),
+          ]))),
         ]);
         finalMap = {};
         mapModalSelected.forEach((locId) => {
@@ -660,7 +791,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         await new Promise((r) => setTimeout(r, 300));
         setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId: `demo-map-${guest.id}`, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
       } else {
-        const assignmentId = await bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined);
+        const [assignmentId] = await Promise.all([
+          bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined),
+          mirrorDeviceGuestMap(deviceRealIds[usersModalGroup.name], locationId, guest.id, orgId ?? undefined),
+        ]);
         setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
         setGuestCurrentGroups((p) => ({ ...p, [guest.id]: { policyId: usersModalGroup.id, policyName: usersModalGroup.name, assignmentId } }));
       }
@@ -686,8 +820,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     guestActionLock.current.add(guest.id);
     setGuestActionBusy((p) => new Set(p).add(guest.id));
     try {
-      await bandwidthPolicyService.unmapGuestFromLocation(other.policyId, other.assignmentId, orgId ?? undefined);
-      const assignmentId = await bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined);
+      await Promise.all([
+        bandwidthPolicyService.unmapGuestFromLocation(other.policyId, other.assignmentId, orgId ?? undefined),
+        mirrorDeviceGuestUnmap(deviceRealIds[other.policyName], locationId, guest.id, orgId ?? undefined),
+      ]);
+      const [assignmentId] = await Promise.all([
+        bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined),
+        mirrorDeviceGuestMap(deviceRealIds[usersModalGroup.name], locationId, guest.id, orgId ?? undefined),
+      ]);
       setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
       setGuestCurrentGroups((p) => ({ ...p, [guest.id]: { policyId: usersModalGroup.id, policyName: usersModalGroup.name, assignmentId } }));
       setStep3Done(true);
@@ -707,7 +847,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     guestActionLock.current.add(mapping.guestId);
     setGuestActionBusy((p) => new Set(p).add(mapping.guestId));
     try {
-      if (!demo) await bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined);
+      if (!demo && locationId) {
+        await Promise.all([
+          bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined),
+          mirrorDeviceGuestUnmap(deviceRealIds[usersModalGroup.name], locationId, mapping.guestId, orgId ?? undefined),
+        ]);
+      } else if (!demo) {
+        await bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined);
+      }
       setMappedGuests((p) => p.filter((m) => m.guestId !== mapping.guestId));
       setGuestCurrentGroups((p) => ({ ...p, [mapping.guestId]: null }));
       setToast(`${mapping.label} unmapped from ${usersModalGroup.name}.`);
