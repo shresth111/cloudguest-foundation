@@ -22,7 +22,7 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerDashboard, useCustomerLocations, useCustomerUsers, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, ReferenceLine } from "recharts";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { ispService } from "@/services/isp.service";
 import type { AppError } from "@/services/api";
@@ -601,11 +601,18 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
  * while still sitting immediately above WanStatusCard's own column in
  * reading order.
  *
- * Deliberately never labels any point "congested" or plots a threshold
- * line -- there's no real configured plan-capacity number to compare
- * against (see `IspLink.downloadBandwidthMbps`'s own "provisioned, never
- * measured" doc comment in `types/isp.ts`). Just the real Mbps numbers;
- * the founder reads the spikes and drops visually, same as asked.
+ * Plots a real dashed reference line at the link's own provisioned
+ * `downloadBandwidthMbps` (set on the ISP Link itself, e.g. "this is a
+ * 100 Mbps Airtel plan" -- Internet Connection page's Add/Edit ISP Link
+ * form, already fully wired) and shows current usage as a % of it, so
+ * "all our guests together are choking a 100 Mbps line" is visible at a
+ * glance, not just inferred from a raw Mbps number the founder has to
+ * mentally compare against a plan they remember. This was the actual,
+ * explicit ask behind the whole feature. When no capacity is configured
+ * for this link (still true for some real links -- it's an optional
+ * field on the ISP Link form, not always filled in), this never
+ * fabricates one: no reference line, no %, just the real Mbps numbers,
+ * plus a small prompt pointing at where to set it.
  */
 function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
   const bw = useBandwidthSeries(locationId);
@@ -623,6 +630,13 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
     upload: c.uploadMbps,
   }));
   const latest = bw.status === "ready" ? bw.checks.find((c) => c.downloadMbps != null || c.uploadMbps != null) : undefined;
+  // Real, provisioned plan capacity for this link -- null for a link
+  // where it was never entered (optional field), never a guessed value.
+  const capacityDownload = bw.status === "ready" ? bw.link.downloadBandwidthMbps : null;
+  const utilizationPct =
+    capacityDownload != null && capacityDownload > 0 && latest?.downloadMbps != null
+      ? Math.round((latest.downloadMbps / capacityDownload) * 100)
+      : null;
 
   return (
     <Card className="premium-card premium-card-hover">
@@ -644,6 +658,19 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
               )}
               {latest.uploadMbps != null && (
                 <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-violet-500" /><span className="font-semibold tabular-nums text-foreground">{latest.uploadMbps.toFixed(0)}</span><span className="text-muted-foreground">Mbps ↑</span></span>
+              )}
+              {utilizationPct != null && (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 font-semibold tabular-nums",
+                    utilizationPct >= 90 ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400"
+                      : utilizationPct >= 70 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                      : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+                  )}
+                  title={`${latest?.downloadMbps?.toFixed(1)} of ${capacityDownload} Mbps plan`}
+                >
+                  {utilizationPct}% of plan
+                </span>
               )}
             </span>
           )}
@@ -677,7 +704,11 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 10 }} width={32} />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  width={32}
+                  domain={capacityDownload != null ? [0, (dataMax: number) => Math.max(dataMax, capacityDownload) * 1.1] : [0, "auto"]}
+                />
                 <Tooltip
                   contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))", fontSize: 12 }}
                   formatter={(value: number | string | Array<number | string> | undefined, name: string | number) => [
@@ -687,10 +718,30 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                 />
                 <Area type="monotone" dataKey="download" name="download" stroke="#14b8a6" fill="url(#bw-down)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
                 <Area type="monotone" dataKey="upload" name="upload" stroke="#8b5cf6" fill="url(#bw-up)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+                {/* Real, provisioned plan capacity -- the actual founder ask
+                    behind this whole card ("all our guests together
+                    choking a 100 Mbps line" should be visible, not just
+                    inferred). Only drawn when a real value was entered on
+                    the ISP Link itself; never a guessed threshold. */}
+                {capacityDownload != null && (
+                  <ReferenceLine
+                    y={capacityDownload}
+                    stroke="#14b8a6"
+                    strokeDasharray="5 4"
+                    strokeOpacity={0.7}
+                    label={{ value: `${capacityDownload} Mbps plan`, position: "insideTopRight", fontSize: 10, fill: "#14b8a6" }}
+                  />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           )}
         </div>
+        {bw.status === "ready" && capacityDownload == null && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Set {bw.link.providerName}'s plan speed to see utilization as a %.{" "}
+            <button type="button" onClick={onManage} className="font-medium text-primary hover:underline">Set it →</button>
+          </p>
+        )}
       </CardContent>
     </Card>
   );
