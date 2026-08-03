@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft, Wifi, Router, Activity, Users, TrendingUp, Globe,
-  CheckCircle, XCircle, AlertTriangle, RefreshCw, Quote,
+  CheckCircle, XCircle, AlertTriangle, RefreshCw, Quote, HardDrive,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
@@ -27,6 +27,8 @@ import { requireCustomerSession } from "@/lib/authGuards";
 import { ispService } from "@/services/isp.service";
 import type { IspLink, IspHealthCheck } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
+import { useDeviceStore, DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
+import { DEVICE_TYPE_META } from "@/components/customer/BasicFeatureViews";
 
 // Categorical, brand-checked -- indigo/cyan/magenta/orange/violet. The old
 // palette here included green, which conflicts with this project's
@@ -383,6 +385,92 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
             </div>
           );
         })()}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Per-device-type hardware summary for this location's monitored network
+ * hardware (Access Points, Printers, Routers, Cameras, Other) -- the same
+ * `useDeviceStore` records and `d.locationId === locationId` filter the
+ * Devices page's own `NetworkHardwareView` (BasicFeatureViews.tsx) already
+ * uses, and the exact same `DEVICE_TYPE_META` icon/color map, imported from
+ * there rather than re-declared here, so a "Router" reads as the same
+ * indigo-violet `Router` icon everywhere in the app, not a second
+ * lookalike-but-different palette. Up/down counts are real, derived from
+ * each device's own `deriveStatus`-computed `status`, not decorative.
+ * Sibling to WanStatusCard immediately above it in the layout -- same card
+ * shell, header badge, and "Manage ->" pattern, just pointed at the
+ * Devices feature page instead of Internet Connection.
+ */
+function DeviceStatusCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
+  const allDevices = useDeviceStore((s) => s.devices);
+  const devices = allDevices.filter((d) => d.locationId === locationId);
+  const downCount = devices.filter((d) => d.status === "down").length;
+
+  return (
+    <Card className="premium-card premium-card-hover">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><HardDrive className="h-3.5 w-3.5 text-white" /></div>
+          <CardTitle className="text-sm">Network Hardware</CardTitle>
+        </div>
+        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
+      </CardHeader>
+      <CardContent>
+        {devices.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it.</p>
+            </div>
+            <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              {DEVICE_TYPES.map((type) => {
+                const typeDevices = devices.filter((d) => d.type === type);
+                if (typeDevices.length === 0) return null;
+                const meta = DEVICE_TYPE_META[type];
+                const Icon = meta.icon;
+                const typeDown = typeDevices.filter((d) => d.status === "down").length;
+                return (
+                  <div key={type} className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2 text-sm">
+                      <span title={type} className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white", meta.gradient)}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="truncate font-medium text-foreground">{type}{typeDevices.length !== 1 ? "s" : ""}</span>
+                    </span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      <span className="font-semibold text-foreground">{typeDevices.length}</span>
+                      {typeDown > 0 ? (
+                        <span className="text-rose-600 dark:text-rose-400"> · {typeDown} down</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400"> · all up</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between border-t border-border/60 pt-2.5 text-xs">
+              <span className="text-muted-foreground">{devices.length} device{devices.length !== 1 ? "s" : ""} total</span>
+              {downCount > 0 ? (
+                <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />{downCount} down · longest {formatSince(devices.filter((d) => d.status === "down").sort((a, b) => new Date(a.statusChangedAt).getTime() - new Date(b.statusChangedAt).getTime())[0].statusChangedAt)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />All devices up
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -820,6 +908,7 @@ function CustomerDashboardPage() {
                         </CardContent>
                       </Card>
                       <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+                      <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
                     </div>
                   </div>
                 </div>

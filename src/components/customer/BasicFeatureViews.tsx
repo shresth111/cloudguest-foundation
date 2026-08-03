@@ -194,7 +194,7 @@ export function BasicDevicesView() {
  * (an owner scanning a mixed list of APs/printers/cameras couldn't tell
  * types apart by color before -- only by the small text label next to
  * the name). Hue choice is otherwise arbitrary; kept distinct per type. */
-const DEVICE_TYPE_META: Record<DeviceType, { icon: typeof Wifi; gradient: string; text: string }> = {
+export const DEVICE_TYPE_META: Record<DeviceType, { icon: typeof Wifi; gradient: string; text: string }> = {
   "Access Point": { icon: Wifi, gradient: "from-sky-500 to-cyan-500", text: "text-sky-500" },
   Printer: { icon: Printer, gradient: "from-amber-500 to-orange-500", text: "text-amber-500" },
   Router: { icon: Router, gradient: "from-indigo-500 to-violet-500", text: "text-indigo-500" },
