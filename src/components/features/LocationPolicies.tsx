@@ -31,6 +31,21 @@ function kbpsToLabel(kbps: number): string {
   return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
 }
 
+// Session/Idle/Daily Timeout are real BandwidthPolicyRules fields (see
+// bandwidth-policy.service.ts's toRules) that this form was never actually
+// sending -- same class of bug CreateGroup.tsx already hit and fixed for
+// its own edit form (see BandwidthPolicy's own doc comment: "edit kaam
+// nahi karta" once required fields always read back blank). Mirroring that
+// exact fix here instead of reinventing it.
+const SESSION_TIMEOUT_MINUTES: Record<string, number> = { "30 min": 30, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480, "24 hr": 1440 };
+const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = { "No Limit": null, "5 min": 5, "10 min": 10, "15 min": 15, "30 min": 30, "1 hr": 60 };
+const DAILY_LIMIT_MINUTES: Record<string, number | null> = { "No Limit": null, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480 };
+
+function labelFromMinutes(minutes: number | null | undefined, table: Record<string, number | null>, fallback: string): string {
+  const found = Object.entries(table).find(([, v]) => v === (minutes ?? null));
+  return found?.[0] ?? fallback;
+}
+
 // ── constants ───────────────────────────────────────────────────
 const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 const BANDWIDTH = ["Unlimited", "10 Mbps", "20 Mbps", "30 Mbps", "40 Mbps", "50 Mbps", "60 Mbps", "70 Mbps", "80 Mbps"];
@@ -141,6 +156,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [dlUnit, setDlUnit] = useState("GB");
   const [dlResets, setDlResets] = useState("Daily");
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [policies, setPolicies] = useState<Policy[]>(demo ? SEED : []);
   const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
@@ -188,7 +204,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setPolicies(real.map((p) => {
           const maxDevices = deviceByName.get(p.name);
           const devicesPerUser = maxDevices == null ? "" : maxDevices >= UNLIMITED_DEVICES_SENTINEL ? "Unlimited" : String(maxDevices);
-          return { id: p.id, businessUnit: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", dailyLimit: "No Limit", idleTimeout: "", devicesPerUser, dataLimit: null };
+          return {
+            id: p.id,
+            businessUnit: p.name,
+            bandwidth: kbpsToLabel(p.downloadRateKbps),
+            sessionTimeout: labelFromMinutes(p.sessionTimeoutMinutes, SESSION_TIMEOUT_MINUTES, ""),
+            dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
+            idleTimeout: labelFromMinutes(p.idleTimeoutMinutes, IDLE_TIMEOUT_MINUTES, ""),
+            devicesPerUser,
+            dataLimit: p.dataLimit ?? null,
+          };
         }));
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
@@ -250,6 +275,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         if (existing >= 0) setPolicies((prev) => prev.map((p, i) => i === existing ? { ...p, ...f, dataLimit } : p));
         else setPolicies((prev) => [{ id: `p${Date.now()}`, ...f, dataLimit }, ...prev]);
         setSaving(false);
+        setEditingId(null);
         setToast("Policies updated.");
         setTimeout(() => setToast(null), 2500);
       }, 600);
@@ -259,7 +285,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     try {
       const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
       const existingId = realIds[f.businessUnit];
-      const saved = await bandwidthPolicyService.save({ id: existingId, name: f.businessUnit, status: "active", downloadRateKbps: rateKbps, uploadRateKbps: rateKbps }, orgId ?? undefined);
+      const saved = await bandwidthPolicyService.save({
+        id: existingId, name: f.businessUnit, status: "active",
+        downloadRateKbps: rateKbps, uploadRateKbps: rateKbps,
+        // Session/Idle/Daily Timeout and the optional data limit are real
+        // BandwidthPolicyRules fields (toRules already maps them) that this
+        // form validates as required but, until now, never actually sent --
+        // exactly the gap CreateGroup.tsx already hit and fixed for its own
+        // edit form ("edit kaam nahi karta" once required fields always
+        // read back blank on reload).
+        sessionTimeoutMinutes: SESSION_TIMEOUT_MINUTES[f.sessionTimeout] ?? null,
+        idleTimeoutMinutes: IDLE_TIMEOUT_MINUTES[f.idleTimeout] ?? null,
+        dailyLimitMinutes: DAILY_LIMIT_MINUTES[f.dailyLimit] ?? null,
+        dataLimit,
+      }, orgId ?? undefined);
       // Saving only creates/updates the policy's own rules -- it was never
       // actually applied anywhere (confirmed live: a saved policy had zero
       // rows in policy_assignments), since a Policy and its
@@ -297,9 +336,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
       const row: Policy = { id: saved.id, ...f, dataLimit };
       setPolicies((prev) => {
-        const existing = prev.findIndex((p) => p.id === saved.id);
+        // Matched by id OR businessUnit name -- a save can return a
+        // *different* id than what this location's row currently shows
+        // (e.g. right after a delete, when a stale local view hadn't yet
+        // learned the old id was retired), and matching by id alone would
+        // add a second, stale-looking row instead of replacing the first.
+        const existing = prev.findIndex((p) => p.id === saved.id || p.businessUnit === f.businessUnit);
         return existing >= 0 ? prev.map((p, i) => i === existing ? row : p) : [row, ...prev];
       });
+      setEditingId(null);
       setToast(locationId ? "Policy saved and applied to this location." : "Policies updated.");
       setTimeout(() => setToast(null), 2500);
     } catch {
@@ -308,6 +353,31 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── edit ──────────────────────────────────────────────────────
+  // Prefills the form from an already-saved row so editing doesn't mean
+  // blindly re-picking every dropdown from scratch and trusting
+  // name-based upsert matching -- the pencil icon previously had no
+  // onClick at all (bug report: "edit button not working").
+  const handleEdit = (p: Policy) => {
+    setEditingId(p.id);
+    setF({
+      businessUnit: p.businessUnit, bandwidth: p.bandwidth, sessionTimeout: p.sessionTimeout,
+      dailyLimit: p.dailyLimit, idleTimeout: p.idleTimeout, devicesPerUser: p.devicesPerUser,
+      dataLimit: p.dataLimit,
+    });
+    setErrs({});
+    if (p.dataLimit) {
+      setDataLimitOpen(true);
+      setDlQuota(String(p.dataLimit.quota));
+      setDlUnit(p.dataLimit.unit);
+      setDlResets(p.dataLimit.resets);
+    } else {
+      setDataLimitOpen(false);
+      setDlQuota("");
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // ── delete ────────────────────────────────────────────────────
@@ -376,7 +446,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
       {/* form card */}
       <Card className="border-0 shadow-sm">
-      <CardHeader><CardTitle className="text-sm">Guest WiFi Limits</CardTitle></CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-sm">{editingId ? `Edit Guest WiFi Limits — ${f.businessUnit}` : "Guest WiFi Limits"}</CardTitle>
+        {editingId && (
+          <button
+            type="button"
+            onClick={() => { setEditingId(null); setF({ businessUnit: "", bandwidth: "", sessionTimeout: "", dailyLimit: "No Limit", idleTimeout: "", devicesPerUser: "", dataLimit: null }); setErrs({}); setDataLimitOpen(false); setDlQuota(""); }}
+            className="text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            Cancel edit
+          </button>
+        )}
+      </CardHeader>
       <CardContent>
         {/* Location -- the target these settings apply to. Kept visually
             separate from the two setting groups below since it answers a
@@ -461,7 +542,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         <div className="flex justify-center">
           <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {saving ? "Updating…" : "Update policies"}
+            {saving ? "Saving…" : editingId ? "Save changes" : "Update policies"}
           </button>
         </div>
       </CardContent>
@@ -529,7 +610,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       : <span className="text-slate-400 dark:text-slate-500">No limit</span>}
                   </TableCell>
                   <TableCell className="text-right">
-                    <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
+                    <button aria-label={`Edit ${p.businessUnit}`} onClick={() => handleEdit(p)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
                     <button
                       aria-label={confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`}
                       onClick={() => handleDelete(p.id)}
