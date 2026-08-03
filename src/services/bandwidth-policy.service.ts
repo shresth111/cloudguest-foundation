@@ -128,6 +128,28 @@ export const bandwidthPolicyService = {
     await deactivatePolicy(id, organizationId);
   },
 
+  // Every location this group's bandwidth policy is *currently* mapped to
+  // (one row per active, location-scoped, target_type="none"
+  // PolicyAssignment) -- the backend already supports a policy having any
+  // number of these simultaneously, each its own independent assignment
+  // record with its own id (createPolicyAssignment/policy-engine.ts's
+  // listPolicyAssignments hits a plain, unfiltered-by-location
+  // GET /policies/{id}/assignments). This is the real many-to-many read:
+  // CreateGroup.tsx's "Map to locations…" modal uses it to seed which
+  // checkboxes start checked across every location in the org, not just
+  // the one currently active. locationMapping() below is just this,
+  // filtered down to a single location, for the existing quick single-
+  // location toggle.
+  async listLocationMappings(
+    policyId: string,
+    organizationId?: string,
+  ): Promise<{ assignmentId: string; locationId: string }[]> {
+    const assignments = await listPolicyAssignments(policyId, organizationId);
+    return assignments
+      .filter((a) => a.is_active && a.scope_type === "location" && a.target_type === "none" && a.scope_id)
+      .map((a) => ({ assignmentId: a.id, locationId: a.scope_id as string }));
+  },
+
   // "Map group" (CreateGroup.tsx step 2) -- is this group's bandwidth
   // policy currently assigned (PolicyAssignment, scope_type="location",
   // target_type="none") to the given location? Returns the active
@@ -137,11 +159,8 @@ export const bandwidthPolicyService = {
   // (PolicyAssignmentRequiresPublishedVersionError), so callers should treat
   // a draft group as always unmapped rather than calling this.
   async locationMapping(policyId: string, locationId: string, organizationId?: string): Promise<string | null> {
-    const assignments = await listPolicyAssignments(policyId, organizationId);
-    const active = assignments.find(
-      (a) => a.is_active && a.scope_type === "location" && a.scope_id === locationId && a.target_type === "none",
-    );
-    return active?.id ?? null;
+    const mappings = await bandwidthPolicyService.listLocationMappings(policyId, organizationId);
+    return mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
   },
 
   // Idempotent: a group already mapped to this location is left as-is

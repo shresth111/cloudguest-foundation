@@ -4,7 +4,7 @@ import {
   HelpCircle, X, Plus, ChevronDown, Search, Pencil, Copy, Trash2,
   ChevronLeft, ChevronRight, Loader2, User, Network, MapPin, MapPinOff, Users, UserPlus,
 } from "lucide-react";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Every field on this form now has a real backend equivalent
 // (bandwidthPolicyService, backed by BandwidthPolicyRules' Group-Policies-
@@ -119,6 +120,15 @@ interface Group {
   // at all and neither did anything below it call this endpoint, so
   // mapping a group to its location was a total dead click.
   mappedAssignmentId: string | null;
+  // Every location (by id) this tier is *currently* mapped to, account-
+  // wide -- not just the active one above. The backend has always
+  // supported a policy having any number of independent, simultaneous
+  // location assignments (bandwidthPolicyService.listLocationMappings);
+  // this just surfaces that reality in the UI instead of only ever
+  // describing mappedAssignmentId's single current-location slice of it.
+  // Drives the "Mapped to N locations" column and seeds the "Map to
+  // locations…" modal's checkboxes.
+  mappedLocationIds: string[];
 }
 
 function Tooltip({ text }: { text: string }) {
@@ -165,10 +175,14 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
   );
 }
 
+// Location ids match customer.service.ts's own DEMO_LOCATIONS roster
+// (loc-1..loc-8) so the "Map to locations…" modal's checklist and this
+// table's "Mapped to N locations" count both read as a coherent demo
+// account instead of referencing locations that don't exist in the picker.
 const DEMO_GROUPS: Group[] = [
-  { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12, mappedAssignmentId: "demo-g1" },
-  { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8, mappedAssignmentId: null },
-  { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5, mappedAssignmentId: null },
+  { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12, mappedAssignmentId: "demo-g1", mappedLocationIds: ["loc-1", "loc-2", "loc-4"] },
+  { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8, mappedAssignmentId: null, mappedLocationIds: ["loc-1"] },
+  { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5, mappedAssignmentId: null, mappedLocationIds: [] },
 ];
 
 export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
@@ -200,20 +214,29 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // otherwise silently reappear here on next load/reload. Drop
         // archived entries client-side so "deleted" actually stays deleted.
         const active = real.filter((p) => p.status !== "archived");
-        // One assignments lookup per group to seed the "Map group" toggle's
-        // initial state -- see Group.mappedAssignmentId's own doc comment.
-        // Skipped entirely with no locationId (CreateGroup rendered outside
-        // a location context): every group reads as unmapped and the map
-        // button below disables itself rather than guessing a location.
+        // One assignments lookup per group -- listLocationMappings returns
+        // *every* active location this group is mapped to in one call, so
+        // this seeds both the "Map group" toggle's current-location state
+        // (mappedAssignmentId) and the full account-wide picture
+        // (mappedLocationIds) the "Mapped to N locations" column/modal
+        // need, without any extra requests. Never skipped for lack of a
+        // locationId -- unlike mappedAssignmentId (which has no location to
+        // resolve against and stays null), mappedLocationIds is
+        // location-independent and should read accurately even when
+        // CreateGroup is rendered outside a location context.
         const withMapping = await Promise.all(
           active.map(async (p) => {
             let mappedAssignmentId: string | null = null;
-            if (locationId) {
-              try {
-                mappedAssignmentId = await bandwidthPolicyService.locationMapping(p.id, locationId, org);
-              } catch {
-                mappedAssignmentId = null;
+            let mappedLocationIds: string[] = [];
+            try {
+              const mappings = await bandwidthPolicyService.listLocationMappings(p.id, org);
+              mappedLocationIds = mappings.map((m) => m.locationId);
+              if (locationId) {
+                mappedAssignmentId = mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
               }
+            } catch {
+              mappedAssignmentId = null;
+              mappedLocationIds = [];
             }
             return {
               id: p.id,
@@ -227,6 +250,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               dataLimit: p.dataLimit ?? null,
               members: 0,
               mappedAssignmentId,
+              mappedLocationIds,
             };
           }),
         );
@@ -260,6 +284,23 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // closing that window; mappingBusy (state) still drives the disabled/
   // spinner UI, it's just no longer what's trusted for correctness.
   const mappingLock = useRef<Set<string>>(new Set());
+  // "Map to locations…" -- the multi-select replacement for having to
+  // switch the active location N times and click the single toggle above
+  // N times. mapModalInitial is the *before* snapshot (locationId ->
+  // assignmentId, straight from listLocationMappings when the modal opens)
+  // and mapModalSelected is the working checkbox state; Save below diffs
+  // the two so it only calls mapToLocation/unmapFromLocation for locations
+  // that actually changed. Same ref-based concurrency guard pattern as
+  // mappingLock above, for the same reason (Save is a single click but can
+  // still double-fire).
+  const [mapModalGroup, setMapModalGroup] = useState<Group | null>(null);
+  const [mapModalInitial, setMapModalInitial] = useState<Record<string, string>>({});
+  const [mapModalSelected, setMapModalSelected] = useState<Set<string>>(new Set());
+  const [mapModalLoading, setMapModalLoading] = useState(false);
+  const [mapModalSaving, setMapModalSaving] = useState(false);
+  const [mapModalSearch, setMapModalSearch] = useState("");
+  const mapModalLock = useRef(false);
+  const { data: allLocations } = useCustomerLocations();
   const [step1Done, setStep1Done] = useState(false);
   // Bug report: "existing groups mai edit icon click nhi ho raha hai" --
   // the Pencil button had no onClick handler at all. Reuses handleClone's
@@ -303,7 +344,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         if (isEdit) {
           setGroups((prev) => prev.map((g) => (g.id === editingId ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
         } else {
-          setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null }, ...prev]);
+          setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null, mappedLocationIds: [] }, ...prev]);
         }
         setSaving(false); setStep1Done(true); setPage(0);
         resetForm();
@@ -334,7 +375,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       if (isEdit) {
         setGroups((prev) => prev.map((g) => (g.id === saved.id ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
       } else {
-        setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null }, ...prev]);
+        setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null, mappedLocationIds: [] }, ...prev]);
       }
       setStep1Done(true); setPage(0);
       resetForm();
@@ -377,13 +418,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     try {
       if (demo) {
         await new Promise((resolve) => setTimeout(resolve, 400));
-        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: wasMapped ? null : `demo-${g.id}` } : x)));
+        setGroups((prev) => prev.map((x) => (x.id === g.id ? {
+          ...x,
+          mappedAssignmentId: wasMapped ? null : `demo-${g.id}`,
+          mappedLocationIds: wasMapped ? x.mappedLocationIds.filter((id) => id !== locationId) : [...new Set([...x.mappedLocationIds, locationId])],
+        } : x)));
       } else if (wasMapped) {
         await bandwidthPolicyService.unmapFromLocation(g.id, g.mappedAssignmentId as string, orgId ?? undefined);
-        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: null } : x)));
+        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: null, mappedLocationIds: x.mappedLocationIds.filter((id) => id !== locationId) } : x)));
       } else {
         const assignmentId = await bandwidthPolicyService.mapToLocation(g.id, locationId, orgId ?? undefined);
-        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: assignmentId } : x)));
+        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: assignmentId, mappedLocationIds: [...new Set([...x.mappedLocationIds, locationId])] } : x)));
       }
       setToast(wasMapped ? `${g.name} unmapped from this location.` : `${g.name} mapped to this location.`);
       setTimeout(() => setToast(null), 2500);
@@ -393,6 +438,123 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     } finally {
       mappingLock.current.delete(g.id);
       setMappingBusy((p) => { const n = new Set(p); n.delete(g.id); return n; });
+    }
+  };
+
+  // Opens "Map to locations…" and re-fetches this tier's mappings fresh
+  // from the server (rather than trusting the table's already-loaded
+  // mappedLocationIds) so the checklist can't open stale if another tab/
+  // session changed something since the table last loaded.
+  const openMapModal = async (g: Group) => {
+    setMapModalGroup(g);
+    setMapModalSearch("");
+    setMapModalLoading(true);
+    try {
+      if (demo) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const initial: Record<string, string> = {};
+        g.mappedLocationIds.forEach((locId) => { initial[locId] = `demo-${g.id}-${locId}`; });
+        setMapModalInitial(initial);
+        setMapModalSelected(new Set(g.mappedLocationIds));
+      } else {
+        const mappings = await bandwidthPolicyService.listLocationMappings(g.id, orgId ?? undefined);
+        const initial: Record<string, string> = {};
+        mappings.forEach((m) => { initial[m.locationId] = m.assignmentId; });
+        setMapModalInitial(initial);
+        setMapModalSelected(new Set(mappings.map((m) => m.locationId)));
+      }
+    } catch {
+      setMapModalInitial({});
+      setMapModalSelected(new Set());
+      setToast("Could not load this tier's current location mappings.");
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      setMapModalLoading(false);
+    }
+  };
+
+  const closeMapModal = () => {
+    if (mapModalSaving) return;
+    setMapModalGroup(null);
+    setMapModalInitial({});
+    setMapModalSelected(new Set());
+    setMapModalSearch("");
+  };
+
+  const toggleMapModalLocation = (locId: string) => {
+    setMapModalSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(locId)) next.delete(locId); else next.add(locId);
+      return next;
+    });
+  };
+
+  // Diffs mapModalInitial (before) against mapModalSelected (after) and
+  // only calls mapToLocation/unmapFromLocation for locations whose
+  // checkbox state actually changed -- not a bulk "set all" call, since
+  // there isn't one on the backend and re-mapping unchanged locations
+  // would just create noise (mapToLocation is idempotent but still an
+  // extra request and a redundant PolicyAssignment lookup).
+  const handleSaveMapModal = async () => {
+    if (!mapModalGroup || mapModalLock.current) return;
+    const g = mapModalGroup;
+    const beforeIds = new Set(Object.keys(mapModalInitial));
+    const toAdd = [...mapModalSelected].filter((id) => !beforeIds.has(id));
+    const toRemove = [...beforeIds].filter((id) => !mapModalSelected.has(id));
+    if (toAdd.length === 0 && toRemove.length === 0) { closeMapModal(); return; }
+    mapModalLock.current = true;
+    setMapModalSaving(true);
+    try {
+      let finalMap: Record<string, string>;
+      if (demo) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        finalMap = {};
+        mapModalSelected.forEach((locId) => { finalMap[locId] = mapModalInitial[locId] ?? `demo-${g.id}-${locId}`; });
+      } else {
+        const [addResults] = await Promise.all([
+          Promise.all(toAdd.map(async (locId) => ({ locId, assignmentId: await bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined) }))),
+          Promise.all(toRemove.map((locId) => bandwidthPolicyService.unmapFromLocation(g.id, mapModalInitial[locId], orgId ?? undefined))),
+        ]);
+        finalMap = {};
+        mapModalSelected.forEach((locId) => {
+          const added = addResults.find((a) => a.locId === locId);
+          finalMap[locId] = added ? added.assignmentId : mapModalInitial[locId];
+        });
+      }
+      const finalLocationIds = Object.keys(finalMap);
+      setGroups((prev) => prev.map((x) => x.id === g.id ? {
+        ...x,
+        mappedLocationIds: finalLocationIds,
+        mappedAssignmentId: locationId ? (finalMap[locationId] ?? null) : x.mappedAssignmentId,
+      } : x));
+      const n = finalLocationIds.length;
+      setToast(`${g.name} is now mapped to ${n} location${n === 1 ? "" : "s"}.`);
+      setTimeout(() => setToast(null), 2500);
+      closeMapModal();
+    } catch {
+      // Promise.all doesn't roll back calls that already succeeded before
+      // one of them rejected, so this tier's real server-side state may
+      // now sit somewhere between mapModalInitial and mapModalSelected.
+      // Re-fetch it rather than assume either one, so the table never
+      // shows a count that doesn't match reality.
+      if (!demo) {
+        try {
+          const mappings = await bandwidthPolicyService.listLocationMappings(g.id, orgId ?? undefined);
+          setGroups((prev) => prev.map((x) => x.id === g.id ? {
+            ...x,
+            mappedLocationIds: mappings.map((m) => m.locationId),
+            mappedAssignmentId: locationId ? (mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null) : x.mappedAssignmentId,
+          } : x));
+        } catch {
+          // Leave the table's existing (now possibly stale) state alone --
+          // better than clobbering it with another guess.
+        }
+      }
+      setToast(`Could not fully update ${g.name}'s location mappings — check the connection and try again.`);
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      mapModalLock.current = false;
+      setMapModalSaving(false);
     }
   };
 
@@ -787,7 +949,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <div className="overflow-x-auto">
           <Table className="min-w-[1000px]">
             <TableHeader><TableRow>
-              <TableHead className="text-xs font-medium">Tier Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Mapped to Location</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
+              <TableHead className="text-xs font-medium">Tier Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Mapped to Location(s)</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
             </TableRow></TableHeader>
             <TableBody>{paged.map((g) => (
               <TableRow key={g.id} className="border-b">
@@ -800,28 +962,37 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 <TableCell className="text-xs">{g.dataLimit ? `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}` : <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>{g.members}</TableCell>
                 <TableCell>
-                  <button
-                    aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
-                    disabled={mappingBusy.has(g.id) || !locationId}
-                    title={
-                      !locationId
-                        ? "Select a location to map this tier."
-                        : g.mappedAssignmentId
-                          ? `In use at ${activeLocationName ?? "this location"} -- click to stop using it here.`
-                          : `Use this tier's settings at ${activeLocationName ?? "this location"}.`
-                    }
-                    onClick={() => handleToggleMap(g)}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-800" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
-                  >
-                    {mappingBusy.has(g.id) ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : g.mappedAssignmentId ? (
+                  <div className="flex flex-col items-start gap-1">
+                    {/* Primary action -- the real many-to-many picture and
+                        the entry point into the "Map to locations…" modal,
+                        replacing the old one-location-at-a-time toggle as
+                        the main way to manage this. */}
+                    <button
+                      aria-label={`Manage which locations ${g.name} is mapped to`}
+                      title={g.mappedLocationIds.length === 0 ? "This tier isn't mapped to any location yet." : `Mapped to: ${g.mappedLocationIds.map((id) => allLocations?.find((l) => l.id === id)?.name ?? id).join(", ")}`}
+                      onClick={() => openMapModal(g)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                    >
                       <MapPin className="h-3.5 w-3.5" />
-                    ) : (
-                      <MapPinOff className="h-3.5 w-3.5" />
+                      {g.mappedLocationIds.length === 0 ? "Map to locations…" : `Mapped to ${g.mappedLocationIds.length} location${g.mappedLocationIds.length === 1 ? "" : "s"}`}
+                    </button>
+                    {/* Quick shortcut kept for the common single-click case
+                        (map/unmap just the location you're currently
+                        looking at) -- same handleToggleMap this button
+                        always called. */}
+                    {locationId && (
+                      <button
+                        aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
+                        disabled={mappingBusy.has(g.id)}
+                        title={g.mappedAssignmentId ? `In use at ${activeLocationName ?? "this location"} -- click to stop using it here.` : `Use this tier's settings at ${activeLocationName ?? "this location"}.`}
+                        onClick={() => handleToggleMap(g)}
+                        className="inline-flex items-center gap-1 pl-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-indigo-400"
+                      >
+                        {mappingBusy.has(g.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : g.mappedAssignmentId ? <MapPin className="h-3 w-3" /> : <MapPinOff className="h-3 w-3" />}
+                        {g.mappedAssignmentId ? `Unmap from ${activeLocationName ?? "here"}` : `Quick-map to ${activeLocationName ?? "here"}`}
+                      </button>
                     )}
-                    {g.mappedAssignmentId ? "Mapped" : "Map"}
-                  </button>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <button
@@ -947,6 +1118,91 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* "Map to locations…" -- the searchable multi-select checklist
+          replacing having to switch the active location N times and click
+          the single toggle N times. Same hand-rolled modal shell as "Map
+          guests" above (this file has no other shadcn Dialog usage to
+          match, so its own existing modal is the real established pattern
+          here); Checkbox below is the one real shadcn primitive already
+          used elsewhere in this codebase for this exact "list of things
+          with a checkbox" shape. */}
+      {mapModalGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={closeMapModal}>
+          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="map-locations-title">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="map-locations-title" className="text-lg font-semibold text-slate-800 dark:text-slate-100">Map to locations — {mapModalGroup.name}</h3>
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Select every location that should use this tier's settings, then save.</p>
+              </div>
+              <button aria-label="Close" disabled={mapModalSaving} onClick={closeMapModal} className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"><X className="h-4 w-4" /></button>
+            </div>
+
+            {(allLocations?.length ?? 0) > 5 && (
+              <div className="relative mt-4">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={mapModalSearch}
+                  onChange={(e) => setMapModalSearch(e.target.value)}
+                  placeholder="Search locations…"
+                  className="block w-full rounded-md border border-slate-200 py-2 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+                />
+              </div>
+            )}
+
+            <div className="mt-3">
+              {mapModalLoading ? (
+                <LoadingSkeleton rows={3} />
+              ) : !allLocations || allLocations.length === 0 ? (
+                <p className="text-xs text-slate-400">No locations found on this account.</p>
+              ) : (
+                <div className="max-h-64 space-y-1 overflow-y-auto">
+                  {allLocations
+                    .filter((loc) => !mapModalSearch.trim() || loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) || loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase()))
+                    .map((loc) => {
+                      const checked = mapModalSelected.has(loc.id);
+                      return (
+                        <label
+                          key={loc.id}
+                          htmlFor={`map-loc-${loc.id}`}
+                          className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition-colors ${checked ? "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-500/10" : "border-slate-200 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700/50"}`}
+                        >
+                          <Checkbox id={`map-loc-${loc.id}`} checked={checked} disabled={mapModalSaving} onCheckedChange={() => toggleMapModalLocation(loc.id)} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{loc.name}{loc.id === locationId && <span className="ml-1.5 text-[10px] font-normal text-indigo-500">(current)</span>}</span>
+                            <span className="block truncate text-xs text-slate-400">{loc.city}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  {allLocations.filter((loc) => !mapModalSearch.trim() || loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) || loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase())).length === 0 && (
+                    <p className="text-xs text-slate-400">No location matches "{mapModalSearch.trim()}".</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-600">
+              <p className="text-xs text-slate-400 dark:text-slate-500">{mapModalSelected.size} of {allLocations?.length ?? 0} selected</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={mapModalSaving} onClick={closeMapModal} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={mapModalSaving || mapModalLoading}
+                  onClick={handleSaveMapModal}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                >
+                  {mapModalSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  {mapModalSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
