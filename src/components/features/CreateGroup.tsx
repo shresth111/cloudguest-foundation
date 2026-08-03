@@ -616,30 +616,39 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <GroupMappingIllustration />
       </div>
 
-      <ol className="flex items-center gap-0 rounded-xl border bg-card p-4" aria-label="Progress">
-        {STEPS.map((s, i) => {
-          // Step 1's "done" readout is step1Done (a group was just
-          // created/edited this session); step 2's is step2Done (a real,
-          // persisted PolicyAssignment exists for some group at this
-          // location); step 3's is step3Done (a real guest has been mapped
-          // into some group's "Map users" panel -- see openUsersModal/
-          // mapGuest below).
-          const done = s.num === 1 ? step1Done : s.num === 2 ? step2Done : step3Done;
-          const caption = s.num === 1 ? s.caption : (done ? "Mapped" : "Not started");
-          return (
-            <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
-              <div className="flex flex-col items-center min-w-0">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]" : "bg-slate-100 dark:bg-slate-700"}`}>
-                  <s.icon className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
+      {/* Stepper wrapped in its own card with a plain-English summary of
+          what "map" means for a non-technical owner underneath -- the
+          three-icon row alone doesn't explain that "Map tier" is the step
+          that actually chooses which location uses this tier's settings. */}
+      <div className="rounded-xl border bg-card p-4">
+        <ol className="flex items-center gap-0" aria-label="Progress">
+          {STEPS.map((s, i) => {
+            // Step 1's "done" readout is step1Done (a group was just
+            // created/edited this session); step 2's is step2Done (a real,
+            // persisted PolicyAssignment exists for some group at this
+            // location); step 3's is step3Done (a real guest has been mapped
+            // into some group's "Map users" panel -- see openUsersModal/
+            // mapGuest below).
+            const done = s.num === 1 ? step1Done : s.num === 2 ? step2Done : step3Done;
+            const caption = s.num === 1 ? s.caption : (done ? "Mapped" : "Not started");
+            return (
+              <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
+                <div className="flex flex-col items-center min-w-0">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]" : "bg-slate-100 dark:bg-slate-700"}`}>
+                    <s.icon className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
+                  </div>
+                  <p className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
+                  {caption && <p className={`text-[10px] ${done ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}>{caption}</p>}
                 </div>
-                <p className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
-                {caption && <p className={`text-[10px] ${done ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}>{caption}</p>}
-              </div>
-              {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
-            </li>
-          );
-        })}
-      </ol>
+                {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
+              </li>
+            );
+          })}
+        </ol>
+        <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
+          Set a tier's limits, map it to the location(s) that should use it, then optionally assign specific guests to it.
+        </p>
+      </div>
 
       <Card id="create-group-form" className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -743,6 +752,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               {!showAllGroups && locationId
                 ? `Mapped to ${activeLocationName ?? "this location"} -- other tiers in the account are hidden.`
                 : "Every tier in this account, across all locations."}
+              {" "}A tier only applies to guests once it's mapped to their location below.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -777,7 +787,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <div className="overflow-x-auto">
           <Table className="min-w-[1000px]">
             <TableHeader><TableRow>
-              <TableHead className="text-xs font-medium">Tier Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Location</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
+              <TableHead className="text-xs font-medium">Tier Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Mapped to Location</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
             </TableRow></TableHeader>
             <TableBody>{paged.map((g) => (
               <TableRow key={g.id} className="border-b">
@@ -793,16 +803,22 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   <button
                     aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
                     disabled={mappingBusy.has(g.id) || !locationId}
-                    title={!locationId ? "Select a location to map this tier." : undefined}
+                    title={
+                      !locationId
+                        ? "Select a location to map this tier."
+                        : g.mappedAssignmentId
+                          ? `In use at ${activeLocationName ?? "this location"} -- click to stop using it here.`
+                          : `Use this tier's settings at ${activeLocationName ?? "this location"}.`
+                    }
                     onClick={() => handleToggleMap(g)}
-                    className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-800" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
                   >
                     {mappingBusy.has(g.id) ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : g.mappedAssignmentId ? (
-                      <MapPin className="h-3 w-3" />
+                      <MapPin className="h-3.5 w-3.5" />
                     ) : (
-                      <MapPinOff className="h-3 w-3" />
+                      <MapPinOff className="h-3.5 w-3.5" />
                     )}
                     {g.mappedAssignmentId ? "Mapped" : "Map"}
                   </button>
@@ -811,11 +827,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   <button
                     aria-label={`Map users into ${g.name}`}
                     disabled={!g.mappedAssignmentId}
-                    title={!g.mappedAssignmentId ? "Map this tier to the location first." : undefined}
+                    title={!g.mappedAssignmentId ? "Map this tier to the location first." : `Assign specific guests to ${g.name} instead of the location default.`}
                     onClick={() => openUsersModal(g)}
-                    className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                   >
-                    <Users className="h-3 w-3" />
+                    <Users className="h-3.5 w-3.5" />
                     Map users
                   </button>
                 </TableCell>
