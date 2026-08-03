@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
+import { Switch } from "@/components/ui/switch";
 
 // Every field on this form now has a real backend equivalent
 // (bandwidthPolicyService, backed by BandwidthPolicyRules' Group-Policies-
@@ -139,9 +140,9 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-function Select({ id, label, value, onChange, options, placeholder, required, tooltip, err }: {
+function Select({ id, label, value, onChange, options, placeholder, required, tooltip, caption, err }: {
   id: string; label: string; value: string; onChange: (v: string) => void;
-  options: string[]; placeholder?: string; required?: boolean; tooltip?: string; err?: string;
+  options: string[]; placeholder?: string; required?: boolean; tooltip?: string; caption?: string; err?: string;
 }) {
   return (
     <div>
@@ -155,7 +156,11 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
         {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-      {err && <p className="mt-0.5 text-xs text-indigo-500">{err}</p>}
+      {/* Persistent caption instead of a click-to-reveal tooltip -- same
+          consistency fix applied across Guest WiFi Limits and Blocked
+          Guests. */}
+      {caption && !err && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{caption}</p>}
+      {err && <p className="mt-1 text-xs text-indigo-500">{err}</p>}
     </div>
   );
 }
@@ -271,7 +276,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!name) e.name = "Required.";
-    else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase())) e.name = "A group with this name already exists.";
+    else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase())) e.name = "A tier with this name already exists.";
     if (!bw) e.bw = "Required."; if (!st) e.st = "Required."; if (!it) e.it = "Required."; if (!dp) e.dp = "Required.";
     if (st && it) {
       const toMin = (v: string) => { const n = parseInt(v); return v.includes("hr") ? n * 60 : v.includes("min") ? n : Infinity; };
@@ -361,7 +366,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // mapToLocation doc comment.
   const handleToggleMap = async (g: Group) => {
     if (!locationId) {
-      setToast("Select a location to map this group.");
+      setToast("Select a location to map this tier.");
       setTimeout(() => setToast(null), 2500);
       return;
     }
@@ -501,7 +506,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setToast(`${guest.displayName ?? guest.identifier} mapped into ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
-      setToast("Could not map this guest — they may already be in another group, or check the connection and try again.");
+      setToast("Could not map this guest — they may already be in another tier, or check the connection and try again.");
       setTimeout(() => setToast(null), 2500);
     } finally {
       guestActionLock.current.delete(guest.id);
@@ -527,7 +532,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setToast(`${guest.displayName ?? guest.identifier} moved from ${other.policyName} to ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
-      setToast("Could not switch this guest's group — check the connection and try again.");
+      setToast("Could not switch this guest's tier — check the connection and try again.");
       setTimeout(() => setToast(null), 2500);
     } finally {
       guestActionLock.current.delete(guest.id);
@@ -611,7 +616,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         <GroupMappingIllustration />
       </div>
 
-      <ol className="flex items-center gap-0" aria-label="Progress">
+      <ol className="flex items-center gap-0 rounded-xl border bg-card p-4" aria-label="Progress">
         {STEPS.map((s, i) => {
           // Step 1's "done" readout is step1Done (a group was just
           // created/edited this session); step 2's is step2Done (a real,
@@ -624,7 +629,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           return (
             <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
               <div className="flex flex-col items-center min-w-0">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-slate-900" : "bg-slate-100 dark:bg-slate-700"}`}>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]" : "bg-slate-100 dark:bg-slate-700"}`}>
                   <s.icon className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
                 </div>
                 <p className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
@@ -649,62 +654,83 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           )}
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Tier Name <span className="text-indigo-500">*</span></label>
-            <input id="g-name" type="text" placeholder="e.g. Staff, Long-stay guests" value={name} onChange={(e) => setField("name", e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
-            {errs.name && <p className="mt-0.5 text-xs text-indigo-500">{errs.name}</p>}
-          </div>
-          <Select id="g-bw" label="Bandwidth" required tooltip="Maximum speed per device in this group." value={bw} onChange={(v) => setField("bw", v)} options={BANDWIDTH} placeholder="Choose bandwidth limit" err={errs.bw} />
-          <Select id="g-st" label="Session Timeout" required tooltip="Forces re-authentication after this time." value={st} onChange={(v) => setField("st", v)} options={SESSION_TIMEOUT} placeholder="Choose session timeout" err={errs.st} />
-          <Select id="g-it" label="Idle Timeout" required tooltip="Disconnect after no traffic this long." value={it} onChange={(v) => setField("it", v)} options={IDLE_TIMEOUT} placeholder="Choose idle timeout" err={errs.it} />
-          <Select id="g-dp" label="Devices Per User" required tooltip="How many devices one person can connect at the same time." value={dp} onChange={(v) => setField("dp", v)} options={DEVICES} placeholder="Choose device limit" err={errs.dp} />
-          <Select id="g-dl" label="Maximum Daily Session Limit" value={dl} onChange={(v) => setField("dl", v)} options={DAILY_LIMIT} placeholder="Choose limit" tooltip="Total session time per day." />
+        <div className="mt-5 max-w-md">
+          <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Tier Name <span className="text-indigo-500">*</span></label>
+          <input id="g-name" type="text" placeholder="e.g. Staff, Long-stay guests" value={name} onChange={(e) => setField("name", e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
+          {errs.name ? <p className="mt-1 text-xs text-indigo-500">{errs.name}</p> : <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">A short, recognizable name for this tier.</p>}
         </div>
 
-        <div className="mt-5 flex items-center justify-between rounded-md border border-slate-200 px-4 py-3 dark:border-slate-600">
-          <span className="flex items-center gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">Restrict login hours <Tooltip text="Limit when members can connect. Off means any time." /></span>
-          <button role="switch" aria-checked={loginOn} onClick={() => setLoginOn((p) => !p)} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginOn ? "bg-slate-900 dark:bg-white" : "bg-slate-200 dark:bg-slate-600"}`}>
-            <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${loginOn ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
-          </button>
+        <div className="mt-5 space-y-5">
+          {/* Speed & Devices -- bandwidth, device count, and the optional
+              data limit are all "how much" settings, grouped together
+              (same grouping used on Guest WiFi Limits) instead of being
+              scattered across a flat field grid. */}
+          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Speed &amp; Devices</h3>
+            <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">How fast members connect, and how many devices each member can use.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select id="g-bw" label="Bandwidth" required value={bw} onChange={(v) => setField("bw", v)} options={BANDWIDTH} placeholder="Choose bandwidth" caption="Maximum speed per device in this tier." err={errs.bw} />
+              <Select id="g-dp" label="Devices Per User" required value={dp} onChange={(v) => setField("dp", v)} options={DEVICES} placeholder="Choose devices per user" caption="How many devices one person can connect at the same time." err={errs.dp} />
+            </div>
+
+            <button type="button" onClick={() => setDlOpen((p) => !p)} aria-expanded={dlOpen} aria-controls="dl-panel" className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700">
+              <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"><Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span></span>
+              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dlOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {dlOpen && (
+              <div id="dl-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div><label htmlFor="g-dq" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Quota</label><input id="g-dq" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />{errs.dlQuota && <p className="mt-1 text-xs text-indigo-500">{errs.dlQuota}</p>}</div>
+                <div><label htmlFor="g-du" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Unit</label><select id="g-du" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>
+                <div><label htmlFor="g-dr" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Resets</label><select id="g-dr" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r}>{r}</option>)}</select></div>
+              </div>
+            )}
+          </div>
+
+          {/* Time Limits -- session/idle timeout, the daily cap, and login
+              hours are all "when" settings, grouped together (parallel to
+              Guest WiFi Limits' own Time Limits section). */}
+          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Time Limits</h3>
+            <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">When a member gets disconnected, has to sign in again, or can connect at all.</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Select id="g-st" label="Session Timeout" required value={st} onChange={(v) => setField("st", v)} options={SESSION_TIMEOUT} placeholder="Choose session timeout" caption="Re-authenticate after this much time." err={errs.st} />
+              <Select id="g-it" label="Idle Timeout" required value={it} onChange={(v) => setField("it", v)} options={IDLE_TIMEOUT} placeholder="Choose idle timeout" caption="Disconnect after this much inactivity." err={errs.it} />
+              <Select id="g-dl" label="Maximum Daily Session Limit" value={dl} onChange={(v) => setField("dl", v)} options={DAILY_LIMIT} placeholder="Choose daily limit" caption="Total session time allowed per day." />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600">
+              <div>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Restrict login hours</span>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Limit when members can connect. Off means any time.</p>
+              </div>
+              <Switch checked={loginOn} onCheckedChange={() => setLoginOn((p) => !p)} aria-label="Restrict login hours" />
+            </div>
+
+            {loginOn && (
+              <div className="mt-3 space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {DAYS.map((d) => (
+                    <button key={d} onClick={() => toggleDay(d)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginDays.includes(d) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}>{d}</button>
+                  ))}
+                </div>
+                {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
+                <div className="flex gap-3">
+                  <div><label htmlFor="g-lf" className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400">From</label><input id="g-lf" type="time" value={loginFrom} onChange={(e) => setLoginFrom(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
+                  <div><label htmlFor="g-lt" className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400">To</label><input id="g-lt" type="time" value={loginTo} onChange={(e) => setLoginTo(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
+                </div>
+                {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
+                <p className="text-xs text-slate-400 dark:text-slate-500">Members can only get online during these hours.</p>
+              </div>
+            )}
+          </div>
         </div>
-        <p className="mt-1 text-right text-xs text-slate-400 dark:text-slate-500">{loginOn ? "ON" : "OFF"}</p>
-
-        {loginOn && (
-          <div className="mt-3 space-y-3">
-            <div className="flex flex-wrap gap-1.5">
-              {DAYS.map((d) => (
-                <button key={d} onClick={() => toggleDay(d)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginDays.includes(d) ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}>{d}</button>
-              ))}
-            </div>
-            {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
-            <div className="flex gap-3">
-              <div><label htmlFor="g-lf" className="mb-0.5 block text-xs text-slate-500">From</label><input id="g-lf" type="time" value={loginFrom} onChange={(e) => setLoginFrom(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
-              <div><label htmlFor="g-lt" className="mb-0.5 block text-xs text-slate-500">To</label><input id="g-lt" type="time" value={loginTo} onChange={(e) => setLoginTo(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
-            </div>
-            {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
-            <p className="text-xs text-slate-400">Members can only get online during these hours.</p>
-          </div>
-        )}
-
-        <button type="button" onClick={() => setDlOpen((p) => !p)} aria-expanded={dlOpen} aria-controls="dl-panel" className="mt-5 flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700">
-          <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"><Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span></span>
-          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dlOpen ? "rotate-180" : ""}`} />
-        </button>
-
-        {dlOpen && (
-          <div id="dl-panel" className="mt-4 grid gap-4 md:grid-cols-3">
-            <div><label htmlFor="g-dq" className="mb-1 block text-sm font-medium text-slate-600">Quota</label><input id="g-dq" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />{errs.dlQuota && <p className="mt-0.5 text-xs text-indigo-500">{errs.dlQuota}</p>}</div>
-            <div><label htmlFor="g-du" className="mb-1 block text-sm font-medium text-slate-600">Unit</label><select id="g-du" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>
-            <div><label htmlFor="g-dr" className="mb-1 block text-sm font-medium text-slate-600">Resets</label><select id="g-dr" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r}>{r}</option>)}</select></div>
-          </div>
-        )}
 
         <hr className="my-6 border-slate-100 dark:border-slate-600" />
         <div className="flex justify-center">
           <button onClick={handleCreate} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {saving ? (editingId ? "Saving…" : "Creating…") : editingId ? "Save changes" : "Create group"}
+            {saving ? (editingId ? "Saving…" : "Creating…") : editingId ? "Save changes" : "Create tier"}
           </button>
         </div>
       </CardContent></Card>
@@ -715,8 +741,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Access Tiers</h3>
             <p className="text-xs text-slate-400 dark:text-slate-500">
               {!showAllGroups && locationId
-                ? `Mapped to ${activeLocationName ?? "this location"} -- other groups in the account are hidden.`
-                : "Every group in this account, across all locations."}
+                ? `Mapped to ${activeLocationName ?? "this location"} -- other tiers in the account are hidden.`
+                : "Every tier in this account, across all locations."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -732,7 +758,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   onClick={() => { setShowAllGroups(true); setPage(0); }}
                   className={`rounded px-2 py-1 text-xs font-medium transition-colors ${showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
                 >
-                  All groups
+                  All tiers
                 </button>
               </div>
             )}
@@ -743,9 +769,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         {paged.length === 0 ? (
           <EmptyState
             icon={Network}
-            title={!showAllGroups && locationId && groups.length > 0 ? "No groups mapped to this location" : "No groups yet"}
-            description={!showAllGroups && locationId && groups.length > 0 ? "Browse all groups in the account to map one to this location." : "Create one above to give a set of users their own policy."}
-            action={!showAllGroups && locationId && groups.length > 0 ? { label: "Browse all groups", onClick: () => setShowAllGroups(true) } : undefined}
+            title={!showAllGroups && locationId && groups.length > 0 ? "No tiers mapped to this location" : "No tiers yet"}
+            description={!showAllGroups && locationId && groups.length > 0 ? "Browse all tiers in the account to map one to this location." : "Create one above to give a set of users their own policy."}
+            action={!showAllGroups && locationId && groups.length > 0 ? { label: "Browse all tiers", onClick: () => setShowAllGroups(true) } : undefined}
           />
         ) : (
         <div className="overflow-x-auto">
@@ -767,7 +793,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   <button
                     aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
                     disabled={mappingBusy.has(g.id) || !locationId}
-                    title={!locationId ? "Select a location to map this group." : undefined}
+                    title={!locationId ? "Select a location to map this tier." : undefined}
                     onClick={() => handleToggleMap(g)}
                     className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 ${g.mappedAssignmentId ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
                   >
@@ -785,7 +811,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   <button
                     aria-label={`Map users into ${g.name}`}
                     disabled={!g.mappedAssignmentId}
-                    title={!g.mappedAssignmentId ? "Map this group to the location first." : undefined}
+                    title={!g.mappedAssignmentId ? "Map this tier to the location first." : undefined}
                     onClick={() => openUsersModal(g)}
                     className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                   >
@@ -794,9 +820,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   </button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Pencil className="h-4 w-4" /></button>
-                  <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Copy className="h-4 w-4" /></button>
-                  <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === g.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-red-500"}`}>
+                  <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
+                  <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Copy className="h-4 w-4" /></button>
+                  <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === g.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}>
                     {confirmingId === g.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                   </button>
                 </TableCell>
@@ -861,7 +887,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                           className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
                         >
                           {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
-                          Switch group
+                          Switch tier
                         </button>
                       ) : (
                         <button
@@ -887,7 +913,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             {guestsLoading ? (
               <LoadingSkeleton rows={2} />
             ) : mappedGuests.length === 0 ? (
-              <p className="text-xs text-slate-400">No users mapped into this group yet.</p>
+              <p className="text-xs text-slate-400">No users mapped into this tier yet.</p>
             ) : (
               <div className="space-y-1.5">
                 {mappedGuests.map((m) => (

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -400,65 +400,88 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           </span>
           <CardTitle className="text-sm">{tab === "number" ? "Allow a number" : "Allow a device"}</CardTitle>
         </CardHeader>
-        <CardContent>
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Mobile / MAC */}
-          {tab === "number" ? (
-            <div>
-              <label className={labelCls}>Mobile Number <span className="text-destructive">*</span></label>
-              <div className="flex gap-2">
-                <select value={f.mobileCC} onChange={e => setField("mobileCC", e.target.value)} className={cn(inputCls, "w-28 shrink-0")}>
-                  {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+        <CardContent className="space-y-5">
+          {/* Who's Allowed -- identity fields grouped together (was a flat
+              6-field grid with no separation from the access-window dates
+              below it). */}
+          <div className="rounded-xl border bg-muted/30 p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Who's Allowed</h3>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">{tab === "number" ? "The number that skips the portal, and who it belongs to." : "The device that skips the portal, and who it belongs to."}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Mobile / MAC */}
+              {tab === "number" ? (
+                <div>
+                  <label className={labelCls}>Mobile Number <span className="text-destructive">*</span></label>
+                  <div className="flex gap-2">
+                    <select value={f.mobileCC} onChange={e => setField("mobileCC", e.target.value)} className={cn(inputCls, "w-28 shrink-0")}>
+                      {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                    </select>
+                    <input type="text" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={f.mobile} onChange={e => setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))} className={inputCls} />
+                  </div>
+                  <Err k="mobile" />
+                </div>
+              ) : (
+                <div>
+                  <label className={labelCls}>MAC Address <span className="text-destructive">*</span></label>
+                  <input type="text" placeholder="AA:BB:CC:DD:EE:FF" value={f.mac} onChange={e => setField("mac", e.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").replace(/(.{2})(?!$)/g, "$1:").slice(0, 17))} className={cn(inputCls, "font-mono")} />
+                  <Err k="mac" />
+                </div>
+              )}
+
+              <div>
+                <label className={labelCls}>Location <span className="text-destructive">*</span></label>
+                <select value={f.businessUnit} onChange={e => setField("businessUnit", e.target.value)} className={inputCls}>
+                  {units.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
-                <input type="text" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={f.mobile} onChange={e => setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))} className={inputCls} />
               </div>
-              <Err k="mobile" />
+
+              <div>
+                <label className={labelCls}>{tab === "number" ? "Name" : "Device label"} <span className="text-destructive">*</span></label>
+                <input type="text" placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"} value={f.name} onChange={e => setField("name", e.target.value)} className={inputCls} />
+                <Err k="name" />
+              </div>
+
+              <div>
+                <label className={labelCls}>Email <span className="text-destructive">*</span></label>
+                <input type="email" placeholder="name@company.com" value={f.email} onChange={e => setField("email", e.target.value)} className={inputCls} />
+                <Err k="email" />
+              </div>
             </div>
-          ) : (
-            <div>
-              <label className={labelCls}>MAC Address <span className="text-destructive">*</span></label>
-              <input type="text" placeholder="AA:BB:CC:DD:EE:FF" value={f.mac} onChange={e => setField("mac", e.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").replace(/(.{2})(?!$)/g, "$1:").slice(0, 17))} className={cn(inputCls, "font-mono")} />
-              <Err k="mac" />
+          </div>
+
+          {/* Access Window -- the two date fields are a distinct concept
+              (when the bypass is active) from who it applies to above, so
+              they get their own labeled section instead of blending into
+              the same flat grid. */}
+          <div className="rounded-xl border bg-muted/30 p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Access Window</h3>
             </div>
-          )}
+            <p className="mb-4 text-xs text-muted-foreground">When this bypass starts and automatically ends.</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className={labelCls}>Start Date <span className="text-destructive">*</span></label>
+                <div className="relative">
+                  <input type="datetime-local" value={f.startDate} onChange={e => setField("startDate", e.target.value)} className={cn(inputCls, "pr-9")} />
+                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
+                <Err k="startDate" />
+              </div>
 
-          <div>
-            <label className={labelCls}>Location <span className="text-destructive">*</span></label>
-            <select value={f.businessUnit} onChange={e => setField("businessUnit", e.target.value)} className={inputCls}>
-              {units.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className={labelCls}>{tab === "number" ? "Name" : "Device label"} <span className="text-destructive">*</span></label>
-            <input type="text" placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"} value={f.name} onChange={e => setField("name", e.target.value)} className={inputCls} />
-            <Err k="name" />
-          </div>
-
-          <div>
-            <label className={labelCls}>Email <span className="text-destructive">*</span></label>
-            <input type="email" placeholder="name@company.com" value={f.email} onChange={e => setField("email", e.target.value)} className={inputCls} />
-            <Err k="email" />
-          </div>
-
-          <div>
-            <label className={labelCls}>Start Date <span className="text-destructive">*</span></label>
-            <div className="relative">
-              <input type="datetime-local" value={f.startDate} onChange={e => setField("startDate", e.target.value)} className={cn(inputCls, "pr-9")} />
-              <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <div>
+                <label className={labelCls}>End Date <span className="text-destructive">*</span></label>
+                <div className="relative">
+                  <input type="datetime-local" value={f.endDate} onChange={e => setField("endDate", e.target.value)} className={cn(inputCls, "pr-9")} />
+                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
+                <Err k="endDate" />
+              </div>
             </div>
-            <Err k="startDate" />
           </div>
-
-          <div>
-            <label className={labelCls}>End Date <span className="text-destructive">*</span></label>
-            <div className="relative">
-              <input type="datetime-local" value={f.endDate} onChange={e => setField("endDate", e.target.value)} className={cn(inputCls, "pr-9")} />
-              <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            </div>
-            <Err k="endDate" />
-          </div>
-        </div>
 
         <hr className="my-6 border-border" />
         <div className="flex justify-center gap-2">
