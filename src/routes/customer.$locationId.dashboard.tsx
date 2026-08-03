@@ -1267,11 +1267,20 @@ function CustomerDashboardPage() {
                           )}
                         </CardContent>
                       </Card>
-                      {/* Network Hardware lives here, alongside Recent
-                       * Users, rather than stacked into the right column
-                       * with Recent Alerts + Internet Connection -- see the
-                       * comment above this grid for why. */}
-                      <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
+                      {/* Internet Connection pairs with Recent Users (both
+                       * naturally the fuller of their row -- a real 6-row
+                       * table and, once the on-demand Speed Test/Uplinks UI
+                       * was added, the taller of the two bottom cards) so
+                       * this column and the Recent Alerts/Network Hardware
+                       * one stay comparable in real content height. Network
+                       * Hardware's empty state is genuinely short whenever a
+                       * location has no monitored hardware yet, same as
+                       * Recent Alerts' "All clear" state is short when
+                       * there's nothing to flag -- pairing the two short
+                       * ones together (and the two full ones together)
+                       * rebalances the columns without any CSS stretch
+                       * trick, matching the comment above this grid. */}
+                      <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
                     </div>
                     <div className="flex flex-col gap-6">
                       <Card className="premium-card premium-card-hover">
@@ -1293,7 +1302,7 @@ function CustomerDashboardPage() {
                           })}
                         </CardContent>
                       </Card>
-                      <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+                      <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
                     </div>
                   </div>
                 </div>
