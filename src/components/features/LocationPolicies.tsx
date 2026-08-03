@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   AlertTriangle, HelpCircle, Plus, ChevronDown, Search, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Loader2, X, Shield,
+  ChevronLeft, ChevronRight, Loader2, X, Shield, Gauge, Clock, MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -80,9 +80,9 @@ function Tooltip({ id, text }: { id: string; text: string }) {
 }
 
 // ── Select helper ────────────────────────────────────────────────
-function Select({ id, label, value, onChange, options, placeholder, required, tooltip, err }: {
+function Select({ id, label, value, onChange, options, placeholder, required, tooltip, caption, err }: {
   id: string; label: string; value: string; onChange: (v: string) => void;
-  options: string[]; placeholder?: string; required?: boolean; tooltip?: string; err?: string;
+  options: string[]; placeholder?: string; required?: boolean; tooltip?: string; caption?: string; err?: string;
 }) {
   return (
     <div>
@@ -96,7 +96,12 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
         {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-      {err && <p className="mt-0.5 text-xs text-indigo-500">{err}</p>}
+      {/* Persistent plain-English caption instead of a click-to-reveal (?)
+          tooltip -- for a form whose banner above says changes take effect
+          immediately for already-connected guests, the explanation
+          shouldn't require a discovery click. */}
+      {caption && !err && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{caption}</p>}
+      {err && <p className="mt-1 text-xs text-indigo-500">{err}</p>}
     </div>
   );
 }
@@ -264,59 +269,105 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         </div>
       )}
 
-      {/* warning banner */}
+      {/* warning banner -- the core warning (bold, prominent) is now
+          separated from the secondary "need help" contact line (smaller,
+          muted) instead of one run-on paragraph, so the actually-important
+          part reads at a glance. */}
       <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-        <p className="text-sm text-amber-800 dark:text-amber-200">
-          Saving takes effect immediately for every guest at this location — including anyone already connected.
-          Double-check the limits before you save, or contact <a href="mailto:support@wyfyguest.com" className="font-medium text-indigo-600 underline dark:text-indigo-400">support@wyfyguest.com</a> if you need help.
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+            Saving applies these limits immediately — including to guests already connected.
+          </p>
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
+            Double-check the limits below before saving. Need help? Contact{" "}
+            <a href="mailto:support@wyfyguest.com" className="font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-400">support@wyfyguest.com</a>.
+          </p>
+        </div>
       </div>
 
       {/* form card */}
       <Card className="border-0 shadow-sm">
-      <CardHeader><CardTitle className="text-sm">Usage Limits</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-sm">Guest WiFi Limits</CardTitle></CardHeader>
       <CardContent>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Select id="bu" label="Location" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose a location" err={errs.businessUnit} />
-          <Select id="bw" label="Bandwidth" required value={f.bandwidth} onChange={(v) => setField("bandwidth", v)} options={BANDWIDTH} placeholder="Choose Bandwidth" tooltip="Maximum speed per guest device." err={errs.bandwidth} />
-          <Select id="st" label="Session Timeout" required value={f.sessionTimeout} onChange={(v) => setField("sessionTimeout", v)} options={SESSION_TIMEOUT} placeholder="Choose Session Timeout" tooltip="Forces a guest to re-authenticate after this time." err={errs.sessionTimeout} />
-          <Select id="dl" label="Maximum Daily Session Limit" value={f.dailyLimit} onChange={(v) => setField("dailyLimit", v)} options={DAILY_LIMIT} placeholder="Choose Limit" tooltip="Total session time allowed per guest per day." />
-          <Select id="it" label="Idle Timeout" required value={f.idleTimeout} onChange={(v) => setField("idleTimeout", v)} options={IDLE_TIMEOUT} placeholder="Choose Idle Timeout" tooltip="Disconnects a guest after this much time with no traffic." err={errs.idleTimeout} />
-          <Select id="dp" label="Devices Per User" required value={f.devicesPerUser} onChange={(v) => setField("devicesPerUser", v)} options={DEVICES} placeholder="Choose Devices" tooltip="How many devices the same guest can connect at once." err={errs.devicesPerUser} />
+        {/* Location -- the target these settings apply to. Kept visually
+            separate from the two setting groups below since it answers a
+            different question ("where") than they do ("what"). */}
+        <div className="max-w-md">
+          <Select id="bu" label="Location" required value={f.businessUnit} onChange={(v) => setField("businessUnit", v)} options={units} placeholder="Choose a location" caption="Which location these settings apply to." err={errs.businessUnit} />
         </div>
 
-        {/* collapsible data limit */}
-        <button
-          type="button"
-          onClick={() => setDataLimitOpen((p) => !p)}
-          aria-expanded={dataLimitOpen}
-          aria-controls="data-limit-panel"
-          className="mt-5 flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
-        >
-          <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-            <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span>
-          </span>
-          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`} />
-        </button>
+        <div className="mt-6 space-y-5">
+          {/* Speed & Devices -- bandwidth, device count, and the optional
+              data limit are all "how much" settings (capacity), so they're
+              grouped in one clearly-labeled section instead of being
+              scattered across a flat 6-field grid alongside unrelated
+              time-based settings. */}
+          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <div className="mb-1 flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-indigo-500" />
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Speed &amp; Devices</h3>
+            </div>
+            <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">How fast guests connect, and how many devices each guest can use.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select id="bw" label="Bandwidth" required value={f.bandwidth} onChange={(v) => setField("bandwidth", v)} options={BANDWIDTH} placeholder="Choose bandwidth" caption="Maximum speed per guest device." err={errs.bandwidth} />
+              <Select id="dp" label="Devices Per User" required value={f.devicesPerUser} onChange={(v) => setField("devicesPerUser", v)} options={DEVICES} placeholder="Choose devices per user" caption="How many devices the same guest can connect at once." err={errs.devicesPerUser} />
+            </div>
 
-        {dataLimitOpen && (
-          <div id="data-limit-panel" className="mt-4 grid gap-4 md:grid-cols-3">
-            <div>
-              <label htmlFor="dl-quota" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Data quota</label>
-              <input id="dl-quota" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-              {errs.dataLimit && <p className="mt-0.5 text-xs text-indigo-500">{errs.dataLimit}</p>}
+            {/* collapsible data limit -- a third, optional capacity setting.
+                Nested inside this section (instead of floating below it
+                looking unrelated) so it reads as belonging with
+                Bandwidth/Devices Per User. */}
+            <button
+              type="button"
+              onClick={() => setDataLimitOpen((p) => !p)}
+              aria-expanded={dataLimitOpen}
+              aria-controls="data-limit-panel"
+              className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {dataLimitOpen && (
+              <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label htmlFor="dl-quota" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Data quota</label>
+                  <input id="dl-quota" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                  {errs.dataLimit && <p className="mt-1 text-xs text-indigo-500">{errs.dataLimit}</p>}
+                </div>
+                <div>
+                  <label htmlFor="dl-unit" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Unit</label>
+                  <select id="dl-unit" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                </div>
+                <div>
+                  <label htmlFor="dl-resets" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Resets</label>
+                  <select id="dl-resets" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Time Limits -- session timeout, idle timeout, and the daily
+              session cap are all "when" settings (when a guest gets
+              disconnected or has to sign in again), separated from the
+              speed/capacity group above so an owner can scan for the kind
+              of setting they actually want to change. */}
+          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <div className="mb-1 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-indigo-500" />
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Time Limits</h3>
             </div>
-            <div>
-              <label htmlFor="dl-unit" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Unit</label>
-              <select id="dl-unit" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
-            </div>
-            <div>
-              <label htmlFor="dl-resets" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Resets</label>
-              <select id="dl-resets" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+            <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">When a guest gets disconnected or has to sign in again.</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Select id="st" label="Session Timeout" required value={f.sessionTimeout} onChange={(v) => setField("sessionTimeout", v)} options={SESSION_TIMEOUT} placeholder="Choose session timeout" caption="Re-authenticate after this much time." err={errs.sessionTimeout} />
+              <Select id="it" label="Idle Timeout" required value={f.idleTimeout} onChange={(v) => setField("idleTimeout", v)} options={IDLE_TIMEOUT} placeholder="Choose idle timeout" caption="Disconnect after this much inactivity." err={errs.idleTimeout} />
+              <Select id="dl" label="Maximum Daily Session Limit" value={f.dailyLimit} onChange={(v) => setField("dailyLimit", v)} options={DAILY_LIMIT} placeholder="Choose daily limit" caption="Total connected time allowed per day." />
             </div>
           </div>
-        )}
+        </div>
 
         <hr className="my-6 border-slate-100 dark:border-slate-600" />
         <div className="flex justify-center">
@@ -332,7 +383,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       <Card className="border-0 shadow-sm">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
-            <CardTitle className="text-sm">Current Usage Limits</CardTitle>
+            <CardTitle className="text-sm">Current Guest WiFi Limits</CardTitle>
             <p className="text-xs text-muted-foreground">The policies currently active for the selected space.</p>
           </div>
           <div className="flex items-center gap-3">
@@ -368,19 +419,33 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             <TableBody>
               {paged.map((p) => (
                 <TableRow key={p.id} className="border-b">
-                  <TableCell className="font-medium">{p.businessUnit}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
+                        <MapPin className="h-3.5 w-3.5" />
+                      </span>
+                      {p.businessUnit}
+                    </span>
+                  </TableCell>
                   <TableCell>{p.bandwidth}</TableCell>
                   <TableCell>{p.sessionTimeout}</TableCell>
-                  <TableCell>{p.idleTimeout}</TableCell>
-                  <TableCell>{p.dailyLimit}</TableCell>
-                  <TableCell>{p.devicesPerUser}</TableCell>
-                  <TableCell className="text-xs">{p.dataLimit ? `${p.dataLimit.quota} ${p.dataLimit.unit} / ${p.dataLimit.resets}` : <span className="text-muted-foreground">—</span>}</TableCell>
+                  {/* "No Limit"/"Unlimited" rows are muted so a stricter,
+                      set value on another row visually stands out instead
+                      of every policy reading with equal weight. */}
+                  <TableCell className={p.idleTimeout === "No Limit" ? "text-slate-400 dark:text-slate-500" : undefined}>{p.idleTimeout}</TableCell>
+                  <TableCell className={p.dailyLimit === "No Limit" ? "text-slate-400 dark:text-slate-500" : undefined}>{p.dailyLimit}</TableCell>
+                  <TableCell className={p.devicesPerUser === "Unlimited" ? "text-slate-400 dark:text-slate-500" : undefined}>{p.devicesPerUser}</TableCell>
+                  <TableCell className="text-xs">
+                    {p.dataLimit
+                      ? <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">{p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}</span>
+                      : <span className="text-slate-400 dark:text-slate-500">No limit</span>}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
+                    <button aria-label={`Edit ${p.businessUnit}`} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
                     <button
                       aria-label={confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`}
                       onClick={() => handleDelete(p.id)}
-                      className={`inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirming === p.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}
+                      className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirming === p.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}
                     >
                       {confirming === p.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
                     </button>

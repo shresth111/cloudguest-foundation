@@ -75,13 +75,15 @@ function PolicyShieldIllustration() {
 // Renamed from generic/technical "Location Policies"/"User Policies"/
 // "Group Policies" -- none of those said what they actually configure. Each
 // new name matches what the tab does in the venue-owner's own words:
-// "Usage Limits" caps bandwidth/session/data per Business Unit, "Guest
-// Access" is per-guest allow/block/PIN control, "Access Tiers" is the
-// bandwidth/limit package guests get mapped into -- deliberately not
-// "Guest Groups" (a real, different feature already has that name in the
-// sidebar, ManageTeamsPage.tsx's staff/shared-account teams).
+// "Guest WiFi Limits" caps bandwidth/session/data per Business Unit (kept in
+// sync with LocationPolicies.tsx's own card titles after real-customer
+// feedback that "Usage Limits" didn't read as clearly), "Guest Access" is
+// per-guest allow/block/PIN control, "Access Tiers" is the bandwidth/limit
+// package guests get mapped into -- deliberately not "Guest Groups" (a
+// real, different feature already has that name in the sidebar,
+// ManageTeamsPage.tsx's staff/shared-account teams).
 const POLICIES_TABS = [
-  { id: "location", label: "Usage Limits", icon: Shield },
+  { id: "location", label: "Guest WiFi Limits", icon: Shield },
   { id: "user", label: "Guest Access", icon: Users },
   { id: "group", label: "Access Tiers", icon: Layers },
 ];
