@@ -9,6 +9,21 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
+import {
+  createPolicyWithRules,
+  updatePolicyRules,
+  createPolicyAssignment,
+  listPolicyDetails,
+  latestVersion,
+  deactivatePolicy,
+} from "@/services/policy-engine";
+
+// DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
+// -- there's no real "unlimited" value in that schema today, so "Unlimited"
+// here is represented as this large practical ceiling rather than left
+// unenforced (an unassigned location falls back to the platform default of
+// 3, which would silently contradict what "Unlimited" promises).
+const UNLIMITED_DEVICES_SENTINEL = 9999;
 
 const BANDWIDTH_KBPS: Record<string, number> = { "10 Mbps": 10240, "20 Mbps": 20480, "30 Mbps": 30720, "40 Mbps": 40960, "50 Mbps": 51200, "60 Mbps": 61440, "70 Mbps": 71680, "80 Mbps": 81920 };
 function kbpsToLabel(kbps: number): string {
@@ -128,6 +143,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [saving, setSaving] = useState(false);
   const [policies, setPolicies] = useState<Policy[]>(demo ? SEED : []);
   const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
+  const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -142,9 +158,40 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const real = await bandwidthPolicyService.list(org);
-        setPolicies(real.map((p) => ({ id: p.id, businessUnit: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", dailyLimit: "No Limit", idleTimeout: "", devicesPerUser: "", dataLimit: null })));
+        const [realAll, deviceDetailsAll] = await Promise.all([
+          bandwidthPolicyService.list(org),
+          listPolicyDetails("device", org).catch(() => []),
+        ]);
+        // Deactivated (deleted) policies are excluded from both id maps --
+        // bandwidthPolicyService.list()/listPolicyDetails() return every
+        // policy regardless of is_active, and a deactivated policy has no
+        // "reactivate" path (see policy-engine.ts's statusOf/updatePolicyRules
+        // comments). Keeping a dead id in realIds/deviceRealIds meant the
+        // *next* save for the same location name silently republished a new
+        // version onto a policy that resolve_effective_policy's
+        // list_candidate_assignments will never return (it only considers
+        // active policies) -- the save toast said "saved and applied," but
+        // nothing was ever really in effect. Confirmed live: org testyyy's
+        // "test" bandwidth policy was exactly this -- is_active: false,
+        // resolve returning platform_default with empty rules. Filtering
+        // here means a save after a delete creates a genuinely fresh,
+        // active policy instead of reviving the dead one.
+        const real = realAll.filter((p) => p.status !== "archived");
+        const deviceDetails = deviceDetailsAll.filter((d) => d.is_active);
+        // Real DEVICE policies are name-keyed the same way bandwidth
+        // policies are (name === the location/"Business Unit" they were
+        // saved for) -- see handleSave, which creates them under that same
+        // name so this lookup and the save-time upsert agree on identity.
+        const deviceByName = new Map(
+          deviceDetails.map((d) => [d.name, latestVersion(d)?.rules?.max_devices_per_guest as number | undefined]),
+        );
+        setPolicies(real.map((p) => {
+          const maxDevices = deviceByName.get(p.name);
+          const devicesPerUser = maxDevices == null ? "" : maxDevices >= UNLIMITED_DEVICES_SENTINEL ? "Unlimited" : String(maxDevices);
+          return { id: p.id, businessUnit: p.name, bandwidth: kbpsToLabel(p.downloadRateKbps), sessionTimeout: "", dailyLimit: "No Limit", idleTimeout: "", devicesPerUser, dataLimit: null };
+        }));
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
+        setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
       } catch {
         // Leave policies empty -- the "no policies yet" state is accurate.
       }
@@ -224,6 +271,30 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         await bandwidthPolicyService.mapToLocation(saved.id, locationId, orgId ?? undefined);
       }
       setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
+
+      // Devices Per User -- same "policy exists but was never applied" gap
+      // bandwidth just had, except this one was never even wired to a
+      // backend policy at all: this select used to be pure local UI state,
+      // so the real per-guest device-count enforcement
+      // (guest/service.py's _resolve_device_limit) always fell back to the
+      // platform default of 3 regardless of what was chosen here (bug
+      // report: a guest was rejected for "already has 3 devices" with 5
+      // configured here). DevicePolicyRules.max_devices_per_guest has no
+      // real "unlimited" value, so "Unlimited" is sent as
+      // UNLIMITED_DEVICES_SENTINEL rather than left unenforced.
+      const maxDevices = f.devicesPerUser === "Unlimited" ? UNLIMITED_DEVICES_SENTINEL : parseInt(f.devicesPerUser, 10);
+      const existingDeviceId = deviceRealIds[f.businessUnit];
+      const deviceRules = { max_devices_per_guest: maxDevices };
+      if (existingDeviceId) {
+        await updatePolicyRules({ id: existingDeviceId, rules: deviceRules, publish: true, archive: false, organizationId: orgId ?? undefined });
+      } else {
+        const createdDevice = await createPolicyWithRules({ policyType: "device", name: f.businessUnit, description: null, rules: deviceRules, publish: true, organizationId: orgId ?? undefined });
+        if (locationId) {
+          await createPolicyAssignment({ policyId: createdDevice.id, scopeType: "location", scopeId: locationId, organizationId: orgId ?? undefined });
+        }
+        setDeviceRealIds((prev) => ({ ...prev, [f.businessUnit]: createdDevice.id }));
+      }
+
       const row: Policy = { id: saved.id, ...f, dataLimit };
       setPolicies((prev) => {
         const existing = prev.findIndex((p) => p.id === saved.id);
@@ -243,9 +314,26 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const handleDelete = (id: string) => {
     if (confirming === id) {
       const prev = policies;
+      const businessUnit = policies.find((p) => p.id === id)?.businessUnit;
       setPolicies((p) => p.filter((x) => x.id !== id));
+      // Clear the now-dead id from both maps *before* the network call
+      // settles -- otherwise a save for this same location later in the
+      // same session (no reload needed) would reuse the id we just
+      // deactivated and silently update a policy resolve_effective_policy
+      // can no longer see (the exact bug this whole change fixes).
+      if (businessUnit) {
+        setRealIds((prevIds) => { const n = { ...prevIds }; delete n[businessUnit]; return n; });
+        setDeviceRealIds((prevIds) => { const n = { ...prevIds }; delete n[businessUnit]; return n; });
+      }
       if (!demo) {
         bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => { setPolicies(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+        // Deleting a location's policy row means all of its limits go away,
+        // not only bandwidth -- deactivate its DEVICE policy too, if one
+        // was ever saved for this location.
+        const deviceId = businessUnit ? deviceRealIds[businessUnit] : undefined;
+        if (deviceId) {
+          deactivatePolicy(deviceId, orgId ?? undefined).catch(() => {});
+        }
       }
       setConfirming(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
