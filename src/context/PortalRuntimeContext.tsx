@@ -52,6 +52,12 @@ interface PortalRuntimeState {
   locationId: string;
   routerId: string;
   deviceMac?: string;
+  /** RouterOS's `$(ip)` substitution -- the guest's real LAN IP, threaded
+   * through to the login calls as `ip_address` so a dynamic bandwidth
+   * queue targets an address that actually exists on this router. See
+   * `routes/portal.tsx`'s `searchSchema.ip` doc comment for the full
+   * "why" (a queue rule bound to the wrong address enforces nothing). */
+  deviceIp?: string;
   destinationUrl?: string;
   /** RouterOS's `$(link-login-only)` substitution -- the URL this guest's
    * browser must POST username/password to for the NAS itself to actually
@@ -111,6 +117,12 @@ interface Props {
   locationId: string;
   routerId: string;
   deviceMac?: string;
+  /** RouterOS's `$(ip)` substitution -- the guest's real LAN IP, threaded
+   * through to the login calls as `ip_address` so a dynamic bandwidth
+   * queue targets an address that actually exists on this router. See
+   * `routes/portal.tsx`'s `searchSchema.ip` doc comment for the full
+   * "why" (a queue rule bound to the wrong address enforces nothing). */
+  deviceIp?: string;
   destinationUrl?: string;
   hotspotLoginUrl?: string;
   children: ReactNode;
@@ -132,6 +144,7 @@ export function PortalRuntimeProvider({
   locationId,
   routerId,
   deviceMac,
+  deviceIp,
   destinationUrl,
   hotspotLoginUrl,
   previewMode = false,
@@ -219,6 +232,7 @@ export function PortalRuntimeProvider({
       locationId,
       routerId,
       deviceMac,
+      deviceIp,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
@@ -248,6 +262,7 @@ export function PortalRuntimeProvider({
       locationId,
       routerId,
       deviceMac,
+      deviceIp,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,

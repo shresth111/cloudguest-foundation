@@ -36,6 +36,19 @@ const searchSchema = z.object({
   // GET /agent/authorized-macs ever having a MAC to report for that
   // session. See GuestSignInCard's login call for where this is used.
   mac: z.string().optional(),
+  // Populated the same way, from RouterOS's `$(ip)` substitution -- the
+  // guest's real LAN-side IP as assigned by this router's own DHCP, the
+  // only address a `/queue/simple` rule on *this* router can actually
+  // match. Without it, the backend falls back to the raw HTTP request's
+  // own source address (`guest/router.py`'s `request.client.host`), which
+  // behind this deployment's reverse proxy is always the proxy's own
+  // internal Docker address, never the guest's -- so every dynamic
+  // bandwidth queue this platform ever created targeted an address no
+  // guest traffic could match, regardless of the configured Mbps (bug
+  // report: "queue sahi se nahi lag rhai, 10 ya 20 mbps koi farak nahi
+  // padta"). See GuestSignInCard/AuthMethodForms' login calls for where
+  // this threads through as `ip_address`.
+  ip: z.string().optional(),
   // The site the guest was actually trying to reach before the hotspot
   // intercepted them -- RouterOS's `$(link-orig)` substitution. Used by
   // portal.success.tsx/portal.redirect.tsx as the "Continue browsing"
@@ -135,7 +148,7 @@ export const Route = createFileRoute("/portal")({
 
 function PortalRuntimeLayout() {
   const search = Route.useSearch();
-  const { organizationId, locationId, routerId, mac, dst } = search;
+  const { organizationId, locationId, routerId, mac, ip, dst } = search;
   const linkLoginOnly = search["link-login-only"];
   return (
     <PortalRuntimeProvider
@@ -143,6 +156,7 @@ function PortalRuntimeLayout() {
       locationId={locationId}
       routerId={routerId}
       deviceMac={mac}
+      deviceIp={ip}
       destinationUrl={dst}
       hotspotLoginUrl={linkLoginOnly}
     >

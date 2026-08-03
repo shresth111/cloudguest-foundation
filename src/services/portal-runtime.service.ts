@@ -218,6 +218,7 @@ export const portalRuntimeService = {
     locationId: string;
     routerId: string;
     deviceMac?: string;
+    deviceIp?: string;
   }): Promise<RuntimeSession> {
     const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/otp", {
       identifier: params.identifier,
@@ -227,6 +228,7 @@ export const portalRuntimeService = {
       location_id: params.locationId,
       router_id: params.routerId,
       device_mac: params.deviceMac,
+      ip_address: params.deviceIp,
     });
     return toRuntimeSession(data);
   },
@@ -245,6 +247,7 @@ export const portalRuntimeService = {
     locationId: string;
     routerId: string;
     deviceMac?: string;
+    deviceIp?: string;
   }): Promise<RuntimeSession> {
     const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/voucher", {
       code: params.code,
@@ -253,6 +256,7 @@ export const portalRuntimeService = {
       location_id: params.locationId,
       router_id: params.routerId,
       device_mac: params.deviceMac,
+      ip_address: params.deviceIp,
     });
     return toRuntimeSession(data);
   },
@@ -264,6 +268,7 @@ export const portalRuntimeService = {
     locationId: string;
     routerId: string;
     deviceMac?: string;
+    deviceIp?: string;
   }): Promise<RuntimeSession> {
     const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/password", {
       identifier: params.identifier,
@@ -272,6 +277,7 @@ export const portalRuntimeService = {
       location_id: params.locationId,
       router_id: params.routerId,
       device_mac: params.deviceMac,
+      ip_address: params.deviceIp,
     });
     return toRuntimeSession(data);
   },

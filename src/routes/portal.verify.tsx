@@ -24,6 +24,7 @@ function VerifyPage() {
     locationId,
     routerId,
     deviceMac,
+    deviceIp,
     config,
     setSession,
     termsAccepted,
@@ -62,6 +63,7 @@ function VerifyPage() {
         locationId,
         routerId,
         deviceMac,
+        deviceIp,
       }),
     onSuccess: async (session) => {
       toast.success("Verified");

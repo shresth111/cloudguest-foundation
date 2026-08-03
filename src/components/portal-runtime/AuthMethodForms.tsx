@@ -209,7 +209,7 @@ export function PasswordForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t, setGuestIdentifier } = usePortalRuntime();
+  const { t, setGuestIdentifier, deviceMac, deviceIp } = usePortalRuntime();
   const form = useForm<z.infer<typeof passwordLoginSchema>>({
     resolver: zodResolver(passwordLoginSchema),
     defaultValues: { identifier: "", password: "" },
@@ -222,6 +222,8 @@ export function PasswordForm({
         organizationId,
         locationId,
         routerId,
+        deviceMac,
+        deviceIp,
       }),
     onSuccess: (session, variables) => {
       // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
@@ -281,7 +283,7 @@ export function VoucherForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t, setGuestIdentifier } = usePortalRuntime();
+  const { t, setGuestIdentifier, deviceMac, deviceIp } = usePortalRuntime();
   const form = useForm<z.infer<typeof voucherLoginSchema>>({
     resolver: zodResolver(voucherLoginSchema),
     defaultValues: { identifier: "", code: "" },
@@ -294,6 +296,8 @@ export function VoucherForm({
         organizationId,
         locationId,
         routerId,
+        deviceMac,
+        deviceIp,
       }),
     onSuccess: (session, variables) => {
       // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
