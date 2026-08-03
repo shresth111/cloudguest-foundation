@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle, Printer, Router, Camera, HardDrive, Plus, Trash2 } from "lucide-react";
+import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle, Printer, Router, Camera, HardDrive, Plus, Trash2, Tag, MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,8 +189,17 @@ export function BasicDevicesView() {
   );
 }
 
-const DEVICE_TYPE_ICON: Record<DeviceType, typeof Wifi> = {
-  "Access Point": Wifi, Printer, Router, Camera, Other: HardDrive,
+/** Per-device-type icon + color tint so the hardware table reads at a
+ * glance instead of every row sharing one identical indigo-violet badge
+ * (an owner scanning a mixed list of APs/printers/cameras couldn't tell
+ * types apart by color before -- only by the small text label next to
+ * the name). Hue choice is otherwise arbitrary; kept distinct per type. */
+const DEVICE_TYPE_META: Record<DeviceType, { icon: typeof Wifi; gradient: string; text: string }> = {
+  "Access Point": { icon: Wifi, gradient: "from-sky-500 to-cyan-500", text: "text-sky-500" },
+  Printer: { icon: Printer, gradient: "from-amber-500 to-orange-500", text: "text-amber-500" },
+  Router: { icon: Router, gradient: "from-indigo-500 to-violet-500", text: "text-indigo-500" },
+  Camera: { icon: Camera, gradient: "from-rose-500 to-pink-500", text: "text-rose-500" },
+  Other: { icon: HardDrive, gradient: "from-slate-500 to-slate-600", text: "text-slate-500" },
 };
 
 const emptyHardwareForm = { name: "", mac: "", type: "Access Point" as DeviceType, floor: FLOORS[FLOORS.length - 1] };
@@ -299,12 +308,21 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
           <TableHeader><TableRow><TableHead>Device</TableHead><TableHead>MAC</TableHead><TableHead>Floor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
           <TableBody>
             {devices.map((d) => {
-              const Icon = DEVICE_TYPE_ICON[d.type];
+              const meta = DEVICE_TYPE_META[d.type];
+              const Icon = meta.icon;
               return (
                 <TableRow key={d.id}>
                   <TableCell>
                     <span className="inline-flex items-center gap-2 text-sm font-medium">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><Icon title={d.type} className="h-3.5 w-3.5 text-white" /></span>
+                      {/* `title` moved onto this span -- lucide-react icon
+                          components don't accept a `title` prop (it was
+                          silently dropped here before, so hovering the icon
+                          showed nothing despite the code's apparent intent;
+                          confirmed via `tsc`'s TS2322 on the old `<Icon
+                          title=.../>`). A real DOM element can carry it. */}
+                      <span title={d.type} className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white", meta.gradient)}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
                       {d.name}<span className="font-normal text-xs text-muted-foreground">({d.type})</span>
                     </span>
                   </TableCell>
@@ -335,37 +353,66 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
             <DialogTitle>Add Network Hardware</DialogTitle>
             <DialogDescription>Enter the device's MAC address, type, and the floor it's installed on.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2"><Label htmlFor="hw-name">Device name</Label><Input id="hw-name" placeholder="e.g. AP Lobby North" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2">
-              <Label htmlFor="hw-mac">MAC address</Label>
-              <Input
-                id="hw-mac"
-                placeholder="AA:BB:CC:DD:EE:FF"
-                value={form.mac}
-                onChange={(e) => { setForm({ ...form, mac: e.target.value }); if (macError) setMacError(null); }}
-                className={cn("font-mono", macError && "border-destructive focus-visible:ring-destructive/20")}
-                aria-invalid={!!macError}
-              />
-              <p className="text-[11px] text-muted-foreground">Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.</p>
-              {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Device type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as DeviceType })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{DEVICE_TYPES.map((t) => { const Icon = DEVICE_TYPE_ICON[t]; return <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><Icon className="h-3.5 w-3.5 text-primary" />{t}</span></SelectItem>; })}</SelectContent>
-                </Select>
+          <form onSubmit={submit} className="space-y-5">
+            {/* Identity -- name + MAC grouped in one labeled section with a
+                persistent caption under each field, matching this session's
+                LocationPolicies.tsx grouping pattern, instead of the flat
+                un-sectioned field stack this dialog had before. */}
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <div className="mb-1 flex items-center gap-2">
+                <Tag className="h-4 w-4 text-indigo-500" />
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Identify the device</h3>
               </div>
-              <div className="space-y-2">
-                <Label>Floor</Label>
-                <Select value={form.floor} onValueChange={(v) => setForm({ ...form, floor: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{FLOORS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-                </Select>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">A name and MAC address so this device can be told apart from every other one.</p>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="hw-name">Device name</Label>
+                  <Input id="hw-name" placeholder="e.g. AP Lobby North" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <p className="text-[11px] text-muted-foreground">Shown across the dashboard instead of the raw MAC address.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="hw-mac">MAC address</Label>
+                  <Input
+                    id="hw-mac"
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    value={form.mac}
+                    onChange={(e) => { setForm({ ...form, mac: e.target.value }); if (macError) setMacError(null); }}
+                    className={cn("font-mono", macError && "border-destructive focus-visible:ring-destructive/20")}
+                    aria-invalid={!!macError}
+                  />
+                  <p className="text-[11px] text-muted-foreground">Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.</p>
+                  {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
+                </div>
               </div>
             </div>
+
+            {/* Type & location -- the "what" and "where", grouped
+                separately from identity above so the dialog reads as two
+                clear questions instead of four unrelated-looking fields. */}
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <div className="mb-1 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-indigo-500" />
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Type &amp; location</h3>
+              </div>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">What kind of hardware this is, and which floor it's installed on.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Device type</Label>
+                  <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as DeviceType })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{DEVICE_TYPES.map((t) => { const meta = DEVICE_TYPE_META[t]; const Icon = meta.icon; return <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><Icon className={cn("h-3.5 w-3.5", meta.text)} />{t}</span></SelectItem>; })}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Floor</Label>
+                  <Select value={form.floor} onValueChange={(v) => setForm({ ...form, floor: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{FLOORS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit">Add Device</Button>

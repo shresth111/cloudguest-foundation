@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
-import { useDeviceStore, FLOORS, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
+import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
@@ -24,6 +24,19 @@ export const Route = createFileRoute("/customer/")({
 
 const DEVICE_TYPE_ICON: Record<DeviceType, typeof Wifi> = {
   "Access Point": Wifi, Printer, Router, Camera, Other: HardDrive,
+};
+
+/** Per-type chip tint for the compact device-icon summary shown on each
+ * location card below (see `filtered.map` in `CustomerHomePage`) -- same
+ * dark/glassy translucent-pill language already used for the status pill
+ * on these cards (`border-x/20 bg-x/10 text-x`), just keyed by device type
+ * instead of online/degraded/offline. */
+const DEVICE_TYPE_TINT: Record<DeviceType, string> = {
+  "Access Point": "border-sky-500/20 bg-sky-500/10 text-sky-300",
+  Printer: "border-amber-500/20 bg-amber-500/10 text-amber-300",
+  Router: "border-indigo-500/20 bg-indigo-500/10 text-indigo-300",
+  Camera: "border-rose-500/20 bg-rose-500/10 text-rose-300",
+  Other: "border-slate-500/20 bg-slate-500/10 text-slate-300",
 };
 
 /** Operator-voice lines, not fabricated testimonials -- on-brand wisdom about
@@ -391,6 +404,16 @@ function CustomerHomePage() {
               const statusPill = loc.status === "online" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : loc.status === "degraded" ? "border-amber-500/20 bg-amber-500/10 text-amber-400" : "border-rose-500/20 bg-rose-500/10 text-rose-400";
               const statusLabel = loc.status === "online" ? "Online" : loc.status === "degraded" ? "Degraded" : "Offline";
               const ringColor = loc.status === "online" ? "hover:ring-emerald-500/25" : loc.status === "degraded" ? "hover:ring-amber-500/25" : "hover:ring-rose-500/25";
+              // Compact device-type summary right on the card -- the founder's
+              // ask was for device icons "on the front page," not just inside
+              // the Device health drawer you have to open first. Only shows
+              // for locations that actually have hardware set up (most demo
+              // locations don't yet -- see deviceStore.ts's SEED_DEVICES
+              // comment), so a location with nothing configured stays clean
+              // instead of showing an empty/zeroed-out row.
+              const locDeviceCounts = DEVICE_TYPES
+                .map((t) => ({ type: t, count: allDevices.filter((d) => d.locationId === loc.id && d.type === t).length }))
+                .filter((x) => x.count > 0);
               return (
               <motion.div key={loc.id} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                 whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}
@@ -423,6 +446,23 @@ function CustomerHomePage() {
                     {statusLabel}
                   </span>
                 </div>
+
+                {locDeviceCounts.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    {locDeviceCounts.map(({ type, count }) => {
+                      const Icon = DEVICE_TYPE_ICON[type];
+                      return (
+                        <span
+                          key={type}
+                          title={`${count} ${type}${count === 1 ? "" : "s"}`}
+                          className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", DEVICE_TYPE_TINT[type])}
+                        >
+                          <Icon className="h-3 w-3" />{count}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div title={`Last synced ${loc.lastSync}`} className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] text-white/40">
                   <span className="flex min-w-0 items-center gap-1.5 truncate">
