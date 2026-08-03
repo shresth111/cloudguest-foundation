@@ -865,7 +865,14 @@ function CustomerDashboardPage() {
                  * safely mergeable into one interleaved feed. */}
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">Who showed up, what needed a look, and whether the internet's up.</p>
-                  <div className="grid gap-6 lg:grid-cols-2">
+                  {/* items-start: the right column now stacks three cards
+                   * (Recent Alerts, Internet Connection, Network Hardware),
+                   * taller than Recent Users' own ~6-row table -- CSS
+                   * Grid's default row-stretch was forcing Recent Users'
+                   * Card to match that height, leaving a large blank strip
+                   * below its actual table content. items-start lets each
+                   * column size to its own real content instead. */}
+                  <div className="grid items-start gap-6 lg:grid-cols-2">
                     <Card className="premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
                       <CardContent className="p-0">
