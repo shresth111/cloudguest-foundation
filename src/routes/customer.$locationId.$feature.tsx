@@ -123,12 +123,13 @@ function FeaturePage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
           title={
-            // "admin-logs" is special-cased to "Logs" here too -- otherwise
-            // this generic feature-id breadcrumb (CSS `capitalize`, which
-            // treats the hyphen as a word boundary) would still show the
-            // retired "Admin-Logs" label even though the sidebar/page title
-            // below both say "Logs" now.
-            <p className="truncate text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature} · {activeLocation?.name ?? ""}</p>
+            // "admin-logs" is special-cased to "Logs", and "business-hours"
+            // to "Open Hours", here too -- otherwise this generic feature-id
+            // breadcrumb (CSS `capitalize`, which treats the hyphen as a
+            // word boundary) would still show the retired "Admin-Logs" /
+            // "Business-Hours" labels even though the sidebar/page title
+            // below all say "Logs" / "Open Hours" now.
+            <p className="truncate text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature === "business-hours" ? "Open Hours" : feature} · {activeLocation?.name ?? ""}</p>
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
