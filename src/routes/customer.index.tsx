@@ -420,7 +420,7 @@ function CustomerHomePage() {
                 role="button" tabIndex={0}
                 onClick={() => handleSelect(loc)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(loc); } }}
-                className={cn("group relative cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2 w-full", ringColor)}
+                className={cn("group relative flex h-full w-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2", ringColor)}
               >
                 <button onClick={(e) => { e.stopPropagation(); toggleFav(loc.id); }} className="absolute right-4 top-4 text-white/40 hover:text-amber-400 transition-colors">
                   <Star className={cn("h-4 w-4", favorites.includes(loc.id) && "fill-amber-400 text-amber-400")} />
@@ -476,7 +476,17 @@ function CustomerHomePage() {
                  * read as "your ISP is called Active," so only render the
                  * icon+name when it's an actual brand (demo data has real
                  * ones like "Airtel"/"Jio"), otherwise just show bandwidth. */}
-                <div title={`Last synced ${loc.lastSync}`} className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] text-white/40">
+                {/* mt-auto (not mt-3): the device-chips row just above is
+                 * conditional (only locations with hardware set up get one,
+                 * see deviceStore.ts's SEED_DEVICES comment), so cards in
+                 * the same grid row had this footer sitting at a different
+                 * height depending on whether their neighbor had a chips
+                 * row -- the ISP/health line and "Open dashboard" hint below
+                 * it visibly zig-zagged up and down across a row. The card
+                 * is now a flex column filling its grid-stretched height
+                 * (h-full flex-col above), so mt-auto pins this footer to
+                 * the bottom of every card in a row alike, chips row or not. */}
+                <div title={`Last synced ${loc.lastSync}`} className="mt-auto flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] text-white/40">
                   <span className="flex min-w-0 items-center gap-1.5 truncate">
                     {loc.isp && loc.isp !== "Active" && loc.isp !== "Unknown" && (
                       <>
