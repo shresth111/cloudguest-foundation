@@ -231,6 +231,14 @@ export interface IspHealthCheckBucket {
   uptimePercentage: number | null;
   avgLatencyMs: number | null;
   avgPacketLossPercentage: number | null;
+  /** Real traffic-load aggregates for this same bucket -- AVG/MAX over
+   * the bucket's own `IspHealthCheck.downloadMbps`/`uploadMbps` rows,
+   * null-safe (a bucket where every check in the window failed to
+   * produce a traffic sample reports null, never a fabricated 0). Backs
+   * the history dialog's bandwidth view. */
+  avgDownloadMbps: number | null;
+  avgUploadMbps: number | null;
+  maxDownloadMbps: number | null;
 }
 
 export interface IspHealthCheckSummary {

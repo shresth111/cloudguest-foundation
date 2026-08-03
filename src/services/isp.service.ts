@@ -182,6 +182,9 @@ interface BackendIspHealthCheckBucket {
   uptime_percentage: number | null;
   avg_latency_ms: number | null;
   avg_packet_loss_percentage: number | null;
+  avg_download_mbps: number | null;
+  avg_upload_mbps: number | null;
+  max_download_mbps: number | null;
 }
 
 interface BackendIspHealthCheckSummaryResponse {
@@ -225,6 +228,9 @@ function toIspHealthCheckBucket(b: BackendIspHealthCheckBucket): IspHealthCheckB
     uptimePercentage: b.uptime_percentage,
     avgLatencyMs: b.avg_latency_ms,
     avgPacketLossPercentage: b.avg_packet_loss_percentage,
+    avgDownloadMbps: b.avg_download_mbps,
+    avgUploadMbps: b.avg_upload_mbps,
+    maxDownloadMbps: b.max_download_mbps,
   };
 }
 

@@ -149,6 +149,31 @@ const DEMO_WAN_CHECKS: IspHealthCheck[] = ["healthy", "healthy", "healthy", "deg
     errorMessage: null, downloadMbps: 100 + i * 2, uploadMbps: 20 + i,
   }));
 
+/** Demo-session fixture for the "Bandwidth Utilization" live graph --
+ * illustrative-only, never fetched from ispService while isDemo() is true
+ * (same posture as IspStatusTimeline's own demo traffic figures). 60
+ * one-minute-apart points (matching the real card's own pageSize: 60
+ * poll) with a brief mid-window dip so the demo actually shows what the
+ * founder's own ask looks like -- a real drop, visible on a graph --
+ * without ever slapping an invented "congested" label on it. */
+const DEMO_BANDWIDTH_CHECKS: IspHealthCheck[] = Array.from({ length: 60 }, (_, i) => {
+  const dip = i >= 28 && i <= 33;
+  const download = dip ? 16 + (i % 3) * 2 : Math.round((95 + 25 * Math.sin(i / 5)) * 10) / 10;
+  const upload = dip ? 3 + (i % 2) : Math.round((22 + 6 * Math.sin(i / 5 + 1)) * 10) / 10;
+  return {
+    id: `demo-bandwidth-check-${i}`,
+    ispLinkId: DEMO_WAN_LINK.id,
+    checkedAt: new Date(Date.now() - (59 - i) * 60_000).toISOString(),
+    status: dip ? "degraded" : "healthy",
+    source: "automated",
+    latencyMs: dip ? 86 : 13,
+    packetLossPercentage: dip ? 2.8 : 0,
+    errorMessage: null,
+    downloadMbps: download,
+    uploadMbps: upload,
+  };
+}).reverse(); // newest-first, matching listHealthChecks' own real ordering.
+
 type WanSummaryState =
   | { status: "loading" }
   | { status: "empty" }
@@ -197,6 +222,100 @@ function useWanSummary(locationId: string): WanSummaryState {
     return () => { alive = false; };
   }, [locationId]);
   return state;
+}
+
+type BandwidthSeriesState =
+  | { status: "loading" }
+  | { status: "empty" }
+  | { status: "ready"; link: IspLink; checks: IspHealthCheck[] };
+
+// Same 20s cadence the Internet Connection page's own links table already
+// polls at (OperationsFeatures.tsx's ISP_LINKS_POLL_INTERVAL_MS) -- reused
+// here rather than re-invented, so "live" means the same thing everywhere
+// in this app.
+const BANDWIDTH_POLL_INTERVAL_MS = 20_000;
+
+/** Live rolling bandwidth series for this location's active uplink -- the
+ * real, per-tick `IspHealthCheck.downloadMbps`/`uploadMbps` rows (see
+ * backend `IspService.sample_link_traffic`'s own docstring for exactly how
+ * these are computed from real router interface byte-counter deltas), the
+ * exact same numbers `WanStatusCard`'s "Bandwidth · live" stat and
+ * `IspStatusTimeline`'s sparkline already read elsewhere. This hook is
+ * self-contained (its own fetch + its own poll), matching this file's own
+ * "each card fetches independently" precedent (`useWanSummary` above) --
+ * not derived from it, so this card keeps working even if WanStatusCard's
+ * own fetch ever changes shape.
+ *
+ * Two-phase: the active link is resolved once per `locationId` (mirroring
+ * `useWanSummary`'s own active-link selection exactly, so this card and
+ * WanStatusCard always agree on which uplink is "the" live one), then that
+ * link's own recent checks are polled independently on
+ * `BANDWIDTH_POLL_INTERVAL_MS`, paused while the tab is hidden -- the same
+ * Page Visibility API pattern `IspDetailsView`'s own auto-refresh already
+ * establishes, so a backgrounded dashboard tab doesn't keep hammering the
+ * API for nothing. */
+function useBandwidthSeries(locationId: string): BandwidthSeriesState {
+  const [phase, setPhase] = useState<"loading" | "empty" | "ready">("loading");
+  const [link, setLink] = useState<IspLink | null>(null);
+  const [checks, setChecks] = useState<IspHealthCheck[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    setPhase("loading");
+    setLink(null);
+    setChecks([]);
+    if (isDemo()) {
+      setLink(DEMO_WAN_LINK);
+      setChecks(DEMO_BANDWIDTH_CHECKS);
+      setPhase("ready");
+      return;
+    }
+    (async () => {
+      try {
+        const { rows } = await ispService.listLinks({ page: 1, pageSize: 100 });
+        const links = rows.filter((l) => l.locationId === locationId);
+        const active = links.find((l) => l.isActiveUplink) ?? links[0];
+        if (!alive) return;
+        if (!active) { setPhase("empty"); return; }
+        setLink(active);
+      } catch {
+        if (alive) setPhase("empty");
+      }
+    })();
+    return () => { alive = false; };
+  }, [locationId]);
+
+  useEffect(() => {
+    if (isDemo() || !link) return;
+    let alive = true;
+    const load = () => {
+      ispService.listHealthChecks(link.id, { page: 1, pageSize: 60 })
+        .then((r) => { if (alive) { setChecks(r.rows); setPhase("ready"); } })
+        .catch(() => {
+          // A transient poll failure keeps showing the last known-good
+          // series rather than flashing to an error/empty state -- same
+          // lenient `quiet` poll posture `IspDetailsView.loadLinks` uses.
+        });
+    };
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => { if (timer == null) timer = setInterval(load, BANDWIDTH_POLL_INTERVAL_MS); };
+    const stop = () => { if (timer != null) { clearInterval(timer); timer = null; } };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") { load(); start(); } else { stop(); }
+    };
+    load();
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      alive = false;
+      stop();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [link]);
+
+  if (phase === "empty") return { status: "empty" };
+  if (phase === "ready" && link) return { status: "ready", link, checks };
+  return { status: "loading" };
 }
 
 /** Oldest -> newest, left to right -- the exact same "last dozen real
@@ -459,6 +578,119 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
             </div>
           );
         })()}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Bandwidth Utilization -- a live, rolling graph of this location's active
+ * uplink's real traffic-load rate, `useBandwidthSeries`'s own
+ * `IspHealthCheck.downloadMbps`/`uploadMbps` rows plotted over time. This
+ * is the founder's own stated ask, directly: not just today's single
+ * instantaneous "Bandwidth · live" number (`WanStatusCard` already shows
+ * that), but a real, continuously-updating graph so a bandwidth choke is
+ * *visible as it happens*, not just inferred after the fact from one
+ * static reading.
+ *
+ * Full width, its own row between the "Charts" grid above and the
+ * "Activity" 2-column split below -- adding a third card into either
+ * existing column (beside WanStatusCard, or beside Recent Users) would
+ * have unbalanced a layout this session already spent two rounds getting
+ * even; a dedicated full-width row leaves both of those splits untouched
+ * while still sitting immediately above WanStatusCard's own column in
+ * reading order.
+ *
+ * Deliberately never labels any point "congested" or plots a threshold
+ * line -- there's no real configured plan-capacity number to compare
+ * against (see `IspLink.downloadBandwidthMbps`'s own "provisioned, never
+ * measured" doc comment in `types/isp.ts`). Just the real Mbps numbers;
+ * the founder reads the spikes and drops visually, same as asked.
+ */
+function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
+  const bw = useBandwidthSeries(locationId);
+  // Oldest -> newest, left to right -- same convention as WanRecentChecks/
+  // IspStatusTimeline above. `listHealthChecks` itself returns newest-first.
+  const ordered = bw.status === "ready" ? [...bw.checks].reverse() : [];
+  const hasTraffic = ordered.some((c) => c.downloadMbps != null || c.uploadMbps != null);
+  // Never a fabricated 0 for a tick where the health check itself failed
+  // (unreachable link) -- downloadMbps/uploadMbps stay `null` straight
+  // through into the chart's own data, so Recharts (connectNulls={false})
+  // draws a real gap instead of a false flatline to zero.
+  const chartData = ordered.map((c) => ({
+    label: new Date(c.checkedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+    download: c.downloadMbps,
+    upload: c.uploadMbps,
+  }));
+  const latest = bw.status === "ready" ? bw.checks.find((c) => c.downloadMbps != null || c.uploadMbps != null) : undefined;
+
+  return (
+    <Card className="premium-card premium-card-hover">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Gauge className="h-3.5 w-3.5 text-white" /></div>
+          <div>
+            <CardTitle className="text-sm">Bandwidth Utilization</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Live traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, updated every 20s
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {latest && (
+            <span className="hidden items-baseline gap-3 text-xs sm:flex">
+              {latest.downloadMbps != null && (
+                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-teal-500" /><span className="font-semibold tabular-nums text-foreground">{latest.downloadMbps.toFixed(0)}</span><span className="text-muted-foreground">Mbps ↓</span></span>
+              )}
+              {latest.uploadMbps != null && (
+                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-violet-500" /><span className="font-semibold tabular-nums text-foreground">{latest.uploadMbps.toFixed(0)}</span><span className="text-muted-foreground">Mbps ↑</span></span>
+              )}
+            </span>
+          )}
+          <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-56">
+          {bw.status === "loading" ? (
+            <div className="flex h-full items-end gap-1 px-2 pb-2" aria-hidden="true">
+              {Array.from({ length: 24 }).map((_, i) => (
+                <span key={i} className="w-full animate-pulse rounded-t bg-muted" style={{ height: `${20 + (i % 5) * 12}%` }} />
+              ))}
+            </div>
+          ) : bw.status === "empty" ? (
+            <ChartEmptyState label="No internet connection configured yet." />
+          ) : !hasTraffic ? (
+            <ChartEmptyState label="No bandwidth samples yet — the next health-check sweep runs within 60 seconds." />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="bw-down" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="bw-up" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10 }} width={32} />
+                <Tooltip
+                  contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                  formatter={(value: number | string | Array<number | string> | undefined, name: string | number) => [
+                    typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
+                    name === "download" ? "Download" : "Upload",
+                  ]}
+                />
+                <Area type="monotone" dataKey="download" name="download" stroke="#14b8a6" fill="url(#bw-down)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="upload" name="upload" stroke="#8b5cf6" fill="url(#bw-up)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -928,6 +1160,20 @@ function CustomerDashboardPage() {
                       </div></CardContent>
                     </Card>
                   </div>
+                </div>
+
+                {/* Bandwidth Utilization -- a real, live-updating graph
+                 * (not just a single "right now" number), so a congestion
+                 * spike or drop is visible on-screen as it happens. Its
+                 * own full-width row, deliberately not folded into either
+                 * the 3-card "Charts" grid above (a 4th card there would
+                 * wrap 3+1) or either column of the "Activity" split below
+                 * (which stays exactly as balanced as it already was) --
+                 * see BandwidthUtilizationCard's own comment for the full
+                 * reasoning. */}
+                <div>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">Live bandwidth on your primary uplink, refreshed every 20 seconds.</p>
+                  <BandwidthUtilizationCard locationId={locationId} onManage={() => handleNav("isp-details")} />
                 </div>
 
                 {/* Activity -- Recent Users stays a data table (it already

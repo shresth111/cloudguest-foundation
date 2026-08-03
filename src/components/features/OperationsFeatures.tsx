@@ -32,7 +32,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
 import type { StatTone } from "@/components/ui-ext/StatCard";
 import { NumberedPagination } from "@/components/ui-ext/NumberedPagination";
@@ -1143,13 +1143,20 @@ function formatBucketLabel(iso: string, unit: "hour" | "day"): string {
 
 function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const [range, setRange] = useState<"24h" | "7d" | "30d">("24h");
+  // Which chart the bucketed data below renders as -- two views over the
+  // exact same `summary.buckets` fetch, never a second network call.
+  // "Bandwidth" backs the founder's own "look back and see WHEN a
+  // bandwidth choke happened" ask, using the same avg/max Mbps aggregates
+  // IspHealthCheckBucketResponse now carries alongside uptime/latency.
+  const [view, setView] = useState<"uptime" | "bandwidth">("uptime");
   const [checks, setChecks] = useState<IspHealthCheck[]>([]);
   const [summary, setSummary] = useState<IspHealthCheckSummary | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Back to the default range every time the dialog closes, so reopening
-  // it (possibly for a different link) never starts on a stale selection.
-  useEffect(() => { if (!open) setRange("24h"); }, [open]);
+  // Back to the default range/view every time the dialog closes, so
+  // reopening it (possibly for a different link) never starts on a stale
+  // selection.
+  useEffect(() => { if (!open) { setRange("24h"); setView("uptime"); } }, [open]);
 
   useEffect(() => {
     if (!open || !linkId) return;
@@ -1186,6 +1193,18 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
         uptime: b.uptimePercentage ?? 0,
       }))
     : [];
+  // Never a fabricated 0 for a bucket where every check in that window
+  // failed to produce a traffic sample -- avgDownloadMbps/avgUploadMbps
+  // stay `null` straight through, so Recharts (connectNulls={false})
+  // draws a real gap there instead of a false flatline to zero.
+  const bandwidthData = summary
+    ? buckets.map((b) => ({
+        label: formatBucketLabel(b.bucketStart, summary.bucketUnit),
+        avgDownload: b.avgDownloadMbps,
+        avgUpload: b.avgUploadMbps,
+      }))
+    : [];
+  const hasBandwidthData = buckets.some((b) => b.avgDownloadMbps != null || b.avgUploadMbps != null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1193,9 +1212,11 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
         <DialogHeader>
           <DialogTitle>Health History</DialogTitle>
           <DialogDescription>
-            {overallUptime != null
-              ? `${overallUptime.toFixed(1)}% uptime across ${totalChecksInRange.toLocaleString()} checks in the selected range.`
-              : "Real /tool/ping results from this link's scheduled health-check sweep."}
+            {view === "uptime"
+              ? (overallUptime != null
+                  ? `${overallUptime.toFixed(1)}% uptime across ${totalChecksInRange.toLocaleString()} checks in the selected range.`
+                  : "Real /tool/ping results from this link's scheduled health-check sweep.")
+              : "Real traffic-load Mbps, averaged per bucket from this link's scheduled health-check sweep -- look back to see when a bandwidth choke happened."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1215,11 +1236,29 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
           ))}
         </div>
 
+        {/* Uptime vs. Bandwidth -- two views over the same bucketed fetch
+         * above, not a second range picker. */}
+        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1 text-xs">
+          {(["uptime", "bandwidth"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={cn(
+                "flex-1 rounded-md px-2 py-1 font-medium capitalize transition-colors",
+                view === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <LoadingSkeleton rows={3} />
         ) : buckets.length === 0 ? (
           <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet in this range -- the next sweep runs within 60 seconds, or trigger one manually.</p>
-        ) : (
+        ) : view === "uptime" ? (
           <div className="space-y-1">
             {/* Bucketed uptime chart -- backend-aggregated (hourly for 24h/
              * 7d, daily for 30d; see IspService.get_health_check_summary),
@@ -1242,6 +1281,45 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
             </div>
             <p className="text-center text-[10px] text-muted-foreground">
               {summary?.bucketUnit === "day" ? "Daily" : "Hourly"} uptime buckets, {new Date(summary!.start).toLocaleDateString()} → {new Date(summary!.end).toLocaleDateString()}
+            </p>
+          </div>
+        ) : !hasBandwidthData ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">No bandwidth samples recorded in this range yet -- a traffic reading needs a successful health check to compute from.</p>
+        ) : (
+          <div className="space-y-1">
+            {/* Bucketed bandwidth chart -- same SQL-side aggregation as the
+             * uptime chart above, AVG(download_mbps)/AVG(upload_mbps) per
+             * bucket (see IspRepository.bucketed_health_checks_for_link). */}
+            <div className="h-36 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={bandwidthData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="hist-bw-down" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="hist-bw-up" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" width={32} />
+                  <RechartsTooltip
+                    contentStyle={{ background: "hsl(var(--popover, 0 0% 100%))", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12, padding: "8px 10px" }}
+                    formatter={(value: number | string | Array<number | string> | undefined, name: string | number) => [
+                      typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
+                      name === "avgDownload" ? "Avg Download" : "Avg Upload",
+                    ]}
+                  />
+                  <Area type="monotone" dataKey="avgDownload" name="avgDownload" stroke="#14b8a6" fill="url(#hist-bw-down)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+                  <Area type="monotone" dataKey="avgUpload" name="avgUpload" stroke="#8b5cf6" fill="url(#hist-bw-up)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-center text-[10px] text-muted-foreground">
+              Avg Mbps per {summary?.bucketUnit === "day" ? "day" : "hour"}, {new Date(summary!.start).toLocaleDateString()} → {new Date(summary!.end).toLocaleDateString()}
             </p>
           </div>
         )}
