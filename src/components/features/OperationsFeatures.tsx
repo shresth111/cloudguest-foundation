@@ -1214,6 +1214,21 @@ function IspLinkDialog({
               </div>
             )}
           </div>
+          {/* Plan Bandwidth / DNS -- both were already fully wired
+              (form state, edit prefill, save payload, and even a table
+              column reading them back) but had no actual input in this
+              dialog, so there was never a way to set either one (bug
+              report: "actual edit ke liye mechanism hai nahi" -- the
+              Bandwidth Utilization dashboard card's own "Set it →" link
+              landed here and found nothing to fill in). */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">Plan Download Speed (Mbps, optional)</Label><Input type="number" min={0} placeholder="e.g. 100" value={form.downloadBandwidthMbps} onChange={(e) => setForm({ ...form, downloadBandwidthMbps: e.target.value })} className="h-9" /></div>
+            <div><Label className="mb-1 block text-xs">Plan Upload Speed (Mbps, optional)</Label><Input type="number" min={0} placeholder="e.g. 20" value={form.uploadBandwidthMbps} onChange={(e) => setForm({ ...form, uploadBandwidthMbps: e.target.value })} className="h-9" /></div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><Label className="mb-1 block text-xs">Primary DNS (optional)</Label><Input placeholder="1.1.1.1" value={form.dnsPrimary} onChange={(e) => setForm({ ...form, dnsPrimary: e.target.value })} className="h-9 font-mono" /></div>
+            <div><Label className="mb-1 block text-xs">Secondary DNS (optional)</Label><Input placeholder="8.8.8.8" value={form.dnsSecondary} onChange={(e) => setForm({ ...form, dnsSecondary: e.target.value })} className="h-9 font-mono" /></div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
