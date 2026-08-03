@@ -915,6 +915,15 @@ function IspStatusTimeline({ link, demo }: { link: IspLink; demo: boolean }) {
           />
         ))}
       </div>
+      {/* Each tick's own timestamp was previously hover-only (the `title`
+       * above) -- a real operator watching this after a disconnect had no
+       * visible sense of *when* this window of checks actually spans
+       * without hovering each bar one at a time. A range caption under the
+       * ticks (oldest -> newest, same relative-time formatting the "Last
+       * Checked" column already uses) gives that at a glance. */}
+      <p className="text-[10px] leading-none text-muted-foreground">
+        {timeAgo(ordered[0].checkedAt)} → {timeAgo(ordered[ordered.length - 1].checkedAt)}
+      </p>
       {/* Traffic load -- real IspHealthCheck.downloadMbps/uploadMbps rows
        * (the exact same fetch above, never a second call), rendered as a
        * compact two-tone sparkline: download (teal) over upload (violet),
