@@ -17,6 +17,7 @@ import type {
   IspRoutingRuleListQuery,
   IspRoutingRuleListResult,
   IspRoutingRuleType,
+  IspSpeedTestResult,
   UpdateIspLinkPayload,
   UpdateIspRoutingRulePayload,
 } from "@/types/isp";
@@ -190,6 +191,30 @@ interface BackendIspHealthCheckSummaryResponse {
   buckets: BackendIspHealthCheckBucket[];
 }
 
+interface BackendIspSpeedTestResponse {
+  isp_link_id: string;
+  tested_at: string;
+  download_mbps: number;
+  upload_mbps: number | null;
+  latency_ms: number | null;
+  packet_loss_percentage: number | null;
+  downloaded_bytes: number;
+  duration_seconds: number;
+}
+
+function toIspSpeedTestResult(r: BackendIspSpeedTestResponse): IspSpeedTestResult {
+  return {
+    ispLinkId: r.isp_link_id,
+    testedAt: r.tested_at,
+    downloadMbps: r.download_mbps,
+    uploadMbps: r.upload_mbps,
+    latencyMs: r.latency_ms,
+    packetLossPercentage: r.packet_loss_percentage,
+    downloadedBytes: r.downloaded_bytes,
+    durationSeconds: r.duration_seconds,
+  };
+}
+
 function toIspHealthCheckBucket(b: BackendIspHealthCheckBucket): IspHealthCheckBucket {
   return {
     bucketStart: b.bucket_start,
@@ -317,6 +342,22 @@ export const ispService = {
       { headers: { "X-Organization-Id": orgId } },
     );
     return toIspLink(data);
+  },
+
+  // A real, on-demand, multi-second action -- a genuine RouterOS
+  // /tool/fetch download against the link's own router, not a quick read
+  // (see backend IspService.run_speed_test's own docstring). The default
+  // 20s client-side timeout (api.ts) is nowhere near enough for the
+  // backend's own up-to-60s budget on a slow real WAN link, so this call
+  // gets its own, much longer timeout instead.
+  async runSpeedTest(id: string): Promise<IspSpeedTestResult> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendIspSpeedTestResponse>(
+      `/isp/links/${id}/speed-test`,
+      undefined,
+      { headers: { "X-Organization-Id": orgId }, timeout: 75_000 },
+    );
+    return toIspSpeedTestResult(data);
   },
 
   // An admin's own manual up/down override of a link's current status --

@@ -239,3 +239,25 @@ export interface IspHealthCheckSummary {
   end: string;
   buckets: IspHealthCheckBucket[];
 }
+
+/** Real, on-demand "Run Speed Test" result -- a genuine RouterOS
+ * `/tool/fetch` download against the link's own router (see backend
+ * `IspService.run_speed_test`), plus a real ping for latency. Never
+ * persisted into `IspHealthCheck` history (that table's own
+ * `downloadMbps`/`uploadMbps` carry a distinct, passive-traffic-rate
+ * meaning) -- this is a point-in-time result returned directly from the
+ * action itself. */
+export interface IspSpeedTestResult {
+  ispLinkId: string;
+  testedAt: string;
+  downloadMbps: number;
+  /** Always null today -- no genuine method to measure real upload
+   * throughput against the public internet exists for this hardware
+   * class. Never fabricated to fill the gap; render an honest
+   * "not available" state when null, never a placeholder number. */
+  uploadMbps: number | null;
+  latencyMs: number | null;
+  packetLossPercentage: number | null;
+  downloadedBytes: number;
+  durationSeconds: number;
+}

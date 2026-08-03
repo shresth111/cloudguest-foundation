@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft, Wifi, Router, Activity, Users, TrendingUp, Globe,
-  CheckCircle, XCircle, AlertTriangle, RefreshCw, Quote, HardDrive,
+  CheckCircle, XCircle, AlertTriangle, RefreshCw, Quote, HardDrive, Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
@@ -25,7 +25,8 @@ import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { ispService } from "@/services/isp.service";
-import type { IspLink, IspHealthCheck } from "@/types/isp";
+import type { AppError } from "@/services/api";
+import type { IspLink, IspHealthCheck, IspSpeedTestResult } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
 import { useDeviceStore, DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
 import { DEVICE_TYPE_META } from "@/components/customer/BasicFeatureViews";
@@ -268,6 +269,88 @@ function WanSetupIllustration() {
   );
 }
 
+type SpeedTestState =
+  | { status: "idle" }
+  | { status: "running" }
+  | { status: "done"; result: IspSpeedTestResult }
+  | { status: "error"; message: string };
+
+/** One uplink row plus its own on-demand "Run Speed Test" action -- a real,
+ * genuine RouterOS `/tool/fetch` download against THIS link's own router
+ * (`ispService.runSpeedTest`, see backend `IspService.run_speed_test`),
+ * never a simulated/estimated number. Each link gets its own independent
+ * state so testing the backup doesn't clobber a still-fresh primary result
+ * (or vice versa) -- a location can have more than one ISP link, and this
+ * must work for however many it has, one at a time per link. The founder
+ * framed this explicitly as "like speedtest.net" -- the multi-second real
+ * wait gets a visible "measuring…" pulse rather than a silent spinner, and
+ * upload is honestly labeled as not measurable rather than guessed at (see
+ * `IspSpeedTestResult.uploadMbps`'s own doc comment).
+ */
+function UplinkRow({ link }: { link: IspLink }) {
+  const [state, setState] = useState<SpeedTestState>({ status: "idle" });
+
+  const runSpeedTest = async () => {
+    if (isDemo()) {
+      toast.info("Speed tests run against real router hardware — not available in demo mode.");
+      return;
+    }
+    setState({ status: "running" });
+    try {
+      const result = await ispService.runSpeedTest(link.id);
+      setState({ status: "done", result });
+    } catch (err) {
+      const message = (err as AppError).message || "Speed test failed.";
+      setState({ status: "error", message });
+      toast.error(message);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <IspProviderIcon providerName={link.providerName} className="h-4 w-4" />
+          <span className="truncate font-medium text-foreground">{link.providerName}</span>
+          <span className="shrink-0 text-muted-foreground">{link.role === "primary" ? "Primary" : "Backup"}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Badge variant={link.isActiveUplink ? "default" : "secondary"} className="h-5 shrink-0 px-1.5 text-[10px]">
+            {link.isActiveUplink ? "Active" : "Standby"}
+          </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 gap-1 px-1.5 text-[10px] font-medium text-primary hover:text-primary"
+            disabled={state.status === "running"}
+            onClick={runSpeedTest}
+            title="Run a real speed test against this link's router"
+          >
+            <Gauge className={cn("h-3 w-3", state.status === "running" && "animate-spin")} />
+            {state.status === "running" ? "Testing…" : "Speed Test"}
+          </Button>
+        </span>
+      </div>
+      {state.status === "running" && (
+        <div className="flex items-center gap-1.5 pl-[22px] text-[10px] text-muted-foreground">
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+          </span>
+          Measuring real download speed — real traffic, can take up to a minute…
+        </div>
+      )}
+      {state.status === "done" && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-[22px] text-[10px]">
+          <span className="font-semibold text-foreground">{state.result.downloadMbps.toFixed(1)} Mbps <span className="font-normal text-muted-foreground">↓</span></span>
+          {state.result.latencyMs != null && <span className="text-muted-foreground">{state.result.latencyMs.toFixed(0)}ms latency</span>}
+          <span className="text-muted-foreground/70">upload not measurable on this hardware</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * The dashboard's own WAN/Internet Connection status widget: real up/down
  * state + a real recent-history timeline for this location's primary
@@ -361,19 +444,10 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
                * story (who's active, who's standing by, whether it fails
                * back automatically) is visible at a glance instead of only
                * ever showing the one currently-active link. */}
-              <div className="space-y-1.5 border-t border-border/60 pt-3">
+              <div className="space-y-2.5 border-t border-border/60 pt-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Uplinks</p>
                 {wan.links.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <IspProviderIcon providerName={l.providerName} className="h-4 w-4" />
-                      <span className="truncate font-medium text-foreground">{l.providerName}</span>
-                      <span className="shrink-0 text-muted-foreground">{l.role === "primary" ? "Primary" : "Backup"}</span>
-                    </span>
-                    <Badge variant={l.isActiveUplink ? "default" : "secondary"} className="h-5 shrink-0 px-1.5 text-[10px]">
-                      {l.isActiveUplink ? "Active" : "Standby"}
-                    </Badge>
-                  </div>
+                  <UplinkRow key={l.id} link={l} />
                 ))}
                 {backup && (
                   <p className="pt-0.5 text-[11px] text-muted-foreground">
