@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
-  Monitor, UsersRound, Bot, Network, Settings2, Bell, Clock, Globe, ScrollText,
+  Monitor, UsersRound, Bot, Network, Settings2, Bell, Sun, Globe, ScrollText,
   Fingerprint, Server, Signal, Wifi,
   LifeBuoy, Share2, Terminal,
 } from "lucide-react";
@@ -59,7 +59,9 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
       { id: "whitelist", label: "Always Allowed", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
-      { id: "business-hours", label: "Business Hours", icon: Clock, roles: ["owner"] },
+      // Renamed from "Business Hours" (same id/route/data) -- see
+      // customerFeatureCatalog.ts's own note.
+      { id: "business-hours", label: "Open Hours", icon: Sun, roles: ["owner"] },
       { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
     ],
   },

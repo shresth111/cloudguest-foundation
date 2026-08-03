@@ -12,7 +12,8 @@ export const Route = createFileRoute("/portal/closed")({
  * business_hours_enabled/timezone/schedule, computed live into
  * `config.isOpenNow` on every GET /captive-portal/resolve): a guest
  * reaching the portal outside the configured schedule sees this instead
- * of the sign-in card. Previously the "Business Hours" admin toggle had
+ * of the sign-in card. Previously the "Business Hours" admin toggle
+ * (renamed "Open Hours" -- same id/route/data, display-only rename) had
  * no guest-facing effect at all -- see that page's own comment.
  */
 function ClosedPage() {

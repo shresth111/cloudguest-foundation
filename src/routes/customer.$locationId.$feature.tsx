@@ -43,7 +43,7 @@ import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
 import { useIsDemo, useCustomerDashboard, useCustomerUsers, useDataMasking } from "@/hooks/useCustomerDashboard";
 import {
-  AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
+  AlertsView, OpenHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
   DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
@@ -97,7 +97,7 @@ function FeaturePage() {
           // The indigo brand accent from login/select-location/dashboard
           // never reached this shell -- every feature page nested under it
           // (Reports, Campaigns, Portal, Vouchers, Policies, Whitelist,
-          // Devices, Teams, Agents, Alerts, Business Hours, Notification,
+          // Devices, Teams, Agents, Alerts, Open Hours, Notification,
           // ISP Details, Admin Logs, Mac Auth, Port Forwarding, DHCP,
           // VLANs, VOIP, ISP Routing, Debugging, Hotspot, Tickets) was
           // still rendering every `text-primary`/`bg-primary`/`ring-primary`
@@ -162,7 +162,7 @@ function FeaturePage() {
             {feature === "audit" && <AdminLogsView locationId={locationId} />}
             {feature === "tickets" && <TicketsPage locationId={locationId} />}
             {feature === "alerts" && <AlertsView />}
-            {feature === "business-hours" && <BusinessHoursView locationId={locationId} />}
+            {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
             {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
             {feature === "notification" && <NotificationView />}
             {feature === "isp-details" && <IspDetailsView locationId={locationId} />}

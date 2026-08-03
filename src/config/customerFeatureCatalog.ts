@@ -6,7 +6,7 @@
 import type { ComponentType } from "react";
 import {
   LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
-  ShieldCheck, Shield, Fingerprint, Clock, Monitor, UsersRound, Bot, Network, Wifi,
+  ShieldCheck, Shield, Fingerprint, Sun, Monitor, UsersRound, Bot, Network, Wifi,
   Server, Share2, Signal, Globe, Settings2, Terminal,
   ScrollText, LifeBuoy,
 } from "lucide-react";
@@ -44,7 +44,12 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "policies", label: "Access Rules", icon: ShieldCheck },
       { id: "whitelist", label: "Always Allowed", icon: Shield },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
-      { id: "business-hours", label: "Business Hours", icon: Clock },
+      // Renamed from "Business Hours" -- the old label/visual design read
+      // too close to a competitor's equivalent feature. Same id/route/
+      // data, display name + icon only (Sun/Moon now echoes the guest-
+      // facing open/closed states, see OperationsFeatures.tsx's
+      // OpenHoursView and portal.closed.tsx).
+      { id: "business-hours", label: "Open Hours", icon: Sun },
       { id: "background-image", label: "Background Image", icon: Palette },
     ],
   },

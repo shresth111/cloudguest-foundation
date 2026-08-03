@@ -13,10 +13,11 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Bug, CheckCircle2, Clock, Download, Gauge, Globe,
   Network, Plus, RadioTower, RotateCcw, Router, Shield, ShieldAlert, Signal, Terminal, Ticket, Trash2,
   Wifi, XCircle, Bell, Server, Pencil, RefreshCw, History, ScrollText, Fingerprint,
-  KeyRound,
+  KeyRound, Sun, Moon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -329,7 +330,12 @@ export function AlertsView() {
   );
 }
 
-/* ---------- Business Hours ----------
+/* ---------- Open Hours (was "Business Hours") ----------
+ * Renamed + visually redesigned only -- the old name/layout read too close
+ * to a competitor's equivalent feature. The id ("business-hours"), route,
+ * businessHoursService contract, and every field below (BH_DAYS,
+ * BusinessHoursSchedule, etc.) are all untouched on purpose.
+ *
  * Real, guest-facing effect (backend/app/domains/captive_portal --
  * business_hours_enabled/timezone/schedule/closed_message columns,
  * GET /captive-portal/resolve computes is_open_now live from these on
@@ -385,27 +391,40 @@ function AlertsIllustration() {
   );
 }
 
-function BusinessHoursIllustration() {
+/** Sun/moon motif (not a clock face) so the header art reads as "when
+ * guests can get online", not a generic settings-clock -- and so it pairs
+ * visually with the Sun/Moon icons this view's own status tile and guest
+ * preview use, and with the Moon already on the guest-facing closed screen
+ * (src/routes/portal.closed.tsx). */
+function OpenHoursIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
     <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
-      <circle cx="34" cy="26" r="20" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
-      <motion.path
-        d="M34 15v11l8 5"
-        stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+      <circle cx="30" cy="26" r="13" fill="#2e2a5c" stroke="#f0abfc" strokeWidth="1.6" />
+      <motion.circle
+        cx="30" cy="26" r="6.5" fill="#fcd34d"
+        animate={shouldReduceMotion ? { opacity: 0.95 } : { opacity: [0.75, 1, 0.75], scale: [1, 1.08, 1] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       />
-      {[0, 1, 2, 3].map((i) => (
-        <circle key={i} cx={34 + 20 * Math.cos((i * Math.PI) / 2)} cy={26 + 20 * Math.sin((i * Math.PI) / 2)} r="1.3" fill="#a78bfa" fillOpacity="0.5" />
-      ))}
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const a = (i * Math.PI) / 3;
+        return (
+          <motion.line
+            key={i}
+            x1={30 + 10 * Math.cos(a)} y1={26 + 10 * Math.sin(a)}
+            x2={30 + 15.5 * Math.cos(a)} y2={26 + 15.5 * Math.sin(a)}
+            stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round"
+            initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.05 * i, ease: "easeOut" }}
+          />
+        );
+      })}
       <motion.g
-        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
         transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
       >
-        <circle cx="66" cy="14" r="10" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="2" />
-        <path d="M61 14l3.5 3.5L71 10" stroke="#f0abfc" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M62 8a10 10 0 1 0 9 14.5A8 8 0 0 1 62 8z" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.8" strokeLinejoin="round" />
       </motion.g>
     </svg>
   );
@@ -519,7 +538,7 @@ function DebuggingIllustration() {
   );
 }
 
-export function BusinessHoursView({ locationId }: { locationId?: string } = {}) {
+export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   // `demo` itself (a plain isDemo() read, not the SSR-safe useIsDemo()
   // hook) is fine to use in effects/handlers below -- those only ever run
   // client-side. What isn't safe is seeding useState's *initial* value
@@ -563,7 +582,7 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
         setIsOpenNow(cfg.isOpenNow);
       })
       .catch(() => {
-        if (!cancelled) toast.error("Could not load business hours.");
+        if (!cancelled) toast.error("Could not load open hours.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -582,7 +601,7 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
 
   async function handleApply() {
     if (demo) {
-      toast.success("Business hours applied");
+      toast.success("Open hours applied");
       return;
     }
     if (!configId) {
@@ -609,22 +628,47 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
       });
       const refreshed = await businessHoursService.get(locationId!);
       setIsOpenNow(refreshed.isOpenNow);
-      toast.success("Business hours applied");
+      toast.success("Open hours applied");
     } catch (err) {
-      toast.error((err as AppError).message || "Could not save business hours.");
+      toast.error((err as AppError).message || "Could not save open hours.");
     } finally {
       setSaving(false);
     }
   }
+
+  // Purely-derived display values (no new fields, no new fetch) -- the KPI
+  // tiles below just summarize `schedule`/`enabled`/`isOpenNow`, same as
+  // every other view's KpiRow in this file.
+  const openDaysCount = BH_DAYS.filter(({ key }) => dayState(key).open).length;
+  const liveStatusKnown = !demo && isOpenNow !== null;
+  const currentlyOpen = liveStatusKnown ? isOpenNow : null;
+
+  const kpiItems = [
+    ...(liveStatusKnown
+      ? [{
+          label: "Right now",
+          value: currentlyOpen ? "Open" : "Closed",
+          tone: (currentlyOpen ? "success" : "danger") as StatTone,
+          icon: currentlyOpen ? Sun : Moon,
+        }]
+      : []),
+    { label: "Days open", value: `${openDaysCount}/7`, tone: "info" as StatTone, icon: Clock },
+    {
+      label: "Enforced",
+      value: enabled ? "On" : "Off",
+      tone: (enabled ? "primary" : "default") as StatTone,
+      icon: enabled ? CheckCircle2 : XCircle,
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <FeatureHeader
-            title="Business Hours"
-            description="Outside these hours, guests see a 'we're closed' screen instead of the sign-in page."
-            icon={Clock}
+            title="Open Hours"
+            description="Guests can only sign in inside this schedule -- outside it, they see a closed message instead of the portal."
+            icon={Sun}
             action={
               <Button size="sm" onClick={handleApply} disabled={loading || saving}>
                 {saving ? "Applying…" : "Apply"}
@@ -632,78 +676,145 @@ export function BusinessHoursView({ locationId }: { locationId?: string } = {}) 
             }
           />
         </div>
-        <BusinessHoursIllustration />
+        <OpenHoursIllustration />
       </div>
+
+      {!loading && <KpiRow items={kpiItems} />}
+
       <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle className="text-sm">Weekly schedule</CardTitle>
-            <CardDescription>Toggle a day open/closed and set opening &amp; closing times.</CardDescription>
-          </div>
-          {!demo && isOpenNow !== null && (
-            <Badge variant={isOpenNow ? "default" : "secondary"}>
-              {isOpenNow ? "Currently open" : "Currently closed"}
-            </Badge>
-          )}
+        <CardHeader>
+          <CardTitle className="text-sm">Weekly schedule</CardTitle>
+          <CardDescription>Tap a day to open it, then set when it starts and ends.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2.5">
+        <CardContent>
           {loading ? (
             <LoadingSkeleton rows={4} />
           ) : (
-            <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
               {BH_DAYS.map(({ key, label }) => {
                 const d = dayState(key);
                 return (
-                  <div key={key} className="flex flex-wrap items-center gap-3 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
-                    <span className="w-24 text-sm font-medium">{label}</span>
-                    <Switch checked={d.open} onCheckedChange={(v) => setDay(key, { open: v })} />
-                    <span className={`text-xs ${d.open ? "text-foreground" : "text-muted-foreground"}`}>
-                      {d.open ? "Open" : "Closed"}
-                    </span>
-                    <div className="ml-auto flex items-center gap-2">
-                      <Input
-                        type="time"
-                        value={d.start ?? "09:00"}
-                        onChange={(e) => setDay(key, { start: e.target.value })}
-                        className="h-9 w-32"
-                        disabled={!d.open}
-                      />
-                      <span className="text-muted-foreground">—</span>
-                      <Input
-                        type="time"
-                        value={d.end ?? "18:00"}
-                        onChange={(e) => setDay(key, { end: e.target.value })}
-                        className="h-9 w-32"
-                        disabled={!d.open}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!d.open}
-                        onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
-                      >
-                        All day
-                      </Button>
+                  <div
+                    key={key}
+                    className={cn(
+                      "flex flex-col gap-2.5 rounded-2xl p-3.5 shadow-sm transition-colors",
+                      d.open ? "bg-card" : "bg-muted/40",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold uppercase",
+                            d.open
+                              ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {label.slice(0, 2)}
+                        </span>
+                        <span className="text-sm font-medium">{label}</span>
+                      </div>
+                      <Switch checked={d.open} onCheckedChange={(v) => setDay(key, { open: v })} />
                     </div>
+                    {d.open ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="time"
+                            value={d.start ?? "09:00"}
+                            onChange={(e) => setDay(key, { start: e.target.value })}
+                            className="h-8 min-w-0 flex-1 px-1.5 text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">–</span>
+                          <Input
+                            type="time"
+                            value={d.end ?? "18:00"}
+                            onChange={(e) => setDay(key, { end: e.target.value })}
+                            className="h-8 min-w-0 flex-1 px-1.5 text-xs"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Open all day
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Closed all day</p>
+                    )}
                   </div>
                 );
               })}
-              <div className="space-y-1.5 pt-2">
-                <Label className="text-xs">Message shown to guests while closed</Label>
-                <Input
-                  value={closedMessage}
-                  onChange={(e) => setClosedMessage(e.target.value)}
-                  placeholder="We're currently closed."
-                />
-              </div>
-              <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <Switch checked={enabled} onCheckedChange={setEnabled} className="scale-90" />
-                Enforce these hours (show guests a "closed" screen outside the schedule above)
-              </label>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {!loading && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Guest experience</CardTitle>
+            <CardDescription>What guests see, and how strictly the schedule above is enforced.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-5 lg:grid-cols-[1fr_14rem]">
+              <div className="space-y-4">
+                <label className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">Enforce this schedule</p>
+                    <p className="text-xs text-muted-foreground">
+                      Outside open hours, guests are shown the closed message below instead of the sign-in page.
+                    </p>
+                  </div>
+                  <Switch checked={enabled} onCheckedChange={setEnabled} />
+                </label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Message shown to guests while closed</Label>
+                  <Textarea
+                    value={closedMessage}
+                    onChange={(e) => setClosedMessage(e.target.value)}
+                    placeholder="We're currently closed."
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+              <div className="rounded-2xl bg-muted/40 p-4 shadow-sm">
+                <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Guest preview
+                </p>
+                <div className="rounded-xl bg-card p-4 text-center shadow-sm">
+                  <div
+                    className={cn(
+                      "mx-auto grid h-12 w-12 place-items-center rounded-full",
+                      currentlyOpen === false
+                        ? "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                        : "bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+                    )}
+                  >
+                    {currentlyOpen === false ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}
+                  </div>
+                  <p className="mt-3 text-xs font-semibold text-foreground">
+                    {currentlyOpen === null
+                      ? "Preview"
+                      : currentlyOpen
+                        ? "Open for guests"
+                        : "Currently closed"}
+                  </p>
+                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                    {currentlyOpen === false
+                      ? closedMessage.trim() || "We're currently closed. Please check back during business hours."
+                      : "Shown to guests only while the portal is closed."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -17,7 +17,7 @@ import { AgentsPage } from "@/components/features/AgentsPage";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import {
-  AlertsView, BusinessHoursView, NotificationView, IspDetailsView,
+  AlertsView, OpenHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
   DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
@@ -54,7 +54,7 @@ export function renderFeature(id: string, ctx: { locationId?: string; masked?: b
     case "agents": return <AgentsPage />;
     case "advanced": return <AdvancedPage />;
     case "alerts": return <AlertsView />;
-    case "business-hours": return <BusinessHoursView locationId={ctx.locationId} />;
+    case "business-hours": return <OpenHoursView locationId={ctx.locationId} />;
     case "background-image": return <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />;
     case "notification": return <NotificationView />;
     case "isp-details": return <IspDetailsView />;
