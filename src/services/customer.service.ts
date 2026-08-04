@@ -36,6 +36,8 @@ interface RawConnectedDevice {
   ip_address: string;
   guest_id: string | null;
   is_active: boolean;
+  connected_at: string;
+  last_seen_at: string;
 }
 
 export interface NavItem { id: string; label: string; module: string; }
@@ -225,6 +227,53 @@ function deviceLabelFrom(userAgent: string | null | undefined): string {
   return "Unknown device";
 }
 
+/** Picks the real ConnectedDevice that was actually active during a given
+ * session, out of a guest's possibly-several device rows -- not just
+ * "whichever device is currently active for this guest," which produced a
+ * real, reported inconsistency: a guest's session rows all showed the
+ * SAME (current) device's MAC while the "Device" column, derived
+ * per-session from that session's own real user_agent, correctly varied
+ * session to session -- e.g. one MAC labeled "Android device" in some
+ * rows and "Windows PC" in others, because that guest genuinely used more
+ * than one real device over time, but every row's MAC was clamped to
+ * whichever one happens to be active right now. Matches by real time-
+ * window overlap ([connected_at, last_seen_at] vs. the session's own
+ * started_at) instead, falling back to the active/most-recent device only
+ * when there's no better signal (a guest with exactly one device row, the
+ * overwhelmingly common case, is unaffected either way). */
+function matchDeviceForSession(
+  devices: RawConnectedDevice[],
+  sessionStartedAt: string,
+): RawConnectedDevice | undefined {
+  if (devices.length === 0) return undefined;
+  if (devices.length === 1) return devices[0];
+  const startedMs = new Date(sessionStartedAt).getTime();
+  const overlapping = devices.filter((d) => {
+    const connectedMs = new Date(d.connected_at).getTime();
+    const lastSeenMs = new Date(d.last_seen_at).getTime();
+    return startedMs >= connectedMs && startedMs <= lastSeenMs;
+  });
+  if (overlapping.length > 0) {
+    // More than one device's window could still overlap (e.g. two
+    // sessions running back to back) -- prefer whichever's own window
+    // started closest to this session, the real device most plausibly in
+    // use at that moment.
+    return overlapping.reduce((best, d) =>
+      Math.abs(new Date(d.connected_at).getTime() - startedMs) <
+      Math.abs(new Date(best.connected_at).getTime() - startedMs)
+        ? d
+        : best,
+    );
+  }
+  // No device's real window covers this session at all (e.g. the device
+  // was removed/re-synced since) -- fall back to the currently active
+  // one, or the most recently seen, rather than guessing further.
+  return (
+    devices.find((d) => d.is_active) ??
+    devices.reduce((latest, d) => (new Date(d.last_seen_at) > new Date(latest.last_seen_at) ? d : latest))
+  );
+}
+
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
   return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
@@ -376,7 +425,14 @@ export const customerService = {
       // Backend's AlertResponse (monitoring/schemas.py) uses `message` +
       // `triggered_at`, not `title`/`created_at` -- those two field names
       // don't exist on the real response and silently read as undefined.
-      api.get<{ items: { severity: string; message: string; triggered_at: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
+      // `status` (AlertStatus: triggered/acknowledged/resolved) was
+      // fetched from nowhere at all before -- every alert rendered as an
+      // active error/warning regardless of whether it had long since
+      // resolved (bug report from a product review: three alerts that
+      // were all real Resolved incidents from 14-25h ago read as live
+      // problems on the dashboard, the one surface meant to answer "is my
+      // WiFi OK right now").
+      api.get<{ items: { severity: string; message: string; triggered_at: string; status: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
       api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization", orgHeaders),
     ]);
     const routers = rR.status === "fulfilled" ? rR.value.data?.items ?? [] : [];
@@ -407,8 +463,23 @@ export const customerService = {
       usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
       deviceDistribution: deviceDistributionFrom(sessions.map((s) => ({ userAgent: s.user_agent ?? null }))),
       hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
-      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: "Guest", email: "", device: s.device_id ?? "", time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const })),
-      recentAlerts: alerts.slice(0, 5).map((a) => ({ type: a.severity === "critical" ? "error" as const : "warning" as const, msg: a.message, time: timeAgo(a.triggered_at) })),
+      // s.device_id is the session's raw GuestDevice UUID FK, not a device
+      // name -- /guest-sessions doesn't join the device row that would
+      // carry one, so this rendered as a bare UUID (bug report: a raw
+      // GUID in an owner-facing table reads as "this is broken," not as
+      // data). deviceLabelFrom's own honest "Unknown device" fallback
+      // (already used by getUsers() below) is the same real fix applied
+      // here.
+      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: "Guest", email: "", device: deviceLabelFrom(s.user_agent), time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const })),
+      // Resolved alerts (AlertStatus.RESOLVED) get their own "success"
+      // type instead of inheriting severity's error/warning coloring --
+      // see the fetch above's own comment for why this matters on the
+      // dashboard specifically.
+      recentAlerts: alerts.slice(0, 5).map((a) => ({
+        type: a.status === "resolved" ? "success" as const : a.severity === "critical" ? "error" as const : "warning" as const,
+        msg: a.status === "resolved" ? `Resolved: ${a.message}` : a.message,
+        time: timeAgo(a.triggered_at),
+      })),
     };
   },
 
@@ -459,40 +530,42 @@ export const customerService = {
       if (sessionsResult.status === "rejected") throw sessionsResult.reason;
       const data = sessionsResult.value.data;
 
-      const macByGuest = new Map<string, string>();
-      // Real IP lookup, same bulk fetch as macByGuest above: /guest-sessions'
-      // own ip_address is stale/unreliable (it's recorded once at session
-      // start), whereas /connected-devices' ip_address is the router-synced
-      // value from the DHCP lease table / hotspot association -- the real
-      // current IP the founder wants shown here.
-      const ipByGuest = new Map<string, string>();
+      // Every real ConnectedDevice row for each guest (not just one) --
+      // see matchDeviceForSession's own docstring for why picking a single
+      // "the" device per guest (whichever is active right now) produced a
+      // real, reported bug: a guest with more than one real device over
+      // time showed the SAME MAC on every session row while "Device" (from
+      // that session's own real user_agent) correctly varied, reading as
+      // "this MAC is sometimes Android, sometimes Windows."
+      const devicesByGuest = new Map<string, RawConnectedDevice[]>();
       if (devicesResult.status === "fulfilled") {
         for (const d of devicesResult.value.data?.items ?? []) {
           if (!d.guest_id) continue;
-          // An active device's MAC always wins (it's the current, real
-          // binding); an inactive one only fills a gap so it doesn't
-          // clobber an already-recorded active device for the same guest.
-          if (d.is_active || !macByGuest.has(d.guest_id)) macByGuest.set(d.guest_id, d.mac_address);
-          if (d.is_active || !ipByGuest.has(d.guest_id)) ipByGuest.set(d.guest_id, d.ip_address);
+          const list = devicesByGuest.get(d.guest_id);
+          if (list) list.push(d);
+          else devicesByGuest.set(d.guest_id, [d]);
         }
       }
 
-      let users = (data?.items ?? []).map((s) => ({
-        // s.device_id is the session's raw GuestDevice UUID FK, not a MAC
-        // address or a device name -- /guest-sessions doesn't join the
-        // device row that actually carries those. mac now comes from a real
-        // ConnectedDevice row (matched by guest_id, see macByGuest above)
-        // when one exists; otherwise it stays an honest "Unknown" rather
-        // than fabricating one from that UUID.
-        id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent),
-        mac: (s.guest_id && macByGuest.get(s.guest_id)) || "Unknown",
-        guestId: s.guest_id ?? null,
-        // ip now comes from the same real ConnectedDevice row used for mac
-        // above (router-synced DHCP lease / hotspot IP) when one exists;
-        // s.ip_address is only a fallback for guests with no device row yet.
-        ip: (s.guest_id && ipByGuest.get(s.guest_id)) || s.ip_address || "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
-        download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
-      }));
+      let users = (data?.items ?? []).map((s) => {
+        const matched = s.guest_id ? matchDeviceForSession(devicesByGuest.get(s.guest_id) ?? [], s.started_at) : undefined;
+        return {
+          // s.device_id is the session's raw GuestDevice UUID FK, not a MAC
+          // address or a device name -- /guest-sessions doesn't join the
+          // device row that actually carries those. mac/ip now come from
+          // the real ConnectedDevice row that was actually active during
+          // THIS session (matchDeviceForSession, above) when one exists;
+          // otherwise they stay an honest "Unknown"/blank rather than
+          // fabricating one from that UUID.
+          id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent),
+          mac: matched?.mac_address || "Unknown",
+          guestId: s.guest_id ?? null,
+          // s.ip_address is only a fallback for a session with no matched
+          // device row at all.
+          ip: matched?.ip_address || s.ip_address || "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
+          download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
+        };
+      });
       if (search) { const q = search.toLowerCase(); users = users.filter((u) => u.name.toLowerCase().includes(q)); }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
       return { users, total: data?.total_items ?? users.length, page, pageSize };
