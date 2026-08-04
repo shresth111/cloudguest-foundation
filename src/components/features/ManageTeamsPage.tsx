@@ -129,8 +129,12 @@ function TeamClustersIllustration() {
 export default function ManageTeamsPage({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
-  // has their own locations, so every "Business Unit" picker below must
-  // offer those instead. Same real-vs-demo split as WhiteList.tsx's
+  // has their own locations, so every "Location" picker below must offer
+  // those instead. Labeled "Location" (was "Business Unit" -- this page's
+  // own units/realUnits is the exact same real-locations list WhiteList.tsx
+  // already calls "Location" for its own identical picker; display-only
+  // rename, `bu`/`businessUnit` etc. stay as-is). Same real-vs-demo split
+  // as WhiteList.tsx's
   // units/realUnits.
   const { data: locations } = useCustomerLocations();
   const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
@@ -185,7 +189,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   const createTeam = async () => {
     const e: Record<string, string> = {};
-    if (demo && !bu) e.bu = "Select a business unit.";
+    if (demo && !bu) e.bu = "Select a location.";
     if (!teamName) e.teamName = "Enter a team name.";
     if (sharedUsers === "" || parseInt(sharedUsers) < 0) e.sharedUsers = "Enter shared users count, or 0 for unlimited.";
     setErrs(e); if (Object.keys(e).length) return;
@@ -270,8 +274,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </div>
               <div className="grid gap-4 rounded-xl bg-muted/40 p-5 md:grid-cols-3">
                 <div>
-                  <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-                  <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                  <label className={labelCls}>Location <span className="text-destructive">*</span></label>
+                  <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose location</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
                   {errs.bu && <p className="mt-1 text-xs text-destructive">{errs.bu}</p>}
                 </div>
                 <div>
@@ -326,8 +330,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <p className="mb-5 text-sm text-muted-foreground">Please use this to modify user details.</p>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-              <select value={udBu} onChange={(e) => setUdBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+              <label className={labelCls}>Location <span className="text-destructive">*</span></label>
+              <select value={udBu} onChange={(e) => setUdBu(e.target.value)} className={inputCls}><option value="">Choose location</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
             </div>
             <div>
               <label className={labelCls}>Mobile No. <span className="text-destructive">*</span></label>
@@ -335,7 +339,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             </div>
           </div>
           <div className="mt-5 flex justify-center">
-            <Button onClick={() => { if (!udBu || !udMobile) { toast.error("Fill in business unit and mobile number."); return; } toast.success("Looked up user — no changes yet."); }}>
+            <Button onClick={() => { if (!udBu || !udMobile) { toast.error("Fill in location and mobile number."); return; } toast.success("Looked up user — no changes yet."); }}>
               Find User
             </Button>
           </div>
@@ -349,8 +353,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
               <div>
-                <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-                <select value={teamsBu} onChange={(e) => setTeamsBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                <label className={labelCls}>Location <span className="text-destructive">*</span></label>
+                <select value={teamsBu} onChange={(e) => setTeamsBu(e.target.value)} className={inputCls}><option value="">Choose location</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
               </div>
               <CsvDropzone file={teamsCsv} onFile={setTeamsCsv} />
               <div className="flex justify-center">
@@ -358,7 +362,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </div>
             </div>
             <QuickNotes items={[
-              <span key="1">Get sample format <button onClick={() => downloadCsvTemplate("bulk-teams-template.csv", ["team_name", "business_unit", "shared_users"], ["Sales Team", units[0] ?? "Business Unit", "0"])} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
+              <span key="1">Get sample format <button onClick={() => downloadCsvTemplate("bulk-teams-template.csv", ["team_name", "business_unit", "shared_users"], ["Sales Team", units[0] ?? "Location", "0"])} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
               "Size of the file should not exceed 30kb (~200 records).",
               "You can set shared users to 0 for unlimited user access for any team.",
               "Shared users should not be more than 5000.",
@@ -374,8 +378,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
               <div>
-                <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-                <select value={mapBu} onChange={(e) => setMapBu(e.target.value)} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                <label className={labelCls}>Location <span className="text-destructive">*</span></label>
+                <select value={mapBu} onChange={(e) => setMapBu(e.target.value)} className={inputCls}><option value="">Choose location</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
               </div>
               <CsvDropzone file={mapCsv} onFile={setMapCsv} />
               <div className="flex justify-center">
@@ -383,7 +387,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </div>
             </div>
             <QuickNotes items={[
-              <span key="1">Get sample format <button onClick={() => downloadCsvTemplate("bulk-map-users-template.csv", ["mobile_number", "team_name", "business_unit"], ["9998887766", "Sales Team", units[0] ?? "Business Unit"])} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
+              <span key="1">Get sample format <button onClick={() => downloadCsvTemplate("bulk-map-users-template.csv", ["mobile_number", "team_name", "business_unit"], ["9998887766", "Sales Team", units[0] ?? "Location"])} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Download className="h-3 w-3" />Download Template</button></span> as unknown as string,
               "Size of the file should not exceed 30kb (~200 records).",
             ]} />
           </div>
@@ -394,7 +398,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Manage Team</DialogTitle>
-            <DialogDescription>Update this team's name, business unit, or member count.</DialogDescription>
+            <DialogDescription>Update this team's name, location, or member count.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -402,7 +406,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               <input value={manageDraft.name} onChange={(e) => setManageDraft((p) => ({ ...p, name: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Business Unit</label>
+              <label className={labelCls}>Location</label>
               <select value={manageDraft.businessUnit} onChange={(e) => setManageDraft((p) => ({ ...p, businessUnit: e.target.value }))} className={inputCls}>
                 {units.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
