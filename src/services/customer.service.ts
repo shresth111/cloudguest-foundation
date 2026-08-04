@@ -274,6 +274,35 @@ function matchDeviceForSession(
   );
 }
 
+/** Real `Guest.identifier`/`display_name` (see backend `GET /guests` --
+ * `GuestResponse.identifier`/`display_name` are `MaskedIdentifier`/
+ * `MaskedName`, so the server itself already masks or reveals these per
+ * the calling user's own `data_masking_enabled` setting; this file's own
+ * `masked` toggle re-masking on top is a documented no-op on an
+ * already-masked value, never double-mangling). `identifier` is a single
+ * column holding either a phone number or an email, whichever the guest
+ * actually presented at login -- same `@`-presence dispatch backend's own
+ * `mask_identifier` uses, since there's no separate typed column to tell
+ * them apart. */
+interface RawGuest {
+  id: string;
+  identifier: string | null;
+  display_name: string | null;
+}
+
+/** Real guest sessions never had *any* identity to show (Finding: every
+ * row hardcoded `name: "Guest", email: "", phone: ""` regardless of what
+ * the guest actually gave at sign-in) even though the backend fully
+ * captures it (`Guest.identifier`/`display_name`) and the UI already has
+ * working `maskEmail`/`maskPhone` display logic wired up -- built and
+ * proven out against demo data, just never connected to the real API. */
+function identityFromGuest(guest: RawGuest | undefined): { name: string; email: string; phone: string } {
+  const name = guest?.display_name || "Guest";
+  const identifier = guest?.identifier ?? "";
+  const isEmail = identifier.includes("@");
+  return { name, email: isEmail ? identifier : "", phone: !isEmail ? identifier : "" };
+}
+
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
   return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
@@ -419,7 +448,7 @@ export const customerService = {
     // 403 entirely.
     const orgId = await resolveOrgId();
     const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-    const [rR, sR, aR, hR] = await Promise.allSettled([
+    const [rR, sR, aR, hR, gR] = await Promise.allSettled([
       api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...orgHeaders }),
       api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
       // Backend's AlertResponse (monitoring/schemas.py) uses `message` +
@@ -434,11 +463,20 @@ export const customerService = {
       // WiFi OK right now").
       api.get<{ items: { severity: string; message: string; triggered_at: string; status: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
       api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization", orgHeaders),
+      // Bulk guest-identity lookup, same "one fetch per page load, matched
+      // client-side by guest_id" shape as getUsers()' own connected-device
+      // fetch below -- best-effort, so recentUsers just falls back to "Guest"
+      // if this leg fails rather than failing the whole dashboard.
+      api.get<{ items: RawGuest[] }>("/guests", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
     ]);
     const routers = rR.status === "fulfilled" ? rR.value.data?.items ?? [] : [];
     const sessions = sR.status === "fulfilled" ? sR.value.data?.items ?? [] : [];
     const alerts = aR.status === "fulfilled" ? aR.value.data?.items ?? [] : [];
     const health = hR.status === "fulfilled" ? hR.value.data ?? null : null;
+    const guestsById = new Map<string, RawGuest>();
+    if (gR.status === "fulfilled") {
+      for (const g of gR.value.data?.items ?? []) guestsById.set(g.id, g);
+    }
     const onR = routers.filter((r) => r.status === "online").length;
     const tR = routers.length || 1;
     const today = new Date().toISOString().slice(0, 10);
@@ -470,7 +508,10 @@ export const customerService = {
       // data). deviceLabelFrom's own honest "Unknown device" fallback
       // (already used by getUsers() below) is the same real fix applied
       // here.
-      recentUsers: sessions.slice(0, 6).map((s) => ({ id: s.id, name: "Guest", email: "", device: deviceLabelFrom(s.user_agent), time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const })),
+      recentUsers: sessions.slice(0, 6).map((s) => {
+        const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
+        return { id: s.id, name: identity.name, email: identity.email, device: deviceLabelFrom(s.user_agent), time: timeAgo(s.started_at), status: s.status === "active" ? "online" as const : "offline" as const };
+      }),
       // Resolved alerts (AlertStatus.RESOLVED) get their own "success"
       // type instead of inheriting severity's error/warning coloring --
       // see the fetch above's own comment for why this matters on the
@@ -509,7 +550,7 @@ export const customerService = {
       // route around -- see listLocations()/getDashboard()'s comments.
       const orgId = await resolveOrgId();
       const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-      const [sessionsResult, devicesResult] = await Promise.allSettled([
+      const [sessionsResult, devicesResult, guestsResult] = await Promise.allSettled([
         api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
           params: { location_id: locationId, page, page_size: pageSize },
           ...orgHeaders,
@@ -526,9 +567,21 @@ export const customerService = {
           params: { location_id: locationId, page_size: 100 },
           ...orgHeaders,
         }),
+        // Real guest identity lookup (see identityFromGuest's own comment
+        // for the "every row hardcoded 'Guest'/blank" bug this fixes) --
+        // same bulk-fetch-and-match-by-guest_id shape as the device lookup
+        // above, best-effort for the same reason.
+        api.get<{ items: RawGuest[] }>("/guests", {
+          params: { location_id: locationId, page_size: 100 },
+          ...orgHeaders,
+        }),
       ]);
       if (sessionsResult.status === "rejected") throw sessionsResult.reason;
       const data = sessionsResult.value.data;
+      const guestsById = new Map<string, RawGuest>();
+      if (guestsResult.status === "fulfilled") {
+        for (const g of guestsResult.value.data?.items ?? []) guestsById.set(g.id, g);
+      }
 
       // Every real ConnectedDevice row for each guest (not just one) --
       // see matchDeviceForSession's own docstring for why picking a single
@@ -549,6 +602,7 @@ export const customerService = {
 
       let users = (data?.items ?? []).map((s) => {
         const matched = s.guest_id ? matchDeviceForSession(devicesByGuest.get(s.guest_id) ?? [], s.started_at) : undefined;
+        const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
         return {
           // s.device_id is the session's raw GuestDevice UUID FK, not a MAC
           // address or a device name -- /guest-sessions doesn't join the
@@ -557,7 +611,7 @@ export const customerService = {
           // THIS session (matchDeviceForSession, above) when one exists;
           // otherwise they stay an honest "Unknown"/blank rather than
           // fabricating one from that UUID.
-          id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent),
+          id: s.id, name: identity.name, email: identity.email, phone: identity.phone, device: deviceLabelFrom(s.user_agent),
           mac: matched?.mac_address || "Unknown",
           guestId: s.guest_id ?? null,
           // s.ip_address is only a fallback for a session with no matched
