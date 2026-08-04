@@ -646,7 +646,7 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           <div>
             <CardTitle className="text-sm">Bandwidth Utilization</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Live traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, updated every 20s
+              Traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, new reading roughly every 10 min
             </p>
           </div>
         </div>
@@ -667,7 +667,7 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                       : utilizationPct >= 70 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
                       : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
                   )}
-                  title={`${latest?.downloadMbps?.toFixed(1)} of ${capacityDownload} Mbps plan`}
+                  title={`${latest?.downloadMbps?.toFixed(1)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
                 >
                   {utilizationPct}% of plan
                 </span>
@@ -1230,7 +1230,7 @@ function CustomerDashboardPage() {
                  * see BandwidthUtilizationCard's own comment for the full
                  * reasoning. */}
                 <div>
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">Live bandwidth on your primary uplink, refreshed every 20 seconds.</p>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">Bandwidth on your primary uplink, sampled roughly every 10 minutes.</p>
                   <BandwidthUtilizationCard locationId={locationId} onManage={() => handleNav("isp-details")} />
                 </div>
 

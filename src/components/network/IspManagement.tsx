@@ -587,10 +587,12 @@ function LinkDialog({
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Download (Mbps, optional)</Label>
             <Input type="number" min={0} {...form.register("downloadBandwidthMbps")} />
+            <p className="text-[11px] text-muted-foreground">As advertised by your ISP — not independently measured.</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Upload (Mbps, optional)</Label>
             <Input type="number" min={0} {...form.register("uploadBandwidthMbps")} />
+            <p className="text-[11px] text-muted-foreground">As advertised by your ISP — not independently measured.</p>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
             <div className="text-sm font-medium">Auto failback</div>

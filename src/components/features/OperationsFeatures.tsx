@@ -1225,6 +1225,9 @@ function IspLinkDialog({
             <div><Label className="mb-1 block text-xs">Plan Download Speed (Mbps, optional)</Label><Input type="number" min={0} placeholder="e.g. 100" value={form.downloadBandwidthMbps} onChange={(e) => setForm({ ...form, downloadBandwidthMbps: e.target.value })} className="h-9" /></div>
             <div><Label className="mb-1 block text-xs">Plan Upload Speed (Mbps, optional)</Label><Input type="number" min={0} placeholder="e.g. 20" value={form.uploadBandwidthMbps} onChange={(e) => setForm({ ...form, uploadBandwidthMbps: e.target.value })} className="h-9" /></div>
           </div>
+          <p className="-mt-1 text-[11px] text-muted-foreground">
+            Whatever your ISP advertises for this plan — not independently measured, so utilization % is only as accurate as this number.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div><Label className="mb-1 block text-xs">Primary DNS (optional)</Label><Input placeholder="1.1.1.1" value={form.dnsPrimary} onChange={(e) => setForm({ ...form, dnsPrimary: e.target.value })} className="h-9 font-mono" /></div>
             <div><Label className="mb-1 block text-xs">Secondary DNS (optional)</Label><Input placeholder="8.8.8.8" value={form.dnsSecondary} onChange={(e) => setForm({ ...form, dnsSecondary: e.target.value })} className="h-9 font-mono" /></div>
