@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
   Monitor, UsersRound, Bot, Network, Settings2, Bell, Sun, Globe, ScrollText,
   Fingerprint, Server, Signal, Wifi,
-  LifeBuoy, Share2, Terminal,
+  LifeBuoy, Share2,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -90,7 +90,9 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Operations",
     items: [
       { id: "notification", label: "Notifications", icon: Bell, roles: ["owner"] },
-      { id: "debugging", label: "Network Diagnostics", icon: Terminal, roles: ["owner"] },
+      // Renamed from "Network Diagnostics" -- see customerFeatureCatalog.ts's
+      // own note (same id/route/data, display-only rename).
+      { id: "debugging", label: "Connection Tools", icon: Wifi, roles: ["owner"] },
     ],
   },
   {

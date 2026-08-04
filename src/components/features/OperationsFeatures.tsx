@@ -2639,7 +2639,13 @@ export function VoipView({ locationId }: { locationId?: string }) {
   return <QosManagement locationId={locationId} />;
 }
 
-/* ---------- Debugging Tools ----------
+/* ---------- Debugging Tools (displayed as "Connection Tools", was
+ * "Network Diagnostics") ----------
+ * Renamed + visually redesigned only -- the old label/layout read too
+ * close to a competitor's equivalent feature. The id ("debugging"), route,
+ * and every real call below (networkDiagnosticsService.ping/traceroute,
+ * guestService.listSessions/terminateSession) are untouched on purpose.
+ *
  * Was 100% fake: "DNS Lookup" resolved to Math.random() octets behind a
  * setTimeout, "Reset User Session" never called anything, and "Controller
  * Logs" only ever echoed those two fabricated actions back to themselves.
@@ -2789,18 +2795,33 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
     }
   };
 
+  // Purely-derived display values (no new fields, no new fetch) -- these
+  // KPI tiles just summarize routers/runs/lastRun, same read-only pattern
+  // as OpenHoursView's kpiItems above.
+  const lastRunOk = lastRun?.status === "success";
+  const kpiItems = [
+    { label: "Routers", value: demo ? "Demo" : String(routers.length), tone: (demo || routers.length > 0 ? "success" : "danger") as StatTone, icon: Router },
+    { label: "Recent runs", value: String(runs.length), tone: "info" as StatTone, icon: History },
+    ...(lastRun
+      ? [{ label: "Last result", value: lastRunOk ? "Success" : "Failed", tone: (lastRunOk ? "success" : "danger") as StatTone, icon: lastRunOk ? CheckCircle2 : XCircle }]
+      : []),
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <FeatureHeader title="Network Diagnostics" description="Trouble connecting or opening a site? Debug it right here." icon={Terminal} />
+          <FeatureHeader title="Connection Tools" description="Trouble connecting or opening a site? Fix it right here." icon={Wifi} />
         </div>
         <DebuggingIllustration />
       </div>
+
+      {!routersLoading && <KpiRow items={kpiItems} />}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-primary" /> Ping / Traceroute</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-primary" /> Ping &amp; Traceroute</CardTitle>
             <CardDescription>Runs a real command on this location's own router.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -2826,7 +2847,7 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
         </Card>
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm"><RadioTower className="h-4 w-4 text-primary" /> Reset User Session</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm"><RadioTower className="h-4 w-4 text-primary" /> Reset a Guest Session</CardTitle>
             <CardDescription>Force a guest back to the login page.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -2836,7 +2857,7 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
         </Card>
       </div>
       <Card className="border-0 shadow-sm">
-        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Terminal className="h-4 w-4 text-primary" /> Recent Diagnostic Runs</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Terminal className="h-4 w-4 text-primary" /> Recent Runs</CardTitle></CardHeader>
         <CardContent className="p-0">
           {demo || runs.length === 0 ? (
             <div className="p-4"><EmptyState icon={Terminal} title="No runs yet" description="Run a ping or traceroute above — real results land here." /></div>
