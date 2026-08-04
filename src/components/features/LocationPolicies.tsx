@@ -427,23 +427,6 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         </div>
       )}
 
-      {/* warning banner -- the core warning (bold, prominent) is now
-          separated from the secondary "need help" contact line (smaller,
-          muted) instead of one run-on paragraph, so the actually-important
-          part reads at a glance. */}
-      <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-        <div className="space-y-1">
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-            Saving applies these limits immediately — including to guests already connected.
-          </p>
-          <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
-            Double-check the limits below before saving. Need help? Contact{" "}
-            <a href="mailto:support@wyfyguest.com" className="font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-400">support@wyfyguest.com</a>.
-          </p>
-        </div>
-      </div>
-
       {/* form card */}
       <Card className="border-0 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-2">
@@ -539,7 +522,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         </div>
 
         <hr className="my-6 border-slate-100 dark:border-slate-600" />
-        <div className="flex justify-center">
+        {/* Immediate-effect notice -- moved off a persistent, page-length
+            amber block (standing furniture every time this tab opens) into
+            a slim, contextual line right where it's actually relevant: the
+            moment before clicking Save. Same real warning (applies now,
+            including to already-connected guests), no longer competing
+            visually with the form itself. Support contact tucked behind
+            the same Tooltip pattern already used for individual field
+            help elsewhere on this page, instead of its own paragraph. */}
+        <div className="flex flex-col items-center gap-3">
+          <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            Applies immediately — including to guests already connected.
+            <Tooltip id="save-immediate-effect" text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com." />
+          </p>
           <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {saving ? "Saving…" : editingId ? "Save changes" : "Update policies"}
