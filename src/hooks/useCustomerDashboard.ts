@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { customerService, isDemo } from "@/services/customer.service";
+import { customerService, isDemo, resolveOrgId } from "@/services/customer.service";
 import type { CustomerUsersData } from "@/services/customer.service";
 import { rbacService } from "@/services/rbac.service";
 import { useAuth } from "@/context/AuthContext";
@@ -191,7 +191,7 @@ export function useDataMasking() {
   useEffect(() => {
     if (demo || !user || hydrated) return;
     let cancelled = false;
-    rbacService.getUserDetail(user.id).then((detail) => {
+    resolveOrgId().then((orgId) => rbacService.getUserDetail(user.id, orgId)).then((detail) => {
       if (!cancelled) { setMasked(detail.user.dataMaskingEnabled); setHydrated(true); }
     }).catch(() => {});
     return () => { cancelled = true; };

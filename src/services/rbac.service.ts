@@ -310,8 +310,17 @@ export const rbacService = {
     };
   },
 
-  async getUserDetail(id: string): Promise<UserDetail> {
-    const { data } = await api.get<BackendUserDetailResponse>(`/users/${id}`);
+  // `organizationId` matters for any non-GLOBAL caller (an Organization
+  // Owner, not a platform admin) -- without it, CurrentOrganization
+  // resolves to nothing and the permission check has no org context to
+  // check against, 403ing even for a user fetching their own profile.
+  // Confirmed live: useCustomerDashboard's own data-masking-preference
+  // hydration call site was hitting exactly this, silently (its own
+  // `.catch(() => {})`), on every single page load.
+  async getUserDetail(id: string, organizationId?: string): Promise<UserDetail> {
+    const { data } = await api.get<BackendUserDetailResponse>(`/users/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return toUserDetail(data);
   },
 
