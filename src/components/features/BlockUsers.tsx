@@ -406,12 +406,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-700">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-          <p className="text-sm text-amber-800 dark:text-amber-200">Blocking takes effect immediately and ends any session these users currently have.</p>
-        </div>
-
-        <div className="mt-5">
+        <div>
           <label htmlFor="block-ta" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
             Mobile numbers <span className="text-indigo-500">*</span>
           </label>
@@ -447,7 +442,16 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         )}
 
         <hr className="my-5 border-slate-100 dark:border-slate-600" />
-        <div className="flex justify-center">
+        {/* Immediate-effect notice -- same contextual-line pattern just
+            applied to Guest WiFi Limits' save warning, replacing a
+            persistent amber block with a slim line right above the
+            button it actually concerns. */}
+        <div className="flex flex-col items-center gap-3">
+          <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            Takes effect immediately, ending any session these users currently have.
+            <Tooltip text="Blocking a number ends that guest's active session right away, if they have one, and prevents them from signing in again until unblocked." />
+          </p>
           <button ref={triggerRef} disabled={textarea.trim() === ""} onClick={handlePrimaryClick} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60">
             Block {parsed.valid.length > 0 ? `${parsed.valid.length} number${parsed.valid.length > 1 ? "s" : ""}` : "numbers"}
           </button>
