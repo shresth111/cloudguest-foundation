@@ -499,7 +499,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 couple of cosmetic props, and was an entirely different
                 component tree than what a guest's device actually renders. */}
             <div className="mx-auto w-full max-w-[340px] rounded-[2rem] border-8 border-black/80 bg-black/80 p-1.5 shadow-xl">
-              <div className="relative min-h-[560px] overflow-hidden rounded-[1.4rem] bg-white">
+              {/* Fixed `h-[560px]`, not `min-h-[560px]` -- PortalShell's own
+                  `constrained` height class is `min-h-full`, and CSS only
+                  resolves a percentage `min-height` against a parent with a
+                  *definite* height. A `min-height`-only parent has no
+                  definite height (it sizes to its shorter real content),
+                  so PortalShell silently fell back to its natural,
+                  shorter-than-560px height, leaving this frame's own
+                  `bg-white` showing through as a jarring blank gap below the
+                  actual card -- not what a real phone screen looks like.
+                  `overflow-y-auto` (not `-hidden`) so content that's
+                  genuinely taller than one screen scrolls inside the frame,
+                  the same as it would on a real guest's phone, instead of
+                  being invisibly clipped off. */}
+              <div className="relative h-[560px] overflow-x-hidden overflow-y-auto rounded-[1.4rem] bg-white">
                 <PortalRuntimeProvider
                   organizationId={orgId ?? "preview"}
                   locationId={locationId ?? "preview"}
