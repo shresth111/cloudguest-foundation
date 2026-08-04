@@ -3,7 +3,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
@@ -356,6 +355,13 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const isActive = (end: string) => new Date(end) > new Date();
   const Err = ({ k }: { k: keyof FormData }) => errs[k] ? <p className="mt-1 text-xs text-destructive">{errs[k]}</p> : null;
 
+  // Purely-derived counts (no new fetch) scoped to the tab currently being
+  // viewed -- same read-only KPI-strip pattern used this session on
+  // OpenHoursView/DebuggingView/ManageTeamsPage.
+  const tabEntries = useMemo(() => entries.filter((e) => e.tab === tab), [entries, tab]);
+  const activeCount = tabEntries.filter((e) => isActive(e.endDate)).length;
+  const expiredCount = tabEntries.length - activeCount;
+
   return (
     <div className="space-y-6">
       {/* header -- matches the compact icon-badge + title + corner
@@ -373,6 +379,41 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           </div>
         </div>
         <TrustedAccessIllustration />
+      </div>
+
+      {/* KPI strip -- was missing entirely; a plain form-then-table page
+       * with no at-a-glance summary read closer to a generic admin
+       * allowlist screen. Purely derived from `entries`, same read-only
+       * pattern as the KpiRow this session added to OpenHoursView/
+       * DebuggingView/ManageTeamsPage. */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
+            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Active</p>
+            <p className="truncate text-lg font-bold">{activeCount}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Expired</p>
+            <p className="truncate text-lg font-bold">{expiredCount}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            {tab === "number" ? <Smartphone className="h-5 w-5 text-white" /> : <Laptop className="h-5 w-5 text-white" />}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Total {tab === "number" ? "numbers" : "devices"}</p>
+            <p className="truncate text-lg font-bold">{tabEntries.length}</p>
+          </div>
+        </div>
       </div>
 
       {/* toast */}
@@ -514,7 +555,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <input type="text" placeholder="Search…" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className={cn(inputCls, "w-48 py-1.5 pl-8")} />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className={paged.length > 0 ? "px-4 pb-4 pt-0" : "p-0"}>
         {paged.length === 0 ? (
           <EmptyState
             icon={ShieldCheck}
@@ -523,53 +564,53 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             action={{ label: "Allow a number or device", onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus() }}
           />
         ) : (
-        <div className="overflow-x-auto">
-          <Table className="min-w-[820px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs font-medium">Name</TableHead>
-                <TableHead className="text-xs font-medium">{tab === "number" ? "Mobile Number" : "MAC Address"}</TableHead>
-                <TableHead className="text-xs font-medium">Location</TableHead>
-                <TableHead className="text-xs font-medium">Start Date</TableHead>
-                <TableHead className="text-xs font-medium">End Date</TableHead>
-                <TableHead className="text-xs font-medium">Status</TableHead>
-                <TableHead className="text-right text-xs font-medium">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paged.map(e => (
-                  <TableRow key={e.id} className="border-b">
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                          {tab === "number" ? <Smartphone className="h-3.5 w-3.5" /> : <Laptop className="h-3.5 w-3.5" />}
-                        </span>
-                        <span className="font-medium text-foreground">{e.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{e.tab === "device" ? maskMac(e.identifier) : e.identifier}</TableCell>
-                    <TableCell className="text-muted-foreground">{e.businessUnit}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{fmtDT(e.startDate)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{fmtDT(e.endDate)}</TableCell>
-                    <TableCell>
-                      <span className={cn("inline-flex items-center gap-1 text-xs font-medium", isActive(e.endDate) ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
-                        <span className={cn("h-1.5 w-1.5 rounded-full", isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400")} />
-                        {isActive(e.endDate) ? "Active" : "Expired"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <button type="button" aria-label={`Edit ${e.name}`} onClick={() => startEdit(e)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" /></button>
-                      <button aria-label={`Delete ${e.name}`} onClick={() => handleDelete(e.id)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-                    </TableCell>
-                  </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        // Card grid instead of a data table -- a table-with-search-and-
+        // pagination is the single most generic-looking "admin allowlist"
+        // pattern there is (and reads closest to the competitor's own
+        // screen for this exact feature). Same per-entry data as before,
+        // just presented as a compact card (identity + masked MAC in the
+        // header row, a status pill, location + the access window, edit/
+        // delete actions) -- matches the card-list treatment this session
+        // already gave ManageTeamsPage's "Your Teams".
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {paged.map((e) => (
+            <div key={e.id} className="rounded-xl border-0 bg-muted/40 p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    {tab === "number" ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">{e.tab === "device" ? maskMac(e.identifier) : e.identifier}</p>
+                  </div>
+                </div>
+                <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", isActive(e.endDate) ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400")} />
+                  {isActive(e.endDate) ? "Active" : "Expired"}
+                </span>
+              </div>
+              <div className="mt-3 flex items-end justify-between gap-3 text-xs">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">Location</p>
+                  <p className="truncate text-foreground">{e.businessUnit || "—"}</p>
+                </div>
+                <div className="min-w-0 text-right">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">Access window</p>
+                  <p className="truncate text-foreground">{fmtDT(e.startDate)} → {fmtDT(e.endDate)}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end gap-1 border-t border-border/60 pt-2">
+                <button type="button" aria-label={`Edit ${e.name}`} onClick={() => startEdit(e)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" /></button>
+                <button aria-label={`Delete ${e.name}`} onClick={() => handleDelete(e.id)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+          ))}
         </div>
         )}
 
         {filtered.length > 0 && (
-          <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
+          <div className={cn("flex items-center justify-between text-xs text-muted-foreground", paged.length > 0 ? "mt-4 border-t pt-3" : "border-t p-3")}>
             <span>Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
             <div className="flex items-center gap-1">
               <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
