@@ -118,21 +118,33 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
        * slate-ring boxed-tab look. Active tab now carries the brand accent
        * instead of a flat neutral fill, so it reads as selected at a
        * glance, matching the sub-tab treatment below it. */}
-      <div className="overflow-x-auto">
-        <div className="inline-flex min-w-[400px] w-full gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-          {POLICIES_TABS.map((t) => {
-            const Icon = t.icon;
-            const active = tab === t.id;
-            return (
-              <button key={t.id} onClick={() => setTab(t.id)} aria-current={active ? "page" : undefined}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  active ? "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}>
-                <Icon className="h-4 w-4" />{t.label}
-              </button>
-            );
-          })}
+      {/* `relative` wrapper + a right-edge fade: at narrow (sub-~400px)
+       * widths this row is wider than the viewport (min-w-[400px] so the
+       * three tabs never get too cramped) and silently clips "Access
+       * Tiers" at the screen edge with `overflow-x-auto`'s scrollbar being
+       * the only -- easy to miss on touch devices -- hint that there's
+       * more to swipe to. The fade is a static visual affordance (no
+       * scroll-position tracking), so it stays visible even once fully
+       * scrolled right; a small tradeoff for not needing a scroll listener
+       * for what's otherwise an edge case at the very narrowest widths. */}
+      <div className="relative">
+        <div className="overflow-x-auto">
+          <div className="inline-flex min-w-[400px] w-full gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
+            {POLICIES_TABS.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              return (
+                <button key={t.id} onClick={() => setTab(t.id)} aria-current={active ? "page" : undefined}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    active ? "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}>
+                  <Icon className="h-4 w-4" />{t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden" />
       </div>
 
       {/* User Policies sub-tabs -- Blocked Guests and Always Allowed are
@@ -153,25 +165,28 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
             <span className="font-medium text-rose-600 dark:text-rose-400">Blocked Guests</span> are refused a connection until unblocked.{" "}
             <span className="font-medium text-emerald-600 dark:text-emerald-400">Always Allowed</span> guests skip the portal automatically.
           </p>
-          <div className="overflow-x-auto">
-            <div className="inline-flex min-w-[300px] w-full gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-              {USER_SUB_TABS.map((t) => {
-                const Icon = t.icon;
-                const active = userTab === t.id;
-                const activeClasses =
-                  t.id === "block" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" :
-                  t.id === "whitelist" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                  "bg-[#4f46e5]/10 text-[#4f46e5]";
-                return (
-                  <button key={t.id} onClick={() => setUserTab(t.id)}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                      active ? activeClasses : "text-muted-foreground hover:text-foreground"
-                    }`}>
-                    <Icon className="h-4 w-4" />{t.label}
-                  </button>
-                );
-              })}
+          <div className="relative">
+            <div className="overflow-x-auto">
+              <div className="inline-flex min-w-[300px] w-full gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
+                {USER_SUB_TABS.map((t) => {
+                  const Icon = t.icon;
+                  const active = userTab === t.id;
+                  const activeClasses =
+                    t.id === "block" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" :
+                    t.id === "whitelist" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                    "bg-[#4f46e5]/10 text-[#4f46e5]";
+                  return (
+                    <button key={t.id} onClick={() => setUserTab(t.id)}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                        active ? activeClasses : "text-muted-foreground hover:text-foreground"
+                      }`}>
+                      <Icon className="h-4 w-4" />{t.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden" />
           </div>
         </div>
       )}

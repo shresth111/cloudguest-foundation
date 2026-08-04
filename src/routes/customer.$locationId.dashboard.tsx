@@ -781,7 +781,14 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
-              <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it.</p>
+              {/* Sitting right below the "routers online" KPI at the top of
+               * this same dashboard, an unqualified "no hardware" read as
+               * contradicting it (bug report from a product review: "wait,
+               * don't I have a router?"). This card only tracks *other*
+               * hardware you add yourself (APs, printers, etc.) -- your
+               * router is already monitored automatically and isn't meant
+               * to show up here, so that needs to be said explicitly. */}
+              <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it. Your router is already tracked separately above.</p>
             </div>
             <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
           </div>
