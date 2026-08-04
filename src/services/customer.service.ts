@@ -56,8 +56,11 @@ export interface CustomerLocationSummary {
 }
 
 export interface CustomerDashboardData {
-  health: { systemHealth: string; routersOnline: string; isp: string; networkLoad: string };
-  kpis: { onlineUsers: number; activeSessions: number; routersOnline: number; totalRouters: number; todayGuests: number; avgSession: number; peakConcurrent: number; failedLogins: number; newToday: number; slaUptime: number; };
+  health: { systemHealth: string; routersOnline: string; isp: string };
+  // `slaUptime` is `null` when there's no active ISP link / bucket data
+  // yet to compute a real figure from -- see getDashboard()'s own
+  // comment. Never a fabricated placeholder number.
+  kpis: { onlineUsers: number; activeSessions: number; routersOnline: number; totalRouters: number; todayGuests: number; avgSession: number; peakConcurrent: number; failedLogins: number; newToday: number; slaUptime: number | null; };
   usersTrend: { hour: string; users: number }[];
   recentUsers: { id: string; name: string; email: string; device: string; time: string; status: string }[];
   recentAlerts: { type: "error" | "warning" | "success" | "info"; msg: string; time: string }[];
@@ -290,6 +293,25 @@ interface RawGuest {
   display_name: string | null;
 }
 
+/** Minimal shape for resolving this location's active ISP uplink, same
+ * client-side "fetch up to 100 org-wide links, filter by location_id,
+ * sort by is_active_uplink/role/priority" resolution `useWanSummary`
+ * already does in the dashboard route -- no `location_id` filter exists
+ * server-side (`GET /isp/links` only takes `router_id`), so this mirrors
+ * that same real precedent rather than inventing a different one. */
+interface RawIspLinkForSla {
+  id: string;
+  location_id: string | null;
+  is_active_uplink: boolean;
+  role: string;
+  priority: number;
+}
+
+interface RawIspHealthCheckBucket {
+  total_checks: number;
+  uptime_percentage: number | null;
+}
+
 /** Real guest sessions never had *any* identity to show (Finding: every
  * row hardcoded `name: "Guest", email: "", phone: ""` regardless of what
  * the guest actually gave at sign-in) even though the backend fully
@@ -426,7 +448,7 @@ export const customerService = {
       // open, so switching locations never changed the "Core systems" strip.
       const loc = DEMO_LOCATIONS.find((l) => l.id === locationId) ?? DEMO_LOCATIONS[0];
       return {
-        health: { systemHealth: loc.status === "offline" ? "0%" : `${loc.routerHealth}%`, routersOnline: `${loc.routersOnline}/${loc.routersTotal}`, isp: loc.isp, networkLoad: "42%" },
+        health: { systemHealth: loc.status === "offline" ? "0%" : `${loc.routerHealth}%`, routersOnline: `${loc.routersOnline}/${loc.routersTotal}`, isp: loc.isp },
         kpis: { onlineUsers: loc.onlineUsers, activeSessions: loc.sessionsActive, routersOnline: loc.routersOnline, totalRouters: loc.routersTotal, todayGuests: 456, avgSession: 34, peakConcurrent: 234, failedLogins: 12, newToday: 89, slaUptime: 99.97 },
         usersTrend: Array.from({ length: 24 }, (_, i) => ({ hour: `${i}`, users: 20 + ((i * 17) % 120) })),
         deviceDistribution: [{ name: "iOS", value: 35 }, { name: "Android", value: 28 }, { name: "Windows", value: 18 }, { name: "macOS", value: 12 }, { name: "Linux", value: 5 }, { name: "Other", value: 2 }],
@@ -448,7 +470,7 @@ export const customerService = {
     // 403 entirely.
     const orgId = await resolveOrgId();
     const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-    const [rR, sR, aR, hR, gR] = await Promise.allSettled([
+    const [rR, sR, aR, hR, gR, iR, lR] = await Promise.allSettled([
       api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...orgHeaders }),
       api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
       // Backend's AlertResponse (monitoring/schemas.py) uses `message` +
@@ -468,6 +490,15 @@ export const customerService = {
       // fetch below -- best-effort, so recentUsers just falls back to "Guest"
       // if this leg fails rather than failing the whole dashboard.
       api.get<{ items: RawGuest[] }>("/guests", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
+      // For SLA uptime below -- same up-to-100-org-wide-then-filter
+      // resolution as useWanSummary (see RawIspLinkForSla's own comment).
+      api.get<{ items: RawIspLinkForSla[] }>("/isp/links", { params: { page_size: 100 }, ...orgHeaders }),
+      // Real failed-login count, Owner-only (`_OWNER_ONLY_DEPENDENCIES` on
+      // this endpoint) -- org-wide, not location-scoped, since a login
+      // attempt isn't tied to any one location. Was previously hardcoded
+      // to 0 despite the UI already having a dedicated "N failed logins
+      // today" pill built and ready for it (see the render below).
+      api.get<{ items: { success: boolean; created_at: string }[] }>("/admin-logs/dashboard-logins", { params: { page_size: 100 }, ...orgHeaders }),
     ]);
     const routers = rR.status === "fulfilled" ? rR.value.data?.items ?? [] : [];
     const sessions = sR.status === "fulfilled" ? sR.value.data?.items ?? [] : [];
@@ -477,9 +508,48 @@ export const customerService = {
     if (gR.status === "fulfilled") {
       for (const g of gR.value.data?.items ?? []) guestsById.set(g.id, g);
     }
+    const today = new Date().toISOString().slice(0, 10);
+    const failedLoginsToday =
+      lR.status === "fulfilled"
+        ? (lR.value.data?.items ?? []).filter((l) => !l.success && l.created_at?.startsWith(today)).length
+        : 0;
+
+    // Real ~24h SLA uptime for this location's active ISP uplink -- a
+    // weighted average of the same time-bucketed `uptime_percentage` the
+    // "Internet Connection" history dialog already charts (never a flat,
+    // always-99.9% placeholder that wouldn't have budged even during
+    // today's own real outage). `null` (stat omitted, never a fabricated
+    // number) when there's no active link or no bucket data yet.
+    let slaUptime: number | null = null;
+    if (iR.status === "fulfilled") {
+      const links = (iR.value.data?.items ?? [])
+        .filter((l) => l.location_id === locationId)
+        .sort((a, b) => {
+          if (a.is_active_uplink !== b.is_active_uplink) return a.is_active_uplink ? -1 : 1;
+          if (a.role !== b.role) return a.role === "primary" ? -1 : 1;
+          return a.priority - b.priority;
+        });
+      const activeLink = links[0];
+      if (activeLink) {
+        try {
+          const end = new Date();
+          const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+          const { data } = await api.get<{ buckets: RawIspHealthCheckBucket[] }>(
+            `/isp/links/${activeLink.id}/health-checks/summary`,
+            { params: { start_date: start.toISOString(), end_date: end.toISOString() }, ...orgHeaders },
+          );
+          const buckets = (data?.buckets ?? []).filter((b) => b.uptime_percentage != null && b.total_checks > 0);
+          const totalChecks = buckets.reduce((sum, b) => sum + b.total_checks, 0);
+          if (totalChecks > 0) {
+            slaUptime = buckets.reduce((sum, b) => sum + (b.uptime_percentage as number) * b.total_checks, 0) / totalChecks;
+          }
+        } catch {
+          // Stays null -- an honest omission, not a fabricated fallback.
+        }
+      }
+    }
     const onR = routers.filter((r) => r.status === "online").length;
     const tR = routers.length || 1;
-    const today = new Date().toISOString().slice(0, 10);
     const hourly = new Array(24).fill(0);
     sessions.forEach((s) => { if (s.started_at) hourly[new Date(s.started_at).getHours()]++; });
     // "Online Users" and "Active Sessions" are the same real thing (one
@@ -496,8 +566,8 @@ export const customerService = {
     // router.
     const activeSessionCount = onR === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
     return {
-      health: { systemHealth: `${Math.round((onR / tR) * 100)}%`, routersOnline: `${onR}/${routers.length}`, isp: health ? "Active" : "Unknown", networkLoad: `${Math.min(100, Math.round(sessions.length / 5))}%` },
-      kpis: { onlineUsers: activeSessionCount, activeSessions: activeSessionCount, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: 0, newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length, slaUptime: 99.9 },
+      health: { systemHealth: `${Math.round((onR / tR) * 100)}%`, routersOnline: `${onR}/${routers.length}`, isp: health ? "Active" : "Unknown" },
+      kpis: { onlineUsers: activeSessionCount, activeSessions: activeSessionCount, routersOnline: onR, totalRouters: routers.length, todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length, avgSession: sessions.length > 0 ? Math.round(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) / sessions.length / 1e6) : 0, peakConcurrent: Math.max(...hourly), failedLogins: failedLoginsToday, newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length, slaUptime },
       usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
       deviceDistribution: deviceDistributionFrom(sessions.map((s) => ({ userAgent: s.user_agent ?? null }))),
       hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),

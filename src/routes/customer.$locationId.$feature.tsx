@@ -343,7 +343,6 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
     { icon: CheckCircle, label: "System", value: data.health.systemHealth, tone: "primary" as const },
     { icon: Wifi, label: "Routers", value: data.health.routersOnline, tone: "violet" as const },
     { icon: Activity, label: "ISP", value: data.health.isp, tone: "sky" as const },
-    { icon: Activity, label: "Load", value: data.health.networkLoad, tone: "fuchsia" as const },
   ];
   // Context line only where a real same-day reference value exists
   // (peakConcurrent, derived from real hourly session counts in
@@ -352,7 +351,9 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
   const heroKpis = [
     { label: "Online right now", value: data.kpis.onlineUsers.toLocaleString(), context: `Today's peak: ${data.kpis.peakConcurrent.toLocaleString()}` },
     { label: "Active sessions", value: data.kpis.activeSessions.toLocaleString(), context: null as string | null },
-    { label: "SLA uptime", value: `${data.kpis.slaUptime}%`, context: null as string | null },
+    // Omitted (not a fake "--%") when there's no real figure yet -- see
+    // customer.service.ts getDashboard()'s own comment.
+    ...(data.kpis.slaUptime != null ? [{ label: "SLA uptime", value: `${data.kpis.slaUptime.toFixed(1)}%`, context: null as string | null }] : []),
   ];
   const secondaryStats = [
     { label: "routers online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },

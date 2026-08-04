@@ -1107,7 +1107,10 @@ function CustomerDashboardPage() {
                       {[
                         { label: "Online right now", value: d.kpis.onlineUsers.toLocaleString(), context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}` },
                         { label: "Active sessions", value: d.kpis.activeSessions.toLocaleString(), context: null },
-                        { label: "SLA uptime", value: `${d.kpis.slaUptime}%`, context: null },
+                        // Omitted entirely (not a fake "--%") when there's no
+                        // active uplink / no health-check data yet to compute
+                        // a real figure from -- see getDashboard()'s comment.
+                        ...(d.kpis.slaUptime != null ? [{ label: "SLA uptime", value: `${d.kpis.slaUptime.toFixed(1)}%`, context: null }] : []),
                       ].map((k, i) => (
                         <motion.div key={k.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
@@ -1158,7 +1161,6 @@ function CustomerDashboardPage() {
                       { icon: CheckCircle, label: "System", value: d.health.systemHealth },
                       { icon: Router, label: "Routers", value: d.health.routersOnline },
                       { icon: Activity, label: "ISP", value: d.health.isp },
-                      { icon: Wifi, label: "Load", value: d.health.networkLoad },
                     ].map((item) => (
                       <span key={item.label} className="inline-flex items-center gap-1.5 text-sm">
                         <item.icon className="h-3.5 w-3.5 text-emerald-500" />
