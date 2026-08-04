@@ -123,13 +123,18 @@ function FeaturePage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
           title={
-            // "admin-logs" is special-cased to "Logs", and "business-hours"
-            // to "Open Hours", here too -- otherwise this generic feature-id
-            // breadcrumb (CSS `capitalize`, which treats the hyphen as a
-            // word boundary) would still show the retired "Admin-Logs" /
-            // "Business-Hours" labels even though the sidebar/page title
-            // below all say "Logs" / "Open Hours" now.
-            <p className="truncate text-sm font-semibold capitalize">{feature === "dashboard" ? "Dashboard" : feature === "admin-logs" ? "Logs" : feature === "business-hours" ? "Open Hours" : feature} · {activeLocation?.name ?? ""}</p>
+            // Look the breadcrumb label up from the same CUSTOMER_NAVS list
+            // the sidebar renders from, instead of hand-rolling a couple of
+            // special cases -- the old two-entry ternary here (admin-logs ->
+            // "Logs", business-hours -> "Open Hours") quietly fell back to
+            // the raw feature id (CSS `capitalize`'d) for every other
+            // renamed page, so the breadcrumb kept showing retired technical
+            // names like "Whitelist" and "Isp-Details" even after the
+            // sidebar/page title below it had already been renamed to
+            // "Always Allowed" / "Internet Connection". Falls back to the
+            // capitalized raw id for the handful of ids with no sidebar
+            // entry (audit, advanced, hotspot).
+            <p className="truncate text-sm font-semibold capitalize">{CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature} · {activeLocation?.name ?? ""}</p>
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
