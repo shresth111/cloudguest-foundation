@@ -33,6 +33,7 @@ interface RawGuestSession {
 interface RawConnectedDevice {
   id: string;
   mac_address: string;
+  ip_address: string;
   guest_id: string | null;
   is_active: boolean;
 }
@@ -459,6 +460,12 @@ export const customerService = {
       const data = sessionsResult.value.data;
 
       const macByGuest = new Map<string, string>();
+      // Real IP lookup, same bulk fetch as macByGuest above: /guest-sessions'
+      // own ip_address is stale/unreliable (it's recorded once at session
+      // start), whereas /connected-devices' ip_address is the router-synced
+      // value from the DHCP lease table / hotspot association -- the real
+      // current IP the founder wants shown here.
+      const ipByGuest = new Map<string, string>();
       if (devicesResult.status === "fulfilled") {
         for (const d of devicesResult.value.data?.items ?? []) {
           if (!d.guest_id) continue;
@@ -466,6 +473,7 @@ export const customerService = {
           // binding); an inactive one only fills a gap so it doesn't
           // clobber an already-recorded active device for the same guest.
           if (d.is_active || !macByGuest.has(d.guest_id)) macByGuest.set(d.guest_id, d.mac_address);
+          if (d.is_active || !ipByGuest.has(d.guest_id)) ipByGuest.set(d.guest_id, d.ip_address);
         }
       }
 
@@ -479,7 +487,10 @@ export const customerService = {
         id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent),
         mac: (s.guest_id && macByGuest.get(s.guest_id)) || "Unknown",
         guestId: s.guest_id ?? null,
-        ip: s.ip_address ?? "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
+        // ip now comes from the same real ConnectedDevice row used for mac
+        // above (router-synced DHCP lease / hotspot IP) when one exists;
+        // s.ip_address is only a fallback for guests with no device row yet.
+        ip: (s.guest_id && ipByGuest.get(s.guest_id)) || s.ip_address || "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
         download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
       }));
       if (search) { const q = search.toLowerCase(); users = users.filter((u) => u.name.toLowerCase().includes(q)); }
