@@ -77,11 +77,13 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "network",
     label: "Network",
+    // Renamed the same three as customerFeatureCatalog.ts (same id/route/
+    // data, see that file's own note).
     items: [
-      { id: "dhcp", label: "DHCP Pool", icon: Server, roles: ["owner"] },
-      { id: "vlans", label: "VLANs", icon: Network, roles: ["owner"] },
+      { id: "dhcp", label: "IP Addresses", icon: Server, roles: ["owner"] },
+      { id: "vlans", label: "Network Zones", icon: Network, roles: ["owner"] },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
-      { id: "voip", label: "VOIP Priority", icon: Signal, roles: ["owner"] },
+      { id: "voip", label: "Call Priority", icon: Signal, roles: ["owner"] },
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
     ],
   },

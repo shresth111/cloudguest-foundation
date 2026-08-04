@@ -126,11 +126,18 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
 
   return (
     <div className="space-y-6">
+      {/* Shared with the master console's own /network/vlan route (rendered
+       * with no locationId there) -- that audience keeps the precise
+       * technical title/description; only the customer portal (which
+       * always passes a real locationId, via OperationsFeatures.tsx's
+       * VlansView) gets the friendlier name. Same id/route/data either way. */}
       <SectionHeader
         icon={Network}
         eyebrow="Network"
-        title="VLAN Management"
-        description="Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."
+        title={locationId ? "Network Zones" : "VLAN Management"}
+        description={locationId
+          ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
+          : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New VLAN

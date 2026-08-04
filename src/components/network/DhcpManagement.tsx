@@ -201,11 +201,18 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
 
   return (
     <div className="space-y-6">
+      {/* Shared with the master console's own /network/dhcp route (rendered
+       * with no locationId there) -- that audience keeps the precise
+       * technical title/description; only the customer portal (which
+       * always passes a real locationId, via OperationsFeatures.tsx's
+       * DhcpView) gets the friendlier name. Same id/route/data either way. */}
       <SectionHeader
         icon={Server}
         eyebrow="Network"
-        title="DHCP Pool Management"
-        description="Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."
+        title={locationId ? "IP Addresses" : "DHCP Pool Management"}
+        description={locationId
+          ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
+          : "Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."}
         illustration={<DhcpIllustration />}
         actions={
           <Button onClick={() => setCreating(true)}>

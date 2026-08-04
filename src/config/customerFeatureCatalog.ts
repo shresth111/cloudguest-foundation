@@ -63,11 +63,16 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
   },
   {
     group: "Network",
+    // "DHCP Pool"/"VLANs"/"VOIP Priority" renamed to plainer, less
+    // acronym-heavy labels (same id/route/data -- see each component's own
+    // note in src/components/network/*.tsx, which keeps the technical
+    // title for the master console's separate /network/* routes). Port
+    // Forwarding and Internet Connection were already plain, left as-is.
     items: [
-      { id: "dhcp", label: "DHCP Pool", icon: Server },
-      { id: "vlans", label: "VLANs", icon: Network },
+      { id: "dhcp", label: "IP Addresses", icon: Server },
+      { id: "vlans", label: "Network Zones", icon: Network },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
-      { id: "voip", label: "VOIP Priority", icon: Signal },
+      { id: "voip", label: "Call Priority", icon: Signal },
       { id: "isp-details", label: "Internet Connection", icon: Globe },
     ],
   },

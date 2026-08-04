@@ -186,11 +186,19 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
 
   return (
     <div className="space-y-6">
+      {/* No master-console route renders QosManagement today (grep confirms
+       * OperationsFeatures.tsx's VoipView, always with a real locationId,
+       * is the only caller) -- guarded the same locationId-aware way as
+       * DhcpManagement/VlanManagement anyway, so an internal/no-locationId
+       * caller added later keeps the precise technical title by default
+       * instead of silently inheriting the customer-friendly one. */}
       <SectionHeader
         icon={Signal}
         eyebrow="Network"
-        title="VOIP Priority"
-        description="Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."
+        title={locationId ? "Call Priority" : "VOIP Priority"}
+        description={locationId
+          ? "Give voice and video calls priority over other guest traffic, so calls stay clear even on a busy network."
+          : "Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Rule
