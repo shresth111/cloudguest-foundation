@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Plus, Users, UserCog, Upload, UploadCloud, Download, FileSpreadsheet } from "lucide-react";
+import { Plus, Users, UserPlus, UserCog, Upload, UploadCloud, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +23,13 @@ const DEMO_TEAMS: Team[] = [
 ];
 
 const TABS = [
-  { id: "setup", label: "Setup Teams", icon: Users },
+  // Was "Setup Teams" -- renamed (display-only, same tab id/state) because
+  // the old label/layout read too close to a competitor's equivalent
+  // feature. Same treatment as OperationsFeatures.tsx's Business Hours ->
+  // Open Hours pass: new name + a real visual redesign below, zero
+  // changes to createTeam/revokeTeam/guestService calls or the Team data
+  // model.
+  { id: "setup", label: "Team Accounts", icon: Users },
   { id: "update", label: "Update User Details", icon: UserCog },
   { id: "bulk-teams", label: "Setup Bulk Teams", icon: Upload },
   { id: "bulk-map", label: "Map Bulk Users", icon: UploadCloud },
@@ -245,51 +251,73 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       </div>
 
       {tab === "setup" && (
-        <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
-          <h2 className="text-lg font-semibold tracking-tight">Setup Teams</h2>
-          <p className="mb-5 text-sm text-muted-foreground">Please use this to set up your teams.</p>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-              <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
-              {errs.bu && <p className="mt-1 text-xs text-destructive">{errs.bu}</p>}
-            </div>
-            <div>
-              <label className={labelCls}>Team Name <span className="text-destructive">*</span></label>
-              <input value={teamName} onChange={(e) => { setTeamName(e.target.value); setErrs((p) => ({ ...p, teamName: "" })); }} placeholder="Please enter team name" className={inputCls} />
-              {errs.teamName && <p className="mt-1 text-xs text-destructive">{errs.teamName}</p>}
-            </div>
-            <div>
-              <label className={labelCls}>Shared Users <span className="text-destructive">*</span></label>
-              <input type="number" min={0} value={sharedUsers} onChange={(e) => { setSharedUsers(e.target.value); setErrs((p) => ({ ...p, sharedUsers: "" })); }} placeholder="Enter shared users count or set 0 for unlimited" className={inputCls} />
-              {errs.sharedUsers && <p className="mt-1 text-xs text-destructive">{errs.sharedUsers}</p>}
-            </div>
-          </div>
-          <div className="mt-5 flex justify-center"><Button onClick={createTeam}><Plus className="mr-2 h-4 w-4" />Create Team</Button></div>
+        <div className="space-y-6">
+          {/* Was one Card with an <hr> splitting the form from the list --
+              split into two sections (own-icon header on the form, a
+              count badge on the list) so it reads like OpenHoursView's
+              schedule-card + guest-experience-card composition instead of
+              a single generic form-then-table block. */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6 md:p-8">
+              <div className="mb-5 flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+                  <UserPlus className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Team Accounts</h2>
+                  <p className="text-sm text-muted-foreground">Create a shared team or desk account with its own member limit.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 rounded-xl bg-muted/40 p-5 md:grid-cols-3">
+                <div>
+                  <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
+                  <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose business unit</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                  {errs.bu && <p className="mt-1 text-xs text-destructive">{errs.bu}</p>}
+                </div>
+                <div>
+                  <label className={labelCls}>Team Name <span className="text-destructive">*</span></label>
+                  <input value={teamName} onChange={(e) => { setTeamName(e.target.value); setErrs((p) => ({ ...p, teamName: "" })); }} placeholder="Please enter team name" className={inputCls} />
+                  {errs.teamName && <p className="mt-1 text-xs text-destructive">{errs.teamName}</p>}
+                </div>
+                <div>
+                  <label className={labelCls}>Shared Users <span className="text-destructive">*</span></label>
+                  <input type="number" min={0} value={sharedUsers} onChange={(e) => { setSharedUsers(e.target.value); setErrs((p) => ({ ...p, sharedUsers: "" })); }} placeholder="Enter shared users count or set 0 for unlimited" className={inputCls} />
+                  {errs.sharedUsers && <p className="mt-1 text-xs text-destructive">{errs.sharedUsers}</p>}
+                </div>
+              </div>
+              <div className="mt-5 flex justify-center"><Button onClick={createTeam}><Plus className="mr-2 h-4 w-4" />Create Team</Button></div>
+            </CardContent>
+          </Card>
 
-          <hr className="my-6 border-border" />
-          <h3 className="mb-3 text-sm font-semibold text-foreground">Current Teams</h3>
-          {teams.filter((t) => t.status !== "revoked").length === 0 ? (
-            <EmptyState icon={Users} title="No teams yet" description="Create a team above to get started." />
-          ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {teams.filter((t) => t.status !== "revoked").map((t) => (
-              <Card key={t.id} className="border-0 bg-muted/40 shadow-sm">
-                <CardContent className="p-4">
-                  <div className="mb-1 flex items-center justify-between"><p className="text-sm font-semibold">{t.name}</p><Badge variant="outline">{t.members} members</Badge></div>
-                  <p className="mb-2 text-xs text-muted-foreground">{t.businessUnit}</p>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Quota used</span><span>{t.quota}%</span></div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.quota}%` }} /></div>
-                  <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => openManage(t)}>Manage</Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => revokeTeam(t)}>Revoke</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Your Teams</h3>
+              {teams.filter((t) => t.status !== "revoked").length > 0 && (
+                <Badge variant="outline">{teams.filter((t) => t.status !== "revoked").length} total</Badge>
+              )}
+            </div>
+            {teams.filter((t) => t.status !== "revoked").length === 0 ? (
+              <EmptyState icon={Users} title="No team accounts yet" description="Create one above to get started." />
+            ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {teams.filter((t) => t.status !== "revoked").map((t) => (
+                <Card key={t.id} className="border-0 bg-muted/40 shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="mb-1 flex items-center justify-between"><p className="text-sm font-semibold">{t.name}</p><Badge variant="outline">{t.members} members</Badge></div>
+                    <p className="mb-2 text-xs text-muted-foreground">{t.businessUnit}</p>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Quota used</span><span>{t.quota}%</span></div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.quota}%` }} /></div>
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => openManage(t)}>Manage</Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => revokeTeam(t)}>Revoke</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            )}
           </div>
-          )}
-        </CardContent></Card>
+        </div>
       )}
 
       {tab === "update" && (
