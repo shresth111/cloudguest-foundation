@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,8 +260,21 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                     Guests can sign in with any of these today. The order below is the order the sign-in tabs appear in for guests — use the arrow to move a method up.
                   </p>
                   <div className="space-y-2">
-                    {liveMethods.map(({ method, idx }, rank) => {
+                    {/* enabledCount/enabledRank are the "to guests" numbers --
+                        distinct from `rank`, which is this row's position in
+                        the reorderable list regardless of its own toggle
+                        state. Previously every row's caption read "Shown N
+                        of {liveMethods.length} to guests" off `rank` alone,
+                        so a method with its own toggle switched OFF (e.g.
+                        Mobile OTP) still said "Shown 1 of 4 to guests" --
+                        contradicting the Portal Preview tab, which correctly
+                        excludes disabled methods from what guests actually
+                        see. */}
+                    {(() => {
+                      const enabledLiveMethods = liveMethods.filter(({ method }) => method.enabled);
+                      return liveMethods.map(({ method, idx }, rank) => {
                       const Icon = method.icon;
+                      const enabledRank = enabledLiveMethods.findIndex((m) => m.method.id === method.id);
                       return (
                         <div key={method.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
                           <div className="flex items-center gap-3">
@@ -280,15 +294,18 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                             </div>
                             <div>
                               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{method.label}</p>
-                              <p className="text-xs text-slate-400 dark:text-slate-500">
-                                Shown {rank + 1} of {liveMethods.length} to guests{method.required ? " · Required" : ""}
+                              <p className={cn("text-xs", method.enabled ? "text-slate-400 dark:text-slate-500" : "text-amber-600 dark:text-amber-500")}>
+                                {method.enabled
+                                  ? `Shown ${enabledRank + 1} of ${enabledLiveMethods.length} to guests${method.required ? " · Required" : ""}`
+                                  : "Hidden from guests — turn on to add it to the sign-in order"}
                               </p>
                             </div>
                           </div>
                           <Switch checked={method.enabled} onCheckedChange={() => toggleMethod(method.id)} />
                         </div>
                       );
-                    })}
+                      });
+                    })()}
                   </div>
                 </div>
 
