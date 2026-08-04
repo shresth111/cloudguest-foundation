@@ -18,8 +18,23 @@ interface RawGuestSession {
   ended_at?: string | null;
   ip_address?: string | null;
   device_id: string | null;
+  // Real GuestSession.guest_id FK (see GuestSessionResponse in backend
+  // app/domains/guest/schemas.py) -- the join key back to this guest's
+  // ConnectedDevice row(s) for a real MAC and for the router-level
+  // force-disconnect (see disconnectSession() below).
+  guest_id?: string | null;
   bytes_downloaded?: number;
   user_agent?: string | null;
+}
+
+/** Minimal shape read from `/connected-devices` for the bulk guest_id ->
+ * MAC lookup in getUsers() -- see that method's comment for why this is
+ * one bulk fetch per page load rather than one request per row. */
+interface RawConnectedDevice {
+  id: string;
+  mac_address: string;
+  guest_id: string | null;
+  is_active: boolean;
 }
 
 export interface NavItem { id: string; label: string; module: string; }
@@ -47,7 +62,7 @@ export interface CustomerDashboardData {
   hourlySessions: { hour: string; sessions: number }[];
 }
 
-export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; download: string; status: "online" | "offline" | "idle"; }[]; total: number; page: number; pageSize: number; }
+export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; download: string; status: "online" | "offline" | "idle"; guestId: string | null; }[]; total: number; page: number; pageSize: number; }
 
 /** Real server-side pagination metadata -- this codebase's established
  * `PaginationMeta` shape (see backend/app/database/utils/pagination.py),
@@ -406,6 +421,11 @@ export const customerService = {
           device: ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop"][i % 6],
           mac: `00:1A:${10 + i}`, ip: `10.0.${Math.floor(i / 8) + 1}.${100 + i}`, duration: `${15 + (i % 6) * 10} min`,
           download: `${(Math.random() * 500).toFixed(0)} MB`, status: (i < 16 ? "online" : i < 20 ? "idle" : "offline") as "online" | "offline" | "idle",
+          // No real guest/device row backs a demo fixture -- disconnectSession()
+          // is already a no-op in demo mode, so this is never dereferenced, but
+          // keeping it null (not a fabricated id) matches this file's honest-
+          // placeholder convention rather than pretending it's real.
+          guestId: null as string | null,
         };
       });
       let f = [...all]; if (search) { const q = search.toLowerCase(); f = f.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)); }
@@ -416,17 +436,49 @@ export const customerService = {
       // Same GLOBAL-only fan-out this file's other real-data methods already
       // route around -- see listLocations()/getDashboard()'s comments.
       const orgId = await resolveOrgId();
-      const { data } = await api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
-        params: { location_id: locationId, page, page_size: pageSize },
-        headers: { "X-Organization-Id": orgId },
-      });
+      const orgHeaders = { headers: { "X-Organization-Id": orgId } };
+      const [sessionsResult, devicesResult] = await Promise.allSettled([
+        api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
+          params: { location_id: locationId, page, page_size: pageSize },
+          ...orgHeaders,
+        }),
+        // Real MAC lookup: one bulk fetch of this location's connected-device
+        // rows per page load, matched to sessions client-side by guest_id --
+        // cheaper than one /connected-devices request per row, and this list
+        // is naturally bounded to one location's currently-known devices
+        // (not the unbounded, ever-growing session history). Best-effort --
+        // a guest legitimately has zero device rows if the router-sync
+        // mechanism hasn't discovered them yet, so this is wrapped separately
+        // from the sessions fetch and never fails the whole page.
+        api.get<{ items: RawConnectedDevice[] }>("/connected-devices", {
+          params: { location_id: locationId, page_size: 100 },
+          ...orgHeaders,
+        }),
+      ]);
+      if (sessionsResult.status === "rejected") throw sessionsResult.reason;
+      const data = sessionsResult.value.data;
+
+      const macByGuest = new Map<string, string>();
+      if (devicesResult.status === "fulfilled") {
+        for (const d of devicesResult.value.data?.items ?? []) {
+          if (!d.guest_id) continue;
+          // An active device's MAC always wins (it's the current, real
+          // binding); an inactive one only fills a gap so it doesn't
+          // clobber an already-recorded active device for the same guest.
+          if (d.is_active || !macByGuest.has(d.guest_id)) macByGuest.set(d.guest_id, d.mac_address);
+        }
+      }
+
       let users = (data?.items ?? []).map((s) => ({
         // s.device_id is the session's raw GuestDevice UUID FK, not a MAC
         // address or a device name -- /guest-sessions doesn't join the
-        // device row that actually carries those, so show the honest
-        // user-agent-derived label / "Unknown" instead of that UUID
-        // masquerading as either column.
-        id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent), mac: "Unknown",
+        // device row that actually carries those. mac now comes from a real
+        // ConnectedDevice row (matched by guest_id, see macByGuest above)
+        // when one exists; otherwise it stays an honest "Unknown" rather
+        // than fabricating one from that UUID.
+        id: s.id, name: "Guest", email: "", phone: "", device: deviceLabelFrom(s.user_agent),
+        mac: (s.guest_id && macByGuest.get(s.guest_id)) || "Unknown",
+        guestId: s.guest_id ?? null,
         ip: s.ip_address ?? "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
         download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
       }));
@@ -436,8 +488,60 @@ export const customerService = {
     } catch { return { users: [], total: 0, page, pageSize }; }
   },
 
-  async disconnectSession(sessionId: string): Promise<void> {
-    if (isDemo()) return;
+  /** Real, location-wide "how many guests are online right now" count --
+   * NOT derived from the current page's rows (see this file's Users-page
+   * comment history for why that was misleading). A second, lightweight
+   * request against the same /guest-sessions endpoint with the real
+   * server-side `status=active` filter and `page_size=1`, reading only
+   * `total_items` -- never pulls the actual session rows just to count
+   * them. */
+  async getOnlineCount(locationId: string): Promise<number> {
+    if (isDemo()) return 16; // matches getUsers()'s demo fixture (16 of 24 rows are "online")
+    try {
+      const orgId = await resolveOrgId();
+      const { data } = await api.get<{ total_items: number }>("/guest-sessions", {
+        params: { location_id: locationId, status: "active", page_size: 1 },
+        headers: { "X-Organization-Id": orgId },
+      });
+      return data?.total_items ?? 0;
+    } catch { return 0; }
+  },
+
+  /**
+   * The genuine "forcefully clear their session, IP, etc." action the
+   * founder asked for -- confirmed live that ending only the app-level
+   * session (the original body of this method) does NOT force a stuck
+   * device off the router; it still shows connected in
+   * `/interface wireless registration-table` / still holds its
+   * `/ip dhcp-server lease`. So this now does both real, separate things:
+   *
+   *  1. POST /guest-sessions/{id}/disconnect (unchanged, always attempted
+   *     first) -- ends our own session row and best-effort RADIUS
+   *     CoA-Disconnect. This part is real and valuable on its own, so it's
+   *     NOT wrapped in a try/catch -- a genuine failure here should still
+   *     surface to the caller/toast, same as before.
+   *  2. If this session's guest_id has a matching, currently-active
+   *     ConnectedDevice row at this location (looked up fresh, not from
+   *     the page's stale bulk map -- see getUsers()'s comment), POST
+   *     /connected-devices/{device_id}/disconnect for each one. This is
+   *     the part that calls the real MikroTik adapter (device_adapters.py)
+   *     to remove the wireless registration and the DHCP lease -- the
+   *     part that actually matters for the wired-behind-AP topology this
+   *     deployment runs.
+   *
+   * Step 2 is deliberately best-effort: a guest can have zero tracked
+   * device rows (router-sync hasn't discovered them yet), and returning
+   * `deviceDisconnected: false` in that case lets the caller show an
+   * honest "session ended, device-level disconnect wasn't available"
+   * toast instead of either silently swallowing the gap or failing the
+   * whole operation over a part that was never guaranteed to exist.
+   */
+  async disconnectSession(
+    sessionId: string,
+    guestId: string | null,
+    locationId: string,
+  ): Promise<{ deviceDisconnected: boolean }> {
+    if (isDemo()) return { deviceDisconnected: false };
     // Same missing-X-Organization-Id gap already fixed on every other
     // real call in this file (see resolveOrgId's own docstring) -- absent
     // it, `guest_sessions.execute` falls back to a GLOBAL-scope check an
@@ -448,11 +552,34 @@ export const customerService = {
     // SessionDisconnectRequest` has no request-level default, so no body
     // at all 422'd here too.
     const orgId = await resolveOrgId();
-    await api.post(
-      `/guest-sessions/${sessionId}/disconnect`,
-      {},
-      { headers: { "X-Organization-Id": orgId } },
-    );
+    const orgHeaders = { headers: { "X-Organization-Id": orgId } };
+    await api.post(`/guest-sessions/${sessionId}/disconnect`, {}, orgHeaders);
+
+    let deviceDisconnected = false;
+    if (guestId) {
+      try {
+        const { data } = await api.get<{ items: { id: string }[] }>("/connected-devices", {
+          params: { location_id: locationId, guest_id: guestId, is_active: true, page_size: 10 },
+          ...orgHeaders,
+        });
+        const devices = data?.items ?? [];
+        for (const d of devices) {
+          try {
+            await api.post(`/connected-devices/${d.id}/disconnect`, {}, orgHeaders);
+            deviceDisconnected = true;
+          } catch {
+            // Best-effort per device -- one device's adapter call failing
+            // (e.g. router offline) shouldn't stop the others, and the
+            // session-level disconnect above is already real and done.
+          }
+        }
+      } catch {
+        // Lookup itself failing (network blip, org mismatch) is the same
+        // "device-level disconnect wasn't available" case as finding zero
+        // devices -- don't fail the whole operation over it.
+      }
+    }
+    return { deviceDisconnected };
   },
 
   /* ── Feature Data ──────────────────────────────────────── */

@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, XCircle, Eye, ChevronLeft, ChevronRight,
-  Users, X, Download, Smartphone,
+  Users, X, Download, Smartphone, Wifi,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerUsers, useDisconnectSession, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
+import { useCustomerUsers, useCustomerOnlineNow, useDisconnectSession, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
@@ -81,11 +81,14 @@ function CustomerUsersPage() {
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; device: string; duration: string; download: string; status: string } | null>(null);
-  const [confirmDisconnect, setConfirmDisconnect] = useState<{ id: string; name: string } | null>(null);
+  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; ip: string; device: string; duration: string; download: string; status: string; guestId: string | null } | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState<{ id: string; name: string; guestId: string | null } | null>(null);
   const PAGE_SIZE = 8;
 
   const { data, isLoading, refetch } = useCustomerUsers(locationId, { search: search || undefined, status: statusTab !== "all" ? statusTab : undefined, page: page + 1, pageSize: PAGE_SIZE });
+  // Real, location-wide count -- independent of this page's search/tab/
+  // pagination state, see useCustomerOnlineNow's own docstring.
+  const onlineNow = useCustomerOnlineNow(locationId);
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
@@ -143,17 +146,38 @@ function CustomerUsersPage() {
              * computed from data.users -- but that's only the current
              * paginated slice (8 rows), not this location's real totals,
              * so "Online: 3" silently meant "3 of the 8 rows on THIS page"
-             * while reading as a location-wide live count. Collapsed to
-             * the one number that's actually real: data.total. */}
-            {data && (
+             * while reading as a location-wide live count. Collapsed down
+             * to just "Total guests" at the time.
+             *
+             * "Online now" restores a real online count -- but unlike that
+             * removed tile, this one is genuinely location-wide (server-
+             * side `status=active` total via useCustomerOnlineNow, not a
+             * client-side count of the current page), which is exactly the
+             * total-vs-currently-online distinction that was causing
+             * confusion. */}
+            <div className="flex flex-wrap gap-3">
+              {data && (
+                <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-3 premium-card premium-card-hover">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Users className="h-4 w-4 text-white" /></div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Total guests</p>
+                    <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">{data.total.toLocaleString()}</p>
+                  </div>
+                </div>
+              )}
               <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-3 premium-card premium-card-hover">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Users className="h-4 w-4 text-white" /></div>
+                <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600">
+                  <Wifi className="h-4 w-4 text-white" />
+                  {(onlineNow.data ?? 0) > 0 && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-ping rounded-full bg-emerald-400" />}
+                </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Total guests</p>
-                  <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">{data.total.toLocaleString()}</p>
+                  <p className="text-xs font-medium text-muted-foreground">Online now</p>
+                  <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">
+                    {onlineNow.isLoading ? <span className="inline-block h-5 w-8 animate-pulse rounded bg-muted align-middle" /> : (onlineNow.data ?? 0).toLocaleString()}
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="relative flex-1 sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Search users…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="h-10 pl-9 bg-background" /></div>
@@ -162,11 +186,11 @@ function CustomerUsersPage() {
 
             <div className="rounded-2xl overflow-x-auto premium-card">
               <Table>
-                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">IP</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
+                  {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
                   : !data || data.users.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="p-0">
+                    <TableRow><TableCell colSpan={9} className="p-0">
                       <UsersEmptyState label={search || statusTab !== "all" ? "No guests match your search or filter." : "No guests have connected yet."} />
                     </TableCell></TableRow>
                   )
@@ -187,6 +211,7 @@ function CustomerUsersPage() {
                       </TableCell>
                       <TableCell className="text-xs hidden sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
                       <TableCell className="font-mono text-xs hidden sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
+                      <TableCell className="font-mono text-xs hidden xl:table-cell">{u.ip || "—"}</TableCell>
                       <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
                       <TableCell className="text-xs">{u.duration}</TableCell>
                       <TableCell className="text-xs hidden lg:table-cell">{u.download}</TableCell>
@@ -210,7 +235,7 @@ function CustomerUsersPage() {
                             title={u.status === "offline" ? "Already offline" : "Disconnect"}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setConfirmDisconnect({ id: u.id, name: u.name });
+                              setConfirmDisconnect({ id: u.id, name: u.name, guestId: u.guestId });
                             }}
                           >
                             <XCircle className="h-3.5 w-3.5" />
@@ -264,14 +289,17 @@ function CustomerUsersPage() {
                   <div className="rounded-xl border p-3 col-span-2"><p className="text-[11px] font-medium text-muted-foreground">Data used</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Download className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.download}</p></div>
                 </div>
                 <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Phone</p><p className="mt-1 text-sm">{masked ? maskPhone(detailUser.phone) : detailUser.phone}</p></div>
-                <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">MAC Address</p><p className="mt-1 font-mono text-sm">{masked ? maskMac(detailUser.mac) : detailUser.mac}</p></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">MAC Address</p><p className="mt-1 font-mono text-sm">{masked ? maskMac(detailUser.mac) : detailUser.mac}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">IP Address</p><p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p></div>
+                </div>
               </div>
               <div className="border-t p-4">
                 <Button
                   variant="outline"
                   className="w-full text-destructive disabled:text-muted-foreground"
                   disabled={detailUser.status === "offline" || disconnect.isPending}
-                  onClick={() => setConfirmDisconnect({ id: detailUser.id, name: detailUser.name })}
+                  onClick={() => setConfirmDisconnect({ id: detailUser.id, name: detailUser.name, guestId: detailUser.guestId })}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
                   {detailUser.status === "offline" ? "Already offline" : "Disconnect user"}
@@ -294,7 +322,9 @@ function CustomerUsersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect {confirmDisconnect?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This ends their current session immediately. They can reconnect to the network right away.
+              This ends their session and forces their device off this network's router (Wi-Fi
+              registration + DHCP lease) -- not just our own record of it. They'll see the login
+              page again if they try to reconnect.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -303,8 +333,17 @@ function CustomerUsersPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (!confirmDisconnect) return;
-                disconnect.mutate(confirmDisconnect.id, {
-                  onSuccess: () => toast.success(`${confirmDisconnect.name} disconnected`),
+                disconnect.mutate({ sessionId: confirmDisconnect.id, guestId: confirmDisconnect.guestId, locationId }, {
+                  onSuccess: (result) => {
+                    // Honest about a partial success -- the session-level
+                    // disconnect above is always real and already done by
+                    // this point, but the router-level device clear is
+                    // best-effort (see disconnectSession()'s docstring): a
+                    // guest can have zero tracked ConnectedDevice rows if
+                    // the router-sync mechanism hasn't discovered them yet.
+                    if (result.deviceDisconnected) toast.success(`${confirmDisconnect.name} disconnected -- session ended and device cleared from the router`);
+                    else toast.warning(`${confirmDisconnect.name}'s session ended -- device-level disconnect wasn't available for this guest`);
+                  },
                   onError: (err) => toast.error((err as unknown as AppError).message || "Couldn't disconnect this session"),
                 });
                 setConfirmDisconnect(null);

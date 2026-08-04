@@ -27,6 +27,7 @@ export const customerKeys = {
   locations: ["customer", "locations"] as const,
   dashboard: (locationId: string) => ["customer", "dashboard", locationId] as const,
   users: (locationId: string, params?: Record<string, unknown>) => ["customer", "users", locationId, params] as const,
+  onlineNow: (locationId: string) => ["customer", "users", "online-now", locationId] as const,
   features: (feature: string, locationId: string) => ["customer", "features", feature, locationId] as const,
   adminLogsDashboardLogins: (page: number, pageSize: number) => ["customer", "admin-logs", "dashboard-logins", page, pageSize] as const,
   adminLogsRouterEvents: (page: number, pageSize: number) => ["customer", "admin-logs", "router-events", page, pageSize] as const,
@@ -54,6 +55,20 @@ export function useCustomerUsers(locationId: string, params?: { search?: string;
     queryKey: customerKeys.users(locationId, params),
     queryFn: () => customerService.getUsers(locationId, params?.search, params?.status, params?.page || 1, params?.pageSize || 20),
     enabled: !!locationId, staleTime: 10_000, retry: 1,
+  });
+}
+
+/** Real, location-wide "online right now" count -- see
+ * customerService.getOnlineCount()'s own docstring for what this actually
+ * counts (server-side `status=active` total, not this page's 8-row
+ * slice). Refetches every 30s, independent of the paginated Users list's
+ * own query, so switching search/tab/page on the table never resets or
+ * refetches this number and it keeps drifting toward "live" on its own. */
+export function useCustomerOnlineNow(locationId: string) {
+  return useQuery({
+    queryKey: customerKeys.onlineNow(locationId),
+    queryFn: () => customerService.getOnlineCount(locationId),
+    enabled: !!locationId, staleTime: 10_000, refetchInterval: 30_000, retry: 1,
   });
 }
 
@@ -98,11 +113,21 @@ export function useAdminLogsAccountActivity(page: number, pageSize = 25) {
   });
 }
 
+/**
+ * Real force-disconnect -- see customerService.disconnectSession()'s own
+ * docstring for what "real" means now (session AND router-level device
+ * binding, not just the session flag). Needs guestId + locationId
+ * threaded through (not just the session id) so the service layer can
+ * find this guest's real ConnectedDevice row at this location; both come
+ * from the Users-page row/detail-panel state, which now carries guestId
+ * (see CustomerUsersData).
+ */
 export function useDisconnectSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (sessionId: string) => customerService.disconnectSession(sessionId),
-    onSuccess: (_void, sessionId) => {
+    mutationFn: ({ sessionId, guestId, locationId }: { sessionId: string; guestId: string | null; locationId: string }) =>
+      customerService.disconnectSession(sessionId, guestId, locationId),
+    onSuccess: (_result, { sessionId }) => {
       // Patch every cached Users-list page in place so the row we just
       // disconnected visibly flips to offline right away. Demo mode's
       // disconnectSession() is intentionally a no-op (there's no real
@@ -110,9 +135,16 @@ export function useDisconnectSession() {
       // fixture -- an invalidate-and-refetch there would silently undo this
       // click and make "Disconnect" look like it did nothing. Real sessions
       // still get a follow-up invalidate below so the eventual server truth
-      // (already-ended session, updated counts) replaces this local patch.
-      qc.setQueriesData({ queryKey: ["customer", "users"] }, (old: CustomerUsersData | undefined) => {
-        if (!old) return old;
+      // (already-ended session, updated counts, real online-now count)
+      // replaces this local patch.
+      //
+      // Guarded to only touch cache entries actually shaped like
+      // CustomerUsersData (an array of `users`) -- the queryKey filter
+      // below is a prefix match, so it would otherwise also hit the
+      // sibling ["customer","users","online-now",locationId] cache entry
+      // (a bare number) and corrupt it via the spread below.
+      qc.setQueriesData({ queryKey: ["customer", "users"] }, (old: CustomerUsersData | number | undefined) => {
+        if (!old || typeof old !== "object" || !Array.isArray(old.users)) return old;
         return { ...old, users: old.users.map((u) => (u.id === sessionId ? { ...u, status: "offline" as const } : u)) };
       });
       if (!isDemo()) qc.invalidateQueries({ queryKey: ["customer"] });
