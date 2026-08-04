@@ -11,7 +11,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
-import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
+import { FLOORS, DEVICE_TYPES, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
+import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
+import { isDemo } from "@/services/customer.service";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
@@ -176,7 +178,7 @@ function CustomerHomePage() {
   const { user, logout } = useAuth();
   const { setActiveLocation } = useCustomerStore();
   const { data: locations, isLoading, refetch } = useCustomerLocations();
-  const { devices: allDevices } = useDeviceStore();
+  const { devices: allDevices } = useMonitoredHardware();
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("cg-favs") ?? "[]"); } catch { return []; } });
   const [menu, setMenu] = useState(false);
@@ -538,6 +540,7 @@ function CustomerHomePage() {
             {FLOORS.map((f) => {
               const onFloor = devices.filter((d) => d.floor === f);
               const down = onFloor.filter((d) => d.status === "down").length;
+              const up = onFloor.filter((d) => d.status === "up").length;
               const typesHere = Array.from(new Set(onFloor.map((d) => d.type)));
               const floorActive = floorFilter === f;
               return (
@@ -575,7 +578,12 @@ function CustomerHomePage() {
                       })}
                     </div>
                   )}
-                  <p className={cn("mt-1 text-xs", down > 0 ? "text-rose-400 font-medium" : "text-white/40")}>{down > 0 ? `${down} of ${onFloor.length} down` : onFloor.length > 0 ? `${onFloor.length} online` : "No devices"}</p>
+                  <p className={cn("mt-1 text-xs", down > 0 ? "text-rose-400 font-medium" : "text-white/40")}>
+                    {down > 0 ? `${down} of ${onFloor.length} down`
+                      : onFloor.length === 0 ? "No devices"
+                      : up === onFloor.length ? `${onFloor.length} online`
+                      : `${up} of ${onFloor.length} online`}
+                  </p>
                 </button>
               );
             })}
@@ -606,7 +614,12 @@ function CustomerHomePage() {
                     <tr><td colSpan={9} className="py-8 text-center text-xs text-white/40">{devices.length === 0 ? "No hardware set up here yet — add your first device from this location's Devices page." : "Nothing matches that search. Check the spelling or clear your filters."}</td></tr>
                   ) : filteredDevices.map((d, i) => {
                     const TypeIcon = DEVICE_TYPE_ICON[d.type];
-                    const cpu = deriveCpu(d.mac, d.status);
+                    // No real CPU/load telemetry exists for arbitrary
+                    // monitored hardware (see monitored_hardware's own
+                    // module docstring) -- deriveCpu's random-from-MAC
+                    // value stays demo-only, real accounts honestly show
+                    // "—" via the existing cpu === null fallback below.
+                    const cpu = isDemo() && d.status !== "unknown" ? deriveCpu(d.mac, d.status) : null;
                     return (
                       <tr key={d.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.04]">
                         <td className="px-3 py-2 text-xs text-white/40">{i + 1}</td>
@@ -621,13 +634,15 @@ function CustomerHomePage() {
                         <td className="px-3 py-2">
                           <span className={cn(
                             "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                            d.status === "up" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : "border-rose-500/20 bg-rose-500/10 text-rose-400",
+                            d.status === "up" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                              : d.status === "down" ? "border-rose-500/20 bg-rose-500/10 text-rose-400"
+                              : "border-white/15 bg-white/5 text-white/50",
                           )}>
-                            <span className="relative flex h-1.5 w-1.5">{d.status === "up" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />}<span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : "bg-rose-500")} /></span>
+                            <span className="relative flex h-1.5 w-1.5">{d.status === "up" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />}<span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : d.status === "down" ? "bg-rose-500" : "bg-white/30")} /></span>
                             {d.status.toUpperCase()}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-xs text-white/50">{d.status === "up" ? "Up" : "Down"} · {formatSince(d.statusChangedAt)}</td>
+                        <td className="px-3 py-2 text-xs text-white/50">{d.status === "up" ? "Up" : d.status === "down" ? "Down" : "Never observed"}{d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}</td>
                         <td className="px-3 py-2">
                           {cpu === null ? (
                             <span className="text-xs text-white/40">—</span>

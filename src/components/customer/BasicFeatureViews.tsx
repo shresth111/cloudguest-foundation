@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import axios from "axios";
 import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle, Printer, Router, Camera, HardDrive, Plus, Trash2, Tag, MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,8 +17,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useDeviceStore, FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
+import { FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
+import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
+import { toAppError } from "@/services/api";
 
 /** Realistic (but fake) guest identities shared by this file's demo/preview
  * views -- see customer.service.ts's own `DEMO_GUEST_IDENTITIES` for why
@@ -256,13 +259,13 @@ function HardwareEmptyState() {
 }
 
 export function NetworkHardwareView({ locationId }: { locationId?: string }) {
-  const { devices: allDevices, addDevice, removeDevice } = useDeviceStore();
-  const devices = allDevices.filter((d) => d.locationId === locationId);
+  const { devices, loading, addDevice, removeDevice } = useMonitoredHardware(locationId);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyHardwareForm);
   const [macError, setMacError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!locationId) { toast.error("Select a location first."); return; }
     const normalizedMac = normalizeMac(form.mac);
@@ -272,17 +275,38 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       toast.error(msg);
       return;
     }
-    if (allDevices.some((d) => d.mac.toUpperCase() === normalizedMac)) {
+    if (devices.some((d) => d.mac.toUpperCase() === normalizedMac)) {
       const msg = "A device with this MAC is already set up.";
       setMacError(msg);
       toast.error(msg);
       return;
     }
     setMacError(null);
-    addDevice(locationId, form.name.trim(), normalizedMac, form.type, form.floor);
-    toast.success(`${form.type} added on ${form.floor}`);
-    setForm(emptyHardwareForm);
-    setOpen(false);
+    setSubmitting(true);
+    try {
+      await addDevice(locationId, form.name.trim(), normalizedMac, form.type, form.floor);
+      toast.success(`${form.type} added on ${form.floor}`);
+      setForm(emptyHardwareForm);
+      setOpen(false);
+    } catch (err) {
+      // The backend enforces org-wide MAC uniqueness for real (see
+      // DuplicateMonitoredHardwareError) -- the client-side check above
+      // only catches this location's own devices, so a genuine duplicate
+      // at a different location of the same org still needs this real
+      // error surfaced, not silently swallowed.
+      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not add this device.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRemove = async (id: string, name: string) => {
+    try {
+      await removeDevice(id);
+      toast.success(`${name} removed`);
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not remove this device.");
+    }
   };
 
   return (
@@ -301,7 +325,9 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         <Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add Device</Button>
       </CardHeader>
       <CardContent className="p-0">
-        {devices.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">Loading devices…</div>
+        ) : devices.length === 0 ? (
           <HardwareEmptyState />
         ) : (
         <Table>
@@ -329,13 +355,23 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                   <TableCell className="font-mono text-xs text-muted-foreground">{d.mac}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
                   <TableCell>
-                    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold", d.status === "up" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600" : "border-rose-500/20 bg-rose-500/10 text-rose-600")}>
-                      <span className={cn("h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : "bg-rose-500")} />
-                      {d.status === "up" ? "Up" : "Down"} · {formatSince(d.statusChangedAt)}
+                    {/* "unknown" (never observed by the router's own sync
+                        yet -- e.g. just added) gets its own neutral
+                        treatment, never lumped in with a confirmed "Down"
+                        -- see useMonitoredHardware's own honesty note. */}
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      d.status === "up" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                        : d.status === "down" ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+                        : "border-border bg-muted text-muted-foreground",
+                    )}>
+                      <span className={cn("h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : d.status === "down" ? "bg-rose-500" : "bg-muted-foreground/50")} />
+                      {d.status === "up" ? "Up" : d.status === "down" ? "Down" : "Not yet observed"}
+                      {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <button onClick={() => { removeDevice(d.id); toast.success(`${d.name} removed`); }} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
+                    <button onClick={() => handleRemove(d.id, d.name)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
                       <Trash2 className="h-3 w-3" />Remove
                     </button>
                   </TableCell>
@@ -415,7 +451,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit">Add Device</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Adding…" : "Add Device"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

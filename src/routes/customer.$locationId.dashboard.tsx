@@ -28,7 +28,8 @@ import { ispService } from "@/services/isp.service";
 import type { AppError } from "@/services/api";
 import type { IspLink, IspHealthCheck, IspSpeedTestResult } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
-import { useDeviceStore, DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
+import { DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
+import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/components/customer/BasicFeatureViews";
 
 // Categorical, brand-checked -- indigo/cyan/magenta/orange/violet. The old
@@ -762,9 +763,9 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
  * Devices feature page instead of Internet Connection.
  */
 function DeviceStatusCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
-  const allDevices = useDeviceStore((s) => s.devices);
-  const devices = allDevices.filter((d) => d.locationId === locationId);
+  const { devices } = useMonitoredHardware(locationId);
   const downCount = devices.filter((d) => d.status === "down").length;
+  const unknownCount = devices.filter((d) => d.status === "unknown").length;
 
   return (
     <Card className="premium-card premium-card-hover">
@@ -825,7 +826,20 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
               <span className="text-muted-foreground">{devices.length} device{devices.length !== 1 ? "s" : ""} total</span>
               {downCount > 0 ? (
                 <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />{downCount} down · longest {formatSince(devices.filter((d) => d.status === "down").sort((a, b) => new Date(a.statusChangedAt).getTime() - new Date(b.statusChangedAt).getTime())[0].statusChangedAt)}
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                  {downCount} down · longest {formatSince(
+                    devices
+                      .filter((d): d is typeof d & { statusChangedAt: string } => d.status === "down" && d.statusChangedAt != null)
+                      .sort((a, b) => new Date(a.statusChangedAt).getTime() - new Date(b.statusChangedAt).getTime())[0].statusChangedAt,
+                  )}
+                </span>
+              ) : unknownCount > 0 ? (
+                // Never conflated with "up" -- a device just registered (or
+                // whose router hasn't synced yet) hasn't actually been
+                // confirmed reachable, see useMonitoredHardware's own
+                // honesty note on "unknown" status.
+                <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />{unknownCount} not yet observed
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
