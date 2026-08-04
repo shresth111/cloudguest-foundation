@@ -112,7 +112,7 @@ function AmbientMesh() {
 function BrandPanel({ venueName }: { venueName?: string }) {
   return (
     <div className="max-w-lg">
-      <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700 backdrop-blur">
+      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--pr-primary,#6366f1)]/20 bg-white/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--pr-primary,#6366f1)] backdrop-blur">
         <Wifi className="h-3.5 w-3.5" /> Guest network
       </span>
       <h2 className="font-display mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]">
@@ -175,7 +175,17 @@ export function PortalShell({
     return (
       <div
         className={cn(
-          "pg-shell relative w-full overflow-hidden",
+          // "portal-runtime" is the selector PortalRuntimeContext's own
+          // injected <style> scopes --pr-primary/--pr-accent to (see that
+          // file's own useEffect) -- missing here meant every var(--pr-*)
+          // reference in this file (AmbientMesh's rings/mesh/glow, plus
+          // every descendant that reads it) silently fell back to its
+          // hardcoded #6366f1/#4f46e5 default forever, regardless of the
+          // organization's real brand color. The dark variant below
+          // already carries this class; the light variant -- the one
+          // actually used by both this Live Preview and the real
+          // guest-facing captive portal -- never did.
+          "portal-runtime pg-shell relative w-full overflow-hidden",
           // The two-column desktop composition below is driven by Tailwind's
           // `lg:` *viewport*-width media query, not this element's own
           // (container) width -- fine for the real full-page guest route,

@@ -75,11 +75,11 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-[24px] bg-white/90 px-6 text-center backdrop-blur-sm">
-      <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
       <p className="text-sm font-medium text-slate-700">{label}</p>
-      <div className="h-1.5 w-40 overflow-hidden rounded-full bg-indigo-100">
+      <div className="h-1.5 w-40 overflow-hidden rounded-full bg-[var(--pr-primary,#6366f1)]/15">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] transition-[width] duration-200 ease-out"
+          className="h-full rounded-full bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] transition-[width] duration-200 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -94,8 +94,16 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
 // renderers (this env's headless Chromium included) band/dash instead of
 // blurring smoothly -- visible on first paint of the OTP screen, since
 // the Verify button starts disabled before a guest has typed 6 digits.
+// bg-gradient-to-r from/to reference var(--pr-primary)/var(--pr-accent)
+// directly (Tailwind arbitrary values support CSS custom properties) --
+// see PortalShell.tsx's own "portal-runtime" class fix for why these
+// previously always resolved to the hardcoded #6366f1/#4f46e5 fallback
+// regardless of the organization's real brand color: the class that
+// scopes those variables was missing from its wrapper, so the CSS
+// variable was never actually defined, and the fallback value inside
+// var(--pr-primary, #6366f1) is exactly what silently rendered instead.
 export const PG_PRIMARY_BTN =
-  "h-[52px] w-full rounded-2xl bg-gradient-to-r from-[#6366f1] to-[#4f46e5] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-[52px] w-full rounded-2xl bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
 export const PG_INPUT =
-  "h-[52px] rounded-2xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 transition-all duration-200 hover:border-slate-300 focus-visible:border-indigo-500 focus-visible:ring-4 focus-visible:ring-indigo-500/15";
+  "h-[52px] rounded-2xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 transition-all duration-200 hover:border-slate-300 focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
