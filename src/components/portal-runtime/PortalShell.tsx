@@ -53,9 +53,9 @@ function AmbientGlow() {
  * length) this codebase has no real config field for -- see this
  * session's own audit call-out on not inventing guest-facing copy that
  * isn't backed by real data. */
-function BrandPanel({ venueName }: { venueName?: string }) {
-  return (
-    <div className="max-w-lg">
+function BrandPanel({ venueName, hasBackgroundImage }: { venueName?: string; hasBackgroundImage?: boolean }) {
+  const content = (
+    <>
       <span className="inline-flex items-center gap-2 rounded-full border border-[var(--pr-primary,#6366f1)]/20 bg-white/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--pr-primary,#6366f1)] backdrop-blur">
         <Wifi className="h-3.5 w-3.5" /> Guest network
       </span>
@@ -65,8 +65,26 @@ function BrandPanel({ venueName }: { venueName?: string }) {
       <p className="mt-5 max-w-md text-[16px] leading-relaxed text-slate-500">
         Verify your device on the right to get connected -- it takes about fifteen seconds.
       </p>
-    </div>
+    </>
   );
+  // The page-level scrim above this panel is a top/bottom vignette (to
+  // protect the logo and the Terms/Privacy footer, which sit directly on
+  // the image with nothing behind them) -- it's fully transparent through
+  // the vertical middle, exactly where this panel sits once vertically
+  // centered. Fine against the plain gradient background (no photo, no
+  // contrast problem), but a real customer photo can be any tone at all,
+  // so this needs its own guaranteed-legible backing rather than trusting
+  // whatever's directly behind it (bug report: a real street-photo
+  // background left this text unreadable, "clean design abhi bhi nahi
+  // hai" -- illegible text is the opposite of clean).
+  if (hasBackgroundImage) {
+    return (
+      <div className="max-w-lg rounded-3xl border border-white/60 bg-white/80 p-8 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md">
+        {content}
+      </div>
+    );
+  }
+  return <div className="max-w-lg">{content}</div>;
 }
 
 interface Props {
@@ -214,7 +232,7 @@ export function PortalShell({
         >
           {!constrained && (
             <div className="hidden lg:block">
-              <BrandPanel venueName={config?.name} />
+              <BrandPanel venueName={config?.name} hasBackgroundImage={!!config?.backgroundImageUrl} />
             </div>
           )}
           <div
