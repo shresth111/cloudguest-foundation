@@ -638,6 +638,30 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
     capacityDownload != null && capacityDownload > 0 && latest?.downloadMbps != null
       ? Math.round((latest.downloadMbps / capacityDownload) * 100)
       : null;
+  // The single-point "% of plan" badge above only answers "right now" --
+  // a coworking space with no per-user cap sees genuinely bursty traffic,
+  // so a single reading can easily land low even on a link that's choking
+  // for real chunks of the day (or read high on a link that briefly
+  // spiked once and is otherwise fine). The real founder question ("is my
+  // bandwidth actually choking, should I upgrade my plan") needs a
+  // frequency, not a snapshot: of the real samples in this window
+  // (~10h at the sweep's own ~10min cadence), how many genuinely hit 90%+
+  // of the provisioned plan. Never shown with fewer than 3 real samples --
+  // not enough data yet to say anything honest about a pattern.
+  const capacitySamples = capacityDownload != null && capacityDownload > 0
+    ? ordered.filter((c) => c.downloadMbps != null)
+    : [];
+  const nearCapacityCount = capacitySamples.filter(
+    (c) => (c.downloadMbps as number) / (capacityDownload as number) >= 0.9,
+  ).length;
+  const congestionSummary =
+    capacitySamples.length >= 3
+      ? {
+          count: nearCapacityCount,
+          total: capacitySamples.length,
+          pct: Math.round((nearCapacityCount / capacitySamples.length) * 100),
+        }
+      : null;
 
   return (
     <Card className="premium-card premium-card-hover">
@@ -678,6 +702,36 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
         </div>
       </CardHeader>
+      {/* The real "should I upgrade my plan" answer -- always visible
+       * (unlike the point-in-time badge above, which is `hidden sm:flex`
+       * and only ever shows one instant), and a frequency, not a single
+       * reading, since that's what actually tells a coworking space with
+       * no per-user cap whether its link is genuinely choking under real
+       * combined guest load or just saw one busy moment. */}
+      {congestionSummary && (
+        <div
+          className={cn(
+            "mx-4 mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs",
+            congestionSummary.pct >= 30
+              ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
+              : congestionSummary.count > 0
+              ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+          )}
+        >
+          <AlertTriangle className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", congestionSummary.count === 0 && "hidden")} />
+          <span>
+            {congestionSummary.count === 0 ? (
+              <>Comfortably under {capacityDownload} Mbps across the last {congestionSummary.total} readings.</>
+            ) : (
+              <>
+                Hit 90%+ of your {capacityDownload} Mbps plan in {congestionSummary.count} of the last{" "}
+                {congestionSummary.total} readings ({congestionSummary.pct}%){congestionSummary.pct >= 30 ? " — your guests are likely feeling this. Consider upgrading your plan." : "."}
+              </>
+            )}
+          </span>
+        </div>
+      )}
       <CardContent>
         <div className="h-56">
           {bw.status === "loading" ? (
