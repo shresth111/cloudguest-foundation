@@ -8,91 +8,35 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 
-// A static "network" mesh -- a handful of connected nodes, a couple of
-// concentric range rings, and a faint grid -- replacing the two blurred
-// gradient "glow blobs" the light variant used before. Reads as
-// connectivity without a literal wifi-signal icon, and is genuinely
-// on-brand per organization: colors come from the same `--pr-primary`/
-// `--pr-accent` CSS custom properties every other per-org accent in this
-// file already uses, not a hardcoded indigo. Deliberately static (no
-// animation loop) -- this renders on a guest's own phone before they have
-// real internet, not worth the extra CPU/battery for a decorative touch.
-const MESH_NODES: Array<{ x: number; y: number; r: number }> = [
-  { x: 60, y: 90, r: 3 },
-  { x: 180, y: 40, r: 2.5 },
-  { x: 300, y: 130, r: 3.5 },
-  { x: 120, y: 220, r: 2.5 },
-  { x: 260, y: 260, r: 3 },
-];
-const MESH_EDGES: Array<[number, number]> = [
-  [0, 1],
-  [1, 2],
-  [2, 4],
-  [0, 3],
-  [3, 4],
-];
-
-function AmbientMesh() {
+// Two soft, blurred color washes -- nothing else. The previous version of
+// this (concentric range rings + a connected-node "network mesh" + a
+// faint grid) was the exact generic "tech/connectivity" cliche this
+// codebase's own design guidance warns against, and read as busy/
+// templated rather than the clean, premium feel a guest's first real
+// touchpoint with a venue should have (bug report: "clean design abhi
+// bhi nahi hai" -- the mesh was the problem, not a bug in it). A guest's
+// own attention belongs on the sign-in card, not a decorative pattern
+// behind it. Colors still come from `--pr-primary`/`--pr-accent`, so
+// this stays genuinely on-brand per organization rather than a
+// hardcoded indigo. Deliberately static (no animation loop) -- this
+// renders on a guest's own phone before they have real internet, not
+// worth the extra CPU/battery for a decorative touch. Never rendered
+// at all when the organization has its own uploaded background image
+// (see this component's own caller) -- a real photo/artwork should
+// never compete with a default decoration behind it.
+function AmbientGlow() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <svg
-        className="absolute -left-24 -top-28 h-[420px] w-[420px] opacity-[0.18]"
-        viewBox="0 0 240 240"
-        fill="none"
-      >
-        {[40, 75, 110].map((r) => (
-          <circle
-            key={r}
-            cx="120"
-            cy="120"
-            r={r}
-            stroke="var(--pr-primary, #6366f1)"
-            strokeWidth="1"
-          />
-        ))}
-      </svg>
-      <svg
-        className="absolute -left-10 -top-10 h-[340px] w-[340px] sm:h-[420px] sm:w-[420px]"
-        viewBox="0 0 320 320"
-        fill="none"
-      >
-        <g>
-          {MESH_EDGES.map(([a, b], i) => (
-            <line
-              key={i}
-              x1={MESH_NODES[a].x}
-              y1={MESH_NODES[a].y}
-              x2={MESH_NODES[b].x}
-              y2={MESH_NODES[b].y}
-              stroke="var(--pr-primary, #6366f1)"
-              strokeOpacity="0.16"
-              strokeWidth="1"
-            />
-          ))}
-          {MESH_NODES.map((n, i) => (
-            <circle
-              key={i}
-              cx={n.x}
-              cy={n.y}
-              r={n.r}
-              fill="var(--pr-primary, #6366f1)"
-              fillOpacity="0.35"
-            />
-          ))}
-        </g>
-      </svg>
       <div
         aria-hidden
-        className="absolute inset-0 opacity-[0.5] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]"
+        className="absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full opacity-[0.16] blur-3xl"
         style={{
-          backgroundImage:
-            "linear-gradient(to right, rgba(99,102,241,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(99,102,241,0.06) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
+          background: "radial-gradient(circle, var(--pr-primary, #6366f1) 0%, transparent 70%)",
         }}
       />
       <div
         aria-hidden
-        className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full opacity-40 blur-3xl"
+        className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full opacity-[0.14] blur-3xl"
         style={{
           background: "radial-gradient(circle, var(--pr-accent, #4f46e5) 0%, transparent 70%)",
         }}
@@ -178,8 +122,8 @@ export function PortalShell({
           // "portal-runtime" is the selector PortalRuntimeContext's own
           // injected <style> scopes --pr-primary/--pr-accent to (see that
           // file's own useEffect) -- missing here meant every var(--pr-*)
-          // reference in this file (AmbientMesh's rings/mesh/glow, plus
-          // every descendant that reads it) silently fell back to its
+          // reference in this file (AmbientGlow's own wash, plus every
+          // descendant that reads it) silently fell back to its
           // hardcoded #6366f1/#4f46e5 default forever, regardless of the
           // organization's real brand color. The dark variant below
           // already carries this class; the light variant -- the one
@@ -246,7 +190,7 @@ export function PortalShell({
             />
           </>
         )}
-        <AmbientMesh />
+        {!config?.backgroundImageUrl && <AmbientGlow />}
 
         {/* Below lg:, this fills the viewport edge-to-edge like every
          * phone/tablet captive-portal page should (single column, the
