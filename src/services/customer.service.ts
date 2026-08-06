@@ -519,9 +519,22 @@ export const customerService = {
     // 403 entirely.
     const orgId = await resolveOrgId();
     const orgHeaders = { headers: { "X-Organization-Id": orgId } };
+    // X-Location-Id (not just X-Organization-Id) matters for every one of
+    // these location-scoped reads -- without it, RBAC infers ORGANIZATION
+    // scope for the permission check (see rbac/dependencies.py's own
+    // _infer_scope_type), which a location-scoped staff role's grants
+    // (routers.read, isp.read, alerts.read, ...) can never satisfy no
+    // matter what the role actually holds -- the exact same gap fixed for
+    // listLocations()'s own routers/guest-sessions enrichment above. Before
+    // this, a location-scoped Network Engineer session with real, live
+    // routers/ISP links/alerts still saw every one of these widgets render
+    // an empty/onboarding state, not because the data or the permission
+    // was missing, but because the request itself never named the location
+    // it was asking about.
+    const locationHeaders = { headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId } };
     const [rR, sR, aR, hR, gR, iR, lR] = await Promise.allSettled([
-      api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...orgHeaders }),
-      api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, { params: { page_size: 100 }, ...locationHeaders }),
+      api.get<{ items: RawGuestSession[] }>("/guest-sessions", { params: { location_id: locationId, page_size: 100 }, ...locationHeaders }),
       // Backend's AlertResponse (monitoring/schemas.py) uses `message` +
       // `triggered_at`, not `title`/`created_at` -- those two field names
       // don't exist on the real response and silently read as undefined.
@@ -532,16 +545,16 @@ export const customerService = {
       // were all real Resolved incidents from 14-25h ago read as live
       // problems on the dashboard, the one surface meant to answer "is my
       // WiFi OK right now").
-      api.get<{ items: { severity: string; message: string; triggered_at: string; status: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...orgHeaders }),
+      api.get<{ items: { severity: string; message: string; triggered_at: string; status: string }[] }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...locationHeaders }),
       api.get<{ routers_online: number; routers_offline: number; total_guests: number; active_sessions: number }>("/dashboard/organization", orgHeaders),
       // Bulk guest-identity lookup, same "one fetch per page load, matched
       // client-side by guest_id" shape as getUsers()' own connected-device
       // fetch below -- best-effort, so recentUsers just falls back to "Guest"
       // if this leg fails rather than failing the whole dashboard.
-      api.get<{ items: RawGuest[] }>("/guests", { params: { location_id: locationId, page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: RawGuest[] }>("/guests", { params: { location_id: locationId, page_size: 100 }, ...locationHeaders }),
       // For SLA uptime below -- same up-to-100-org-wide-then-filter
       // resolution as useWanSummary (see RawIspLinkForSla's own comment).
-      api.get<{ items: RawIspLinkForSla[] }>("/isp/links", { params: { page_size: 100 }, ...orgHeaders }),
+      api.get<{ items: RawIspLinkForSla[] }>("/isp/links", { params: { page_size: 100 }, ...locationHeaders }),
       // Real failed-login count, Owner-only (`_OWNER_ONLY_DEPENDENCIES` on
       // this endpoint) -- org-wide, not location-scoped, since a login
       // attempt isn't tied to any one location. Was previously hardcoded
@@ -585,7 +598,7 @@ export const customerService = {
           const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
           const { data } = await api.get<{ buckets: RawIspHealthCheckBucket[] }>(
             `/isp/links/${activeLink.id}/health-checks/summary`,
-            { params: { start_date: start.toISOString(), end_date: end.toISOString() }, ...orgHeaders },
+            { params: { start_date: start.toISOString(), end_date: end.toISOString() }, ...locationHeaders },
           );
           const buckets = (data?.buckets ?? []).filter((b) => b.uptime_percentage != null && b.total_checks > 0);
           const totalChecks = buckets.reduce((sum, b) => sum + b.total_checks, 0);

@@ -197,7 +197,7 @@ function useWanSummary(locationId: string): WanSummaryState {
     }
     (async () => {
       try {
-        const { rows } = await ispService.listLinks({ page: 1, pageSize: 100 });
+        const { rows } = await ispService.listLinks({ page: 1, pageSize: 100, locationId });
         const links = rows
           .filter((l) => l.locationId === locationId)
           .sort((a, b) => {
@@ -208,7 +208,7 @@ function useWanSummary(locationId: string): WanSummaryState {
           .slice(0, 2);
         if (!alive) return;
         if (links.length === 0) { setState({ status: "empty" }); return; }
-        const checks = await ispService.listHealthChecks(links[0].id, { page: 1, pageSize: 12 }).then((r) => r.rows).catch(() => []);
+        const checks = await ispService.listHealthChecks(links[0].id, { page: 1, pageSize: 12, locationId }).then((r) => r.rows).catch(() => []);
         if (!alive) return;
         setState({ status: "ready", links, checks });
       } catch {
@@ -273,7 +273,7 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
     }
     (async () => {
       try {
-        const { rows } = await ispService.listLinks({ page: 1, pageSize: 100 });
+        const { rows } = await ispService.listLinks({ page: 1, pageSize: 100, locationId });
         const links = rows.filter((l) => l.locationId === locationId);
         const active = links.find((l) => l.isActiveUplink) ?? links[0];
         if (!alive) return;
@@ -290,7 +290,7 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
     if (isDemo() || !link) return;
     let alive = true;
     const load = () => {
-      ispService.listHealthChecks(link.id, { page: 1, pageSize: 60 })
+      ispService.listHealthChecks(link.id, { page: 1, pageSize: 60, locationId })
         .then((r) => { if (alive) { setChecks(r.rows); setPhase("ready"); } })
         .catch(() => {
           // A transient poll failure keeps showing the last known-good

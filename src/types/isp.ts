@@ -59,6 +59,14 @@ export interface IspLinkListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
+  /** When known, sent as `X-Location-Id` alongside `X-Organization-Id` --
+   * without it, RBAC infers ORGANIZATION scope for the `isp.read` check
+   * (see backend rbac/dependencies.py's `_infer_scope_type`), which a
+   * location-scoped staff role's own grant can never satisfy no matter
+   * what the role holds. Optional because some callers (e.g. the Internet
+   * Connection page's own router-filtered fetch) don't have a single
+   * location in view; omitted entirely, behavior is unchanged. */
+  locationId?: string;
 }
 
 export interface IspLinkListResult {
@@ -200,6 +208,9 @@ export interface IspHealthCheckListQuery {
    * own `start_date`/`end_date` query params. */
   startDate?: string;
   endDate?: string;
+  /** Same `X-Location-Id` scoping need as `IspLinkListQuery.locationId` --
+   * see its own doc comment. Optional, same reason. */
+  locationId?: string;
 }
 
 export interface IspHealthCheckListResult {

@@ -69,12 +69,21 @@ export const deviceHardwareService = {
   /** `locationId` omitted fetches every device across the whole
    * organization (needed by the location-picker's own cross-location
    * "N devices down" summary) -- the backend's own `location_id` query
-   * param is optional for exactly this reason. */
+   * param is optional for exactly this reason. When a `locationId` IS
+   * given, `X-Location-Id` goes out alongside `X-Organization-Id` --
+   * without it, RBAC infers ORGANIZATION scope for the `monitored_hardware
+   * .read` check (see rbac/dependencies.py's `_infer_scope_type`), which a
+   * location-scoped staff role's own grant can never satisfy no matter
+   * what the role holds. Omitted (org-wide) calls keep sending only
+   * X-Organization-Id, unchanged -- that request is genuinely org-scoped
+   * by design, not a location-specific read. */
   async list(locationId?: string): Promise<MonitoredDeviceRow[]> {
     const orgId = await resolveOrgId();
     const { data } = await api.get<{ items: RawMonitoredHardware[] }>("/monitored-hardware", {
       params: { location_id: locationId, page_size: 200 },
-      headers: { "X-Organization-Id": orgId },
+      headers: locationId
+        ? { "X-Organization-Id": orgId, "X-Location-Id": locationId }
+        : { "X-Organization-Id": orgId },
     });
     return (data?.items ?? []).map(toRow);
   },
@@ -90,7 +99,7 @@ export const deviceHardwareService = {
     const { data } = await api.post<RawMonitoredHardware>(
       "/monitored-hardware",
       { location_id: locationId, name, mac_address: mac, device_type: type, floor },
-      { headers: { "X-Organization-Id": orgId } },
+      { headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId } },
     );
     return toRow(data);
   },

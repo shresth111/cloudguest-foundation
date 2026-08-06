@@ -276,7 +276,9 @@ export const ispService = {
     const orgId = await resolveOrganizationId();
     const { data } = await api.get<BackendIspLinkListResponse>("/isp/links", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      headers: { "X-Organization-Id": orgId },
+      headers: q.locationId
+        ? { "X-Organization-Id": orgId, "X-Location-Id": q.locationId }
+        : { "X-Organization-Id": orgId },
     });
     return {
       rows: data.items.map(toIspLink),
@@ -400,7 +402,9 @@ export const ispService = {
           start_date: q.startDate,
           end_date: q.endDate,
         },
-        headers: { "X-Organization-Id": orgId },
+        headers: q.locationId
+          ? { "X-Organization-Id": orgId, "X-Location-Id": q.locationId }
+          : { "X-Organization-Id": orgId },
       },
     );
     return {
