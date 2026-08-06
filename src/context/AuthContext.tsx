@@ -4,7 +4,7 @@ import { authService } from "@/services/auth.service";
 import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
 import type { AuthSession, LoginCredentials, OrganizationMembership, RoleAssignment, User } from "@/types/auth";
 
-const ROLES_STORAGE_KEY = "cloudguest_roles";
+export const ROLES_STORAGE_KEY = "cloudguest_roles";
 export const ORGS_STORAGE_KEY = "cloudguest_organizations";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";

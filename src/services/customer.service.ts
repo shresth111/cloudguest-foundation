@@ -1,6 +1,6 @@
 import { api } from "@/services/api";
-import { ORGS_STORAGE_KEY } from "@/context/AuthContext";
-import type { OrganizationMembership } from "@/types/auth";
+import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/context/AuthContext";
+import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -382,13 +382,56 @@ export const customerService = {
       // GLOBAL-only fetchAllOrganizations() just to resolve a display name
       // we already have from `orgs` above. Hitting the org-scoped endpoint
       // directly avoids that call (and its 403) entirely.
+      const roles: RoleAssignment[] = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(ROLES_STORAGE_KEY) || "[]") as RoleAssignment[];
+        } catch {
+          return [];
+        }
+      })();
       const perOrg = await Promise.allSettled(
         orgs.map(async (org) => {
-          const { data } = await api.get<{ items: RawLocationSummary[] }>(
-            `/organizations/${org.id}/locations`,
-            { params: { page_size: 50 }, headers: { "X-Organization-Id": org.id } },
-          );
-          return (data?.items ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
+          try {
+            const { data } = await api.get<{ items: RawLocationSummary[] }>(
+              `/organizations/${org.id}/locations`,
+              { params: { page_size: 50 }, headers: { "X-Organization-Id": org.id } },
+            );
+            return (data?.items ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
+          } catch (err) {
+            // A location-scoped staff role (Network Engineer, Office Admin,
+            // Location Manager, ...) can never satisfy this org-wide
+            // listing's permission check -- the backend's RBAC scope
+            // hierarchy correctly refuses a location-level grant for an
+            // organization-level check, no matter what permissions the role
+            // itself carries. Fall back to fetching just the specific
+            // location(s) this user's own location-scoped role assignments
+            // name -- the single-location endpoint CAN authorize that once
+            // X-Location-Id is sent, since the check then resolves at
+            // location scope instead. Without this, a location-scoped
+            // staff member's own venue silently never appeared here.
+            if ((err as { status?: number }).status !== 403) return [];
+            const locationIds = Array.from(
+              new Set(
+                roles
+                  .filter((r) => r.scopeType === "location" && r.organizationId === org.id && r.locationId)
+                  .map((r) => r.locationId as string),
+              ),
+            );
+            const perLocation = await Promise.allSettled(
+              locationIds.map((locationId) =>
+                api.get<RawLocationSummary>(`/locations/${locationId}`, {
+                  headers: { "X-Organization-Id": org.id, "X-Location-Id": locationId },
+                }),
+              ),
+            );
+            const fallbackPairs: { loc: RawLocationSummary; orgId: string; orgName: string }[] = [];
+            for (const result of perLocation) {
+              if (result.status === "fulfilled") {
+                fallbackPairs.push({ loc: result.value.data, orgId: org.id, orgName: org.name });
+              }
+            }
+            return fallbackPairs;
+          }
         }),
       );
       const locOrgPairs = perOrg
@@ -397,14 +440,20 @@ export const customerService = {
 
       const enriched = await Promise.allSettled(
         locOrgPairs.map(async ({ loc, orgId, orgName }) => {
+          // X-Location-Id (not just X-Organization-Id) matters here too --
+          // without it, RBAC resolves these checks at organization scope,
+          // which a location-scoped staff role's grants (routers.read,
+          // guest_sessions.read) can never satisfy, same as the org-wide
+          // locations listing above.
+          const locationHeaders = { "X-Organization-Id": orgId, "X-Location-Id": loc.id };
           const [routersR, sessionsR] = await Promise.allSettled([
             api.get<{ items: RawRouterStatus[] }>(`/locations/${loc.id}/routers`, {
               params: { page_size: 100 },
-              headers: { "X-Organization-Id": orgId },
+              headers: locationHeaders,
             }),
             api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
               params: { location_id: loc.id, page_size: 50 },
-              headers: { "X-Organization-Id": orgId },
+              headers: locationHeaders,
             }),
           ]);
           const routers = routersR.status === "fulfilled" ? routersR.value.data?.items ?? [] : [];
