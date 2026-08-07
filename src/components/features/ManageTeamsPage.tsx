@@ -14,12 +14,18 @@ import { resolveOrgId } from "@/services/customer.service";
 
 const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
 
-interface Team { id: string; name: string; businessUnit: string; members: number; quota: number; status: "active" | "expired" | "revoked" }
+// quotaPercent is null when the team has no shared_data_limit_mb configured
+// at all -- "no cap set", which is a materially different fact from "0% of
+// a real cap used so far". Rendering those the same way (a 0-width bar,
+// "0%") would silently misreport an unconfigured quota as an untouched one,
+// so the two states get different UI treatment below (see the Quota used
+// block in the Your Teams grid).
+interface Team { id: string; name: string; businessUnit: string; members: number; quotaPercent: number | null; status: "active" | "expired" | "revoked" }
 
 const DEMO_TEAMS: Team[] = [
-  { id: "1", name: "Sales Team", businessUnit: "Mumbai HQ", members: 12, quota: 85, status: "active" },
-  { id: "2", name: "Executive VIP", businessUnit: "Delhi Office", members: 5, quota: 42, status: "active" },
-  { id: "3", name: "Contractors", businessUnit: "Bangalore DC", members: 8, quota: 100, status: "active" },
+  { id: "1", name: "Sales Team", businessUnit: "Mumbai HQ", members: 12, quotaPercent: 85, status: "active" },
+  { id: "2", name: "Executive VIP", businessUnit: "Delhi Office", members: 5, quotaPercent: 42, status: "active" },
+  { id: "3", name: "Contractors", businessUnit: "Bangalore DC", members: 8, quotaPercent: 100, status: "active" },
 ];
 
 const TABS = [
@@ -158,7 +164,41 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
         // still current on the next page load/refresh. Keep the real
         // status so revoked teams stay filtered out of "Current Teams"
         // (below) instead of resurfacing.
-        setTeams(rows.map((t) => ({ id: t.id, name: t.name, businessUnit: "", members: t.maxMembers ?? 0, quota: 0, status: t.status })));
+        const base: Team[] = rows.map((t) => ({ id: t.id, name: t.name, businessUnit: "", members: t.maxMembers ?? 0, quotaPercent: null, status: t.status }));
+        setTeams(base);
+
+        // Quota used% used to be hardcoded to 0 here regardless of real
+        // usage -- GET /guest-teams (list) never carried a summary, but
+        // GET /guest-teams/:id does (guestService.getTeam), backed by a
+        // real per-team aggregate (GuestTeamService.get_team_summary sums
+        // every member's real session byte counts server-side, not a
+        // placeholder). Fan out one detail call per listed team to pick up
+        // that real figure. A team with no shared_data_limit_mb configured
+        // has no cap to measure usage against at all -- keep quotaPercent
+        // null for those (rendered as "No quota set", never a misleading
+        // "0%") rather than pretending an unset cap means "untouched".
+        const revokedOrExpired = new Set(["revoked", "expired"]);
+        const withQuota = await Promise.allSettled(
+          base
+            .filter((t) => !revokedOrExpired.has(t.status))
+            .map(async (t) => {
+              const detail = await guestService.getTeam(t.id);
+              if (!detail || detail.summary.sharedDataLimitMb == null) return null;
+              const usedMb = detail.summary.totalBandwidthBytes / (1024 * 1024);
+              const pct = Math.min(100, Math.max(0, Math.round((usedMb / detail.summary.sharedDataLimitMb) * 100)));
+              return { id: t.id, pct };
+            }),
+        );
+        const pctById = new Map(
+          withQuota
+            .filter((r): r is PromiseFulfilledResult<{ id: string; pct: number } | null> => r.status === "fulfilled")
+            .map((r) => r.value)
+            .filter((v): v is { id: string; pct: number } => v !== null)
+            .map((v) => [v.id, v.pct]),
+        );
+        if (pctById.size) {
+          setTeams((prev) => prev.map((t) => (pctById.has(t.id) ? { ...t, quotaPercent: pctById.get(t.id)! } : t)));
+        }
       } catch {
         // Leave teams empty -- the "no teams yet" state is accurate.
       }
@@ -167,6 +207,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   // Setup Teams form
   const [bu, setBu] = useState(""); const [teamName, setTeamName] = useState(""); const [sharedUsers, setSharedUsers] = useState("");
+  const [sharedQuotaMb, setSharedQuotaMb] = useState("");
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   // Manage Team dialog
@@ -195,17 +236,28 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
     setErrs(e); if (Object.keys(e).length) return;
 
     if (demo) {
-      setTeams((t) => [{ id: String(Date.now()), name: teamName, businessUnit: bu, members: 0, quota: 0, status: "active" }, ...t]);
-      setTeamName(""); setSharedUsers("");
+      setTeams((t) => [{ id: String(Date.now()), name: teamName, businessUnit: bu, members: 0, quotaPercent: null, status: "active" }, ...t]);
+      setTeamName(""); setSharedUsers(""); setSharedQuotaMb("");
       toast.success("Team created");
       return;
     }
     if (!orgId) { toast.error("No organization found for this session."); return; }
     try {
       const max = parseInt(sharedUsers) || 0;
-      const created = await guestService.createTeam({ organizationId: orgId, locationId: locationId ?? undefined, name: teamName, maxMembers: max > 0 ? max : undefined });
-      setTeams((t) => [{ id: created.id, name: created.name, businessUnit: "", members: created.maxMembers ?? 0, quota: 0, status: "active" }, ...t]);
-      setTeamName(""); setSharedUsers("");
+      const quotaMb = parseInt(sharedQuotaMb) || 0;
+      const created = await guestService.createTeam({
+        organizationId: orgId,
+        locationId: locationId ?? undefined,
+        name: teamName,
+        maxMembers: max > 0 ? max : undefined,
+        // 0 / blank matches "Shared Users"' own 0-means-unlimited
+        // convention -- no cap sent means guestService.getTeam's summary
+        // comes back with sharedDataLimitMb: null (no percentage to show,
+        // see the useEffect above), not a 0-used bar.
+        sharedDataLimitMb: quotaMb > 0 ? quotaMb : undefined,
+      });
+      setTeams((t) => [{ id: created.id, name: created.name, businessUnit: "", members: created.maxMembers ?? 0, quotaPercent: created.sharedDataLimitMb != null ? 0 : null, status: "active" }, ...t]);
+      setTeamName(""); setSharedUsers(""); setSharedQuotaMb("");
       toast.success("Team created");
     } catch {
       toast.error("Could not create the team — check the connection and try again.");
@@ -272,7 +324,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   <p className="text-sm text-muted-foreground">Create a shared team or desk account with its own member limit.</p>
                 </div>
               </div>
-              <div className="grid gap-4 rounded-xl bg-muted/40 p-5 md:grid-cols-3">
+              <div className="grid gap-4 rounded-xl bg-muted/40 p-5 md:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <label className={labelCls}>Location <span className="text-destructive">*</span></label>
                   <select value={bu} onChange={(e) => { setBu(e.target.value); setErrs((p) => ({ ...p, bu: "" })); }} className={inputCls}><option value="">Choose location</option>{units.map((u) => <option key={u} value={u}>{u}</option>)}</select>
@@ -287,6 +339,10 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   <label className={labelCls}>Shared Users <span className="text-destructive">*</span></label>
                   <input type="number" min={0} value={sharedUsers} onChange={(e) => { setSharedUsers(e.target.value); setErrs((p) => ({ ...p, sharedUsers: "" })); }} placeholder="Enter shared users count or set 0 for unlimited" className={inputCls} />
                   {errs.sharedUsers && <p className="mt-1 text-xs text-destructive">{errs.sharedUsers}</p>}
+                </div>
+                <div>
+                  <label className={labelCls}>Shared Data Quota (MB)</label>
+                  <input type="number" min={0} value={sharedQuotaMb} onChange={(e) => setSharedQuotaMb(e.target.value)} placeholder="Leave blank or 0 for unlimited" className={inputCls} />
                 </div>
               </div>
               <div className="mt-5 flex justify-center"><Button onClick={createTeam}><Plus className="mr-2 h-4 w-4" />Create Team</Button></div>
@@ -309,8 +365,19 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   <CardContent className="p-4">
                     <div className="mb-1 flex items-center justify-between"><p className="text-sm font-semibold">{t.name}</p><Badge variant="outline">{t.members} members</Badge></div>
                     <p className="mb-2 text-xs text-muted-foreground">{t.businessUnit}</p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Quota used</span><span>{t.quota}%</span></div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.quota}%` }} /></div>
+                    {/* quotaPercent is null when this team has no shared data
+                        cap configured (see the fetch effect / createTeam
+                        above) -- an unset cap has no "% used" to report, so
+                        this shows an honest "No quota set" instead of a bar
+                        that would otherwise read as "0% used". */}
+                    {t.quotaPercent === null ? (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Data quota</span><span>No quota set</span></div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Quota used</span><span>{t.quotaPercent}%</span></div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${t.quotaPercent}%` }} /></div>
+                      </>
+                    )}
                     <div className="mt-3 flex gap-2">
                       <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => openManage(t)}>Manage</Button>
                       <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => revokeTeam(t)}>Revoke</Button>
