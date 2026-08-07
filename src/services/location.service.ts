@@ -196,7 +196,17 @@ export const locationService = {
     return toLocation(data, org?.name ?? "");
   },
 
-  async create(payload: CreateLocationPayload): Promise<Location> {
+  /**
+   * `knownOrgName`, when the caller already knows it, skips the trailing
+   * fetchAllOrganizations() lookup below. That lookup hits the
+   * platform-wide GET /organizations, which requires GLOBAL scope and 403s
+   * for an ordinary customer/org-owner session (same restriction documented
+   * on customer.service.ts's listLocations()) -- without this escape hatch,
+   * a real customer's location creation would actually succeed server-side
+   * (the POST above completes fine) but this function would still throw on
+   * the follow-up fetch, surfacing a false "failed to create" error.
+   */
+  async create(payload: CreateLocationPayload, knownOrgName?: string): Promise<Location> {
     const { data } = await api.post<BackendLocation>(
       `/organizations/${payload.organizationId}/locations`,
       {
@@ -219,6 +229,9 @@ export const locationService = {
       },
       { headers: { "X-Organization-Id": payload.organizationId } },
     );
+    if (knownOrgName !== undefined) {
+      return toLocation(data, knownOrgName);
+    }
     const orgs = await fetchAllOrganizations();
     const org = orgs.find((o) => o.id === payload.organizationId);
     return toLocation(data, org?.name ?? "");

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Search, Star, MapPin, Wifi, Router, Printer, Camera, HardDrive, ArrowRight, LogOut, Activity, Radio, Eye, RefreshCw, Quote } from "lucide-react";
+import { Search, Star, MapPin, Plus, Wifi, Router, Printer, Camera, HardDrive, ArrowRight, LogOut, Activity, Radio, Eye, RefreshCw, Quote } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import { useCustomerLocations, customerKeys } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
 import { FLOORS, DEVICE_TYPES, formatSince, deriveCpu, type DeviceType } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
@@ -18,6 +19,7 @@ import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { IspProviderIcon } from "@/components/icons/isp";
+import { LocationWizard } from "@/components/locations/LocationWizard";
 
 export const Route = createFileRoute("/customer/")({
   beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
@@ -175,11 +177,13 @@ function HeroManagerIllustration() {
 
 function CustomerHomePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, organizations } = useAuth();
   const { setActiveLocation } = useCustomerStore();
   const { data: locations, isLoading, refetch } = useCustomerLocations();
   const { devices: allDevices } = useMonitoredHardware();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [addLocationOpen, setAddLocationOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("cg-favs") ?? "[]"); } catch { return []; } });
   const [menu, setMenu] = useState(false);
   const [deviceSearch, setDeviceSearch] = useState("");
@@ -201,6 +205,14 @@ function CustomerHomePage() {
   }, []);
 
   const filtered = (locations ?? []).filter((l) => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.city.toLowerCase().includes(search.toLowerCase()));
+  // Distinguish "this org genuinely has zero locations" from "the search
+  // typed above matched nothing" -- these used to share one empty-state
+  // branch keyed off `filtered.length === 0`, which showed "No venues match
+  // that search" to a brand-new owner who has never set up a location and
+  // never typed a search either. `locations` (pre-filter) is the real
+  // signal for the former.
+  const hasNoLocationsAtAll = !isLoading && (locations ?? []).length === 0;
+  const myOrg = organizations[0];
   const toggleFav = (id: string) => { setFavorites((p) => { const n = p.includes(id) ? p.filter((f) => f !== id) : [...p, id]; localStorage.setItem("cg-favs", JSON.stringify(n)); return n; }); };
   const handleSelect = (loc: CustomerLocationSummary) => { setActiveLocation(loc.id, loc); navigate({ to: `/customer/${loc.id}/dashboard` }); };
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
@@ -398,7 +410,19 @@ function CustomerHomePage() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.length === 0 ? (
+            {hasNoLocationsAtAll ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+                <MapPin className="mb-4 h-12 w-12 text-white/30" />
+                <p className="text-base font-semibold text-white">No locations yet</p>
+                <p className="mt-1.5 max-w-sm text-sm text-white/40">Add your first location to start managing guest WiFi.</p>
+                <button
+                  onClick={() => setAddLocationOpen(true)}
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-500/20 hover:opacity-90"
+                >
+                  <Plus className="h-4 w-4" /> Add location
+                </button>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-white/40"><MapPin className="mb-4 h-12 w-12 opacity-30" /><p>No venues match that search. Try a different name or city.</p></div>
             ) : filtered.map((loc, i) => {
               const LocationIcon = businessTypeIcon(loc.propertyType);
@@ -663,6 +687,19 @@ function CustomerHomePage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <LocationWizard
+        open={addLocationOpen}
+        onOpenChange={setAddLocationOpen}
+        lockedOrganizationId={myOrg?.organizationId}
+        lockedOrganizationName={myOrg?.organizationName}
+        onCreated={() => {
+          // Real create, not demo -- refetch the customer's location list so
+          // the newly-created venue shows up on this page immediately
+          // instead of waiting out useCustomerLocations()'s 30s staleTime.
+          qc.invalidateQueries({ queryKey: customerKeys.locations });
+        }}
+      />
     </div>
   );
 }
