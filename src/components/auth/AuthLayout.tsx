@@ -1,8 +1,5 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { BrandIcon } from "@/components/brand/BrandIcon";
-import { BrandLogo } from "@/components/brand/BrandLogo";
-import { BrandTitle } from "@/components/brand/BrandTitle";
 import { usePlatformBranding } from "@/context/PlatformBrandingContext";
 
 interface AuthLayoutProps {
@@ -43,10 +40,19 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
+          {/* The real, static Wyfy Guest mark -- same asset login.tsx uses,
+           * not the Master-Console whitelabel BrandIcon/BrandTitle (which
+           * fall back to a generic lucide Wifi glyph with no company name
+           * styling when no operator has configured a custom logo, which
+           * is always true here: forgot-password/reset-password/verify-otp
+           * are pre-auth, org-agnostic pages, wired to that no-op default
+           * config with nothing to actually render). Bug report: "forgot
+           * password mai dashboard jaisa logo nahi dikhta" (this page's
+           * logo didn't look like the dashboard's real one). */}
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
-            <BrandIcon className="h-5 w-5 brightness-0 invert" />
+            <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
           </div>
-          <BrandTitle className="text-lg text-white" />
+          <span className="text-lg font-semibold tracking-tight text-white">Wyfy Guest</span>
         </motion.div>
         <motion.div
           className="relative z-10 max-w-md space-y-5"
@@ -114,9 +120,16 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         >
+          {/* Same real static mark as the hero panel above, on the
+           * primary-colored box login.tsx's own mobile header uses (this
+           * panel is always light/`bg-white`, per the CSS-variable pin
+           * just above -- a plain white mark needs a colored box behind it
+           * here, unlike the hero panel's already-dark background). */}
           <div className="mb-8 flex items-center gap-2 lg:hidden">
-            <BrandLogo size="h-8 w-8" />
-            <BrandTitle className="text-base" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+              <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
+            </div>
+            <span className="text-base font-semibold tracking-tight text-foreground">Wyfy Guest</span>
           </div>
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
