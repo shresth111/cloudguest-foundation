@@ -1,9 +1,30 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
-  Monitor, UsersRound, Bot, Network, Settings2, Bell, Clock, Globe, ScrollText,
-  Fingerprint, Server, Signal, Wifi,
-  LifeBuoy, Share2, Terminal,
+  LayoutDashboard,
+  Users,
+  FileText,
+  Megaphone,
+  Palette,
+  Ticket,
+  ShieldCheck,
+  Shield,
+  Monitor,
+  UsersRound,
+  Bot,
+  Network,
+  Settings2,
+  Bell,
+  Clock,
+  Globe,
+  ScrollText,
+  Fingerprint,
+  Server,
+  Signal,
+  Wifi,
+  LifeBuoy,
+  Share2,
+  Terminal,
+  Link2,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -50,6 +71,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
       { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
       { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
+      { id: "short-links", label: "Short Links", icon: Link2, roles: ["owner", "agent"] },
     ],
   },
   {
@@ -136,7 +158,8 @@ export function customerNavsForRole(role: CustomerLoginRole): CustomerNavItem[] 
  * groups (and dropping groups left empty by the filter) -- this is what the
  * shared `CustomerSidebar` component renders. */
 export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGroup[] {
-  return CUSTOMER_NAV_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((item) => item.roles.includes(role)) }))
-    .filter((g) => g.items.length > 0);
+  return CUSTOMER_NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => item.roles.includes(role)),
+  })).filter((g) => g.items.length > 0);
 }
