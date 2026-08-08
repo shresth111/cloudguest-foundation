@@ -164,6 +164,6 @@ export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGr
  * lives. */
 export function customerFeatureHref(id: string): string {
   if (id === "dashboard") return "/";
-  if (id === "users") return "/c/users";
+  if (id === "users") return "/users";
   return `/c/${id}`;
 }

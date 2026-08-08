@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PortalRouteImport } from './routes/portal'
@@ -156,6 +157,11 @@ import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
   path: '/verify-otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionExpiredRoute = SessionExpiredRouteImport.update({
@@ -959,6 +965,7 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
+  '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -1100,6 +1107,7 @@ export interface FileRoutesByTo {
   '/master-login': typeof MasterLoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
+  '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -1243,6 +1251,7 @@ export interface FileRoutesById {
   '/portal': typeof PortalRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
+  '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -1389,6 +1398,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/reset-password'
     | '/session-expired'
+    | '/users'
     | '/verify-otp'
     | '/account'
     | '/dashboard'
@@ -1530,6 +1540,7 @@ export interface FileRouteTypes {
     | '/master-login'
     | '/reset-password'
     | '/session-expired'
+    | '/users'
     | '/verify-otp'
     | '/account'
     | '/dashboard'
@@ -1672,6 +1683,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/reset-password'
     | '/session-expired'
+    | '/users'
     | '/verify-otp'
     | '/_authenticated/account'
     | '/_authenticated/dashboard'
@@ -1818,6 +1830,7 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
+  UsersRoute: typeof UsersRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   CFeatureRoute: typeof CFeatureRoute
   CLocationsRoute: typeof CLocationsRoute
@@ -1836,6 +1849,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-otp'
       fullPath: '/verify-otp'
       preLoaderRoute: typeof VerifyOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/session-expired': {
@@ -3190,6 +3210,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,
+  UsersRoute: UsersRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   CFeatureRoute: CFeatureRoute,
   CLocationsRoute: CLocationsRoute,
