@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket, OtpMaskToggle, DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
+import { customerFeatureHref } from "@/lib/customerNav";
 
 interface CustomerHeaderProps {
   /** Left-side content -- each page composes its own (page title, location
@@ -96,7 +97,7 @@ export function CustomerHeader({
         </Button>
       )}
       <span className="[&_button]:text-white/70 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
-        <NotificationBell scope="org" viewAllPath={`/customer/${locationId}/alerts`} />
+        <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
       </span>
 
       <div className="relative">

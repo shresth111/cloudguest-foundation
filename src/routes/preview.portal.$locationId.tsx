@@ -10,6 +10,7 @@ import { api } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { usePortalPreview, type PortalPreviewConfigSource } from "@/hooks/usePortalPreview";
 import { businessTypeIcon } from "@/lib/business-type-icons";
+import { customerFeatureHref } from "@/lib/customerNav";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
@@ -163,7 +164,7 @@ function PortalPreviewPage() {
   // this visitor here, instead of guessing with one hardcoded string.
   const { roles } = useAuth();
   const isOperator = roles.some((r) => r.scopeType === "global");
-  const backTo = isOperator ? "/master/locations" : `/customer/${locationId}/portal`;
+  const backTo = isOperator ? "/master/locations" : customerFeatureHref("portal");
 
   const preview = usePortalPreview(organizationId, locationId);
 

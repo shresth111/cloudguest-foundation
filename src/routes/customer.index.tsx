@@ -214,7 +214,7 @@ function CustomerHomePage() {
   const hasNoLocationsAtAll = !isLoading && (locations ?? []).length === 0;
   const myOrg = organizations[0];
   const toggleFav = (id: string) => { setFavorites((p) => { const n = p.includes(id) ? p.filter((f) => f !== id) : [...p, id]; localStorage.setItem("cg-favs", JSON.stringify(n)); return n; }); };
-  const handleSelect = (loc: CustomerLocationSummary) => { setActiveLocation(loc.id, loc); navigate({ to: `/customer/${loc.id}/dashboard` }); };
+  const handleSelect = (loc: CustomerLocationSummary) => { setActiveLocation(loc.id, loc); navigate({ to: "/customer/dashboard" }); };
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
   const doRefetch = () => { refetch(); setSecondsAgo(0); };
 

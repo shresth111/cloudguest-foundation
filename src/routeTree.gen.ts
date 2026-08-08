@@ -49,6 +49,9 @@ import { Route as MasterConsoleRouteImport } from './routes/master.console'
 import { Route as MasterBillingRouteImport } from './routes/master.billing'
 import { Route as MasterAuditRouteImport } from './routes/master.audit'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
+import { Route as CustomerUsersRouteImport } from './routes/customer.users'
+import { Route as CustomerDashboardRouteImport } from './routes/customer.dashboard'
+import { Route as CustomerFeatureRouteImport } from './routes/customer.$feature'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
 import { Route as AuthenticatedErrorMaintenanceRouteImport } from './routes/_authenticated/error-maintenance'
@@ -348,6 +351,21 @@ const MasterAnalyticsRoute = MasterAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
   getParentRoute: () => MasterRoute,
+} as any)
+const CustomerUsersRoute = CustomerUsersRouteImport.update({
+  id: '/customer/users',
+  path: '/customer/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerDashboardRoute = CustomerDashboardRouteImport.update({
+  id: '/customer/dashboard',
+  path: '/customer/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerFeatureRoute = CustomerFeatureRouteImport.update({
+  id: '/customer/$feature',
+  path: '/customer/$feature',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   id: '/workspace',
@@ -950,6 +968,9 @@ export interface FileRoutesByFullPath {
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/dashboard': typeof CustomerDashboardRoute
+  '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1087,6 +1108,9 @@ export interface FileRoutesByTo {
   '/error-500': typeof AuthenticatedError500Route
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/dashboard': typeof CustomerDashboardRoute
+  '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1228,6 +1252,9 @@ export interface FileRoutesById {
   '/_authenticated/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/_authenticated/select-space': typeof AuthenticatedSelectSpaceRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/dashboard': typeof CustomerDashboardRoute
+  '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1371,6 +1398,9 @@ export interface FileRouteTypes {
     | '/error-maintenance'
     | '/select-space'
     | '/workspace'
+    | '/customer/$feature'
+    | '/customer/dashboard'
+    | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1508,6 +1538,9 @@ export interface FileRouteTypes {
     | '/error-500'
     | '/error-maintenance'
     | '/select-space'
+    | '/customer/$feature'
+    | '/customer/dashboard'
+    | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1648,6 +1681,9 @@ export interface FileRouteTypes {
     | '/_authenticated/error-maintenance'
     | '/_authenticated/select-space'
     | '/_authenticated/workspace'
+    | '/customer/$feature'
+    | '/customer/dashboard'
+    | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1783,6 +1819,9 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
+  CustomerFeatureRoute: typeof CustomerFeatureRoute
+  CustomerDashboardRoute: typeof CustomerDashboardRoute
+  CustomerUsersRoute: typeof CustomerUsersRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
@@ -2071,6 +2110,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/master/analytics'
       preLoaderRoute: typeof MasterAnalyticsRouteImport
       parentRoute: typeof MasterRoute
+    }
+    '/customer/users': {
+      id: '/customer/users'
+      path: '/customer/users'
+      fullPath: '/customer/users'
+      preLoaderRoute: typeof CustomerUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/dashboard': {
+      id: '/customer/dashboard'
+      path: '/customer/dashboard'
+      fullPath: '/customer/dashboard'
+      preLoaderRoute: typeof CustomerDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$feature': {
+      id: '/customer/$feature'
+      path: '/customer/$feature'
+      fullPath: '/customer/$feature'
+      preLoaderRoute: typeof CustomerFeatureRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspace': {
       id: '/_authenticated/workspace'
@@ -3131,6 +3191,9 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,
   VerifyOtpRoute: VerifyOtpRoute,
+  CustomerFeatureRoute: CustomerFeatureRoute,
+  CustomerDashboardRoute: CustomerDashboardRoute,
+  CustomerUsersRoute: CustomerUsersRoute,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,

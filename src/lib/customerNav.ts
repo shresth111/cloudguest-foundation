@@ -146,3 +146,15 @@ export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGr
     .map((g) => ({ ...g, items: g.items.filter((item) => item.roles.includes(role)) }))
     .filter((g) => g.items.length > 0);
 }
+
+/** Builds the short, location-id-free URL for a customer nav item id.
+ * `dashboard` and `users` have dedicated routes; everything else falls
+ * through to the generic `/customer/$feature` route. Single source of
+ * truth for this mapping so the dashboard, users, and feature pages (and
+ * the old `/customer/$locationId/...` compat redirects) can't drift apart
+ * on where a given nav id actually lives. */
+export function customerFeatureHref(id: string): string {
+  if (id === "dashboard") return "/customer/dashboard";
+  if (id === "users") return "/customer/users";
+  return `/customer/${id}`;
+}
