@@ -46,6 +46,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
 import { Route as MasterIndexRouteImport } from './routes/master.index'
+import { Route as CustomerIndexRouteImport } from './routes/customer.index'
 import { Route as CIndexRouteImport } from './routes/c.index'
 import { Route as AgentIndexRouteImport } from './routes/agent.index'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
@@ -73,6 +74,9 @@ import { Route as MasterConsoleRouteImport } from './routes/master.console'
 import { Route as MasterBillingRouteImport } from './routes/master.billing'
 import { Route as MasterAuditRouteImport } from './routes/master.audit'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
+import { Route as CustomerUsersRouteImport } from './routes/customer.users'
+import { Route as CustomerLocationsRouteImport } from './routes/customer.locations'
+import { Route as CustomerFeatureRouteImport } from './routes/customer.$feature'
 import { Route as CUsersRouteImport } from './routes/c.users'
 import { Route as CLocationsRouteImport } from './routes/c.locations'
 import { Route as CFeatureRouteImport } from './routes/c.$feature'
@@ -361,6 +365,11 @@ const MasterIndexRoute = MasterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => MasterRoute,
 } as any)
+const CustomerIndexRoute = CustomerIndexRouteImport.update({
+  id: '/customer/',
+  path: '/customer/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CIndexRoute = CIndexRouteImport.update({
   id: '/c/',
   path: '/c/',
@@ -495,6 +504,21 @@ const MasterAnalyticsRoute = MasterAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
   getParentRoute: () => MasterRoute,
+} as any)
+const CustomerUsersRoute = CustomerUsersRouteImport.update({
+  id: '/customer/users',
+  path: '/customer/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerLocationsRoute = CustomerLocationsRouteImport.update({
+  id: '/customer/locations',
+  path: '/customer/locations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerFeatureRoute = CustomerFeatureRouteImport.update({
+  id: '/customer/$feature',
+  path: '/customer/$feature',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CUsersRoute = CUsersRouteImport.update({
   id: '/c/users',
@@ -1139,6 +1163,9 @@ export interface FileRoutesByFullPath {
   '/c/$feature': typeof CFeatureRoute
   '/c/locations': typeof CLocationsRoute
   '/c/users': typeof CUsersRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/locations': typeof CustomerLocationsRoute
+  '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1166,6 +1193,7 @@ export interface FileRoutesByFullPath {
   '/portal/welcome': typeof PortalWelcomeRoute
   '/agent/': typeof AgentIndexRoute
   '/c/': typeof CIndexRoute
+  '/customer/': typeof CustomerIndexRoute
   '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -1303,6 +1331,9 @@ export interface FileRoutesByTo {
   '/c/$feature': typeof CFeatureRoute
   '/c/locations': typeof CLocationsRoute
   '/c/users': typeof CUsersRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/locations': typeof CustomerLocationsRoute
+  '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1329,6 +1360,7 @@ export interface FileRoutesByTo {
   '/portal/welcome': typeof PortalWelcomeRoute
   '/agent': typeof AgentIndexRoute
   '/c': typeof CIndexRoute
+  '/customer': typeof CustomerIndexRoute
   '/master': typeof MasterIndexRoute
   '/portal': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -1471,6 +1503,9 @@ export interface FileRoutesById {
   '/c/$feature': typeof CFeatureRoute
   '/c/locations': typeof CLocationsRoute
   '/c/users': typeof CUsersRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/locations': typeof CustomerLocationsRoute
+  '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1498,6 +1533,7 @@ export interface FileRoutesById {
   '/portal/welcome': typeof PortalWelcomeRoute
   '/agent/': typeof AgentIndexRoute
   '/c/': typeof CIndexRoute
+  '/customer/': typeof CustomerIndexRoute
   '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -1641,6 +1677,9 @@ export interface FileRouteTypes {
     | '/c/$feature'
     | '/c/locations'
     | '/c/users'
+    | '/customer/$feature'
+    | '/customer/locations'
+    | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1668,6 +1707,7 @@ export interface FileRouteTypes {
     | '/portal/welcome'
     | '/agent/'
     | '/c/'
+    | '/customer/'
     | '/master/'
     | '/portal/'
     | '/administration/business-units'
@@ -1805,6 +1845,9 @@ export interface FileRouteTypes {
     | '/c/$feature'
     | '/c/locations'
     | '/c/users'
+    | '/customer/$feature'
+    | '/customer/locations'
+    | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1831,6 +1874,7 @@ export interface FileRouteTypes {
     | '/portal/welcome'
     | '/agent'
     | '/c'
+    | '/customer'
     | '/master'
     | '/portal'
     | '/administration/business-units'
@@ -1972,6 +2016,9 @@ export interface FileRouteTypes {
     | '/c/$feature'
     | '/c/locations'
     | '/c/users'
+    | '/customer/$feature'
+    | '/customer/locations'
+    | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1999,6 +2046,7 @@ export interface FileRouteTypes {
     | '/portal/welcome'
     | '/agent/'
     | '/c/'
+    | '/customer/'
     | '/master/'
     | '/portal/'
     | '/_authenticated/administration/business-units'
@@ -2134,7 +2182,11 @@ export interface RootRouteChildren {
   CFeatureRoute: typeof CFeatureRoute
   CLocationsRoute: typeof CLocationsRoute
   CUsersRoute: typeof CUsersRoute
+  CustomerFeatureRoute: typeof CustomerFeatureRoute
+  CustomerLocationsRoute: typeof CustomerLocationsRoute
+  CustomerUsersRoute: typeof CustomerUsersRoute
   CIndexRoute: typeof CIndexRoute
+  CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
   CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
@@ -2402,6 +2454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterIndexRouteImport
       parentRoute: typeof MasterRoute
     }
+    '/customer/': {
+      id: '/customer/'
+      path: '/customer'
+      fullPath: '/customer/'
+      preLoaderRoute: typeof CustomerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/c/': {
       id: '/c/'
       path: '/c'
@@ -2590,6 +2649,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/master/analytics'
       preLoaderRoute: typeof MasterAnalyticsRouteImport
       parentRoute: typeof MasterRoute
+    }
+    '/customer/users': {
+      id: '/customer/users'
+      path: '/customer/users'
+      fullPath: '/customer/users'
+      preLoaderRoute: typeof CustomerUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/locations': {
+      id: '/customer/locations'
+      path: '/customer/locations'
+      fullPath: '/customer/locations'
+      preLoaderRoute: typeof CustomerLocationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$feature': {
+      id: '/customer/$feature'
+      path: '/customer/$feature'
+      fullPath: '/customer/$feature'
+      preLoaderRoute: typeof CustomerFeatureRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/c/users': {
       id: '/c/users'
@@ -3698,7 +3778,11 @@ const rootRouteChildren: RootRouteChildren = {
   CFeatureRoute: CFeatureRoute,
   CLocationsRoute: CLocationsRoute,
   CUsersRoute: CUsersRoute,
+  CustomerFeatureRoute: CustomerFeatureRoute,
+  CustomerLocationsRoute: CustomerLocationsRoute,
+  CustomerUsersRoute: CustomerUsersRoute,
   CIndexRoute: CIndexRoute,
+  CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
   CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
