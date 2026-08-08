@@ -50,7 +50,7 @@ import { Route as MasterBillingRouteImport } from './routes/master.billing'
 import { Route as MasterAuditRouteImport } from './routes/master.audit'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
 import { Route as CustomerUsersRouteImport } from './routes/customer.users'
-import { Route as CustomerDashboardRouteImport } from './routes/customer.dashboard'
+import { Route as CustomerLocationsRouteImport } from './routes/customer.locations'
 import { Route as CustomerFeatureRouteImport } from './routes/customer.$feature'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
@@ -357,9 +357,9 @@ const CustomerUsersRoute = CustomerUsersRouteImport.update({
   path: '/customer/users',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustomerDashboardRoute = CustomerDashboardRouteImport.update({
-  id: '/customer/dashboard',
-  path: '/customer/dashboard',
+const CustomerLocationsRoute = CustomerLocationsRouteImport.update({
+  id: '/customer/locations',
+  path: '/customer/locations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomerFeatureRoute = CustomerFeatureRouteImport.update({
@@ -969,7 +969,7 @@ export interface FileRoutesByFullPath {
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/customer/$feature': typeof CustomerFeatureRoute
-  '/customer/dashboard': typeof CustomerDashboardRoute
+  '/customer/locations': typeof CustomerLocationsRoute
   '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
@@ -1109,7 +1109,7 @@ export interface FileRoutesByTo {
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/customer/$feature': typeof CustomerFeatureRoute
-  '/customer/dashboard': typeof CustomerDashboardRoute
+  '/customer/locations': typeof CustomerLocationsRoute
   '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
@@ -1253,7 +1253,7 @@ export interface FileRoutesById {
   '/_authenticated/select-space': typeof AuthenticatedSelectSpaceRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
   '/customer/$feature': typeof CustomerFeatureRoute
-  '/customer/dashboard': typeof CustomerDashboardRoute
+  '/customer/locations': typeof CustomerLocationsRoute
   '/customer/users': typeof CustomerUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
@@ -1399,7 +1399,7 @@ export interface FileRouteTypes {
     | '/select-space'
     | '/workspace'
     | '/customer/$feature'
-    | '/customer/dashboard'
+    | '/customer/locations'
     | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
@@ -1539,7 +1539,7 @@ export interface FileRouteTypes {
     | '/error-maintenance'
     | '/select-space'
     | '/customer/$feature'
-    | '/customer/dashboard'
+    | '/customer/locations'
     | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
@@ -1682,7 +1682,7 @@ export interface FileRouteTypes {
     | '/_authenticated/select-space'
     | '/_authenticated/workspace'
     | '/customer/$feature'
-    | '/customer/dashboard'
+    | '/customer/locations'
     | '/customer/users'
     | '/master/analytics'
     | '/master/audit'
@@ -1820,7 +1820,7 @@ export interface RootRouteChildren {
   SessionExpiredRoute: typeof SessionExpiredRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   CustomerFeatureRoute: typeof CustomerFeatureRoute
-  CustomerDashboardRoute: typeof CustomerDashboardRoute
+  CustomerLocationsRoute: typeof CustomerLocationsRoute
   CustomerUsersRoute: typeof CustomerUsersRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
@@ -2118,11 +2118,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/customer/dashboard': {
-      id: '/customer/dashboard'
-      path: '/customer/dashboard'
-      fullPath: '/customer/dashboard'
-      preLoaderRoute: typeof CustomerDashboardRouteImport
+    '/customer/locations': {
+      id: '/customer/locations'
+      path: '/customer/locations'
+      fullPath: '/customer/locations'
+      preLoaderRoute: typeof CustomerLocationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customer/$feature': {
@@ -3192,7 +3192,7 @@ const rootRouteChildren: RootRouteChildren = {
   SessionExpiredRoute: SessionExpiredRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   CustomerFeatureRoute: CustomerFeatureRoute,
-  CustomerDashboardRoute: CustomerDashboardRoute,
+  CustomerLocationsRoute: CustomerLocationsRoute,
   CustomerUsersRoute: CustomerUsersRoute,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,

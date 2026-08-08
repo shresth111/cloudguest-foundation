@@ -55,7 +55,7 @@ function UsersEmptyState({ label }: { label: string }) {
 }
 
 export const Route = createFileRoute("/customer/users")({
-  // See customer.dashboard.tsx's identical comment: activeLocationId only
+  // See customer.index.tsx's identical comment: activeLocationId only
   // hydrates from localStorage client-side, so this guard must not run
   // during SSR.
   ssr: false,
@@ -104,7 +104,7 @@ function CustomerUsersPage() {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { navigate({ to: "/customer" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/customer/locations" }); };
 
   return (
     <div

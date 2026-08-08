@@ -18,7 +18,7 @@ export const Route = createFileRoute("/customer/$locationId/$feature")({
     requireCustomerSession(context.auth, location);
     const resolved = await resolveCustomerLocationById(context.queryClient, params.locationId);
     if (!resolved) {
-      throw redirect({ to: "/customer" });
+      throw redirect({ to: "/customer/locations" });
     }
     useCustomerStore.getState().setActiveLocation(resolved.id, resolved);
     throw redirect({ to: customerFeatureHref(params.feature) });

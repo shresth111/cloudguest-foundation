@@ -154,7 +154,7 @@ export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGr
  * the old `/customer/$locationId/...` compat redirects) can't drift apart
  * on where a given nav id actually lives. */
 export function customerFeatureHref(id: string): string {
-  if (id === "dashboard") return "/customer/dashboard";
+  if (id === "dashboard") return "/customer";
   if (id === "users") return "/customer/users";
   return `/customer/${id}`;
 }
