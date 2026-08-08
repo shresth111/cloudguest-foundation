@@ -58,7 +58,7 @@ import {
   AlertTriangle, Activity, XCircle, Download, Quote,
 } from "lucide-react";
 
-export const Route = createFileRoute("/customer/$feature")({
+export const Route = createFileRoute("/c/$feature")({
   // See customer.index.tsx's identical comment: activeLocationId only
   // hydrates from localStorage client-side, so this guard must not run
   // during SSR.
@@ -98,7 +98,7 @@ function FeaturePage() {
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { navigate({ to: "/customer/locations" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/c/locations" }); };
 
   return (
     <div

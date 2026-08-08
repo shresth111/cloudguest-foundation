@@ -8,7 +8,7 @@ export function primaryRoleLabel(roles: RoleAssignment[]): string {
 
 /** All authenticated users land on the customer dashboard. */
 export function homeRoute(): string {
-  return "/customer";
+  return "/c";
 }
 
 /**
@@ -21,7 +21,7 @@ export function homeRoute(): string {
 export type LoginMode = "owner" | "agent";
 
 export function landingRouteForLoginMode(mode: LoginMode): string {
-  return "/customer";
+  return "/c";
 }
 
 /**

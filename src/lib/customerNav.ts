@@ -149,12 +149,17 @@ export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGr
 
 /** Builds the short, location-id-free URL for a customer nav item id.
  * `dashboard` and `users` have dedicated routes; everything else falls
- * through to the generic `/customer/$feature` route. Single source of
- * truth for this mapping so the dashboard, users, and feature pages (and
- * the old `/customer/$locationId/...` compat redirects) can't drift apart
- * on where a given nav id actually lives. */
+ * through to the generic `/c/$feature` route. `/c` (not `/customer`) is
+ * the customer surface's namespace prefix -- kept as short as possible
+ * without colliding with the pre-existing `/dashboard`/`/locations`/
+ * `/routers` legacy operator-shell routes (see `_authenticated.tsx`'s own
+ * comment on why that shell still exists) or `/master`/`/workspace`'s own
+ * prefixes. Single source of truth for this mapping so the dashboard,
+ * users, and feature pages (and the old `/customer/...`/
+ * `/customer/$locationId/...` compat redirects) can't drift apart on
+ * where a given nav id actually lives. */
 export function customerFeatureHref(id: string): string {
-  if (id === "dashboard") return "/customer";
-  if (id === "users") return "/customer/users";
-  return `/customer/${id}`;
+  if (id === "dashboard") return "/c";
+  if (id === "users") return "/c/users";
+  return `/c/${id}`;
 }

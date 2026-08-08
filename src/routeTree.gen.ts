@@ -22,7 +22,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
 import { Route as MasterIndexRouteImport } from './routes/master.index'
-import { Route as CustomerIndexRouteImport } from './routes/customer.index'
+import { Route as CIndexRouteImport } from './routes/c.index'
 import { Route as AgentIndexRouteImport } from './routes/agent.index'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
@@ -49,9 +49,9 @@ import { Route as MasterConsoleRouteImport } from './routes/master.console'
 import { Route as MasterBillingRouteImport } from './routes/master.billing'
 import { Route as MasterAuditRouteImport } from './routes/master.audit'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
-import { Route as CustomerUsersRouteImport } from './routes/customer.users'
-import { Route as CustomerLocationsRouteImport } from './routes/customer.locations'
-import { Route as CustomerFeatureRouteImport } from './routes/customer.$feature'
+import { Route as CUsersRouteImport } from './routes/c.users'
+import { Route as CLocationsRouteImport } from './routes/c.locations'
+import { Route as CFeatureRouteImport } from './routes/c.$feature'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
 import { Route as AuthenticatedErrorMaintenanceRouteImport } from './routes/_authenticated/error-maintenance'
@@ -217,9 +217,9 @@ const MasterIndexRoute = MasterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => MasterRoute,
 } as any)
-const CustomerIndexRoute = CustomerIndexRouteImport.update({
-  id: '/customer/',
-  path: '/customer/',
+const CIndexRoute = CIndexRouteImport.update({
+  id: '/c/',
+  path: '/c/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgentIndexRoute = AgentIndexRouteImport.update({
@@ -352,19 +352,19 @@ const MasterAnalyticsRoute = MasterAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => MasterRoute,
 } as any)
-const CustomerUsersRoute = CustomerUsersRouteImport.update({
-  id: '/customer/users',
-  path: '/customer/users',
+const CUsersRoute = CUsersRouteImport.update({
+  id: '/c/users',
+  path: '/c/users',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustomerLocationsRoute = CustomerLocationsRouteImport.update({
-  id: '/customer/locations',
-  path: '/customer/locations',
+const CLocationsRoute = CLocationsRouteImport.update({
+  id: '/c/locations',
+  path: '/c/locations',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustomerFeatureRoute = CustomerFeatureRouteImport.update({
-  id: '/customer/$feature',
-  path: '/customer/$feature',
+const CFeatureRoute = CFeatureRouteImport.update({
+  id: '/c/$feature',
+  path: '/c/$feature',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
@@ -968,9 +968,9 @@ export interface FileRoutesByFullPath {
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
-  '/customer/$feature': typeof CustomerFeatureRoute
-  '/customer/locations': typeof CustomerLocationsRoute
-  '/customer/users': typeof CustomerUsersRoute
+  '/c/$feature': typeof CFeatureRoute
+  '/c/locations': typeof CLocationsRoute
+  '/c/users': typeof CUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -997,7 +997,7 @@ export interface FileRoutesByFullPath {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/agent/': typeof AgentIndexRoute
-  '/customer/': typeof CustomerIndexRoute
+  '/c/': typeof CIndexRoute
   '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -1108,9 +1108,9 @@ export interface FileRoutesByTo {
   '/error-500': typeof AuthenticatedError500Route
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
-  '/customer/$feature': typeof CustomerFeatureRoute
-  '/customer/locations': typeof CustomerLocationsRoute
-  '/customer/users': typeof CustomerUsersRoute
+  '/c/$feature': typeof CFeatureRoute
+  '/c/locations': typeof CLocationsRoute
+  '/c/users': typeof CUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1136,7 +1136,7 @@ export interface FileRoutesByTo {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/agent': typeof AgentIndexRoute
-  '/customer': typeof CustomerIndexRoute
+  '/c': typeof CIndexRoute
   '/master': typeof MasterIndexRoute
   '/portal': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -1252,9 +1252,9 @@ export interface FileRoutesById {
   '/_authenticated/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/_authenticated/select-space': typeof AuthenticatedSelectSpaceRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
-  '/customer/$feature': typeof CustomerFeatureRoute
-  '/customer/locations': typeof CustomerLocationsRoute
-  '/customer/users': typeof CustomerUsersRoute
+  '/c/$feature': typeof CFeatureRoute
+  '/c/locations': typeof CLocationsRoute
+  '/c/users': typeof CUsersRoute
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
@@ -1281,7 +1281,7 @@ export interface FileRoutesById {
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
   '/agent/': typeof AgentIndexRoute
-  '/customer/': typeof CustomerIndexRoute
+  '/c/': typeof CIndexRoute
   '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
@@ -1398,9 +1398,9 @@ export interface FileRouteTypes {
     | '/error-maintenance'
     | '/select-space'
     | '/workspace'
-    | '/customer/$feature'
-    | '/customer/locations'
-    | '/customer/users'
+    | '/c/$feature'
+    | '/c/locations'
+    | '/c/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1427,7 +1427,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/agent/'
-    | '/customer/'
+    | '/c/'
     | '/master/'
     | '/portal/'
     | '/administration/business-units'
@@ -1538,9 +1538,9 @@ export interface FileRouteTypes {
     | '/error-500'
     | '/error-maintenance'
     | '/select-space'
-    | '/customer/$feature'
-    | '/customer/locations'
-    | '/customer/users'
+    | '/c/$feature'
+    | '/c/locations'
+    | '/c/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1566,7 +1566,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/agent'
-    | '/customer'
+    | '/c'
     | '/master'
     | '/portal'
     | '/administration/business-units'
@@ -1681,9 +1681,9 @@ export interface FileRouteTypes {
     | '/_authenticated/error-maintenance'
     | '/_authenticated/select-space'
     | '/_authenticated/workspace'
-    | '/customer/$feature'
-    | '/customer/locations'
-    | '/customer/users'
+    | '/c/$feature'
+    | '/c/locations'
+    | '/c/users'
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
@@ -1710,7 +1710,7 @@ export interface FileRouteTypes {
     | '/portal/verify'
     | '/portal/welcome'
     | '/agent/'
-    | '/customer/'
+    | '/c/'
     | '/master/'
     | '/portal/'
     | '/_authenticated/administration/business-units'
@@ -1819,10 +1819,10 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
-  CustomerFeatureRoute: typeof CustomerFeatureRoute
-  CustomerLocationsRoute: typeof CustomerLocationsRoute
-  CustomerUsersRoute: typeof CustomerUsersRoute
-  CustomerIndexRoute: typeof CustomerIndexRoute
+  CFeatureRoute: typeof CFeatureRoute
+  CLocationsRoute: typeof CLocationsRoute
+  CUsersRoute: typeof CUsersRoute
+  CIndexRoute: typeof CIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
   CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
@@ -1922,11 +1922,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterIndexRouteImport
       parentRoute: typeof MasterRoute
     }
-    '/customer/': {
-      id: '/customer/'
-      path: '/customer'
-      fullPath: '/customer/'
-      preLoaderRoute: typeof CustomerIndexRouteImport
+    '/c/': {
+      id: '/c/'
+      path: '/c'
+      fullPath: '/c/'
+      preLoaderRoute: typeof CIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agent/': {
@@ -2111,25 +2111,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterAnalyticsRouteImport
       parentRoute: typeof MasterRoute
     }
-    '/customer/users': {
-      id: '/customer/users'
-      path: '/customer/users'
-      fullPath: '/customer/users'
-      preLoaderRoute: typeof CustomerUsersRouteImport
+    '/c/users': {
+      id: '/c/users'
+      path: '/c/users'
+      fullPath: '/c/users'
+      preLoaderRoute: typeof CUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/customer/locations': {
-      id: '/customer/locations'
-      path: '/customer/locations'
-      fullPath: '/customer/locations'
-      preLoaderRoute: typeof CustomerLocationsRouteImport
+    '/c/locations': {
+      id: '/c/locations'
+      path: '/c/locations'
+      fullPath: '/c/locations'
+      preLoaderRoute: typeof CLocationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/customer/$feature': {
-      id: '/customer/$feature'
-      path: '/customer/$feature'
-      fullPath: '/customer/$feature'
-      preLoaderRoute: typeof CustomerFeatureRouteImport
+    '/c/$feature': {
+      id: '/c/$feature'
+      path: '/c/$feature'
+      fullPath: '/c/$feature'
+      preLoaderRoute: typeof CFeatureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspace': {
@@ -3191,10 +3191,10 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,
   VerifyOtpRoute: VerifyOtpRoute,
-  CustomerFeatureRoute: CustomerFeatureRoute,
-  CustomerLocationsRoute: CustomerLocationsRoute,
-  CustomerUsersRoute: CustomerUsersRoute,
-  CustomerIndexRoute: CustomerIndexRoute,
+  CFeatureRoute: CFeatureRoute,
+  CLocationsRoute: CLocationsRoute,
+  CUsersRoute: CUsersRoute,
+  CIndexRoute: CIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
   CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,

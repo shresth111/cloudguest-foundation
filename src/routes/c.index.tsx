@@ -1003,7 +1003,7 @@ function DashboardWatchIllustration() {
   );
 }
 
-export const Route = createFileRoute("/customer/")({
+export const Route = createFileRoute("/c/")({
   // activeLocationId lives in useCustomerStore, a zustand `persist` store
   // hydrated from localStorage -- only available client-side. Server-side
   // rendering this route always sees the store's default (unhydrated,
@@ -1076,7 +1076,7 @@ function CustomerDashboardPage() {
     if (!found) return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-muted-foreground">
         <p>Location not found or you don't have access to it.</p>
-        <Button variant="outline" onClick={() => navigate({ to: "/customer/locations" })}><ArrowLeft className="mr-2 h-4 w-4" />Back to locations</Button>
+        <Button variant="outline" onClick={() => navigate({ to: "/c/locations" })}><ArrowLeft className="mr-2 h-4 w-4" />Back to locations</Button>
       </div>
     );
     // Found but the store hasn't caught up with the effect above yet --
@@ -1086,7 +1086,7 @@ function CustomerDashboardPage() {
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { navigate({ to: "/customer/locations" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/c/locations" }); };
 
   return (
     <div

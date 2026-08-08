@@ -22,7 +22,7 @@ import { customerFeatureHref } from "@/lib/customerNav";
 import { IspProviderIcon } from "@/components/icons/isp";
 import { LocationWizard } from "@/components/locations/LocationWizard";
 
-export const Route = createFileRoute("/customer/locations")({
+export const Route = createFileRoute("/c/locations")({
   beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
   component: CustomerHomePage,
 });

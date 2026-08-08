@@ -64,6 +64,12 @@ export const Route = createFileRoute("/_authenticated")({
     // /dashboard and saw the full internal admin nav and terminology.
     const isOperator = context.auth?.roles?.some((r) => r.scopeType === "global") ?? false;
     const isCustomerSafePath =
+      location.pathname === "/c" ||
+      location.pathname.startsWith("/c/") ||
+      // /customer/$locationId/... still exists as a backward-compat
+      // redirect for old bookmarks/shared links predating the /c rename
+      // (see customer.$locationId.dashboard.tsx et al) -- still customer-
+      // surface territory, not operator-console.
       location.pathname === "/customer" ||
       location.pathname.startsWith("/customer/") ||
       location.pathname === "/workspace" ||
@@ -71,10 +77,10 @@ export const Route = createFileRoute("/_authenticated")({
       // Not itself an operator-console page -- a generic tier picker for an
       // account with more than one org/location -- leave its own access
       // logic (multi-org support) alone rather than force everyone through
-      // /customer first.
+      // /c first.
       location.pathname === "/select-space";
     if (context.auth?.status === "authenticated" && !isOperator && !isCustomerSafePath) {
-      throw redirect({ to: "/customer" });
+      throw redirect({ to: "/c" });
     }
   },
   component: AuthenticatedLayout,

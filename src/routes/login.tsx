@@ -197,7 +197,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       toast.success(`Welcome back, ${role}!`);
       // Small delay to let AuthRouterContextSync propagate before navigation
       setTimeout(() => {
-        navigate({ to: redirect || "/customer", replace: true });
+        navigate({ to: redirect || "/c", replace: true });
       }, 50);
     } catch (err) {
       const appError = err as AppError;
@@ -220,7 +220,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       toast.success("Password set. Welcome!");
       setMustChangePasswordOpen(false);
       setTimeout(() => {
-        navigate({ to: redirect || "/customer", replace: true });
+        navigate({ to: redirect || "/c", replace: true });
       }, 50);
     } catch (err) {
       toast.error((err as AppError).message || "Could not set new password. Please try again.");
