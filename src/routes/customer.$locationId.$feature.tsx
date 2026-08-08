@@ -5,21 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +20,6 @@ import { CUSTOMER_NAVS } from "@/lib/customerNav";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
-import { ShortLinksPage } from "@/components/features/ShortLinksPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
 import { AdvancedPage } from "@/components/features/FeatureComponents";
@@ -50,22 +36,12 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
-import {
-  maskEmail,
-  maskMac,
-  maskPhone,
-  DEMO_PLAN_RENEWAL_ISO,
-} from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, maskPhone, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
-import {
-  useCustomerFeatureData,
-  useIsDemo,
-  useCustomerDashboard,
-  useCustomerUsers,
-  useDataMasking,
-} from "@/hooks/useCustomerDashboard";
+import { useCustomerFeatureData } from "@/hooks/useCustomerDashboard";
+import { useIsDemo, useCustomerDashboard, useCustomerUsers, useDataMasking } from "@/hooks/useCustomerDashboard";
 import {
   AlertsView, OpenHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
@@ -73,28 +49,12 @@ import {
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
+  ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  Wifi,
-  Users,
-  CheckCircle,
-  AlertTriangle,
-  Activity,
-  XCircle,
-  Download,
-  Quote,
+  Wifi, Users, CheckCircle,
+  AlertTriangle, Activity, XCircle, Download, Quote,
 } from "lucide-react";
 
 export const Route = createFileRoute("/customer/$locationId/$feature")({
@@ -116,10 +76,7 @@ function FeaturePage() {
   // equivalent computation happened to dodge it, but the same fragile
   // pattern -- fixed here rather than left as a footgun).
   const demoFlag = useIsDemo();
-  const billing = useMyBillingDashboard(
-    demoFlag ? undefined : activeLocation?.organizationId,
-    activeLocation?.organizationName,
-  );
+  const billing = useMyBillingDashboard(demoFlag ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
   const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
@@ -129,13 +86,8 @@ function FeaturePage() {
   const [tfaOpen, setTfaOpen] = useState(false);
 
   const handleNav = (id: string) => navigate({ to: `/customer/${locationId}/${id}` });
-  const handleLogout = async () => {
-    await logout();
-    navigate({ to: "/login", replace: true });
-  };
-  const handleSwitchLocation = () => {
-    navigate({ to: "/customer" });
-  };
+  const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
+  const handleSwitchLocation = () => { navigate({ to: "/customer" }); };
 
   return (
     <div
@@ -158,12 +110,7 @@ function FeaturePage() {
         } as React.CSSProperties
       }
     >
-      {mobile && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobile(false)}
-        />
-      )}
+      {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
       <CustomerSidebar
         activeId={feature}
         collapsed={!sidebar}
@@ -208,15 +155,9 @@ function FeaturePage() {
             {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
             {feature === "portal" && <PortalPage locationId={locationId} />}
             {feature === "vouchers" && <VouchersPage locationId={locationId} />}
-            {feature === "short-links" && <ShortLinksPage locationId={locationId} />}
             {feature === "policies" && <PoliciesHub locationId={locationId} />}
             {feature === "whitelist" && <WhiteList locationId={locationId} />}
-            {feature === "devices" && (
-              <div className="space-y-4">
-                <NetworkHardwareView locationId={locationId} />
-                <DevicesView locationId={locationId} masked={masked} />
-              </div>
-            )}
+            {feature === "devices" && <div className="space-y-4"><NetworkHardwareView locationId={locationId} /><DevicesView locationId={locationId} masked={masked} /></div>}
             {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
             {feature === "agents" && <AgentsPage locationId={locationId} />}
             {feature === "advanced" && <AdvancedPage />}
@@ -242,9 +183,7 @@ function FeaturePage() {
             {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it
                 doesn't also fall through to the generic placeholder. */}
-            {feature !== "audit" && !CUSTOMER_NAVS.some((n) => n.id === feature) && (
-              <GenericFeatureView feature={feature} />
-            )}
+            {feature !== "audit" && !CUSTOMER_NAVS.some((n) => n.id === feature) && <GenericFeatureView feature={feature} />}
           </div>
         </main>
       </div>
@@ -302,48 +241,16 @@ function DashboardWatchIllustration() {
           <stop offset="0%" stopColor="#22d3ee" />
           <stop offset="100%" stopColor="#f0abfc" />
         </linearGradient>
-        <linearGradient
-          id="watch-shield-grad"
-          x1="54"
-          y1="114"
-          x2="115"
-          y2="190"
-          gradientUnits="userSpaceOnUse"
-        >
+        <linearGradient id="watch-shield-grad" x1="54" y1="114" x2="115" y2="190" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#6366f1" />
           <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
 
-      <circle
-        cx="215"
-        cy="70"
-        r="46"
-        fill="#7c3aed"
-        opacity="0.16"
-        filter="url(#watch-illo-glow)"
-      />
+      <circle cx="215" cy="70" r="46" fill="#7c3aed" opacity="0.16" filter="url(#watch-illo-glow)" />
 
-      <rect
-        x="118"
-        y="46"
-        width="118"
-        height="80"
-        rx="10"
-        fill="#241f4d"
-        stroke="white"
-        strokeOpacity="0.12"
-        strokeWidth="1.5"
-      />
-      <rect
-        x="118"
-        y="46"
-        width="118"
-        height="80"
-        rx="10"
-        fill="url(#watch-pulse-stroke)"
-        fillOpacity="0.05"
-      />
+      <rect x="118" y="46" width="118" height="80" rx="10" fill="#241f4d" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
+      <rect x="118" y="46" width="118" height="80" rx="10" fill="url(#watch-pulse-stroke)" fillOpacity="0.05" />
       <motion.path
         d="M130 90h16l8-22 10 40 8-28 6 10h56"
         stroke="url(#watch-pulse-stroke)"
@@ -359,43 +266,16 @@ function DashboardWatchIllustration() {
       <rect x="150" y="136" width="54" height="5" rx="2.5" fill="white" fillOpacity="0.1" />
 
       <motion.g
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
-        }
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       >
         <circle cx="228" cy="54" r="13" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="2" />
-        <path
-          d="M222 54l4 4 8-8"
-          stroke="#22d3ee"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
+        <path d="M222 54l4 4 8-8" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </motion.g>
 
-      <path
-        d="M84.5 116 L112.68 127.07 V147.8 C112.68 165.69 101.25 179.6 84.5 185.5 C67.75 179.6 56.32 165.69 56.32 147.8 V127.07 Z"
-        fill="url(#watch-shield-grad)"
-      />
-      <path
-        d="M65.26 138.76a27.54 27.54 0 0 1 38.48 0"
-        stroke="#ffffff"
-        strokeWidth="5.45"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.75"
-      />
-      <path
-        d="M73.43 148.71a16.76 16.76 0 0 1 22.15 0"
-        stroke="#ffffff"
-        strokeWidth="5.45"
-        strokeLinecap="round"
-        fill="none"
-      />
+      <path d="M84.5 116 L112.68 127.07 V147.8 C112.68 165.69 101.25 179.6 84.5 185.5 C67.75 179.6 56.32 165.69 56.32 147.8 V127.07 Z" fill="url(#watch-shield-grad)" />
+      <path d="M65.26 138.76a27.54 27.54 0 0 1 38.48 0" stroke="#ffffff" strokeWidth="5.45" strokeLinecap="round" fill="none" opacity="0.75" />
+      <path d="M73.43 148.71a16.76 16.76 0 0 1 22.15 0" stroke="#ffffff" strokeWidth="5.45" strokeLinecap="round" fill="none" />
       <circle cx="84.5" cy="157.58" r="4.3" fill="#ffffff" />
 
       <g>
@@ -460,12 +340,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
   // Now: one hero (3 big numbers + a secondary stat line), one thin status
   // strip underneath, then the charts.
   const healthCards = [
-    {
-      icon: CheckCircle,
-      label: "System",
-      value: data.health.systemHealth,
-      tone: "primary" as const,
-    },
+    { icon: CheckCircle, label: "System", value: data.health.systemHealth, tone: "primary" as const },
     { icon: Wifi, label: "Routers", value: data.health.routersOnline, tone: "violet" as const },
     { icon: Activity, label: "ISP", value: data.health.isp, tone: "sky" as const },
   ];
@@ -544,15 +419,11 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
               >
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                  {k.label}
-                </p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
                 <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl sm:leading-none">
                   {k.value}
                 </p>
-                {k.context && (
-                  <p className="mt-1.5 text-xs font-medium text-white/60">{k.context}</p>
-                )}
+                {k.context && <p className="mt-1.5 text-xs font-medium text-white/60">{k.context}</p>}
               </motion.div>
             ))}
           </div>
@@ -584,9 +455,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
       {/* Status strip -- the 4 health checks as the hero's footnote, not a
        * second competing card row: one line, icon + label + value. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3.5 premium-card">
-        <p className="shrink-0 text-xs font-medium text-muted-foreground">
-          Core systems, checked continuously
-        </p>
+        <p className="shrink-0 text-xs font-medium text-muted-foreground">Core systems, checked continuously</p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {healthCards.map((h) => (
             <span key={h.label} className="inline-flex items-center gap-1.5 text-sm">
@@ -602,78 +471,68 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
        * hourlySessions all come from the same getDashboard() response
        * already fetched above, just never rendered before now. */}
       <div>
-        <p className="mb-3 text-xs font-medium text-muted-foreground">
-          Guest activity over the last 24 hours
-        </p>
+        <p className="mb-3 text-xs font-medium text-muted-foreground">Guest activity over the last 24 hours</p>
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card className={cn("premium-card premium-card-hover lg:col-span-2")}>
-            <CardHeader>
-              <CardTitle className="text-sm">Users online (last 24h)</CardTitle>
-            </CardHeader>
-            <CardContent className="h-56 pl-0">
+        <Card className={cn("premium-card premium-card-hover lg:col-span-2")}>
+          <CardHeader>
+            <CardTitle className="text-sm">Users online (last 24h)</CardTitle>
+          </CardHeader>
+          <CardContent className="h-56 pl-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.usersTrend}>
+                <defs>
+                  <linearGradient id="usersTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" vertical={false} />
+                <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+                <RechartsTooltip contentStyle={chartTooltip} />
+                <Area
+                  type="monotone"
+                  dataKey="users"
+                  stroke="#6366f1"
+                  strokeWidth={3}
+                  fill="url(#usersTrendFill)"
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        <Card className={cn("premium-card premium-card-hover")}>
+          <CardHeader>
+            <CardTitle className="text-sm">Devices</CardTitle>
+          </CardHeader>
+          <CardContent className="h-56">
+            {data.deviceDistribution.length === 0 ? (
+              <p className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
+                No device data yet.
+              </p>
+            ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.usersTrend}>
-                  <defs>
-                    <linearGradient id="usersTrendFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="var(--color-border, #e2e8f0)"
-                    vertical={false}
-                  />
-                  <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+                <PieChart>
+                  <Pie
+                    data={data.deviceDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={3}
+                    cornerRadius={6}
+                  >
+                    {data.deviceDistribution.map((_, i) => (
+                      <Cell key={i} fill={DEVICE_COLORS[i % DEVICE_COLORS.length]} stroke="none" />
+                    ))}
+                  </Pie>
                   <RechartsTooltip contentStyle={chartTooltip} />
-                  <Area
-                    type="monotone"
-                    dataKey="users"
-                    stroke="#6366f1"
-                    strokeWidth={3}
-                    fill="url(#usersTrendFill)"
-                    activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-                  />
-                </AreaChart>
+                </PieChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card className={cn("premium-card premium-card-hover")}>
-            <CardHeader>
-              <CardTitle className="text-sm">Devices</CardTitle>
-            </CardHeader>
-            <CardContent className="h-56">
-              {data.deviceDistribution.length === 0 ? (
-                <p className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
-                  No device data yet.
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={data.deviceDistribution}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={45}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      cornerRadius={6}
-                    >
-                      {data.deviceDistribution.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={DEVICE_COLORS[i % DEVICE_COLORS.length]}
-                          stroke="none"
-                        />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip contentStyle={chartTooltip} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </CardContent>
+        </Card>
         </div>
       </div>
 
@@ -685,11 +544,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
           <CardContent className="h-44 pl-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.hourlySessions}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border, #e2e8f0)"
-                  vertical={false}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" vertical={false} />
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
                 <RechartsTooltip contentStyle={chartTooltip} />
@@ -705,109 +560,94 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
       )}
 
       <div>
-        <p className="mb-3 text-xs font-medium text-muted-foreground">
-          Who's connected, and what needs your attention.
-        </p>
+        <p className="mb-3 text-xs font-medium text-muted-foreground">Who's connected, and what needs your attention.</p>
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className={cn("premium-card premium-card-hover")}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm">Recent Users</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-primary"
-                onClick={() => navigate({ to: `/customer/${locationId}/users` })}
-              >
-                All →
-              </Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              {data.recentUsers.length === 0 ? (
-                <p className="px-6 py-8 text-center text-xs text-muted-foreground">
-                  No guests have connected yet — check back once someone joins the network.
-                </p>
-              ) : (
-                <div className="divide-y">
-                  {data.recentUsers.map((u) => (
-                    <div key={u.id} className="flex items-center gap-3 px-6 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                        {u.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase() || "?"}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{u.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {u.email ? (masked ? maskEmail(u.email) : u.email) : u.time}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          "inline-flex shrink-0 items-center gap-1 text-xs font-medium",
-                          u.status === "online" ? "text-emerald-500" : "text-muted-foreground",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full",
-                            u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground",
-                          )}
-                        />
-                        {u.status}
-                      </span>
+        <Card className={cn("premium-card premium-card-hover")}>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm">Recent Users</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-primary"
+              onClick={() => navigate({ to: `/customer/${locationId}/users` })}
+            >
+              All →
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {data.recentUsers.length === 0 ? (
+              <p className="px-6 py-8 text-center text-xs text-muted-foreground">
+                No guests have connected yet — check back once someone joins the network.
+              </p>
+            ) : (
+              <div className="divide-y">
+                {data.recentUsers.map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 px-6 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {u.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "?"}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <Card className={cn("premium-card premium-card-hover")}>
-            <CardHeader>
-              <CardTitle className="text-sm">Alerts</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 p-3">
-              {data.recentAlerts.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">No recent alerts.</p>
-              ) : (
-                data.recentAlerts.map((a, i) => {
-                  const border =
-                    a.type === "error"
-                      ? "border-rose-500"
-                      : a.type === "warning"
-                        ? "border-amber-500"
-                        : a.type === "success"
-                          ? "border-emerald-500"
-                          : "border-sky-500";
-                  return (
-                    <div
-                      key={i}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{u.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{u.email ? (masked ? maskEmail(u.email) : u.email) : u.time}</p>
+                    </div>
+                    <span
                       className={cn(
-                        "flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3",
-                        border,
+                        "inline-flex shrink-0 items-center gap-1 text-xs font-medium",
+                        u.status === "online" ? "text-emerald-500" : "text-muted-foreground",
                       )}
                     >
-                      {a.type === "error" ? (
-                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                      ) : a.type === "warning" ? (
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                      ) : a.type === "success" ? (
-                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                      ) : (
-                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm">{a.msg}</p>
-                        <p className="text-xs text-muted-foreground">{a.time}</p>
-                      </div>
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground",
+                        )}
+                      />
+                      {u.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card className={cn("premium-card premium-card-hover")}>
+          <CardHeader>
+            <CardTitle className="text-sm">Alerts</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 p-3">
+            {data.recentAlerts.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">No recent alerts.</p>
+            ) : (
+              data.recentAlerts.map((a, i) => {
+                const border =
+                  a.type === "error"
+                    ? "border-rose-500"
+                    : a.type === "warning"
+                      ? "border-amber-500"
+                      : a.type === "success"
+                        ? "border-emerald-500"
+                        : "border-sky-500";
+                return (
+                  <div key={i} className={cn("flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3", border)}>
+                    {a.type === "error" ? (
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                    ) : a.type === "warning" ? (
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                    ) : a.type === "success" ? (
+                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                    ) : (
+                      <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm">{a.msg}</p>
+                      <p className="text-xs text-muted-foreground">{a.time}</p>
                     </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
         </div>
       </div>
     </div>
@@ -880,24 +720,12 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs font-medium uppercase tracking-wide">
-                    User
-                  </TableHead>
-                  <TableHead className="hidden text-xs font-medium uppercase tracking-wide sm:table-cell">
-                    Phone
-                  </TableHead>
-                  <TableHead className="hidden text-xs font-medium uppercase tracking-wide sm:table-cell">
-                    MAC
-                  </TableHead>
-                  <TableHead className="text-xs font-medium uppercase tracking-wide">
-                    Duration
-                  </TableHead>
-                  <TableHead className="text-xs font-medium uppercase tracking-wide">
-                    Download
-                  </TableHead>
-                  <TableHead className="text-xs font-medium uppercase tracking-wide">
-                    Status
-                  </TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead>
+                  <TableHead className="hidden text-xs font-medium uppercase tracking-wide sm:table-cell">Phone</TableHead>
+                  <TableHead className="hidden text-xs font-medium uppercase tracking-wide sm:table-cell">MAC</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">Download</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -905,16 +733,10 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
                   <TableRow key={u.id} className="border-b">
                     <TableCell>
                       <p className="text-sm font-medium">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {masked ? maskEmail(u.email) : u.email}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p>
                     </TableCell>
-                    <TableCell className="hidden text-xs sm:table-cell">
-                      {masked ? maskPhone(u.phone) : u.phone}
-                    </TableCell>
-                    <TableCell className="hidden font-mono text-xs sm:table-cell">
-                      {masked ? maskMac(u.mac) : u.mac}
-                    </TableCell>
+                    <TableCell className="hidden text-xs sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
+                    <TableCell className="hidden font-mono text-xs sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
                     <TableCell className="text-xs">{u.duration}</TableCell>
                     <TableCell className="text-xs">{u.download}</TableCell>
                     <TableCell>
@@ -979,51 +801,15 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
 
 // ── Reports ───────────────────────────────────────────────
 function ReportsView() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[
-        { n: "Guest Report" },
-        { n: "Bandwidth Report" },
-        { n: "Revenue Report" },
-        { n: "Router Report" },
-        { n: "Voucher Report" },
-        { n: "Portal Report" },
-      ].map((r) => (
-        <Card key={r.n} className="premium-card premium-card-hover cursor-pointer">
-          <CardContent className="p-5">
-            <p className="font-semibold">{r.n}</p>
-            <p className="text-xs text-muted-foreground mt-1">Last generated 3d ago</p>
-            <div className="flex gap-2 mt-3">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => toast.success(`${r.n} exported`)}
-              >
-                PDF
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => toast.success(`${r.n} exported`)}
-              >
-                CSV
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+  return (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[{n:"Guest Report"},{n:"Bandwidth Report"},{n:"Revenue Report"},{n:"Router Report"},{n:"Voucher Report"},{n:"Portal Report"}].map(r=>(<Card key={r.n} className="premium-card premium-card-hover cursor-pointer"><CardContent className="p-5"><p className="font-semibold">{r.n}</p><p className="text-xs text-muted-foreground mt-1">Last generated 3d ago</p><div className="flex gap-2 mt-3"><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>PDF</Button><Button size="sm" variant="outline" className="h-8 text-xs" onClick={()=>toast.success(`${r.n} exported`)}>CSV</Button></div></CardContent></Card>))}</div>);
 }
 
 // ── Devices ───────────────────────────────────────────────
 const DEMO_DEVICES = [
-  { m: "00:1A:2B:3C:4D:5E", i: "10.0.1.42", d: "iPhone 15", fs: "Today", ls: "Just now" },
-  { m: "AA:BB:CC:DD:EE:FF", i: "10.0.1.87", d: "MacBook Pro", fs: "Yesterday", ls: "2 min ago" },
-  { m: "11:22:33:44:55:66", i: "10.0.2.15", d: "Galaxy S24", fs: "Today", ls: "5 min ago" },
-  { m: "AB:CD:EF:01:23:45", i: "10.0.2.34", d: "iPad Air", fs: "2 days ago", ls: "1 hour ago" },
+  {m:"00:1A:2B:3C:4D:5E",i:"10.0.1.42",d:"iPhone 15",fs:"Today",ls:"Just now"},
+  {m:"AA:BB:CC:DD:EE:FF",i:"10.0.1.87",d:"MacBook Pro",fs:"Yesterday",ls:"2 min ago"},
+  {m:"11:22:33:44:55:66",i:"10.0.2.15",d:"Galaxy S24",fs:"Today",ls:"5 min ago"},
+  {m:"AB:CD:EF:01:23:45",i:"10.0.2.34",d:"iPad Air",fs:"2 days ago",ls:"1 hour ago"},
 ];
 
 function ConnectedDevicesIllustration() {
@@ -1035,58 +821,23 @@ function ConnectedDevicesIllustration() {
     { x: 70, y: 36, color: "#22d3ee" },
   ];
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 46"
-      className="hidden h-11 w-auto shrink-0 sm:block"
-      fill="none"
-    >
+    <svg aria-hidden="true" viewBox="0 0 84 46" className="hidden h-11 w-auto shrink-0 sm:block" fill="none">
       {nodes.map((n, i) => (
-        <motion.line
-          key={i}
-          x1="42"
-          y1="23"
-          x2={n.x}
-          y2={n.y}
-          stroke={n.color}
-          strokeOpacity="0.5"
-          strokeWidth="1.4"
-          strokeDasharray="1 4"
-          strokeLinecap="round"
+        <motion.line key={i} x1="42" y1="23" x2={n.x} y2={n.y}
+          stroke={n.color} strokeOpacity="0.5" strokeWidth="1.4" strokeDasharray="1 4" strokeLinecap="round"
           initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 * i, ease: "easeOut" }}
-        />
+          transition={{ duration: 0.5, delay: 0.1 * i, ease: "easeOut" }} />
       ))}
       {nodes.map((n, i) => (
         <g key={i} transform={`translate(${n.x}, ${n.y})`}>
-          <rect
-            x="-6"
-            y="-5"
-            width="12"
-            height="10"
-            rx="2.5"
-            fill="#2e2a5c"
-            stroke={n.color}
-            strokeWidth="1.3"
-          />
+          <rect x="-6" y="-5" width="12" height="10" rx="2.5" fill="#2e2a5c" stroke={n.color} strokeWidth="1.3" />
           <circle cx="0" cy="0" r="1.4" fill={n.color} />
         </g>
       ))}
-      <motion.circle
-        cx="42"
-        cy="23"
-        r="9"
-        fill="#1e1b4b"
-        stroke="#6C4EFF"
-        strokeWidth="2"
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.3, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
+      <motion.circle cx="42" cy="23" r="9" fill="#1e1b4b" stroke="#6C4EFF" strokeWidth="2"
+        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
+        transition={shouldReduceMotion ? undefined : { duration: 2.3, repeat: Infinity, ease: "easeInOut" }} />
       <path d="M38 23h8M42 19v8" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
@@ -1095,11 +846,7 @@ function ConnectedDevicesIllustration() {
 function DevicesView({ locationId, masked }: { locationId: string; masked: boolean }) {
   const { data, isLoading } = useCustomerFeatureData("devices", locationId);
   const demo = useIsDemo();
-  const devices = data?.devices?.length
-    ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen }))
-    : demo
-      ? DEMO_DEVICES
-      : [];
+  const devices = data?.devices?.length ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen })) : (demo ? DEMO_DEVICES : []);
   return (
     <Card className="premium-card premium-card-hover">
       <CardHeader className="flex flex-row items-center justify-between gap-2.5 space-y-0">
@@ -1113,41 +860,15 @@ function DevicesView({ locationId, masked }: { locationId: string; masked: boole
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
-          <div className="p-4">
-            <LoadingSkeleton rows={4} />
-          </div>
+          <div className="p-4"><LoadingSkeleton rows={4} /></div>
         ) : devices.length === 0 ? (
-          <EmptyState
-            icon={Wifi}
-            title="No connected devices yet"
-            description="Devices that connect to this location's network will show up here."
-          />
+          <EmptyState icon={Wifi} title="No connected devices yet" description="Devices that connect to this location's network will show up here." />
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">MAC</TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">IP</TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  Device
-                </TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  First Seen
-                </TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  Last Seen
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">IP</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">First Seen</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Last Seen</TableHead></TableRow></TableHeader>
             <TableBody>
               {devices.map((d) => (
-                <TableRow key={d.m} className="border-b">
-                  <TableCell className="font-mono text-xs">{masked ? maskMac(d.m) : d.m}</TableCell>
-                  <TableCell className="font-mono text-xs">{d.i}</TableCell>
-                  <TableCell>{d.d}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell>
-                </TableRow>
+                <TableRow key={d.m} className="border-b"><TableCell className="font-mono text-xs">{masked ? maskMac(d.m) : d.m}</TableCell><TableCell className="font-mono text-xs">{d.i}</TableCell><TableCell>{d.d}</TableCell><TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell><TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell></TableRow>
               ))}
             </TableBody>
           </Table>
@@ -1156,3 +877,4 @@ function DevicesView({ locationId, masked }: { locationId: string; masked: boole
     </Card>
   );
 }
+

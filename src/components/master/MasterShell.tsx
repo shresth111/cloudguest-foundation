@@ -1,25 +1,9 @@
 import { useState, type ComponentType } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutGrid,
-  Building2,
-  MapPin,
-  CreditCard,
-  Server,
-  Router,
-  LineChart,
-  Activity,
-  LifeBuoy,
-  ScrollText,
-  Settings,
-  Sun,
-  Moon,
-  LogOut,
-  Menu,
-  X,
-  TerminalSquare,
-  CalendarClock,
-  Link2,
+  LayoutGrid, Building2, MapPin, CreditCard, Server, Router, LineChart,
+  Activity, LifeBuoy, ScrollText, Settings, Sun, Moon, LogOut, Menu, X,
+  TerminalSquare, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -41,17 +25,11 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/billing", label: "Subscriptions & Billing", icon: CreditCard, cap: "billing" },
   { to: "/master/nas", label: "NAS / RADIUS", icon: Server, cap: "nas" },
   { to: "/master/routers", label: "Router Fleet", icon: Router, cap: "routers" },
-  { to: "/master/short-links", label: "Short Links", icon: Link2, cap: "short-links" },
   { to: "/master/console", label: "Device Console", icon: TerminalSquare, cap: "console" },
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
   { to: "/master/tickets", label: "Support Tickets", icon: LifeBuoy, cap: "tickets" },
-  {
-    to: "/master/demo-requests",
-    label: "Demo Requests",
-    icon: CalendarClock,
-    cap: "demo-requests",
-  },
+  { to: "/master/demo-requests", label: "Demo Requests", icon: CalendarClock, cap: "demo-requests" },
   { to: "/master/audit", label: "Audit Logs", icon: ScrollText, cap: "audit" },
   { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
 ];
@@ -85,7 +63,6 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   billing: ["billing.read"],
   nas: ["radius.read"],
   routers: ["routers.read"],
-  "short-links": ["url_shortener.read"],
   console: ["device_console.read", "device_console.execute"],
   analytics: ["analytics.read", "analytics.view"],
   health: ["monitoring.read", "monitoring.view"],
@@ -96,7 +73,6 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   "billing.edit": ["billing.update", "billing.manage"],
   "router.control": ["routers.execute", "routers.manage"],
   "nas.generate": ["radius.execute", "radius.manage"],
-  "short-links.moderate": ["url_shortener.delete", "url_shortener.manage"],
   impersonate: ["users.manage"],
 };
 
@@ -132,22 +108,13 @@ export function MasterShell({ title, children }: { title: string; children: Reac
   const [menu, setMenu] = useState(false);
 
   const nav = MASTER_NAV.filter((n) => !n.cap || caps.has(n.cap));
-  const isActive = (to: string) =>
-    to === "/master" ? pathname === "/master" : pathname.startsWith(to);
-  const handleLogout = async () => {
-    await logout();
-    navigate({ to: "/master-login", replace: true });
-  };
+  const isActive = (to: string) => (to === "/master" ? pathname === "/master" : pathname.startsWith(to));
+  const handleLogout = async () => { await logout(); navigate({ to: "/master-login", replace: true }); };
 
   return (
     <div className={cn("master-theme", dark && "dark")}>
       <div className="flex min-h-screen bg-background text-foreground">
-        {mobile && (
-          <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-            onClick={() => setMobile(false)}
-          />
-        )}
+        {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
 
         {/* Sidebar */}
         <aside
@@ -164,9 +131,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
               <p className="text-sm font-semibold tracking-tight">Wyfy Guest</p>
               <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
             </div>
-            <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}>
-              <X className="h-5 w-5" />
-            </button>
+            <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}><X className="h-5 w-5" /></button>
           </div>
           <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
             {nav.map((item) => {
@@ -198,9 +163,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
         {/* Main */}
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
-            <button className="lg:hidden" onClick={() => setMobile(true)}>
-              <Menu className="h-5 w-5" />
-            </button>
+            <button className="lg:hidden" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
             <h1 className="text-base font-semibold tracking-tight">{title}</h1>
             <div className="ml-auto flex items-center gap-1.5">
               <MasterSearch />
@@ -218,26 +181,17 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                 {dark ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
               </button>
               <div className="relative">
-                <button
-                  onClick={() => setMenu((m) => !m)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm"
-                >
-                  {user?.firstName?.[0] ?? "S"}
-                  {user?.lastName?.[0] ?? "A"}
+                <button onClick={() => setMenu((m) => !m)} className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
+                  {(user?.firstName?.[0] ?? "S")}{(user?.lastName?.[0] ?? "A")}
                 </button>
                 {menu && (
                   <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1 shadow-lg">
                     <div className="px-3 py-2">
                       <p className="text-sm font-semibold">{user?.name ?? "Super Admin"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {user?.email ?? "operator@cloudguest.io"}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{user?.email ?? "operator@cloudguest.io"}</p>
                     </div>
                     <div className="my-1 border-t border-border" />
-                    <button
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-accent"
-                    >
+                    <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-accent">
                       <LogOut className="h-4 w-4" /> Sign out
                     </button>
                   </div>

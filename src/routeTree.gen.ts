@@ -38,7 +38,6 @@ import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
-import { Route as MasterShortLinksRouteImport } from './routes/master.short-links'
 import { Route as MasterSettingsRouteImport } from './routes/master.settings'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
 import { Route as MasterNasRouteImport } from './routes/master.nas'
@@ -293,11 +292,6 @@ const PortalAuthRoute = PortalAuthRouteImport.update({
 const MasterTicketsRoute = MasterTicketsRouteImport.update({
   id: '/tickets',
   path: '/tickets',
-  getParentRoute: () => MasterRoute,
-} as any)
-const MasterShortLinksRoute = MasterShortLinksRouteImport.update({
-  id: '/short-links',
-  path: '/short-links',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterSettingsRoute = MasterSettingsRouteImport.update({
@@ -967,7 +961,6 @@ export interface FileRoutesByFullPath {
   '/master/nas': typeof MasterNasRoute
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
-  '/master/short-links': typeof MasterShortLinksRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
@@ -1105,7 +1098,6 @@ export interface FileRoutesByTo {
   '/master/nas': typeof MasterNasRoute
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
-  '/master/short-links': typeof MasterShortLinksRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1247,7 +1239,6 @@ export interface FileRoutesById {
   '/master/nas': typeof MasterNasRoute
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
-  '/master/short-links': typeof MasterShortLinksRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
@@ -1391,7 +1382,6 @@ export interface FileRouteTypes {
     | '/master/nas'
     | '/master/routers'
     | '/master/settings'
-    | '/master/short-links'
     | '/master/tickets'
     | '/portal/auth'
     | '/portal/closed'
@@ -1529,7 +1519,6 @@ export interface FileRouteTypes {
     | '/master/nas'
     | '/master/routers'
     | '/master/settings'
-    | '/master/short-links'
     | '/master/tickets'
     | '/portal/closed'
     | '/portal/expired'
@@ -1670,7 +1659,6 @@ export interface FileRouteTypes {
     | '/master/nas'
     | '/master/routers'
     | '/master/settings'
-    | '/master/short-links'
     | '/master/tickets'
     | '/portal/auth'
     | '/portal/closed'
@@ -2005,13 +1993,6 @@ declare module '@tanstack/react-router' {
       path: '/tickets'
       fullPath: '/master/tickets'
       preLoaderRoute: typeof MasterTicketsRouteImport
-      parentRoute: typeof MasterRoute
-    }
-    '/master/short-links': {
-      id: '/master/short-links'
-      path: '/short-links'
-      fullPath: '/master/short-links'
-      preLoaderRoute: typeof MasterShortLinksRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/settings': {
@@ -3064,7 +3045,6 @@ interface MasterRouteChildren {
   MasterNasRoute: typeof MasterNasRoute
   MasterRoutersRoute: typeof MasterRoutersRoute
   MasterSettingsRoute: typeof MasterSettingsRoute
-  MasterShortLinksRoute: typeof MasterShortLinksRoute
   MasterTicketsRoute: typeof MasterTicketsRoute
   MasterIndexRoute: typeof MasterIndexRoute
 }
@@ -3081,7 +3061,6 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterNasRoute: MasterNasRoute,
   MasterRoutersRoute: MasterRoutersRoute,
   MasterSettingsRoute: MasterSettingsRoute,
-  MasterShortLinksRoute: MasterShortLinksRoute,
   MasterTicketsRoute: MasterTicketsRoute,
   MasterIndexRoute: MasterIndexRoute,
 }

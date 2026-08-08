@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Fingerprint, Sun, Monitor, UsersRound, Bot, Network, Wifi,
   Server, Share2, Signal, Globe, Settings2,
-  ScrollText, LifeBuoy, Link2,
+  ScrollText, LifeBuoy,
 } from "lucide-react";
 
 export interface FeatureDef {
@@ -36,7 +36,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "campaigns", label: "Campaigns", icon: Megaphone },
       { id: "portal", label: "Portal", icon: Palette },
       { id: "vouchers", label: "Vouchers", icon: Ticket },
-      { id: "short-links", label: "Short Links", icon: Link2 },
     ],
   },
   {
