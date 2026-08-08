@@ -77,10 +77,10 @@ export const Route = createFileRoute("/_authenticated")({
       // Not itself an operator-console page -- a generic tier picker for an
       // account with more than one org/location -- leave its own access
       // logic (multi-org support) alone rather than force everyone through
-      // /c first.
+      // "/" first.
       location.pathname === "/select-space";
     if (context.auth?.status === "authenticated" && !isOperator && !isCustomerSafePath) {
-      throw redirect({ to: "/c" });
+      throw redirect({ to: "/" });
     }
   },
   component: AuthenticatedLayout,

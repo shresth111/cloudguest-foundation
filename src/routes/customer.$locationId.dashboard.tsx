@@ -33,6 +33,6 @@ export const Route = createFileRoute("/customer/$locationId/dashboard")({
       throw redirect({ to: "/c/locations" });
     }
     useCustomerStore.getState().setActiveLocation(resolved.id, resolved);
-    throw redirect({ to: "/c" });
+    throw redirect({ to: "/" });
   },
 });

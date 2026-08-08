@@ -23,8 +23,6 @@ import { useCustomerDashboard, useCustomerLocations, useCustomerUsers, useIsDemo
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, ReferenceLine } from "recharts";
-import { requireCustomerSession } from "@/lib/authGuards";
-import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { ispService } from "@/services/isp.service";
 import type { AppError } from "@/services/api";
@@ -1003,30 +1001,34 @@ function DashboardWatchIllustration() {
   );
 }
 
+// /c itself is now just a compat redirect to the bare "/" root -- see
+// index.tsx's own doc comment: the dashboard now renders in place at "/"
+// (the same route that already shows the sign-in form to an anonymous
+// visitor, in-place, no separate /login redirect), one fewer path segment
+// for the app's single most-visited page. Kept as a real route (not
+// deleted) purely so a link/bookmark to /c from the brief window it was
+// the real dashboard URL still lands somewhere real.
 export const Route = createFileRoute("/c/")({
-  // activeLocationId lives in useCustomerStore, a zustand `persist` store
-  // hydrated from localStorage -- only available client-side. Server-side
-  // rendering this route always sees the store's default (unhydrated,
-  // empty) state, so requireActiveLocationId() would incorrectly bounce
-  // every request to /customer regardless of whether the browser actually
-  // has a real active location. Same reasoning as _authenticated.tsx/
-  // master.tsx/agent.tsx's own `ssr: false`.
-  ssr: false,
-  beforeLoad: ({ context, location }) => {
-    requireCustomerSession(context.auth, location);
-    requireActiveLocationId();
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
   },
-  component: CustomerDashboardPage,
 });
 
-function CustomerDashboardPage() {
+/** The real customer dashboard, rendered both at the bare "/" root
+ * (index.tsx, the normal path for an authenticated customer) and as the
+ * redirect target every "/c" alias above ultimately resolves to. Kept in
+ * this file (not moved) so its ~1000 lines of dashboard logic have one
+ * home; index.tsx just imports and renders it once its own auth/location
+ * guards pass. */
+export function CustomerDashboardPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation, activeLocationId, setActiveLocation } = useCustomerStore();
-  // beforeLoad's requireActiveLocationId() already guarantees this is set
-  // before the component ever mounts -- non-null assertion documents that
-  // invariant rather than threading an unnecessary undefined check through
-  // every hook call below that expects a plain string.
+  // index.tsx (this component's only real caller now) already guarantees
+  // activeLocationId is set before rendering this -- non-null assertion
+  // documents that invariant rather than threading an unnecessary
+  // undefined check through every hook call below that expects a plain
+  // string.
   const locationId = activeLocationId!;
   const { data: d, isLoading, refetch } = useCustomerDashboard(locationId);
   const { data: uData } = useCustomerUsers(locationId, { page: 1, pageSize: 6 });
