@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 
 import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
+import { ShortLinksPage } from "@/components/features/ShortLinksPage";
 import { PortalPage } from "@/components/features/PortalPage";
 import PoliciesHub from "@/components/features/PoliciesHub";
 import { AdvancedPage } from "@/components/features/FeatureComponents";
@@ -22,11 +23,18 @@ import {
   DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import {
-  BasicDashboardView, BasicUsersView, BasicDevicesView, BasicAuditView, NetworkHardwareView,
+  BasicDashboardView,
+  BasicUsersView,
+  BasicDevicesView,
+  BasicAuditView,
+  NetworkHardwareView,
 } from "@/components/customer/BasicFeatureViews";
 
 export {
-  FEATURE_GROUPS, ALL_FEATURES, FEATURE_BY_ID, CORE_FEATURE_IDS,
+  FEATURE_GROUPS,
+  ALL_FEATURES,
+  FEATURE_BY_ID,
+  CORE_FEATURE_IDS,
 } from "@/config/customerFeatureCatalog";
 export type { FeatureDef } from "@/config/customerFeatureCatalog";
 
@@ -37,7 +45,10 @@ export type { FeatureDef } from "@/config/customerFeatureCatalog";
  * guest PII (email/phone) so the switch has a real, visible effect on the
  * `/agent` staff-preview dashboard that renders through here. Omitted
  * (`undefined`) callers get each view's own safer-by-default fallback. */
-export function renderFeature(id: string, ctx: { locationId?: string; masked?: boolean } = {}): ReactNode {
+export function renderFeature(
+  id: string,
+  ctx: { locationId?: string; masked?: boolean } = {},
+): ReactNode {
   switch (id) {
     case "dashboard": return <BasicDashboardView locationId={ctx.locationId} masked={ctx.masked} />;
     case "users": return <BasicUsersView masked={ctx.masked} />;
@@ -48,6 +59,7 @@ export function renderFeature(id: string, ctx: { locationId?: string; masked?: b
     case "campaigns": return <CampaignsPage locationId={ctx.locationId} />;
     case "portal": return <PortalPage locationId={ctx.locationId} />;
     case "vouchers": return <VouchersPage locationId={ctx.locationId} />;
+    case "short-links": return <ShortLinksPage locationId={ctx.locationId} />;
     case "policies": return <PoliciesHub locationId={ctx.locationId} />;
     case "whitelist": return <WhiteList locationId={ctx.locationId} />;
     case "teams": return <ManageTeamsPage locationId={ctx.locationId} />;
