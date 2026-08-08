@@ -101,12 +101,27 @@ function clearSession() {
   window.localStorage.removeItem(USER_STORAGE_KEY);
 }
 
+// Pages that already show (or lead straight to) a sign-in form with no
+// session to have expired -- an unauthenticated request firing from one of
+// these (a shared layout component polling something on mount regardless
+// of auth state, say) is not "your session just expired", it's "you were
+// never logged in yet, which this page already correctly reflects".
+// Routing that through /session-expired anyway produced a live, reported
+// bug: landing on /login, some background call 401s, clearSession() +
+// goToSessionExpired() fires, capturing window.location.pathname (= "/login"
+// itself) as the ?redirect= value, landing on
+// /session-expired?redirect=%2Flogin -- whose own "Return to sign in"
+// button then read that same value back out and navigated to
+// /login?redirect=%2Flogin, a URL with a self-referential redirect that
+// (while not an infinite loop -- nothing re-triggers it on its own)
+// visibly makes no sense and was reported live as exactly that URL.
+const NO_SESSION_TO_EXPIRE_PREFIXES = ["/session-expired", "/login", "/master-login"];
+
 function goToSessionExpired() {
   if (typeof window === "undefined") return;
-  if (!window.location.pathname.startsWith("/session-expired")) {
-    const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.replace(`/session-expired?redirect=${redirect}`);
-  }
+  if (NO_SESSION_TO_EXPIRE_PREFIXES.some((p) => window.location.pathname.startsWith(p))) return;
+  const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.replace(`/session-expired?redirect=${redirect}`);
 }
 
 let refreshPromise: Promise<string | null> | null = null;

@@ -32,6 +32,11 @@ function SessionExpiredPage() {
   // expiring sends you back to *that* surface's own sign-in, not always
   // the customer one.
   const signInTarget = redirect?.startsWith("/master") ? "/master-login" : "/login";
+  // Defensive, on top of api.ts's goToSessionExpired() no longer producing
+  // this itself: never forward a `redirect` that already points back at a
+  // sign-in page (a self-referential ?redirect= from a stale link, or any
+  // other path that ends up here) as *this* page's own redirect target.
+  const safeRedirect = redirect === "/login" || redirect === "/master-login" ? undefined : redirect;
 
   return (
     // Full-bleed moment, not a split hero+form -- this is a brief
@@ -116,7 +121,7 @@ function SessionExpiredPage() {
         >
           <Button
             className="h-11 w-full bg-white text-sm font-semibold text-[#1e1b4b] shadow-lg shadow-black/20 hover:bg-white/90"
-            onClick={() => navigate({ to: signInTarget, search: { redirect }, replace: true })}
+            onClick={() => navigate({ to: signInTarget, search: { redirect: safeRedirect }, replace: true })}
           >
             Return to sign in
           </Button>
