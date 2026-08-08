@@ -147,23 +147,34 @@ export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGr
     .filter((g) => g.items.length > 0);
 }
 
-/** Builds the short, location-id-free URL for a customer nav item id.
- * `dashboard` lives at the bare app root ("/", see index.tsx -- the same
- * route that shows the sign-in form in place for an anonymous visitor now
- * also renders the real dashboard in place for an authenticated one,
- * rather than redirecting to a sub-path). `users` has its own dedicated
- * route; everything else falls through to the generic `/c/$feature`
- * route. `/c` (not `/customer`) is the customer surface's namespace
- * prefix for those -- kept as short as possible without colliding with
- * the pre-existing `/dashboard`/`/locations`/`/routers` legacy
- * operator-shell routes (see `_authenticated.tsx`'s own comment on why
- * that shell still exists) or `/master`/`/workspace`'s own prefixes.
- * Single source of truth for this mapping so the dashboard, users, and
- * feature pages (and the old `/customer/...`/`/customer/$locationId/...`
- * compat redirects) can't drift apart on where a given nav id actually
- * lives. */
+/** The only 4 customer feature ids whose bare name is already owned by
+ * something else in this app, checked exhaustively against every
+ * registered top-level route (see routeTree.gen.ts) before picking these:
+ * - `dashboard` -- `_authenticated/dashboard.tsx` (legacy operator shell)
+ * - `campaigns` -- `_authenticated/campaigns.index.tsx` (same shell)
+ * - `vouchers` -- `_authenticated/vouchers.index.tsx` (same shell)
+ * - `portal` -- `portal.tsx` (the actual guest-facing captive portal --
+ *   this one's a real naming clash in meaning too, not just the URL)
+ * `dashboard` gets the bare root ("/", see index.tsx) since it's the
+ * single most-visited page and the root route already had an "anonymous
+ * visitor sees the sign-in form in place" pattern to extend. The other
+ * three get a `guest-` prefix, which doubles as a legitimately clearer
+ * name (this *is* configuring what a guest sees). Every other feature id
+ * checked clean against the full route table and gets its bare name
+ * directly -- no shared namespace prefix needed for any of them (an
+ * earlier `/c/*` prefix approach was replaced by this per-route mapping
+ * once it turned out only these 4 ids actually needed one). */
+const RESERVED_FEATURE_HREFS: Record<string, string> = {
+  dashboard: "/",
+  campaigns: "/guest-campaigns",
+  portal: "/guest-portal",
+  vouchers: "/guest-vouchers",
+};
+
+/** Builds the location-id-free URL for a customer nav item id -- single
+ * source of truth for this mapping so the dashboard, every feature page,
+ * and the old `/customer/...`/`/customer/$locationId/...`/`/c/...` compat
+ * redirects can't drift apart on where a given nav id actually lives. */
 export function customerFeatureHref(id: string): string {
-  if (id === "dashboard") return "/";
-  if (id === "users") return "/users";
-  return `/c/${id}`;
+  return RESERVED_FEATURE_HREFS[id] ?? `/${id}`;
 }

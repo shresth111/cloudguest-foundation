@@ -30,7 +30,7 @@ export const Route = createFileRoute("/customer/$locationId/dashboard")({
     requireCustomerSession(context.auth, location);
     const resolved = await resolveCustomerLocationById(context.queryClient, params.locationId);
     if (!resolved) {
-      throw redirect({ to: "/c/locations" });
+      throw redirect({ to: "/switch-location" });
     }
     useCustomerStore.getState().setActiveLocation(resolved.id, resolved);
     throw redirect({ to: "/" });

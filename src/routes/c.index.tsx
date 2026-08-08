@@ -1078,7 +1078,7 @@ export function CustomerDashboardPage() {
     if (!found) return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-muted-foreground">
         <p>Location not found or you don't have access to it.</p>
-        <Button variant="outline" onClick={() => navigate({ to: "/c/locations" })}><ArrowLeft className="mr-2 h-4 w-4" />Back to locations</Button>
+        <Button variant="outline" onClick={() => navigate({ to: "/switch-location" })}><ArrowLeft className="mr-2 h-4 w-4" />Back to locations</Button>
       </div>
     );
     // Found but the store hasn't caught up with the effect above yet --
@@ -1088,7 +1088,7 @@ export function CustomerDashboardPage() {
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { navigate({ to: "/c/locations" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/switch-location" }); };
 
   return (
     <div

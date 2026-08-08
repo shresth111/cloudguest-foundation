@@ -64,7 +64,7 @@ function IndexRedirect() {
       return;
     }
     if (!activeLocationId) {
-      navigate({ to: "/c/locations", replace: true });
+      navigate({ to: "/switch-location", replace: true });
     }
   }, [isReady, isAuthenticated, user, isMaster, activeLocationId, navigate]);
 

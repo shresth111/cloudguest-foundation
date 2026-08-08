@@ -104,7 +104,7 @@ function CustomerUsersPage() {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { navigate({ to: "/c/locations" }); };
+  const handleSwitchLocation = () => { navigate({ to: "/switch-location" }); };
 
   return (
     <div

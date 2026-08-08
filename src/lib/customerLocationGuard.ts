@@ -5,8 +5,9 @@ import { customerService, type CustomerLocationSummary } from "@/services/custom
 import { customerKeys } from "@/hooks/useCustomerDashboard";
 
 /**
- * `beforeLoad` guard for the short, location-id-free customer routes
- * (`/c`, `/c/users`, `/c/$feature`) -- mirrors `requireCustomerSession`'s
+ * `beforeLoad` guard for every location-id-free customer route (the bare
+ * "/" dashboard, "/users", and each individual feature page like
+ * "reports.tsx"/"alerts.tsx"/etc.) -- mirrors `requireCustomerSession`'s
  * (`src/lib/authGuards.ts`) "throw redirect() from beforeLoad" shape, but
  * for location context instead of auth. `activeLocationId` lives in
  * `useCustomerStore`, a plain Zustand store (persisted to localStorage),
@@ -15,14 +16,14 @@ import { customerKeys } from "@/hooks/useCustomerDashboard";
  * component, before anything renders.
  *
  * A visitor with no active location (first login before the picker has
- * ever run, or a cleared/expired store) gets bounced to `/c/locations`,
+ * ever run, or a cleared/expired store) gets bounced to `/switch-location`,
  * the location picker, instead of rendering a page with no location to
  * scope its data to.
  */
 export function requireActiveLocationId(): string {
   const { activeLocationId } = useCustomerStore.getState();
   if (!activeLocationId) {
-    throw redirect({ to: "/c/locations" });
+    throw redirect({ to: "/switch-location" });
   }
   return activeLocationId;
 }
@@ -32,10 +33,10 @@ export function requireActiveLocationId(): string {
  * `/customer/...`/`/customer/$locationId/...` routes' backward-compat
  * redirect (an existing bookmark or shared link) -- `setActiveLocation`
  * needs the full summary object, not just the id (the picker at
- * `/c/locations` stores both, see `c.locations.tsx`'s own `handleSelect`),
- * so a direct-hit on a long URL has to fetch the same location list the
- * picker already fetches, rather than trusting only the id fragment out
- * of the URL.
+ * `/switch-location` stores both, see `switch-location.tsx`'s own
+ * `handleSelect`), so a direct-hit on a long URL has to fetch the same
+ * location list the picker already fetches, rather than trusting only the
+ * id fragment out of the URL.
  *
  * Goes through `queryClient.ensureQueryData` with the exact same query key
  * `useCustomerLocations()` uses (`customerKeys.locations`), so a redirect
