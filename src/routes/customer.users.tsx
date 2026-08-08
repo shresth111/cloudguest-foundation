@@ -55,6 +55,10 @@ function UsersEmptyState({ label }: { label: string }) {
 }
 
 export const Route = createFileRoute("/customer/users")({
+  // See customer.dashboard.tsx's identical comment: activeLocationId only
+  // hydrates from localStorage client-side, so this guard must not run
+  // during SSR.
+  ssr: false,
   beforeLoad: ({ context, location }) => {
     requireCustomerSession(context.auth, location);
     requireActiveLocationId();

@@ -9,6 +9,8 @@ import { useCustomerStore } from "@/stores/customerStore";
  * full rationale. Redirects to `customer.users.tsx`, the real page.
  */
 export const Route = createFileRoute("/customer/$locationId/users")({
+  // See customer.$locationId.dashboard.tsx's identical comment.
+  ssr: false,
   beforeLoad: async ({ context, location, params }) => {
     requireCustomerSession(context.auth, location);
     const resolved = await resolveCustomerLocationById(context.queryClient, params.locationId);

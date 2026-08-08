@@ -17,6 +17,15 @@ import { useCustomerStore } from "@/stores/customerStore";
  * rather than rendering a page with no real location behind it.
  */
 export const Route = createFileRoute("/customer/$locationId/dashboard")({
+  // setActiveLocation() below only has a real effect if it runs in the
+  // visitor's actual browser -- useCustomerStore is a zustand `persist`
+  // store backed by that browser's localStorage. Server-side, this would
+  // mutate a throwaway server-only store instance with no relationship to
+  // the browser at all, then redirect to /customer/dashboard, whose own
+  // ssr:false guard would still see no active location and bounce right
+  // back to /customer. Must stay client-only for the same reason
+  // customer.dashboard.tsx's guard does.
+  ssr: false,
   beforeLoad: async ({ context, location, params }) => {
     requireCustomerSession(context.auth, location);
     const resolved = await resolveCustomerLocationById(context.queryClient, params.locationId);

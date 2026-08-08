@@ -1004,6 +1004,14 @@ function DashboardWatchIllustration() {
 }
 
 export const Route = createFileRoute("/customer/dashboard")({
+  // activeLocationId lives in useCustomerStore, a zustand `persist` store
+  // hydrated from localStorage -- only available client-side. Server-side
+  // rendering this route always sees the store's default (unhydrated,
+  // empty) state, so requireActiveLocationId() would incorrectly bounce
+  // every request to /customer regardless of whether the browser actually
+  // has a real active location. Same reasoning as _authenticated.tsx/
+  // master.tsx/agent.tsx's own `ssr: false`.
+  ssr: false,
   beforeLoad: ({ context, location }) => {
     requireCustomerSession(context.auth, location);
     requireActiveLocationId();

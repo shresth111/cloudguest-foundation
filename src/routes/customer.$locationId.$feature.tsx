@@ -12,6 +12,8 @@ import { useCustomerStore } from "@/stores/customerStore";
  * `customerFeatureHref`.
  */
 export const Route = createFileRoute("/customer/$locationId/$feature")({
+  // See customer.$locationId.dashboard.tsx's identical comment.
+  ssr: false,
   beforeLoad: async ({ context, location, params }) => {
     requireCustomerSession(context.auth, location);
     const resolved = await resolveCustomerLocationById(context.queryClient, params.locationId);
