@@ -439,7 +439,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                   <motion.span layoutId="role-active" className="absolute inset-0 -z-10 bg-primary/5" transition={{ type: "spring", bounce: 0.25, duration: 0.4 }} />
                 )}
                 <UserRound className={cn("h-5 w-5", role === "agent" ? "text-primary" : "text-muted-foreground")} />
-                <span className="text-sm font-semibold">Agent</span>
+                <span className="text-sm font-semibold">Staff</span>
                 <span className="text-xs text-muted-foreground">Assigned features only</span>
               </motion.button>
             </div>
@@ -453,7 +453,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                 <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
             </div>
             <motion.div whileHover={{ scale: loading ? 1 : 1.01 }} whileTap={{ scale: loading ? 1 : 0.98 }}>
-              <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Agent")}</Button>
+              <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Staff")}</Button>
             </motion.div>
           </form>
 
