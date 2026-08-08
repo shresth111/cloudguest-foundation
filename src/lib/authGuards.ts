@@ -33,7 +33,17 @@ export function requireCustomerSession(
   // operator session could render here closes on the very next tick, same
   // as it does for /master today.
   if (auth?.status === "anonymous") {
-    throw redirect({ to: "/login", search: { redirect: location.href } });
+    // Guard against a self-referential ?redirect=/login (seen live:
+    // https://app.wyfyguest.com/login?redirect=%2Flogin) -- whatever the
+    // exact sequence that lands this guard's check while `location.href`
+    // is already `/login` itself (a re-render/re-navigation racing the
+    // real auth status landing, a guard re-firing after AuthRouterContextSync
+    // invalidates the router, etc.), carrying it forward as the redirect
+    // target is never correct: login.tsx's own post-login handler would
+    // just navigate straight back to /login instead of wherever the
+    // visitor actually meant to go, or to the real home route.
+    const isAlreadyOnLogin = location.href === "/login" || location.href.startsWith("/login?") || location.href.startsWith("/login#");
+    throw redirect({ to: "/login", search: isAlreadyOnLogin ? undefined : { redirect: location.href } });
   }
   // The "admin@example.com" / "test" demo bypass (see login.tsx / AuthContext's
   // login()) hardcodes a global-scope "Super Admin" role on its fake session --

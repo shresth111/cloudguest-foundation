@@ -25,9 +25,21 @@ import { ErrorComponent as RootErrorComponent } from "./__root";
 // this captive portal at all -- there is nothing left for this frontend to
 // do for that case.
 const searchSchema = z.object({
-  organizationId: z.string().min(1),
-  locationId: z.string().min(1),
-  routerId: z.string().min(1),
+  // Optional here (not .min(1) required, as this used to be) -- a missing
+  // one is an expected, real-world case (see IncompletePortalLinkError's
+  // own doc comment: a stale bookmark, a hand-typed URL, a cropped QR
+  // code), not a validation failure. Making validateSearch throw for it
+  // meant this route's SSR response came back as a real HTTP 500 even
+  // though the errorComponent below was already rendering the correct,
+  // friendly, fully-intentional UI for it -- a monitoring/crawler-visible
+  // "server error" for a page that was working exactly as designed.
+  // PortalRuntimeLayout now checks presence itself and renders
+  // IncompletePortalLinkError directly as a normal successful render
+  // (200) when any are missing, instead of relying on this schema to
+  // throw and the router's error-boundary machinery to catch it.
+  organizationId: z.string().min(1).optional(),
+  locationId: z.string().min(1).optional(),
+  routerId: z.string().min(1).optional(),
   // Populated when the hotspot's own login page redirects here with
   // RouterOS's `$(mac)` substitution -- the one place a MAC address is
   // trustworthy without RADIUS (it's what generated this very redirect,
@@ -68,18 +80,22 @@ const searchSchema = z.object({
  * `searchSchema` above) -- but this URL can also reach a browser with one
  * missing any other way a link can go wrong: a bookmark saved before a
  * redirect finished building its query string, a hand-typed URL, a QR code
- * that got cropped/mistyped when printed. `validateSearch` throwing on a
- * missing param is real and correct (this frontend has no router/NAS
- * identity to fall back to without it) -- it's the *display* of that
- * failure that used to be wrong: the app-wide root error boundary's generic
- * "This page didn't load / Something went wrong on our end" reads like a
- * server bug to a guest, giving them no idea this is about the link itself
- * or what to actually do about it. This route-level `errorComponent`
- * catches exactly that one case (a `SearchParamError`, TanStack Router's
- * own type for a `validateSearch` failure) and shows a plain, honest
- * explanation with a real next step instead -- any *other* error under
- * `/portal/*` (a genuine bug, a network failure, etc.) still falls through
- * to the same root error boundary every other route in the app uses.
+ * that got cropped/mistyped when printed. This is a real, expected, honest
+ * case, not a validation failure -- the app-wide root error boundary's
+ * generic "This page didn't load / Something went wrong on our end" reads
+ * like a server bug to a guest, giving them no idea this is about the link
+ * itself or what to actually do about it, so `PortalRuntimeLayout` checks
+ * for the three required params itself and renders this directly as a
+ * plain, honest explanation with a real next step -- a normal successful
+ * render (HTTP 200), not a thrown/caught error. (This route's schema used
+ * to mark these fields required and let `validateSearch` throw, caught by
+ * this route's own `errorComponent` -- functionally the same UI, but the
+ * framework still marked the whole SSR response as a 500 regardless of the
+ * errorComponent successfully recovering, a real server-error status for
+ * a page working exactly as designed. `errorComponent` below is now purely
+ * a fallback for a genuine bug/network failure/wrong-type param -- it
+ * falls through to the same root error boundary every other route in the
+ * app uses.)
  */
 function IncompletePortalLinkError() {
   return (
@@ -138,6 +154,11 @@ export const Route = createFileRoute("/portal")({
     ],
   }),
   component: PortalRuntimeLayout,
+  // Fallback only now -- see IncompletePortalLinkError's own doc comment.
+  // A wrong-*type* param (organizationId passed as an array, say) still
+  // throws a real SearchParamError zod can't coerce around, and still
+  // deserves this same honest treatment rather than the generic root
+  // error boundary.
   errorComponent: (props) =>
     props.error instanceof SearchParamError ? (
       <IncompletePortalLinkError />
@@ -150,6 +171,11 @@ function PortalRuntimeLayout() {
   const search = Route.useSearch();
   const { organizationId, locationId, routerId, mac, ip, dst } = search;
   const linkLoginOnly = search["link-login-only"];
+
+  if (!organizationId || !locationId || !routerId) {
+    return <IncompletePortalLinkError />;
+  }
+
   return (
     <PortalRuntimeProvider
       organizationId={organizationId}

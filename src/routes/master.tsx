@@ -21,12 +21,19 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 export const Route = createFileRoute("/master")({
   ssr: false,
   beforeLoad: ({ context, location }) => {
+    // Never carry a redirect target that's already /master-login itself
+    // forward as the ?redirect= value (see authGuards.ts's
+    // requireCustomerSession's identical guard for the live symptom this
+    // was written for -- ?redirect=/login there, ?redirect=/master-login's
+    // equivalent risk here).
+    const isAlreadyOnLoginTarget = location.href === "/master-login" || location.href.startsWith("/master-login?") || location.href.startsWith("/master-login#");
+    const redirectSearch = isAlreadyOnLoginTarget ? undefined : { redirect: location.href };
     if (context.auth?.status === "anonymous") {
-      throw redirect({ to: "/master-login", search: { redirect: location.href } });
+      throw redirect({ to: "/master-login", search: redirectSearch });
     }
     const isOperator = context.auth?.roles?.some((r) => r.scopeType === "global") ?? false;
     if (context.auth?.status === "authenticated" && !isOperator) {
-      throw redirect({ to: "/master-login", search: { redirect: location.href } });
+      throw redirect({ to: "/master-login", search: redirectSearch });
     }
   },
   component: () => <Outlet />,
