@@ -69,6 +69,7 @@ import { HotspotManagement } from "@/components/network/HotspotManagement";
 // section using these so the two surfaces can't drift on rule-type labels.
 import { matchFieldLabel, matchValueFromRule, RULE_TYPES } from "@/components/network/IspManagement";
 import { QosManagement } from "@/components/network/QosManagement";
+import { ContentFilterManagement } from "@/components/network/ContentFilterManagement";
 import type { RouterDevice } from "@/types/router";
 import type {
   IspLink, IspLinkRole, IspHealthCheck, IspHealthCheckSummary, IspManualHealthStatus, IspConnectionMode,
@@ -2645,6 +2646,21 @@ export function VlansView({ locationId }: { locationId?: string }) {
  * same way DhcpView/VlansView are. */
 export function VoipView({ locationId }: { locationId?: string }) {
   return <QosManagement locationId={locationId} />;
+}
+
+/* ---------- Website Blocking ----------
+ * New nav entry, new feature -- no prior placeholder page existed for
+ * this at all (unlike VOIP Priority/DHCP/VLAN/etc., which all replaced an
+ * existing fake page). The real domain (app.domains.content_filtering,
+ * the `content_filter_rules` table) and its frontend component
+ * (ContentFilterManagement, content_filter.service.ts/useContentFilter.ts
+ * alongside it) are both new this session, following QosManagement's own
+ * structure/conventions. Rules apply the next time this router's config
+ * is pushed (part of the same combined render_network_config script as
+ * DHCP/VLAN/etc.) -- unlike QoS, there is no separate per-rule device-push
+ * endpoint/status to surface here. */
+export function WebsiteBlockingView({ locationId }: { locationId?: string }) {
+  return <ContentFilterManagement locationId={locationId} />;
 }
 
 /* ---------- Debugging Tools (displayed as "Connection Tools", was

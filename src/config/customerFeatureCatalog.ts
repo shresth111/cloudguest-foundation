@@ -7,7 +7,7 @@ import type { ComponentType } from "react";
 import {
   LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Fingerprint, Sun, Monitor, UsersRound, Bot, Network, Wifi,
-  Server, Share2, Signal, Globe, Settings2,
+  Server, Share2, Signal, Globe, Settings2, Ban,
   ScrollText, LifeBuoy,
 } from "lucide-react";
 
@@ -73,6 +73,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "vlans", label: "Network Zones", icon: Network },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
       { id: "voip", label: "Call Priority", icon: Signal },
+      { id: "website-blocking", label: "Website Blocking", icon: Ban },
       { id: "isp-details", label: "Internet Connection", icon: Globe },
     ],
   },

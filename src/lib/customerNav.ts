@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
   Monitor, UsersRound, Bot, Network, Settings2, Bell, Sun, Globe, ScrollText,
-  Fingerprint, Server, Signal, Wifi,
+  Fingerprint, Server, Signal, Wifi, Ban,
   LifeBuoy, Share2,
 } from "lucide-react";
 
@@ -84,6 +84,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "vlans", label: "Network Zones", icon: Network, roles: ["owner"] },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
       { id: "voip", label: "Call Priority", icon: Signal, roles: ["owner"] },
+      { id: "website-blocking", label: "Website Blocking", icon: Ban, roles: ["owner"] },
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
     ],
   },

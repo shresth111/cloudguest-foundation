@@ -35,6 +35,7 @@ import { useIsDemo, useCustomerDashboard, useCustomerUsers, useDataMasking } fro
 import {
   AlertsView, OpenHoursView, NotificationView, IspDetailsView,
   AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
+  WebsiteBlockingView,
   DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
@@ -183,6 +184,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             {feature === "dhcp" && <DhcpView locationId={locationId} />}
             {feature === "vlans" && <VlansView locationId={locationId} />}
             {feature === "voip" && <VoipView locationId={locationId} />}
+            {feature === "website-blocking" && <WebsiteBlockingView locationId={locationId} />}
             {feature === "debugging" && <DebuggingView locationId={locationId} />}
             {feature === "hotspot" && <HotspotView locationId={locationId} />}
             {/* "audit" is handled above (redirected to AdminLogsView, see

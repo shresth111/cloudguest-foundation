@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WhitelistRouteImport } from './routes/whitelist'
+import { Route as WebsiteBlockingRouteImport } from './routes/website-blocking'
 import { Route as VoipRouteImport } from './routes/voip'
 import { Route as VlansRouteImport } from './routes/vlans'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
@@ -184,6 +185,11 @@ import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './
 const WhitelistRoute = WhitelistRouteImport.update({
   id: '/whitelist',
   path: '/whitelist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebsiteBlockingRoute = WebsiteBlockingRouteImport.update({
+  id: '/website-blocking',
+  path: '/website-blocking',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VoipRoute = VoipRouteImport.update({
@@ -1151,6 +1157,7 @@ export interface FileRoutesByFullPath {
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
   '/voip': typeof VoipRoute
+  '/website-blocking': typeof WebsiteBlockingRoute
   '/whitelist': typeof WhitelistRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -1320,6 +1327,7 @@ export interface FileRoutesByTo {
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
   '/voip': typeof VoipRoute
+  '/website-blocking': typeof WebsiteBlockingRoute
   '/whitelist': typeof WhitelistRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -1491,6 +1499,7 @@ export interface FileRoutesById {
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
   '/voip': typeof VoipRoute
+  '/website-blocking': typeof WebsiteBlockingRoute
   '/whitelist': typeof WhitelistRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -1665,6 +1674,7 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/vlans'
     | '/voip'
+    | '/website-blocking'
     | '/whitelist'
     | '/account'
     | '/dashboard'
@@ -1834,6 +1844,7 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/vlans'
     | '/voip'
+    | '/website-blocking'
     | '/whitelist'
     | '/account'
     | '/dashboard'
@@ -2004,6 +2015,7 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/vlans'
     | '/voip'
+    | '/website-blocking'
     | '/whitelist'
     | '/_authenticated/account'
     | '/_authenticated/dashboard'
@@ -2178,6 +2190,7 @@ export interface RootRouteChildren {
   VerifyOtpRoute: typeof VerifyOtpRoute
   VlansRoute: typeof VlansRoute
   VoipRoute: typeof VoipRoute
+  WebsiteBlockingRoute: typeof WebsiteBlockingRoute
   WhitelistRoute: typeof WhitelistRoute
   CFeatureRoute: typeof CFeatureRoute
   CLocationsRoute: typeof CLocationsRoute
@@ -2200,6 +2213,13 @@ declare module '@tanstack/react-router' {
       path: '/whitelist'
       fullPath: '/whitelist'
       preLoaderRoute: typeof WhitelistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/website-blocking': {
+      id: '/website-blocking'
+      path: '/website-blocking'
+      fullPath: '/website-blocking'
+      preLoaderRoute: typeof WebsiteBlockingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/voip': {
@@ -3774,6 +3794,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyOtpRoute: VerifyOtpRoute,
   VlansRoute: VlansRoute,
   VoipRoute: VoipRoute,
+  WebsiteBlockingRoute: WebsiteBlockingRoute,
   WhitelistRoute: WhitelistRoute,
   CFeatureRoute: CFeatureRoute,
   CLocationsRoute: CLocationsRoute,
