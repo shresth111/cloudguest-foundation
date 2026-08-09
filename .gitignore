@@ -36,3 +36,7 @@ dist-ssr
 
 # Local env
 .env
+
+# Local Claude Code skills (e.g. third-party ui-ux-pro-max-skill) -- machine-
+# local tooling config, not application code, shouldn't bloat repo history.
+.claude/

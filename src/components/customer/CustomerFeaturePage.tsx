@@ -360,8 +360,12 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
     // customer.service.ts getDashboard()'s own comment.
     ...(data.kpis.slaUptime != null ? [{ label: "SLA uptime", value: `${data.kpis.slaUptime.toFixed(1)}%`, context: null as string | null }] : []),
   ];
+  // "Routers online" deliberately left out here -- it's the same
+  // data.kpis.routersOnline/totalRouters pair healthCards above already
+  // shows as "Routers 1/1" a few pixels away, so this was showing the
+  // exact same number twice, not two real signals (the one genuine
+  // consolidation gap this file's own comment above didn't catch).
   const secondaryStats = [
-    { label: "routers online", value: `${data.kpis.routersOnline}/${data.kpis.totalRouters}` },
     { label: "guests today", value: data.kpis.todayGuests.toLocaleString() },
     { label: "avg session", value: `${data.kpis.avgSession} min` },
   ];

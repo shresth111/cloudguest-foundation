@@ -1207,9 +1207,17 @@ export function CustomerDashboardPage() {
                       ))}
                     </div>
                   </div>
+                  {/* "Routers online" deliberately left out of this row --
+                   * it's the exact same onR/routers.length pair the "Core
+                   * systems" status strip right below already shows as
+                   * "Routers 1/1" (see customer.service.ts's getDashboard,
+                   * both read off the same two variables), so showing it
+                   * here too was pure duplication a few pixels apart, not a
+                   * second real signal. This row now owns guest-activity
+                   * numbers only; the strip below owns infrastructure
+                   * health only -- each stat has exactly one home. */}
                   <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-2.5 text-xs tabular-nums text-white/70">
                     {[
-                      { label: "routers online", value: `${d.kpis.routersOnline}/${d.kpis.totalRouters}` },
                       { label: "guests today", value: d.kpis.todayGuests.toLocaleString() },
                       { label: "avg session", value: `${d.kpis.avgSession} min` },
                     ].map((s) => (
