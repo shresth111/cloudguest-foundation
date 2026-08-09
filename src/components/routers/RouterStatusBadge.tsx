@@ -21,6 +21,30 @@ export function RouterStatusBadge({ status }: { status: RouterStatus }) {
   );
 }
 
+/** A router with no stored API credentials can never actually connect --
+ * no speed test, no health checks, no queue/device management -- but
+ * `RouterWizard`'s credentials step is optional (a real, common path when
+ * the physical device isn't reachable yet at registration time), and
+ * `pending_provisioning`'s own neutral zinc badge above doesn't
+ * distinguish "about to come online" from "silently stuck with nothing
+ * ever entered." Confirmed live: a real customer's router sat exactly in
+ * that second state for days with zero signal anywhere in the console.
+ * This renders next to `RouterStatusBadge` specifically for that gap --
+ * never for `online`/`offline` routers that already proved they can
+ * connect at some point, even if credentials were later cleared. */
+export function MissingCredentialsBadge({ hasApiCredentials, status }: { hasApiCredentials: boolean; status: RouterStatus }) {
+  if (hasApiCredentials || status === "decommissioned") return null;
+  return (
+    <Badge
+      variant="outline"
+      className="rounded-full font-medium bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400"
+      title="No API credentials on file -- this router cannot connect until they're added from its own detail page"
+    >
+      Needs credentials
+    </Badge>
+  );
+}
+
 const HEALTH_STYLES: Record<string, string> = {
   healthy: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
   unhealthy: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
