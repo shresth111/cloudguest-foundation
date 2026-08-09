@@ -3,6 +3,8 @@
 // traffic either by protocol/port-range (e.g. SIP signaling on 5060, RTP
 // media on a port range) or by a raw DSCP value (0-63, RFC 2474) --
 // exactly one of the two match kinds is present per rule, never both.
+export type DevicePushStatus = "pending" | "active" | "failed";
+
 export interface QosTrafficRule {
   id: string;
   routerId: string;
@@ -15,6 +17,13 @@ export interface QosTrafficRule {
   dscpValue: number | null;
   priority: number; // 1-8, real RouterOS /queue simple|tree priority
   isEnabled: boolean;
+  // Real device-push state for this rule's paired router queue -- whether
+  // this rule is actually doing anything on the customer's real router, or
+  // just sitting as a database row. See qos.service.ts::push().
+  deviceQueueId: string | null;
+  devicePushStatus: DevicePushStatus;
+  devicePushError: string | null;
+  devicePushedAt: string | null;
   createdAt: string;
 }
 

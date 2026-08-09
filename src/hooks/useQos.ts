@@ -45,3 +45,12 @@ export function useDeleteQosRule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["qos", "list"] }),
   });
 }
+
+export function usePushQosRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      qosService.push(id, organizationId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["qos", "list"] }),
+  });
+}

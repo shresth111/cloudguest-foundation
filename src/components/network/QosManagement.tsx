@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Gauge, Signal, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, Gauge, Signal, ShieldCheck, ShieldOff, UploadCloud, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -45,17 +46,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { cn } from "@/lib/utils";
 import {
   useQosRules,
   useCreateQosRule,
   useUpdateQosRule,
   useDeleteQosRule,
+  usePushQosRule,
 } from "@/hooks/useQos";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
-import type { QosTrafficRule } from "@/types/qos";
+import type { DevicePushStatus, QosTrafficRule } from "@/types/qos";
 
 const PAGE_SIZE = 25;
 const PROTOCOLS = ["tcp", "udp"] as const;
@@ -95,6 +98,49 @@ function matchLabel(r: QosTrafficRule): string {
       : `${proto} ${r.portRangeStart}-${r.portRangeEnd}`;
   }
   return "—";
+}
+
+// Plain-language labels for the real device-push state -- never surface the
+// backend's own "queue tree"/"packet mark"/"device push" vocabulary here,
+// this is what tells a customer whether a rule they created is actually
+// doing anything on their real router or just sitting as a database row.
+const DEVICE_PUSH_LABEL: Record<DevicePushStatus, string> = {
+  active: "Applied to your router",
+  pending: "Not yet applied",
+  failed: "Couldn't apply",
+};
+
+const DEVICE_PUSH_STYLES: Record<DevicePushStatus, string> = {
+  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
+  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+};
+
+// The badge alone can't hold a full error message -- a failed push wraps it
+// in a tooltip so the reason is one hover away instead of swallowed. Errors
+// come straight from the backend/router, so wording isn't guaranteed to be
+// customer-plain; showing it beats hiding it.
+function DevicePushBadge({ rule }: { rule: QosTrafficRule }) {
+  const badge = (
+    <Badge
+      variant="outline"
+      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[rule.devicePushStatus])}
+    >
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+    </Badge>
+  );
+  if (rule.devicePushStatus !== "failed" || !rule.devicePushError) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-default">{badge}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        Couldn't apply this rule to your router: {rule.devicePushError}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 // Was a page of decorative ToggleRows / a plain useState switch -- "Enable /
@@ -151,6 +197,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
     { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
   );
   const del = useDeleteQosRule();
+  const push = usePushQosRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["qos", "router-options", locationId],
     queryFn: async () => {
@@ -183,6 +230,15 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   const enabledCount = filteredRows.filter((r) => r.isEnabled).length;
   const voiceCount = filteredRows.filter((r) => r.protocol && [5060, 5061].includes(r.portRangeStart ?? -1)).length;
+
+  async function handlePush(rule: QosTrafficRule) {
+    try {
+      await push.mutateAsync({ id: rule.id, organizationId: locationId ? scopedOrgId : undefined });
+      toast.success(`"${rule.name}" applied to your router`);
+    } catch (err) {
+      toast.error((err as AppError).message || `Couldn't apply "${rule.name}" to your router`);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -255,47 +311,71 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
                 <TableHead>Match</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[80px]" />
+                <TableHead>On your router</TableHead>
+                <TableHead className="w-[110px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     No QoS rules match your filters.
                   </TableCell>
                 </TableRow>
               )}
-              {rows.map((r) => (
-                <TableRow key={r.id} className="group">
-                  <TableCell className="min-w-0 truncate font-medium">{r.name}</TableCell>
-                  <TableCell className="text-sm">{routerName(r.routerId)}</TableCell>
-                  <TableCell className="font-mono text-xs">{matchLabel(r)}</TableCell>
-                  <TableCell className="text-sm">{r.priority}</TableCell>
-                  <TableCell>
-                    <Badge variant={r.isEnabled ? "default" : "secondary"}>
-                      {r.isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map((r) => {
+                const isPushing = push.isPending && push.variables?.id === r.id;
+                return (
+                  <TableRow key={r.id} className="group">
+                    <TableCell className="min-w-0 truncate font-medium">{r.name}</TableCell>
+                    <TableCell className="text-sm">{routerName(r.routerId)}</TableCell>
+                    <TableCell className="font-mono text-xs">{matchLabel(r)}</TableCell>
+                    <TableCell className="text-sm">{r.priority}</TableCell>
+                    <TableCell>
+                      <Badge variant={r.isEnabled ? "default" : "secondary"}>
+                        {r.isEnabled ? "Enabled" : "Disabled"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DevicePushBadge rule={r} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={isPushing}
+                              onClick={() => handlePush(r)}
+                            >
+                              {isPushing ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <UploadCloud className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">Apply to your router</TooltipContent>
+                        </Tooltip>
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           {totalPages > 1 && (

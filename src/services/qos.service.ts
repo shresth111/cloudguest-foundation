@@ -20,6 +20,10 @@ interface BackendQosRule {
   dscp_value: number | null;
   priority: number;
   is_enabled: boolean;
+  device_queue_id: string | null;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
   created_at: string;
 }
 
@@ -46,6 +50,10 @@ function toRule(r: BackendQosRule): QosTrafficRule {
     dscpValue: r.dscp_value,
     priority: r.priority,
     isEnabled: r.is_enabled,
+    deviceQueueId: r.device_queue_id,
+    devicePushStatus: r.device_push_status,
+    devicePushError: r.device_push_error,
+    devicePushedAt: r.device_pushed_at,
     createdAt: r.created_at,
   };
 }
@@ -128,5 +136,19 @@ export const qosService = {
 
   async remove(id: string, organizationId?: string): Promise<void> {
     await api.delete(`/qos-rules/${id}`, orgHeaders(organizationId));
+  },
+
+  // Real device push: `POST /qos-rules/{id}/push` creates/updates this
+  // rule's paired router queue so it actually prioritizes traffic on real
+  // hardware, instead of just sitting as a database row. Returns the full
+  // rule with its refreshed devicePushStatus/devicePushError so the caller
+  // can update its cache without a second round trip.
+  async push(id: string, organizationId?: string): Promise<QosTrafficRule> {
+    const { data } = await api.post<BackendQosRule>(
+      `/qos-rules/${id}/push`,
+      undefined,
+      orgHeaders(organizationId),
+    );
+    return toRule(data);
   },
 };
