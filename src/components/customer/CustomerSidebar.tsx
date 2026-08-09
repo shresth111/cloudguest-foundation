@@ -136,7 +136,7 @@ export function CustomerSidebar({
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/5">
             {dataMasking.sending ? <Loader2 className="h-4 w-4 animate-spin" /> : dataMasking.masked ? <Shield className="h-4 w-4" /> : <Eye className="h-4 w-4 text-sky-300" />}
           </span>
-          {expanded && <span className="truncate">{dataMasking.masked ? "Data masked" : "Data visible"}</span>}
+          {expanded && <span className="truncate">Guest Privacy</span>}
         </button>
       </div>
       <div className="border-t border-white/10 p-2 hidden lg:block">

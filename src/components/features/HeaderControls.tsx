@@ -110,7 +110,7 @@ export function OtpMaskToggle({ masked = true, onClick, loading, className }: { 
       style={{ clipPath: MASK_TAG_CLIP }}
     >
       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : masked ? <Shield className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-      {masked ? "Data masked" : "Data visible"}
+      Guest Privacy
     </button>
   );
 }
