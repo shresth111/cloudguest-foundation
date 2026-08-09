@@ -1116,6 +1116,7 @@ export function CustomerDashboardPage() {
         onNavigate={handleNav}
         onToggleCollapsed={() => setSidebar(!sidebar)}
         subtitle="Portal"
+        dataMasking={dataMasking}
       />
 
       {/* Main */}
@@ -1131,7 +1132,6 @@ export function CustomerDashboardPage() {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          dataMasking={dataMasking}
           onMobileMenuClick={() => setMobile(true)}
           onRefresh={() => refetch()}
           user={user}

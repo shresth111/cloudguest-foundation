@@ -3,8 +3,7 @@ import { Menu, MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucid
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { PlanRenewalTicket, OtpMaskToggle, DataMaskingOtpDialog } from "@/components/features/HeaderControls";
-import type { useDataMasking } from "@/hooks/useCustomerDashboard";
+import { PlanRenewalTicket } from "@/components/features/HeaderControls";
 import { customerFeatureHref } from "@/lib/customerNav";
 
 interface CustomerHeaderProps {
@@ -18,11 +17,6 @@ interface CustomerHeaderProps {
    * needs the raw date to compute the real countdown/urgency tier, and
    * formats it for display itself. */
   planExpiryIso?: string;
-  /** The whole `useDataMasking()` return value, called once by the page and
-   * passed through -- the page also needs `.masked` itself (to thread into
-   * whatever feature view it renders), so the hook can't just live inside
-   * this component alone. */
-  dataMasking: ReturnType<typeof useDataMasking>;
   onMobileMenuClick: () => void;
   /** Shown only on pages that actually have something to refresh. */
   onRefresh?: () => void;
@@ -48,7 +42,6 @@ export function CustomerHeader({
   title,
   locationId,
   planExpiryIso,
-  dataMasking,
   onMobileMenuClick,
   onRefresh,
   user,
@@ -64,33 +57,19 @@ export function CustomerHeader({
       <button className="text-white/70 hover:text-white lg:hidden" onClick={onMobileMenuClick}><Menu className="h-5 w-5" /></button>
       <div className="min-w-0 flex-1">{title}</div>
 
-      {/* Plan renewal + demo CTA are one perforated "ticket" object, and the
-          masking indicator is a notched security tag -- neither is a
-          rounded pill anymore. See HeaderControls.tsx for the reasoning.
-          Both default to appearing from `sm:` (640px) up, which -- once the
-          location name/status title on the left and the refresh/bell/avatar
-          icons on the right are also in the row -- left almost no room for
-          the title in the ~640-1024px tablet band specifically: it measured
-          out to an 8px-wide `min-w-0` remainder, rendering as a single
-          clipped letter ("M" instead of "Mumbai HQ") with no visible
-          overflow to point at. Pushed to `lg:` (1024px) here instead, so
-          the tablet band gets the same hidden treatment phones already get,
-          rather than a half-shown one. */}
+      {/* Plan renewal + demo CTA is one perforated "ticket" object, not a
+          rounded pill. See HeaderControls.tsx for the reasoning. Defaults to
+          appearing from `sm:` (640px) up, which -- once the location name/
+          status title on the left and the refresh/bell/avatar icons on the
+          right are also in the row -- left almost no room for the title in
+          the ~640-1024px tablet band specifically: it measured out to an
+          8px-wide `min-w-0` remainder, rendering as a single clipped letter
+          ("M" instead of "Mumbai HQ") with no visible overflow to point at.
+          Pushed to `lg:` (1024px) here instead, so the tablet band gets the
+          same hidden treatment phones already get, rather than a half-shown
+          one. (The data-masking toggle that used to sit here moved to the
+          sidebar footer -- see CustomerSidebar.tsx.) */}
       <PlanRenewalTicket expiryIso={planExpiryIso} className="mr-1 hidden h-9 shrink-0 items-stretch lg:flex" />
-      <OtpMaskToggle
-        masked={dataMasking.masked}
-        onClick={dataMasking.requestToggle}
-        loading={dataMasking.sending}
-        className={`hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium transition-colors hover:bg-slate-500/20 disabled:opacity-60 lg:inline-flex mr-1 ${dataMasking.masked ? "text-slate-300" : "text-sky-300"}`}
-      />
-      <DataMaskingOtpDialog
-        open={dataMasking.otpOpen}
-        maskingOn={dataMasking.pendingTarget}
-        sentTo={dataMasking.sentTo}
-        verifying={dataMasking.verifying}
-        onVerify={dataMasking.verifyToggle}
-        onCancel={dataMasking.cancel}
-      />
       {onRefresh && (
         <Button variant="ghost" size="icon" className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" onClick={onRefresh}>
           <RefreshCw className="h-4 w-4" />

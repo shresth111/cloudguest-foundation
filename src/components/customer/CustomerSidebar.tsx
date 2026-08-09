@@ -1,5 +1,8 @@
+import { Shield, Eye, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { customerNavGroupsForRole, getCustomerLoginRole } from "@/lib/customerNav";
+import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
+import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
  * The one shared sidebar every `/customer/$locationId/*` page renders --
@@ -24,6 +27,13 @@ export interface CustomerSidebarProps {
   onToggleCollapsed: () => void;
   /** Shown under the brand mark, e.g. the active location's name. */
   subtitle?: string;
+  /** Moved here from the top header (was crowding the tablet-width title
+   * band, and every real competitor dashboard we looked at treats "hide
+   * sensitive data" as a persistent account-level setting that lives with
+   * navigation, not a transient header pill). The whole `useDataMasking()`
+   * return value, same as `CustomerHeader` used to take -- the OTP dialog
+   * moves with it so the whole feature stays in one place. */
+  dataMasking: ReturnType<typeof useDataMasking>;
 }
 
 export function CustomerSidebar({
@@ -33,6 +43,7 @@ export function CustomerSidebar({
   onNavigate,
   onToggleCollapsed,
   subtitle,
+  dataMasking,
 }: CustomerSidebarProps) {
   const role = getCustomerLoginRole();
   const navGroups = customerNavGroupsForRole(role);
@@ -108,6 +119,26 @@ export function CustomerSidebar({
           </div>
         ))}
       </nav>
+      <div className="border-t border-white/10 p-2 shrink-0">
+        <button
+          type="button"
+          disabled={dataMasking.sending}
+          onClick={dataMasking.requestToggle}
+          title={dataMasking.masked
+            ? "Sensitive guest data is masked. Click to verify and show it unmasked."
+            : "Guest data is shown unmasked for this account. Click to mask it again."}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm text-left transition-colors disabled:opacity-60",
+            "text-white/60 hover:bg-white/[0.06] hover:text-white",
+            !expanded && "justify-center px-0",
+          )}
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/5">
+            {dataMasking.sending ? <Loader2 className="h-4 w-4 animate-spin" /> : dataMasking.masked ? <Shield className="h-4 w-4" /> : <Eye className="h-4 w-4 text-sky-300" />}
+          </span>
+          {expanded && <span className="truncate">{dataMasking.masked ? "Data masked" : "Data visible"}</span>}
+        </button>
+      </div>
       <div className="border-t border-white/10 p-2 hidden lg:block">
         <button
           onClick={onToggleCollapsed}
@@ -116,6 +147,14 @@ export function CustomerSidebar({
           {expanded ? "◄" : "►"}
         </button>
       </div>
+      <DataMaskingOtpDialog
+        open={dataMasking.otpOpen}
+        maskingOn={dataMasking.pendingTarget}
+        sentTo={dataMasking.sentTo}
+        verifying={dataMasking.verifying}
+        onVerify={dataMasking.verifyToggle}
+        onCancel={dataMasking.cancel}
+      />
     </aside>
   );
 }

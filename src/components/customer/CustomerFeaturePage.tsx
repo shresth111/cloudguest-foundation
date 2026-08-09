@@ -123,6 +123,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
         onNavigate={handleNav}
         onToggleCollapsed={() => setSidebar(!sidebar)}
         subtitle="Portal"
+        dataMasking={dataMasking}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -143,7 +144,6 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          dataMasking={dataMasking}
           onMobileMenuClick={() => setMobile(true)}
           user={user}
           onSwitchLocation={handleSwitchLocation}

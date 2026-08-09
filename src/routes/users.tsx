@@ -130,6 +130,7 @@ function CustomerUsersPage() {
         onNavigate={handleNav}
         onToggleCollapsed={() => setSidebar(!sidebar)}
         subtitle="Portal"
+        dataMasking={dataMasking}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -137,7 +138,6 @@ function CustomerUsersPage() {
           title={<p className="truncate text-sm font-semibold">Connected guests · {activeLocation?.name ?? ""}</p>}
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          dataMasking={dataMasking}
           onMobileMenuClick={() => setMobile(true)}
           onRefresh={() => refetch()}
           user={user}
