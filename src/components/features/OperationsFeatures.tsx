@@ -231,7 +231,7 @@ const DEMO_ALERTS: AlertRow[] = [
   { sev: "warning", title: "OTP delivery delayed", src: "Telecom gateway", t: "5 hours ago", status: "open" },
 ];
 
-interface RawAlert { severity: string; message: string; triggered_at: string; status: string; router_id: string | null }
+interface RawAlert { severity: string; message: string; triggered_at: string; status: string; router_id: string | null; router_name: string | null }
 
 export function AlertsView() {
   // Both start neutral (empty/loading) on server and client alike --
@@ -262,7 +262,12 @@ export function AlertsView() {
         if (cancelled) return;
         setAlerts((data?.items ?? []).map((a) => ({
           sev: a.severity === "critical" ? "error" : a.severity === "warning" ? "warning" : a.status === "resolved" ? "success" : "info",
-          title: a.message, src: a.router_id ?? "System", t: timeAgo(a.triggered_at), status: a.status,
+          // Backend fix: was showing the raw router_id UUID as visible text
+          // whenever a router-scoped alert had no other label to fall back
+          // to -- real router_name now comes straight from the API
+          // (monitoring/service.py's get_router_names_for_alerts), never a
+          // raw ID left for a customer to see.
+          title: a.message, src: a.router_name ?? "System", t: timeAgo(a.triggered_at), status: a.status,
         })));
       } catch {
         // Leave alerts empty -- the "no alerts" state is accurate.
