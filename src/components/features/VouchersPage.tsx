@@ -24,10 +24,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Clamps a (possibly NaN, from an emptied number input) value into [lo, hi], falling back to `fallback` when NaN. */
 const clamp = (n: number, fallback: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number.isNaN(n) ? fallback : n));
 
+// "Redeemed At" is a last-used timestamp (see the real backend's own
+// redeemed_at field, services/voucher.service.ts's BackendVoucher --
+// paired with last_used_at/expires_at/created_at, all clearly timestamps),
+// not a location -- this demo fixture previously duplicated businessUnit's
+// own value into it, which looked like a real bug (same value in two
+// columns) to anyone viewing the demo account, prospective customers
+// included. Corrected to plausible relative-time strings.
 const DEMO_SEED: Voucher[] = [
-  { code: "VCH-8821", plan: "1h", status: "active", used: 3, businessUnit: "Mumbai HQ", redeemedAt: "Mumbai HQ" },
-  { code: "VCH-8822", plan: "24h", status: "active", used: 12, businessUnit: "Delhi Office", redeemedAt: "Delhi Office" },
-  { code: "VCH-8823", plan: "1h", status: "active", used: 1, businessUnit: "Bangalore DC", redeemedAt: "Bangalore DC" },
+  { code: "VCH-8821", plan: "1h", status: "active", used: 3, businessUnit: "Mumbai HQ", redeemedAt: "12 min ago" },
+  { code: "VCH-8822", plan: "24h", status: "active", used: 12, businessUnit: "Delhi Office", redeemedAt: "3 hours ago" },
+  { code: "VCH-8823", plan: "1h", status: "active", used: 1, businessUnit: "Bangalore DC", redeemedAt: "1 day ago" },
   { code: "VCH-8824", plan: "3d", status: "unused", used: 0, businessUnit: "Chennai Office", redeemedAt: null },
 ];
 
