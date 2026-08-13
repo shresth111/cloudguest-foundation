@@ -3,7 +3,7 @@ import {
   Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  Building2, MapPin, Users, DollarSign, Router, UserCheck, AlertTriangle, Sparkles, Plus, ArrowRight,
+  Building2, MapPin, Users, IndianRupee, Router, UserCheck, AlertTriangle, Sparkles, Plus, ArrowRight,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import { MSectionHeader, MStat, MTag, MButton, MTable, MTh, MTd, MTr } from "@/components/master/MasterKit";
@@ -14,8 +14,15 @@ export const Route = createFileRoute("/master/")({
   component: PlatformOverview,
 });
 
+// Amounts are already rupees end-to-end (Razorpay is the only gateway,
+// every Plan/Subscription carries currency: "INR") -- this was just
+// mislabeled with a $ prefix and US k-notation. Indian format instead:
+// L for lakh (1,00,000), Cr for crore (1,00,00,000).
 function money(n: number) {
-  return `$${n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n}`;
+  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(1)}Cr`;
+  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1)}L`;
+  if (n >= 1_000) return `₹${(n / 1_000).toFixed(1)}k`;
+  return `₹${n}`;
 }
 
 /**
@@ -52,7 +59,7 @@ function PlatformOverview() {
         { key: "tenants", label: "Tenants", value: String(kpis.totalOrganizations), icon: Building2 },
         { key: "locations", label: "Active Locations", value: String(kpis.totalLocations), icon: MapPin },
         { key: "guests", label: "Active Sessions", value: kpis.activeGuests.toLocaleString(), icon: Users },
-        { key: "mrr", label: "MRR", value: money(billingKpis.mrr), icon: DollarSign },
+        { key: "mrr", label: "MRR", value: money(billingKpis.mrr), icon: IndianRupee },
         { key: "routers", label: "Routers Online", value: `${kpis.activeRouters}/${kpis.totalRouters}`, icon: Router },
         { key: "totalGuests", label: "Total Guests", value: kpis.totalGuests.toLocaleString(), icon: UserCheck },
         { key: "reminders", label: "Billing Reminders", value: String(reminders.length), icon: AlertTriangle, accent: reminders.length > 0 },

@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import {
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Users,
   Sparkles,
@@ -48,7 +48,7 @@ export function BillingKpiGrid({ data, isLoading, isError, onRetry }: Props) {
   if (isError || !data) return <ErrorState onRetry={onRetry} />;
 
   const tiles: { label: string; value: string; icon: typeof Users; tone: Tone; hint?: string }[] = [
-    { label: "Monthly recurring revenue", value: money.format(data.mrr), icon: DollarSign, tone: "success", hint: "MRR · projected value of active subscriptions" },
+    { label: "Monthly recurring revenue", value: money.format(data.mrr), icon: IndianRupee, tone: "success", hint: "MRR · projected value of active subscriptions" },
     { label: "Annual recurring revenue", value: money.format(data.arr), icon: TrendingUp, tone: "success", hint: "ARR · MRR × 12" },
     { label: "Active subscriptions", value: fmt.format(data.activeSubscriptions), icon: Users, tone: "info" },
     { label: "Trial organizations", value: fmt.format(data.trialOrganizations), icon: Sparkles, tone: "warning" },
