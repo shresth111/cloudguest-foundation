@@ -80,7 +80,7 @@ import {
   useRotateSecret,
 } from "@/hooks/useRouterProvisioning";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import api from "@/services/api";
+import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
 
@@ -1982,7 +1982,11 @@ function SetupScriptTab({
         toast.error("Check-in succeeded but no agent credential was returned.");
         return;
       }
-      const apiBase = api.defaults.baseURL || "";
+      // Absolute, not `api.defaults.baseURL` directly -- this gets baked
+      // verbatim into a RouterOS `/tool fetch url=...` command below, which
+      // has no origin of its own to resolve a relative URL against. See
+      // `getAbsoluteApiBase`'s docstring.
+      const apiBase = getAbsoluteApiBase();
       setScript(
         buildRouterSetupScript({
           apiBase,

@@ -84,6 +84,24 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+/** `api.defaults.baseURL` is relative (`/api/v1`) whenever
+ * `VITE_API_BASE_URL` isn't set at build time -- fine for the browser's
+ * own same-origin requests, but meaningless once copy-pasted somewhere
+ * with no origin of its own to resolve against, e.g. a RouterOS
+ * `/tool fetch url=...` command baked into a generated setup script
+ * (RouterDetailTabs.tsx's `buildRouterSetupScript`/`buildRouterSetupScriptChunks`).
+ * RouterOS has no scheme to infer there and fails outright with
+ * "Mode not specified". Anything handing a base URL to a device/script
+ * instead of to `api` itself should call this, not read
+ * `api.defaults.baseURL` directly, so it always gets a fully-qualified
+ * `https://host/api/v1`-shaped URL. */
+export function getAbsoluteApiBase(): string {
+  const base = api.defaults.baseURL || "/api/v1";
+  if (/^https?:\/\//i.test(base)) return base;
+  if (typeof window === "undefined") return base;
+  return new URL(base, window.location.origin).toString().replace(/\/$/, "");
+}
+
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (typeof window !== "undefined") {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);

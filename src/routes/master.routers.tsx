@@ -18,7 +18,7 @@ import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
 import { buildRouterSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
-import api from "@/services/api";
+import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import { copyToClipboard } from "@/lib/utils";
@@ -281,7 +281,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
 
       setChunks(
         buildRouterSetupScriptChunks({
-          apiBase: api.defaults.baseURL || "",
+          // Absolute, not `api.defaults.baseURL` directly -- see
+          // `getAbsoluteApiBase`'s docstring: this gets baked verbatim into
+          // a RouterOS `/tool fetch url=...` command, which has no origin
+          // to resolve a relative URL against ("Mode not specified").
+          apiBase: getAbsoluteApiBase(),
           agentCredential,
           wanIfs: wanIfs.slice(0, ispCount),
           enableFirewall,
