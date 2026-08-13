@@ -196,7 +196,7 @@ function LocationsScreen() {
     if (!window.confirm(`Delete location "${l.name}"? This cannot be undone.`)) return;
     setDeletingId(l.id);
     try {
-      await locationService.remove([l.id]);
+      await locationService.remove([l.id], l.organizationId);
       toast.success(`Location "${l.name}" deleted`);
       setLocations((prev) => prev.filter((x) => x.id !== l.id));
     } catch {

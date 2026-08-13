@@ -237,13 +237,37 @@ export const locationService = {
     return toLocation(data, org?.name ?? "");
   },
 
-  async updateStatus(ids: string[], status: LocationStatus): Promise<void> {
+  // `organizationId` is optional and, when passed, sent as X-Organization-Id
+  // -- mirrors the header the GET listing calls already send. A regular
+  // customer session can omit it: the backend resolves org from the caller's
+  // own single membership. A master-console operator (global scope, zero
+  // org memberships) has nothing for the backend to infer from -- without
+  // this header, the underlying location lookup 404s ("Location not
+  // found") even though the location genuinely exists, which is exactly
+  // the real bug this was caught fixing: master's location delete/suspend
+  // silently failing because the id-only call had no org context.
+  async updateStatus(ids: string[], status: LocationStatus, organizationId?: string): Promise<void> {
     const endpoint = status === "suspended" ? "suspend" : "activate";
-    await Promise.all(ids.map((id) => api.post(`/locations/${id}/${endpoint}`)));
+    await Promise.all(
+      ids.map((id) =>
+        api.post(
+          `/locations/${id}/${endpoint}`,
+          undefined,
+          organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined,
+        ),
+      ),
+    );
   },
 
-  async remove(ids: string[]): Promise<void> {
-    await Promise.all(ids.map((id) => api.delete(`/locations/${id}`)));
+  async remove(ids: string[], organizationId?: string): Promise<void> {
+    await Promise.all(
+      ids.map((id) =>
+        api.delete(
+          `/locations/${id}`,
+          organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined,
+        ),
+      ),
+    );
   },
 
   async provisionLocation(payload: ProvisionLocationPayload): Promise<ProvisionLocationResult> {
