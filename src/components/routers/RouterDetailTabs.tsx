@@ -1614,6 +1614,13 @@ export function buildRouterSetupScriptChunks(opts: {
   apiBase: string;
   agentCredential: string;
   wans: WanEntry[];
+  /** Explicit LAN port allowlist -- when given, only these interfaces join
+   * `lanBridge`; every other non-WAN port is left completely alone
+   * (neither claimed nor disabled), instead of the old blanket "every
+   * physical port that isn't WAN becomes LAN" sweep. Omitted/empty keeps
+   * that original sweep behavior unchanged -- this is additive, not a
+   * breaking change for a router that never needed per-port control. */
+  lanIfs?: string[];
   lanBridge: string;
   lanIp: string;
   lanCidr: string;
@@ -1643,8 +1650,9 @@ export function buildRouterSetupScriptChunks(opts: {
    * instead. */
   portalUrl?: PortalOverrideConfig;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wans, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
+  const { apiBase, agentCredential, wans, lanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
   const wanIfs = wans.map((w) => w.iface);
+  const hasExplicitLan = !!lanIfs && lanIfs.length > 0;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
   const poolEnd = `${base3}.254`;
@@ -1764,6 +1772,22 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: "WAN Routing (load balancing + failover)", script: lines.join("\n") });
   }
 
+  // Only rendered when the field engineer typed an explicit LAN port list
+  // -- builds a real "LAN" interface list the sweep chunk below then
+  // requires membership in, the identical existence-check-first discipline
+  // WAN_RENAME_WARNING_HEADER/wanExistenceCheckLines already established
+  // for WAN: a typo'd or since-renamed LAN interface name fails loudly here
+  // instead of that port just silently never joining the bridge.
+  if (hasExplicitLan) {
+    const lines: string[] = [];
+    lines.push(...wanExistenceCheckLines((lanIfs as string[]).map((lanIf) => `"${lanIf}"`)));
+    lines.push(`:if ([:len [/interface list find where name="LAN"]] = 0) do={ /interface list add name="LAN" }`);
+    (lanIfs as string[]).forEach((lanIf) => {
+      lines.push(`:if ([:len [/interface list member find where interface="${lanIf}" list="LAN"]] = 0) do={ /interface list member add list="LAN" interface="${lanIf}" }`);
+    });
+    chunks.push({ label: "LAN Interfaces (explicit allowlist)", script: lines.join("\n") });
+  }
+
   {
     // Confirmed live on a real device: some units ship with a *second*,
     // hardware-switch default bridge (seen as "bridgeLocal", comment
@@ -1785,11 +1809,21 @@ export function buildRouterSetupScriptChunks(opts: {
     // (and the exact duplication that made a renamed WAN interface
     // invisible to this loop in the first place -- see
     // WAN_RENAME_WARNING_HEADER).
+    //
+    // `hasExplicitLan` flips the *other* half of this same membership
+    // check: with no explicit list, every non-WAN port is LAN (the
+    // original, still-default behavior); with one, a port must also be a
+    // member of the "LAN" list the chunk above just populated -- any port
+    // that is neither WAN nor explicitly LAN is left completely alone,
+    // not claimed and not disabled, free for whatever else it's wired for.
     const lines = [
       `:foreach eth in=[/interface ethernet find] do={`,
       `  :local ethName [/interface ethernet get $eth name]`,
       `  :local isWan ([:len [/interface list member find where interface=$ethName list="WAN"]] > 0)`,
-      `  :if (!$isWan) do={`,
+      hasExplicitLan
+        ? `  :local isLan ([:len [/interface list member find where interface=$ethName list="LAN"]] > 0)`
+        : `  :local isLan true`,
+      `  :if (!$isWan && $isLan) do={`,
       `    :local existingPort [/interface bridge port find where interface=$ethName]`,
       `    :if ([:len $existingPort] > 0) do={`,
       `      :if ([:len [/interface bridge port find where interface=$ethName bridge="${lanBridge}"]] = 0) do={`,
@@ -1802,7 +1836,12 @@ export function buildRouterSetupScriptChunks(opts: {
       `  }`,
       `}`,
     ];
-    chunks.push({ label: "LAN Ports (add every non-WAN port to the bridge)", script: lines.join("\n") });
+    chunks.push({
+      label: hasExplicitLan
+        ? "LAN Ports (only the explicitly-listed interfaces)"
+        : "LAN Ports (add every non-WAN port to the bridge)",
+      script: lines.join("\n"),
+    });
   }
 
   {

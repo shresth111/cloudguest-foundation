@@ -152,6 +152,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     { iface: "ether2", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
     { iface: "ether3", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
   ]);
+  // Blank (default) keeps the original "every non-WAN port becomes LAN"
+  // sweep -- see buildRouterSetupScriptChunks's own `hasExplicitLan`
+  // docstring. Filling this in switches to an explicit allowlist: only
+  // these interfaces join the LAN bridge, everything else is left alone.
+  const [lanIfsRaw, setLanIfsRaw] = useState("");
   const [enableFirewall, setEnableFirewall] = useState(true);
   const [enableWireguard, setEnableWireguard] = useState(false);
   const [enableRadius, setEnableRadius] = useState(false);
@@ -187,11 +192,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     // != "")` guard then silently skips instead of erroring, leaving that
     // WAN with an address but no route at all.
     const activeWans = wans.slice(0, ispCount);
+    const lanIfs = lanIfsRaw.split(",").map((s) => s.trim()).filter(Boolean);
     const incompleteStaticWan = activeWans.find(
       (w) => w.mode === "static" && (!w.ip?.trim() || !w.cidr?.trim() || !w.gateway?.trim()),
     );
     if (incompleteStaticWan) {
       toast.error(`WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`);
+      return;
+    }
+    const lanWanOverlap = lanIfs.find((li) => activeWans.some((w) => w.iface === li));
+    if (lanWanOverlap) {
+      toast.error(`"${lanWanOverlap}" is listed as both a WAN and a LAN interface -- fix before generating`);
       return;
     }
     setBusy(true);
@@ -305,6 +316,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           apiBase: getAbsoluteApiBase(),
           agentCredential,
           wans: activeWans,
+          lanIfs: lanIfs.length > 0 ? lanIfs : undefined,
           enableFirewall,
           wireguard,
           radius,
@@ -417,6 +429,12 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">LAN CIDR</label>
           <input className={inputCls} value={form.lanCidr} onChange={(e) => set("lanCidr", e.target.value)} placeholder="24" />
+        </div>
+        <div className="sm:col-span-3">
+          <label className="mb-1 block text-[11px] text-muted-foreground">
+            LAN interfaces (comma-separated, e.g. ether4,ether5) — blank = every port that isn't a WAN above
+          </label>
+          <input className={inputCls} value={lanIfsRaw} onChange={(e) => setLanIfsRaw(e.target.value)} placeholder="blank = auto (all non-WAN ports)" />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">DNS servers</label>
