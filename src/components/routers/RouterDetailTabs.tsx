@@ -1582,6 +1582,23 @@ export interface RouterSetupScriptChunk {
   script: string;
 }
 
+/** One WAN link's own addressing -- what used to be an undocumented manual
+ * on-site step ("get each WAN interface online first, then paste the
+ * script") is now part of the generated script itself. `mode: "static"`
+ * needs `ip`/`cidr`/`gateway` filled in (the field engineer's own ISP
+ * paperwork); `mode: "dhcp"` needs none of them -- the router negotiates
+ * its own address and gateway, which `buildRouterSetupScriptChunks`'s
+ * "WAN Routing" chunk below then resolves live (`/ip dhcp-client get ...
+ * gateway`) rather than baking in a value nobody here could have known at
+ * generation time. */
+export interface WanEntry {
+  iface: string;
+  mode: "static" | "dhcp";
+  ip?: string;
+  cidr?: string;
+  gateway?: string;
+}
+
 /** Same configuration as `buildRouterSetupScript`, split into small,
  * independently-pasteable pieces instead of one giant `{ ... }` block --
  * confirmed live on a real device that WinBox's terminal can drop/mangle
@@ -1596,7 +1613,7 @@ export interface RouterSetupScriptChunk {
 export function buildRouterSetupScriptChunks(opts: {
   apiBase: string;
   agentCredential: string;
-  wanIfs: string[];
+  wans: WanEntry[];
   lanBridge: string;
   lanIp: string;
   lanCidr: string;
@@ -1626,7 +1643,8 @@ export function buildRouterSetupScriptChunks(opts: {
    * instead. */
   portalUrl?: PortalOverrideConfig;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
+  const { apiBase, agentCredential, wans, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
+  const wanIfs = wans.map((w) => w.iface);
   const base3 = lanIp.split(".").slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
   const poolEnd = `${base3}.254`;
@@ -1652,6 +1670,98 @@ export function buildRouterSetupScriptChunks(opts: {
       lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${wanIf}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${wanIf}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
     });
     chunks.push({ label: "WAN + Bridge", script: lines.join("\n") });
+  }
+
+  // Gives each WAN interface an actual address -- this used to be an
+  // undocumented manual on-site step ("get each WAN interface online
+  // first, then paste the script": run `/ip dhcp-client add` or `/ip
+  // address add` by hand before any of the rest of this script could work
+  // at all). `add-default-route=no` on every dhcp-client here deliberately
+  // -- the "WAN Routing" chunk below owns every default route itself (both
+  // the routing-mark'd load-balancing ones and the plain fallback one),
+  // the same way it owns a static WAN's route; letting RouterOS's own
+  // dhcp-client add a second, unmarked, unmonitored default route of its
+  // own would silently fight that chunk's check-gateway-driven failover.
+  {
+    const lines: string[] = [];
+    wans.forEach((wan, idx) => {
+      const n = idx + 1;
+      if (wan.mode === "static") {
+        lines.push(`:if ([:len [/ip address find where interface="${wan.iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`);
+        lines.push(`  /ip address add address="${wan.ip}/${wan.cidr}" interface="${wan.iface}" comment="cloudguest-addr-wan${n}"`);
+        lines.push(`}`);
+      } else {
+        lines.push(`:if ([:len [/ip dhcp-client find where interface="${wan.iface}"]] = 0) do={`);
+        lines.push(`  /ip dhcp-client add interface="${wan.iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`);
+        lines.push(`}`);
+      }
+    });
+    chunks.push({ label: "WAN Addressing (static IP or DHCP client per WAN)", script: lines.join("\n") });
+  }
+
+  // Real default routes -- both the routing-mark'd ones the PCC mangle
+  // rules below route into, and a plain one per WAN for the router's own
+  // traffic (heartbeat, DNS, Netwatch pings) -- not just the mangle marks
+  // by themselves, which is all this script used to render (see this
+  // function's own git history: the comment used to say outright "this
+  // only marks connections/routes -- it does NOT add the `/ip route`
+  // entries themselves", leaving that to a field engineer). Every route
+  // carries `check-gateway=ping`: RouterOS marks a route inactive (not
+  // removed) the moment its gateway stops answering pings, and
+  // automatically prefers the next-lowest-distance *active* route sharing
+  // the same routing-mark -- the real mechanism both load balancing
+  // (distance=1 on every WAN's own mark) and failover (a distance=2
+  // crossover backup on every *other* WAN's mark) below rely on, not
+  // anything this script has to implement itself.
+  //
+  // A DHCP WAN's gateway isn't known at script-generation time (unlike a
+  // static WAN's, typed in by the field engineer) -- resolved live instead
+  // via `/ip dhcp-client get ... gateway`, which can legitimately still be
+  // empty the instant this script first runs (lease negotiation is
+  // asynchronous). Every route below is skipped, not errored, when that
+  // happens; the Heartbeat chunk's scheduler re-runs this same
+  // resolve-and-set logic every 5 minutes, so a DHCP WAN that wasn't bound
+  // yet on first paste self-heals on its own within one heartbeat interval
+  // instead of needing a second manual pass.
+  {
+    const lines: string[] = [];
+    wans.forEach((wan, idx) => {
+      const n = idx + 1;
+      if (wan.mode === "static") {
+        lines.push(`:local wan${n}Gw "${wan.gateway}"`);
+      } else {
+        lines.push(`:local wan${n}Gw ""`);
+        lines.push(`:if ([:len [/ip dhcp-client find where interface="${wan.iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${wan.iface}"] gateway] }`);
+      }
+    });
+    wans.forEach((_, idx) => {
+      const n = idx + 1;
+      lines.push(`:if ($wan${n}Gw != "") do={`);
+      lines.push(`  :if ([:len [/ip route find where comment="cloudguest-plain-wan${n}"]] = 0) do={`);
+      lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`);
+      lines.push(`  } else={ /ip route set [find comment="cloudguest-plain-wan${n}"] gateway=$wan${n}Gw }`);
+      if (wans.length > 1) {
+        // This WAN's own preferred (distance=1) routing-mark'd route --
+        // what the PCC mangle rules below send this WAN's share of
+        // LAN-originated connections into.
+        lines.push(`  :if ([:len [/ip route find where comment="cloudguest-route-wan${n}"]] = 0) do={`);
+        lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}"`);
+        lines.push(`  } else={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$wan${n}Gw }`);
+        // Crossover backup: the *next* WAN's mark also gets a distance=2
+        // route via this WAN's gateway -- a ring (wan1 backs up wan2, wan2
+        // backs up wan3, ..., last WAN backs up wan1), not every pair
+        // combination, so this stays one route per WAN regardless of how
+        // many WANs there are instead of growing combinatorially. Two WANs
+        // is the common case and degenerates to exactly mutual backup.
+        const nextIdx = (idx + 1) % wans.length;
+        const nextN = nextIdx + 1;
+        lines.push(`  :if ([:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]] = 0) do={`);
+        lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}"`);
+        lines.push(`  } else={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$wan${n}Gw }`);
+      }
+      lines.push(`}`);
+    });
+    chunks.push({ label: "WAN Routing (load balancing + failover)", script: lines.join("\n") });
   }
 
   {
@@ -1821,16 +1931,19 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: "Firewall", script: lines.join("\n") });
   }
 
-  // Basic per-connection-classifier (PCC) mangle rules for real dual/multi-
-  // WAN load balancing -- only meaningful with 2+ WAN links. This marks
-  // which WAN each new LAN connection should use (split evenly by
-  // source+destination address/port), which the failover-only distance
-  // setup in the WAN chunk doesn't give you. NOTE: this only marks
-  // connections/routes -- it does NOT add the `/ip route ... gateway=...
-  // routing-mark=to_wanN` entries themselves, since (same as the WAN IP
-  // itself) only the field engineer on-site knows each link's actual
-  // gateway. Add one such route per WAN after this, using the matching
-  // `to_wan<N>` routing-mark.
+  // Per-connection-classifier (PCC) mangle rules for real dual/multi-WAN
+  // load balancing -- only meaningful with 2+ WAN links. This marks which
+  // WAN each new LAN connection should use (split evenly by source+
+  // destination address/port), then mark-routes it into that WAN's own
+  // `to_wan<N>` routing-mark -- the exact routing-mark the "WAN Routing"
+  // chunk above already added a distance=1 (preferred) and distance=2
+  // (crossover backup, for failover) route pair for. These two chunks are
+  // a pair: mangle rules with no matching routing-mark route would silently
+  // black-hole marked traffic the instant its preferred WAN's gateway went
+  // down (no lower-distance route left for that mark to fall back to), and
+  // routes with no mangle marking would just never get used by ordinary
+  // LAN traffic in the first place (nothing sends new connections into a
+  // routing-mark without one).
   if (wanIfs.length > 1) {
     const lines: string[] = [];
     wanIfs.forEach((wanIf, idx) => {
@@ -1912,18 +2025,56 @@ export function buildRouterSetupScriptChunks(opts: {
     // address) as `management_ip_address` on every heartbeat, instead of
     // the previous always-empty `"{}"` body that left that column NULL
     // forever regardless of how many heartbeats arrived.
-    const heartbeatJson = wireguard
-      ? `{"management_ip_address":"${wireguard.routerTunnelIp}"}`
-      : "{}";
+    // Only a *static* WAN1 has a known-at-generation-time address to embed
+    // here -- for a DHCP WAN1 this key is omitted entirely (not sent as an
+    // empty string), so the recurring heartbeat's `if public_ip_address is
+    // not None` backend check (see RouterService.heartbeat) leaves
+    // whatever real value the one-shot line below already recorded alone,
+    // rather than blanking it back out on this scheduler's very first tick
+    // 5 minutes later. Built as a filtered, comma-joined array (not
+    // hand-spliced strings) so an absent key never leaves a stray leading/
+    // trailing comma behind -- invalid JSON the backend would 422 on.
+    const heartbeatJsonParts = [
+      wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}"` : null,
+      wans[0].mode === "static" ? `"public_ip_address":"${wans[0].ip}"` : null,
+    ].filter((p): p is string => p !== null);
+    const heartbeatJson = `{${heartbeatJsonParts.join(",")}}`;
     const heartbeatDataOnce = escapeForRouterOsString(heartbeatJson);
     const heartbeatDataTwice = escapeForRouterOsString(heartbeatDataOnce);
     const lines = [
+      // The *recurring* (every 5m) heartbeat keeps reporting a fixed,
+      // generation-time-literal body -- same proven `on-event=("..." .
+      // var . "...")` concatenation this scheduler entry already used
+      // before WAN reporting existed, deliberately not extended to also
+      // re-resolve a DHCP WAN's IP live on every tick: that needs the same
+      // string-concatenation nested *inside* this already-concatenated
+      // on-event value, a second level of RouterOS quote-escaping this
+      // addition did not get to confirm against a real device (see
+      // `render_isp_netwatch_entry`'s own "not confirmed live" precedent
+      // for the same honesty convention). A DHCP WAN1's address changing
+      // between provisioning and the next manual re-run of this script is
+      // therefore a real, reported gap, not a silent guess -- the one-shot
+      // line below (run immediately, while the field engineer is still on
+      // site to notice anything wrong) does resolve it live, just not this
+      // recurring one.
       `:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`,
       `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . "${apiBase}" . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . "${agentCredential}" . "\\" http-data=\\"${heartbeatDataTwice}\\" output=none")`,
       `}`,
-      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data="${heartbeatDataOnce}" output=none`,
+      // The one-shot line, by contrast, runs once right now -- so it can
+      // afford to resolve WAN1's actual live address first (a plain,
+      // single-level `:local`/`:set` + one `http-data=(... . $wan1Ip .
+      // ...)` concatenation, the same nesting depth the scheduler line
+      // above already uses successfully) instead of the static value typed
+      // into the form at generation time, which for a DHCP WAN1 is empty
+      // anyway (nothing to type -- see WanEntry's own docstring).
+      `:local wan1Ip ""`,
+      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={`,
+      `  :local wan1Full [/ip address get [find interface="${wans[0].iface}"] address]`,
+      `  :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]]`,
+      `}`,
+      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
     ];
-    chunks.push({ label: "Heartbeat", script: lines.join("\n") });
+    chunks.push({ label: "Heartbeat (reports management + WAN1 IP)", script: lines.join("\n") });
   }
 
   return chunks;

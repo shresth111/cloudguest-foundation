@@ -147,7 +147,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const [busy, setBusy] = useState(false);
   const [chunks, setChunks] = useState<import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null>(null);
   const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
-  const [wanIfs, setWanIfs] = useState<string[]>(["ether1", "ether2", "ether3"]);
+  const [wans, setWans] = useState<import("@/components/routers/RouterDetailTabs").WanEntry[]>([
+    { iface: "ether1", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
+    { iface: "ether2", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
+    { iface: "ether3", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
+  ]);
   const [enableFirewall, setEnableFirewall] = useState(true);
   const [enableWireguard, setEnableWireguard] = useState(false);
   const [enableRadius, setEnableRadius] = useState(false);
@@ -163,8 +167,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
-  function setWanIf(idx: number, value: string) {
-    setWanIfs((arr) => arr.map((v, i) => (i === idx ? value : v)));
+  function setWan(idx: number, patch: Partial<import("@/components/routers/RouterDetailTabs").WanEntry>) {
+    setWans((arr) => arr.map((w, i) => (i === idx ? { ...w, ...patch } : w)));
   }
 
   async function onGenerate() {
@@ -175,6 +179,19 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     // provisioning token. Cheaper to block before spending that token.
     if (!form.lanBridge.trim()) {
       toast.error("LAN bridge name can't be empty");
+      return;
+    }
+    // Same "block before spending the token" reasoning as the LAN-bridge
+    // check above -- a static WAN with a blank ip/cidr/gateway renders
+    // `:local wan1Gw ""`, which the WAN Routing chunk's own `:if ($wan1Gw
+    // != "")` guard then silently skips instead of erroring, leaving that
+    // WAN with an address but no route at all.
+    const activeWans = wans.slice(0, ispCount);
+    const incompleteStaticWan = activeWans.find(
+      (w) => w.mode === "static" && (!w.ip?.trim() || !w.cidr?.trim() || !w.gateway?.trim()),
+    );
+    if (incompleteStaticWan) {
+      toast.error(`WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`);
       return;
     }
     setBusy(true);
@@ -287,7 +304,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           // to resolve a relative URL against ("Mode not specified").
           apiBase: getAbsoluteApiBase(),
           agentCredential,
-          wanIfs: wanIfs.slice(0, ispCount),
+          wans: activeWans,
           enableFirewall,
           wireguard,
           radius,
@@ -321,18 +338,20 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <FileCode2 className="h-3.5 w-3.5" /> Setup Script -- 1-shot MikroTik configuration
       </p>
       <p className="text-xs text-muted-foreground">
-        WAN interface list + NAT (1-3 ISPs), LAN bridge, hotspot, basic firewall, platform
-        check-in + heartbeat, and Device Console access — all in one script, one paste. WAN IP
-        addressing itself (DHCP or a static/leased-line IP) is <strong>not</strong> part of this
-        script — every ISP link is different, so that's a manual on-site step first (see below).
+        WAN interface list + NAT (1-3 ISPs), WAN addressing (static IP or DHCP, per link), LAN
+        bridge, hotspot, basic firewall, platform check-in + heartbeat (also reports WAN1's live
+        IP), and Device Console access — all in one script, one paste. 2+ ISPs also get real
+        per-connection-classifier <strong>load balancing</strong> plus distance/check-gateway-based
+        <strong> failover</strong> (a WAN whose gateway stops answering pings automatically drops
+        out, its share of traffic falling back to the next WAN — no dashboard action needed).
       </p>
 
       <ol className="list-decimal space-y-1 rounded-lg border border-border bg-muted/30 p-2.5 pl-6 text-[11px] text-muted-foreground">
         <li>Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH session, and not a browser.</li>
         <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there.</li>
         <li><strong>Do not rename a WAN interface</strong> (e.g. <code className="rounded bg-background px-1 py-0.5">/interface ethernet set ... name=...</code>) at any point before or while pasting this script — every line below refers to it by the exact name entered in step above. Renaming it first (even to something more readable) makes every later match on that name silently fail, and that unrecognized port then gets swept into the guest LAN bridge instead of staying on the WAN side (confirmed live). If you want a friendlier name, rename it only <strong>after</strong> the whole script has run successfully.</li>
-        <li>Get each WAN interface online <strong>first</strong>: run <code className="rounded bg-background px-1 py-0.5">/ip dhcp-client add interface=&lt;name&gt; disabled=no</code> if the ISP hands out an IP automatically, or <code className="rounded bg-background px-1 py-0.5">/ip address add address=&lt;ip/cidr&gt; interface=&lt;name&gt;</code> + a default route if it's a static/leased-line IP — whichever this specific link actually is.</li>
-        <li>Back in the dashboard, fill in the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
+        <li>For each WAN below, pick <strong>Static</strong> or <strong>DHCP</strong> to match what that specific ISP link actually is — a static/leased-line IP needs the IP, CIDR, and gateway your ISP gave you; DHCP needs nothing, the router negotiates its own address.</li>
+        <li>Fill in the rest of the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
         <li>The script appears below in numbered pieces — copy and paste each one into WinBox's New Terminal <strong>one at a time, in order</strong>, pressing Enter after each. This avoids WinBox's terminal dropping characters on one huge paste. If a piece prints a loud <code className="rounded bg-background px-1 py-0.5">*** ERROR ***</code> banner about a missing WAN interface, stop and fix the interface name (do not continue pasting further pieces) before re-running.</li>
       </ol>
 
@@ -348,12 +367,40 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           </button>
         ))}
       </div>
+      {ispCount > 1 && (
+        <p className="text-[11px] text-muted-foreground">
+          2+ WANs: traffic load-balances across all of them; if one WAN's gateway goes down its
+          share automatically fails over to the next WAN (ring order: WAN1 backs up WAN2, WAN2
+          backs up WAN3, ..., the last one backs up WAN1).
+        </p>
+      )}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {wanIfs.slice(0, ispCount).map((v, idx) => (
-          <div key={idx}>
-            <label className="mb-1 block text-[11px] text-muted-foreground">WAN {idx + 1} interface</label>
-            <input className={inputCls} value={v} onChange={(e) => setWanIf(idx, e.target.value)} placeholder={`ether${idx + 1}`} />
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {wans.slice(0, ispCount).map((w, idx) => (
+          <div key={idx} className="space-y-1.5 rounded-lg border border-border p-2">
+            <div className="flex items-center gap-2">
+              <label className="block text-[11px] text-muted-foreground">WAN {idx + 1} interface</label>
+              <input className={`${inputCls} flex-1`} value={w.iface} onChange={(e) => setWan(idx, { iface: e.target.value })} placeholder={`ether${idx + 1}`} />
+            </div>
+            <div className="flex gap-1.5">
+              {(["dhcp", "static"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setWan(idx, { mode: m })}
+                  className={`rounded border px-2 py-0.5 text-[11px] font-medium ${w.mode === m ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-accent"}`}
+                >
+                  {m === "dhcp" ? "DHCP" : "Static"}
+                </button>
+              ))}
+            </div>
+            {w.mode === "static" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                <input className={inputCls} value={w.ip ?? ""} onChange={(e) => setWan(idx, { ip: e.target.value })} placeholder="IP e.g. 203.0.113.5" />
+                <input className={inputCls} value={w.cidr ?? ""} onChange={(e) => setWan(idx, { cidr: e.target.value })} placeholder="CIDR e.g. 30" />
+                <input className={inputCls} value={w.gateway ?? ""} onChange={(e) => setWan(idx, { gateway: e.target.value })} placeholder="Gateway e.g. 203.0.113.1" />
+              </div>
+            )}
           </div>
         ))}
       </div>
