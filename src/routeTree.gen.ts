@@ -66,6 +66,7 @@ import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
 import { Route as MasterSettingsRouteImport } from './routes/master.settings'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
+import { Route as MasterQuotationsRouteImport } from './routes/master.quotations'
 import { Route as MasterNasRouteImport } from './routes/master.nas'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
@@ -465,6 +466,11 @@ const MasterSettingsRoute = MasterSettingsRouteImport.update({
 const MasterRoutersRoute = MasterRoutersRouteImport.update({
   id: '/routers',
   path: '/routers',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterQuotationsRoute = MasterQuotationsRouteImport.update({
+  id: '/quotations',
+  path: '/quotations',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterNasRoute = MasterNasRouteImport.update({
@@ -1188,6 +1194,7 @@ export interface FileRoutesByFullPath {
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
+  '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
@@ -1358,6 +1365,7 @@ export interface FileRoutesByTo {
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
+  '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
@@ -1532,6 +1540,7 @@ export interface FileRoutesById {
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
+  '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRoute
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
@@ -1708,6 +1717,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/locations'
     | '/master/nas'
+    | '/master/quotations'
     | '/master/routers'
     | '/master/settings'
     | '/master/tickets'
@@ -1878,6 +1888,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/locations'
     | '/master/nas'
+    | '/master/quotations'
     | '/master/routers'
     | '/master/settings'
     | '/master/tickets'
@@ -2051,6 +2062,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/locations'
     | '/master/nas'
+    | '/master/quotations'
     | '/master/routers'
     | '/master/settings'
     | '/master/tickets'
@@ -2618,6 +2630,13 @@ declare module '@tanstack/react-router' {
       path: '/routers'
       fullPath: '/master/routers'
       preLoaderRoute: typeof MasterRoutersRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/quotations': {
+      id: '/master/quotations'
+      path: '/quotations'
+      fullPath: '/master/quotations'
+      preLoaderRoute: typeof MasterQuotationsRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/nas': {
@@ -3703,6 +3722,7 @@ interface MasterRouteChildren {
   MasterHealthRoute: typeof MasterHealthRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
   MasterNasRoute: typeof MasterNasRoute
+  MasterQuotationsRoute: typeof MasterQuotationsRoute
   MasterRoutersRoute: typeof MasterRoutersRoute
   MasterSettingsRoute: typeof MasterSettingsRoute
   MasterTicketsRoute: typeof MasterTicketsRoute
@@ -3719,6 +3739,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterHealthRoute: MasterHealthRoute,
   MasterLocationsRoute: MasterLocationsRoute,
   MasterNasRoute: MasterNasRoute,
+  MasterQuotationsRoute: MasterQuotationsRoute,
   MasterRoutersRoute: MasterRoutersRoute,
   MasterSettingsRoute: MasterSettingsRoute,
   MasterTicketsRoute: MasterTicketsRoute,
