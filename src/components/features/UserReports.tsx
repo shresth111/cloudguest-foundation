@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
-import { maskPhone } from "@/components/features/HeaderControls";
+import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 
 const CATEGORIES = ["Guest Activity Report", "Voucher Redemption Report", "Campaign Engagement Report", "Bandwidth & Cost Report", "OTP & SMS Delivery Report"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -91,7 +91,14 @@ const COLUMNS: Record<string, ColumnDef[]> = {
   "top-campaigns": [{ key: "rank", label: "Rank", sortType: "number" }, { key: "campaign", label: "Campaign", sortType: "string" }, { key: "type", label: "Type", sortType: "string" }, { key: "reach", label: "Reach", sortType: "number" }, { key: "ctr", label: "CTR", sortType: "string" }],
 
   "data-consumption": [{ key: "date", label: "Date", sortType: "date" }, { key: "uploadGB", label: "Upload", sortType: "number" }, { key: "downloadGB", label: "Download", sortType: "number" }, { key: "totalGB", label: "Total", sortType: "number" }, { key: "peakMbps", label: "Peak Throughput", sortType: "number" }, { key: "cost", label: "Est. Cost", sortType: "number" }],
-  "data-by-location": [{ key: "businessUnit", label: "Business Unit", sortType: "string" }, { key: "totalData", label: "Total Data", sortType: "number" }, { key: "avgPerUser", label: "Avg Per User", sortType: "number" }, { key: "peakHour", label: "Peak Hour", sortType: "string" }, { key: "cost", label: "Est. Cost", sortType: "number" }],
+  // "Avg Per Session", not "Avg Per User" -- no per-guest identity is
+  // available to realDataByLocation (same limitation this app cites
+  // elsewhere for gating other report types), so this is genuinely bytes
+  // per session, not per unique guest; a guest with 3 sessions would
+  // otherwise inflate the denominator and understate the true per-guest
+  // average shown to the customer. Labeling it honestly instead of as
+  // something it isn't.
+  "data-by-location": [{ key: "businessUnit", label: "Business Unit", sortType: "string" }, { key: "totalData", label: "Total Data", sortType: "number" }, { key: "avgPerUser", label: "Avg Per Session", sortType: "number" }, { key: "peakHour", label: "Peak Hour", sortType: "string" }, { key: "cost", label: "Est. Cost", sortType: "number" }],
 
   "otp-delivery": [{ key: "rank", label: "#", sortType: "number" }, { key: "mobile", label: "Mobile Number", sortType: "string" }, { key: "sentAt", label: "Sent At", sortType: "date" }, { key: "status", label: "Status", sortType: "string" }, { key: "latencyMs", label: "Latency (ms)", sortType: "number" }],
   "sms-daywise": [{ key: "date", label: "Date", sortType: "date" }, { key: "sent", label: "Sent", sortType: "number" }, { key: "delivered", label: "Delivered", sortType: "number" }, { key: "failed", label: "Failed", sortType: "number" }, { key: "rate", label: "Delivery Rate", sortType: "string" }],
@@ -116,6 +123,32 @@ const NEEDS_RATE = new Set(["data-consumption", "data-by-location"]);
  * masked anything at all, unmasked or not, so an agent previewing with
  * "Data masking" ON still saw every guest's real number here. */
 const PHONE_COLUMNS = new Set(["mobile", "redeemedBy"]);
+
+const MAC_ADDRESS_RE = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
+
+/** "redeemedBy" specifically (Voucher Redemption reports) is `Voucher
+ * .redeemed_identifier`, which per that column's own backend docstring
+ * (backend/app/domains/voucher/models.py) is "phone/email/device-MAC, or
+ * whatever the redeeming guest self-reports" -- not restricted to a phone
+ * number the way `maskPhone` assumes. Routing it straight through
+ * `maskPhone` left an email (0-1 digits, under `maskPhone`'s own <=5-digit
+ * no-op threshold) fully unmasked even with Data masking ON -- a real
+ * guest-PII leak in exactly the code path this feature's own PHONE_COLUMNS
+ * comment above says was added to fix. Classify by shape and mask with the
+ * matching helper instead: a device MAC is deliberately left unmasked
+ * (`maskMac`'s own no-op, matching the backend's identical `mask_mac`
+ * policy -- customers need the real address to identify a device for
+ * support), and anything unclassifiable is redacted the same "some
+ * structure survives, PII doesn't" way `maskEmail` does rather than shown
+ * raw, since the entire reason this dispatch exists is to not leak
+ * whatever a guest self-reported. */
+function maskRedeemedIdentifier(value: string): string {
+  if (value.includes("@")) return maskEmail(value);
+  if (MAC_ADDRESS_RE.test(value)) return maskMac(value);
+  const digitCount = (value.match(/\d/g) ?? []).length;
+  if (digitCount > 5) return maskPhone(value);
+  return value.length <= 2 ? value : `${value.slice(0, 2)}${"•".repeat(Math.max(3, value.length - 2))}`;
+}
 
 function mockRow(reportType: string, i: number, count: number, campaignType?: string, ratePerGb?: number): Row {
   const r: Row = { rank: i + 1 };
@@ -172,7 +205,11 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 // delivery logs, team rosters) with no backing endpoint anywhere in this
 // codebase's real data paths. Those stay honestly unavailable for real
 // accounts rather than fabricated -- see UNAVAILABLE_REASON below.
-const REAL_REPORT_TYPES = new Set(["data-consumption", "data-by-location"]);
+// "voucher-usage"/"top-vouchers" moved out of UNAVAILABLE_REASON below --
+// GET /analytics/voucher-redemptions/log (backend/app/domains/analytics)
+// now backs both real report types, see realVoucherRedemptionLog/
+// realTopRedeemedVouchers above.
+const REAL_REPORT_TYPES = new Set(["data-consumption", "data-by-location", "voucher-usage", "top-vouchers"]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
   "user-data": "Per-guest identity (name/mobile) isn't exposed by the real session data this account can access.",
@@ -182,8 +219,7 @@ const UNAVAILABLE_REASON: Record<string, string> = {
   "daywise-data": "Aggregated day-wise totals need the same per-guest breakdown the backend doesn't expose yet -- see Bandwidth & Cost Report for real day-wise totals.",
   "daywise-unique": "Unique user/device counts aren't tracked per day in the real backend yet.",
   "team-report": "Guest teams aren't tied to usage totals in the real backend yet.",
-  "voucher-usage": "Individual voucher redemption events aren't exposed by the real backend yet -- only batch-level counts are.",
-  "top-vouchers": "Individual voucher redemption events aren't exposed by the real backend yet.",
+  "voucher-batch": "Per-batch issued-vs-redeemed rate isn't computed in the real backend yet -- see Voucher Redemption Log for real per-voucher redemption data.",
   "campaign-performance": "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
   "campaign-daywise": "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
   "top-campaigns": "Campaign reach/click metrics aren't tracked in the real backend yet.",
@@ -198,28 +234,42 @@ interface RealGuestSession { started_at: string; ended_at?: string | null; bytes
 // request 422s outright, which silently turned every real Bandwidth & Cost Report into
 // either a fabricated "Could not load this report" error or a false "0 MB"
 // once the per-location Promise.allSettled in realDataByLocation swallowed
-// the rejection. Page through in 100-row chunks via has_next instead, capped
-// at 20 pages (2000 sessions) so one location with an unbounded history can't
-// hang the report -- generous for a <=90-day range (this form's own cap).
+// the rejection. Page through in 100-row chunks via has_next instead.
+//
+// start_date/end_date are now sent to the backend (GET /guest-sessions'
+// real, server-side [start_date, end_date) filter on started_at --
+// GuestService.list_sessions_in_range) instead of over-fetching the most
+// recent N sessions and filtering client-side. The old client-side-filter
+// approach silently truncated any older-but-in-range day once a location's
+// session volume exceeded the old page cap, which could make a real,
+// populated date range render as a false "no data" empty report with no
+// error -- see that endpoint's own docstring.
+//
+// MAX_REPORT_PAGES below is no longer a truncation boundary (the query is
+// now bounded by the real date range, not an arbitrary row count) -- it's
+// only a circuit breaker against a runaway loop if `has_next` were ever
+// wrong, generous enough (50k rows) that no legitimate real-account report
+// should ever hit it.
 const SESSIONS_PAGE_SIZE = 100;
-const MAX_SESSION_PAGES = 20;
+const MAX_REPORT_PAGES = 500;
 
 async function fetchRealSessions(orgId: string, locationId: string, from: string, to: string): Promise<RealGuestSession[]> {
-  const fromT = new Date(from).getTime();
-  const toT = new Date(to).getTime() + 86400000;
   const all: RealGuestSession[] = [];
-  for (let page = 1; page <= MAX_SESSION_PAGES; page++) {
+  for (let page = 1; page <= MAX_REPORT_PAGES; page++) {
     const { data } = await api.get<{ items: RealGuestSession[]; has_next?: boolean }>("/guest-sessions", {
-      params: { location_id: locationId, page, page_size: SESSIONS_PAGE_SIZE },
+      params: {
+        location_id: locationId,
+        start_date: new Date(from).toISOString(),
+        end_date: new Date(new Date(to).getTime() + 86400000).toISOString(),
+        page,
+        page_size: SESSIONS_PAGE_SIZE,
+      },
       headers: { "X-Organization-Id": orgId },
     });
     all.push(...(data?.items ?? []));
     if (!data?.has_next) break;
   }
-  return all.filter((s) => {
-    const t = new Date(s.started_at).getTime();
-    return t >= fromT && t < toT;
-  });
+  return all;
 }
 
 async function realDataConsumption(orgId: string, locationId: string, from: string, to: string, ratePerGb?: number): Promise<Row[]> {
@@ -256,6 +306,85 @@ async function realDataByLocation(orgId: string, locations: { id: string; name: 
     const avgPerUser = sessions.length ? totalData / sessions.length : 0;
     return { businessUnit: l.name, totalData, avgPerUser, peakHour: "—", cost: ratePerGb ? (totalData / 1000) * ratePerGb : null };
   });
+}
+
+interface RealVoucherRedemption {
+  code: string;
+  batch_name: string;
+  plan_name: string | null;
+  redeemed_identifier: string | null;
+  redeemed_at: string;
+}
+
+// GET /analytics/voucher-redemptions/log is the row-level counterpart to
+// the aggregate-only /analytics/voucher-redemptions this domain already
+// had -- see backend/app/domains/analytics/router.py's own docstring on
+// that endpoint. Same 100-row-page/has_next pagination discipline as
+// fetchRealSessions above (MAX_REPORT_PAGES/SESSIONS_PAGE_SIZE), same
+// reason: one real customer's full date range shouldn't need an unbounded
+// single request.
+async function fetchRealVoucherRedemptions(
+  orgId: string,
+  locationId: string,
+  from: string,
+  to: string,
+  sort: "recent" | "most_used",
+): Promise<RealVoucherRedemption[]> {
+  const all: RealVoucherRedemption[] = [];
+  for (let page = 1; page <= MAX_REPORT_PAGES; page++) {
+    const { data } = await api.get<{ items: RealVoucherRedemption[]; has_next?: boolean }>(
+      "/analytics/voucher-redemptions/log",
+      {
+        params: {
+          location_id: locationId,
+          start_date: new Date(from).toISOString(),
+          end_date: new Date(new Date(to).getTime() + 86400000).toISOString(),
+          page,
+          page_size: SESSIONS_PAGE_SIZE,
+          sort,
+        },
+        headers: { "X-Organization-Id": orgId },
+      },
+    );
+    all.push(...(data?.items ?? []));
+    if (!data?.has_next) break;
+  }
+  return all;
+}
+
+async function realVoucherRedemptionLog(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const redemptions = await fetchRealVoucherRedemptions(orgId, locationId, from, to, "recent");
+  return redemptions.map((r, i) => ({
+    rank: i + 1,
+    code: r.code,
+    batch: r.batch_name,
+    value: r.plan_name ?? "—",
+    redeemedBy: r.redeemed_identifier,
+    redeemedAt: r.redeemed_at,
+  }));
+}
+
+// "(This Month)" per TOP_VOUCHERS's own label -- there's no date picker for
+// this report type (not in NEEDS_RANGE), so the window is computed here,
+// not taken from `from`/`to` state (which stay empty for this reportType).
+function currentMonthBounds(): { from: string; to: string } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { from: start.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
+}
+
+const TOP_VOUCHERS_LIMIT = 10;
+
+async function realTopRedeemedVouchers(orgId: string, locationId: string): Promise<Row[]> {
+  const { from, to } = currentMonthBounds();
+  const redemptions = await fetchRealVoucherRedemptions(orgId, locationId, from, to, "most_used");
+  return redemptions.slice(0, TOP_VOUCHERS_LIMIT).map((r, i) => ({
+    rank: i + 1,
+    code: r.code,
+    redeemedBy: r.redeemed_identifier,
+    value: r.plan_name ?? "—",
+    redeemedAt: r.redeemed_at,
+  }));
 }
 
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
@@ -339,6 +468,7 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
 
   const fmtCell = (key: string, val: string | number | null): string => {
     if (val == null) return "—";
+    if (key === "redeemedBy") return masked ? maskRedeemedIdentifier(String(val)) : String(val);
     if (PHONE_COLUMNS.has(key)) return masked ? maskPhone(String(val)) : String(val);
     if (key === "cost") return `₹${(+val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
     if (key === "peakMbps") return `${(+val).toFixed(1)} Mbps`;
@@ -379,9 +509,13 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
         data = await mockRun(reportType, campaignType, rate);
       } else if (REAL_REPORT_TYPES.has(reportType)) {
         const orgId = await resolveOrgId();
+        const loc = locationsByName.get(bu);
         if (reportType === "data-consumption") {
-          const loc = locationsByName.get(bu);
           data = loc ? await realDataConsumption(orgId, loc.id, from, to, rate) : [];
+        } else if (reportType === "voucher-usage") {
+          data = loc ? await realVoucherRedemptionLog(orgId, loc.id, from, to) : [];
+        } else if (reportType === "top-vouchers") {
+          data = loc ? await realTopRedeemedVouchers(orgId, loc.id) : [];
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }
@@ -395,10 +529,20 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
     setRows(data); setUnavailable(reason); setRunning(false); setPage(0); setSearchTxt("");
   }, [demo, bu, reportType, from, to, singleDate, team, campaignType, ratePerGb, needsRange, needsSingle, needsTeam, needsCampaignType, needsRate, locationsByName, customerLocations]);
 
+  // Real batch/plan names (VoucherBatch.name etc.) are free text a
+  // customer typed -- e.g. "Front Desk, Lobby" -- so a plain unquoted
+  // `.join(",")` misaligns every column in the exported file from that row
+  // on when opened in Excel/Sheets. Quote every field and escape embedded
+  // quotes/newlines per RFC 4180, same as any real CSV writer would;
+  // mock/demo data never exercises this (fixed values, no commas) which is
+  // why it went unnoticed there.
+  const csvField = (val: string): string =>
+    /[",\n]/.test(val) ? `"${val.replace(/"/g, '""')}"` : val;
+
   const exportCsv = () => {
     if (!rows || !rows.length) return;
-    const header = cols.map((c) => c.label).join(",") + "\n";
-    const data = sortedRows.map((r) => cols.map((c) => fmtCell(c.key, r[c.key] ?? null)).join(",")).join("\n");
+    const header = cols.map((c) => csvField(c.label)).join(",") + "\n";
+    const data = sortedRows.map((r) => cols.map((c) => csvField(fmtCell(c.key, r[c.key] ?? null))).join(",")).join("\n");
     const blob = new Blob([header + data], { type: "text/csv" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a");
     a.href = url; a.download = `${csvPrefix}-${reportType}-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
