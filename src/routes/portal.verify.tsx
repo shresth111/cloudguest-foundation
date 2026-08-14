@@ -23,10 +23,13 @@ function VerifyPage() {
     organizationId,
     locationId,
     routerId,
+    deviceMac,
+    deviceIp,
     config,
     setSession,
     termsAccepted,
     setTermsAccepted,
+    setGuestIdentifier,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/verify" });
   const [code, setCode] = useState("");
@@ -59,17 +62,34 @@ function VerifyPage() {
         organizationId,
         locationId,
         routerId,
+        deviceMac,
+        deviceIp,
       }),
     onSuccess: async (session) => {
       toast.success("Verified");
       setSession(session);
+      // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
+      // own RADIUS Authorize checks this exact value, not a hardcoded one.
+      setGuestIdentifier(otpTarget?.trim());
       if (requiresTerms && termsAccepted) {
         portalRuntimeService
           .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
           .catch(() => undefined);
       }
+      // First (or any) OTP-verified login by a guest who hasn't set a
+      // password yet, on a portal that offers password login at all --
+      // offer the skippable "save a password for next time?" prompt before
+      // continuing on to the ad/success screen. A password login itself
+      // never reaches here (see portal.auth.$method.tsx's own onLoggedIn),
+      // so this can only ever fire right after a real OTP verification.
+      const offerPasswordSetup = config?.usernamePasswordEnabled && !session.hasPassword;
+      // Always /portal/success beyond that (never /portal/ad -- the legacy
+      // static-banner interstitial was removed, superseded by the real
+      // Campaigns feature now shown on /portal/session): that brief
+      // transitional screen fires the real hotspot-login POST and lands
+      // the guest on /portal/session once it completes.
       navigate({
-        to: config?.advertisementBannerUrl ? "/portal/ad" : "/portal/success",
+        to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
         search: (prev) => prev,
       });
     },

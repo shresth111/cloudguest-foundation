@@ -51,17 +51,20 @@ let cachedOrganizationId: string | null = null;
 // create_entry requires an organization context (raises
 // OrganizationRequiredError otherwise -- see
 // backend/app/domains/mac_authorization/service.py), so every call here
-// threads X-Organization-Id, same pattern as settings.service.ts's
-// resolveOrganizationId.
+// threads X-Organization-Id.
+//
+// GET /organizations is the platform-wide admin listing (GLOBAL scope
+// only) -- an ordinary customer/org-owner session 403s on it, which
+// silently broke every method below for a real customer session. Resolved
+// via /me/organizations (membership-scoped) instead, same fix as
+// customer.service.ts's resolveOrgId / ticket.service.ts's resolveOrgId.
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } = await api.get<{ items: Array<{ id: string }> }>("/organizations", {
-    params: { page_size: 1 },
-  });
-  const id = data.items[0]?.id;
-  if (!id) throw new Error("No organization found for the current session");
-  cachedOrganizationId = id;
-  return id;
+  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const membership = data.find((m) => m.status === "active") ?? data[0];
+  if (!membership) throw new Error("No organization found for the current session");
+  cachedOrganizationId = membership.organization_id;
+  return cachedOrganizationId;
 }
 
 export const macAuthorizationService = {

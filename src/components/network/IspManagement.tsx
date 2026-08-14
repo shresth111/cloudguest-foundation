@@ -9,6 +9,7 @@ import {
   Activity,
   ArrowLeftRight,
   RotateCcw,
+  Globe,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
@@ -69,12 +70,19 @@ import {
   useDeleteIspRoutingRule,
 } from "@/hooks/useIsp";
 import { routerService } from "@/services/router.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { IspLink, IspLinkRole, IspRoutingRule, IspRoutingRuleType } from "@/types/isp";
 
 const PAGE_SIZE = 25;
 const ROLES: IspLinkRole[] = ["primary", "backup"];
-const RULE_TYPES: IspRoutingRuleType[] = ["vlan", "user", "ip", "source", "interface", "policy"];
+// Exported so the customer dashboard's merged "Internet Connection" view
+// (IspDetailsView in OperationsFeatures.tsx) can reuse the exact same rule
+// vocabulary/match-field logic for its own Routing Rules section, rather
+// than re-deriving a second copy that could drift from this one -- this
+// file (the Master Console's own /network/isp page) keeps its own
+// IspManagement component and full CRUD UI unchanged.
+export const RULE_TYPES: IspRoutingRuleType[] = ["vlan", "user", "ip", "source", "interface", "policy"];
 
 function healthTone(status: string): "default" | "destructive" | "secondary" {
   if (status === "healthy") return "default";
@@ -82,11 +90,22 @@ function healthTone(status: string): "default" | "destructive" | "secondary" {
   return "secondary";
 }
 
-export function IspManagement() {
+export function IspManagement({ locationId }: { locationId?: string } = {}) {
   const [routerId, setRouterId] = useState<string>("");
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["isp", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["isp", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped (the customer dashboard's ISP Routing page): use the
+      // location-scoped router endpoint directly (mirrors
+      // IspDetailsView/DhcpManagement/VlanManagement) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const { data: links, isLoading: linksLoading } = useIspLinks({
@@ -121,8 +140,9 @@ export function IspManagement() {
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Globe}
         eyebrow="Network"
-        title="ISP Uplinks & Routing"
+        title="Internet Failover"
         description="Per-router uplinks, health checks, manual failover/failback, and policy-based routing rules that pin traffic to a specific link."
         actions={
           <Button onClick={() => setCreatingLink(true)} disabled={!routerId}>
@@ -137,7 +157,7 @@ export function IspManagement() {
         <StatCard label="Unhealthy / Unknown" value={rows.length - healthyCount} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">Router</CardTitle>
           <Select value={routerId} onValueChange={setRouterId}>
@@ -190,14 +210,14 @@ export function IspManagement() {
       </Card>
 
       {!routerId ? (
-        <Card className="border-border/60">
+        <Card className="border-0 shadow-sm">
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             Select a router above to view its uplinks and routing rules.
           </CardContent>
         </Card>
       ) : (
         <>
-          <Card className="border-border/60">
+          <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base font-semibold">Uplinks</CardTitle>
             </CardHeader>
@@ -284,7 +304,7 @@ export function IspManagement() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/60">
+          <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base font-semibold">Routing rules</CardTitle>
               <Button size="sm" onClick={() => setCreatingRule(true)} disabled={rows.length === 0}>
@@ -567,10 +587,12 @@ function LinkDialog({
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Download (Mbps, optional)</Label>
             <Input type="number" min={0} {...form.register("downloadBandwidthMbps")} />
+            <p className="text-[11px] text-muted-foreground">As advertised by your ISP — not independently measured.</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Upload (Mbps, optional)</Label>
             <Input type="number" min={0} {...form.register("uploadBandwidthMbps")} />
+            <p className="text-[11px] text-muted-foreground">As advertised by your ISP — not independently measured.</p>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
             <div className="text-sm font-medium">Auto failback</div>
@@ -615,7 +637,7 @@ const ruleSchema = z.object({
 });
 type RuleFormValues = z.infer<typeof ruleSchema>;
 
-function matchFieldLabel(t: IspRoutingRuleType): string {
+export function matchFieldLabel(t: IspRoutingRuleType): string {
   switch (t) {
     case "vlan": return "VLAN ID";
     case "user": return "Source MAC address";
@@ -626,7 +648,7 @@ function matchFieldLabel(t: IspRoutingRuleType): string {
   }
 }
 
-function matchValueFromRule(r: IspRoutingRule): string {
+export function matchValueFromRule(r: IspRoutingRule): string {
   return String(r.vlanId ?? r.sourceMacAddress ?? r.ipAddress ?? r.sourceCidr ?? r.interfaceName ?? r.policyId ?? "");
 }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Network, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, Network, ShieldCheck, ShieldOff, Wifi } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,6 +53,7 @@ import {
   useDeleteVlan,
 } from "@/hooks/useVlan";
 import { routerService } from "@/services/router.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { Vlan } from "@/types/vlan";
 
@@ -64,13 +65,14 @@ const vlanSchema = z.object({
   name: z.string().trim().min(2, "Required").max(48),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   cidr: z.string().trim().optional().or(z.literal("")),
+  portMode: z.enum(["trunk", "access"]),
   interface: z.string().trim().optional().or(z.literal("")),
-  description: z.string().trim().max(240).optional().or(z.literal("")),
+  enableHotspot: z.boolean(),
   isEnabled: z.boolean(),
 });
 type VlanFormValues = z.infer<typeof vlanSchema>;
 
-export function VlanManagement() {
+export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -82,12 +84,29 @@ export function VlanManagement() {
     page,
     pageSize: PAGE_SIZE,
     routerId: routerFilter === "all" ? undefined : routerFilter,
+    locationId,
   });
   const { data: kpis } = useVlanKpis();
   const del = useDeleteVlan();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["vlan", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["vlan", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped (the customer dashboard's VLANs page): use the
+      // location-scoped router endpoint directly (mirrors
+      // IspDetailsView/MacAuthView/DhcpManagement) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        // Demo mode: routerService.listForLocation() already ignores this
+        // arg (returns DEMO_ROUTERS), so skip resolving a real org id for
+        // it -- resolveOrgId() itself has no demo guard and would still
+        // fire a real (401ing) request even though its result goes unused.
+        const orgId = isDemo() ? "" : await resolveOrgId();
+        const rows = await routerService.listForLocation(locationId, orgId);
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const routerName = (id: string) => routers.rows.find((r) => r.id === id)?.name ?? id.slice(0, 8);
@@ -107,10 +126,18 @@ export function VlanManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Shared with the master console's own /network/vlan route (rendered
+       * with no locationId there) -- that audience keeps the precise
+       * technical title/description; only the customer portal (which
+       * always passes a real locationId, via OperationsFeatures.tsx's
+       * VlansView) gets the friendlier name. Same id/route/data either way. */}
       <SectionHeader
+        icon={Network}
         eyebrow="Network"
-        title="VLAN Management"
-        description="Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."
+        title={locationId ? "Network Zones" : "VLAN Management"}
+        description={locationId
+          ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
+          : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New VLAN
@@ -124,7 +151,7 @@ export function VlanManagement() {
         <StatCard label="Disabled" value={kpis?.disabled ?? 0} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All VLANs</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -165,8 +192,9 @@ export function VlanManagement() {
                 <TableHead>VLAN</TableHead>
                 <TableHead>Router</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Gateway / CIDR</TableHead>
-                <TableHead>Interface</TableHead>
+                <TableHead>Network</TableHead>
+                <TableHead>Port</TableHead>
+                <TableHead>Portal</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[80px]" />
               </TableRow>
@@ -175,7 +203,7 @@ export function VlanManagement() {
               {isLoading && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     Loading…
@@ -185,7 +213,7 @@ export function VlanManagement() {
               {!isLoading && rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     No VLANs match your filters.
@@ -218,7 +246,19 @@ export function VlanManagement() {
                     {v.cidr ? ` / ${v.cidr}` : ""}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
+                    <Badge variant="outline" className="mr-1.5 capitalize">
+                      {v.portMode}
+                    </Badge>
                     {v.interface ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    {v.enableHotspot ? (
+                      <Badge variant="default" className="gap-1">
+                        <Wifi className="h-3 w-3" /> On
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Off</Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={v.isEnabled ? "default" : "secondary"}>
@@ -330,8 +370,9 @@ function VlanDialog({
         name: vlan.name,
         gatewayIpAddress: vlan.gatewayIpAddress ?? "",
         cidr: vlan.cidr ?? "",
+        portMode: vlan.portMode,
         interface: vlan.interface ?? "",
-        description: vlan.description ?? "",
+        enableHotspot: vlan.enableHotspot,
         isEnabled: vlan.isEnabled,
       }
     : {
@@ -340,8 +381,9 @@ function VlanDialog({
         name: "",
         gatewayIpAddress: "",
         cidr: "",
+        portMode: "trunk",
         interface: "",
-        description: "",
+        enableHotspot: false,
         isEnabled: true,
       };
 
@@ -350,6 +392,9 @@ function VlanDialog({
     defaultValues: defaults,
     values: defaults,
   });
+  const portMode = form.watch("portMode");
+  const watchedInterface = form.watch("interface");
+  const watchedVlanId = form.watch("vlanId");
 
   async function submit(v: VlanFormValues) {
     try {
@@ -362,7 +407,8 @@ function VlanDialog({
             gatewayIpAddress: v.gatewayIpAddress || null,
             cidr: v.cidr || null,
             interface: v.interface || null,
-            description: v.description || null,
+            portMode: v.portMode,
+            enableHotspot: v.enableHotspot,
             isEnabled: v.isEnabled,
           },
         });
@@ -375,7 +421,8 @@ function VlanDialog({
           gatewayIpAddress: v.gatewayIpAddress || null,
           cidr: v.cidr || null,
           interface: v.interface || null,
-          description: v.description || null,
+          portMode: v.portMode,
+          enableHotspot: v.enableHotspot,
           isEnabled: v.isEnabled,
         });
         toast.success("VLAN created");
@@ -451,22 +498,75 @@ function VlanDialog({
             <Input {...form.register("cidr")} placeholder="10.0.0.0/24" className="font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Parent interface (optional)</Label>
-            <Input {...form.register("interface")} placeholder="ether1" />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-            <div className="text-sm font-medium">Enabled</div>
+            <Label className="text-xs font-medium">Port mode</Label>
             <Controller
               control={form.control}
-              name="isEnabled"
+              name="portMode"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trunk">Trunk (tagged)</SelectItem>
+                    <SelectItem value="access">Access (dedicated port)</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">
+              {portMode === "access" ? "Access port" : "Trunk interface"}
+            </Label>
+            <Input
+              {...form.register("interface")}
+              placeholder={portMode === "access" ? "ether3" : "bridgeLocal"}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {portMode === "access"
+                ? "This physical port is dedicated to this VLAN, untagged."
+                : "Tagged sub-interface on this parent, e.g. the LAN bridge."}
+            </p>
+          </div>
+          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
+            <div>
+              <div className="text-sm font-medium">Captive portal</div>
+              <div className="text-[11px] text-muted-foreground">
+                Guests on this VLAN must log in through a hotspot page.
+              </div>
+            </div>
+            <Controller
+              control={form.control}
+              name="enableHotspot"
               render={({ field }) => (
                 <Switch checked={field.value} onCheckedChange={field.onChange} />
               )}
             />
           </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Description (optional)</Label>
-            <Input {...form.register("description")} placeholder="Public guest network…" />
+          {vlan && (
+            <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div className="text-sm font-medium">Enabled</div>
+              <Controller
+                control={form.control}
+                name="isEnabled"
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </div>
+          )}
+          <div className="sm:col-span-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
+            This creates the network only — no addresses are handed out automatically. To assign
+            IPs to guests, create a{" "}
+            <span className="font-medium text-foreground">DHCP Pool</span> afterward with
+            Interface set to{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+              {portMode === "access"
+                ? watchedInterface || "the port you enter above"
+                : `vlan${watchedVlanId || "<tag>"}`}
+            </code>
+            .
           </div>
           <DialogFooter className="sm:col-span-2">
             <Button type="button" variant="ghost" onClick={onClose}>

@@ -58,6 +58,12 @@ export interface LoginCredentials {
   password: string;
   remember?: boolean;
   mfaCode?: string;
+  /** Required only when the account has `must_change_password` set (e.g. a
+   * freshly-provisioned owner's temporary password) -- same single-call
+   * retry shape as `mfaCode`: omit it and login raises a distinct error,
+   * supply it alongside the temporary `password` to set it as the new
+   * password and complete login in the same call. */
+  newPassword?: string;
 }
 
 /** A real, self-service-only active session (see `/auth/sessions`) --

@@ -39,6 +39,7 @@ export interface GuestSession {
   guestId: string;
   guestIdentifier: string;
   deviceId: string | null;
+  userAgent: string | null;
   routerId: string;
   routerName: string;
   locationId: string;
@@ -78,6 +79,14 @@ export interface GuestListQuery {
   isBlocked?: boolean | "all";
   page: number;
   pageSize: number;
+  // When the caller already knows their organization/location (e.g. Group
+  // Policies' "Map users" guest search), skip guestService.list's
+  // GLOBAL-only fan-out (fetchAllOrganizations() -- 403s for an ordinary
+  // org Owner, see guest.service.ts's own comment) and hit /guests
+  // directly, scoped by X-Organization-Id. Callers with no known org
+  // (cross-tenant admin Guests page) omit these and keep the fan-out.
+  organizationId?: string;
+  locationId?: string;
 }
 
 export interface GuestListResult {
@@ -108,6 +117,7 @@ interface AccessRuleBase {
   locationId: string | null;
   ruleType: AccessRuleType;
   reason: string | null;
+  email: string | null;
   expiresAt: string | null;
   isActive: boolean;
   createdAt: string;
@@ -134,6 +144,7 @@ export interface CreateAccessRulePayload {
   macAddress?: string;
   ruleType: AccessRuleType;
   reason?: string;
+  email?: string;
   expiresAt?: string;
 }
 

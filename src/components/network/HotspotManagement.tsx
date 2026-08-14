@@ -53,6 +53,7 @@ import {
   useDeleteHotspotProfile,
 } from "@/hooks/useHotspot";
 import { routerService } from "@/services/router.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { HotspotProfile } from "@/types/hotspot";
 
@@ -74,7 +75,7 @@ function numOrNull(v: number | undefined): number | null {
   return v === undefined || Number.isNaN(v) ? null : v;
 }
 
-export function HotspotManagement() {
+export function HotspotManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -82,29 +83,76 @@ export function HotspotManagement() {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<HotspotProfile | null>(null);
 
-  const { data, isLoading } = useHotspotProfiles({
-    page,
-    pageSize: PAGE_SIZE,
-    routerId: routerFilter === "all" ? undefined : routerFilter,
+  // `list_hotspot_profiles`/etc. resolve their tenant scope from
+  // CurrentOrganization (X-Organization-Id) -- an ordinary org-owner session
+  // holds no GLOBAL-scope fallback, so the location-scoped (customer
+  // dashboard) case must resolve and thread its real org id. The master
+  // console's unscoped view deliberately leaves it unset (spans every org).
+  const { data: scopedOrgId } = useQuery({
+    queryKey: ["hotspot", "org-id"],
+    queryFn: resolveOrgId,
+    enabled: !!locationId,
   });
-  const { data: kpis } = useHotspotKpis();
+
+  // The backend's `GET /hotspot-profiles` only filters by `router_id`, not
+  // location -- so a location-scoped view (the customer dashboard's Hotspot
+  // Settings page) fetches one full (up to max page_size) page and narrows +
+  // paginates it client-side below, same tradeoff DhcpManagement makes.
+  const { data, isLoading } = useHotspotProfiles(
+    {
+      page: locationId ? 1 : page,
+      pageSize: locationId ? 100 : PAGE_SIZE,
+      routerId: routerFilter === "all" ? undefined : routerFilter,
+      organizationId: locationId ? scopedOrgId : undefined,
+    },
+    { enabled: locationId ? !!scopedOrgId : true },
+  );
+  const { data: kpis } = useHotspotKpis(locationId ? scopedOrgId : undefined, {
+    enabled: locationId ? !!scopedOrgId : true,
+  });
   const del = useDeleteHotspotProfile();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["hotspot", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["hotspot", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped: use the location-scoped router endpoint directly
+      // (mirrors DhcpManagement/VlanManagement) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        const rows = await routerService.listForLocation(locationId, await resolveOrgId());
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const routerName = (id: string) => routers.rows.find((r) => r.id === id)?.name ?? id.slice(0, 8);
 
-  const rows = (data?.rows ?? []).filter((p) => {
+  const filteredRows = (data?.rows ?? []).filter((p) => {
+    if (locationId && p.locationId !== locationId) return false;
     if (!search.trim()) return true;
     const t = search.trim().toLowerCase();
     return p.name.toLowerCase().includes(t) || routerName(p.routerId).toLowerCase().includes(t);
   });
 
+  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
+  const total = locationId ? filteredRows.length : data?.total ?? 0;
+  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const hasNext = locationId ? page < totalPages : !!data?.hasNext;
+  const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
+  // The dedicated KPI endpoint isn't location-scoped (same backend gap as
+  // the list endpoint), so a location-scoped view derives its stat tiles
+  // from the already-narrowed filteredRows instead of the org-wide kpis
+  // query -- same tradeoff PortForwardingManagement makes.
+  const scopedEnabled = filteredRows.filter((p) => p.isEnabled).length;
+  const statTotal = locationId ? total : kpis?.total ?? 0;
+  const statEnabled = locationId ? scopedEnabled : kpis?.enabled ?? 0;
+  const statDisabled = locationId ? total - scopedEnabled : kpis?.disabled ?? 0;
+
   return (
     <div className="space-y-6">
       <SectionHeader
+        icon={Wifi}
         eyebrow="Network"
         title="Hotspot Profiles"
         description="Per-router hotspot session limits, bandwidth caps, and walled-garden allowlists."
@@ -116,12 +164,12 @@ export function HotspotManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total profiles" value={kpis?.total ?? 0} icon={Wifi} tone="primary" />
-        <StatCard label="Enabled" value={kpis?.enabled ?? 0} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={kpis?.disabled ?? 0} icon={ShieldOff} tone="warning" />
+        <StatCard label="Total profiles" value={statTotal} icon={Wifi} tone="primary" />
+        <StatCard label="Enabled" value={statEnabled} icon={ShieldCheck} tone="success" />
+        <StatCard label="Disabled" value={statDisabled} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All profiles</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -219,16 +267,16 @@ export function HotspotManagement() {
               ))}
             </TableBody>
           </Table>
-          {data && data.totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
               <span>
-                Page {page} of {data.totalPages} · {data.total} profiles
+                Page {page} of {totalPages} · {total} profiles
               </span>
               <div className="flex gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!data.hasPrevious}
+                  disabled={!hasPrevious}
                   onClick={() => setPage((p) => p - 1)}
                 >
                   Previous
@@ -236,7 +284,7 @@ export function HotspotManagement() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!data.hasNext}
+                  disabled={!hasNext}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Next
@@ -251,6 +299,7 @@ export function HotspotManagement() {
         open={creating || !!editing}
         profile={editing}
         routers={routers.rows}
+        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -272,7 +321,10 @@ export function HotspotManagement() {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync(confirmDelete.id);
+                  await del.mutateAsync({
+                    id: confirmDelete.id,
+                    organizationId: locationId ? scopedOrgId : undefined,
+                  });
                   toast.success(`Profile ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete profile");
@@ -293,11 +345,13 @@ function HotspotDialog({
   open,
   profile,
   routers,
+  organizationId,
   onClose,
 }: {
   open: boolean;
   profile: HotspotProfile | null;
   routers: { id: string; name: string }[];
+  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateHotspotProfile();
@@ -352,6 +406,7 @@ function HotspotDialog({
             walledGardenHosts: hostsFromInput(v.walledGardenHosts),
             isEnabled: v.isEnabled,
           },
+          organizationId,
         });
         toast.success("Profile updated");
       } else {
@@ -364,6 +419,7 @@ function HotspotDialog({
           downloadLimitKbps: numOrNull(v.downloadLimitKbps),
           walledGardenHosts: hostsFromInput(v.walledGardenHosts),
           isEnabled: v.isEnabled,
+          organizationId,
         });
         toast.success("Profile created");
       }

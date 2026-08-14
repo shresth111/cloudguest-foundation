@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { resolveOrgId } from "@/services/customer.service";
 import type {
   ConnectedDevice,
   ConnectedDeviceListResult,
@@ -78,15 +79,18 @@ function toSyncRun(r: BackendDeviceSyncRun): DeviceSyncRun {
   };
 }
 
-// Router-scoped calls below omit X-Organization-Id, matching the existing
-// real WireGuard peer calls in router.service.ts -- CurrentOrganization
-// resolves to null with no header, and the backend still authorizes by
-// router_id ownership, not by requiring the header for a single-router
-// lookup (see backend/app/domains/rbac/dependencies.py).
+// Same missing-X-Organization-Id gap already fixed on vlan/dhcp/firewall/
+// guest-sessions services this session -- the claim in this file's own
+// prior comment ("backend still authorizes by router_id ownership") was
+// verified false live: every call here 403'd for a real customer with no
+// header ("'connected_devices.read' is required at global scope"), 200
+// once added.
 export const connectedDeviceService = {
   async list(routerId: string, page = 1, pageSize = 50): Promise<ConnectedDeviceListResult> {
+    const orgId = await resolveOrgId();
     const { data } = await api.get<BackendConnectedDeviceListResponse>("/connected-devices", {
       params: { router_id: routerId, page, page_size: pageSize },
+      headers: { "X-Organization-Id": orgId },
     });
     return {
       rows: data.items.map(toDevice),
@@ -98,59 +102,77 @@ export const connectedDeviceService = {
   },
 
   async sync(routerId: string): Promise<DeviceSyncSummary> {
+    const orgId = await resolveOrgId();
     const { data } = await api.post<{ discovered: number; updated: number; disconnected: number }>(
       `/connected-devices/sync/${routerId}`,
+      undefined,
+      { headers: { "X-Organization-Id": orgId } },
     );
     return data;
   },
 
   async comment(deviceId: string, comment: string): Promise<ConnectedDevice> {
+    const orgId = await resolveOrgId();
     const { data } = await api.post<BackendConnectedDevice>(
       `/connected-devices/${deviceId}/comment`,
       { comment },
+      { headers: { "X-Organization-Id": orgId } },
     );
     return toDevice(data);
   },
 
   async disconnect(deviceId: string, reason?: string): Promise<ConnectedDevice> {
+    const orgId = await resolveOrgId();
     const { data } = await api.post<BackendConnectedDevice>(
       `/connected-devices/${deviceId}/disconnect`,
       { reason: reason ?? null },
+      { headers: { "X-Organization-Id": orgId } },
     );
     return toDevice(data);
   },
 
   async block(deviceId: string, reason?: string): Promise<ConnectedDevice> {
+    const orgId = await resolveOrgId();
     const { data } = await api.post<BackendConnectedDevice>(
       `/connected-devices/${deviceId}/block`,
       { reason: reason ?? null },
+      { headers: { "X-Organization-Id": orgId } },
     );
     return toDevice(data);
   },
 
   async unblock(deviceId: string, reason?: string): Promise<ConnectedDevice> {
+    const orgId = await resolveOrgId();
     const { data } = await api.post<BackendConnectedDevice>(
       `/connected-devices/${deviceId}/unblock`,
       { reason: reason ?? null },
+      { headers: { "X-Organization-Id": orgId } },
     );
     return toDevice(data);
   },
 
   async whitelist(deviceId: string, reason?: string): Promise<ConnectedDevice> {
+    const orgId = await resolveOrgId();
     const { data } = await api.post<BackendConnectedDevice>(
       `/connected-devices/${deviceId}/whitelist`,
       { reason: reason ?? null },
+      { headers: { "X-Organization-Id": orgId } },
     );
     return toDevice(data);
   },
 
   async remove(deviceId: string): Promise<void> {
-    await api.delete(`/connected-devices/${deviceId}`);
+    const orgId = await resolveOrgId();
+    await api.delete(`/connected-devices/${deviceId}`, {
+      headers: { "X-Organization-Id": orgId },
+    });
   },
 
   async lastSyncRun(routerId: string): Promise<DeviceSyncRun | null> {
+    const orgId = await resolveOrgId();
     const { data } = await api.get<{ items: BackendDeviceSyncRun[] }>("/device-sync/runs", {
       params: { router_id: routerId, page: 1, page_size: 1 },
+      headers: { "X-Organization-Id": orgId },
     });
     const run = data.items[0];
     return run ? toSyncRun(run) : null;

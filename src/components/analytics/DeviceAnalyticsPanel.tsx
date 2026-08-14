@@ -30,16 +30,16 @@ export function DeviceAnalyticsPanel({ data, isLoading, isError, onRetry }: Prop
   const state = { isLoading, isError, onRetry };
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <ChartCard title="Device types" description="Mobile, laptop, tablet, desktop" {...state}>
+      <ChartCard title="Device types" description="Mobile, laptop, tablet, desktop" {...state} isEmpty={!data?.deviceTypes?.length}>
         <Donut items={data?.deviceTypes ?? []} />
       </ChartCard>
-      <ChartCard title="Operating systems" {...state}>
+      <ChartCard title="Operating systems" {...state} isEmpty={!data?.operatingSystems?.length}>
         <Donut items={data?.operatingSystems ?? []} />
       </ChartCard>
-      <ChartCard title="Browser distribution" {...state}>
+      <ChartCard title="Browser distribution" {...state} isEmpty={!data?.browsers?.length}>
         <Donut items={data?.browsers ?? []} />
       </ChartCard>
-      <ChartCard title="Device vendors" {...state}>
+      <ChartCard title="Device vendors" {...state} isEmpty={!data?.vendors?.length}>
         <Donut items={data?.vendors ?? []} />
       </ChartCard>
     </div>

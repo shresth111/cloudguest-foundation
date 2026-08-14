@@ -52,6 +52,7 @@ import {
   useDeleteDnsRecord,
 } from "@/hooks/useDns";
 import { routerService } from "@/services/router.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { DnsRecord, DnsRecordType } from "@/types/dns";
 
@@ -77,10 +78,16 @@ export function DnsManagement() {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DnsRecord | null>(null);
 
+  // This route (/network/dns) is customer-dashboard-only -- always
+  // resolve the current session's own org (see DhcpManagement.tsx's
+  // identical comment on why RequirePermission needs this header).
+  const { data: orgId } = useQuery({ queryKey: ["dns", "org-id"], queryFn: resolveOrgId });
+
   const { data, isLoading } = useDnsRecords({
     page,
     pageSize: PAGE_SIZE,
     routerId: routerFilter === "all" ? undefined : routerFilter,
+    organizationId: orgId,
   });
   const del = useDeleteDnsRecord();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -243,6 +250,7 @@ export function DnsManagement() {
         open={creating || !!editing}
         record={editing}
         routers={routers.rows}
+        organizationId={orgId}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -264,7 +272,7 @@ export function DnsManagement() {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync(confirmDelete.id);
+                  await del.mutateAsync({ id: confirmDelete.id, organizationId: orgId });
                   toast.success(`Record ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete record");
@@ -285,11 +293,13 @@ function DnsDialog({
   open,
   record,
   routers,
+  organizationId,
   onClose,
 }: {
   open: boolean;
   record: DnsRecord | null;
   routers: { id: string; name: string }[];
+  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateDnsRecord();
@@ -332,10 +342,10 @@ function DnsDialog({
         isEnabled: v.isEnabled,
       };
       if (record) {
-        await update.mutateAsync({ id: record.id, payload: shared });
+        await update.mutateAsync({ id: record.id, payload: shared, organizationId });
         toast.success("DNS record updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...shared });
+        await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
         toast.success("DNS record created");
       }
       onClose();

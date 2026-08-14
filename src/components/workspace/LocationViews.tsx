@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 
 const CARD_HOVER =
   "rounded-2xl border-border/70 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md";
@@ -27,15 +28,21 @@ export function LocationGrid() {
       {scope.map((l) => {
         const rOnline = l.resources?.routers.filter((r) => r.status === "online").length ?? 0;
         const rTotal = l.resources?.routers.length ?? 0;
+        const SiteIcon = businessTypeIcon(l.siteType);
         return (
           <Card key={l.id} className="transition-shadow hover:shadow-md">
             <CardContent className="space-y-4 p-5">
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-base font-semibold">{l.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {l.city} · <span className="capitalize">{l.siteType}</span>
-                  </p>
+                <div className="flex items-start gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <SiteIcon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold">{l.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {l.city} · <span className="capitalize">{l.siteType}</span>
+                    </p>
+                  </div>
                 </div>
                 <Badge variant="secondary" className="capitalize">
                   {l.siteType}
@@ -98,7 +105,9 @@ export function LocationTree() {
               <MapPin className="h-4 w-4" /> All locations ({locations.length})
             </button>
           </li>
-          {locations.map((l) => (
+          {locations.map((l) => {
+            const ItemIcon = businessTypeIcon(l.siteType);
+            return (
             <li key={l.id} className="pl-4">
               <button
                 onClick={() => setActiveLocationId(l.id)}
@@ -106,7 +115,7 @@ export function LocationTree() {
                   activeLocationId === l.id ? "bg-muted font-medium" : ""
                 }`}
               >
-                <MapPin className="h-4 w-4 opacity-70" /> {l.name}
+                <ItemIcon className="h-4 w-4 opacity-70" /> {l.name}
               </button>
               <ul className="ml-6 mt-1 space-y-0.5 text-xs text-muted-foreground">
                 <li className="flex items-center gap-2">
@@ -117,7 +126,8 @@ export function LocationTree() {
                 </li>
               </ul>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </CardContent>
     </Card>

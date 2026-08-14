@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   AnalyticsKpis,
   AnalyticsSettings,
@@ -80,7 +81,16 @@ interface BackendListResponse<T> {
   items: T[];
 }
 
+// Same demo-session gap already fixed across the rest of the Master
+// Console (location/organization/billing/router.service.ts) -- the demo
+// sign-in's token 401s against every real call this file makes.
+const DEMO_ORGANIZATION_ROWS: OrganizationAnalyticsRow[] = [
+  { id: "org-001", name: "Acme Corp", activeUsers: 340, activeRouters: 6, activeLocations: 5, revenue: 2999, monthlyGrowth: 8 },
+  { id: "org-002", name: "Blue Cedar Cafes", activeUsers: 90, activeRouters: 2, activeLocations: 1, revenue: 999, monthlyGrowth: 3 },
+];
+
 async function fetchOrganizationRows(): Promise<OrganizationAnalyticsRow[]> {
+  if (isDemo()) return DEMO_ORGANIZATION_ROWS;
   const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
     params: { page_size: 12 },
   });
@@ -415,6 +425,26 @@ export const analyticsService = {
   },
 
   async getSnapshot(_range: DateRangePreset = "last30"): Promise<AnalyticsSnapshot> {
+    if (isDemo()) {
+      return {
+        kpis: {
+          totalOrganizations: 2, totalLocations: 6, totalRouters: 8, activeRouters: 8,
+          totalGuests: 2180, activeGuests: 2, totalSessions: 2, avgSessionDuration: 0,
+          dailyLogins: 24, monthlyLogins: 430, revenue: 129940, growthRate: 8,
+        },
+        guests: emptyGuestAnalytics(),
+        network: emptyNetworkAnalytics(),
+        routers: {
+          online: 8, offline: 0, avgCpu: 0, avgMemory: 0, avgTemperature: 0,
+          wanAvailability: 0, wireguardHealth: 0, radiusHealth: 0,
+          performance: [], cpuTrend: [], memoryTrend: [], healthScoreTrend: [],
+        },
+        locations: [],
+        organizations: DEMO_ORGANIZATION_ROWS,
+        devices: emptyDeviceAnalytics(),
+        auth: emptyAuthAnalytics(),
+      };
+    }
     const [{ data: unified }, organizations] = await Promise.all([
       api.get<BackendUnifiedDashboard>("/dashboard/super-admin/unified"),
       fetchOrganizationRows(),
@@ -536,10 +566,27 @@ export const analyticsService = {
       return { url: `#unavailable/${filename}`, filename };
     }
 
-    const orgId = ORG_SCOPED_REPORT_TYPES.has(backendType)
-      ? await resolveDefaultOrganizationId()
-      : null;
-    const headers = orgId ? { "X-Organization-Id": orgId } : undefined;
+    let headers: Record<string, string> | undefined;
+    if (backendType === "location") {
+      // LOCATION reports are LOCATION-scoped, not ORGANIZATION-scoped (see
+      // report_router.py's own module docstring): the backend resolves
+      // `location_id` from `X-Location-Id`, not from an org header, and
+      // 400s with "location_id is required to generate a LOCATION report"
+      // without it (confirmed live -- this was the real bug behind all 4
+      // Location report icons failing).
+      const locationId = await resolveDefaultLocationId();
+      if (!locationId) {
+        throw new Error(
+          "No location is available to generate a Location report for.",
+        );
+      }
+      headers = { "X-Location-Id": locationId };
+    } else {
+      const orgId = ORG_SCOPED_REPORT_TYPES.has(backendType)
+        ? await resolveDefaultOrganizationId()
+        : null;
+      headers = orgId ? { "X-Organization-Id": orgId } : undefined;
+    }
 
     const days = RANGE_DAYS[input.range] ?? 30;
     const end = new Date();
@@ -599,9 +646,14 @@ interface BackendScheduledReport {
   is_active: boolean;
 }
 
-// Only these six ReportType values exist on both sides -- backend also has
-// "dashboard"/"health" (no frontend equivalent yet); frontend also has
+// These seven ReportType values exist on both sides -- backend also has
+// "health" (no frontend equivalent yet); frontend also has
 // "audit"/"billing"/"monitoring" (no backend ReportType composes those).
+// "dashboard" is the Master Console's own platform-wide Super Admin
+// Dashboard report (ReportType.DASHBOARD -> DashboardService
+// .get_super_admin_dashboard, GLOBAL-scoped, no organization_id/header
+// needed -- see report_service.py's own generate() branch for it), used by
+// master.analytics.tsx's "Export" header action.
 const REPORT_TYPE_TO_BACKEND: Partial<Record<ReportType, string>> = {
   guest: "guest",
   router: "router",
@@ -609,6 +661,7 @@ const REPORT_TYPE_TO_BACKEND: Partial<Record<ReportType, string>> = {
   organization: "organization",
   location: "location",
   revenue: "revenue",
+  dashboard: "dashboard",
 };
 
 const BACKEND_TO_REPORT_TYPE: Record<string, ReportType> = {
@@ -618,8 +671,8 @@ const BACKEND_TO_REPORT_TYPE: Record<string, ReportType> = {
   organization: "organization",
   location: "location",
   revenue: "revenue",
-  // No direct frontend equivalent for these two -- approximated.
-  dashboard: "organization",
+  dashboard: "dashboard",
+  // No direct frontend equivalent for this one -- approximated.
   health: "monitoring",
 };
 
@@ -665,6 +718,41 @@ async function resolveDefaultOrganizationId(): Promise<string | null> {
     cachedOrgId = null;
   }
   return cachedOrgId;
+}
+
+// There is no cross-org "first location" endpoint (same gap
+// location.service.ts's fetchAllLocations already documents), so this fans
+// out one `GET /organizations/{id}/locations` per organization -- same
+// convention -- until it finds one with at least one location, then caches
+// that id. `X-Organization-Id` on each lookup is required by the backend's
+// own organization-membership check on that route.
+let cachedLocationId: string | null | undefined;
+async function resolveDefaultLocationId(): Promise<string | null> {
+  if (cachedLocationId !== undefined) return cachedLocationId;
+  try {
+    const { data: orgs } = await api.get<BackendListResponse<BackendOrgListItem>>(
+      "/organizations",
+      { params: { page_size: 25 } },
+    );
+    for (const org of orgs.items) {
+      try {
+        const { data: locations } = await api.get<BackendListResponse<{ id: string }>>(
+          `/organizations/${org.id}/locations`,
+          { params: { page_size: 1 }, headers: { "X-Organization-Id": org.id } },
+        );
+        if (locations.items[0]) {
+          cachedLocationId = locations.items[0].id;
+          return cachedLocationId;
+        }
+      } catch {
+        // This caller may not be a member of `org` -- try the next one.
+      }
+    }
+    cachedLocationId = null;
+  } catch {
+    cachedLocationId = null;
+  }
+  return cachedLocationId;
 }
 
 let settings: AnalyticsSettings = {

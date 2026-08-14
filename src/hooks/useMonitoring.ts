@@ -90,10 +90,10 @@ export function useAlertRules(q: AlertRuleListQuery) {
   });
 }
 
-export function useAlertRule(id: string) {
+export function useAlertRule(id: string, organizationId?: string) {
   return useQuery({
     queryKey: monitoringKeys.alertRule(id),
-    queryFn: () => monitoringService.getAlertRule(id),
+    queryFn: () => monitoringService.getAlertRule(id, organizationId),
     enabled: !!id,
   });
 }
@@ -109,8 +109,15 @@ export function useCreateAlertRule() {
 export function useUpdateAlertRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateAlertRulePayload }) =>
-      monitoringService.updateAlertRule(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+      organizationId,
+    }: {
+      id: string;
+      payload: UpdateAlertRulePayload;
+      organizationId?: string;
+    }) => monitoringService.updateAlertRule(id, payload, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoring", "alert-rules"] }),
   });
 }
@@ -118,7 +125,8 @@ export function useUpdateAlertRule() {
 export function useDeleteAlertRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => monitoringService.deleteAlertRule(id),
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      monitoringService.deleteAlertRule(id, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoring", "alert-rules"] }),
   });
 }
@@ -185,8 +193,15 @@ export function useCreateNotificationChannel() {
 export function useUpdateNotificationChannel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateNotificationChannelPayload }) =>
-      monitoringService.updateNotificationChannel(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+      organizationId,
+    }: {
+      id: string;
+      payload: UpdateNotificationChannelPayload;
+      organizationId?: string;
+    }) => monitoringService.updateNotificationChannel(id, payload, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoring", "channels"] }),
   });
 }
@@ -194,7 +209,8 @@ export function useUpdateNotificationChannel() {
 export function useDeleteNotificationChannel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => monitoringService.deleteNotificationChannel(id),
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      monitoringService.deleteNotificationChannel(id, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoring", "channels"] }),
   });
 }

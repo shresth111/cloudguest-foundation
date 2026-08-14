@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { SectionHeader } from "@/components/ui-ext";
 import { authService } from "@/services/auth.service";
 import { rbacService } from "@/services/rbac.service";
+import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/hooks/useSystem";
 import type { AppError } from "@/services/api";
 import {
   changePasswordSchema,
@@ -178,27 +179,40 @@ function SectionCard({
 /* ---------------- Sections ---------------- */
 
 function ProfileSection() {
-  const { user, roles } = useAuth();
+  const { user, roles, updateUser } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
-  const [title, setTitle] = useState("Platform Administrator");
-  const [phone, setPhone] = useState("+91 98200 00000");
+  // Job title isn't self-editable: it maps to the backend's `designation`
+  // field, which MeUpdateRequest deliberately excludes (org-/HR-managed,
+  // requires a different actor with the users.update permission -- see
+  // that schema's own docstring). Shown read-only rather than faking a
+  // save that never happens.
+  const [phone, setPhone] = useState(user?.phone ?? "");
   const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const [firstName, ...rest] = name.trim().split(/\s+/);
+      const updated = await authService.updateMyProfile({
+        firstName: firstName || undefined,
+        lastName: rest.length ? rest.join(" ") : undefined,
+        phone: phone || undefined,
+      });
+      updateUser(updated);
+      toast.success("Profile updated");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SectionCard
       title="Profile"
       description="This information is visible to teammates in your organization."
       footer={
-        <Button
-          onClick={() => {
-            setSaving(true);
-            setTimeout(() => {
-              setSaving(false);
-              toast.success("Profile updated");
-            }, 600);
-          }}
-          disabled={saving}
-        >
+        <Button onClick={save} disabled={saving}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save changes
         </Button>
       }
@@ -223,7 +237,7 @@ function ProfileSection() {
         </div>
         <div className="space-y-2">
           <Label>Job title</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Input value={user?.designation ?? ""} disabled />
         </div>
         <div className="space-y-2">
           <Label>Email</Label>
@@ -245,13 +259,29 @@ function ProfileSection() {
 }
 
 function AccountSection() {
-  const [lang, setLang] = useState("en");
-  const [tz, setTz] = useState("Asia/Kolkata");
+  const { user, updateUser } = useAuth();
+  const [lang, setLang] = useState(user?.language ?? "en");
+  const [tz, setTz] = useState(user?.timezone ?? "Asia/Kolkata");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const updated = await authService.updateMyProfile({ language: lang, timezone: tz });
+      updateUser(updated);
+      toast.success("Preferences saved");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SectionCard
       title="Account preferences"
       description="Localization and display settings for your account."
-      footer={<Button onClick={() => toast.success("Preferences saved")}>Save</Button>}
+      footer={<Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save</Button>}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -691,11 +721,19 @@ function NotificationsSection() {
   );
 }
 
+// Was a fully local `tokens` array with a client-generated "cg_pat_..."
+// string masquerading as a real API key -- Create/Copy/Revoke never
+// touched the backend, so a token a user "created" here would 401 on
+// every real API call. This is the exact same org-scoped API key concept
+// already wired up for real on _authenticated/api-keys.index.tsx (backend
+// has no separate "personal" token concept -- see
+// system.service.ts/toApiKeyRowFromList's own docstring: every key acts
+// as its creating user) -- reuses those same real hooks instead of a
+// second, fake implementation.
 function ApiTokensSection() {
-  const [tokens, setTokens] = useState([
-    { id: "t1", name: "CI pipeline", created: "2 weeks ago", lastUsed: "3h ago" },
-    { id: "t2", name: "Reporting script", created: "Jan 12, 2026", lastUsed: "Yesterday" },
-  ]);
+  const keys = useApiKeys();
+  const create = useCreateApiKey();
+  const revoke = useRevokeApiKey();
   const [name, setName] = useState("");
   const [newToken, setNewToken] = useState<string | null>(null);
 
@@ -711,18 +749,19 @@ function ApiTokensSection() {
           placeholder="Token name (e.g. Grafana exporter)"
         />
         <Button
-          onClick={() => {
+          disabled={create.isPending}
+          onClick={async () => {
             if (!name.trim()) return;
-            const tok =
-              "cg_pat_" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-            setTokens((x) => [
-              { id: tok.slice(0, 8), name, created: "Just now", lastUsed: "—" },
-              ...x,
-            ]);
-            setNewToken(tok);
-            setName("");
+            try {
+              const row = await create.mutateAsync({ name: name.trim(), scopes: ["read"] });
+              setNewToken(row.key);
+              setName("");
+            } catch (err) {
+              toast.error((err as AppError).message || "Failed to create token");
+            }
           }}
         >
+          {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <Plus className="mr-2 h-4 w-4" /> Create token
         </Button>
       </div>
@@ -751,28 +790,39 @@ function ApiTokensSection() {
         </div>
       )}
 
-      <ul className="divide-y">
-        {tokens.map((t) => (
-          <li key={t.id} className="flex items-center justify-between py-3">
-            <div>
-              <div className="text-sm font-medium">{t.name}</div>
-              <div className="text-xs text-muted-foreground">
-                Created {t.created} · Last used {t.lastUsed}
+      {keys.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : keys.isError ? (
+        <p className="text-sm text-destructive">Failed to load tokens.</p>
+      ) : (
+        <ul className="divide-y">
+          {(keys.data ?? []).map((t) => (
+            <li key={t.id} className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-sm font-medium">{t.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  Created {new Date(t.createdAt).toLocaleDateString()} · Last used{" "}
+                  {new Date(t.lastUsedAt).toLocaleDateString()}
+                </div>
               </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setTokens((x) => x.filter((v) => v.id !== t.id));
-                toast.success("Token revoked");
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </li>
-        ))}
-      </ul>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await revoke.mutateAsync(t.id);
+                    toast.success("Token revoked");
+                  } catch (err) {
+                    toast.error((err as AppError).message || "Failed to revoke token");
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </SectionCard>
   );
 }

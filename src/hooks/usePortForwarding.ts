@@ -8,14 +8,22 @@ import type {
 
 export const portForwardingKeys = {
   list: (q: PortForwardingListQuery) => ["port-forwarding", "list", q] as const,
-  kpis: ["port-forwarding", "kpis"] as const,
+  kpis: (organizationId?: string) => ["port-forwarding", "kpis", organizationId] as const,
 };
 
-export const usePortForwardingRules = (q: PortForwardingListQuery) =>
-  useQuery({ queryKey: portForwardingKeys.list(q), queryFn: () => portForwardingService.list(q) });
+export const usePortForwardingRules = (q: PortForwardingListQuery, options?: { enabled?: boolean }) =>
+  useQuery({
+    queryKey: portForwardingKeys.list(q),
+    queryFn: () => portForwardingService.list(q),
+    enabled: options?.enabled,
+  });
 
-export const usePortForwardingKpis = () =>
-  useQuery({ queryKey: portForwardingKeys.kpis, queryFn: portForwardingService.getKpis });
+export const usePortForwardingKpis = (organizationId?: string, options?: { enabled?: boolean }) =>
+  useQuery({
+    queryKey: portForwardingKeys.kpis(organizationId),
+    queryFn: () => portForwardingService.getKpis(organizationId),
+    enabled: options?.enabled,
+  });
 
 export function useCreatePortForwardingRule() {
   const qc = useQueryClient();
@@ -23,7 +31,7 @@ export function useCreatePortForwardingRule() {
     mutationFn: (payload: CreatePortForwardingPayload) => portForwardingService.create(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["port-forwarding", "list"] });
-      qc.invalidateQueries({ queryKey: portForwardingKeys.kpis });
+      qc.invalidateQueries({ queryKey: ["port-forwarding", "kpis"] });
     },
   });
 }
@@ -31,11 +39,18 @@ export function useCreatePortForwardingRule() {
 export function useUpdatePortForwardingRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdatePortForwardingPayload }) =>
-      portForwardingService.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+      organizationId,
+    }: {
+      id: string;
+      payload: UpdatePortForwardingPayload;
+      organizationId?: string;
+    }) => portForwardingService.update(id, payload, organizationId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["port-forwarding", "list"] });
-      qc.invalidateQueries({ queryKey: portForwardingKeys.kpis });
+      qc.invalidateQueries({ queryKey: ["port-forwarding", "kpis"] });
     },
   });
 }
@@ -43,10 +58,11 @@ export function useUpdatePortForwardingRule() {
 export function useDeletePortForwardingRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => portForwardingService.remove(id),
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      portForwardingService.remove(id, organizationId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["port-forwarding", "list"] });
-      qc.invalidateQueries({ queryKey: portForwardingKeys.kpis });
+      qc.invalidateQueries({ queryKey: ["port-forwarding", "kpis"] });
     },
   });
 }

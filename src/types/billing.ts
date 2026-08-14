@@ -1,6 +1,13 @@
 export type PlanTier = "starter" | "professional" | "enterprise" | "custom";
 export type BillingCycle = "monthly" | "annual";
-export type SupportLevel = "email" | "priority" | "24x7" | "dedicated";
+// Mirrors the real backend SupportTier enum exactly (backend/app/domains/
+// billing/constants.py) -- the closed set of legal PlanFeature.tier_value
+// values for the support_level feature key. Used to be a 4-way
+// "email" | "priority" | "24x7" | "dedicated" that had no matching 4th
+// backend value: saving "24x7" silently collapsed into the "dedicated"
+// tier_value, and the next load then showed "Dedicated" -- a lossy round
+// trip. Kept 1:1 with the backend now so every option actually persists.
+export type SupportLevel = "basic" | "priority" | "dedicated";
 
 export type SubscriptionStatus =
   | "active"
@@ -22,6 +29,7 @@ export interface Plan {
   id: string;
   name: string;
   tier: PlanTier;
+  currency: string;
   monthlyPrice: number;
   annualPrice: number;
   includedLocations: number;
@@ -77,6 +85,7 @@ export interface Payment {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  organizationId?: string;
   organizationName: string;
   type: InvoiceType;
   amount: number;
@@ -153,6 +162,19 @@ export interface RevenueAnalytics {
   churnRate: { label: string; value: number }[];
 }
 
+export type TaxType = "gst" | "vat" | "sales_tax" | "none";
+
+export interface TaxRate {
+  id: string;
+  name: string;
+  taxType: TaxType;
+  ratePercentage: number;
+  countryCode: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Reminder {
   id: string;
   type: "expiry" | "invoice_due" | "payment_failed" | "trial_ending";
@@ -183,4 +205,29 @@ export interface BillingSnapshot {
   revenue: RevenueAnalytics;
   reminders: Reminder[];
   plans: Plan[];
+}
+
+/** One organization's own usage-vs-limit reading, used by the tenant-facing
+ * (not Super Admin) Subscription/Billing pages. */
+export interface MyUsageMetric {
+  key: string;
+  label: string;
+  used: number;
+  limit: number;
+  unit?: string;
+}
+
+/** The tenant-facing "my billing" summary -- backed by the real, org-scoped
+ * `GET /billing/dashboard/me` endpoint (see billingService.getMyBillingDashboard).
+ * Distinct from BillingSnapshot, which is the platform-wide Super Admin view
+ * and requires a GLOBAL-scoped role an ordinary organization user does not have. */
+export interface MyBillingSummary {
+  plan: Plan;
+  billingCycle: BillingCycle;
+  status: SubscriptionStatus;
+  renewalDate: string;
+  autoRenewal: boolean;
+  usage: MyUsageMetric[];
+  recentInvoices: Invoice[];
+  recentPayments: Payment[];
 }

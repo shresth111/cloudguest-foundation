@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { rbacService } from "@/services/rbac.service";
+import { resolveOrgId } from "@/services/customer.service";
 import type {
   AssignRolePayload,
   CloneRolePayload,
@@ -11,6 +12,22 @@ import type {
   UpdateUserPayload,
   UserListQuery,
 } from "@/types/rbac";
+
+// Role CRUD/lifecycle endpoints require X-Organization-Id at ORGANIZATION
+// scope for a real customer/org-owner session (confirmed live this
+// session: "roles.manage is required at organization scope" even for an
+// Organization Owner with the correct grant level otherwise) -- none of
+// the hooks below ever resolved/attached it, despite rbac.service.ts's
+// own functions already accepting it. Resolved safely here (never throws)
+// so a Master-console session with no organization membership of its own
+// keeps working exactly as before, unscoped.
+async function resolveOrgIdSafe(): Promise<string | undefined> {
+  try {
+    return await resolveOrgId();
+  } catch {
+    return undefined;
+  }
+}
 
 export const rbacKeys = {
   kpis: ["rbac", "kpis"] as const,
@@ -99,10 +116,16 @@ export function useDeactivateUser() {
   });
 }
 
+export function useForceLogoutUser() {
+  return useMutation({
+    mutationFn: (id: string) => rbacService.forceLogoutUser(id),
+  });
+}
+
 // -- Permissions / Permission Groups -----------------------------------------
 
 export const useRbacPermissionGroups = () =>
-  useQuery({ queryKey: rbacKeys.permissionGroups, queryFn: rbacService.listPermissionGroups });
+  useQuery({ queryKey: rbacKeys.permissionGroups, queryFn: () => rbacService.listPermissionGroups() });
 
 export const useRbacPermissions = (groupId?: string) =>
   useQuery({
@@ -113,12 +136,13 @@ export const useRbacPermissions = (groupId?: string) =>
 // -- Roles ----------------------------------------------------------------
 
 export const useRbacRoles = () =>
-  useQuery({ queryKey: rbacKeys.roles, queryFn: rbacService.listRoles });
+  useQuery({ queryKey: rbacKeys.roles, queryFn: () => rbacService.listRoles() });
 
 export function useCreateRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateRolePayload) => rbacService.createRole(payload),
+    mutationFn: async (payload: CreateRolePayload) =>
+      rbacService.createRole(payload, await resolveOrgIdSafe()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: rbacKeys.roles });
       qc.invalidateQueries({ queryKey: rbacKeys.kpis });
@@ -129,8 +153,8 @@ export function useCreateRole() {
 export function useUpdateRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateRolePayload }) =>
-      rbacService.updateRole(id, payload),
+    mutationFn: async ({ id, payload }: { id: string; payload: UpdateRolePayload }) =>
+      rbacService.updateRole(id, payload, await resolveOrgIdSafe()),
     onSuccess: () => qc.invalidateQueries({ queryKey: rbacKeys.roles }),
   });
 }
@@ -138,7 +162,7 @@ export function useUpdateRole() {
 export function useDeleteRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => rbacService.deleteRole(id),
+    mutationFn: async (id: string) => rbacService.deleteRole(id, await resolveOrgIdSafe()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: rbacKeys.roles });
       qc.invalidateQueries({ queryKey: rbacKeys.kpis });
@@ -149,8 +173,8 @@ export function useDeleteRole() {
 export function useCloneRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: CloneRolePayload }) =>
-      rbacService.cloneRole(id, payload),
+    mutationFn: async ({ id, payload }: { id: string; payload: CloneRolePayload }) =>
+      rbacService.cloneRole(id, payload, await resolveOrgIdSafe()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: rbacKeys.roles });
       qc.invalidateQueries({ queryKey: rbacKeys.kpis });
@@ -161,8 +185,10 @@ export function useCloneRole() {
 export function useSetRoleActive() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
-      active ? rbacService.activateRole(id) : rbacService.deactivateRole(id),
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const orgId = await resolveOrgIdSafe();
+      return active ? rbacService.activateRole(id, orgId) : rbacService.deactivateRole(id, orgId);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: rbacKeys.roles }),
   });
 }
@@ -170,8 +196,8 @@ export function useSetRoleActive() {
 export function useAttachRolePermission() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ roleId, permissionKey }: { roleId: string; permissionKey: string }) =>
-      rbacService.attachRolePermission(roleId, permissionKey),
+    mutationFn: async ({ roleId, permissionKey }: { roleId: string; permissionKey: string }) =>
+      rbacService.attachRolePermission(roleId, permissionKey, await resolveOrgIdSafe()),
     onSuccess: () => qc.invalidateQueries({ queryKey: rbacKeys.roles }),
   });
 }
@@ -179,8 +205,8 @@ export function useAttachRolePermission() {
 export function useDetachRolePermission() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ roleId, permissionKey }: { roleId: string; permissionKey: string }) =>
-      rbacService.detachRolePermission(roleId, permissionKey),
+    mutationFn: async ({ roleId, permissionKey }: { roleId: string; permissionKey: string }) =>
+      rbacService.detachRolePermission(roleId, permissionKey, await resolveOrgIdSafe()),
     onSuccess: () => qc.invalidateQueries({ queryKey: rbacKeys.roles }),
   });
 }

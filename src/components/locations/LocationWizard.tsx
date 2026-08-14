@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,12 +26,25 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreateLocation } from "@/hooks/useLocations";
 import { locationService } from "@/services/location.service";
-import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/types/location";
+import { PROPERTY_TYPE_LABEL, type Location, type PropertyType } from "@/types/location";
 import type { AppError } from "@/services/api";
 
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /**
+   * When set, skips the platform-wide organization picker (its dropdown
+   * calls locationService.organizations() -> GET /organizations, which
+   * requires GLOBAL scope and 403s for an ordinary customer/org-owner
+   * session -- see customer.service.ts's listLocations() for the identical
+   * restriction) and creates the location directly under this org instead.
+   * Used by the customer dashboard's "Add your first location" empty state
+   * (customer.index.tsx), where the caller already knows its own org from
+   * useAuth() and has no business browsing every org on the platform.
+   */
+  lockedOrganizationId?: string;
+  lockedOrganizationName?: string;
+  onCreated?: (loc: Location) => void;
 }
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -66,63 +79,88 @@ const DEFAULTS: FormValues = {
 
 const TIMEZONES = ["UTC", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai"];
 
-export function LocationWizard({ open, onOpenChange }: Props) {
+export function LocationWizard({ open, onOpenChange, lockedOrganizationId, lockedOrganizationName, onCreated }: Props) {
   const create = useCreateLocation();
   const { data: orgs = [] } = useQuery({
     queryKey: ["locations", "org-options"],
     queryFn: () => locationService.organizations(),
-    enabled: open,
+    enabled: open && !lockedOrganizationId,
   });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: DEFAULTS,
+    defaultValues: { ...DEFAULTS, organizationId: lockedOrganizationId ?? "" },
   });
+
+  // `defaultValues` above only applies on the form's first mount, and a
+  // locked-org caller may not have `lockedOrganizationId` resolved yet at
+  // that point (or the same dialog instance gets reused across opens) --
+  // keep the hidden field in sync whenever the dialog opens.
+  useEffect(() => {
+    if (open && lockedOrganizationId) {
+      form.setValue("organizationId", lockedOrganizationId);
+    }
+  }, [open, lockedOrganizationId, form]);
 
   async function submit(values: FormValues) {
     try {
       const loc = await create.mutateAsync({
-        organizationId: values.organizationId,
-        name: values.name,
-        slug: values.slug,
-        propertyType: (values.propertyType || undefined) as PropertyType | undefined,
-        addressLine1: values.addressLine1,
-        city: values.city,
-        stateProvince: values.stateProvince,
-        postalCode: values.postalCode,
-        country: values.country,
-        timezone: values.timezone,
+        payload: {
+          organizationId: values.organizationId,
+          name: values.name,
+          slug: values.slug,
+          propertyType: (values.propertyType || undefined) as PropertyType | undefined,
+          addressLine1: values.addressLine1,
+          city: values.city,
+          stateProvince: values.stateProvince,
+          postalCode: values.postalCode,
+          country: values.country,
+          timezone: values.timezone,
+        },
+        knownOrgName: lockedOrganizationName,
       });
       toast.success(`${loc.name} created`);
       onOpenChange(false);
-      form.reset(DEFAULTS);
+      form.reset({ ...DEFAULTS, organizationId: lockedOrganizationId ?? "" });
+      onCreated?.(loc);
     } catch (err) {
       toast.error((err as AppError).message || "Failed to create location");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) form.reset(DEFAULTS); }}>
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) form.reset({ ...DEFAULTS, organizationId: lockedOrganizationId ?? "" }); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Add location</DialogTitle>
-          <DialogDescription>Add a new location to an organization you manage.</DialogDescription>
+          <DialogDescription>
+            {lockedOrganizationName ? `Add a new location to ${lockedOrganizationName}.` : "Add a new location to an organization you manage."}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
-            <FormField control={form.control} name="organizationId" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Organization</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+            {lockedOrganizationId ? (
+              <FormField control={form.control} name="organizationId" render={() => (
+                <FormItem>
+                  <FormLabel>Organization</FormLabel>
+                  <FormControl><Input value={lockedOrganizationName ?? "Your organization"} disabled readOnly /></FormControl>
+                </FormItem>
+              )} />
+            ) : (
+              <FormField control={form.control} name="organizationId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Organization</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField name="name" label="Location name" placeholder="Downtown Branch" form={form} />

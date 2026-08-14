@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { resolveOrgId } from "@/services/customer.service";
 import type {
   CreateFirewallRulePayload,
   FirewallAction,
@@ -63,9 +64,15 @@ function toFirewallRule(r: BackendFirewallRule): FirewallRule {
 }
 
 export const firewallService = {
+  // Same missing-X-Organization-Id gap already fixed on vlan/dhcp/guest-
+  // sessions services this session -- absent it, `firewall_rules.*` falls
+  // back to a GLOBAL-scope check an ordinary org-owner session never
+  // holds, so every call here 403'd for a real customer (confirmed live).
   async list(q: FirewallRuleListQuery): Promise<FirewallRuleListResult> {
+    const orgId = await resolveOrgId();
     const { data } = await api.get<BackendFirewallRuleListResponse>("/firewall-rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
+      headers: { "X-Organization-Id": orgId },
     });
     return {
       rows: data.items.map(toFirewallRule),
@@ -77,43 +84,54 @@ export const firewallService = {
   },
 
   async create(payload: CreateFirewallRulePayload): Promise<FirewallRule> {
-    const { data } = await api.post<BackendFirewallRule>("/firewall-rules", {
-      router_id: payload.routerId,
-      name: payload.name,
-      chain: payload.chain ?? "forward",
-      action: payload.action ?? "accept",
-      protocol: payload.protocol ?? "all",
-      source_address: payload.sourceAddress,
-      destination_address: payload.destinationAddress,
-      source_port: payload.sourcePort,
-      destination_port: payload.destinationPort,
-      in_interface: payload.inInterface,
-      priority: payload.priority ?? 100,
-      comment: payload.comment,
-      is_enabled: payload.isEnabled ?? true,
-    });
+    const orgId = await resolveOrgId();
+    const { data } = await api.post<BackendFirewallRule>(
+      "/firewall-rules",
+      {
+        router_id: payload.routerId,
+        name: payload.name,
+        chain: payload.chain ?? "forward",
+        action: payload.action ?? "accept",
+        protocol: payload.protocol ?? "all",
+        source_address: payload.sourceAddress,
+        destination_address: payload.destinationAddress,
+        source_port: payload.sourcePort,
+        destination_port: payload.destinationPort,
+        in_interface: payload.inInterface,
+        priority: payload.priority ?? 100,
+        comment: payload.comment,
+        is_enabled: payload.isEnabled ?? true,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
     return toFirewallRule(data);
   },
 
   async update(id: string, payload: UpdateFirewallRulePayload): Promise<FirewallRule> {
-    const { data } = await api.put<BackendFirewallRule>(`/firewall-rules/${id}`, {
-      name: payload.name,
-      chain: payload.chain,
-      action: payload.action,
-      protocol: payload.protocol,
-      source_address: payload.sourceAddress,
-      destination_address: payload.destinationAddress,
-      source_port: payload.sourcePort,
-      destination_port: payload.destinationPort,
-      in_interface: payload.inInterface,
-      priority: payload.priority,
-      comment: payload.comment,
-      is_enabled: payload.isEnabled,
-    });
+    const orgId = await resolveOrgId();
+    const { data } = await api.put<BackendFirewallRule>(
+      `/firewall-rules/${id}`,
+      {
+        name: payload.name,
+        chain: payload.chain,
+        action: payload.action,
+        protocol: payload.protocol,
+        source_address: payload.sourceAddress,
+        destination_address: payload.destinationAddress,
+        source_port: payload.sourcePort,
+        destination_port: payload.destinationPort,
+        in_interface: payload.inInterface,
+        priority: payload.priority,
+        comment: payload.comment,
+        is_enabled: payload.isEnabled,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
     return toFirewallRule(data);
   },
 
   async remove(id: string): Promise<void> {
-    await api.delete(`/firewall-rules/${id}`);
+    const orgId = await resolveOrgId();
+    await api.delete(`/firewall-rules/${id}`, { headers: { "X-Organization-Id": orgId } });
   },
 };

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, ToggleRight } from "lucide-react";
+import { AlertTriangle, Search, ToggleRight } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/system/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,7 @@ function FeatureManagementPage() {
 
   const toggle = (id: string, next: boolean) => {
     setOverrides((prev) => ({ ...prev, [id]: next }));
-    toast.success(`${next ? "Enabled" : "Disabled"} feature globally`);
+    toast.info(`${next ? "Enabled" : "Disabled"} in this preview only — not saved anywhere.`);
   };
 
   const isEnabled = (id: string, status: string) =>
@@ -54,8 +54,17 @@ function FeatureManagementPage() {
     <div className="space-y-6">
       <PageHeader
         title="Feature management"
-        description="Enable, disable and gate platform features per plan. Changes propagate to all customers on the affected tier."
+        description="A preview catalog of platform features -- browse and search, but toggling here doesn't change anything for any real customer."
       />
+
+      <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          Illustrative only -- this list isn't backed by any customer&apos;s real plan
+          entitlements, and toggles here reset on reload. To actually grant a real feature to a
+          real plan, use Billing → Plans.
+        </span>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-4">
         <StatCard label="Total features" value={data.length} />

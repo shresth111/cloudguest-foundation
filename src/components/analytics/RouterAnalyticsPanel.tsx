@@ -77,7 +77,7 @@ export function RouterAnalyticsPanel({ data, isLoading, isError, onRetry }: Prop
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="Router performance" description="Throughput vs latency" {...state}>
+        <ChartCard title="Router performance" description="Throughput vs latency" {...state} isEmpty={!data?.performance?.length}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data?.performance ?? []}>
               <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -92,7 +92,7 @@ export function RouterAnalyticsPanel({ data, isLoading, isError, onRetry }: Prop
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="CPU trend" description="Fleet average %" {...state}>
+        <ChartCard title="CPU trend" description="Fleet average %" {...state} isEmpty={!data?.cpuTrend?.length}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data?.cpuTrend ?? []}>
               <defs>
@@ -110,7 +110,7 @@ export function RouterAnalyticsPanel({ data, isLoading, isError, onRetry }: Prop
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Memory trend" description="Fleet average %" {...state}>
+        <ChartCard title="Memory trend" description="Fleet average %" {...state} isEmpty={!data?.memoryTrend?.length}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data?.memoryTrend ?? []}>
               <defs>
@@ -128,7 +128,7 @@ export function RouterAnalyticsPanel({ data, isLoading, isError, onRetry }: Prop
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Health score trend" description="Composite score" {...state}>
+        <ChartCard title="Health score trend" description="Composite score" {...state} isEmpty={!data?.healthScoreTrend?.length}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data?.healthScoreTrend ?? []}>
               <CartesianGrid strokeOpacity={0.15} vertical={false} />

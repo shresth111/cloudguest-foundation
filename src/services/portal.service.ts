@@ -55,6 +55,7 @@ interface BackendCaptivePortalConfig {
   redirect_url: string | null;
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
+  otp_whatsapp_enabled: boolean;
   voucher_enabled: boolean;
   username_password_enabled: boolean;
   social_login_enabled: boolean;
@@ -229,6 +230,7 @@ const LOCATIONS: Array<[string, string, string]> = [
 const LOGIN_METHOD_FLAGS: Array<{ method: PortalLoginMethod; flag: keyof BackendCaptivePortalConfig }> = [
   { method: "mobile_otp", flag: "otp_sms_enabled" },
   { method: "email_otp", flag: "otp_email_enabled" },
+  { method: "whatsapp_otp", flag: "otp_whatsapp_enabled" },
   { method: "voucher", flag: "voucher_enabled" },
   { method: "social", flag: "social_login_enabled" },
 ];
@@ -242,28 +244,53 @@ function loginMethodFlags(methods: PortalLoginMethod[]): Partial<BackendCaptiveP
   return {
     otp_sms_enabled: set.has("mobile_otp"),
     otp_email_enabled: set.has("email_otp"),
+    otp_whatsapp_enabled: set.has("whatsapp_otp"),
     voucher_enabled: set.has("voucher"),
     social_login_enabled: set.has("social"),
   };
 }
 
-async function fetchOrgNameMap(): Promise<Map<string, string>> {
-  const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return new Map(data.items.map((o) => [o.id, o.name]));
+// GET /organizations is the platform-wide admin listing (GLOBAL scope
+// only) -- an ordinary customer/org-owner session gets a 403 here. When the
+// caller already knows their own orgId (the customer Portal tab always
+// does), resolve just that one org by id with X-Organization-Id instead --
+// a real customer session does hold read access at ORGANIZATION scope, so
+// this avoids the 403 entirely rather than just swallowing it. The master
+// admin console (GLOBAL scope, no orgId) keeps using the platform-wide
+// listing. Either way this still resolves to a (possibly empty) map rather
+// than throwing -- toPortal()'s `?? ""` fallback handles a miss gracefully.
+async function fetchOrgNameMap(orgId?: string): Promise<Map<string, string>> {
+  try {
+    if (orgId) {
+      const { data } = await api.get<BackendOrg>(`/organizations/${orgId}`, {
+        headers: { "X-Organization-Id": orgId },
+      });
+      return new Map([[data.id, data.name]]);
+    }
+    const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
+      params: { page_size: 100 },
+    });
+    return new Map(data.items.map((o) => [o.id, o.name]));
+  } catch {
+    return new Map();
+  }
 }
 
 /** Fans out one /organizations/{id}/locations call per org present in
  * `configs` and builds a locationId -> name map -- there is no cross-org
  * location lookup endpoint (same constraint documented in
- * location.service.ts's fetchAllLocations). */
+ * location.service.ts's fetchAllLocations). Each call sends that same org
+ * id as X-Organization-Id -- without it, RequirePermission falls back to
+ * GLOBAL scope and 403s for a real customer/org-owner session that only
+ * holds the permission at ORGANIZATION scope (same fix as
+ * customer.service.ts's listLocations()). */
 async function fetchLocationNameMap(orgIds: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(orgIds)];
   const settled = await Promise.allSettled(
     unique.map((orgId) =>
       api.get<BackendListResponse<BackendLocation>>(`/organizations/${orgId}/locations`, {
         params: { page_size: 100 },
+        headers: { "X-Organization-Id": orgId },
       }),
     ),
   );
@@ -347,26 +374,34 @@ function toPortal(
   };
 }
 
-async function fetchAllConfigs(): Promise<BackendCaptivePortalConfig[]> {
+// orgId, when given, is sent as X-Organization-Id so RequirePermission
+// resolves ORGANIZATION scope instead of defaulting to GLOBAL -- a real
+// customer/org-owner session only holds captive_portal.read at
+// ORGANIZATION scope and 403s without it. The master admin console (which
+// does hold GLOBAL scope) calls this with no orgId and keeps seeing every
+// organization's configs, unchanged.
+async function fetchAllConfigs(orgId?: string): Promise<BackendCaptivePortalConfig[]> {
   const { data } = await api.get<BackendListResponse<BackendCaptivePortalConfig>>(
     "/captive-portal-configs",
-    { params: { page: 1, page_size: 100 } },
+    { params: { page: 1, page_size: 100 }, headers: orgId ? { "X-Organization-Id": orgId } : undefined },
   );
   return data.items;
 }
 
-async function hydrate(configs: BackendCaptivePortalConfig[]): Promise<Portal[]> {
+async function hydrate(configs: BackendCaptivePortalConfig[], orgId?: string): Promise<Portal[]> {
   const [orgNames, locNames] = await Promise.all([
-    fetchOrgNameMap(),
+    fetchOrgNameMap(orgId),
     fetchLocationNameMap(configs.map((c) => c.organization_id)),
   ]);
   return configs.map((c) => toPortal(c, orgNames, locNames));
 }
 
-async function fetchOnePortal(id: string): Promise<Portal> {
-  const { data } = await api.get<BackendCaptivePortalConfig>(`/captive-portal-configs/${id}`);
+async function fetchOnePortal(id: string, orgId?: string): Promise<Portal> {
+  const { data } = await api.get<BackendCaptivePortalConfig>(`/captive-portal-configs/${id}`, {
+    headers: orgId ? { "X-Organization-Id": orgId } : undefined,
+  });
   const [orgNames, locNames] = await Promise.all([
-    fetchOrgNameMap(),
+    fetchOrgNameMap(orgId),
     fetchLocationNameMap([data.organization_id]),
   ]);
   return toPortal(data, orgNames, locNames);
@@ -399,8 +434,12 @@ export const portalService = {
   },
 
   async list(query: PortalListQuery): Promise<PortalListResult> {
-    const configs = await fetchAllConfigs();
-    let rows = await hydrate(configs);
+    // When the caller already knows their organization (e.g. the customer
+    // Portal tab), pass it through as X-Organization-Id so this resolves
+    // to ORGANIZATION scope -- see fetchAllConfigs()'s comment. The master
+    // admin console leaves organizationId unset and keeps its GLOBAL view.
+    const configs = await fetchAllConfigs(query.organizationId);
+    let rows = await hydrate(configs, query.organizationId);
     if (query.search) {
       const s = query.search.toLowerCase();
       rows = rows.filter(
@@ -426,35 +465,44 @@ export const portalService = {
     return { items: rows.slice(start, start + query.pageSize), total };
   },
 
-  async get(id: string): Promise<Portal> {
-    return fetchOnePortal(id);
+  async get(id: string, organizationId?: string): Promise<Portal> {
+    return fetchOnePortal(id, organizationId);
   },
 
   async create(input: Partial<Portal> & { name: string; organizationId: string; locationId: string }): Promise<Portal> {
     const flags = loginMethodFlags(input.loginMethods ?? ["mobile_otp"]);
-    const { data } = await api.post<BackendCaptivePortalConfig>("/captive-portal-configs", {
-      organization_id: input.organizationId,
-      location_id: input.locationId || null,
-      name: input.name,
-      is_active: false,
-      theme: input.themeId ?? "corporate",
-      logo_url: input.branding?.logoUrl ?? null,
-      background_image_url: input.branding?.backgroundUrl ?? null,
-      primary_color: input.branding?.primaryColor ?? "#0EA5E9",
-      secondary_color: input.branding?.secondaryColor ?? "#0F172A",
-      default_language: input.defaultLanguage ?? "en",
-      supported_languages: input.languages ?? ["en"],
-      terms_and_conditions_url: input.consent?.termsUrl || null,
-      privacy_policy_url: input.consent?.privacyUrl || null,
-      splash_headline: input.seo?.pageTitle ?? null,
-      splash_welcome_message: input.seo?.metaDescription ?? null,
-      redirect_url: input.login?.redirectUrl || null,
-      ...flags,
-    });
-    return fetchOnePortal(data.id);
+    // Only the header drives RBAC scope resolution server-side (the
+    // organization_id body field below is just the record's own column) --
+    // without X-Organization-Id, RequirePermission("captive_portal.create")
+    // defaults to GLOBAL scope and 403s for a real customer/org-owner
+    // session, same class of bug as fetchAllConfigs() above.
+    const { data } = await api.post<BackendCaptivePortalConfig>(
+      "/captive-portal-configs",
+      {
+        organization_id: input.organizationId,
+        location_id: input.locationId || null,
+        name: input.name,
+        is_active: false,
+        theme: input.themeId ?? "corporate",
+        logo_url: input.branding?.logoUrl ?? null,
+        background_image_url: input.branding?.backgroundUrl ?? null,
+        primary_color: input.branding?.primaryColor ?? "#0EA5E9",
+        secondary_color: input.branding?.secondaryColor ?? "#0F172A",
+        default_language: input.defaultLanguage ?? "en",
+        supported_languages: input.languages ?? ["en"],
+        terms_and_conditions_url: input.consent?.termsUrl || null,
+        privacy_policy_url: input.consent?.privacyUrl || null,
+        splash_headline: input.seo?.pageTitle ?? null,
+        splash_welcome_message: input.seo?.metaDescription ?? null,
+        redirect_url: input.login?.redirectUrl || null,
+        ...flags,
+      },
+      { headers: { "X-Organization-Id": input.organizationId } },
+    );
+    return fetchOnePortal(data.id, input.organizationId);
   },
 
-  async update(id: string, patch: Partial<Portal>): Promise<Portal> {
+  async update(id: string, patch: Partial<Portal>, organizationId?: string): Promise<Portal> {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
     if (patch.themeId !== undefined) body.theme = patch.themeId;
@@ -473,9 +521,12 @@ export const portalService = {
     if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
 
     if (Object.keys(body).length > 0) {
-      await api.put(`/captive-portal-configs/${id}`, body);
+      // Same GLOBAL-scope-by-default 403 as create() above without this header.
+      await api.put(`/captive-portal-configs/${id}`, body, {
+        headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+      });
     }
-    return fetchOnePortal(id);
+    return fetchOnePortal(id, organizationId);
   },
 
   /** No backend equivalent for cloning a config -- fetches the real source
@@ -486,16 +537,26 @@ export const portalService = {
     return portalService.create({ ...src, name: `${src.name} (Copy)` });
   },
 
-  async remove(id: string): Promise<void> {
-    await api.delete(`/captive-portal-configs/${id}`);
+  async remove(id: string, organizationId?: string): Promise<void> {
+    // Same GLOBAL-scope-by-default 403 as create()/update() above without
+    // this header -- captive_portal.delete resolves scope from
+    // X-Organization-Id, not the path/body.
+    await api.delete(`/captive-portal-configs/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
-  async setStatus(id: string, status: PortalStatus): Promise<Portal> {
+  async setStatus(id: string, status: PortalStatus, organizationId?: string): Promise<Portal> {
     // Backend only has a binary is_active -- "published" activates, every
     // other frontend status ("draft"/"archived"/"scheduled", none of which
-    // the backend distinguishes) deactivates.
-    await api.post(`/captive-portal-configs/${id}/${status === "published" ? "activate" : "deactivate"}`);
-    return fetchOnePortal(id);
+    // the backend distinguishes) deactivates. Same header requirement as
+    // every other captive_portal.* mutation in this file.
+    await api.post(
+      `/captive-portal-configs/${id}/${status === "published" ? "activate" : "deactivate"}`,
+      undefined,
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return fetchOnePortal(id, organizationId);
   },
 
   /** Static design catalog -- see THEMES comment above, no backend concept. */
@@ -507,15 +568,19 @@ export const portalService = {
    * `theme` string -- this persists the theme's real color fields for
    * real (primary/secondary color), then returns the refreshed config
    * with the local theme id attached for display. */
-  async applyTheme(id: string, themeId: string): Promise<Portal> {
+  async applyTheme(id: string, themeId: string, organizationId?: string): Promise<Portal> {
     const theme = THEMES.find((t) => t.id === themeId);
     if (!theme) throw new Error("Theme not found");
-    await api.put(`/captive-portal-configs/${id}`, {
-      theme: theme.id,
-      primary_color: theme.branding.primaryColor,
-      secondary_color: theme.branding.secondaryColor,
-    });
-    return fetchOnePortal(id);
+    await api.put(
+      `/captive-portal-configs/${id}`,
+      {
+        theme: theme.id,
+        primary_color: theme.branding.primaryColor,
+        secondary_color: theme.branding.secondaryColor,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return fetchOnePortal(id, organizationId);
   },
 
   /** No backend endpoint to persist a new theme definition -- appends to

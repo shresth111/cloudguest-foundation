@@ -164,9 +164,15 @@ const BASE_BY_ROLE: Record<UserRole, ModuleId[]> = {
   super_admin: [
     // FE-025: Platform Console is Super-Admin ONLY. No operational modules.
     ...PLATFORM_CONSOLE,
-    // Extras kept accessible via deep-link for platform admin work
+    // Extras kept accessible via deep-link for platform admin work --
+    // "routers" added alongside "locations": Location Master's own detail
+    // page (super_admin-reachable via the "locations" carve-out right
+    // below) has a "Routers" tab linking into a location's real router
+    // inventory/remote-access info -- without this, that tab silently
+    // vanished for the one role that's supposed to use Location Master.
     "organizations",
     "locations",
+    "routers",
   ],
   org_admin: [
     "dashboard",
@@ -570,7 +576,6 @@ const ROUTE_BY_MODULE: Partial<Record<ModuleId, string>> = {
   "mac-auth": "/network/mac-authorization",
   "queue-management": "/network/queue-management",
   "port-forwarding": "/network/port-forwarding",
-  hotspot: "/network/hotspot",
   "guests-live": "/guests",
   guests: "/guests",
   campaigns: "/campaigns",
@@ -902,7 +907,6 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       { id: "ws-net-provisioning", label: "Provisioning", icon: "ServerCog", to: "/workspace/routers" },
       { id: "ws-net-vlan", label: "VLAN", icon: "Network", to: "/network/vlan" },
       { id: "ws-net-dhcp", label: "DHCP", icon: "Share2", to: "/network/dhcp" },
-      { id: "ws-net-hotspot", label: "Hotspot", icon: "Wifi", to: "/network/hotspot" },
       // RADIUS clients are managed via the NAS registry -- but /nas fans
       // out across EVERY organization (no per-org scoping exists there),
       // a real cross-tenant leak if linked from the customer workspace.

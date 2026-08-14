@@ -17,7 +17,60 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { planSchema, type PlanFormValues } from "@/lib/billing-schemas";
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function formatMoney(amount: number, currency: string) {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+// -1 is this app's "Unlimited" sentinel for the four included-limit
+// fields (see billing.service.ts's featureLimit()/toBackendLimit()).
+function limitLabel(value: number, thousands = false): string {
+  if (value === -1) return "Unlimited";
+  return thousands ? value.toLocaleString() : String(value);
+}
+
+/** A number field for one of the four included-limit fields, with an
+ * "Unlimited" toggle alongside it -- typing a number was previously the
+ * only option, with no way to express "no cap" short of typing something
+ * absurdly large. Toggling on stores -1 (this app's Unlimited sentinel,
+ * see limitLabel()/featureLimit() above); toggling off restores the last
+ * typed number (remembered locally, not lost when flipping back and
+ * forth) or a sane default. */
+function LimitField({ label, value, onChange, defaultValue = 1 }: { label: string; value: number; onChange: (v: number) => void; defaultValue?: number }) {
+  const [lastNumber, setLastNumber] = useState(value === -1 ? defaultValue : value);
+  const unlimited = value === -1;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Switch
+            checked={unlimited}
+            onCheckedChange={(checked) => onChange(checked ? -1 : lastNumber)}
+            className="scale-75"
+          />
+          Unlimited
+        </label>
+      </div>
+      <Input
+        type="number"
+        min={1}
+        className="mt-1"
+        disabled={unlimited}
+        value={unlimited ? "" : value}
+        placeholder={unlimited ? "Unlimited" : undefined}
+        onChange={(e) => {
+          const next = Number(e.target.value) || 0;
+          setLastNumber(next);
+          onChange(next);
+        }}
+      />
+    </div>
+  );
+}
 
 const TIER_ICON: Record<PlanTier, typeof Sparkles> = {
   starter: Sparkles,
@@ -59,20 +112,20 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
                   </div>
                   <div className="mt-3">
                     <div className="text-3xl font-semibold tracking-tight">
-                      {p.tier === "custom" ? "Contact us" : money.format(p.monthlyPrice)}
+                      {p.tier === "custom" ? "Contact us" : formatMoney(p.monthlyPrice, p.currency)}
                     </div>
                     {p.tier !== "custom" && (
                       <p className="text-xs text-muted-foreground">
-                        or {money.format(p.annualPrice)} / year
+                        or {formatMoney(p.annualPrice, p.currency)} / year
                       </p>
                     )}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <Feature label={`${p.includedLocations} locations`} />
-                  <Feature label={`${p.includedRouters} routers`} />
-                  <Feature label={`${p.includedGuests.toLocaleString()} guests / mo`} />
-                  <Feature label={`${p.storageLimitGb} GB storage`} />
+                  <Feature label={`${limitLabel(p.includedLocations)} locations`} />
+                  <Feature label={`${limitLabel(p.includedRouters)} routers`} />
+                  <Feature label={`${limitLabel(p.includedGuests, true)} guests / mo`} />
+                  <Feature label={`${limitLabel(p.storageLimitGb)} GB storage`} />
                   <Feature label="API access" ok={p.apiAccess} />
                   <Feature label="White label" ok={p.whiteLabel} />
                   <Feature label="PMS integration" ok={p.pmsIntegration} />
@@ -128,7 +181,7 @@ function Feature({ label, ok = true }: { label: string; ok?: boolean }) {
 }
 
 function supportLabel(l: SupportLevel) {
-  return { email: "Email", priority: "Priority", "24x7": "24×7", dedicated: "Dedicated" }[l];
+  return { basic: "Basic (Email)", priority: "Priority", dedicated: "Dedicated (24×7)" }[l];
 }
 
 function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange: (v: boolean) => void; plan?: Plan }) {
@@ -139,8 +192,8 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
       ? {
           name: plan.name,
           tier: plan.tier,
+          currency: "INR",
           monthlyPrice: plan.monthlyPrice,
-          annualPrice: plan.annualPrice,
           includedLocations: plan.includedLocations,
           includedRouters: plan.includedRouters,
           includedGuests: plan.includedGuests,
@@ -154,8 +207,8 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
       : {
           name: "",
           tier: "starter",
+          currency: "INR",
           monthlyPrice: 0,
-          annualPrice: 0,
           includedLocations: 1,
           includedRouters: 1,
           includedGuests: 100,
@@ -164,12 +217,18 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           whiteLabel: false,
           pmsIntegration: false,
           aiFeatures: false,
-          supportLevel: "email",
+          supportLevel: "basic",
         },
   });
 
   const onSubmit = (values: PlanFormValues) => {
-    save.mutate({ ...values, id: plan?.id }, {
+    // The real backend Plan model (PlanCreateRequest/PlanUpdateRequest --
+    // backend/app/domains/billing/schemas.py) has one base_price and one
+    // billing_cycle per plan, never a separate monthly *and* annual price.
+    // annualPrice is display-only here -- always 12x the monthly price
+    // (see toPlan()'s read-side computation, which this mirrors), never a
+    // real, independently-priced annual tier.
+    save.mutate({ ...values, annualPrice: values.monthlyPrice * 12, id: plan?.id }, {
       onSuccess: () => {
         toast.success(plan ? "Plan updated" : "Plan created");
         onOpenChange(false);
@@ -191,7 +250,16 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           </div>
           <div>
             <Label>Tier</Label>
-            <Select value={form.watch("tier")} onValueChange={(v) => form.setValue("tier", v as PlanTier)}>
+            {/* The real backend has no way to change a plan's tier after
+                creation (PlanUpdateRequest carries no plan_type field) --
+                this used to stay editable and silently do nothing on
+                save for an existing plan. Locked to what the plan was
+                created with; only choosable for a brand-new plan. */}
+            <Select
+              value={form.watch("tier")}
+              onValueChange={(v) => form.setValue("tier", v as PlanTier)}
+              disabled={!!plan}
+            >
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="starter">Starter</SelectItem>
@@ -200,25 +268,40 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
+            {plan && <p className="mt-1 text-xs text-muted-foreground">Tier can't be changed after a plan is created.</p>}
           </div>
           <div>
             <Label>Support level</Label>
             <Select value={form.watch("supportLevel")} onValueChange={(v) => form.setValue("supportLevel", v as SupportLevel)}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="basic">Basic (Email)</SelectItem>
                 <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="24x7">24×7</SelectItem>
-                <SelectItem value="dedicated">Dedicated</SelectItem>
+                <SelectItem value="dedicated">Dedicated (24×7)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Monthly price</Label><Input type="number" className="mt-1" {...form.register("monthlyPrice", { valueAsNumber: true })} /></div>
-          <div><Label>Annual price</Label><Input type="number" className="mt-1" {...form.register("annualPrice", { valueAsNumber: true })} /></div>
-          <div><Label>Locations</Label><Input type="number" className="mt-1" {...form.register("includedLocations", { valueAsNumber: true })} /></div>
-          <div><Label>Routers</Label><Input type="number" className="mt-1" {...form.register("includedRouters", { valueAsNumber: true })} /></div>
-          <div><Label>Guests</Label><Input type="number" className="mt-1" {...form.register("includedGuests", { valueAsNumber: true })} /></div>
-          <div><Label>Storage (GB)</Label><Input type="number" className="mt-1" {...form.register("storageLimitGb", { valueAsNumber: true })} /></div>
+          <div>
+            <Label>Currency</Label>
+            <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">₹ INR — GST applies</p>
+          </div>
+          <div />
+          <div>
+            <Label>Monthly price</Label>
+            <Input type="number" className="mt-1" {...form.register("monthlyPrice", { valueAsNumber: true })} />
+          </div>
+          <div>
+            <Label>Annual price</Label>
+            {/* Not editable -- see onSubmit's comment. Always 12x the
+                monthly price, same as the read-only plan cards show. */}
+            <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">
+              {formatMoney((form.watch("monthlyPrice") || 0) * 12, form.watch("currency"))} / year
+            </p>
+          </div>
+          <LimitField label="Locations" value={form.watch("includedLocations")} onChange={(v) => form.setValue("includedLocations", v)} />
+          <LimitField label="Routers" value={form.watch("includedRouters")} onChange={(v) => form.setValue("includedRouters", v)} />
+          <LimitField label="Guests" value={form.watch("includedGuests")} onChange={(v) => form.setValue("includedGuests", v)} defaultValue={100} />
+          <LimitField label="Storage (GB)" value={form.watch("storageLimitGb")} onChange={(v) => form.setValue("storageLimitGb", v)} defaultValue={10} />
 
           {(["apiAccess", "whiteLabel", "pmsIntegration", "aiFeatures"] as const).map((k) => (
             <div key={k} className="col-span-2 flex items-center justify-between rounded-lg border p-3">

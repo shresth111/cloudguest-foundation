@@ -18,6 +18,7 @@ export interface DnsRecordListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
+  organizationId?: string;
 }
 
 export interface DnsRecordListResult {
@@ -36,6 +37,7 @@ export interface CreateDnsRecordPayload {
   ttlSeconds?: number;
   comment?: string | null;
   isEnabled?: boolean;
+  organizationId?: string;
 }
 
 export interface UpdateDnsRecordPayload {

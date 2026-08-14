@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -9,7 +9,9 @@ import {
   MapPin,
   Router as RouterIcon,
   Sparkles,
+  SlidersHorizontal,
   UserCog,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -39,10 +41,22 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
 import { PROPERTY_TYPE_LABEL, type PropertyType, type ProvisionLocationPayload, type ProvisionLocationResult } from "@/types/location";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
+
+// Same demo-session gap as location.service.ts's fetch helpers (see their
+// comment) -- GET /plans 401s under the Master Console's demo sign-in, which
+// left this wizard's "Plan" step with nothing to pick and the whole wizard
+// stuck (a plan is required to reach Review).
+const DEMO_PLANS: BackendPlan[] = [
+  { id: "plan-demo-starter", name: "Starter", plan_type: "standard", base_price: "999.00", currency: "INR" },
+  { id: "plan-demo-growth", name: "Growth", plan_type: "standard", base_price: "2999.00", currency: "INR" },
+  { id: "plan-demo-enterprise", name: "Enterprise", plan_type: "custom", base_price: "9999.00", currency: "INR" },
+];
 
 const COUNTRIES = ["US", "GB", "IN", "SG", "AE", "DE", "AU", "CA"];
 const TIMEZONES = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin"];
@@ -53,8 +67,14 @@ const STEPS = [
   { key: "owner", title: "Owner", desc: "Location owner account", icon: UserCog },
   { key: "router", title: "Router", desc: "First device", icon: RouterIcon },
   { key: "plan", title: "Plan", desc: "Assign a subscription plan", icon: Sparkles },
+  { key: "features", title: "Features", desc: "Customize beyond the plan defaults", icon: SlidersHorizontal },
   { key: "review", title: "Review", desc: "Confirm & provision", icon: Check },
 ] as const;
+
+interface FeatureOverrideState {
+  isEnabled?: boolean;
+  limitValue?: number;
+}
 
 interface WizardState {
   org: { mode: "existing" | "new"; existingId?: string; name: string; slug: string; contactEmail: string };
@@ -70,22 +90,32 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
-  router: { name: string; serialNumber: string; macAddress: string; model: string };
+  router: { name: string; serialNumber: string; macAddress: string; model: string; managementIpAddress: string };
   planId: string;
+  featureOverrides: Record<string, FeatureOverrideState>;
 }
 
 const DEFAULT_STATE: WizardState = {
   org: { mode: "existing", name: "", slug: "", contactEmail: "" },
   location: { name: "", slug: "", propertyType: "", addressLine1: "", city: "", stateProvince: "", postalCode: "", country: "", timezone: "UTC" },
   owner: { firstName: "", lastName: "", email: "" },
-  router: { name: "", serialNumber: "", macAddress: "", model: "" },
+  router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
   planId: "",
+  featureOverrides: {},
 };
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProvisioned?: (locationId: string) => void;
+  /** Pre-selects "Existing organization" mode with this org already chosen
+   * -- used when the wizard is opened from a specific customer's own detail
+   * view (see master.customers.tsx's "New Location" action) so adding
+   * another location to a customer you're already looking at doesn't make
+   * you re-find them in the org picker. The customer is unique; a customer
+   * can still have any number of locations, this just skips re-selecting
+   * the customer you already had open. */
+  initialOrganizationId?: string;
 }
 
 interface BackendPlan {
@@ -96,12 +126,36 @@ interface BackendPlan {
   currency: string;
 }
 
-export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Props) {
+interface BackendFeature {
+  key: string;
+  name: string;
+  description: string | null;
+  category: string;
+  // "tier" (today, exactly "support_level") is deliberately not offered
+  // an override control in this wizard -- see FeaturesStep's own comment.
+  type: "boolean" | "limit" | "tier";
+  default_enabled: boolean;
+}
+
+export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, initialOrganizationId }: Props) {
   const [step, setStep] = useState(0);
   const [state, setState] = useState<WizardState>(DEFAULT_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [result, setResult] = useState<ProvisionLocationResult | null>(null);
   const provision = useProvisionLocation();
+
+  // Re-seed on every open (not just mount) -- the dialog instance is reused
+  // across separate "New Location" clicks for different customers, so a
+  // stale `existingId` from the previous customer must not leak into the
+  // next one.
+  useEffect(() => {
+    if (!open) return;
+    setState(
+      initialOrganizationId
+        ? { ...DEFAULT_STATE, org: { ...DEFAULT_STATE.org, mode: "existing", existingId: initialOrganizationId } }
+        : DEFAULT_STATE,
+    );
+  }, [open, initialOrganizationId]);
 
   const orgs = useQuery({
     queryKey: ["locations", "org-options"],
@@ -111,8 +165,17 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
   const plans = useQuery({
     queryKey: ["billing", "plans", "active"],
     queryFn: async () => {
+      if (isDemo()) return DEMO_PLANS;
       const { data } = await api.get<{ items: BackendPlan[] }>("/plans", { params: { is_active: true } });
       return data.items;
+    },
+    enabled: open,
+  });
+  const features = useQuery({
+    queryKey: ["features", "catalog"],
+    queryFn: async () => {
+      const { data } = await api.get<{ features: BackendFeature[] }>("/features");
+      return data.features;
     },
     enabled: open,
   });
@@ -187,8 +250,11 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
         timezone: state.location.timezone,
       },
       owner: state.owner,
-      router: state.router,
+      router: { ...state.router, managementIpAddress: state.router.managementIpAddress || undefined },
       planId: state.planId,
+      featureOverrides: Object.entries(state.featureOverrides)
+        .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
+        .map(([featureKey, v]) => ({ featureKey, isEnabled: v.isEnabled, limitValue: v.limitValue })),
     };
     try {
       const r = await provision.mutateAsync(payload);
@@ -272,6 +338,14 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned }: Pr
                   <PlanStep value={state.planId} onChange={(v) => set("planId", v)} plans={planOptions} loading={plans.isLoading} error={errors.planId} />
                 )}
                 {step === 5 && (
+                  <FeaturesStep
+                    value={state.featureOverrides}
+                    onChange={(v) => set("featureOverrides", v)}
+                    features={features.data ?? []}
+                    loading={features.isLoading}
+                  />
+                )}
+                {step === 6 && (
                   <ReviewStep state={state} orgs={orgOptions} plans={planOptions} result={result} provisioning={provision.isPending} />
                 )}
               </div>
@@ -321,6 +395,20 @@ function ErrorText({ msg }: { msg?: string }) {
   return <p className="mt-1 text-xs text-destructive">{msg}</p>;
 }
 
+/** A small, real, editable slug suggestion derived from a name -- e.g.
+ * "Acme Hospitality" -> "acme-hospitality". Used to auto-fill the Slug
+ * field as the user types the name it's derived from, instead of leaving
+ * it empty behind a greyed example placeholder that reads as an
+ * already-filled-in value at a glance (easy to miss that it's required).
+ * The user can still freely edit the result afterwards. */
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function ModeCard({ value, title, desc }: { value: string; title: string; desc: string }) {
   return (
     <label htmlFor={`mode-${value}`} className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
@@ -364,12 +452,24 @@ function OrgStep({
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <Label>Organization name</Label>
-            <Input value={state.name} onChange={(e) => setState({ ...state, name: e.target.value })} placeholder="Acme Hospitality" />
+            <Input
+              value={state.name}
+              onChange={(e) => {
+                const name = e.target.value;
+                // Auto-fills/keeps the slug in sync with the name as long as
+                // the user hasn't diverged from the auto-suggestion by
+                // hand-editing it -- see slugify's own doc comment.
+                const slugIsAuto = !state.slug || state.slug === slugify(state.name);
+                setState({ ...state, name, slug: slugIsAuto ? slugify(name) : state.slug });
+              }}
+              placeholder="Acme Hospitality"
+            />
             <ErrorText msg={errors["org.name"]} />
           </div>
           <div>
             <Label>Slug</Label>
-            <Input value={state.slug} onChange={(e) => setState({ ...state, slug: e.target.value })} placeholder="acme-hospitality" />
+            <Input value={state.slug} onChange={(e) => setState({ ...state, slug: e.target.value })} placeholder="e.g. acme-hospitality" />
+            <p className="mt-1 text-xs text-muted-foreground">Auto-suggested from the name above -- edit freely.</p>
             <ErrorText msg={errors["org.slug"]} />
           </div>
           <div className="md:col-span-2">
@@ -397,12 +497,24 @@ function LocationStep({
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Location name</Label>
-          <Input value={state.name} onChange={(e) => upd("name", e.target.value)} placeholder="Downtown Branch" />
+          <Input
+            value={state.name}
+            onChange={(e) => {
+              const name = e.target.value;
+              // Same auto-suggest-until-hand-edited behavior as the
+              // Organization step's own Slug field -- see slugify's doc
+              // comment.
+              const slugIsAuto = !state.slug || state.slug === slugify(state.name);
+              setState({ ...state, name, slug: slugIsAuto ? slugify(name) : state.slug });
+            }}
+            placeholder="Downtown Branch"
+          />
           <ErrorText msg={errors["location.name"]} />
         </div>
         <div>
           <Label>Slug</Label>
-          <Input value={state.slug} onChange={(e) => upd("slug", e.target.value)} placeholder="downtown-branch" />
+          <Input value={state.slug} onChange={(e) => upd("slug", e.target.value)} placeholder="e.g. downtown-branch" />
+          <p className="mt-1 text-xs text-muted-foreground">Auto-suggested from the name above -- edit freely.</p>
           <ErrorText msg={errors["location.slug"]} />
         </div>
         <div>
@@ -410,9 +522,16 @@ function LocationStep({
           <Select value={state.propertyType} onValueChange={(v) => upd("propertyType", v as PropertyType)}>
             <SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger>
             <SelectContent>
-              {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => (
-                <SelectItem key={t} value={t}>{PROPERTY_TYPE_LABEL[t]}</SelectItem>
-              ))}
+              {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => {
+                const TypeIcon = businessTypeIcon(t);
+                return (
+                  <SelectItem key={t} value={t}>
+                    <span className="flex items-center gap-2">
+                      <TypeIcon className="h-4 w-4 text-muted-foreground" /> {PROPERTY_TYPE_LABEL[t]}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -518,6 +637,11 @@ function RouterStep({
           <Input value={state.macAddress} onChange={(e) => setState({ ...state, macAddress: e.target.value })} placeholder="AA:BB:CC:DD:EE:01" className="font-mono" />
           <ErrorText msg={errors["router.macAddress"]} />
         </div>
+        <div className="md:col-span-2">
+          <Label>Management IP (optional)</Label>
+          <Input value={state.managementIpAddress} onChange={(e) => setState({ ...state, managementIpAddress: e.target.value })} placeholder="20.219.19.32" className="font-mono" />
+          <p className="mt-1 text-xs text-muted-foreground">The router's real, reachable IP -- lets the platform actually connect to it (e.g. a MikroTik CHR/hardware device). Leave blank for a records-only entry.</p>
+        </div>
       </div>
     </div>
   );
@@ -565,6 +689,100 @@ function PlanStep({
         </div>
       )}
       <ErrorText msg={error} />
+    </div>
+  );
+}
+
+function FeaturesStep({
+  value, onChange, features, loading,
+}: {
+  value: Record<string, FeatureOverrideState>;
+  onChange: (v: Record<string, FeatureOverrideState>) => void;
+  features: BackendFeature[];
+  loading: boolean;
+}) {
+  function toggle(key: string, defaultEnabled: boolean) {
+    const current = value[key];
+    const next = { ...value };
+    if (current?.isEnabled === undefined) {
+      next[key] = { ...current, isEnabled: !defaultEnabled };
+    } else {
+      delete next[key];
+    }
+    onChange(next);
+  }
+
+  function setLimit(key: string, raw: string) {
+    const next = { ...value };
+    if (raw === "") {
+      delete next[key];
+    } else {
+      next[key] = { ...next[key], limitValue: Number(raw) };
+    }
+    onChange(next);
+  }
+
+  // Tier-typed features (today, only "support_level") are never offered
+  // as a per-customer override here -- this step's toggle/number controls
+  // are only shaped for BOOLEAN/LIMIT features, and a TIER-typed feature
+  // has no legal "on/off" override (the backend rejects a TIER-typed
+  // override with no real tier_value). Simplest correct behavior: leave
+  // it out of this list entirely, so it just inherits the selected
+  // Plan's own tier_value, same as every other feature no admin touches.
+  const overridableFeatures = features.filter((f) => f.type !== "tier");
+  const categories = Array.from(new Set(overridableFeatures.map((f) => f.category)));
+
+  return (
+    <div>
+      <StepHeader title="Customize features (optional)" description="Overrides applied on top of the selected plan's defaults, for this customer only. Leave everything alone to just use the plan as-is." />
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading feature catalog…</p>
+      ) : (
+        <div className="space-y-5">
+          {categories.map((cat) => (
+            <div key={cat}>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat}</div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {overridableFeatures.filter((f) => f.category === cat).map((f) => {
+                  const override = value[f.key];
+                  if (f.type === "limit") {
+                    return (
+                      <div key={f.key} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
+                        <Label className="text-xs">{f.description || f.name}</Label>
+                        <Input
+                          type="number"
+                          className="h-7 w-24 text-xs"
+                          placeholder="Plan default"
+                          value={override?.limitValue ?? ""}
+                          onChange={(e) => setLimit(f.key, e.target.value)}
+                        />
+                      </div>
+                    );
+                  }
+                  const effective = override?.isEnabled ?? f.default_enabled;
+                  const isOverridden = override?.isEnabled !== undefined;
+                  return (
+                    <button
+                      type="button"
+                      key={f.key}
+                      onClick={() => toggle(f.key, f.default_enabled)}
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors",
+                        isOverridden ? "border-primary bg-primary/5" : "border-border",
+                      )}
+                    >
+                      <span className="text-xs">{f.description || f.name}</span>
+                      <Badge variant={effective ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                        {effective ? "On" : "Off"}{isOverridden && " (custom)"}
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -624,21 +842,32 @@ function ReviewStep({
       <div className="grid gap-3 md:grid-cols-2">
         <SummaryRow label="Organization" value={orgLabel} />
         <SummaryRow label="Location" value={state.location.name || "—"} />
-        <SummaryRow label="Property" value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`} />
+        <SummaryRow
+          label="Property"
+          value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`}
+          icon={businessTypeIcon(state.location.propertyType)}
+        />
         <SummaryRow label="Owner" value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`} />
-        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})`} />
+        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`} />
         <SummaryRow label="Plan" value={planLabel} />
+        <SummaryRow
+          label="Custom features"
+          value={Object.keys(state.featureOverrides).length ? `${Object.keys(state.featureOverrides).length} overridden` : "None (plan defaults)"}
+        />
       </div>
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
     </div>
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
   return (
     <div className="rounded-lg border bg-muted/20 px-3 py-2">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium">{value}</div>
+      <div className="flex items-center gap-1.5 text-sm font-medium">
+        {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+        {value}
+      </div>
     </div>
   );
 }

@@ -238,6 +238,22 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                     <p className="sm:col-span-2 text-xs text-muted-foreground">
                       Stored encrypted server-side. Never shown again after this form — the API never returns it back.
                     </p>
+                    {/* Skipping this step is a real, common path (e.g. the
+                     * physical device isn't reachable yet at registration
+                     * time) -- but a router with no credentials can never
+                     * actually connect: no speed test, no health checks, no
+                     * queue/device management, nothing. Confirmed live: a
+                     * router left this way for days gives zero signal
+                     * anywhere that it's stuck -- this warning plus
+                     * RouterTable's own "Needs credentials" badge (see that
+                     * file) are the two places this is now surfaced instead
+                     * of silently disappearing after registration. */}
+                    {!form.watch("credentials.apiUsername") && !form.watch("credentials.apiSecret") && (
+                      <p className="sm:col-span-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        Skipping this leaves the router unable to connect at all -- no speed test, no health monitoring,
+                        no device management -- until credentials are added later from the router's own detail page.
+                      </p>
+                    )}
                   </div>
                 )}
                 {step === 2 && (

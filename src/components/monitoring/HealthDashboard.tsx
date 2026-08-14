@@ -114,6 +114,12 @@ export function HealthDashboard() {
           Run health checks now
         </Button>
       </div>
+      {data.components.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No health checks have been recorded yet -- run one now to populate this board with real,
+          live component status.
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {data.components.map((c) => (
           <Card key={c.component}>

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { LocationStatus, PropertyType } from "@/types/location";
 import { LOCATION_STATUS_LABEL, PROPERTY_TYPE_LABEL } from "@/types/location";
 
@@ -41,10 +42,17 @@ const SITE_STYLES: Record<PropertyType, string> = {
 };
 
 export function SiteTypeBadge({ type }: { type: PropertyType | null }) {
-  if (!type) return <Badge variant="outline">—</Badge>;
+  const Icon = businessTypeIcon(type);
+  if (!type) {
+    return (
+      <Badge variant="outline">
+        <Icon className="mr-1 h-3 w-3" /> —
+      </Badge>
+    );
+  }
   return (
     <Badge variant="outline" className={cn("rounded-full", SITE_STYLES[type])}>
-      {PROPERTY_TYPE_LABEL[type]}
+      <Icon className="mr-1 h-3 w-3" /> {PROPERTY_TYPE_LABEL[type]}
     </Badge>
   );
 }

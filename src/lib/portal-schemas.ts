@@ -19,6 +19,7 @@ export const portalBrandingSchema = z.object({
 export const portalLoginMethodSchema = z.object({
   mobile_otp: z.boolean(),
   email_otp: z.boolean(),
+  whatsapp_otp: z.boolean(),
   voucher: z.boolean(),
   pms: z.boolean(),
   social: z.boolean(),

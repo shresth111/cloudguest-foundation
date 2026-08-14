@@ -30,10 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api } from "@/services/api";
+import { api, type AppError } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import type { RoleAssignment } from "@/types/auth";
 import { primaryRoleLabel } from "@/lib/roles";
 import type { SiteType } from "@/types/location";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { LucideIcon } from "lucide-react";
 
 const ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
@@ -111,6 +113,38 @@ function pickGradient(seed: string): string {
   return GRADIENTS[hash(seed) % GRADIENTS.length];
 }
 
+async function fetchRolesScopedLocations(
+  roles: RoleAssignment[],
+  organizationId: string,
+): Promise<BackendLocation[]> {
+  const locationIds = Array.from(
+    new Set(
+      roles
+        .filter(
+          (r): r is RoleAssignment & { locationId: string } =>
+            r.scopeType === "location" &&
+            r.organizationId === organizationId &&
+            !!r.locationId,
+        )
+        .map((r) => r.locationId),
+    ),
+  );
+  if (locationIds.length === 0) return [];
+
+  const results = await Promise.allSettled(
+    locationIds.map((locationId) =>
+      api.get<BackendLocation>(`/locations/${locationId}`, {
+        headers: { "X-Organization-Id": organizationId, "X-Location-Id": locationId },
+      }),
+    ),
+  );
+  const locations: BackendLocation[] = [];
+  for (const result of results) {
+    if (result.status === "fulfilled") locations.push(result.value.data);
+  }
+  return locations;
+}
+
 export const Route = createFileRoute("/_authenticated/select-space")({
   component: SelectSpacePage,
 });
@@ -140,13 +174,28 @@ function SelectSpacePage() {
 
   const locationQueries = useQueries({
     queries: organizations.map((org) => ({
-      queryKey: ["select-space", "locations", org.organizationId],
+      queryKey: ["select-space", "locations", org.organizationId, roles],
       queryFn: async () => {
-        const { data } = await api.get<{ items: BackendLocation[] }>(
-          `/organizations/${org.organizationId}/locations`,
-          { params: { page_size: 100 }, headers: { "X-Organization-Id": org.organizationId } },
-        );
-        return data.items;
+        try {
+          const { data } = await api.get<{ items: BackendLocation[] }>(
+            `/organizations/${org.organizationId}/locations`,
+            { params: { page_size: 100 }, headers: { "X-Organization-Id": org.organizationId } },
+          );
+          return data.items;
+        } catch (err) {
+          // A location-scoped role (Network Engineer, Office Admin, Location
+          // Manager, ...) can never satisfy this org-wide listing's
+          // permission check -- the backend's RBAC scope hierarchy
+          // correctly refuses a location-level grant for an
+          // organization-level check (ScopeResolver.satisfies), no matter
+          // what permissions the role itself carries. Fall back to fetching
+          // just the specific location(s) this user's own location-scoped
+          // role assignments name -- the single-location endpoint CAN
+          // authorize that once X-Location-Id is sent, since the check then
+          // resolves at location scope instead.
+          if ((err as AppError).status !== 403) throw err;
+          return fetchRolesScopedLocations(roles, org.organizationId);
+        }
       },
     })),
   });
@@ -425,7 +474,10 @@ function SpaceTile({
   onFav: (id: string) => void;
 }) {
   const tier = TIER_META[card.tier];
-  const TierIcon = tier.icon;
+  // A location-tier card is a real business location -- show its actual
+  // business-type icon (cafe, school, hotel, …) instead of the generic
+  // "this is a location" pin every tier eyebrow otherwise uses.
+  const TierIcon = card.tier === "location" ? businessTypeIcon(card.siteType) : tier.icon;
 
   return (
     <Card className="group relative overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_40px_-20px_oklch(0.52_0.18_265/0.35)]">

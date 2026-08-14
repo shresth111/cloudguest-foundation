@@ -542,6 +542,11 @@ export const monitoringService = {
         limit: q.limit,
       },
       paramsSerializer: { indexes: null },
+      // RequirePermission resolves scope from this header, not the
+      // organization_id query param above -- without it, an org-scoped
+      // customer session 403s at GLOBAL scope. Same fix as listAlerts()
+      // below already has.
+      headers: q.organizationId ? { "X-Organization-Id": q.organizationId } : undefined,
     });
     return data.items.map(toTimelineEntry);
   },
@@ -564,6 +569,7 @@ export const monitoringService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      headers: q.organizationId ? { "X-Organization-Id": q.organizationId } : undefined,
     });
     return {
       items: data.items.map(toAlertRule),
@@ -576,42 +582,58 @@ export const monitoringService = {
     };
   },
 
-  async getAlertRule(id: string): Promise<AlertRule> {
-    const { data } = await api.get<BackendAlertRule>(`/alerts/rules/${id}`);
+  async getAlertRule(id: string, organizationId?: string): Promise<AlertRule> {
+    const { data } = await api.get<BackendAlertRule>(`/alerts/rules/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return toAlertRule(data);
   },
 
   async createAlertRule(payload: CreateAlertRulePayload): Promise<AlertRule> {
-    const { data } = await api.post<BackendAlertRule>("/alerts/rules", {
-      name: payload.name,
-      description: payload.description,
-      organization_id: payload.organizationId,
-      trigger_type: payload.triggerType,
-      target_component: payload.targetComponent,
-      condition_config: payload.conditionConfig,
-      severity: payload.severity,
-      is_active: payload.isActive,
-      notification_channel_ids: payload.notificationChannelIds,
-    });
+    const { data } = await api.post<BackendAlertRule>(
+      "/alerts/rules",
+      {
+        name: payload.name,
+        description: payload.description,
+        organization_id: payload.organizationId,
+        trigger_type: payload.triggerType,
+        target_component: payload.targetComponent,
+        condition_config: payload.conditionConfig,
+        severity: payload.severity,
+        is_active: payload.isActive,
+        notification_channel_ids: payload.notificationChannelIds,
+      },
+      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+    );
     return toAlertRule(data);
   },
 
-  async updateAlertRule(id: string, payload: UpdateAlertRulePayload): Promise<AlertRule> {
-    const { data } = await api.put<BackendAlertRule>(`/alerts/rules/${id}`, {
-      name: payload.name,
-      description: payload.description,
-      trigger_type: payload.triggerType,
-      target_component: payload.targetComponent,
-      condition_config: payload.conditionConfig,
-      severity: payload.severity,
-      is_active: payload.isActive,
-      notification_channel_ids: payload.notificationChannelIds,
-    });
+  async updateAlertRule(
+    id: string,
+    payload: UpdateAlertRulePayload,
+    organizationId?: string,
+  ): Promise<AlertRule> {
+    const { data } = await api.put<BackendAlertRule>(
+      `/alerts/rules/${id}`,
+      {
+        name: payload.name,
+        description: payload.description,
+        trigger_type: payload.triggerType,
+        target_component: payload.targetComponent,
+        condition_config: payload.conditionConfig,
+        severity: payload.severity,
+        is_active: payload.isActive,
+        notification_channel_ids: payload.notificationChannelIds,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
     return toAlertRule(data);
   },
 
-  async deleteAlertRule(id: string): Promise<void> {
-    await api.delete(`/alerts/rules/${id}`);
+  async deleteAlertRule(id: string, organizationId?: string): Promise<void> {
+    await api.delete(`/alerts/rules/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
   // -- Alerts ---------------------------------------------------------------
@@ -634,6 +656,12 @@ export const monitoringService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      // RequirePermission resolves CurrentOrganization from this header, not
+      // the query param -- omitting it 403'd for every customer session (the
+      // header notification bell's "org" scope). Same fix as AlertsView's
+      // own inline /alerts fetch already applies; platform scope passes no
+      // organizationId so this stays undefined there, matching before.
+      headers: q.organizationId ? { "X-Organization-Id": q.organizationId } : undefined,
     });
     return {
       items: data.items.map(toAlert),
@@ -691,6 +719,7 @@ export const monitoringService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      headers: q.organizationId ? { "X-Organization-Id": q.organizationId } : undefined,
     });
     return {
       items: data.items.map(toNotificationChannel),
@@ -706,29 +735,37 @@ export const monitoringService = {
   async createNotificationChannel(
     payload: CreateNotificationChannelPayload,
   ): Promise<NotificationChannel> {
-    const { data } = await api.post<BackendNotificationChannel>("/notifications/channels", {
-      organization_id: payload.organizationId,
-      channel_type: payload.channelType,
-      name: payload.name,
-      config: payload.config,
-      is_active: payload.isActive,
-    });
+    const { data } = await api.post<BackendNotificationChannel>(
+      "/notifications/channels",
+      {
+        organization_id: payload.organizationId,
+        channel_type: payload.channelType,
+        name: payload.name,
+        config: payload.config,
+        is_active: payload.isActive,
+      },
+      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+    );
     return toNotificationChannel(data);
   },
 
   async updateNotificationChannel(
     id: string,
     payload: UpdateNotificationChannelPayload,
+    organizationId?: string,
   ): Promise<NotificationChannel> {
     const { data } = await api.put<BackendNotificationChannel>(
       `/notifications/channels/${id}`,
       { name: payload.name, config: payload.config, is_active: payload.isActive },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return toNotificationChannel(data);
   },
 
-  async deleteNotificationChannel(id: string): Promise<void> {
-    await api.delete(`/notifications/channels/${id}`);
+  async deleteNotificationChannel(id: string, organizationId?: string): Promise<void> {
+    await api.delete(`/notifications/channels/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
   async listNotificationLogs(

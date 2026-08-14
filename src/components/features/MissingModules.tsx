@@ -85,7 +85,7 @@ export function NotificationPage() {
 
 /* ── Audit Log ───────────────────────────────────────────── */
 export function AuditLogPage() {
-  const items = [{ts:"21-07-2026 14:30",actor:"admin@bhaifi.com",event:"Policy Updated",resource:"Location Policies",ip:"203.0.113.42",before:"2 Mbps",after:"5 Mbps"},{ts:"21-07-2026 12:15",actor:"support@bhaifi.com",event:"User Blocked",resource:"Block Users",ip:"198.51.100.15",before:"Active",after:"Blocked"},{ts:"20-07-2026 18:45",actor:"system",event:"Voucher Created",resource:"Vouchers",ip:"—",before:"—",after:"100 vouchers"}];
+  const items = [{ts:"21-07-2026 14:30",actor:"admin@zipwifi.io",event:"Policy Updated",resource:"Location Policies",ip:"203.0.113.42",before:"2 Mbps",after:"5 Mbps"},{ts:"21-07-2026 12:15",actor:"support@zipwifi.io",event:"User Blocked",resource:"Block Users",ip:"198.51.100.15",before:"Active",after:"Blocked"},{ts:"20-07-2026 18:45",actor:"system",event:"Voucher Created",resource:"Vouchers",ip:"—",before:"—",after:"100 vouchers"}];
   return (<div className="space-y-6">
     <h1 className="text-2xl font-bold text-slate-800">Audit Log</h1>
     <div className="flex flex-wrap gap-3"><div className="w-full sm:w-48"><Label>From</Label><Input type="date" /></div><div className="w-full sm:w-48"><Label>To</Label><Input type="date" /></div><div className="w-full sm:w-48"><Label>Location</Label><Select><SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem></SelectContent></Select></div><Button className="self-end" onClick={()=>toast.success("Search completed")}>Search</Button></div>
@@ -95,7 +95,7 @@ export function AuditLogPage() {
 
 /* ── Admin Logs ──────────────────────────────────────────── */
 export function AdminLogsPage() {
-  const items = [{ts:"21-07-2026 14:30",admin:"admin@bhaifi.com",role:"Super Admin",action:"Updated Policy",module:"Location Policies",target:"Marina Bay Hotel",ip:"203.0.113.42",details:"Bandwidth changed 2→5 Mbps"},{ts:"21-07-2026 12:15",admin:"support@bhaifi.com",role:"Support Agent",action:"Blocked User",module:"Block Users",target:"+919876543210",ip:"198.51.100.15",details:"Blocked for policy violation"}];
+  const items = [{ts:"21-07-2026 14:30",admin:"admin@zipwifi.io",role:"Super Admin",action:"Updated Policy",module:"Location Policies",target:"Marina Bay Hotel",ip:"203.0.113.42",details:"Bandwidth changed 2→5 Mbps"},{ts:"21-07-2026 12:15",admin:"support@zipwifi.io",role:"Support Agent",action:"Blocked User",module:"Block Users",target:"+919876543210",ip:"198.51.100.15",details:"Blocked for policy violation"}];
   return (<div className="space-y-6">
     <h1 className="text-2xl font-bold text-slate-800">Admin Logs</h1>
     <div className="flex flex-wrap gap-3 items-end"><div className="w-full sm:w-48"><Label>From</Label><Input type="date" /></div><div className="w-full sm:w-48"><Label>To</Label><Input type="date" /></div><div className="w-full sm:w-48"><Label>Location</Label><Select><SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem></SelectContent></Select></div><Button onClick={()=>toast.success("Search completed")}>Search</Button><Button variant="outline" className="ml-auto" onClick={()=>toast.success("CSV exported")}><Download className="mr-1.5 h-4 w-4" />Export CSV</Button></div>

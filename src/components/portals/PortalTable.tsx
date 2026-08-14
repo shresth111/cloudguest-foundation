@@ -201,6 +201,7 @@ export function PortalTable() {
               <SelectItem value="all">All methods</SelectItem>
               <SelectItem value="mobile_otp">Mobile OTP</SelectItem>
               <SelectItem value="email_otp">Email OTP</SelectItem>
+              <SelectItem value="whatsapp_otp">WhatsApp OTP</SelectItem>
               <SelectItem value="voucher">Voucher</SelectItem>
               <SelectItem value="pms">PMS</SelectItem>
               <SelectItem value="social">Social</SelectItem>
@@ -217,7 +218,13 @@ export function PortalTable() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  Array.from(selected).forEach((id) => setStatusMut.mutate({ id, status: "published" }));
+                  Array.from(selected).forEach((id) =>
+                    setStatusMut.mutate({
+                      id,
+                      status: "published",
+                      organizationId: items.find((p) => p.id === id)?.organizationId,
+                    }),
+                  );
                   setSelected(new Set());
                 }}
               >
@@ -227,7 +234,13 @@ export function PortalTable() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  Array.from(selected).forEach((id) => setStatusMut.mutate({ id, status: "draft" }));
+                  Array.from(selected).forEach((id) =>
+                    setStatusMut.mutate({
+                      id,
+                      status: "draft",
+                      organizationId: items.find((p) => p.id === id)?.organizationId,
+                    }),
+                  );
                   setSelected(new Set());
                 }}
               >
@@ -237,7 +250,9 @@ export function PortalTable() {
                 size="sm"
                 variant="destructive"
                 onClick={() => {
-                  Array.from(selected).forEach((id) => delMut.mutate(id));
+                  Array.from(selected).forEach((id) =>
+                    delMut.mutate({ id, organizationId: items.find((p) => p.id === id)?.organizationId }),
+                  );
                   setSelected(new Set());
                 }}
               >
@@ -327,13 +342,25 @@ export function PortalTable() {
                           </DropdownMenuItem>
                           {p.status === "published" ? (
                             <DropdownMenuItem
-                              onClick={() => setStatusMut.mutate({ id: p.id, status: "draft" })}
+                              onClick={() =>
+                                setStatusMut.mutate({
+                                  id: p.id,
+                                  status: "draft",
+                                  organizationId: p.organizationId,
+                                })
+                              }
                             >
                               Unpublish
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
-                              onClick={() => setStatusMut.mutate({ id: p.id, status: "published" })}
+                              onClick={() =>
+                                setStatusMut.mutate({
+                                  id: p.id,
+                                  status: "published",
+                                  organizationId: p.organizationId,
+                                })
+                              }
                             >
                               <Upload className="mr-2 h-4 w-4" /> Publish
                             </DropdownMenuItem>
@@ -409,7 +436,10 @@ export function PortalTable() {
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
-          if (confirmDelete) delMut.mutate(confirmDelete);
+          if (confirmDelete) {
+            const organizationId = items.find((p) => p.id === confirmDelete)?.organizationId;
+            delMut.mutate({ id: confirmDelete, organizationId });
+          }
           setConfirmDelete(null);
         }}
       />

@@ -39,7 +39,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+export function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -85,14 +85,14 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "CloudGuest — Enterprise Guest WiFi Management" },
+      { title: "WyFy" },
       {
         name: "description",
         content:
-          "CloudGuest is the enterprise platform for managing guest WiFi across locations — with roles, analytics, and real-time insight.",
+          "Wyfy Guest is the enterprise platform for managing guest WiFi across locations — with roles, analytics, and real-time insight.",
       },
-      { name: "author", content: "CloudGuest" },
-      { property: "og:title", content: "CloudGuest — Enterprise Guest WiFi Management" },
+      { name: "author", content: "Wyfy Guest" },
+      { property: "og:title", content: "Wyfy Guest — Enterprise Guest WiFi Management" },
       {
         property: "og:description",
         content:
@@ -103,13 +103,9 @@ export const Route = createRootRouteWithContext<{
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-      },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon-180.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -118,6 +114,59 @@ export const Route = createRootRouteWithContext<{
   errorComponent: ErrorComponent,
 });
 
+// Renders synchronously with the raw HTML, before any JS bundle loads or
+// React hydrates -- eliminates the blank white flash that routes with
+// `ssr: false` (e.g. /portal, seen by guests on a fresh WiFi connection,
+// often on slow first-hop mobile data) would otherwise show for as long as
+// the JS bundle takes to arrive. `RootComponent`'s own mount effect removes
+// this node once real content is ready to take over.
+function InitialLoader() {
+  return (
+    <div
+      id="initial-loader"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f8fafc",
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: "9999px",
+          border: "3px solid rgba(79,70,229,0.15)",
+          borderTopColor: "#4f46e5",
+          animation: "initial-loader-spin 0.7s linear infinite",
+        }}
+      />
+      <style>{"@keyframes initial-loader-spin{to{transform:rotate(360deg)}}"}</style>
+    </div>
+  );
+}
+
+// Loads the Google Fonts stylesheet AFTER first paint, off the main
+// render path -- a plain <link rel="stylesheet"> in <head> is
+// render-blocking by spec, which is fatal on /portal: a guest hits that
+// page before their device has real internet access (only the captive
+// portal's own walled-garden host is reachable pre-authentication), so a
+// render-blocking request to fonts.googleapis.com would hang for a full
+// browser connection-timeout before anything ever painted. Injecting the
+// link via script after mount means the browser never blocks on it --
+// worst case (guest portal, fonts unreachable) the request just fails
+// quietly in the background and the page already rendered with its
+// system-font fallback.
+const LOAD_FONTS_SCRIPT = `(function(){
+  var l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap";
+  document.head.appendChild(l);
+})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
@@ -125,8 +174,10 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <InitialLoader />
         {children}
         <Scripts />
+        <script dangerouslySetInnerHTML={{ __html: LOAD_FONTS_SCRIPT }} />
       </body>
     </html>
   );
@@ -134,6 +185,14 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // The static InitialLoader in RootShell has no removal logic of its own
+  // -- it's plain HTML rendered before React exists to remove it. Once this
+  // component actually mounts, real content is ready, so the loader's job
+  // is done.
+  useEffect(() => {
+    document.getElementById("initial-loader")?.remove();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -156,13 +215,13 @@ function RootComponent() {
  * `beforeLoad` guards (which run outside React) can read it, and
  * re-runs those guards whenever it changes. */
 function AuthRouterContextSync() {
-  const { status } = useAuth();
+  const { status, roles } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    router.update({ context: { ...router.options.context, auth: { status } } });
+    router.update({ context: { ...router.options.context, auth: { status, roles } } });
     void router.invalidate();
-  }, [status, router]);
+  }, [status, roles, router]);
 
   return null;
 }

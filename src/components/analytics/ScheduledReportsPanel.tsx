@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import type { AppError } from "@/services/api";
 import {
   useCreateScheduledReport,
   useDeleteScheduledReport,
@@ -23,9 +24,18 @@ import {
 } from "@/hooks/useAnalytics";
 import type { ReportFormat, ReportType } from "@/types/analytics";
 
+// Only these six -- scheduling "audit"/"billing"/"monitoring" always fails:
+// analyticsService.createScheduledReport() has no backend ReportType to map
+// them to (see that function's own comment in analytics.service.ts) and
+// throws, which previously surfaced here as a generic, unexplained "Failed
+// to create scheduled report" toast for every single attempt. Mirrors
+// ReportCenter.tsx's identical on-demand-report screen, which never offers
+// those three as a "Download" option for the same reason.
+const SCHEDULABLE_REPORT_TYPES = ["guest", "router", "network", "organization", "location", "revenue"] as const;
+
 const schema = z.object({
   name: z.string().min(2, "Report name is required"),
-  type: z.enum(["guest", "router", "network", "organization", "location", "revenue", "audit", "billing", "monitoring"]),
+  type: z.enum(SCHEDULABLE_REPORT_TYPES),
   frequency: z.enum(["daily", "weekly", "monthly"]),
   format: z.enum(["pdf", "excel", "csv"]),
   recipients: z.string().min(3, "Add at least one email"),
@@ -34,7 +44,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function ScheduledReportsPanel() {
-  const { data, isLoading, isError, refetch } = useScheduledReports();
+  const { data, isLoading, isError, error, refetch } = useScheduledReports();
   const toggle = useToggleScheduledReport();
   const remove = useDeleteScheduledReport();
   const create = useCreateScheduledReport();
@@ -58,8 +68,8 @@ export function ScheduledReportsPanel() {
       toast.success("Scheduled report created");
       setOpen(false);
       form.reset();
-    } catch {
-      toast.error("Failed to create scheduled report");
+    } catch (err) {
+      toast.error((err as AppError)?.message || "Failed to create scheduled report");
     }
   }
 
@@ -90,7 +100,7 @@ export function ScheduledReportsPanel() {
                   <Select value={form.watch("type")} onValueChange={(v) => form.setValue("type", v as FormValues["type"])}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {(["guest", "router", "network", "organization", "location", "revenue", "audit", "billing", "monitoring"] as const).map((t) => (
+                      {SCHEDULABLE_REPORT_TYPES.map((t) => (
                         <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
                       ))}
                     </SelectContent>
@@ -139,7 +149,7 @@ export function ScheduledReportsPanel() {
         {isLoading ? (
           <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
         ) : isError ? (
-          <ErrorState onRetry={refetch} />
+          <ErrorState description={(error as unknown as AppError)?.message} onRetry={refetch} />
         ) : !data || data.length === 0 ? (
           <EmptyState title="No scheduled reports" description="Create a schedule to email reports automatically." />
         ) : (

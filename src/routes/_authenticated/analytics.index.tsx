@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,21 @@ import { ScheduledReportsPanel } from "@/components/analytics/ScheduledReportsPa
 import { AnalyticsSettingsPanel } from "@/components/analytics/AnalyticsSettingsPanel";
 import { AnalyticsQuickActions } from "@/components/analytics/AnalyticsQuickActions";
 import { DateRangeFilter } from "@/components/analytics/DateRangeFilter";
-import { useAnalyticsSnapshot } from "@/hooks/useAnalytics";
+import { useAnalyticsSnapshot, useGenerateReport } from "@/hooks/useAnalytics";
+import type { AppError } from "@/services/api";
 import type { DateRangePreset } from "@/types/analytics";
+
+/** Mirrors ReportCenter.tsx/workspace.reports.tsx's own identical helper --
+ * there is no shared download util in this codebase yet. */
+function downloadBlobUrl(url: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/_authenticated/analytics/")({
   component: AnalyticsPage,
@@ -37,7 +50,27 @@ function AnalyticsPage() {
     qc.invalidateQueries({ queryKey: ["analytics"] });
     toast.success("Analytics refreshed");
   };
-  const exportDashboard = () => toast.success("Dashboard export started");
+
+  // Was a bare `toast.success("Dashboard export started")` with no backend
+  // call at all -- clicking Export claimed a download had started when
+  // nothing was ever generated. Wired to the same real Report Engine
+  // (analyticsService.generateReport) ReportCenter.tsx already uses, with
+  // the org-scoped "organization" report type (this is the org console,
+  // not the Master Console's GLOBAL "dashboard" report).
+  const generate = useGenerateReport();
+  const exportDashboard = async () => {
+    try {
+      const res = await generate.mutateAsync({ type: "organization", format: "pdf", range });
+      if (res.url.startsWith("#unavailable/")) {
+        toast.error("This report type isn't available yet");
+        return;
+      }
+      downloadBlobUrl(res.url, res.filename);
+      toast.success(`${res.filename} downloaded`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Report generation failed");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -53,8 +86,8 @@ function AnalyticsPage() {
           <Button size="sm" variant="outline" onClick={refresh}>
             <RefreshCw className="mr-2 h-4 w-4" /> Refresh
           </Button>
-          <Button size="sm" onClick={exportDashboard}>
-            <Download className="mr-2 h-4 w-4" /> Export
+          <Button size="sm" onClick={exportDashboard} disabled={generate.isPending}>
+            {generate.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Export
           </Button>
         </div>
       </div>

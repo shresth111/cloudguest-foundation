@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Building2, ChevronDown, MapPin } from "lucide-react";
+import { ChevronDown, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
 import { legacyRoleBucket } from "@/lib/roles";
+import { businessTypeIcon } from "@/lib/business-type-icons";
 
 export function SpaceContextChip() {
   const { user, roles } = useAuth();
@@ -11,6 +12,8 @@ export function SpaceContextChip() {
   const location = activeLocation ?? locations[0];
 
   if (!customer || !location || !user || legacyRoleBucket(roles) === "super_admin") return null;
+
+  const ChipIcon = businessTypeIcon(location.siteType);
 
   return (
     <Button
@@ -21,7 +24,7 @@ export function SpaceContextChip() {
     >
       <Link to="/select-space">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Building2 className="h-3.5 w-3.5" />
+          <ChipIcon className="h-3.5 w-3.5" />
         </span>
         <span className="hidden min-w-0 max-w-[220px] flex-col items-start leading-tight md:flex">
           <span className="truncate text-[11px] font-medium text-muted-foreground">

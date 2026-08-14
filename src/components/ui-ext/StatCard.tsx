@@ -20,8 +20,8 @@ export interface StatCardProps {
 }
 
 const TONE_ACCENT: Record<StatTone, string> = {
-  default: "bg-gradient-to-br from-primary/70 to-primary",
-  primary: "bg-gradient-to-br from-primary to-[oklch(0.62_0.2_250)]",
+  default: "bg-[image:var(--gradient-primary)]",
+  primary: "bg-[image:var(--gradient-brand)]",
   success: "bg-[image:var(--gradient-success)]",
   warning: "bg-[image:var(--gradient-warning)]",
   danger: "bg-[image:var(--gradient-danger)]",

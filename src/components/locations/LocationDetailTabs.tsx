@@ -13,17 +13,21 @@ import {
   Users,
   Wifi,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState } from "@/components/common/ErrorState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { ComingSoonPanel } from "@/components/ui-ext/ComingSoonPanel";
 import { NasDevicesPanel } from "./NasDevicesPanel";
 import { api } from "@/services/api";
+import { routerService } from "@/services/router.service";
 import type { Location } from "@/types/location";
 import { LocationStatusBadge, SiteTypeBadge } from "./LocationStatusBadge";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { ModuleId } from "@/types/permissions";
-import { Lock } from "lucide-react";
+import { ArrowRight, Lock } from "lucide-react";
 
 interface Props {
   location: Location;
@@ -134,7 +138,7 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
         <NasDevicesPanel locationId={location.id} />
       </TabsContent>
       <TabsContent value="routers">
-        <ComingSoonPanel icon={Router} title="Routers" description="Per-location router inventory rolls out once the router domain is wired into this console." />
+        <LocationRoutersPanel locationId={location.id} organizationId={location.organizationId} />
       </TabsContent>
       <TabsContent value="voucher">
         <EmptyState icon={Wifi} title="Voucher batches" description="Prepaid access codes for this location will render here — scoped per NAS." />
@@ -201,6 +205,61 @@ function Field({
         {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
         <span className="truncate">{value}</span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Real router inventory for this location -- replaces the earlier
+ * ComingSoonPanel placeholder ("rolls out once the router domain is wired
+ * into this console"), which was stale: the router domain has been wired
+ * up for a while (Master Console's own Router Fleet page already lists
+ * every router), this location-scoped view of it just wasn't. Links each
+ * row into `/routers/$routerId`, the same detail page Router Fleet links
+ * to, so a location's own WireGuard tunnel IP / WinBox remote-access
+ * credentials (that page's "Remote access" card) are reachable starting
+ * from either "I'm looking at a router" or "I'm looking at a location."
+ */
+function LocationRoutersPanel({ locationId, organizationId }: { locationId: string; organizationId: string }) {
+  const { data: routers, isLoading, isError, refetch } = useQuery({
+    queryKey: ["location-routers", locationId],
+    queryFn: () => routerService.listForLocation(locationId, organizationId),
+  });
+
+  if (isLoading) return <LoadingSkeleton rows={3} />;
+  if (isError) return <ErrorState onRetry={() => refetch()} />;
+  if (!routers || routers.length === 0) {
+    return <EmptyState icon={Router} title="No routers registered" description="This location has no routers set up yet." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {routers.map((r) => (
+        <Link
+          key={r.id}
+          to="/routers/$routerId"
+          params={{ routerId: r.id }}
+          className="flex items-center justify-between rounded-2xl border border-border/70 bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Router className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">{r.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {r.model ?? "Unknown model"} · {r.managementIpAddress ?? r.publicIpAddress ?? "no reported IP"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "online" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+              {r.status}
+            </span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+        </Link>
+      ))}
     </div>
   );
 }

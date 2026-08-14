@@ -13,7 +13,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { DateRangeFilter } from "./DateRangeFilter";
 import { useGenerateReport } from "@/hooks/useAnalytics";
+import type { AppError } from "@/services/api";
 import type { DateRangePreset, ReportFormat, ReportType } from "@/types/analytics";
+
+/** Mirrors workspace.reports.tsx's own identical helper for the
+ * customer-facing reports page -- there is no shared download util in this
+ * codebase yet, each report screen keeps its own copy of this. */
+function downloadBlobUrl(url: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 const METRICS = [
   "Sessions",
@@ -64,9 +78,19 @@ export function CustomReportBuilder() {
   async function onExport(v: FormValues) {
     try {
       const res = await generate.mutateAsync({ type: v.reportType as ReportType, format: v.format as ReportFormat, range });
-      toast.success("Custom report exported", { description: res.filename });
-    } catch {
-      toast.error("Export failed");
+      // See ReportCenter.tsx's identical check: analyticsService
+      // .generateReport() returns this sentinel (never throws) for report
+      // types the backend Report Engine doesn't compose (audit/billing/
+      // monitoring) -- claiming a fake "exported" success here would leave
+      // the operator believing a file exists when none was ever generated.
+      if (res.url.startsWith("#unavailable/")) {
+        toast.error("This report type isn't available yet");
+        return;
+      }
+      downloadBlobUrl(res.url, res.filename);
+      toast.success(`${res.filename} downloaded`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Export failed");
     }
   }
 

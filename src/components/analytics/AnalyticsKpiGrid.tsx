@@ -42,7 +42,11 @@ const toneClass: Record<Tile["tone"], string> = {
 };
 
 const fmt = new Intl.NumberFormat();
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+// Matches Billing's own formatter (BillingKpiGrid.tsx) -- every real Plan
+// on this platform is priced in INR (see Plan.currency; there is no
+// multi-currency data in production yet), so a hardcoded USD "$" here was
+// simply wrong, not just inconsistent with Billing's "₹".
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
 export function AnalyticsKpiGrid({ data, isLoading, isError, onRetry }: Props) {
   if (isLoading) {
@@ -67,7 +71,12 @@ export function AnalyticsKpiGrid({ data, isLoading, isError, onRetry }: Props) {
     { label: "Avg. session duration", value: `${data.avgSessionDuration}m`, icon: Timer, tone: "default" },
     { label: "Daily logins", value: fmt.format(data.dailyLogins), icon: CalendarDays, tone: "info" },
     { label: "Monthly logins", value: fmt.format(data.monthlyLogins), icon: TrendingUp, tone: "default" },
-    { label: "Revenue", value: money.format(data.revenue), icon: DollarSign, tone: "success" },
+    // Same real figure, and the same name, as Billing's own "Total revenue"
+    // tile (both come from GET /dashboard/super-admin/unified's
+    // total_revenue -- actual captured payments, not MRR/ARR) -- genuinely
+    // $0/₹0 right now because no Payment has ever actually been captured on
+    // this platform, not a wiring bug.
+    { label: "Total revenue", value: money.format(data.revenue), icon: DollarSign, tone: "success", hint: "Actually collected via captured payments" },
     { label: "Growth rate", value: `${data.growthRate.toFixed(1)}%`, icon: Sparkles, tone: data.growthRate >= 0 ? "success" : "warning" },
   ];
 

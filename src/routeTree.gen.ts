@@ -9,27 +9,78 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WhitelistRouteImport } from './routes/whitelist'
+import { Route as WebsiteBlockingRouteImport } from './routes/website-blocking'
+import { Route as VoipRouteImport } from './routes/voip'
+import { Route as VlansRouteImport } from './routes/vlans'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
+import { Route as UsersRouteImport } from './routes/users'
+import { Route as TicketsRouteImport } from './routes/tickets'
+import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as SwitchLocationRouteImport } from './routes/switch-location'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PortalRouteImport } from './routes/portal'
+import { Route as PortForwardingRouteImport } from './routes/port-forwarding'
+import { Route as PoliciesRouteImport } from './routes/policies'
+import { Route as NotificationRouteImport } from './routes/notification'
+import { Route as MasterLoginRouteImport } from './routes/master-login'
+import { Route as MasterRouteImport } from './routes/master'
+import { Route as MacAuthRouteImport } from './routes/mac-auth'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as IspDetailsRouteImport } from './routes/isp-details'
+import { Route as GuestVouchersRouteImport } from './routes/guest-vouchers'
+import { Route as GuestPortalRouteImport } from './routes/guest-portal'
+import { Route as GuestCampaignsRouteImport } from './routes/guest-campaigns'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as DhcpRouteImport } from './routes/dhcp'
+import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as DebuggingRouteImport } from './routes/debugging'
+import { Route as BusinessHoursRouteImport } from './routes/business-hours'
+import { Route as BackgroundImageRouteImport } from './routes/background-image'
+import { Route as AlertsRouteImport } from './routes/alerts'
+import { Route as AgentsRouteImport } from './routes/agents'
+import { Route as AgentRouteImport } from './routes/agent'
+import { Route as AdminLogsRouteImport } from './routes/admin-logs'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as MasterIndexRouteImport } from './routes/master.index'
 import { Route as CustomerIndexRouteImport } from './routes/customer.index'
+import { Route as CIndexRouteImport } from './routes/c.index'
+import { Route as AgentIndexRouteImport } from './routes/agent.index'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
 import { Route as PortalTermsRouteImport } from './routes/portal.terms'
+import { Route as PortalTeamRouteImport } from './routes/portal.team'
 import { Route as PortalSuccessRouteImport } from './routes/portal.success'
+import { Route as PortalSetPasswordRouteImport } from './routes/portal.set-password'
 import { Route as PortalSessionRouteImport } from './routes/portal.session'
 import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
 import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
 import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
+import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
-import { Route as PortalAdRouteImport } from './routes/portal.ad'
+import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
+import { Route as MasterSettingsRouteImport } from './routes/master.settings'
+import { Route as MasterRoutersRouteImport } from './routes/master.routers'
+import { Route as MasterNasRouteImport } from './routes/master.nas'
+import { Route as MasterLocationsRouteImport } from './routes/master.locations'
+import { Route as MasterHealthRouteImport } from './routes/master.health'
+import { Route as MasterDemoRequestsRouteImport } from './routes/master.demo-requests'
+import { Route as MasterCustomersRouteImport } from './routes/master.customers'
+import { Route as MasterConsoleRouteImport } from './routes/master.console'
+import { Route as MasterBillingRouteImport } from './routes/master.billing'
+import { Route as MasterAuditRouteImport } from './routes/master.audit'
+import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
+import { Route as CustomerUsersRouteImport } from './routes/customer.users'
+import { Route as CustomerLocationsRouteImport } from './routes/customer.locations'
+import { Route as CustomerFeatureRouteImport } from './routes/customer.$feature'
+import { Route as CUsersRouteImport } from './routes/c.users'
+import { Route as CLocationsRouteImport } from './routes/c.locations'
+import { Route as CFeatureRouteImport } from './routes/c.$feature'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedSelectSpaceRouteImport } from './routes/_authenticated/select-space'
 import { Route as AuthenticatedErrorMaintenanceRouteImport } from './routes/_authenticated/error-maintenance'
@@ -73,6 +124,8 @@ import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAuditTimelineIndexRouteImport } from './routes/_authenticated/audit-timeline.index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
+import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.demo'
+import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
 import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
@@ -130,9 +183,49 @@ import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './rou
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
 import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
+const WhitelistRoute = WhitelistRouteImport.update({
+  id: '/whitelist',
+  path: '/whitelist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebsiteBlockingRoute = WebsiteBlockingRouteImport.update({
+  id: '/website-blocking',
+  path: '/website-blocking',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VoipRoute = VoipRouteImport.update({
+  id: '/voip',
+  path: '/voip',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VlansRoute = VlansRouteImport.update({
+  id: '/vlans',
+  path: '/vlans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyOtpRoute = VerifyOtpRouteImport.update({
   id: '/verify-otp',
   path: '/verify-otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TicketsRoute = TicketsRouteImport.update({
+  id: '/tickets',
+  path: '/tickets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsRoute = TeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SwitchLocationRoute = SwitchLocationRouteImport.update({
+  id: '/switch-location',
+  path: '/switch-location',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionExpiredRoute = SessionExpiredRouteImport.update({
@@ -145,9 +238,44 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortForwardingRoute = PortForwardingRouteImport.update({
+  id: '/port-forwarding',
+  path: '/port-forwarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PoliciesRoute = PoliciesRouteImport.update({
+  id: '/policies',
+  path: '/policies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationRoute = NotificationRouteImport.update({
+  id: '/notification',
+  path: '/notification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasterLoginRoute = MasterLoginRouteImport.update({
+  id: '/master-login',
+  path: '/master-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasterRoute = MasterRouteImport.update({
+  id: '/master',
+  path: '/master',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MacAuthRoute = MacAuthRouteImport.update({
+  id: '/mac-auth',
+  path: '/mac-auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -155,9 +283,74 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IspDetailsRoute = IspDetailsRouteImport.update({
+  id: '/isp-details',
+  path: '/isp-details',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestVouchersRoute = GuestVouchersRouteImport.update({
+  id: '/guest-vouchers',
+  path: '/guest-vouchers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestPortalRoute = GuestPortalRouteImport.update({
+  id: '/guest-portal',
+  path: '/guest-portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestCampaignsRoute = GuestCampaignsRouteImport.update({
+  id: '/guest-campaigns',
+  path: '/guest-campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DhcpRoute = DhcpRouteImport.update({
+  id: '/dhcp',
+  path: '/dhcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevicesRoute = DevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebuggingRoute = DebuggingRouteImport.update({
+  id: '/debugging',
+  path: '/debugging',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BusinessHoursRoute = BusinessHoursRouteImport.update({
+  id: '/business-hours',
+  path: '/business-hours',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BackgroundImageRoute = BackgroundImageRouteImport.update({
+  id: '/background-image',
+  path: '/background-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentRoute = AgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLogsRoute = AdminLogsRouteImport.update({
+  id: '/admin-logs',
+  path: '/admin-logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -174,10 +367,25 @@ const PortalIndexRoute = PortalIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PortalRoute,
 } as any)
+const MasterIndexRoute = MasterIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MasterRoute,
+} as any)
 const CustomerIndexRoute = CustomerIndexRouteImport.update({
   id: '/customer/',
   path: '/customer/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CIndexRoute = CIndexRouteImport.update({
+  id: '/c/',
+  path: '/c/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentIndexRoute = AgentIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AgentRoute,
 } as any)
 const PortalWelcomeRoute = PortalWelcomeRouteImport.update({
   id: '/welcome',
@@ -194,9 +402,19 @@ const PortalTermsRoute = PortalTermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalTeamRoute = PortalTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => PortalRoute,
+} as any)
 const PortalSuccessRoute = PortalSuccessRouteImport.update({
   id: '/success',
   path: '/success',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalSetPasswordRoute = PortalSetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalSessionRoute = PortalSessionRouteImport.update({
@@ -224,15 +442,105 @@ const PortalExpiredRoute = PortalExpiredRouteImport.update({
   path: '/expired',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalClosedRoute = PortalClosedRouteImport.update({
+  id: '/closed',
+  path: '/closed',
+  getParentRoute: () => PortalRoute,
+} as any)
 const PortalAuthRoute = PortalAuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => PortalRoute,
 } as any)
-const PortalAdRoute = PortalAdRouteImport.update({
-  id: '/ad',
-  path: '/ad',
-  getParentRoute: () => PortalRoute,
+const MasterTicketsRoute = MasterTicketsRouteImport.update({
+  id: '/tickets',
+  path: '/tickets',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterSettingsRoute = MasterSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterRoutersRoute = MasterRoutersRouteImport.update({
+  id: '/routers',
+  path: '/routers',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterNasRoute = MasterNasRouteImport.update({
+  id: '/nas',
+  path: '/nas',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterLocationsRoute = MasterLocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterHealthRoute = MasterHealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterDemoRequestsRoute = MasterDemoRequestsRouteImport.update({
+  id: '/demo-requests',
+  path: '/demo-requests',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterCustomersRoute = MasterCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterConsoleRoute = MasterConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterBillingRoute = MasterBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterAuditRoute = MasterAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterAnalyticsRoute = MasterAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => MasterRoute,
+} as any)
+const CustomerUsersRoute = CustomerUsersRouteImport.update({
+  id: '/customer/users',
+  path: '/customer/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerLocationsRoute = CustomerLocationsRouteImport.update({
+  id: '/customer/locations',
+  path: '/customer/locations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerFeatureRoute = CustomerFeatureRouteImport.update({
+  id: '/customer/$feature',
+  path: '/customer/$feature',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CUsersRoute = CUsersRouteImport.update({
+  id: '/c/users',
+  path: '/c/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CLocationsRoute = CLocationsRouteImport.update({
+  id: '/c/locations',
+  path: '/c/locations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CFeatureRoute = CFeatureRouteImport.update({
+  id: '/c/$feature',
+  path: '/c/$feature',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   id: '/workspace',
@@ -480,6 +788,16 @@ const AuthenticatedAnalyticsIndexRoute =
     path: '/analytics/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const PreviewPortalDemoRoute = PreviewPortalDemoRouteImport.update({
+  id: '/preview/portal/demo',
+  path: '/preview/portal/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewPortalLocationIdRoute = PreviewPortalLocationIdRouteImport.update({
+  id: '/preview/portal/$locationId',
+  path: '/preview/portal/$locationId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   id: '/$method',
   path: '/$method',
@@ -813,12 +1131,40 @@ const AuthenticatedLocationsLocationIdNasNasIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin-logs': typeof AdminLogsRoute
+  '/agent': typeof AgentRouteWithChildren
+  '/agents': typeof AgentsRoute
+  '/alerts': typeof AlertsRoute
+  '/background-image': typeof BackgroundImageRoute
+  '/business-hours': typeof BusinessHoursRoute
+  '/debugging': typeof DebuggingRoute
+  '/devices': typeof DevicesRoute
+  '/dhcp': typeof DhcpRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/guest-campaigns': typeof GuestCampaignsRoute
+  '/guest-portal': typeof GuestPortalRoute
+  '/guest-vouchers': typeof GuestVouchersRoute
+  '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
+  '/mac-auth': typeof MacAuthRoute
+  '/master': typeof MasterRouteWithChildren
+  '/master-login': typeof MasterLoginRoute
+  '/notification': typeof NotificationRoute
+  '/policies': typeof PoliciesRoute
+  '/port-forwarding': typeof PortForwardingRoute
   '/portal': typeof PortalRouteWithChildren
+  '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
+  '/switch-location': typeof SwitchLocationRoute
+  '/teams': typeof TeamsRoute
+  '/tickets': typeof TicketsRoute
+  '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/vlans': typeof VlansRoute
+  '/voip': typeof VoipRoute
+  '/website-blocking': typeof WebsiteBlockingRoute
+  '/whitelist': typeof WhitelistRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/error-401': typeof AuthenticatedError401Route
@@ -827,18 +1173,41 @@ export interface FileRoutesByFullPath {
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
   '/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
-  '/portal/ad': typeof PortalAdRoute
+  '/c/$feature': typeof CFeatureRoute
+  '/c/locations': typeof CLocationsRoute
+  '/c/users': typeof CUsersRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/locations': typeof CustomerLocationsRoute
+  '/customer/users': typeof CustomerUsersRoute
+  '/master/analytics': typeof MasterAnalyticsRoute
+  '/master/audit': typeof MasterAuditRoute
+  '/master/billing': typeof MasterBillingRoute
+  '/master/console': typeof MasterConsoleRoute
+  '/master/customers': typeof MasterCustomersRoute
+  '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/health': typeof MasterHealthRoute
+  '/master/locations': typeof MasterLocationsRoute
+  '/master/nas': typeof MasterNasRoute
+  '/master/routers': typeof MasterRoutersRoute
+  '/master/settings': typeof MasterSettingsRoute
+  '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
+  '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
+  '/portal/team': typeof PortalTeamRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/agent/': typeof AgentIndexRoute
+  '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
+  '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -893,6 +1262,8 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
+  '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
+  '/preview/portal/demo': typeof PreviewPortalDemoRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
@@ -934,11 +1305,37 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin-logs': typeof AdminLogsRoute
+  '/agents': typeof AgentsRoute
+  '/alerts': typeof AlertsRoute
+  '/background-image': typeof BackgroundImageRoute
+  '/business-hours': typeof BusinessHoursRoute
+  '/debugging': typeof DebuggingRoute
+  '/devices': typeof DevicesRoute
+  '/dhcp': typeof DhcpRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/guest-campaigns': typeof GuestCampaignsRoute
+  '/guest-portal': typeof GuestPortalRoute
+  '/guest-vouchers': typeof GuestVouchersRoute
+  '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
+  '/mac-auth': typeof MacAuthRoute
+  '/master-login': typeof MasterLoginRoute
+  '/notification': typeof NotificationRoute
+  '/policies': typeof PoliciesRoute
+  '/port-forwarding': typeof PortForwardingRoute
+  '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
+  '/switch-location': typeof SwitchLocationRoute
+  '/teams': typeof TeamsRoute
+  '/tickets': typeof TicketsRoute
+  '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/vlans': typeof VlansRoute
+  '/voip': typeof VoipRoute
+  '/website-blocking': typeof WebsiteBlockingRoute
+  '/whitelist': typeof WhitelistRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/error-401': typeof AuthenticatedError401Route
@@ -946,17 +1343,40 @@ export interface FileRoutesByTo {
   '/error-500': typeof AuthenticatedError500Route
   '/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/select-space': typeof AuthenticatedSelectSpaceRoute
-  '/portal/ad': typeof PortalAdRoute
+  '/c/$feature': typeof CFeatureRoute
+  '/c/locations': typeof CLocationsRoute
+  '/c/users': typeof CUsersRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/locations': typeof CustomerLocationsRoute
+  '/customer/users': typeof CustomerUsersRoute
+  '/master/analytics': typeof MasterAnalyticsRoute
+  '/master/audit': typeof MasterAuditRoute
+  '/master/billing': typeof MasterBillingRoute
+  '/master/console': typeof MasterConsoleRoute
+  '/master/customers': typeof MasterCustomersRoute
+  '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/health': typeof MasterHealthRoute
+  '/master/locations': typeof MasterLocationsRoute
+  '/master/nas': typeof MasterNasRoute
+  '/master/routers': typeof MasterRoutersRoute
+  '/master/settings': typeof MasterSettingsRoute
+  '/master/tickets': typeof MasterTicketsRoute
+  '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
+  '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
+  '/portal/team': typeof PortalTeamRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/agent': typeof AgentIndexRoute
+  '/c': typeof CIndexRoute
   '/customer': typeof CustomerIndexRoute
+  '/master': typeof MasterIndexRoute
   '/portal': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -1010,6 +1430,8 @@ export interface FileRoutesByTo {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
+  '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
+  '/preview/portal/demo': typeof PreviewPortalDemoRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/audit-timeline': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1053,12 +1475,40 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/admin-logs': typeof AdminLogsRoute
+  '/agent': typeof AgentRouteWithChildren
+  '/agents': typeof AgentsRoute
+  '/alerts': typeof AlertsRoute
+  '/background-image': typeof BackgroundImageRoute
+  '/business-hours': typeof BusinessHoursRoute
+  '/debugging': typeof DebuggingRoute
+  '/devices': typeof DevicesRoute
+  '/dhcp': typeof DhcpRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/guest-campaigns': typeof GuestCampaignsRoute
+  '/guest-portal': typeof GuestPortalRoute
+  '/guest-vouchers': typeof GuestVouchersRoute
+  '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
+  '/mac-auth': typeof MacAuthRoute
+  '/master': typeof MasterRouteWithChildren
+  '/master-login': typeof MasterLoginRoute
+  '/notification': typeof NotificationRoute
+  '/policies': typeof PoliciesRoute
+  '/port-forwarding': typeof PortForwardingRoute
   '/portal': typeof PortalRouteWithChildren
+  '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/session-expired': typeof SessionExpiredRoute
+  '/switch-location': typeof SwitchLocationRoute
+  '/teams': typeof TeamsRoute
+  '/tickets': typeof TicketsRoute
+  '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
+  '/vlans': typeof VlansRoute
+  '/voip': typeof VoipRoute
+  '/website-blocking': typeof WebsiteBlockingRoute
+  '/whitelist': typeof WhitelistRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/error-401': typeof AuthenticatedError401Route
@@ -1067,18 +1517,41 @@ export interface FileRoutesById {
   '/_authenticated/error-maintenance': typeof AuthenticatedErrorMaintenanceRoute
   '/_authenticated/select-space': typeof AuthenticatedSelectSpaceRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRouteWithChildren
-  '/portal/ad': typeof PortalAdRoute
+  '/c/$feature': typeof CFeatureRoute
+  '/c/locations': typeof CLocationsRoute
+  '/c/users': typeof CUsersRoute
+  '/customer/$feature': typeof CustomerFeatureRoute
+  '/customer/locations': typeof CustomerLocationsRoute
+  '/customer/users': typeof CustomerUsersRoute
+  '/master/analytics': typeof MasterAnalyticsRoute
+  '/master/audit': typeof MasterAuditRoute
+  '/master/billing': typeof MasterBillingRoute
+  '/master/console': typeof MasterConsoleRoute
+  '/master/customers': typeof MasterCustomersRoute
+  '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/health': typeof MasterHealthRoute
+  '/master/locations': typeof MasterLocationsRoute
+  '/master/nas': typeof MasterNasRoute
+  '/master/routers': typeof MasterRoutersRoute
+  '/master/settings': typeof MasterSettingsRoute
+  '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
+  '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
+  '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
+  '/portal/team': typeof PortalTeamRoute
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/agent/': typeof AgentIndexRoute
+  '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
+  '/master/': typeof MasterIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/_authenticated/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -1133,6 +1606,8 @@ export interface FileRoutesById {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
+  '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
+  '/preview/portal/demo': typeof PreviewPortalDemoRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1176,12 +1651,40 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin-logs'
+    | '/agent'
+    | '/agents'
+    | '/alerts'
+    | '/background-image'
+    | '/business-hours'
+    | '/debugging'
+    | '/devices'
+    | '/dhcp'
     | '/forgot-password'
+    | '/guest-campaigns'
+    | '/guest-portal'
+    | '/guest-vouchers'
+    | '/isp-details'
     | '/login'
+    | '/mac-auth'
+    | '/master'
+    | '/master-login'
+    | '/notification'
+    | '/policies'
+    | '/port-forwarding'
     | '/portal'
+    | '/reports'
     | '/reset-password'
     | '/session-expired'
+    | '/switch-location'
+    | '/teams'
+    | '/tickets'
+    | '/users'
     | '/verify-otp'
+    | '/vlans'
+    | '/voip'
+    | '/website-blocking'
+    | '/whitelist'
     | '/account'
     | '/dashboard'
     | '/error-401'
@@ -1190,18 +1693,41 @@ export interface FileRouteTypes {
     | '/error-maintenance'
     | '/select-space'
     | '/workspace'
-    | '/portal/ad'
+    | '/c/$feature'
+    | '/c/locations'
+    | '/c/users'
+    | '/customer/$feature'
+    | '/customer/locations'
+    | '/customer/users'
+    | '/master/analytics'
+    | '/master/audit'
+    | '/master/billing'
+    | '/master/console'
+    | '/master/customers'
+    | '/master/demo-requests'
+    | '/master/health'
+    | '/master/locations'
+    | '/master/nas'
+    | '/master/routers'
+    | '/master/settings'
+    | '/master/tickets'
     | '/portal/auth'
+    | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
+    | '/portal/set-password'
     | '/portal/success'
+    | '/portal/team'
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/agent/'
+    | '/c/'
     | '/customer/'
+    | '/master/'
     | '/portal/'
     | '/administration/business-units'
     | '/analytics/device'
@@ -1256,6 +1782,8 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
+    | '/preview/portal/$locationId'
+    | '/preview/portal/demo'
     | '/analytics/'
     | '/api-keys/'
     | '/audit-timeline/'
@@ -1297,11 +1825,37 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin-logs'
+    | '/agents'
+    | '/alerts'
+    | '/background-image'
+    | '/business-hours'
+    | '/debugging'
+    | '/devices'
+    | '/dhcp'
     | '/forgot-password'
+    | '/guest-campaigns'
+    | '/guest-portal'
+    | '/guest-vouchers'
+    | '/isp-details'
     | '/login'
+    | '/mac-auth'
+    | '/master-login'
+    | '/notification'
+    | '/policies'
+    | '/port-forwarding'
+    | '/reports'
     | '/reset-password'
     | '/session-expired'
+    | '/switch-location'
+    | '/teams'
+    | '/tickets'
+    | '/users'
     | '/verify-otp'
+    | '/vlans'
+    | '/voip'
+    | '/website-blocking'
+    | '/whitelist'
     | '/account'
     | '/dashboard'
     | '/error-401'
@@ -1309,17 +1863,40 @@ export interface FileRouteTypes {
     | '/error-500'
     | '/error-maintenance'
     | '/select-space'
-    | '/portal/ad'
+    | '/c/$feature'
+    | '/c/locations'
+    | '/c/users'
+    | '/customer/$feature'
+    | '/customer/locations'
+    | '/customer/users'
+    | '/master/analytics'
+    | '/master/audit'
+    | '/master/billing'
+    | '/master/console'
+    | '/master/customers'
+    | '/master/demo-requests'
+    | '/master/health'
+    | '/master/locations'
+    | '/master/nas'
+    | '/master/routers'
+    | '/master/settings'
+    | '/master/tickets'
+    | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
+    | '/portal/set-password'
     | '/portal/success'
+    | '/portal/team'
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/agent'
+    | '/c'
     | '/customer'
+    | '/master'
     | '/portal'
     | '/administration/business-units'
     | '/analytics/device'
@@ -1373,6 +1950,8 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
+    | '/preview/portal/$locationId'
+    | '/preview/portal/demo'
     | '/analytics'
     | '/api-keys'
     | '/audit-timeline'
@@ -1415,12 +1994,40 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/admin-logs'
+    | '/agent'
+    | '/agents'
+    | '/alerts'
+    | '/background-image'
+    | '/business-hours'
+    | '/debugging'
+    | '/devices'
+    | '/dhcp'
     | '/forgot-password'
+    | '/guest-campaigns'
+    | '/guest-portal'
+    | '/guest-vouchers'
+    | '/isp-details'
     | '/login'
+    | '/mac-auth'
+    | '/master'
+    | '/master-login'
+    | '/notification'
+    | '/policies'
+    | '/port-forwarding'
     | '/portal'
+    | '/reports'
     | '/reset-password'
     | '/session-expired'
+    | '/switch-location'
+    | '/teams'
+    | '/tickets'
+    | '/users'
     | '/verify-otp'
+    | '/vlans'
+    | '/voip'
+    | '/website-blocking'
+    | '/whitelist'
     | '/_authenticated/account'
     | '/_authenticated/dashboard'
     | '/_authenticated/error-401'
@@ -1429,18 +2036,41 @@ export interface FileRouteTypes {
     | '/_authenticated/error-maintenance'
     | '/_authenticated/select-space'
     | '/_authenticated/workspace'
-    | '/portal/ad'
+    | '/c/$feature'
+    | '/c/locations'
+    | '/c/users'
+    | '/customer/$feature'
+    | '/customer/locations'
+    | '/customer/users'
+    | '/master/analytics'
+    | '/master/audit'
+    | '/master/billing'
+    | '/master/console'
+    | '/master/customers'
+    | '/master/demo-requests'
+    | '/master/health'
+    | '/master/locations'
+    | '/master/nas'
+    | '/master/routers'
+    | '/master/settings'
+    | '/master/tickets'
     | '/portal/auth'
+    | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
+    | '/portal/set-password'
     | '/portal/success'
+    | '/portal/team'
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/agent/'
+    | '/c/'
     | '/customer/'
+    | '/master/'
     | '/portal/'
     | '/_authenticated/administration/business-units'
     | '/_authenticated/analytics/device'
@@ -1495,6 +2125,8 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
+    | '/preview/portal/$locationId'
+    | '/preview/portal/demo'
     | '/_authenticated/analytics/'
     | '/_authenticated/api-keys/'
     | '/_authenticated/audit-timeline/'
@@ -1538,25 +2170,118 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AdminLogsRoute: typeof AdminLogsRoute
+  AgentRoute: typeof AgentRouteWithChildren
+  AgentsRoute: typeof AgentsRoute
+  AlertsRoute: typeof AlertsRoute
+  BackgroundImageRoute: typeof BackgroundImageRoute
+  BusinessHoursRoute: typeof BusinessHoursRoute
+  DebuggingRoute: typeof DebuggingRoute
+  DevicesRoute: typeof DevicesRoute
+  DhcpRoute: typeof DhcpRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  GuestCampaignsRoute: typeof GuestCampaignsRoute
+  GuestPortalRoute: typeof GuestPortalRoute
+  GuestVouchersRoute: typeof GuestVouchersRoute
+  IspDetailsRoute: typeof IspDetailsRoute
   LoginRoute: typeof LoginRoute
+  MacAuthRoute: typeof MacAuthRoute
+  MasterRoute: typeof MasterRouteWithChildren
+  MasterLoginRoute: typeof MasterLoginRoute
+  NotificationRoute: typeof NotificationRoute
+  PoliciesRoute: typeof PoliciesRoute
+  PortForwardingRoute: typeof PortForwardingRoute
   PortalRoute: typeof PortalRouteWithChildren
+  ReportsRoute: typeof ReportsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
+  SwitchLocationRoute: typeof SwitchLocationRoute
+  TeamsRoute: typeof TeamsRoute
+  TicketsRoute: typeof TicketsRoute
+  UsersRoute: typeof UsersRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
+  VlansRoute: typeof VlansRoute
+  VoipRoute: typeof VoipRoute
+  WebsiteBlockingRoute: typeof WebsiteBlockingRoute
+  WhitelistRoute: typeof WhitelistRoute
+  CFeatureRoute: typeof CFeatureRoute
+  CLocationsRoute: typeof CLocationsRoute
+  CUsersRoute: typeof CUsersRoute
+  CustomerFeatureRoute: typeof CustomerFeatureRoute
+  CustomerLocationsRoute: typeof CustomerLocationsRoute
+  CustomerUsersRoute: typeof CustomerUsersRoute
+  CIndexRoute: typeof CIndexRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
   CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
+  PreviewPortalLocationIdRoute: typeof PreviewPortalLocationIdRoute
+  PreviewPortalDemoRoute: typeof PreviewPortalDemoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/whitelist': {
+      id: '/whitelist'
+      path: '/whitelist'
+      fullPath: '/whitelist'
+      preLoaderRoute: typeof WhitelistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/website-blocking': {
+      id: '/website-blocking'
+      path: '/website-blocking'
+      fullPath: '/website-blocking'
+      preLoaderRoute: typeof WebsiteBlockingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/voip': {
+      id: '/voip'
+      path: '/voip'
+      fullPath: '/voip'
+      preLoaderRoute: typeof VoipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vlans': {
+      id: '/vlans'
+      path: '/vlans'
+      fullPath: '/vlans'
+      preLoaderRoute: typeof VlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify-otp': {
       id: '/verify-otp'
       path: '/verify-otp'
       fullPath: '/verify-otp'
       preLoaderRoute: typeof VerifyOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tickets': {
+      id: '/tickets'
+      path: '/tickets'
+      fullPath: '/tickets'
+      preLoaderRoute: typeof TicketsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teams': {
+      id: '/teams'
+      path: '/teams'
+      fullPath: '/teams'
+      preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/switch-location': {
+      id: '/switch-location'
+      path: '/switch-location'
+      fullPath: '/switch-location'
+      preLoaderRoute: typeof SwitchLocationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/session-expired': {
@@ -1573,11 +2298,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal': {
       id: '/portal'
       path: '/portal'
       fullPath: '/portal'
       preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/port-forwarding': {
+      id: '/port-forwarding'
+      path: '/port-forwarding'
+      fullPath: '/port-forwarding'
+      preLoaderRoute: typeof PortForwardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/policies': {
+      id: '/policies'
+      path: '/policies'
+      fullPath: '/policies'
+      preLoaderRoute: typeof PoliciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notification': {
+      id: '/notification'
+      path: '/notification'
+      fullPath: '/notification'
+      preLoaderRoute: typeof NotificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/master-login': {
+      id: '/master-login'
+      path: '/master-login'
+      fullPath: '/master-login'
+      preLoaderRoute: typeof MasterLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/master': {
+      id: '/master'
+      path: '/master'
+      fullPath: '/master'
+      preLoaderRoute: typeof MasterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mac-auth': {
+      id: '/mac-auth'
+      path: '/mac-auth'
+      fullPath: '/mac-auth'
+      preLoaderRoute: typeof MacAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1587,11 +2361,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/isp-details': {
+      id: '/isp-details'
+      path: '/isp-details'
+      fullPath: '/isp-details'
+      preLoaderRoute: typeof IspDetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-vouchers': {
+      id: '/guest-vouchers'
+      path: '/guest-vouchers'
+      fullPath: '/guest-vouchers'
+      preLoaderRoute: typeof GuestVouchersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-portal': {
+      id: '/guest-portal'
+      path: '/guest-portal'
+      fullPath: '/guest-portal'
+      preLoaderRoute: typeof GuestPortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-campaigns': {
+      id: '/guest-campaigns'
+      path: '/guest-campaigns'
+      fullPath: '/guest-campaigns'
+      preLoaderRoute: typeof GuestCampaignsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forgot-password': {
       id: '/forgot-password'
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dhcp': {
+      id: '/dhcp'
+      path: '/dhcp'
+      fullPath: '/dhcp'
+      preLoaderRoute: typeof DhcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devices': {
+      id: '/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof DevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debugging': {
+      id: '/debugging'
+      path: '/debugging'
+      fullPath: '/debugging'
+      preLoaderRoute: typeof DebuggingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/business-hours': {
+      id: '/business-hours'
+      path: '/business-hours'
+      fullPath: '/business-hours'
+      preLoaderRoute: typeof BusinessHoursRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/background-image': {
+      id: '/background-image'
+      path: '/background-image'
+      fullPath: '/background-image'
+      preLoaderRoute: typeof BackgroundImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agent': {
+      id: '/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-logs': {
+      id: '/admin-logs'
+      path: '/admin-logs'
+      fullPath: '/admin-logs'
+      preLoaderRoute: typeof AdminLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -1615,12 +2480,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalIndexRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/master/': {
+      id: '/master/'
+      path: '/'
+      fullPath: '/master/'
+      preLoaderRoute: typeof MasterIndexRouteImport
+      parentRoute: typeof MasterRoute
+    }
     '/customer/': {
       id: '/customer/'
       path: '/customer'
       fullPath: '/customer/'
       preLoaderRoute: typeof CustomerIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/c/': {
+      id: '/c/'
+      path: '/c'
+      fullPath: '/c/'
+      preLoaderRoute: typeof CIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agent/': {
+      id: '/agent/'
+      path: '/'
+      fullPath: '/agent/'
+      preLoaderRoute: typeof AgentIndexRouteImport
+      parentRoute: typeof AgentRoute
     }
     '/portal/welcome': {
       id: '/portal/welcome'
@@ -1643,11 +2529,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalTermsRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/portal/team': {
+      id: '/portal/team'
+      path: '/team'
+      fullPath: '/portal/team'
+      preLoaderRoute: typeof PortalTeamRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/success': {
       id: '/portal/success'
       path: '/success'
       fullPath: '/portal/success'
       preLoaderRoute: typeof PortalSuccessRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/set-password': {
+      id: '/portal/set-password'
+      path: '/set-password'
+      fullPath: '/portal/set-password'
+      preLoaderRoute: typeof PortalSetPasswordRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/session': {
@@ -1685,6 +2585,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalExpiredRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/portal/closed': {
+      id: '/portal/closed'
+      path: '/closed'
+      fullPath: '/portal/closed'
+      preLoaderRoute: typeof PortalClosedRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/auth': {
       id: '/portal/auth'
       path: '/auth'
@@ -1692,12 +2599,131 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAuthRouteImport
       parentRoute: typeof PortalRoute
     }
-    '/portal/ad': {
-      id: '/portal/ad'
-      path: '/ad'
-      fullPath: '/portal/ad'
-      preLoaderRoute: typeof PortalAdRouteImport
-      parentRoute: typeof PortalRoute
+    '/master/tickets': {
+      id: '/master/tickets'
+      path: '/tickets'
+      fullPath: '/master/tickets'
+      preLoaderRoute: typeof MasterTicketsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/settings': {
+      id: '/master/settings'
+      path: '/settings'
+      fullPath: '/master/settings'
+      preLoaderRoute: typeof MasterSettingsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/routers': {
+      id: '/master/routers'
+      path: '/routers'
+      fullPath: '/master/routers'
+      preLoaderRoute: typeof MasterRoutersRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/nas': {
+      id: '/master/nas'
+      path: '/nas'
+      fullPath: '/master/nas'
+      preLoaderRoute: typeof MasterNasRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/locations': {
+      id: '/master/locations'
+      path: '/locations'
+      fullPath: '/master/locations'
+      preLoaderRoute: typeof MasterLocationsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/health': {
+      id: '/master/health'
+      path: '/health'
+      fullPath: '/master/health'
+      preLoaderRoute: typeof MasterHealthRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/demo-requests': {
+      id: '/master/demo-requests'
+      path: '/demo-requests'
+      fullPath: '/master/demo-requests'
+      preLoaderRoute: typeof MasterDemoRequestsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/customers': {
+      id: '/master/customers'
+      path: '/customers'
+      fullPath: '/master/customers'
+      preLoaderRoute: typeof MasterCustomersRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/console': {
+      id: '/master/console'
+      path: '/console'
+      fullPath: '/master/console'
+      preLoaderRoute: typeof MasterConsoleRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/billing': {
+      id: '/master/billing'
+      path: '/billing'
+      fullPath: '/master/billing'
+      preLoaderRoute: typeof MasterBillingRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/audit': {
+      id: '/master/audit'
+      path: '/audit'
+      fullPath: '/master/audit'
+      preLoaderRoute: typeof MasterAuditRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/analytics': {
+      id: '/master/analytics'
+      path: '/analytics'
+      fullPath: '/master/analytics'
+      preLoaderRoute: typeof MasterAnalyticsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/customer/users': {
+      id: '/customer/users'
+      path: '/customer/users'
+      fullPath: '/customer/users'
+      preLoaderRoute: typeof CustomerUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/locations': {
+      id: '/customer/locations'
+      path: '/customer/locations'
+      fullPath: '/customer/locations'
+      preLoaderRoute: typeof CustomerLocationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$feature': {
+      id: '/customer/$feature'
+      path: '/customer/$feature'
+      fullPath: '/customer/$feature'
+      preLoaderRoute: typeof CustomerFeatureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/c/users': {
+      id: '/c/users'
+      path: '/c/users'
+      fullPath: '/c/users'
+      preLoaderRoute: typeof CUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/c/locations': {
+      id: '/c/locations'
+      path: '/c/locations'
+      fullPath: '/c/locations'
+      preLoaderRoute: typeof CLocationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/c/$feature': {
+      id: '/c/$feature'
+      path: '/c/$feature'
+      fullPath: '/c/$feature'
+      preLoaderRoute: typeof CFeatureRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspace': {
       id: '/_authenticated/workspace'
@@ -1999,6 +3025,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/analytics/'
       preLoaderRoute: typeof AuthenticatedAnalyticsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/preview/portal/demo': {
+      id: '/preview/portal/demo'
+      path: '/preview/portal/demo'
+      fullPath: '/preview/portal/demo'
+      preLoaderRoute: typeof PreviewPortalDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview/portal/$locationId': {
+      id: '/preview/portal/$locationId'
+      path: '/preview/portal/$locationId'
+      fullPath: '/preview/portal/$locationId'
+      preLoaderRoute: typeof PreviewPortalLocationIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/portal/auth/$method': {
       id: '/portal/auth/$method'
@@ -2643,6 +3683,51 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface AgentRouteChildren {
+  AgentIndexRoute: typeof AgentIndexRoute
+}
+
+const AgentRouteChildren: AgentRouteChildren = {
+  AgentIndexRoute: AgentIndexRoute,
+}
+
+const AgentRouteWithChildren = AgentRoute._addFileChildren(AgentRouteChildren)
+
+interface MasterRouteChildren {
+  MasterAnalyticsRoute: typeof MasterAnalyticsRoute
+  MasterAuditRoute: typeof MasterAuditRoute
+  MasterBillingRoute: typeof MasterBillingRoute
+  MasterConsoleRoute: typeof MasterConsoleRoute
+  MasterCustomersRoute: typeof MasterCustomersRoute
+  MasterDemoRequestsRoute: typeof MasterDemoRequestsRoute
+  MasterHealthRoute: typeof MasterHealthRoute
+  MasterLocationsRoute: typeof MasterLocationsRoute
+  MasterNasRoute: typeof MasterNasRoute
+  MasterRoutersRoute: typeof MasterRoutersRoute
+  MasterSettingsRoute: typeof MasterSettingsRoute
+  MasterTicketsRoute: typeof MasterTicketsRoute
+  MasterIndexRoute: typeof MasterIndexRoute
+}
+
+const MasterRouteChildren: MasterRouteChildren = {
+  MasterAnalyticsRoute: MasterAnalyticsRoute,
+  MasterAuditRoute: MasterAuditRoute,
+  MasterBillingRoute: MasterBillingRoute,
+  MasterConsoleRoute: MasterConsoleRoute,
+  MasterCustomersRoute: MasterCustomersRoute,
+  MasterDemoRequestsRoute: MasterDemoRequestsRoute,
+  MasterHealthRoute: MasterHealthRoute,
+  MasterLocationsRoute: MasterLocationsRoute,
+  MasterNasRoute: MasterNasRoute,
+  MasterRoutersRoute: MasterRoutersRoute,
+  MasterSettingsRoute: MasterSettingsRoute,
+  MasterTicketsRoute: MasterTicketsRoute,
+  MasterIndexRoute: MasterIndexRoute,
+}
+
+const MasterRouteWithChildren =
+  MasterRoute._addFileChildren(MasterRouteChildren)
+
 interface PortalAuthRouteChildren {
   PortalAuthMethodRoute: typeof PortalAuthMethodRoute
   PortalAuthIndexRoute: typeof PortalAuthIndexRoute
@@ -2658,14 +3743,16 @@ const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(
 )
 
 interface PortalRouteChildren {
-  PortalAdRoute: typeof PortalAdRoute
   PortalAuthRoute: typeof PortalAuthRouteWithChildren
+  PortalClosedRoute: typeof PortalClosedRoute
   PortalExpiredRoute: typeof PortalExpiredRoute
   PortalFailureRoute: typeof PortalFailureRoute
   PortalOfflineRoute: typeof PortalOfflineRoute
   PortalRedirectRoute: typeof PortalRedirectRoute
   PortalSessionRoute: typeof PortalSessionRoute
+  PortalSetPasswordRoute: typeof PortalSetPasswordRoute
   PortalSuccessRoute: typeof PortalSuccessRoute
+  PortalTeamRoute: typeof PortalTeamRoute
   PortalTermsRoute: typeof PortalTermsRoute
   PortalVerifyRoute: typeof PortalVerifyRoute
   PortalWelcomeRoute: typeof PortalWelcomeRoute
@@ -2673,14 +3760,16 @@ interface PortalRouteChildren {
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
-  PortalAdRoute: PortalAdRoute,
   PortalAuthRoute: PortalAuthRouteWithChildren,
+  PortalClosedRoute: PortalClosedRoute,
   PortalExpiredRoute: PortalExpiredRoute,
   PortalFailureRoute: PortalFailureRoute,
   PortalOfflineRoute: PortalOfflineRoute,
   PortalRedirectRoute: PortalRedirectRoute,
   PortalSessionRoute: PortalSessionRoute,
+  PortalSetPasswordRoute: PortalSetPasswordRoute,
   PortalSuccessRoute: PortalSuccessRoute,
+  PortalTeamRoute: PortalTeamRoute,
   PortalTermsRoute: PortalTermsRoute,
   PortalVerifyRoute: PortalVerifyRoute,
   PortalWelcomeRoute: PortalWelcomeRoute,
@@ -2693,16 +3782,53 @@ const PortalRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AdminLogsRoute: AdminLogsRoute,
+  AgentRoute: AgentRouteWithChildren,
+  AgentsRoute: AgentsRoute,
+  AlertsRoute: AlertsRoute,
+  BackgroundImageRoute: BackgroundImageRoute,
+  BusinessHoursRoute: BusinessHoursRoute,
+  DebuggingRoute: DebuggingRoute,
+  DevicesRoute: DevicesRoute,
+  DhcpRoute: DhcpRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  GuestCampaignsRoute: GuestCampaignsRoute,
+  GuestPortalRoute: GuestPortalRoute,
+  GuestVouchersRoute: GuestVouchersRoute,
+  IspDetailsRoute: IspDetailsRoute,
   LoginRoute: LoginRoute,
+  MacAuthRoute: MacAuthRoute,
+  MasterRoute: MasterRouteWithChildren,
+  MasterLoginRoute: MasterLoginRoute,
+  NotificationRoute: NotificationRoute,
+  PoliciesRoute: PoliciesRoute,
+  PortForwardingRoute: PortForwardingRoute,
   PortalRoute: PortalRouteWithChildren,
+  ReportsRoute: ReportsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SessionExpiredRoute: SessionExpiredRoute,
+  SwitchLocationRoute: SwitchLocationRoute,
+  TeamsRoute: TeamsRoute,
+  TicketsRoute: TicketsRoute,
+  UsersRoute: UsersRoute,
   VerifyOtpRoute: VerifyOtpRoute,
+  VlansRoute: VlansRoute,
+  VoipRoute: VoipRoute,
+  WebsiteBlockingRoute: WebsiteBlockingRoute,
+  WhitelistRoute: WhitelistRoute,
+  CFeatureRoute: CFeatureRoute,
+  CLocationsRoute: CLocationsRoute,
+  CUsersRoute: CUsersRoute,
+  CustomerFeatureRoute: CustomerFeatureRoute,
+  CustomerLocationsRoute: CustomerLocationsRoute,
+  CustomerUsersRoute: CustomerUsersRoute,
+  CIndexRoute: CIndexRoute,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
   CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
+  PreviewPortalLocationIdRoute: PreviewPortalLocationIdRoute,
+  PreviewPortalDemoRoute: PreviewPortalDemoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

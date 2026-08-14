@@ -6,8 +6,12 @@ export const dhcpKeys = {
   list: (q: DhcpPoolListQuery) => ["dhcp", "list", q] as const,
 };
 
-export const useDhcpPools = (q: DhcpPoolListQuery) =>
-  useQuery({ queryKey: dhcpKeys.list(q), queryFn: () => dhcpService.list(q) });
+export const useDhcpPools = (q: DhcpPoolListQuery, options?: { enabled?: boolean }) =>
+  useQuery({
+    queryKey: dhcpKeys.list(q),
+    queryFn: () => dhcpService.list(q),
+    enabled: options?.enabled,
+  });
 
 export function useCreateDhcpPool() {
   const qc = useQueryClient();
@@ -20,8 +24,15 @@ export function useCreateDhcpPool() {
 export function useUpdateDhcpPool() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateDhcpPoolPayload }) =>
-      dhcpService.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+      organizationId,
+    }: {
+      id: string;
+      payload: UpdateDhcpPoolPayload;
+      organizationId?: string;
+    }) => dhcpService.update(id, payload, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
   });
 }
@@ -29,7 +40,8 @@ export function useUpdateDhcpPool() {
 export function useDeleteDhcpPool() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => dhcpService.remove(id),
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      dhcpService.remove(id, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
   });
 }

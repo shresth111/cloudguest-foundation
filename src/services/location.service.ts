@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   CreateLocationPayload,
   Location,
@@ -8,6 +9,42 @@ import type {
   ProvisionLocationPayload,
   ProvisionLocationResult,
 } from "@/types/location";
+
+// The Master Console's demo sign-in (master-login.tsx's "admin@example.com /
+// test") issues a local-only `demo-access-token` the real backend never
+// accepts -- every real call below 401s. Without this, the Smart Location
+// Provisioning wizard's "Existing organization" step had zero organizations
+// to pick from (its dropdown calls `organizations()` below, which calls
+// `fetchAllOrganizations()`), the org id 401ed out of every other page that
+// calls it, and the final "Provision location" submit failed outright. Same
+// pattern master.locations.tsx's own local DEMO_ORGS/DEMO_LOCATIONS already
+// applies for its simpler "Create Location" dialog -- fixed here at the
+// shared fetch helpers so every caller (the wizard, the Customers page,
+// `listAll()`, `get()`, `create()`) inherits it in one place instead of
+// needing its own copy.
+const DEMO_ORG_OPTIONS: BackendOrgListItem[] = [
+  { id: "org-001", name: "Acme Corp" },
+  { id: "org-002", name: "Blue Cedar Cafes" },
+];
+
+const DEMO_LOCATIONS_ALL: Location[] = [
+  {
+    id: "loc-demo-001", name: "Downtown Branch", slug: "downtown-branch",
+    organizationId: "org-001", organizationName: "Acme Corp", status: "active", propertyType: "hotel",
+    locationCode: "LOC-DEMO-001", addressLine1: "123 Main St", addressLine2: null, city: "Austin",
+    stateProvince: "TX", postalCode: "78701", country: "US", timezone: "America/Chicago",
+    latitude: null, longitude: null, contactName: null, contactPhone: null, contactEmail: null,
+    settings: {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "loc-demo-002", name: "Airport Kiosk", slug: "airport-kiosk",
+    organizationId: "org-002", organizationName: "Blue Cedar Cafes", status: "active", propertyType: "cafe",
+    locationCode: "LOC-DEMO-002", addressLine1: "1 Airport Way", addressLine2: null, city: "Austin",
+    stateProvince: "TX", postalCode: "78719", country: "US", timezone: "UTC",
+    latitude: null, longitude: null, contactName: null, contactPhone: null, contactEmail: null,
+    settings: {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  },
+];
 
 interface BackendLocation {
   id: string;
@@ -73,6 +110,7 @@ function toLocation(l: BackendLocation, organizationName: string): Location {
 }
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
+  if (isDemo()) return DEMO_ORG_OPTIONS;
   const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
     params: { page_size: 100 },
   });
@@ -95,6 +133,7 @@ async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
  * organizations the caller was never made a member of.
  */
 async function fetchAllLocations(): Promise<Location[]> {
+  if (isDemo()) return DEMO_LOCATIONS_ALL;
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
@@ -157,7 +196,17 @@ export const locationService = {
     return toLocation(data, org?.name ?? "");
   },
 
-  async create(payload: CreateLocationPayload): Promise<Location> {
+  /**
+   * `knownOrgName`, when the caller already knows it, skips the trailing
+   * fetchAllOrganizations() lookup below. That lookup hits the
+   * platform-wide GET /organizations, which requires GLOBAL scope and 403s
+   * for an ordinary customer/org-owner session (same restriction documented
+   * on customer.service.ts's listLocations()) -- without this escape hatch,
+   * a real customer's location creation would actually succeed server-side
+   * (the POST above completes fine) but this function would still throw on
+   * the follow-up fetch, surfacing a false "failed to create" error.
+   */
+  async create(payload: CreateLocationPayload, knownOrgName?: string): Promise<Location> {
     const { data } = await api.post<BackendLocation>(
       `/organizations/${payload.organizationId}/locations`,
       {
@@ -180,21 +229,72 @@ export const locationService = {
       },
       { headers: { "X-Organization-Id": payload.organizationId } },
     );
+    if (knownOrgName !== undefined) {
+      return toLocation(data, knownOrgName);
+    }
     const orgs = await fetchAllOrganizations();
     const org = orgs.find((o) => o.id === payload.organizationId);
     return toLocation(data, org?.name ?? "");
   },
 
-  async updateStatus(ids: string[], status: LocationStatus): Promise<void> {
+  // `organizationId` is optional and, when passed, sent as X-Organization-Id
+  // -- mirrors the header the GET listing calls already send. A regular
+  // customer session can omit it: the backend resolves org from the caller's
+  // own single membership. A master-console operator (global scope, zero
+  // org memberships) has nothing for the backend to infer from -- without
+  // this header, the underlying location lookup 404s ("Location not
+  // found") even though the location genuinely exists, which is exactly
+  // the real bug this was caught fixing: master's location delete/suspend
+  // silently failing because the id-only call had no org context.
+  async updateStatus(ids: string[], status: LocationStatus, organizationId?: string): Promise<void> {
     const endpoint = status === "suspended" ? "suspend" : "activate";
-    await Promise.all(ids.map((id) => api.post(`/locations/${id}/${endpoint}`)));
+    await Promise.all(
+      ids.map((id) =>
+        api.post(
+          `/locations/${id}/${endpoint}`,
+          undefined,
+          organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined,
+        ),
+      ),
+    );
   },
 
-  async remove(ids: string[]): Promise<void> {
-    await Promise.all(ids.map((id) => api.delete(`/locations/${id}`)));
+  async remove(ids: string[], organizationId?: string): Promise<void> {
+    await Promise.all(
+      ids.map((id) =>
+        api.delete(
+          `/locations/${id}`,
+          organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined,
+        ),
+      ),
+    );
   },
 
   async provisionLocation(payload: ProvisionLocationPayload): Promise<ProvisionLocationResult> {
+    if (isDemo()) {
+      const orgId = payload.existingOrganizationId ?? "org-demo-new";
+      const orgName = payload.existingOrganizationId
+        ? (DEMO_ORG_OPTIONS.find((o) => o.id === payload.existingOrganizationId)?.name ?? "Demo Organization")
+        : (payload.newOrganization?.name ?? "New Organization");
+      return {
+        organizationId: orgId,
+        organizationName: orgName,
+        locationId: `loc-demo-${Date.now()}`,
+        locationName: payload.location.name,
+        locationCode: `LOC-DEMO-${Math.floor(Math.random() * 9000 + 1000)}`,
+        planId: payload.planId,
+        planName: "Demo Plan",
+        routerId: `router-demo-${Date.now()}`,
+        routerName: payload.router.name,
+        ownerUserId: `user-demo-${Date.now()}`,
+        ownerName: `${payload.owner.firstName} ${payload.owner.lastName}`,
+        ownerUsername: payload.owner.email.split("@")[0],
+        ownerEmail: payload.owner.email,
+        ownerTemporaryPassword: "Demo!Temp2026",
+        loginUrl: "https://demo.zipwifi.io/login",
+        provisionedAt: new Date().toISOString(),
+      };
+    }
     const { data } = await api.post<{
       organization_id: string;
       organization_name: string;

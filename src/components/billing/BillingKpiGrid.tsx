@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import {
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Users,
   Sparkles,
@@ -23,7 +23,7 @@ interface Props {
   onRetry?: () => void;
 }
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const fmt = new Intl.NumberFormat();
 
 const toneClass = {
@@ -48,14 +48,14 @@ export function BillingKpiGrid({ data, isLoading, isError, onRetry }: Props) {
   if (isError || !data) return <ErrorState onRetry={onRetry} />;
 
   const tiles: { label: string; value: string; icon: typeof Users; tone: Tone; hint?: string }[] = [
-    { label: "Monthly recurring revenue", value: money.format(data.mrr), icon: DollarSign, tone: "success", hint: "MRR" },
-    { label: "Annual recurring revenue", value: money.format(data.arr), icon: TrendingUp, tone: "success", hint: "ARR" },
+    { label: "Monthly recurring revenue", value: money.format(data.mrr), icon: IndianRupee, tone: "success", hint: "MRR · projected value of active subscriptions" },
+    { label: "Annual recurring revenue", value: money.format(data.arr), icon: TrendingUp, tone: "success", hint: "ARR · MRR × 12" },
     { label: "Active subscriptions", value: fmt.format(data.activeSubscriptions), icon: Users, tone: "info" },
     { label: "Trial organizations", value: fmt.format(data.trialOrganizations), icon: Sparkles, tone: "warning" },
     { label: "Expiring plans", value: fmt.format(data.expiringPlans), icon: CalendarClock, tone: "warning", hint: "Next 14 days" },
-    { label: "Overdue payments", value: fmt.format(data.overduePayments), icon: AlertOctagon, tone: "danger" },
-    { label: "Total revenue", value: money.format(data.totalRevenue), icon: Wallet, tone: "default" },
-    { label: "Collection rate", value: `${data.collectionRate}%`, icon: Percent, tone: data.collectionRate >= 90 ? "success" : "warning" },
+    { label: "Overdue payments", value: fmt.format(data.overduePayments), icon: AlertOctagon, tone: "danger", hint: "Failed payments awaiting retry" },
+    { label: "Total revenue", value: money.format(data.totalRevenue), icon: Wallet, tone: "default", hint: "Actually collected via captured payments" },
+    { label: "Collection rate", value: `${data.collectionRate}%`, icon: Percent, tone: data.collectionRate >= 90 ? "success" : "warning", hint: "Share of recorded payments that succeeded" },
     { label: "ARPO", value: money.format(data.arpo), icon: Layers, tone: "info", hint: "Avg revenue / org" },
   ];
 

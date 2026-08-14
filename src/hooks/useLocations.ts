@@ -34,7 +34,14 @@ export function useLocation(id: string) {
 export function useCreateLocation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateLocationPayload) => locationService.create(payload),
+    // `knownOrgName`, when passed, skips locationService.create()'s trailing
+    // fetchAllOrganizations() lookup -- required for callers running as an
+    // ordinary customer/org-owner session, where that platform-wide
+    // GET /organizations 403s (see location.service.ts's create() docstring)
+    // and would otherwise surface as a false "failed to create" error even
+    // though the location was created successfully.
+    mutationFn: ({ payload, knownOrgName }: { payload: CreateLocationPayload; knownOrgName?: string }) =>
+      locationService.create(payload, knownOrgName),
     onSuccess: () => qc.invalidateQueries({ queryKey: locationKeys.all }),
   });
 }

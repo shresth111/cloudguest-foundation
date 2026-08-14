@@ -1,11 +1,12 @@
 import { toast } from "sonner";
-import { AlertOctagon, BellRing, CalendarClock, CreditCard, Send, Sparkles } from "lucide-react";
+import { AlertOctagon, BellRing, CalendarClock, CreditCard, Loader2, Send, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import { useSendReminder } from "@/hooks/useBilling";
 import type { Reminder } from "@/types/billing";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
@@ -31,6 +32,10 @@ interface Props {
 }
 
 export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
+  // No reminder-dispatch endpoint exists in backend/app/domains/billing --
+  // "Send" calls billingService.sendReminder's own already-documented
+  // mock rather than firing a bare, unbacked toast.
+  const send = useSendReminder();
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -62,8 +67,18 @@ export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
                     <div className="text-xs text-muted-foreground">{r.organizationName} · {meta.label} · {dateFmt.format(new Date(r.dueAt))}</div>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => toast.success(`Reminder sent to ${r.organizationName}`)}>
-                  <Send className="mr-1.5 h-3.5 w-3.5" /> Send
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={send.isPending}
+                  onClick={() =>
+                    send.mutate(r.id, {
+                      onSuccess: () => toast.success(`Reminder sent to ${r.organizationName}`),
+                      onError: () => toast.error("Could not send the reminder"),
+                    })
+                  }
+                >
+                  {send.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />} Send
                 </Button>
               </div>
             );

@@ -20,8 +20,15 @@ export function useCreateDnsRecord() {
 export function useUpdateDnsRecord() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateDnsRecordPayload }) =>
-      dnsService.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+      organizationId,
+    }: {
+      id: string;
+      payload: UpdateDnsRecordPayload;
+      organizationId?: string;
+    }) => dnsService.update(id, payload, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dns", "list"] }),
   });
 }
@@ -29,7 +36,8 @@ export function useUpdateDnsRecord() {
 export function useDeleteDnsRecord() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => dnsService.remove(id),
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      dnsService.remove(id, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dns", "list"] }),
   });
 }

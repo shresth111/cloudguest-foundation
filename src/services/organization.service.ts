@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   CreateOrgPayload,
   OrgListQuery,
@@ -6,6 +7,30 @@ import type {
   OrgStatus,
   Organization,
 } from "@/types/organization";
+
+// Same demo-session gap as location.service.ts's `fetchAllOrganizations()`
+// (see its comment) -- the Master Console's demo sign-in issues a token the
+// real backend never accepts, so this 401ed for a demo super-admin session
+// and left the Customers page's own table empty with a "Could not load
+// customers from the server." toast. Same two orgs/ids as
+// location.service.ts's DEMO_ORG_OPTIONS so a demo session sees one
+// consistent customer list everywhere in the Master Console.
+const DEMO_ORGANIZATIONS: Organization[] = [
+  {
+    id: "org-001", name: "Acme Corp", slug: "acme-corp", legalName: "Acme Corporation Pvt Ltd",
+    orgType: "standard", status: "active", parentOrganizationId: null,
+    contactEmail: "ops@acme.example.com", contactPhone: null, timezone: "Asia/Kolkata", defaultLocale: "en",
+    settings: {}, subscriptionTier: "enterprise",
+    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(), updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "org-002", name: "Blue Cedar Cafes", slug: "blue-cedar-cafes", legalName: null,
+    orgType: "standard", status: "active", parentOrganizationId: null,
+    contactEmail: "hello@bluecedar.example.com", contactPhone: null, timezone: "UTC", defaultLocale: "en",
+    settings: {}, subscriptionTier: "starter",
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(), updatedAt: new Date().toISOString(),
+  },
+];
 
 interface BackendOrganization {
   id: string;
@@ -57,6 +82,15 @@ function toOrganization(o: BackendOrganization): Organization {
 
 export const organizationService = {
   async list(q: OrgListQuery): Promise<OrgListResult> {
+    if (isDemo()) {
+      let rows = DEMO_ORGANIZATIONS;
+      if (q.status && q.status !== "all") rows = rows.filter((r) => r.status === q.status);
+      if (q.search) {
+        const s = q.search.toLowerCase();
+        rows = rows.filter((r) => r.name.toLowerCase().includes(s) || r.contactEmail.toLowerCase().includes(s));
+      }
+      return { rows, total: rows.length, totalPages: 1, hasNext: false, hasPrevious: false };
+    }
     const { data } = await api.get<BackendOrgListResponse>("/organizations", {
       params: {
         page: q.page,

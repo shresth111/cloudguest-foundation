@@ -18,10 +18,24 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGenerateReport } from "@/hooks/useAnalytics";
+import type { AppError } from "@/services/api";
 import type { DateRangePreset, ReportFormat, ReportType } from "@/types/analytics";
 
 interface Props {
   range: DateRangePreset;
+}
+
+/** Mirrors workspace.reports.tsx's own identical helper for the
+ * customer-facing reports page -- there is no shared download util in this
+ * codebase yet, each report screen keeps its own copy of this. */
+function downloadBlobUrl(url: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 const REPORTS: { type: ReportType; label: string; description: string; icon: typeof FileText }[] = [
@@ -51,9 +65,21 @@ export function ReportCenter({ range }: Props) {
     setPending(key);
     try {
       const res = await generate.mutateAsync({ type, format, range });
-      toast.success(`Report ready`, { description: res.filename });
-    } catch {
-      toast.error("Report generation failed");
+      // analyticsService.generateReport() returns this exact sentinel (never
+      // throws) for report types the backend Report Engine doesn't compose
+      // (audit/billing/monitoring -- see that function's own comment) --
+      // reporting a fake "Report ready" success here, with no real file
+      // behind it, is exactly the fabricated-export behaviour this screen
+      // must not have. Mirrors workspace.reports.tsx's own identical check
+      // for the customer-facing reports page.
+      if (res.url.startsWith("#unavailable/")) {
+        toast.error("This report type isn't available yet");
+        return;
+      }
+      downloadBlobUrl(res.url, res.filename);
+      toast.success(`${res.filename} downloaded`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Report generation failed");
     } finally {
       setPending(null);
     }

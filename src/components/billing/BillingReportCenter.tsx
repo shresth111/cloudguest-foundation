@@ -42,7 +42,20 @@ export function BillingReportCenter() {
 
   const handle = (type: string, format: BillingReportFormat) => {
     gen.mutate({ type, format }, {
-      onSuccess: (res) => toast.success(`${res.fileName} (${res.size})`),
+      onSuccess: (res) => {
+        // Only the "revenue" card resolves a real, backend-rendered file
+        // (see billingService.generateReport) -- trigger its download;
+        // every other card is still the mocked stub (no matching
+        // real endpoint, see that method's own comment), so there is
+        // nothing to actually download for those.
+        if ("url" in res && res.url) {
+          const a = document.createElement("a");
+          a.href = res.url;
+          a.download = res.fileName;
+          a.click();
+        }
+        toast.success(`${res.fileName} (${res.size})`);
+      },
       onError: () => toast.error("Failed to generate report"),
     });
   };
@@ -54,6 +67,9 @@ export function BillingReportCenter() {
           <h2 className="text-base font-semibold">Report center</h2>
           <p className="text-sm text-muted-foreground">Generate billing and operational reports on demand.</p>
         </div>
+        {/* No bulk/multi-report-type export endpoint exists -- POST /reports
+            (see billingService.generateReport) renders exactly one report
+            type per call. Kept mocked. */}
         <Button variant="outline" size="sm" onClick={() => toast.success("Bulk export queued")}>
           <Download className="mr-1.5 h-4 w-4" /> Bulk export
         </Button>

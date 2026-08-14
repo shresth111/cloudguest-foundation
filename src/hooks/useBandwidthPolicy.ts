@@ -8,10 +8,10 @@ const K = {
 };
 
 export const useBandwidthPolicies = () =>
-  useQuery({ queryKey: K.list, queryFn: bandwidthPolicyService.list });
+  useQuery({ queryKey: K.list, queryFn: () => bandwidthPolicyService.list() });
 
 export const useBandwidthPolicyKpis = () =>
-  useQuery({ queryKey: K.kpis, queryFn: bandwidthPolicyService.kpis });
+  useQuery({ queryKey: K.kpis, queryFn: () => bandwidthPolicyService.kpis() });
 
 export function useSaveBandwidthPolicy() {
   const qc = useQueryClient();

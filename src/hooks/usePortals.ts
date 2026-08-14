@@ -43,10 +43,10 @@ export function useCreatePortal() {
   });
 }
 
-export function useUpdatePortal(id: string) {
+export function useUpdatePortal(id: string, organizationId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (patch: Partial<Portal>) => portalService.update(id, patch),
+    mutationFn: (patch: Partial<Portal>) => portalService.update(id, patch, organizationId),
     onSuccess: (p) => {
       qc.setQueryData(K.detail(id), p);
       qc.invalidateQueries({ queryKey: ["portal", "list"] });
@@ -59,8 +59,15 @@ export function useUpdatePortal(id: string) {
 export function useSetPortalStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: PortalStatus }) =>
-      portalService.setStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+      organizationId,
+    }: {
+      id: string;
+      status: PortalStatus;
+      organizationId?: string;
+    }) => portalService.setStatus(id, status, organizationId),
     onSuccess: (p) => {
       toast.success(`Portal ${p.status === "published" ? "published" : p.status}`);
       qc.invalidateQueries({ queryKey: ["portal"] });
@@ -84,7 +91,8 @@ export function useDuplicatePortal() {
 export function useDeletePortal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => portalService.remove(id),
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      portalService.remove(id, organizationId),
     onSuccess: () => {
       toast.success("Portal deleted");
       qc.invalidateQueries({ queryKey: ["portal"] });
@@ -93,10 +101,10 @@ export function useDeletePortal() {
   });
 }
 
-export function useApplyTheme(id: string) {
+export function useApplyTheme(id: string, organizationId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (themeId: string) => portalService.applyTheme(id, themeId),
+    mutationFn: (themeId: string) => portalService.applyTheme(id, themeId, organizationId),
     onSuccess: (p) => {
       toast.success(`Theme "${p.themeName}" applied`);
       qc.setQueryData(K.detail(id), p);

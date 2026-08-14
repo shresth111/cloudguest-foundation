@@ -2,6 +2,7 @@ export type PortalStatus = "draft" | "published" | "archived" | "scheduled";
 export type PortalLoginMethod =
   | "mobile_otp"
   | "email_otp"
+  | "whatsapp_otp"
   | "voucher"
   | "pms"
   | "social"
@@ -19,6 +20,7 @@ export const LANGUAGES: Record<PortalLanguage, string> = {
 export const LOGIN_METHOD_LABEL: Record<PortalLoginMethod, string> = {
   mobile_otp: "Mobile OTP",
   email_otp: "Email OTP",
+  whatsapp_otp: "WhatsApp OTP",
   voucher: "Voucher",
   pms: "PMS",
   social: "Social",

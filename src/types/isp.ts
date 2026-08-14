@@ -1,5 +1,18 @@
 export type IspLinkRole = "primary" | "backup";
 
+/** How this link's own gateway/IP is actually obtained -- drives which
+ * real health-check target-resolution strategy the backend uses.
+ * Orthogonal to `linkType` (physical medium: fiber/DSL/cable/...): a
+ * fiber connection can be static, DHCP, or PPPoE-authenticated all the
+ * same. See backend `constants.IspConnectionMode`'s own docstring. */
+export type IspConnectionMode = "static" | "dhcp" | "pppoe";
+
+/** The only two values a manual status override accepts -- maps onto the
+ * existing `healthy`/`unhealthy` vocabulary the rest of this domain
+ * already uses (never a third, invented enum). See
+ * `ispService.setManualStatus`. */
+export type IspManualHealthStatus = "healthy" | "unhealthy";
+
 export interface IspLink {
   id: string;
   routerId: string;
@@ -7,6 +20,7 @@ export interface IspLink {
   locationId: string;
   providerName: string;
   linkType: string;
+  connectionMode: IspConnectionMode;
   role: IspLinkRole;
   isActiveUplink: boolean;
   autoFailback: boolean;
@@ -19,8 +33,23 @@ export interface IspLink {
   downloadBandwidthMbps: number | null;
   uploadBandwidthMbps: number | null;
   healthStatus: string;
+  /** Whether the *current* healthStatus above came from a real RouterOS
+   * ping ("automated" -- the sweep or a manual on-demand check) or an
+   * admin's own override ("manual" -- see `ispService.setManualStatus`).
+   * The next real ping always reclaims this back to "automated". */
+  healthStatusSource: string;
+  /** "Down since" -- non-null only while healthStatus is "unhealthy".
+   * Computed server-side from real IspHealthCheck history, never
+   * calculated client-side. */
+  unhealthySince: string | null;
   latencyMs: number | null;
   packetLossPercentage: number | null;
+  /** Live traffic load -- the most recently *computed* rate, distinct
+   * from downloadBandwidthMbps/uploadBandwidthMbps above (the link's
+   * provisioned plan capacity, never measured). Null until the second
+   * successful sample ever (a rate needs two readings). */
+  currentDownloadMbps: number | null;
+  currentUploadMbps: number | null;
   lastCheckedAt: string | null;
   consecutiveUnhealthyCount: number;
   createdAt: string;
@@ -30,6 +59,14 @@ export interface IspLinkListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
+  /** When known, sent as `X-Location-Id` alongside `X-Organization-Id` --
+   * without it, RBAC infers ORGANIZATION scope for the `isp.read` check
+   * (see backend rbac/dependencies.py's `_infer_scope_type`), which a
+   * location-scoped staff role's own grant can never satisfy no matter
+   * what the role holds. Optional because some callers (e.g. the Internet
+   * Connection page's own router-filtered fetch) don't have a single
+   * location in view; omitted entirely, behavior is unchanged. */
+  locationId?: string;
 }
 
 export interface IspLinkListResult {
@@ -44,6 +81,7 @@ export interface CreateIspLinkPayload {
   routerId: string;
   providerName: string;
   linkType?: string;
+  connectionMode?: IspConnectionMode;
   role: IspLinkRole;
   priority?: number;
   interface?: string | null;
@@ -58,6 +96,7 @@ export interface CreateIspLinkPayload {
 export interface UpdateIspLinkPayload {
   providerName?: string;
   linkType?: string;
+  connectionMode?: IspConnectionMode;
   role?: IspLinkRole;
   priority?: number;
   interface?: string | null;
@@ -135,4 +174,109 @@ export interface UpdateIspRoutingRulePayload {
   sourceCidr?: string | null;
   interfaceName?: string | null;
   policyId?: string | null;
+}
+
+/** The result of one real RouterOS `/tool/ping` sweep against a link's own
+ * `gatewayIpAddress` -- see backend `app.domains.isp.models.IspHealthCheck`.
+ * `status` is one of `healthy` | `degraded` | `unhealthy` (classified from
+ * latency/packet-loss thresholds server-side, never computed client-side). */
+export interface IspHealthCheck {
+  id: string;
+  ispLinkId: string;
+  checkedAt: string;
+  status: string;
+  /** "automated" for a real ping row, "manual" for an admin's own status
+   * override -- see `IspLink.healthStatusSource`. */
+  source: string;
+  latencyMs: number | null;
+  packetLossPercentage: number | null;
+  errorMessage: string | null;
+  /** Real traffic-load reading for this same tick -- null whenever a
+   * rate genuinely couldn't be computed. This is what the "Traffic Load"
+   * graph renders from -- the exact same rows the up/down "Status
+   * Timeline" already uses. */
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+}
+
+export interface IspHealthCheckListQuery {
+  page?: number;
+  pageSize?: number;
+  /** Optional ISO-8601 date-range filter -- both additive/optional, an
+   * omitted pair means "no restriction" (the endpoint's original,
+   * unchanged behavior). See backend `GET /isp/links/{id}/health-checks`'s
+   * own `start_date`/`end_date` query params. */
+  startDate?: string;
+  endDate?: string;
+  /** Same `X-Location-Id` scoping need as `IspLinkListQuery.locationId` --
+   * see its own doc comment. Optional, same reason. */
+  locationId?: string;
+}
+
+export interface IspHealthCheckListResult {
+  rows: IspHealthCheck[];
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  /** Null when there is no health-check history yet for this link (never
+   * a fabricated 100%/0% placeholder) -- see backend
+   * `IspService.compute_availability_percentage`. */
+  availabilityPercentage: number | null;
+}
+
+/** One SQL-side aggregated time bucket from the history dialog's uptime
+ * chart -- see backend `IspService.get_health_check_summary`. Never one
+ * row per real health check: a 30-day window at the sweep's real
+ * 60-second cadence is tens of thousands of rows, so the backend
+ * aggregates by hour (spans <= 7 days) or by day (longer spans) before
+ * this ever reaches the client. */
+export interface IspHealthCheckBucket {
+  bucketStart: string;
+  totalChecks: number;
+  healthyCount: number;
+  degradedCount: number;
+  unhealthyCount: number;
+  /** Null only when `totalChecks` is 0 (an empty bucket is never
+   * rendered -- see `ispService.getHealthCheckSummary`'s own filtering). */
+  uptimePercentage: number | null;
+  avgLatencyMs: number | null;
+  avgPacketLossPercentage: number | null;
+  /** Real traffic-load aggregates for this same bucket -- AVG/MAX over
+   * the bucket's own `IspHealthCheck.downloadMbps`/`uploadMbps` rows,
+   * null-safe (a bucket where every check in the window failed to
+   * produce a traffic sample reports null, never a fabricated 0). Backs
+   * the history dialog's bandwidth view. */
+  avgDownloadMbps: number | null;
+  avgUploadMbps: number | null;
+  maxDownloadMbps: number | null;
+}
+
+export interface IspHealthCheckSummary {
+  bucketUnit: "hour" | "day";
+  start: string;
+  end: string;
+  buckets: IspHealthCheckBucket[];
+}
+
+/** Real, on-demand "Run Speed Test" result -- a genuine RouterOS
+ * `/tool/fetch` download against the link's own router (see backend
+ * `IspService.run_speed_test`), plus a real ping for latency. Never
+ * persisted into `IspHealthCheck` history (that table's own
+ * `downloadMbps`/`uploadMbps` carry a distinct, passive-traffic-rate
+ * meaning) -- this is a point-in-time result returned directly from the
+ * action itself. */
+export interface IspSpeedTestResult {
+  ispLinkId: string;
+  testedAt: string;
+  downloadMbps: number;
+  /** Always null today -- no genuine method to measure real upload
+   * throughput against the public internet exists for this hardware
+   * class. Never fabricated to fill the gap; render an honest
+   * "not available" state when null, never a placeholder number. */
+  uploadMbps: number | null;
+  latencyMs: number | null;
+  packetLossPercentage: number | null;
+  downloadedBytes: number;
+  durationSeconds: number;
 }

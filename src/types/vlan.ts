@@ -1,3 +1,5 @@
+export type VlanPortMode = "trunk" | "access";
+
 export interface Vlan {
   id: string;
   routerId: string;
@@ -8,6 +10,8 @@ export interface Vlan {
   gatewayIpAddress: string | null;
   cidr: string | null;
   interface: string | null;
+  portMode: VlanPortMode;
+  enableHotspot: boolean;
   description: string | null;
   isEnabled: boolean;
   createdAt: string;
@@ -35,6 +39,8 @@ export interface CreateVlanPayload {
   gatewayIpAddress?: string | null;
   cidr?: string | null;
   interface?: string | null;
+  portMode?: VlanPortMode;
+  enableHotspot?: boolean;
   description?: string | null;
   isEnabled?: boolean;
 }
@@ -45,6 +51,8 @@ export interface UpdateVlanPayload {
   gatewayIpAddress?: string | null;
   cidr?: string | null;
   interface?: string | null;
+  portMode?: VlanPortMode;
+  enableHotspot?: boolean;
   description?: string | null;
   isEnabled?: boolean;
 }

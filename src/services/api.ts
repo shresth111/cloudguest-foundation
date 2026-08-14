@@ -9,6 +9,11 @@ export interface AppError {
   code: string;
   message: string;
   fieldErrors?: Record<string, string>;
+  /** The backend's own structured error payload (``CloudGuestError``'s
+   * ``data`` field, e.g. ``{ retry_after_seconds }`` on a 429 OTP
+   * rate-limit) -- passed through untouched so a caller can surface real
+   * backend state (a real cooldown) instead of inventing one client-side. */
+  data?: Record<string, unknown>;
 }
 
 export interface BackendEnvelope<T> {
@@ -40,10 +45,17 @@ function fieldErrorsFromValidation(data: unknown): Record<string, string> | unde
   return out;
 }
 
+function errorData(data: unknown): Record<string, unknown> | undefined {
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : undefined;
+}
+
 export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppError {
   const status = error.response?.status ?? null;
   const envelope = error.response?.data;
   const message = envelope?.message || error.message || "Something went wrong";
+  const data = errorData(envelope?.data);
 
   if (status === 422) {
     return {
@@ -51,18 +63,19 @@ export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppErro
       code: "validation_error",
       message,
       fieldErrors: fieldErrorsFromValidation(envelope?.data),
+      data,
     };
   }
   if (status === 401) {
-    return { status, code: "unauthorized", message };
+    return { status, code: "unauthorized", message, data };
   }
   if (status === 403) {
-    return { status, code: "forbidden", message };
+    return { status, code: "forbidden", message, data };
   }
   if (status === null) {
     return { status, code: "network_error", message: "Unable to reach the server" };
   }
-  return { status, code: slugifyMessage(message), message };
+  return { status, code: slugifyMessage(message), message, data };
 }
 
 export const api = axios.create({
@@ -70,6 +83,24 @@ export const api = axios.create({
   timeout: 20000,
   headers: { "Content-Type": "application/json" },
 });
+
+/** `api.defaults.baseURL` is relative (`/api/v1`) whenever
+ * `VITE_API_BASE_URL` isn't set at build time -- fine for the browser's
+ * own same-origin requests, but meaningless once copy-pasted somewhere
+ * with no origin of its own to resolve against, e.g. a RouterOS
+ * `/tool fetch url=...` command baked into a generated setup script
+ * (RouterDetailTabs.tsx's `buildRouterSetupScript`/`buildRouterSetupScriptChunks`).
+ * RouterOS has no scheme to infer there and fails outright with
+ * "Mode not specified". Anything handing a base URL to a device/script
+ * instead of to `api` itself should call this, not read
+ * `api.defaults.baseURL` directly, so it always gets a fully-qualified
+ * `https://host/api/v1`-shaped URL. */
+export function getAbsoluteApiBase(): string {
+  const base = api.defaults.baseURL || "/api/v1";
+  if (/^https?:\/\//i.test(base)) return base;
+  if (typeof window === "undefined") return base;
+  return new URL(base, window.location.origin).toString().replace(/\/$/, "");
+}
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (typeof window !== "undefined") {
@@ -88,12 +119,27 @@ function clearSession() {
   window.localStorage.removeItem(USER_STORAGE_KEY);
 }
 
+// Pages that already show (or lead straight to) a sign-in form with no
+// session to have expired -- an unauthenticated request firing from one of
+// these (a shared layout component polling something on mount regardless
+// of auth state, say) is not "your session just expired", it's "you were
+// never logged in yet, which this page already correctly reflects".
+// Routing that through /session-expired anyway produced a live, reported
+// bug: landing on /login, some background call 401s, clearSession() +
+// goToSessionExpired() fires, capturing window.location.pathname (= "/login"
+// itself) as the ?redirect= value, landing on
+// /session-expired?redirect=%2Flogin -- whose own "Return to sign in"
+// button then read that same value back out and navigated to
+// /login?redirect=%2Flogin, a URL with a self-referential redirect that
+// (while not an infinite loop -- nothing re-triggers it on its own)
+// visibly makes no sense and was reported live as exactly that URL.
+const NO_SESSION_TO_EXPIRE_PREFIXES = ["/session-expired", "/login", "/master-login"];
+
 function goToSessionExpired() {
   if (typeof window === "undefined") return;
-  if (!window.location.pathname.startsWith("/session-expired")) {
-    const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.replace(`/session-expired?redirect=${redirect}`);
-  }
+  if (NO_SESSION_TO_EXPIRE_PREFIXES.some((p) => window.location.pathname.startsWith(p))) return;
+  const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.replace(`/session-expired?redirect=${redirect}`);
 }
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -136,8 +182,20 @@ api.interceptors.response.use(
       | (InternalAxiosRequestConfig & { _retried?: boolean })
       | undefined;
     const isRefreshCall = config?.url?.includes("/auth/refresh");
+    // A failed login attempt (wrong credentials, account doesn't exist on
+    // this environment, etc.) also 401s -- without this exclusion it was
+    // being treated as an expired *existing* session (clearSession +
+    // redirect to /session-expired) instead of letting the login form's
+    // own catch block show "invalid email or password".
+    const isLoginCall = config?.url?.includes("/auth/login");
 
-    if (error.response?.status === 401 && config && !config._retried && !isRefreshCall) {
+    if (
+      error.response?.status === 401 &&
+      config &&
+      !config._retried &&
+      !isRefreshCall &&
+      !isLoginCall
+    ) {
       const newToken = await refreshAccessToken();
       if (newToken) {
         config._retried = true;
@@ -146,7 +204,8 @@ api.interceptors.response.use(
         return api.request(config);
       }
       // Demo mode: skip session expiry redirect for demo tokens
-      const currentToken = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+      const currentToken =
+        typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
       if (currentToken === "demo-access-token") {
         return Promise.reject(toAppError(error));
       }

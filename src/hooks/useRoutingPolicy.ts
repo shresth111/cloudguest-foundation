@@ -8,10 +8,10 @@ const K = {
 };
 
 export const useRoutingPolicies = () =>
-  useQuery({ queryKey: K.list, queryFn: routingPolicyService.list });
+  useQuery({ queryKey: K.list, queryFn: () => routingPolicyService.list() });
 
 export const useRoutingPolicyKpis = () =>
-  useQuery({ queryKey: K.kpis, queryFn: routingPolicyService.kpis });
+  useQuery({ queryKey: K.kpis, queryFn: () => routingPolicyService.kpis() });
 
 export function useSaveRoutingPolicy() {
   const qc = useQueryClient();

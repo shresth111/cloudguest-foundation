@@ -8,10 +8,10 @@ const K = {
 };
 
 export const useAuthnPolicies = () =>
-  useQuery({ queryKey: K.list, queryFn: authnPolicyService.list });
+  useQuery({ queryKey: K.list, queryFn: () => authnPolicyService.list() });
 
 export const useAuthnPolicyKpis = () =>
-  useQuery({ queryKey: K.kpis, queryFn: authnPolicyService.kpis });
+  useQuery({ queryKey: K.kpis, queryFn: () => authnPolicyService.kpis() });
 
 export function useSaveAuthnPolicy() {
   const qc = useQueryClient();

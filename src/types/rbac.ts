@@ -174,6 +174,11 @@ export interface UpdateRolePayload {
   description?: string | null;
   isTemplate?: boolean;
   parentRoleId?: string | null;
+  /** Full replacement of the role's permission-key set -- omit to leave
+   * permissions untouched, pass `[]` to clear every permission. Rides on
+   * `roles.update` (see rbac.service.ts's updateRole doc comment), not the
+   * separate attach/detach-one-permission endpoints' `roles.manage`. */
+  permissionKeys?: string[];
 }
 
 export interface CloneRolePayload {

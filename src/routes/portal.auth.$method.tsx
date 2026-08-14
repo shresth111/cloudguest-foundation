@@ -1,28 +1,79 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Wifi } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { portalRuntimeService } from "@/services/portal-runtime.service";
-import type { RuntimeAuthMethod } from "@/types/portal-runtime";
-import type { AppError } from "@/services/api";
+import { otherAuthMethods, AUTH_METHOD_FALLBACK_COPY } from "@/lib/portal-auth-methods";
+import {
+  MobileForm,
+  EmailForm,
+  WhatsAppForm,
+  PasswordForm,
+  VoucherForm,
+} from "@/components/portal-runtime/AuthMethodForms";
+import type {
+  RuntimeAuthMethod,
+  RuntimePortalConfig,
+  RuntimeSession,
+} from "@/types/portal-runtime";
 
 export const Route = createFileRoute("/portal/auth/$method")({
   component: AuthMethodPage,
 });
 
+const METHODS: RuntimeAuthMethod[] = [
+  "otp_sms",
+  "otp_email",
+  "otp_whatsapp",
+  "username_password",
+  "voucher",
+];
+
+function OtherMethodsLinks({
+  config,
+  current,
+}: {
+  config: RuntimePortalConfig | undefined;
+  current: RuntimeAuthMethod;
+}) {
+  const { setSelectedMethod } = usePortalRuntime();
+  const navigate = useNavigate({ from: "/portal/auth/$method" });
+  const others = config ? otherAuthMethods(config, current) : [];
+  if (others.length === 0) return null;
+  return (
+    <div className="space-y-1.5 pt-1">
+      {others.map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => {
+            setSelectedMethod(m);
+            navigate({ to: "/portal/auth/$method", params: { method: m }, search: (prev) => prev });
+          }}
+          className="block w-full text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
+        >
+          {AUTH_METHOD_FALLBACK_COPY[m]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AuthMethodPage() {
   const { method } = Route.useParams();
-  const { t, organizationId, locationId, setOtpTarget, setSelectedMethod } = usePortalRuntime();
+  const {
+    t,
+    organizationId,
+    locationId,
+    routerId,
+    config,
+    setOtpTarget,
+    setSelectedMethod,
+    setSession,
+  } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/auth/$method" });
-  const m = method === "otp_sms" || method === "otp_email" ? method : null;
+  const portalSearch = { organizationId, locationId, routerId };
+  const m = (METHODS as string[]).includes(method) ? (method as RuntimeAuthMethod) : null;
 
   const onSent = (target: string, authMethod: RuntimeAuthMethod) => {
     setOtpTarget(target);
@@ -30,25 +81,81 @@ function AuthMethodPage() {
     navigate({ to: "/portal/verify", search: (prev) => prev });
   };
 
+  const onPasswordLoggedIn = (session: RuntimeSession) => {
+    setSelectedMethod("username_password");
+    setSession(session);
+    toast.success("Signed in");
+    // A password login always belongs to a guest who already has one set
+    // (see GuestService.login_via_password's docstring) -- never offer the
+    // "set a password?" prompt again here. Always /portal/success: that
+    // brief transitional screen fires the real hotspot-login POST and
+    // lands the guest on /portal/session once it completes -- the legacy
+    // static-banner /portal/ad interstitial was removed (superseded by the
+    // real Campaigns feature, now shown on /portal/session).
+    navigate({
+      to: "/portal/success",
+      search: (prev) => prev,
+    });
+  };
+
+  // A voucher login redeems and connects in one step (no separate OTP-style
+  // verify page) -- same "already fully authenticated" destination as a
+  // password login, and for the identical reason (no code left to verify).
+  const onVoucherLoggedIn = (session: RuntimeSession) => {
+    setSelectedMethod("voucher");
+    setSession(session);
+    toast.success("Connected");
+    navigate({
+      to: "/portal/success",
+      search: (prev) => prev,
+    });
+  };
+
+  const titleKey =
+    m === "otp_email"
+      ? "emailOtp"
+      : m === "otp_whatsapp"
+        ? "whatsappOtp"
+        : m === "username_password"
+          ? "passwordLogin"
+          : m === "voucher"
+            ? "voucherCode"
+            : "mobileOtp";
+
   return (
-    <PortalShell>
+    <PortalShell variant="light" showHeader={false}>
       <div className="flex flex-1 flex-col gap-5">
         <Link
           to="/portal/auth"
           from="/portal/auth/$method"
           search={(prev) => prev}
-          className="inline-flex w-fit items-center gap-1.5 text-sm text-white/70 hover:text-white"
+          className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
         >
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
         </Link>
-        <div>
-          <h1 className="text-2xl font-semibold">
-            {m === "otp_email" ? t("emailOtp") : t("mobileOtp")}
+
+        <div className="flex flex-col items-center text-center">
+          {config?.logoUrl ? (
+            <img
+              src={config.logoUrl}
+              alt=""
+              className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
+            />
+          ) : (
+            <div
+              className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25 sm:h-16 sm:w-16 md:h-20 md:w-20"
+              style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+            >
+              <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
+            </div>
+          )}
+          <h1 className="font-display mt-4 text-[26px] font-bold tracking-tight leading-tight text-slate-900">
+            {t(titleKey)}
           </h1>
-          <p className="mt-1 text-sm text-white/60">Complete the form below to get online.</p>
+          <p className="mt-1.5 text-sm text-slate-500">Complete the form below to get online.</p>
         </div>
 
-        <PortalCard>
+        <PortalCard variant="light">
           {m === "otp_sms" && (
             <MobileForm
               organizationId={organizationId}
@@ -63,124 +170,33 @@ function AuthMethodPage() {
               onSent={(target) => onSent(target, "otp_email")}
             />
           )}
-          {!m && <p className="text-sm text-white/70">Unknown sign-in method.</p>}
+          {m === "otp_whatsapp" && (
+            <WhatsAppForm
+              organizationId={organizationId}
+              locationId={locationId}
+              onSent={(target) => onSent(target, "otp_whatsapp")}
+            />
+          )}
+          {m === "username_password" && (
+            <PasswordForm
+              organizationId={organizationId}
+              locationId={locationId}
+              routerId={routerId}
+              onLoggedIn={onPasswordLoggedIn}
+            />
+          )}
+          {m === "voucher" && (
+            <VoucherForm
+              organizationId={organizationId}
+              locationId={locationId}
+              routerId={routerId}
+              onLoggedIn={onVoucherLoggedIn}
+            />
+          )}
+          {!m && <p className="text-sm text-slate-500">Unknown sign-in method.</p>}
+          {m && <OtherMethodsLinks config={config} current={m} />}
         </PortalCard>
       </div>
     </PortalShell>
-  );
-}
-
-const mobileSchema = z.object({
-  countryCode: z.string().min(1, "Required"),
-  phone: z.string().min(6, "Enter a valid number"),
-});
-function MobileForm({
-  organizationId,
-  locationId,
-  onSent,
-}: {
-  organizationId: string;
-  locationId: string;
-  onSent: (target: string) => void;
-}) {
-  const { t } = usePortalRuntime();
-  const form = useForm<z.infer<typeof mobileSchema>>({
-    resolver: zodResolver(mobileSchema),
-    defaultValues: { countryCode: "+1", phone: "" },
-  });
-  const send = useMutation({
-    mutationFn: (v: z.infer<typeof mobileSchema>) =>
-      portalRuntimeService.requestOtp({
-        identifier: v.countryCode + v.phone,
-        channel: "sms",
-        organizationId,
-        locationId,
-      }),
-    onSuccess: (_r, v) => {
-      toast.success("Code sent");
-      onSent(v.countryCode + v.phone);
-    },
-    onError: (e: AppError) => toast.error(e.message),
-  });
-  return (
-    <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
-      <Label className="text-white/80">{t("mobileNumber")}</Label>
-      <div className="grid grid-cols-[90px_1fr] gap-2">
-        <Input
-          {...form.register("countryCode")}
-          className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-        />
-        <Input
-          {...form.register("phone")}
-          inputMode="tel"
-          placeholder="555 010 2200"
-          className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-        />
-      </div>
-      {form.formState.errors.phone && (
-        <p className="text-xs text-red-300">{form.formState.errors.phone.message}</p>
-      )}
-      <Button
-        type="submit"
-        disabled={send.isPending}
-        className="h-11 w-full font-semibold text-white shadow-lg"
-        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-      >
-        {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("sendOtp")}
-      </Button>
-    </form>
-  );
-}
-
-const emailSchema = z.object({ email: z.string().email("Enter a valid email") });
-function EmailForm({
-  organizationId,
-  locationId,
-  onSent,
-}: {
-  organizationId: string;
-  locationId: string;
-  onSent: (target: string) => void;
-}) {
-  const { t } = usePortalRuntime();
-  const form = useForm<z.infer<typeof emailSchema>>({
-    resolver: zodResolver(emailSchema),
-    defaultValues: { email: "" },
-  });
-  const send = useMutation({
-    mutationFn: (v: z.infer<typeof emailSchema>) =>
-      portalRuntimeService.requestOtp({
-        identifier: v.email,
-        channel: "email",
-        organizationId,
-        locationId,
-      }),
-    onSuccess: (_r, v) => {
-      toast.success("Code sent");
-      onSent(v.email);
-    },
-    onError: (e: AppError) => toast.error(e.message),
-  });
-  return (
-    <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
-      <Label className="text-white/80">{t("emailAddress")}</Label>
-      <Input
-        {...form.register("email")}
-        type="email"
-        placeholder="you@example.com"
-        className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-      />
-      {form.formState.errors.email && (
-        <p className="text-xs text-red-300">{form.formState.errors.email.message}</p>
-      )}
-      <Button
-        type="submit"
-        disabled={send.isPending}
-        className="h-11 w-full font-semibold text-white shadow-lg"
-        style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-      >
-        {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("sendOtp")}
-      </Button>
-    </form>
   );
 }

@@ -1,47 +1,34 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
-import { Button } from "@/components/ui/button";
+import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/welcome")({
   component: WelcomePage,
 });
 
+/**
+ * The guest's real landing screen (see src/routes/portal.index.tsx --
+ * `/portal/` auto-redirects here once config resolves). This is the
+ * redesigned guest sign-in card described by the guest-portal visual
+ * spec: centered white card, logo mark, "Welcome to [venue]" heading, a
+ * pill two-tab toggle, and each tab's real, already-working backend call
+ * -- all of the actual field/tab/OTP-inline logic lives in
+ * GuestSignInCard so it stays in one place regardless of which route
+ * renders it.
+ */
 function WelcomePage() {
-  const { config, t } = usePortalRuntime();
-  const navigate = useNavigate({ from: "/portal/welcome" });
+  const { isLoading } = usePortalRuntime();
 
   return (
-    <PortalShell>
-      <div className="flex flex-1 flex-col justify-center gap-6">
-        <div>
-          <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
-            {config?.splashHeadline ?? "Welcome"}
-          </h1>
-          <p className="mt-3 text-sm text-white/70 sm:text-base">{config?.splashWelcomeMessage}</p>
+    <PortalShell variant="light" showHeader={false}>
+      {isLoading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
         </div>
-
-        <div className="flex flex-col gap-2">
-          <Button
-            size="lg"
-            className="h-12 w-full text-base font-semibold text-white shadow-lg"
-            style={{ background: `linear-gradient(135deg, var(--pr-primary), var(--pr-accent))` }}
-            onClick={() => navigate({ to: "/portal/auth", search: (prev) => prev })}
-          >
-            {t("connect")} <ArrowRight className="ms-2 h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-11 w-full text-white/80 hover:bg-white/10 hover:text-white"
-            asChild
-          >
-            <Link to="/portal/terms" from="/portal/welcome" search={(prev) => prev}>
-              {t("learnMore")}
-            </Link>
-          </Button>
-        </div>
-      </div>
+      ) : (
+        <GuestSignInCard />
+      )}
     </PortalShell>
   );
 }

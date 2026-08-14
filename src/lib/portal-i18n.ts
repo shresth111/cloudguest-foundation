@@ -9,6 +9,9 @@ const EN: Dict = {
   chooseMethod: "Choose how to sign in",
   mobileOtp: "Mobile OTP",
   emailOtp: "Email OTP",
+  whatsappOtp: "WhatsApp OTP",
+  passwordLogin: "Password",
+  passwordLoginDesc: "Sign in with your saved password",
   voucher: "Voucher code",
   pms: "Room login",
   social: "Social login",
@@ -16,6 +19,8 @@ const EN: Dict = {
   clickThrough: "One-tap access",
   mobileNumber: "Mobile number",
   emailAddress: "Email address",
+  password: "Password",
+  signIn: "Sign in",
   sendOtp: "Send code",
   verifyOtp: "Verify",
   resend: "Resend code",
@@ -50,6 +55,13 @@ const EN: Dict = {
   highContrast: "High contrast",
   largeText: "Large text",
   wifi: "WiFi",
+  setPasswordTitle: "Skip the code next time?",
+  setPasswordSubtitle: "Save a password now and sign in with just your number next time.",
+  newPassword: "New password",
+  confirmPassword: "Confirm password",
+  savePassword: "Save password",
+  skipForNow: "Skip for now",
+  passwordSaved: "Password saved -- you can sign in with it next time.",
 };
 
 const HI: Dict = {

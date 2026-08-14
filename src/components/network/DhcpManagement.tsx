@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Share2, ShieldCheck, ShieldOff } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Plus, Search, Trash2, Pencil, Share2, ShieldCheck, ShieldOff, Server } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,6 +53,8 @@ import {
   useDeleteDhcpPool,
 } from "@/hooks/useDhcp";
 import { routerService } from "@/services/router.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import type { DhcpPool } from "@/types/dhcp";
 
@@ -62,7 +65,11 @@ const dhcpSchema = z.object({
   name: z.string().trim().min(2, "Required").max(48),
   addressRangeStart: z.string().trim().min(1, "Required"),
   addressRangeEnd: z.string().trim().min(1, "Required"),
-  interface: z.string().trim().optional().or(z.literal("")),
+  // Required, not optional -- see this component's own comment on the
+  // "Interface" field below for why a pool with no interface never
+  // actually starts a dhcp-server on the real device (silently creates a
+  // bare /ip pool that hands out nothing).
+  interface: z.string().trim().min(1, "Required — the DHCP server won't start on the router without it"),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   dnsPrimary: z.string().trim().optional().or(z.literal("")),
   dnsSecondary: z.string().trim().optional().or(z.literal("")),
@@ -71,7 +78,37 @@ const dhcpSchema = z.object({
 });
 type DhcpFormValues = z.infer<typeof dhcpSchema>;
 
-export function DhcpManagement() {
+function DhcpIllustration() {
+  const shouldReduceMotion = useReducedMotion();
+  return (
+    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
+      <rect x="6" y="16" width="24" height="20" rx="4" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+      <circle cx="18" cy="26" r="4.5" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.4" />
+      <path d="M18 23v3l2 2" stroke="#22d3ee" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <motion.path
+        d="M30 26h12"
+        stroke="#4f46e5" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 4"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+      <rect x="42" y="8" width="36" height="36" rx="6" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="1.6" />
+      {[0, 1, 2].map((i) => (
+        <motion.rect
+          key={i}
+          x={49} y={16 + i * 8} width={22 - i * 4} height="4" rx="2"
+          fill={["#a78bfa", "#22d3ee", "#f0abfc"][i]} fillOpacity="0.7"
+          initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: 1 }}
+          transition={{ duration: 0.45, delay: 0.12 * i, ease: "easeOut" }}
+          style={{ transformOrigin: `49px ${18 + i * 8}px` }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -79,20 +116,72 @@ export function DhcpManagement() {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DhcpPool | null>(null);
 
-  const { data, isLoading } = useDhcpPools({
-    page,
-    pageSize: PAGE_SIZE,
-    routerId: routerFilter === "all" ? undefined : routerFilter,
+  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
+  // `enabled` (i.e. affects the very first render's query state): isDemo()
+  // reads localStorage synchronously, so it resolves differently during
+  // the server render pass (no window -> false) than during the client's
+  // first hydration pass (real token -> true) -- react-query's isLoading
+  // for that instant differs right along with it (a real "Hydration
+  // failed" on this page's "Loading…"/"No pools match your filters" text,
+  // not just a flash). useIsDemo() instead starts at the same value on
+  // both sides and only flips post-mount, same fix as AlertsView/
+  // BusinessHoursView elsewhere in this session.
+  const demoFlag = useIsDemo();
+
+  // `list_pools`/etc. resolve their tenant scope from CurrentOrganization
+  // (X-Organization-Id) -- an ordinary org-owner session holds no
+  // GLOBAL-scope fallback, so the location-scoped (customer dashboard) case
+  // must resolve and thread its real org id. The master console's
+  // unscoped view deliberately leaves it unset (spans every org).
+  // Demo mode never needs a real org id (dhcpService.list()/DEMO_ROUTERS
+  // below both short-circuit on isDemo() before touching it) -- resolving
+  // it anyway meant the demo account's DHCP page always fired one real,
+  // 401ing `/me/organizations` request on load for a value nothing used.
+  const { data: scopedOrgId } = useQuery({
+    queryKey: ["dhcp", "org-id"],
+    queryFn: resolveOrgId,
+    enabled: !!locationId && !demoFlag,
   });
+
+  // The backend's `GET /dhcp-pools` only filters by `router_id`, not
+  // location -- so a location-scoped view (the customer dashboard's DHCP
+  // Pool page) fetches one full (up to max page_size) page and narrows +
+  // paginates it client-side below, same tradeoff `routerService.list`
+  // already makes for its own "all routers" case.
+  const { data, isLoading } = useDhcpPools(
+    {
+      page: locationId ? 1 : page,
+      pageSize: locationId ? 100 : PAGE_SIZE,
+      routerId: routerFilter === "all" ? undefined : routerFilter,
+      organizationId: locationId ? scopedOrgId : undefined,
+    },
+    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
+  );
   const del = useDeleteDhcpPool();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
-    queryKey: ["dhcp", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryKey: ["dhcp", "router-options", locationId],
+    queryFn: async () => {
+      // Location-scoped: use the location-scoped router endpoint directly
+      // (mirrors IspDetailsView/MacAuthView) -- `routerService.list()`'s
+      // "all routers" path fans out through the platform-wide
+      // `GET /organizations`, which an ordinary org-owner session 403s on.
+      if (locationId) {
+        // Demo mode: routerService.listForLocation() already ignores this
+        // arg (returns DEMO_ROUTERS), so skip resolving a real org id for
+        // it -- resolveOrgId() itself has no demo guard and would still
+        // fire a real (401ing) request even though its result goes unused.
+        const orgId = isDemo() ? "" : await resolveOrgId();
+        const rows = await routerService.listForLocation(locationId, orgId);
+        return { rows, total: rows.length };
+      }
+      return routerService.list({ page: 1, pageSize: 100 });
+    },
   });
 
   const routerName = (id: string) => routers.rows.find((r) => r.id === id)?.name ?? id.slice(0, 8);
 
-  const rows = (data?.rows ?? []).filter((p) => {
+  const filteredRows = (data?.rows ?? []).filter((p) => {
+    if (locationId && p.locationId !== locationId) return false;
     if (!search.trim()) return true;
     const t = search.trim().toLowerCase();
     return (
@@ -102,14 +191,29 @@ export function DhcpManagement() {
       routerName(p.routerId).toLowerCase().includes(t)
     );
   });
+
+  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
+  const total = locationId ? filteredRows.length : data?.total ?? 0;
+  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const hasNext = locationId ? page < totalPages : !!data?.hasNext;
+  const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   const enabledCount = rows.filter((p) => p.isEnabled).length;
 
   return (
     <div className="space-y-6">
+      {/* Shared with the master console's own /network/dhcp route (rendered
+       * with no locationId there) -- that audience keeps the precise
+       * technical title/description; only the customer portal (which
+       * always passes a real locationId, via OperationsFeatures.tsx's
+       * DhcpView) gets the friendlier name. Same id/route/data either way. */}
       <SectionHeader
+        icon={Server}
         eyebrow="Network"
-        title="DHCP Pool Management"
-        description="Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."
+        title={locationId ? "IP Addresses" : "DHCP Pool Management"}
+        description={locationId
+          ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
+          : "Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."}
+        illustration={<DhcpIllustration />}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Pool
@@ -118,12 +222,12 @@ export function DhcpManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Pools" value={data?.total ?? 0} icon={Share2} tone="primary" />
+        <StatCard label="Total Pools" value={total} icon={Share2} tone="primary" />
         <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
         <StatCard label="Disabled" value={rows.length - enabledCount} icon={ShieldOff} tone="warning" />
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base font-semibold">All DHCP Pools</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -226,16 +330,16 @@ export function DhcpManagement() {
               ))}
             </TableBody>
           </Table>
-          {data && data.totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
               <span>
-                Page {page} of {data.totalPages} · {data.total} pools
+                Page {page} of {totalPages} · {total} pools
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button size="sm" variant="outline" disabled={!hasPrevious} onClick={() => setPage((p) => p - 1)}>
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button size="sm" variant="outline" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>
                   Next
                 </Button>
               </div>
@@ -248,6 +352,7 @@ export function DhcpManagement() {
         open={creating || !!editing}
         pool={editing}
         routers={routers.rows}
+        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -269,7 +374,10 @@ export function DhcpManagement() {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync(confirmDelete.id);
+                  await del.mutateAsync({
+                    id: confirmDelete.id,
+                    organizationId: locationId ? scopedOrgId : undefined,
+                  });
                   toast.success(`Pool ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete pool");
@@ -290,11 +398,13 @@ function DhcpDialog({
   open,
   pool,
   routers,
+  organizationId,
   onClose,
 }: {
   open: boolean;
   pool: DhcpPool | null;
   routers: { id: string; name: string }[];
+  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateDhcpPool();
@@ -331,6 +441,22 @@ function DhcpDialog({
     defaultValues: defaults,
     values: defaults,
   });
+  const selectedRouterId = form.watch("routerId");
+  const [manualInterface, setManualInterface] = useState(false);
+
+  // Real interfaces read live off the device, not guessed -- excludes
+  // whatever's already bound to a dhcp-server/dhcp-client on the router
+  // itself (backend-filtered, see routerService.getDeviceInterfaces).
+  const {
+    data: deviceInterfaces,
+    isLoading: interfacesLoading,
+    isError: interfacesErrored,
+  } = useQuery({
+    queryKey: ["dhcp", "device-interfaces", selectedRouterId, organizationId],
+    queryFn: () => routerService.getDeviceInterfaces(selectedRouterId, organizationId),
+    enabled: !!selectedRouterId,
+    staleTime: 15_000,
+  });
 
   async function submit(v: DhcpFormValues) {
     try {
@@ -346,10 +472,10 @@ function DhcpDialog({
         isEnabled: v.isEnabled,
       };
       if (pool) {
-        await update.mutateAsync({ id: pool.id, payload: shared });
+        await update.mutateAsync({ id: pool.id, payload: shared, organizationId });
         toast.success("DHCP pool updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...shared });
+        await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
         toast.success("DHCP pool created");
       }
       onClose();
@@ -424,8 +550,72 @@ function DhcpDialog({
             <Input {...form.register("gatewayIpAddress")} placeholder="10.0.0.1" className="font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Interface (optional)</Label>
-            <Input {...form.register("interface")} placeholder="ether1" />
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium">Interface</Label>
+              {!manualInterface && (
+                <button
+                  type="button"
+                  className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={() => setManualInterface(true)}
+                >
+                  Type manually
+                </button>
+              )}
+            </div>
+            {manualInterface ? (
+              <Input {...form.register("interface")} placeholder="bridgeLocal, ether3, vlan3…" />
+            ) : (
+              <Controller
+                control={form.control}
+                name="interface"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={!selectedRouterId || interfacesLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          !selectedRouterId
+                            ? "Select a router first"
+                            : interfacesLoading
+                              ? "Checking router…"
+                              : "Select interface"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(deviceInterfaces ?? []).map((i) => (
+                        <SelectItem key={i.name} value={i.name}>
+                          {i.name}
+                          {i.bridge ? ` (in ${i.bridge})` : ""}
+                          {i.running ? " · link up" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            )}
+            {form.formState.errors.interface ? (
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.interface.message}
+              </p>
+            ) : interfacesErrored ? (
+              <p className="text-[11px] text-destructive">
+                Couldn't reach the router to list its interfaces — type the name manually.
+              </p>
+            ) : selectedRouterId && !interfacesLoading && deviceInterfaces?.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                No available interfaces on this router (everything's already in use, or it's
+                offline) — type one manually if you're sure.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Read live off the router — already-in-use interfaces are left out.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">DNS primary (optional)</Label>

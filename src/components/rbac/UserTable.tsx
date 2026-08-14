@@ -11,6 +11,7 @@ import {
   Ban,
   CheckCircle2,
   UserCog,
+  LogOut,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/common/ErrorState";
-import { useActivateUser, useDeactivateUser, useRbacUsers } from "@/hooks/useRbac";
+import { useActivateUser, useDeactivateUser, useForceLogoutUser, useRbacUsers } from "@/hooks/useRbac";
 import { authService } from "@/services/auth.service";
 import type { AppError } from "@/services/api";
 import type { RbacUser } from "@/types/rbac";
@@ -87,6 +88,7 @@ export function UserTable({ onEdit, onCreate }: Props) {
   });
   const activate = useActivateUser();
   const deactivate = useDeactivateUser();
+  const forceLogout = useForceLogoutUser();
 
   const users = data?.items ?? [];
 
@@ -221,6 +223,18 @@ export function UserTable({ onEdit, onCreate }: Props) {
                           <DropdownMenuItem onSelect={() => resetPassword(u)}>
                             <KeyRound className="me-2 h-4 w-4" /> Send password reset
                           </DropdownMenuItem>
+                          {u.isActive && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                forceLogout.mutate(u.id, {
+                                  onSuccess: () => toast.success(`${u.fullName} logged out everywhere`),
+                                  onError: (e) => toast.error((e as unknown as AppError).message),
+                                })
+                              }
+                            >
+                              <LogOut className="me-2 h-4 w-4" /> Force logout
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           {u.isActive ? (
                             <DropdownMenuItem

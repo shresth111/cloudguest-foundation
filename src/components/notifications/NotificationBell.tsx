@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Bell, Check, Archive, ExternalLink, AlertOctagon, Router, User, CreditCard, Wrench, Palette, Wifi, Shield } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { Activity, AlertTriangle, Bell, Check, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,39 +12,49 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
+import { useAcknowledgeAlert, useAlertsFeed, type AlertsFeedScope } from "@/hooks/useAlerts";
+import type { Alert as AlertNotification, AlertSeverity } from "@/types/monitoring";
 
-interface Notification {
-  id: string;
-  icon: typeof Bell;
-  title: string;
-  description: string;
-  time: string;
-  status: "unread" | "read";
-  category: string;
+function timeAgo(iso: string): string {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
-const NOTIFICATIONS: Notification[] = [
-  { id: "n1", icon: Router, title: "Router OFFLINE", description: "Router GW-02 at Mumbai HQ went offline", time: "2 min ago", status: "unread", category: "system" },
-  { id: "n2", icon: User, title: "Guest Connected", description: "John Doe connected at Delhi Office", time: "5 min ago", status: "unread", category: "provisioning" },
-  { id: "n3", icon: Shield, title: "Security Alert", description: "Multiple failed login attempts detected", time: "12 min ago", status: "unread", category: "security" },
-  { id: "n4", icon: CreditCard, title: "Invoice Generated", description: "Invoice #INV-2024-0421 is ready", time: "1 hr ago", status: "unread", category: "billing" },
-  { id: "n5", icon: AlertOctagon, title: "SLA Warning", description: "Uptime below 99.9% at Bangalore DC", time: "2 hr ago", status: "read", category: "alerts" },
-  { id: "n6", icon: Palette, title: "Portal Published", description: "Guest portal for Chennai Office is live", time: "3 hr ago", status: "read", category: "system" },
-  { id: "n7", icon: Wrench, title: "Maintenance Window", description: "Scheduled maintenance in 24 hours", time: "5 hr ago", status: "read", category: "system" },
-  { id: "n8", icon: Wifi, title: "Voucher Generated", description: "500 vouchers generated for Hyderabad", time: "6 hr ago", status: "read", category: "provisioning" },
-];
+function severityIcon(severity: AlertSeverity) {
+  if (severity === "critical") return <XCircle className="h-4 w-4 text-rose-500" />;
+  if (severity === "warning") return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+  return <Activity className="h-4 w-4 text-sky-500" />;
+}
 
-const CATEGORY_TABS = ["all", "system", "provisioning", "security", "billing", "alerts"] as const;
-type Tab = (typeof CATEGORY_TABS)[number];
+export interface NotificationBellProps {
+  /** "org" -- current signed-in customer's own organization only.
+   *  "platform" -- every organization, Super Admin / master console only. */
+  scope: AlertsFeedScope;
+  /** Destination for the "View all alerts" footer link. Omit when there's
+   * nowhere real to send the click (e.g. no locationId yet, or no
+   * dedicated platform-wide alerts page exists). */
+  viewAllPath?: string;
+}
 
-export function NotificationBell() {
+export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>("all");
   const navigate = useNavigate();
-  const unreadCount = NOTIFICATIONS.filter((n) => n.status === "unread").length;
+  const { data: alerts = [], isLoading } = useAlertsFeed(scope);
+  const acknowledge = useAcknowledgeAlert(scope);
 
-  const filtered = tab === "all" ? NOTIFICATIONS : NOTIFICATIONS.filter((n) => n.category === tab);
+  const unread = useMemo(
+    () => alerts.filter((a: AlertNotification) => a.status === "triggered"),
+    [alerts],
+  );
+  const unreadCount = unread.length;
+
+  const markAllRead = () => {
+    for (const a of unread) acknowledge.mutate(a.id);
+  };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -58,71 +68,76 @@ export function NotificationBell() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[400px]">
+      <DropdownMenuContent align="end" className="w-[380px]">
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Notifications</span>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
-            <Check className="mr-1 h-3 w-3" /> Mark all read
-          </Button>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={acknowledge.isPending}
+              onClick={markAllRead}
+            >
+              <Check className="mr-1 h-3 w-3" /> Mark all read
+            </Button>
+          )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <div className="flex gap-1 border-b border-border px-2 pb-2">
-          {CATEGORY_TABS.map((c) => (
-            <button
-              key={c}
-              onClick={() => setTab(c)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors",
-                tab === c ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <DropdownMenuGroup className="max-h-[320px] overflow-y-auto">
-          {filtered.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">No notifications</div>
+        <DropdownMenuGroup className="max-h-[360px] overflow-y-auto">
+          {isLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : alerts.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No new notifications</div>
           ) : (
-            filtered.map((n) => {
-              const Icon = n.icon;
-              return (
-                <DropdownMenuItem
-                  key={n.id}
-                  className={cn("flex items-start gap-3 px-4 py-3", n.status === "unread" && "bg-muted/50")}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
-                    <Icon className="h-4 w-4" />
+            alerts.slice(0, 8).map((a: AlertNotification) => (
+              <DropdownMenuItem
+                key={a.id}
+                className={cn("flex items-start gap-3 px-4 py-3", a.status === "triggered" && "bg-muted/50")}
+                onSelect={(e) => e.preventDefault()}
+              >
+                <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
+                  {severityIcon(a.severity)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium">{a.message}</p>
+                    {a.status === "triggered" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium">{n.title}</p>
-                      {n.status === "unread" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground">{n.description}</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">{n.time}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <Check className="h-3 w-3" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <Archive className="h-3 w-3" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setOpen(false); navigate({ to: "/notifications" }); }}>
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </DropdownMenuItem>
-              );
-            })
+                  <p className="text-xs capitalize text-muted-foreground">
+                    {timeAgo(a.triggeredAt)} · {a.status}
+                  </p>
+                </div>
+                {a.status === "triggered" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    aria-label="Acknowledge"
+                    disabled={acknowledge.isPending}
+                    onClick={() => acknowledge.mutate(a.id)}
+                  >
+                    <Check className="h-3 w-3" />
+                  </Button>
+                )}
+              </DropdownMenuItem>
+            ))
           )}
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="justify-center text-sm font-medium text-primary" onSelect={() => { setOpen(false); navigate({ to: "/notifications" }); }}>
-          View all notifications
-        </DropdownMenuItem>
+        {viewAllPath && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="justify-center text-sm font-medium text-primary"
+              onSelect={() => {
+                setOpen(false);
+                navigate({ to: viewAllPath });
+              }}
+            >
+              View all alerts
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -1,27 +1,76 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { portalRuntimeService } from "@/services/portal-runtime.service";
 
 export const Route = createFileRoute("/portal/")({
   component: PortalLoading,
 });
 
 function PortalLoading() {
-  const { isLoading, config, error, t } = usePortalRuntime();
+  const { isLoading, config, error, t, routerId, deviceMac, session, setSession } =
+    usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
 
+  // A device that already has a locally-persisted session (rehydrated
+  // from sessionStorage -- see PortalRuntimeContext) never needs a live
+  // check; a device with none but a real `deviceMac` (RouterOS's own
+  // trustworthy `$(mac)`) might still have a live RADIUS-authorized
+  // session the browser just doesn't know about yet -- a fresh tab, a
+  // re-scanned QR code, a re-opened captive-portal redirect. Only that
+  // second case hits the backend.
+  const { data: liveSession, isFetched: liveSessionChecked } = useQuery({
+    queryKey: ["portal-active-session", routerId, deviceMac],
+    queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
+    enabled: !session && !!deviceMac,
+    staleTime: 0,
+  });
+
   useEffect(() => {
-    if (!isLoading && config) {
-      const to = setTimeout(
-        () => navigate({ to: "/portal/welcome", replace: true, search: (prev) => prev }),
-        900,
-      );
-      return () => clearTimeout(to);
-    }
-  }, [isLoading, config, navigate]);
+    if (liveSession) setSession(liveSession);
+  }, [liveSession, setSession]);
+
+  // There used to be a client-side "MAC-whitelist bypass" attempt here,
+  // triggered by an optional `mac` search param and POSTed straight to the
+  // backend's (now-removed) `/guest/login/mac`. That was a real
+  // authentication bypass -- see src/routes/portal.tsx's search-schema
+  // docstring for the full write-up. A pre-whitelisted device is now
+  // granted access transparently at the network layer (RADIUS Authorize,
+  // bound to the NAS's own asserted Calling-Station-Id) before it ever
+  // reaches this captive portal.
+  //
+  // What IS still this screen's job: a device that already has an active
+  // session -- found locally or via the live check above -- goes straight
+  // to /portal/session ("you're connected"), never back through sign-in.
+  // An existing session always wins over business hours -- someone
+  // already connected mid-visit shouldn't suddenly get bounced to
+  // "closed" just because the clock crossed the schedule boundary; the
+  // closed screen only gates a *new* sign-in.
+  // Navigates the instant the real decision is known -- no artificial
+  // minimum wait. The founder wanted the login page to appear
+  // immediately on connect; the old `setTimeout(..., 900)` here fired
+  // *after* `target` was already fully resolved, so it was pure
+  // decorative pacing bolted onto an already-finished decision, not real
+  // async work. The two guard clauses above are the genuine async
+  // gating (captive-portal config still loading, or a live-session check
+  // still in flight) -- both must still resolve before this can navigate
+  // anywhere, since navigating early risks sending an already-connected
+  // guest back through sign-in.
+  useEffect(() => {
+    if (isLoading || !config) return;
+    if (!session && deviceMac && !liveSessionChecked) return;
+    const hasSession = !!(session || liveSession);
+    const target = hasSession
+      ? "/portal/session"
+      : config.isOpenNow === false
+        ? "/portal/closed"
+        : "/portal/welcome";
+    navigate({ to: target, replace: true, search: (prev) => prev });
+  }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, navigate]);
 
   if (!isLoading && error) {
     return (
@@ -40,27 +89,30 @@ function PortalLoading() {
   return (
     <PortalShell showHeader={false}>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-        <motion.div
-          initial={{ scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl"
-          style={{
-            background: `linear-gradient(135deg, var(--pr-primary,#0EA5E9), var(--pr-accent,#6366F1))`,
-          }}
-        >
-          {config?.logoUrl ? (
-            <img
-              src={config.logoUrl}
-              alt={config.name}
-              className="h-10 w-10 rounded-lg object-contain"
-            />
-          ) : (
-            <Wifi className="h-8 w-8" />
-          )}
-        </motion.div>
+        {config?.logoUrl ? (
+          <motion.img
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            src={config.logoUrl}
+            alt={config.name}
+            className="h-24 w-24 object-contain drop-shadow-lg sm:h-32 sm:w-32 md:h-36 md:w-36"
+          />
+        ) : (
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl sm:h-28 sm:w-28 md:h-32 md:w-32"
+            style={{
+              background: `linear-gradient(135deg, var(--pr-primary,#0EA5E9), var(--pr-accent,#6366F1))`,
+            }}
+          >
+            <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
+          </motion.div>
+        )}
         <div>
-          <p className="text-lg font-semibold">{config?.name ?? "CloudGuest"}</p>
+          <p className="text-lg font-semibold">{config?.name ?? "Wyfy Guest"}</p>
           <p className="mt-1 text-sm text-white/60">{t("loading")}</p>
         </div>
         <div className="flex gap-1.5">

@@ -1,9 +1,11 @@
 import { api } from "@/services/api";
+import { isDemo } from "@/services/customer.service";
 import type {
   BillingSnapshot,
   Coupon,
   CouponStatus,
   Invoice,
+  MyBillingSummary,
   Payment,
   PaymentStatus,
   Plan,
@@ -11,6 +13,8 @@ import type {
   ScheduledBillingReport,
   Subscription,
   SubscriptionStatus,
+  TaxRate,
+  TaxType,
   UsageRow,
 } from "@/types/billing";
 import type {
@@ -18,6 +22,129 @@ import type {
   PaymentGateway,
   ReportFrequency,
 } from "@/types/billing";
+
+// The Master Console's demo sign-in (master-login.tsx's "admin@example.com
+// / test") issues a local-only token the real backend never accepts --
+// every real call this whole Super Admin billing surface makes (dashboard,
+// plans, coupons, subscriptions, payments, invoices, usage) 401ed with no
+// fallback, and because getSnapshot() composes them all via Promise.all,
+// a single 401 failed the *entire* snapshot -- the Plan catalog (and every
+// other tab) stayed empty/stuck loading, and the New Subscription dialog's
+// own Organization/Plan/Coupon pickers (fed from this same snapshot) had
+// nothing to select either. Same demo-session gap already fixed in
+// location.service.ts/organization.service.ts for the rest of the Master
+// Console, applied here for its billing surface.
+const DEMO_BILLING_ORGS: { id: string; name: string }[] = [
+  { id: "org-001", name: "Acme Corp" },
+  { id: "org-002", name: "Blue Cedar Cafes" },
+];
+
+const DEMO_PLANS: Plan[] = [
+  {
+    id: "plan-demo-starter", name: "Starter", tier: "starter", currency: "INR",
+    monthlyPrice: 999, annualPrice: 11988, includedLocations: 1, includedRouters: 2,
+    includedGuests: 500, storageLimitGb: 10, apiAccess: false, whiteLabel: false,
+    pmsIntegration: false, aiFeatures: false, supportLevel: "basic",
+  },
+  {
+    id: "plan-demo-growth", name: "Growth", tier: "professional", currency: "INR",
+    monthlyPrice: 2999, annualPrice: 35988, includedLocations: 5, includedRouters: 10,
+    includedGuests: 2500, storageLimitGb: 50, apiAccess: true, whiteLabel: false,
+    pmsIntegration: true, aiFeatures: false, supportLevel: "priority", popular: true,
+  },
+  {
+    id: "plan-demo-enterprise", name: "Enterprise", tier: "enterprise", currency: "INR",
+    monthlyPrice: 9999, annualPrice: 119988, includedLocations: 50, includedRouters: 200,
+    includedGuests: 25000, storageLimitGb: 500, apiAccess: true, whiteLabel: true,
+    pmsIntegration: true, aiFeatures: true, supportLevel: "dedicated",
+  },
+];
+
+const DEMO_COUPONS: Coupon[] = [
+  { id: "coupon-demo-1", code: "WELCOME10", discountType: "percentage", discountValue: 10, expiryDate: new Date(Date.now() + 60 * 86400000).toISOString(), maxUsage: 100, used: 12, status: "active" },
+  { id: "coupon-demo-2", code: "LAUNCH500", discountType: "fixed", discountValue: 500, expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(), maxUsage: 50, used: 50, status: "active" },
+];
+
+const DEMO_SUBSCRIPTIONS: Subscription[] = [
+  { id: "sub-demo-1", organizationId: "org-001", organizationName: "Acme Corp", planId: "plan-demo-growth", planName: "Growth", tier: "professional", billingCycle: "monthly", startDate: new Date(Date.now() - 90 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 20 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 20 * 86400000).toISOString(), status: "active", amount: 2999, autoRenewal: true, paymentStatus: "paid", locations: 5, routers: 10, maxGuests: 2500 },
+  { id: "sub-demo-2", organizationId: "org-002", organizationName: "Blue Cedar Cafes", planId: "plan-demo-starter", planName: "Starter", tier: "starter", billingCycle: "monthly", startDate: new Date(Date.now() - 30 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 5 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 5 * 86400000).toISOString(), status: "active", amount: 999, autoRenewal: true, paymentStatus: "paid", locations: 1, routers: 2, maxGuests: 500 },
+];
+
+const DEMO_PAYMENTS: Payment[] = [
+  { id: "pay-demo-1", invoiceNumber: "INV-DEMO-0001", organizationId: "org-001", organizationName: "Acme Corp", amount: 2999, tax: 540, discount: 0, gateway: "razorpay", transactionId: "txn_demo_1", status: "paid", paidAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+  { id: "pay-demo-2", invoiceNumber: "INV-DEMO-0002", organizationId: "org-002", organizationName: "Blue Cedar Cafes", amount: 999, tax: 180, discount: 100, gateway: "razorpay", transactionId: "txn_demo_2", status: "paid", paidAt: new Date(Date.now() - 25 * 86400000).toISOString() },
+];
+
+const DEMO_INVOICES: Invoice[] = [
+  { id: "inv-demo-1", invoiceNumber: "INV-DEMO-0001", organizationName: "Acme Corp", type: "tax_invoice", amount: 2999, tax: 540, total: 3539, issuedAt: new Date(Date.now() - 5 * 86400000).toISOString(), dueAt: new Date(Date.now() + 25 * 86400000).toISOString(), status: "paid" },
+  { id: "inv-demo-2", invoiceNumber: "INV-DEMO-0002", organizationName: "Blue Cedar Cafes", type: "tax_invoice", amount: 999, tax: 180, total: 1079, issuedAt: new Date(Date.now() - 25 * 86400000).toISOString(), dueAt: new Date(Date.now() + 5 * 86400000).toISOString(), status: "paid" },
+];
+
+const DEMO_USAGE: UsageRow[] = [
+  { organizationId: "org-001", organizationName: "Acme Corp", locationsUsed: 3, locationsLimit: 5, routersUsed: 6, routersLimit: 10, guestSessions: 1840, smsOtp: 620, emailOtp: 410, storageUsedGb: 12, storageLimitGb: 50, apiCalls: 8400 },
+  { organizationId: "org-002", organizationName: "Blue Cedar Cafes", locationsUsed: 1, locationsLimit: 1, routersUsed: 2, routersLimit: 2, guestSessions: 340, smsOtp: 90, emailOtp: 60, storageUsedGb: 2, storageLimitGb: 10, apiCalls: 0 },
+];
+
+/**
+ * Builds the demo BillingSnapshot fresh from `DEMO_PLANS`/`DEMO_COUPONS`/
+ * `DEMO_SUBSCRIPTIONS` on every call, not a frozen object -- this used to
+ * be a single `const` snapshot, so "New plan"/"New subscription"/coupon
+ * writes each returned a fake success (toast + closed dialog) but the very
+ * next fetch (this same demo path) handed back the *original* unchanged
+ * object. From the operator's side that reads as "the button doesn't
+ * work" -- confirmed live: subscription count stayed "2 of 2" after
+ * successfully "creating" a third one. `savePlan`/`deletePlan`/
+ * `saveCoupon`/`deleteCoupon`/`createSubscription`'s demo branches below
+ * now mutate these arrays in place, so this reflects it on the next read,
+ * same as the real backend would (just in-memory for the session instead
+ * of persisted, which is the honest, expected boundary of a demo account).
+ */
+function buildDemoSnapshot(): BillingSnapshot {
+  const active = DEMO_SUBSCRIPTIONS.filter((s) => s.status === "active");
+  const mrr = active.reduce((sum, s) => sum + (s.billingCycle === "annual" ? s.amount / 12 : s.amount), 0);
+  const paidPayments = DEMO_PAYMENTS.filter((p) => p.status === "paid");
+  return {
+    kpis: {
+      mrr: Math.round(mrr),
+      arr: Math.round(mrr * 12),
+      activeSubscriptions: active.length,
+      trialOrganizations: DEMO_SUBSCRIPTIONS.filter((s) => s.status === "trial").length,
+      expiringPlans: DEMO_SUBSCRIPTIONS.filter((s) => {
+        const t = new Date(s.renewalDate).getTime() - Date.now();
+        return t > 0 && t < 14 * 86400000;
+      }).length,
+      overduePayments: DEMO_SUBSCRIPTIONS.filter((s) => s.status === "past_due").length,
+      totalRevenue: Math.round(DEMO_PAYMENTS.reduce((sum, p) => sum + p.amount, 0)),
+      collectionRate: DEMO_PAYMENTS.length ? Math.round((paidPayments.length / DEMO_PAYMENTS.length) * 100) : 100,
+      arpo: active.length ? Math.round(mrr / active.length) : 0,
+    },
+    subscriptions: DEMO_SUBSCRIPTIONS,
+    payments: DEMO_PAYMENTS,
+    invoices: DEMO_INVOICES,
+    coupons: DEMO_COUPONS,
+    usage: DEMO_USAGE,
+    gateways: [
+      { id: "razorpay", name: "Razorpay", connected: true, lastTransactionAt: new Date(Date.now() - 5 * 86400000).toISOString(), mode: "test" },
+      { id: "stripe", name: "Stripe", connected: false, mode: "test" },
+    ],
+    revenue: {
+      trend: Array.from({ length: 6 }, (_, i) => ({ label: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString("en-US", { month: "short" }), revenue: 90000 + i * 8000, growth: i === 0 ? 0 : 8 })),
+      planDistribution: DEMO_PLANS.map((p) => ({
+        tier: p.tier,
+        count: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).length,
+        revenue: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).reduce((sum, s) => sum + s.amount, 0),
+      })).filter((d) => d.count > 0),
+      subscriptionDistribution: (["active", "trial", "past_due", "canceled"] as const).map((status) => ({
+        status,
+        count: DEMO_SUBSCRIPTIONS.filter((s) => s.status === status).length,
+      })),
+      paymentSuccessRate: [{ label: "This month", success: paidPayments.length, failed: DEMO_PAYMENTS.length - paidPayments.length }],
+      churnRate: [{ label: "Current", value: 0 }],
+    },
+    reminders: [],
+    plans: DEMO_PLANS,
+  };
+}
 
 interface BackendListResponse<T> {
   items: T[];
@@ -32,6 +159,14 @@ interface BackendListResponse<T> {
 interface BackendOrg {
   id: string;
   name: string;
+  /** Null until a subscription has actually been created for this org (see
+   * backend billing/service.py's _sync_subscription_tier, only ever called
+   * from create_subscription/upgrade_subscription) -- a reliable, already-
+   * fetched signal for "does this org already have a subscription" with no
+   * extra request, used by listOrganizations() below to keep the New
+   * Subscription dialog's org picker from offering orgs that are guaranteed
+   * to 409 with "already has a subscription" on submit. */
+  subscription_tier?: string | null;
 }
 
 interface BackendPlanFeature {
@@ -58,6 +193,30 @@ interface BackendPlan {
   features: BackendPlanFeature[];
   created_at: string;
   updated_at: string;
+}
+
+interface BackendTaxRate {
+  id: string;
+  name: string;
+  tax_type: string;
+  rate_percentage: string | number;
+  country_code: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function toTaxRate(t: BackendTaxRate): TaxRate {
+  return {
+    id: t.id,
+    name: t.name,
+    taxType: (t.tax_type as TaxType) ?? "gst",
+    ratePercentage: n(t.rate_percentage),
+    countryCode: t.country_code,
+    isActive: t.is_active,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+  };
 }
 
 interface BackendSubscription {
@@ -226,8 +385,20 @@ function planTier(planType: string): PlanTier {
   return (PLAN_TIERS.has(planType) ? planType : "custom") as PlanTier;
 }
 
+// -1 is this app's "Unlimited" sentinel for Plan.includedLocations/
+// includedRouters/includedGuests/storageLimitGb -- the real backend
+// represents the identical concept as a null PlanFeatureCreateRequest.
+// limit_value (see that field's own docstring). Kept as dedicated
+// helpers, not folded into the generic n() above, since n() is used
+// everywhere else (prices, amounts, usage stats) where a missing value
+// genuinely means 0, not "no limit."
 function featureLimit(features: BackendPlanFeature[], key: string): number {
-  return n(features.find((f) => f.feature_key === key)?.limit_value);
+  const raw = features.find((f) => f.feature_key === key)?.limit_value;
+  if (raw === null || raw === undefined) return -1;
+  return Number(raw) || 0;
+}
+function toBackendLimit(v: number): number | null {
+  return v === -1 ? null : v;
 }
 
 function featureBool(features: BackendPlanFeature[], key: string): boolean {
@@ -236,10 +407,10 @@ function featureBool(features: BackendPlanFeature[], key: string): boolean {
 
 function supportLevelFrom(features: BackendPlanFeature[]): Plan["supportLevel"] {
   const tier = features.find((f) => f.feature_key === "support_level")?.tier_value;
-  if (tier === "basic") return "email";
+  if (tier === "basic") return "basic";
   if (tier === "priority") return "priority";
   if (tier === "dedicated") return "dedicated";
-  return "email";
+  return "basic";
 }
 
 function toPlan(p: BackendPlan): Plan {
@@ -249,12 +420,13 @@ function toPlan(p: BackendPlan): Plan {
     id: p.id,
     name: p.name,
     tier: planTier(p.plan_type),
+    currency: p.currency,
     monthlyPrice: monthly,
     annualPrice: annual,
     includedLocations: featureLimit(p.features, "max_locations"),
     includedRouters: featureLimit(p.features, "max_routers"),
     includedGuests: featureLimit(p.features, "max_guests"),
-    storageLimitGb: Math.round(featureLimit(p.features, "storage_quota_mb") / 1024),
+    storageLimitGb: (() => { const mb = featureLimit(p.features, "storage_quota_mb"); return mb === -1 ? -1 : Math.round(mb / 1024); })(),
     apiAccess: featureBool(p.features, "api_access"),
     whiteLabel: featureBool(p.features, "white_label"),
     pmsIntegration: featureBool(p.features, "pms_integration"),
@@ -297,6 +469,17 @@ function toSubscription(
   org: BackendOrg,
   plan: BackendPlan | undefined,
   coupon: BackendCoupon | undefined,
+  // Whether this organization has at least one real, captured Payment (or
+  // paid Invoice) on record. Previously this was never passed and every
+  // non-past_due/non-trial subscription was unconditionally labeled "paid"
+  // regardless of whether any money had actually been collected -- on this
+  // platform's real data (0 rows in `payments`, 0 in `invoices`) that meant
+  // every active subscription showed "Paid" while Billing's own Total
+  // Revenue/Collection Rate KPIs (genuinely, correctly derived from those
+  // same empty tables) showed 0 -- a fabricated-looking contradiction, not
+  // a real one. Defaults to `false` (honest "no evidence yet") rather than
+  // asserting a payment that was never observed.
+  hasConfirmedPayment = false,
 ): Subscription {
   const status = SUBSCRIPTION_STATUS_MAP[s.status] ?? "active";
   return {
@@ -313,7 +496,8 @@ function toSubscription(
     status,
     amount: plan ? n(plan.base_price) : 0,
     autoRenewal: s.auto_renew,
-    paymentStatus: status === "past_due" ? "failed" : status === "trial" ? "pending" : "paid",
+    paymentStatus:
+      status === "past_due" ? "failed" : status === "trial" ? "pending" : hasConfirmedPayment ? "paid" : "pending",
     locations: plan ? featureLimit(plan.features, "max_locations") : 0,
     routers: plan ? featureLimit(plan.features, "max_routers") : 0,
     maxGuests: plan ? featureLimit(plan.features, "max_guests") : 0,
@@ -400,6 +584,7 @@ function toInvoice(inv: BackendInvoice, org: BackendOrg): Invoice[] {
   const base: Invoice = {
     id: inv.id,
     invoiceNumber: inv.invoice_number,
+    organizationId: org.id,
     organizationName: org.name,
     type: "tax_invoice",
     amount: n(inv.subtotal),
@@ -487,6 +672,41 @@ async function fetchAllUsage(orgs: BackendOrg[]): Promise<UsageRow[]> {
 }
 
 // ============================================================================
+// Tenant-facing "my billing" dashboard -- real, org-scoped
+// GET /billing/dashboard/me (backend/app/domains/billing/router.py). Backs
+// the Subscription center (/subscription) and workspace Billing
+// (/workspace/billing) pages, which are a different, ORGANIZATION-scoped
+// audience than the Super Admin snapshot above (billing.read at
+// ScopeType.ORGANIZATION, not the GLOBAL scope getSnapshot()'s endpoints
+// require -- an ordinary organization user cannot call those).
+// ============================================================================
+
+interface BackendCustomerBillingDashboard {
+  plan: BackendPlan;
+  subscription: BackendSubscription;
+  usage: BackendUsageSummary;
+  recent_invoices: BackendInvoice[];
+  recent_payments: BackendPayment[];
+}
+
+async function fetchMyBillingDashboard(organizationId: string): Promise<BackendCustomerBillingDashboard> {
+  const { data } = await api.get<BackendCustomerBillingDashboard>("/billing/dashboard/me", {
+    headers: { "X-Organization-Id": organizationId },
+  });
+  return data;
+}
+
+function myUsage(checks: BackendUsageLimitCheck[]): { key: string; label: string; used: number; limit: number; unit?: string }[] {
+  const storage = usageLimit(checks, "storage_usage_mb");
+  return [
+    { key: "locations", label: "Locations", ...usageLimit(checks, "locations") },
+    { key: "routers", label: "Routers", ...usageLimit(checks, "routers") },
+    { key: "guests", label: "Guests", ...usageLimit(checks, "guests") },
+    { key: "storage", label: "Storage", used: Math.round(storage.used / 1024), limit: Math.round(storage.limit / 1024), unit: "GB" },
+  ];
+}
+
+// ============================================================================
 // Coupons
 // ============================================================================
 
@@ -520,10 +740,30 @@ async function fetchAllCoupons(): Promise<BackendCoupon[]> {
 // Aggregate snapshot -- kpis/revenue/reminders come from the real
 // /billing/dashboard/super-admin composite; subscriptions/payments/
 // invoices/usage are fanned out per organization (see helpers above).
-// gateways/scheduledReports/generateReport/generateInvoice/sendReminder
-// have no backend equivalent (no connectable-gateway registry, no
-// scheduled-report or ad-hoc report-generation endpoints exist in
-// backend/app/domains/billing) -- left mocked below, unchanged.
+// gateways/sendReminder have no backend equivalent in
+// backend/app/domains/billing (no connectable-gateway registry, no
+// reminder-dispatch endpoint) -- left mocked below, unchanged.
+//
+// Correction from an earlier pass of this file: a real, generic Report
+// Engine *does* exist -- backend/app/domains/analytics/report_router.py
+// (POST /reports, /reports/templates, /reports/schedule), not under the
+// billing domain at all, which is why it was missed the first time this
+// comment was written. generateReport's "revenue" case now calls it for
+// real (see that method below). It is NOT fully wired for every use here:
+//   - BillingReportCenter's other 8 report types (guest/router/network/
+//     organization/location need an organization_id or location_id this
+//     report center has no picker for; audit/billing/monitoring have no
+//     matching ReportType at all) stay mocked in generateReport below.
+//   - scheduledReports/listScheduledReports/createScheduledReport/
+//     toggleScheduledReport/deleteScheduledReport stay mocked: the real
+//     ScheduledReport is mandatorily ORGANIZATION-scoped and requires a
+//     pre-existing ReportTemplate id, but this billing page (both
+//     src/routes/_authenticated/billing.index.tsx and master.billing.tsx)
+//     manages every organization at once with no org/template picker in
+//     its UI -- a real data-model mismatch, not a missing endpoint. Wiring
+//     it properly needs a product decision (add an org+template picker to
+//     this panel, or scope the whole panel to one org) rather than a
+//     mechanical service-layer change.
 // ============================================================================
 
 let gatewaysStore = [
@@ -565,6 +805,7 @@ async function findSubscriptionContext(
 
 export const billingService = {
   async getSnapshot(): Promise<BillingSnapshot> {
+    if (isDemo()) return buildDemoSnapshot();
     const [dashboard, orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchDashboard(),
       fetchAllOrganizations(),
@@ -578,12 +819,22 @@ export const billingService = {
       fetchAllInvoices(orgs),
       fetchAllUsage(orgs),
     ]);
+    // Real evidence an organization has actually paid: a captured Payment
+    // or a paid Invoice against it. Empty on this platform's current real
+    // data (0 payments, 0 invoices) -- see toSubscription's own doc
+    // comment for why that must NOT be papered over with a fabricated
+    // "paid" default.
+    const orgsWithConfirmedPayment = new Set<string>([
+      ...payments.filter((p) => p.status === "paid").map((p) => p.organizationId),
+      ...invoices.filter((i) => i.status === "paid" && i.organizationId).map((i) => i.organizationId!),
+    ]);
     const subscriptions = subRecords.map(({ sub, org }) =>
       toSubscription(
         sub,
         org,
         backendPlans.find((p) => p.id === sub.plan_id),
         backendCoupons.find((c) => c.id === sub.applied_coupon_id),
+        orgsWithConfirmedPayment.has(org.id),
       ),
     );
 
@@ -624,6 +875,23 @@ export const billingService = {
           severity: "warning",
         });
       });
+    subscriptions
+      .filter((s) => s.status === "active")
+      .filter((s) => {
+        const t = new Date(s.expiryDate).getTime();
+        return t - now < 14 * 86_400_000;
+      })
+      .forEach((s) => {
+        const daysLeft = Math.ceil((new Date(s.expiryDate).getTime() - now) / 86_400_000);
+        reminders.push({
+          id: `exp_${s.id}`,
+          type: "expiry",
+          title: daysLeft <= 0 ? `${s.planName} plan expired` : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          organizationName: s.organizationName,
+          dueAt: s.expiryDate,
+          severity: daysLeft <= 3 ? "critical" : "warning",
+        });
+      });
 
     const planTierCounts = dashboard.customers.items.reduce<Record<string, number>>((acc, c) => {
       const plan = backendPlans.find((p) => p.id === c.plan_id);
@@ -631,6 +899,16 @@ export const billingService = {
       acc[tier] = (acc[tier] ?? 0) + 1;
       return acc;
     }, {});
+    // MRR per tier from each active subscription's own plan amount -- real
+    // spend, not the `dashboard.customers` snapshot's lifetime_revenue
+    // (that's cumulative-to-date, not a recurring-per-tier figure this
+    // by-tier revenue bar is meant to show).
+    const planTierRevenue = subscriptions
+      .filter((s) => s.status === "active")
+      .reduce<Record<string, number>>((acc, s) => {
+        acc[s.tier] = (acc[s.tier] ?? 0) + s.amount;
+        return acc;
+      }, {});
 
     return {
       kpis: {
@@ -659,7 +937,7 @@ export const billingService = {
         planDistribution: (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map((tier) => ({
           tier,
           count: planTierCounts[tier] ?? 0,
-          revenue: 0,
+          revenue: Math.round(planTierRevenue[tier] ?? 0),
         })),
         subscriptionDistribution: Object.entries(dashboard.subscriptions.counts_by_status).map(([status, count]) => ({
           status: SUBSCRIPTION_STATUS_MAP[status] ?? "active",
@@ -675,12 +953,60 @@ export const billingService = {
     };
   },
 
+  // Only orgs without a subscription yet -- POST /subscriptions 409s with
+  // "Organization already has a subscription" for any other org (see
+  // DuplicateSubscriptionError in billing/service.py's create_subscription),
+  // so offering them in the New Subscription dialog's picker just sets the
+  // operator up to hit that on submit.
   async listOrganizations() {
+    if (isDemo()) return DEMO_BILLING_ORGS;
     const orgs = await fetchAllOrganizations();
-    return orgs.map((o) => ({ id: o.id, name: o.name }));
+    return orgs.filter((o) => !o.subscription_tier).map((o) => ({ id: o.id, name: o.name }));
   },
 
-  async createSubscription(input: Omit<Subscription, "id" | "organizationName" | "planName" | "tier" | "startDate" | "renewalDate" | "expiryDate" | "status" | "amount" | "paymentStatus">) {
+  // Real POST /subscriptions (backend/app/domains/billing/schemas.py's
+  // SubscriptionCreateRequest) only ever accepts organization_id, plan_id,
+  // coupon_code -- billing cycle, locations/routers/guest limits, discount,
+  // tax and auto-renewal are all derived server-side from the selected Plan
+  // (or the coupon, or a separate renewal-settings call), never accepted at
+  // creation. The create dialog used to collect all of those anyway and
+  // silently discard everything but organizationId/planId -- and, worse,
+  // "applied" a coupon by matching its free-text Notes field against every
+  // coupon's id/code, with no actual "Apply" control or validation feedback
+  // in the UI. `couponCode` here is the real, dedicated field the dialog's
+  // own "Apply" button now validates client-side before submit.
+  async createSubscription(input: { organizationId: string; planId: string; couponCode?: string }) {
+    if (isDemo()) {
+      const org = DEMO_BILLING_ORGS.find((o) => o.id === input.organizationId);
+      const plan = DEMO_PLANS.find((p) => p.id === input.planId);
+      const coupon = input.couponCode ? DEMO_COUPONS.find((c) => c.code === input.couponCode) : undefined;
+      const now = new Date().toISOString();
+      const created: Subscription = {
+        id: `sub-demo-${Date.now()}`,
+        organizationId: input.organizationId,
+        organizationName: org?.name ?? "Demo Organization",
+        planId: input.planId,
+        planName: plan?.name ?? "Demo Plan",
+        tier: plan?.tier ?? "custom",
+        billingCycle: "monthly" as const,
+        startDate: now,
+        renewalDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+        expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+        status: "active" as const,
+        amount: plan?.monthlyPrice ?? 0,
+        autoRenewal: true,
+        paymentStatus: "paid" as const,
+        locations: plan?.includedLocations ?? 0,
+        routers: plan?.includedRouters ?? 0,
+        maxGuests: plan?.includedGuests ?? 0,
+        discount: coupon?.discountValue,
+      };
+      // Actually persist it -- see buildDemoSnapshot()'s doc comment for why
+      // (a fake success that vanishes on the next read reads as "the button
+      // doesn't work" from the operator's side).
+      DEMO_SUBSCRIPTIONS.unshift(created);
+      return created;
+    }
     const [orgs, backendPlans, backendCoupons] = await Promise.all([
       fetchAllOrganizations(),
       fetchAllPlans(),
@@ -688,7 +1014,9 @@ export const billingService = {
     ]);
     const org = orgs.find((o) => o.id === input.organizationId);
     const plan = backendPlans.find((p) => p.id === input.planId);
-    const coupon = backendCoupons.find((c) => c.id === input.notes || c.code === input.notes);
+    const coupon = input.couponCode
+      ? backendCoupons.find((c) => c.code.toUpperCase() === input.couponCode!.toUpperCase())
+      : undefined;
     const { data } = await api.post<BackendSubscription>(
       "/subscriptions",
       {
@@ -728,6 +1056,17 @@ export const billingService = {
     return true;
   },
 
+  async setAutoRenew(id: string, autoRenew: boolean) {
+    const ctx = await findSubscriptionContext(id);
+    if (!ctx) return false;
+    await api.patch(
+      `/subscriptions/${id}/renewal-settings`,
+      { auto_renew: autoRenew },
+      { headers: { "X-Organization-Id": ctx.org.id } },
+    );
+    return true;
+  },
+
   async downgradeSubscription(id: string) {
     const ctx = await findSubscriptionContext(id);
     if (!ctx) return false;
@@ -745,25 +1084,39 @@ export const billingService = {
   },
 
   async savePlan(input: Omit<Plan, "id"> & { id?: string }) {
+    if (isDemo()) {
+      if (input.id) {
+        const i = DEMO_PLANS.findIndex((p) => p.id === input.id);
+        const updated: Plan = { ...input, id: input.id };
+        if (i >= 0) DEMO_PLANS[i] = updated;
+        return updated;
+      }
+      const created: Plan = { ...input, id: `plan-demo-${Date.now()}` };
+      DEMO_PLANS.push(created);
+      return created;
+    }
     const features = [
-      { feature_key: "max_locations", feature_type: "limit", limit_value: input.includedLocations },
-      { feature_key: "max_routers", feature_type: "limit", limit_value: input.includedRouters },
-      { feature_key: "max_guests", feature_type: "limit", limit_value: input.includedGuests },
-      { feature_key: "storage_quota_mb", feature_type: "limit", limit_value: input.storageLimitGb * 1024 },
+      { feature_key: "max_locations", feature_type: "limit", limit_value: toBackendLimit(input.includedLocations) },
+      { feature_key: "max_routers", feature_type: "limit", limit_value: toBackendLimit(input.includedRouters) },
+      { feature_key: "max_guests", feature_type: "limit", limit_value: toBackendLimit(input.includedGuests) },
+      { feature_key: "storage_quota_mb", feature_type: "limit", limit_value: toBackendLimit(input.storageLimitGb) === null ? null : input.storageLimitGb * 1024 },
       { feature_key: "api_access", feature_type: "boolean", is_enabled: input.apiAccess },
       { feature_key: "white_label", feature_type: "boolean", is_enabled: input.whiteLabel },
       { feature_key: "pms_integration", feature_type: "boolean", is_enabled: input.pmsIntegration },
       { feature_key: "ai_features", feature_type: "boolean", is_enabled: input.aiFeatures },
       {
+        // SupportLevel is kept 1:1 with the backend's SupportTier enum
+        // (basic | priority | dedicated) -- no relabeling needed here.
         feature_key: "support_level",
         feature_type: "tier",
-        tier_value: input.supportLevel === "email" ? "basic" : input.supportLevel === "24x7" ? "dedicated" : input.supportLevel,
+        tier_value: input.supportLevel,
       },
     ];
     if (input.id) {
       const { data } = await api.put<BackendPlan>(`/plans/${input.id}`, {
         name: input.name,
         base_price: input.monthlyPrice,
+        currency: input.currency || "INR",
         features,
       });
       return toPlan(data);
@@ -774,7 +1127,7 @@ export const billingService = {
       plan_type: input.tier,
       billing_cycle: "monthly",
       base_price: input.monthlyPrice,
-      currency: "USD",
+      currency: input.currency || "INR",
       is_active: true,
       is_public: true,
       sort_order: 0,
@@ -784,12 +1137,28 @@ export const billingService = {
   },
 
   async deletePlan(id: string) {
+    if (isDemo()) {
+      const i = DEMO_PLANS.findIndex((p) => p.id === id);
+      if (i >= 0) DEMO_PLANS.splice(i, 1);
+      return true;
+    }
     // No hard delete on the backend -- deactivate is the real equivalent.
     await api.delete(`/plans/${id}`);
     return true;
   },
 
   async saveCoupon(input: Omit<Coupon, "id" | "used"> & { id?: string }) {
+    if (isDemo()) {
+      if (input.id) {
+        const i = DEMO_COUPONS.findIndex((c) => c.id === input.id);
+        const updated: Coupon = { ...input, id: input.id, used: DEMO_COUPONS[i]?.used ?? 0 };
+        if (i >= 0) DEMO_COUPONS[i] = updated;
+        return updated;
+      }
+      const created: Coupon = { ...input, id: `coupon-demo-${Date.now()}`, used: 0 };
+      DEMO_COUPONS.push(created);
+      return created;
+    }
     if (input.id) {
       const { data } = await api.put<BackendCoupon>(`/coupons/${input.id}`, {
         discount_type: input.discountType === "fixed" ? "flat" : "percentage",
@@ -814,6 +1183,11 @@ export const billingService = {
   },
 
   async deleteCoupon(id: string) {
+    if (isDemo()) {
+      const i = DEMO_COUPONS.findIndex((c) => c.id === id);
+      if (i >= 0) DEMO_COUPONS.splice(i, 1);
+      return true;
+    }
     // No hard delete on the backend -- deactivate is the real equivalent.
     await api.delete(`/coupons/${id}`);
     return true;
@@ -874,22 +1248,100 @@ export const billingService = {
     scheduledReports = scheduledReports.filter((r) => r.id !== id);
     return true;
   },
-  // No generic ad-hoc report-generation endpoint exists -- kept mocked.
   async generateReport(type: string, format: BillingReportFormat) {
+    // Real Report Engine (POST /reports, see the module comment above) --
+    // REVENUE is the one ReportType this platform-wide report center can
+    // generate without an organization/location picker (Business
+    // Analytics, what REVENUE composes, is inherently GLOBAL-scoped), so
+    // the "Revenue report" card downloads a real, backend-rendered file.
+    // export_format's values (pdf/excel/csv) match ExportFormat 1:1.
+    if (type === "revenue") {
+      const response = await api.post("/reports", { report_type: "revenue", export_format: format }, { responseType: "blob" });
+      const blob = response.data as Blob;
+      const url = URL.createObjectURL(blob);
+      const disposition = String((response.headers as Record<string, string>)?.["content-disposition"] ?? "");
+      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? `revenue-report-${Date.now()}.${format === "excel" ? "xlsx" : format}`;
+      return { url, fileName, size: `${Math.max(1, Math.round(blob.size / 1024))} KB` };
+    }
+    // The other 8 report-center cards have no matching real, callable
+    // report for this platform-wide page (see the module comment above)
+    // -- kept mocked.
     await delay(600);
     return { fileName: `${type}-report-${Date.now()}.${format}`, size: `${Math.round(200 + Math.random() * 1800)} KB` };
   },
 
-  async generateInvoice(id: string) {
-    // GET /invoices/{id}/download returns the file directly (no shareable
-    // URL concept) -- resolving to a blob URL is a real backend call.
-    try {
-      const response = await api.get(`/invoices/${id}/download`, { responseType: "blob" });
-      const url = URL.createObjectURL(response.data as Blob);
-      return { url, fileName: `${id}.pdf` };
-    } catch {
-      return { url: `#invoice-${id}`, fileName: `${id}.pdf` };
-    }
+  // GET /invoices/{id}/download returns the file directly (no shareable
+  // URL concept) -- resolving to a blob URL is a real backend call. Two
+  // real bugs, confirmed live, fixed together: (1) missing
+  // X-Organization-Id -- the endpoint requires it via RequireOrganization,
+  // so this 403'd for every real customer; (2) the catch swallowed that
+  // failure and returned a fake `#invoice-...` URL, so the caller always
+  // saw a false "Downloading..." success toast with nothing to download.
+  // A real failure now rejects, same as every other real mutation here.
+  async generateInvoice(id: string, organizationId?: string) {
+    const response = await api.get(`/invoices/${id}/download`, {
+      responseType: "blob",
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+    const url = URL.createObjectURL(response.data as Blob);
+    return { url, fileName: `${id}.pdf` };
+  },
+
+  /** POST /invoices/generate-and-send -- Master Console's manual "generate
+   * a new invoice right now and email it to the customer" trigger (see
+   * backend/app/domains/billing/router.py's own docstring on this
+   * endpoint). `subscriptionId` is optional; omit it to use the
+   * organization's one current subscription (this platform's
+   * single-subscription-per-org model). A failed/unconfigured email send
+   * still returns success (the invoice itself was genuinely created) --
+   * `emailSent`/`emailError` tell the caller whether to show a plain
+   * success toast or a partial-failure one. */
+  async generateAndSendInvoice(organizationId: string, subscriptionId?: string) {
+    const { data } = await api.post<{
+      invoice: { invoice_number: string; total_amount: string; currency: string };
+      email_sent: boolean;
+      email_recipient: string;
+      email_error: string | null;
+    }>(
+      "/invoices/generate-and-send",
+      { subscription_id: subscriptionId ?? null },
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+    return {
+      invoiceNumber: data.invoice.invoice_number,
+      totalAmount: data.invoice.total_amount,
+      currency: data.invoice.currency,
+      emailSent: data.email_sent,
+      emailRecipient: data.email_recipient,
+      emailError: data.email_error,
+    };
+  },
+
+  /** POST /invoices/manual -- the operator-typed-line-items counterpart to
+   * generateAndSendInvoice() above: instead of pulling a fixed amount off
+   * the organization's subscribed plan, bills for exactly the line items
+   * given (description/quantity/unit price each) -- a one-off charge or
+   * custom quote, not tied to any subscription. Same real GST computation
+   * and email-send outcome shape as the subscription-based call. */
+  async createManualInvoice(organizationId: string, lineItems: { description: string; quantity: number; unitPrice: number }[]) {
+    const { data } = await api.post<{
+      invoice: { invoice_number: string; total_amount: string; currency: string };
+      email_sent: boolean;
+      email_recipient: string;
+      email_error: string | null;
+    }>(
+      "/invoices/manual",
+      { line_items: lineItems.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: i.unitPrice })) },
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+    return {
+      invoiceNumber: data.invoice.invoice_number,
+      totalAmount: data.invoice.total_amount,
+      currency: data.invoice.currency,
+      emailSent: data.email_sent,
+      emailRecipient: data.email_recipient,
+      emailError: data.email_error,
+    };
   },
 
   // No reminder-dispatch endpoint exists in backend/app/domains/billing --
@@ -897,6 +1349,55 @@ export const billingService = {
   async sendReminder(id: string, _frequency?: ReportFrequency) {
     await delay(200);
     return { ok: true, id };
+  },
+
+  // GST / tax rate configuration -- real /tax-rates CRUD. The backend
+  // computes the actual CGST/SGST/IGST split per-invoice from these rows
+  // (validators.compute_tax_breakdown); this is the platform operator's
+  // rate catalog, not a per-invoice control.
+  async listTaxRates(): Promise<TaxRate[]> {
+    const { data } = await api.get<BackendListResponse<BackendTaxRate>>("/billing/tax-rates", {
+      params: { page_size: 100 },
+    });
+    return data.items.map(toTaxRate);
+  },
+
+  async saveTaxRate(input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<TaxRate> {
+    if (input.id) {
+      const { data } = await api.put<BackendTaxRate>(`/billing/tax-rates/${input.id}`, {
+        name: input.name,
+        tax_type: input.taxType,
+        rate_percentage: input.ratePercentage,
+        country_code: input.countryCode,
+        is_active: input.isActive,
+      });
+      return toTaxRate(data);
+    }
+    const { data } = await api.post<BackendTaxRate>("/billing/tax-rates", {
+      name: input.name,
+      tax_type: input.taxType,
+      rate_percentage: input.ratePercentage,
+      country_code: input.countryCode,
+      is_active: input.isActive,
+    });
+    return toTaxRate(data);
+  },
+
+  // Real, org-scoped GET /billing/dashboard/me -- see the module comment
+  // above this section for why this is a separate call from getSnapshot().
+  async getMyBillingDashboard(organizationId: string, organizationName: string): Promise<MyBillingSummary> {
+    const data = await fetchMyBillingDashboard(organizationId);
+    const org: BackendOrg = { id: organizationId, name: organizationName };
+    return {
+      plan: toPlan(data.plan),
+      billingCycle: data.subscription.billing_cycle === "yearly" ? "annual" : "monthly",
+      status: SUBSCRIPTION_STATUS_MAP[data.subscription.status] ?? "active",
+      renewalDate: data.subscription.current_period_end,
+      autoRenewal: data.subscription.auto_renew,
+      usage: myUsage(data.usage.limit_checks),
+      recentInvoices: data.recent_invoices.flatMap((inv) => toInvoice(inv, org)),
+      recentPayments: data.recent_payments.map((p) => toPayment(p, org)),
+    };
   },
 };
 

@@ -41,7 +41,7 @@ import {
 } from "@/hooks/useRouters";
 import { routerService } from "@/services/router.service";
 import type { RouterDevice, RouterListQuery, RouterStatus } from "@/types/router";
-import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
+import { RouterStatusBadge, HealthStatusBadge, MissingCredentialsBadge } from "./RouterStatusBadge";
 import { RouterWizard } from "./RouterWizard";
 import type { AppError } from "@/services/api";
 
@@ -295,7 +295,12 @@ export function RouterTable() {
                       <div>{r.publicIpAddress ?? "—"}</div>
                       <div className="text-muted-foreground">{r.managementIpAddress ?? "—"}</div>
                     </TableCell>
-                    <TableCell><RouterStatusBadge status={r.status} /></TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <RouterStatusBadge status={r.status} />
+                        <MissingCredentialsBadge hasApiCredentials={r.hasApiCredentials} status={r.status} />
+                      </div>
+                    </TableCell>
                     <TableCell><HealthStatusBadge status={r.healthStatus} /></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{relative(r.lastSeenAt)}</TableCell>
                     <TableCell className="text-right">

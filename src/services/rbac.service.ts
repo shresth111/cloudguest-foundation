@@ -287,7 +287,9 @@ function toLoginAttemptLog(l: BackendLoginAttemptLog): LoginAttemptLog {
 export const rbacService = {
   // -- Users ----------------------------------------------------------------
 
-  async listUsers(q: UserListQuery): Promise<PaginatedResult<RbacUser>> {
+  /** `organizationId` is optional -- see `listRoles()`'s doc comment, same
+   * GLOBAL-vs-ORGANIZATION scope story applies to GET /users. */
+  async listUsers(q: UserListQuery, organizationId?: string): Promise<PaginatedResult<RbacUser>> {
     const { data } = await api.get<BackendUserListResponse>("/users", {
       params: {
         search: q.search || undefined,
@@ -295,6 +297,7 @@ export const rbacService = {
         page: q.page,
         page_size: q.pageSize,
       },
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return {
       items: data.items.map(toUser),
@@ -307,8 +310,17 @@ export const rbacService = {
     };
   },
 
-  async getUserDetail(id: string): Promise<UserDetail> {
-    const { data } = await api.get<BackendUserDetailResponse>(`/users/${id}`);
+  // `organizationId` matters for any non-GLOBAL caller (an Organization
+  // Owner, not a platform admin) -- without it, CurrentOrganization
+  // resolves to nothing and the permission check has no org context to
+  // check against, 403ing even for a user fetching their own profile.
+  // Confirmed live: useCustomerDashboard's own data-masking-preference
+  // hydration call site was hitting exactly this, silently (its own
+  // `.catch(() => {})`), on every single page load.
+  async getUserDetail(id: string, organizationId?: string): Promise<UserDetail> {
+    const { data } = await api.get<BackendUserDetailResponse>(`/users/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return toUserDetail(data);
   },
 
@@ -331,157 +343,280 @@ export const rbacService = {
     return toUser(data);
   },
 
+  // Same GLOBAL-vs-ORGANIZATION scope story as listRoles() above --
+  // users.create is only held at ORGANIZATION scope for a customer/org-owner
+  // session, and POST /users/invite infers GLOBAL whenever X-Organization-Id
+  // is absent even though organization_id is already in the body.
   async inviteUser(payload: InviteUserPayload): Promise<InviteUserResult> {
-    const { data } = await api.post<BackendInviteUserResponse>("/users/invite", {
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      email: payload.email,
-      username: payload.username,
-      phone: payload.phone,
-      designation: payload.designation,
-      department: payload.department,
-      employee_id: payload.employeeId,
-      timezone: payload.timezone,
-      language: payload.language,
-      organization_id: payload.organizationId,
-      initial_role_id: payload.initialRoleId,
-    });
+    const { data } = await api.post<BackendInviteUserResponse>(
+      "/users/invite",
+      {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        email: payload.email,
+        username: payload.username,
+        phone: payload.phone,
+        designation: payload.designation,
+        department: payload.department,
+        employee_id: payload.employeeId,
+        timezone: payload.timezone,
+        language: payload.language,
+        organization_id: payload.organizationId,
+        initial_role_id: payload.initialRoleId,
+      },
+      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+    );
     return { user: toUser(data.user), temporaryPassword: data.temporary_password };
   },
 
-  async updateUser(id: string, payload: UpdateUserPayload): Promise<RbacUser> {
-    const { data } = await api.put<BackendUser>(`/users/${id}`, {
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      phone: payload.phone,
-      profile_photo: payload.profilePhoto,
-      designation: payload.designation,
-      department: payload.department,
-      employee_id: payload.employeeId,
-      timezone: payload.timezone,
-      language: payload.language,
-      is_verified: payload.isVerified,
-      data_masking_enabled: payload.dataMaskingEnabled,
+  // organizationId optional on all three -- same GLOBAL-vs-ORGANIZATION
+  // scope story as inviteUser()/listRoles() above.
+  async updateUser(id: string, payload: UpdateUserPayload, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.put<BackendUser>(
+      `/users/${id}`,
+      {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        phone: payload.phone,
+        profile_photo: payload.profilePhoto,
+        designation: payload.designation,
+        department: payload.department,
+        employee_id: payload.employeeId,
+        timezone: payload.timezone,
+        language: payload.language,
+        is_verified: payload.isVerified,
+        data_masking_enabled: payload.dataMaskingEnabled,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toUser(data);
+  },
+
+  // Self-service data-masking OTP step-up (see backend
+  // app/domains/user/router.py's "/me/data-masking..." endpoints) --
+  // distinct from updateUser() above, which is the admin-on-someone-else
+  // path (or, for AgentsPage.tsx, an owner managing staff). These two
+  // always act on the CALLER's own account; the backend derives the OTP
+  // identifier from the session (SMS to their phone if one's on file,
+  // email otherwise), never a client-supplied id/email/phone. Returns the
+  // backend's own message ("Verification code sent via sms to
+  // +91••••••210") so the UI never has to guess which channel was used.
+  async requestOwnDataMaskingOtp(): Promise<string> {
+    const { data } = await api.post<{ message: string }>("/me/data-masking/otp");
+    return data.message;
+  },
+
+  async verifyOwnDataMaskingOtp(code: string, masked: boolean): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>("/me/data-masking", { code, masked });
+    return toUser(data);
+  },
+
+  async activateUser(id: string, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/activate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return toUser(data);
   },
 
-  async activateUser(id: string): Promise<RbacUser> {
-    const { data } = await api.post<BackendUser>(`/users/${id}/activate`);
+  async deactivateUser(id: string, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return toUser(data);
   },
 
-  async deactivateUser(id: string): Promise<RbacUser> {
-    const { data } = await api.post<BackendUser>(`/users/${id}/deactivate`);
+  /** Real, immediate session termination -- unlike deactivate, the account
+   * itself stays active (they can sign back in right away); this only
+   * ends whatever session(s) exist right now, on the target's very next
+   * request, not just their next natural token expiry. See the backend's
+   * `UserService.force_logout_user` for the full "why two steps" writeup. */
+  async forceLogoutUser(id: string, organizationId?: string): Promise<RbacUser> {
+    const { data } = await api.post<BackendUser>(`/users/${id}/force-logout`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return toUser(data);
   },
 
   // -- Permissions / Permission Groups (read-only, seeded) -------------------
 
-  async listPermissionGroups(): Promise<PermissionGroup[]> {
-    const { data } = await api.get<BackendPermissionGroup[]>("/permission-groups");
+  // `organizationId` optional -- same GLOBAL-vs-ORGANIZATION scope story as
+  // listRoles()/listUsers(): permissions.read is only held at ORGANIZATION
+  // scope for a customer/org-owner session, and these endpoints infer
+  // GLOBAL scope whenever X-Organization-Id is absent.
+  async listPermissionGroups(organizationId?: string): Promise<PermissionGroup[]> {
+    const { data } = await api.get<BackendPermissionGroup[]>("/permission-groups", {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return data.map(toPermissionGroup);
   },
 
-  async listPermissions(permissionGroupId?: string): Promise<Permission[]> {
+  async listPermissions(permissionGroupId?: string, organizationId?: string): Promise<Permission[]> {
     const { data } = await api.get<BackendPermission[]>("/permissions", {
       params: { permission_group_id: permissionGroupId },
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return data.map(toPermission);
   },
 
   // -- Roles ------------------------------------------------------------------
 
-  async listRoles(): Promise<Role[]> {
-    const { data } = await api.get<BackendRole[]>("/roles");
+  /** `organizationId` is optional -- platform/Master callers (no org
+   * context) omit it and see every role at GLOBAL scope, same as before.
+   * An org-scoped caller (e.g. a customer's own Manage Agents page) must
+   * pass its own org id: roles.read is only held at ORGANIZATION scope for
+   * that kind of session, and GET /roles infers GLOBAL scope whenever
+   * X-Organization-Id is absent -- omitting it 403'd for every non-platform
+   * caller. */
+  async listRoles(organizationId?: string): Promise<Role[]> {
+    const { data } = await api.get<BackendRole[]>("/roles", {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return data.map(toRole);
   },
 
-  async createRole(payload: CreateRolePayload): Promise<Role> {
-    const { data } = await api.post<BackendRole>("/roles", {
-      name: payload.name,
-      slug: payload.slug,
-      description: payload.description,
-      scope_type: payload.scopeType,
-      organization_id: payload.organizationId,
-      parent_role_id: payload.parentRoleId,
-      is_template: payload.isTemplate ?? false,
-      permission_keys: payload.permissionKeys,
-      allowed_scope_types: payload.allowedScopeTypes ?? [],
+  // `organizationId` optional -- same GLOBAL-vs-ORGANIZATION scope story as
+  // listRoles(): roles.create is only held at ORGANIZATION scope for a
+  // customer/org-owner session, and POST /roles infers GLOBAL scope
+  // whenever X-Organization-Id is absent even though organization_id is
+  // already in the body.
+  async createRole(payload: CreateRolePayload, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(
+      "/roles",
+      {
+        name: payload.name,
+        slug: payload.slug,
+        description: payload.description,
+        scope_type: payload.scopeType,
+        organization_id: payload.organizationId,
+        parent_role_id: payload.parentRoleId,
+        is_template: payload.isTemplate ?? false,
+        permission_keys: payload.permissionKeys,
+        allowed_scope_types: payload.allowedScopeTypes ?? [],
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toRole(data);
+  },
+
+  // `organizationId` optional, same story -- roles.update is only held at
+  // ORGANIZATION scope for a customer/org-owner session. `permissionKeys`,
+  // when passed, is a full replacement of the role's permission set and
+  // rides on this same `roles.update` permission rather than the separate
+  // attach/detach-one-permission endpoints' `roles.manage` (which an
+  // Organization Owner does not hold by default -- see the backend's
+  // RoleUpdateRequest doc comment).
+  async updateRole(id: string, payload: UpdateRolePayload, organizationId?: string): Promise<Role> {
+    const { data } = await api.put<BackendRole>(
+      `/roles/${id}`,
+      {
+        name: payload.name,
+        description: payload.description,
+        is_template: payload.isTemplate,
+        parent_role_id: payload.parentRoleId,
+        permission_keys: payload.permissionKeys,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toRole(data);
+  },
+
+  async deleteRole(id: string, organizationId?: string): Promise<void> {
+    await api.delete(`/roles/${id}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+  },
+
+  // Same missing-X-Organization-Id gap as vlan/dhcp/firewall/connected-
+  // devices this session -- these 5 had no `organizationId` parameter at
+  // all (unlike their createRole/updateRole/deleteRole siblings just
+  // above), so the header could never be attached. Confirmed live: a real
+  // org-owner session 403'd at GLOBAL scope with no header.
+  async cloneRole(id: string, payload: CloneRolePayload, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(
+      `/roles/${id}/clone`,
+      {
+        new_name: payload.newName,
+        new_slug: payload.newSlug,
+        target_organization_id: payload.targetOrganizationId,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return toRole(data);
+  },
+
+  async activateRole(id: string, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/activate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return toRole(data);
   },
 
-  async updateRole(id: string, payload: UpdateRolePayload): Promise<Role> {
-    const { data } = await api.put<BackendRole>(`/roles/${id}`, {
-      name: payload.name,
-      description: payload.description,
-      is_template: payload.isTemplate,
-      parent_role_id: payload.parentRoleId,
+  async deactivateRole(id: string, organizationId?: string): Promise<Role> {
+    const { data } = await api.post<BackendRole>(`/roles/${id}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return toRole(data);
   },
 
-  async deleteRole(id: string): Promise<void> {
-    await api.delete(`/roles/${id}`);
-  },
-
-  async cloneRole(id: string, payload: CloneRolePayload): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${id}/clone`, {
-      new_name: payload.newName,
-      new_slug: payload.newSlug,
-      target_organization_id: payload.targetOrganizationId,
-    });
+  async attachRolePermission(
+    roleId: string,
+    permissionKey: string,
+    organizationId?: string,
+  ): Promise<Role> {
+    const { data } = await api.post<BackendRole>(
+      `/roles/${roleId}/permissions`,
+      { permission_key: permissionKey },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
     return toRole(data);
   },
 
-  async activateRole(id: string): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${id}/activate`);
-    return toRole(data);
-  },
-
-  async deactivateRole(id: string): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${id}/deactivate`);
-    return toRole(data);
-  },
-
-  async attachRolePermission(roleId: string, permissionKey: string): Promise<Role> {
-    const { data } = await api.post<BackendRole>(`/roles/${roleId}/permissions`, {
-      permission_key: permissionKey,
-    });
-    return toRole(data);
-  },
-
-  async detachRolePermission(roleId: string, permissionKey: string): Promise<Role> {
+  async detachRolePermission(
+    roleId: string,
+    permissionKey: string,
+    organizationId?: string,
+  ): Promise<Role> {
     const { data } = await api.delete<BackendRole>(
       `/roles/${roleId}/permissions/${encodeURIComponent(permissionKey)}`,
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return toRole(data);
   },
 
   // -- Role assignment (scoped, per user) ------------------------------------
 
-  async listUserRoleAssignments(userId: string): Promise<UserRoleAssignment[]> {
+  // `organizationId` optional on all three -- same GLOBAL-vs-ORGANIZATION
+  // scope story as listRoles()/listUsers() above: users.read/roles.assign
+  // are only held at ORGANIZATION scope for a customer/org-owner session,
+  // and these endpoints infer GLOBAL whenever X-Organization-Id is absent.
+  async listUserRoleAssignments(userId: string, organizationId?: string): Promise<UserRoleAssignment[]> {
     const { data } = await api.get<{ items: BackendUserRoleAssignment[] }>(
       `/users/${userId}/roles`,
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return data.items.map(toUserRoleAssignment);
   },
 
-  async assignRole(userId: string, payload: AssignRolePayload): Promise<UserRoleAssignment> {
-    const { data } = await api.post<BackendUserRoleAssignment>(`/users/${userId}/roles`, {
-      role_id: payload.roleId,
-      scope_type: payload.scopeType,
-      organization_id: payload.organizationId,
-      location_id: payload.locationId,
-      router_id: payload.routerId,
-      expires_at: payload.expiresAt,
-    });
+  async assignRole(userId: string, payload: AssignRolePayload, organizationId?: string): Promise<UserRoleAssignment> {
+    const { data } = await api.post<BackendUserRoleAssignment>(
+      `/users/${userId}/roles`,
+      {
+        role_id: payload.roleId,
+        scope_type: payload.scopeType,
+        organization_id: payload.organizationId,
+        location_id: payload.locationId,
+        router_id: payload.routerId,
+        expires_at: payload.expiresAt,
+      },
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
     return toUserRoleAssignment(data);
   },
 
-  async revokeRoleAssignment(userId: string, assignmentId: string): Promise<void> {
-    await api.delete(`/users/${userId}/roles/${assignmentId}`);
+  async revokeRoleAssignment(userId: string, assignmentId: string, organizationId?: string): Promise<void> {
+    await api.delete(`/users/${userId}/roles/${assignmentId}`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
   },
 
   async getUserPermissions(userId: string): Promise<string[]> {
