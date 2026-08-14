@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
+import { useCustomerStore } from "@/stores/customerStore";
 import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
 import type { AuthSession, LoginCredentials, OrganizationMembership, RoleAssignment, User } from "@/types/auth";
 
@@ -125,6 +126,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // wrong locations) until each query's own staleTime happens to elapse.
     queryClient.clear();
 
+    // Same identity-switch problem, but for useCustomerStore's own
+    // Zustand `persist` middleware (customerStore.ts) -- activeLocationId
+    // survives in localStorage independent of the auth token entirely, so
+    // a *previous* session's location silently carried into this new
+    // login. src/routes/index.tsx's IndexRedirect only sends an
+    // authenticated visitor to the /switch-location picker when
+    // activeLocationId is null -- with a stale non-null value left over
+    // from before, a fresh login skipped the picker outright and landed
+    // straight in whatever location happened to be selected last time,
+    // even when that location doesn't belong to (or isn't the intended
+    // one for) the account that just signed in. Bug report: "demo saari
+    // location wale pr pehle nahi ja raha... login hote hi direct
+    // location mai ja raha hai."
+    useCustomerStore.getState().clearLocation();
+
     // Demo mode: bypass backend if using test credentials
     if (creds.email === "admin@example.com" && creds.password === "test") {
       const demoSession: AuthSession = {
@@ -194,6 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     clearStoredSession();
     queryClient.clear();
+    // Symmetric with login()'s own clearLocation() above -- the next
+    // sign-in (same tab, different account) must not inherit this
+    // session's location either.
+    useCustomerStore.getState().clearLocation();
     setUser(null);
     setRoles([]);
     setOrganizations([]);
