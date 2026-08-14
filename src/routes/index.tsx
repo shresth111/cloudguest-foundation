@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { homeRoute } from "@/lib/roles";
 import { LoginPage } from "./login";
 import { MasterLoginPage } from "./master-login";
 import { CustomerDashboardPage } from "./c.index";
@@ -45,11 +44,14 @@ function useHostname() {
 // to /c/locations, the picker, instead of CustomerDashboardPage rendering
 // with an undefined location to scope its data to.
 //
-// Master Console hostname keeps its original behavior unchanged --
-// navigate() to homeRoute() -- since MasterLoginPage's own submit handler
-// already owns the real post-login destination (/master, see
-// master-login.tsx); this effect only ever matters for the edge case of
-// an already-authenticated operator landing back on the bare root.
+// Master Console hostname: navigates straight to /master, matching
+// MasterLoginPage's own submit-handler destination for the equivalent
+// fresh-login case (see master-login.tsx) -- this effect only ever
+// matters for the edge case of an already-authenticated operator landing
+// back on the bare root (a bookmark, a refresh). Previously called the
+// customer-dashboard-only homeRoute() here, a self-navigate no-op that
+// hung this page forever behind the spinner below -- see the effect's
+// own comment for the full write-up.
 function IndexRedirect() {
   const { isAuthenticated, isReady, user } = useAuth();
   const navigate = useNavigate();
@@ -60,7 +62,18 @@ function IndexRedirect() {
   useEffect(() => {
     if (!isReady || !isAuthenticated || !user) return;
     if (isMaster) {
-      navigate({ to: homeRoute(), replace: true });
+      // homeRoute() is documented "All authenticated users land on the
+      // customer dashboard" and returns "/" -- correct for the branch
+      // below, but calling it here was a self-navigate no-op (this
+      // component *is* "/"), which never actually changed anything and
+      // left an already-authenticated master operator landing on/
+      // refreshing master.wyfyguest.com's bare root permanently stuck
+      // behind the spinner in the render branch further down. Bug
+      // report: "master dashboard login nahi ho raha hai". /master
+      // matches MasterLoginPage's own submit-handler destination
+      // (navigate({ to: redirect || "/master" }) -- see master-login.tsx)
+      // for the equivalent fresh-login case.
+      navigate({ to: "/master", replace: true });
       return;
     }
     if (!activeLocationId) {
