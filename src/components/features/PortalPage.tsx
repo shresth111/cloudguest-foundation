@@ -17,6 +17,7 @@ import { brandAssetService } from "@/services/brand-asset.service";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import type { PortalLoginMethod } from "@/types/portal";
 import type { RuntimeLanguage, RuntimePortalConfig } from "@/types/portal-runtime";
 
@@ -346,8 +347,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               below renders that same real component tree too, but fed this
               page's in-progress *unsaved* edits instead -- the two together
               cover both "what does my last save look like" and "what would
-              this new edit look like". Hidden in demo mode (no real
-              backend/org to preview) and until `orgId` has resolved. */}
+              this new edit look like". Requires `orgId` to have resolved
+              (real accounts only -- see the demo branch below). */}
           {!demo && orgId && locationId && (
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -358,6 +359,28 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               >
                 <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
               </Link>
+            </Button>
+          )}
+          {/* Demo-mode counterpart -- there's no real captive_portal_configs/
+              brandings row a demo session could fetch (no real org/location
+              behind it at all), so /preview/portal/$locationId can't work
+              here. Bug report: "demo account mai capitive portal pr redirect
+              nahi hota hai" -- this button was previously just hidden
+              outright in demo, with only the embedded "Live Preview" card
+              below as a substitute. Now hands /preview/portal/demo (opened
+              in a new tab, same as the real flow) a snapshot of this page's
+              own in-progress `livePreviewConfig` via sessionStorage instead
+              of a backend fetch -- see that route's own docstring. */}
+          {demo && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                sessionStorage.setItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY, JSON.stringify(livePreviewConfig));
+                window.open("/preview/portal/demo", "_blank", "noopener,noreferrer");
+              }}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
             </Button>
           )}
           <PortalDesignIllustration />

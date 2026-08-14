@@ -124,6 +124,7 @@ import { Route as AuthenticatedAuditIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAuditTimelineIndexRouteImport } from './routes/_authenticated/audit-timeline.index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys.index'
 import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authenticated/analytics.index'
+import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.demo'
 import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
@@ -787,6 +788,11 @@ const AuthenticatedAnalyticsIndexRoute =
     path: '/analytics/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const PreviewPortalDemoRoute = PreviewPortalDemoRouteImport.update({
+  id: '/preview/portal/demo',
+  path: '/preview/portal/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PreviewPortalLocationIdRoute = PreviewPortalLocationIdRouteImport.update({
   id: '/preview/portal/$locationId',
   path: '/preview/portal/$locationId',
@@ -1257,6 +1263,7 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
+  '/preview/portal/demo': typeof PreviewPortalDemoRoute
   '/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1424,6 +1431,7 @@ export interface FileRoutesByTo {
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
+  '/preview/portal/demo': typeof PreviewPortalDemoRoute
   '/analytics': typeof AuthenticatedAnalyticsIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/audit-timeline': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1599,6 +1607,7 @@ export interface FileRoutesById {
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
+  '/preview/portal/demo': typeof PreviewPortalDemoRoute
   '/_authenticated/analytics/': typeof AuthenticatedAnalyticsIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/audit-timeline/': typeof AuthenticatedAuditTimelineIndexRoute
@@ -1774,6 +1783,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
+    | '/preview/portal/demo'
     | '/analytics/'
     | '/api-keys/'
     | '/audit-timeline/'
@@ -1941,6 +1951,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
+    | '/preview/portal/demo'
     | '/analytics'
     | '/api-keys'
     | '/audit-timeline'
@@ -2115,6 +2126,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/users'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
+    | '/preview/portal/demo'
     | '/_authenticated/analytics/'
     | '/_authenticated/api-keys/'
     | '/_authenticated/audit-timeline/'
@@ -2204,6 +2216,7 @@ export interface RootRouteChildren {
   CustomerLocationIdDashboardRoute: typeof CustomerLocationIdDashboardRoute
   CustomerLocationIdUsersRoute: typeof CustomerLocationIdUsersRoute
   PreviewPortalLocationIdRoute: typeof PreviewPortalLocationIdRoute
+  PreviewPortalDemoRoute: typeof PreviewPortalDemoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -3013,6 +3026,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalyticsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/preview/portal/demo': {
+      id: '/preview/portal/demo'
+      path: '/preview/portal/demo'
+      fullPath: '/preview/portal/demo'
+      preLoaderRoute: typeof PreviewPortalDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/preview/portal/$locationId': {
       id: '/preview/portal/$locationId'
       path: '/preview/portal/$locationId'
@@ -3808,6 +3828,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerLocationIdDashboardRoute: CustomerLocationIdDashboardRoute,
   CustomerLocationIdUsersRoute: CustomerLocationIdUsersRoute,
   PreviewPortalLocationIdRoute: PreviewPortalLocationIdRoute,
+  PreviewPortalDemoRoute: PreviewPortalDemoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
