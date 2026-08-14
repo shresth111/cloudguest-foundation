@@ -208,14 +208,34 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     setBusy(true);
     setChunks(null);
     try {
-      const { token } = await generate.mutateAsync(router.id);
-      const checkinResp = await api.post<{ agent_credential?: string }>(
-        "/routers/provisioning/check-in",
-        { token },
-      );
-      const agentCredential = checkinResp.data.agent_credential;
+      // generate_provisioning_token/check-in (BE-008) is deliberately
+      // gated to pending_provisioning/provisioning -- a fresh *device
+      // enrollment*, not a config refresh -- so re-running this panel
+      // against an already-online (or offline) router to add a WAN, tweak
+      // load balancing, etc. used to 409. That router already has a
+      // working agent credential; it doesn't need a new *device
+      // enrollment*, just a fresh plaintext of the credential it already
+      // has to embed in the regenerated script (the old plaintext isn't
+      // recoverable -- disclosed exactly once, at issuance). See
+      // POST /routers/{id}/agent-credential/regenerate's own docstring for
+      // why this is a real, separate, purpose-built endpoint rather than
+      // relaxing generate_provisioning_token's own status gate.
+      let agentCredential: string | undefined;
+      if (router.status === "pending_provisioning" || router.status === "provisioning") {
+        const { token } = await generate.mutateAsync(router.id);
+        const checkinResp = await api.post<{ agent_credential?: string }>(
+          "/routers/provisioning/check-in",
+          { token },
+        );
+        agentCredential = checkinResp.data.agent_credential;
+      } else {
+        const regenResp = await api.post<{ agent_credential?: string }>(
+          `/routers/${router.id}/agent-credential/regenerate`,
+        );
+        agentCredential = regenResp.data.agent_credential;
+      }
       if (!agentCredential) {
-        toast.error("Check-in succeeded but no agent credential was returned.");
+        toast.error("Could not obtain an agent credential for this router.");
         return;
       }
 
