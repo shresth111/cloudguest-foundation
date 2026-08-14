@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -183,6 +182,30 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logo]);
 
+  // Shared by the "Preview Portal" button (top of the page) and the
+  // external-link icon on the Live Preview card's own header below --
+  // previously two separate, duplicated Button blocks (one real, one
+  // demo), which made it easy to update one and miss the other. Real
+  // accounts open the actual shareable route with a real org/location;
+  // demo hands /preview/portal/demo a sessionStorage snapshot instead
+  // (see that route's own docstring, and DEMO_PORTAL_PREVIEW_STORAGE_KEY).
+  // `window.open` with a plain URL string (not a router `Link`) so the
+  // same handler covers both branches identically -- the resulting URL is
+  // the same either way, this just avoids two different call shapes.
+  const openExternalPreview = () => {
+    if (demo) {
+      sessionStorage.setItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY, JSON.stringify(livePreviewConfig));
+      window.open("/preview/portal/demo", "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!orgId || !locationId) return;
+    window.open(
+      `/preview/portal/${locationId}?organizationId=${encodeURIComponent(orgId)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
   const handleRefresh = async () => {
     if (demo) {
       toast.success("Preview refreshed");
@@ -341,45 +364,21 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         </div>
         <div className="flex items-center gap-3">
           {/* Real, shareable preview of the actual guest-facing captive portal
-              (background image, branding, live sign-in methods) -- pulls the
-              real, currently-*saved* captive_portal_configs/brandings data
-              for this location, opened in a new tab. The "Live Preview" card
-              below renders that same real component tree too, but fed this
-              page's in-progress *unsaved* edits instead -- the two together
-              cover both "what does my last save look like" and "what would
-              this new edit look like". Requires `orgId` to have resolved
-              (real accounts only -- see the demo branch below). */}
-          {!demo && orgId && locationId && (
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to="/preview/portal/$locationId"
-                params={{ locationId }}
-                search={{ organizationId: orgId }}
-                target="_blank"
-              >
-                <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
-              </Link>
-            </Button>
-          )}
-          {/* Demo-mode counterpart -- there's no real captive_portal_configs/
-              brandings row a demo session could fetch (no real org/location
-              behind it at all), so /preview/portal/$locationId can't work
-              here. Bug report: "demo account mai capitive portal pr redirect
-              nahi hota hai" -- this button was previously just hidden
-              outright in demo, with only the embedded "Live Preview" card
-              below as a substitute. Now hands /preview/portal/demo (opened
-              in a new tab, same as the real flow) a snapshot of this page's
-              own in-progress `livePreviewConfig` via sessionStorage instead
-              of a backend fetch -- see that route's own docstring. */}
-          {demo && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                sessionStorage.setItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY, JSON.stringify(livePreviewConfig));
-                window.open("/preview/portal/demo", "_blank", "noopener,noreferrer");
-              }}
-            >
+              (background image, branding, live sign-in methods) -- for a
+              real account, pulls the real, currently-*saved*
+              captive_portal_configs/brandings data for this location; for a
+              demo session (no real org/location to fetch), a sessionStorage
+              snapshot of this page's own in-progress edits instead -- see
+              openExternalPreview above and /preview/portal/demo's own
+              docstring. Either way opens in a new tab. The "Live Preview"
+              card below renders that same real component tree too, but
+              inline on this page -- the two together cover both "open this
+              full-page, shareable" and "keep it visible while I keep
+              editing". Bug report this demo branch fixes: "demo account
+              mai capitive portal pr redirect nahi hota hai" -- previously
+              hidden outright in demo mode. */}
+          {(demo || (orgId && locationId)) && (
+            <Button variant="outline" size="sm" onClick={openExternalPreview}>
               <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
             </Button>
           )}
@@ -494,20 +493,38 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 Live
               </span>
             </CardTitle>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              aria-label="Refresh preview from the last saved configuration"
-              title="Refresh from saved configuration"
-              className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
-            >
-              {refreshing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1">
+              {/* Same destination as the "Preview Portal" button at the top
+                  of the page (openExternalPreview above) -- added directly
+                  here too since that's easy to miss from inside this card.
+                  Shown whenever the top button would be (demo, or a real
+                  account once orgId/locationId have resolved). */}
+              {(demo || (orgId && locationId)) && (
+                <button
+                  type="button"
+                  onClick={openExternalPreview}
+                  aria-label="Open this preview in a new tab"
+                  title="Open in a new tab"
+                  className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
               )}
-            </button>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-label="Refresh preview from the last saved configuration"
+                title="Refresh from saved configuration"
+                className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+              >
+                {refreshing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             {/* Phone frame -- a real device bezel wrapping the *actual*
@@ -553,12 +570,19 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             <p className="mt-3 text-center text-[11px] text-white/50">
               This is the real guest sign-in component, live-rendered with your unsaved edits
               above.
-              {!demo && (
+              {!demo ? (
                 <>
                   {" "}For the exact, currently-saved config a guest would see right now, use{" "}
                   <span className="font-medium text-white/80">Preview Portal</span> at the top of
                   this page.
                 </>
+              ) : (
+                // Demo has no real "saved" config to distinguish this from
+                // (see PortalPage.tsx's saveConfig demo branch) -- Preview
+                // Portal here opens this same in-progress config full-page
+                // in a new tab, not a different snapshot, so just point at
+                // the external-link icon rather than implying otherwise.
+                <> Use the <ExternalLink className="mb-0.5 inline h-3 w-3" /> icon above to open this in its own tab.</>
               )}
             </p>
           </CardContent>
