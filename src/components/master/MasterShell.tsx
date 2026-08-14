@@ -3,7 +3,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutGrid, Building2, MapPin, CreditCard, Server, Router, LineChart,
   Activity, LifeBuoy, ScrollText, Settings, Sun, Moon, LogOut, Menu, X,
-  TerminalSquare, CalendarClock,
+  TerminalSquare, CalendarClock, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -30,6 +30,7 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
   { to: "/master/tickets", label: "Support Tickets", icon: LifeBuoy, cap: "tickets" },
   { to: "/master/demo-requests", label: "Demo Requests", icon: CalendarClock, cap: "demo-requests" },
+  { to: "/master/quotations", label: "Quotations", icon: FileText, cap: "quotations" },
   { to: "/master/audit", label: "Audit Logs", icon: ScrollText, cap: "audit" },
   { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
 ];
@@ -68,6 +69,7 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   health: ["monitoring.read", "monitoring.view"],
   tickets: ["support_tickets.read"],
   "demo-requests": ["demo_requests.read"],
+  quotations: ["quotations.read"],
   audit: ["audit_logs.read"],
   settings: ["system_settings.read"],
   "billing.edit": ["billing.update", "billing.manage"],
