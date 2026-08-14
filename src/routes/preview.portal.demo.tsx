@@ -22,25 +22,36 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  *
  * Rather than fetching anything, this route reads the exact snapshot of
  * `PortalPage.tsx`'s own in-progress, unsaved `livePreviewConfig` --
- * written to sessionStorage under DEMO_PREVIEW_STORAGE_KEY right before
- * `window.open` -- and feeds it to the same real
+ * written to localStorage under DEMO_PORTAL_PREVIEW_STORAGE_KEY right
+ * before `window.open` -- and feeds it to the same real
  * PortalRuntimeProvider/PortalShell/GuestSignInCard tree the real preview
  * (and PortalPage's own embedded "Live Preview" card) already render, via
  * `previewMode`/`presetConfig`. This can never drift from what a real
  * guest sign-in screen actually renders, same guarantee the real preview
- * route documents -- it's just fed from sessionStorage instead of a
+ * route documents -- it's just fed from localStorage instead of a
  * network fetch.
  *
+ * localStorage, not sessionStorage: this route is opened via
+ * `window.open(url, "_blank", "noopener,noreferrer")`, and `noopener`
+ * deliberately severs the new tab's `opener` relationship -- which per
+ * the HTML spec also breaks sessionStorage inheritance into the new tab
+ * (a new browsing context only inherits a *copy* of the opener's
+ * sessionStorage when that opener relationship exists). The first version
+ * of this route used sessionStorage and always showed the empty state
+ * below in the new tab regardless of what PortalPage.tsx had just
+ * written, confirmed live: the button/redirect worked, the new tab just
+ * never saw the config. localStorage has no such opener-dependent
+ * behavior.
+ *
  * A visit with no stored config (someone bookmarking/reloading/sharing
- * this URL directly, or a session where localStorage/sessionStorage was
- * cleared) shows a plain empty state pointing back to Portal Settings,
- * rather than a blank or broken guest sign-in screen -- there is
- * deliberately no persistence beyond one browser tab's sessionStorage:
- * demo config was never saved anywhere real to begin with (see
- * PortalPage.tsx's own `saveConfig`'s demo branch), so a stale or
- * cross-session preview here would show a config an admin doesn't
- * currently have "open" anywhere, which is worse than an honest "reopen
- * the preview from Portal Settings" prompt.
+ * this URL directly, or a browser profile where localStorage was cleared)
+ * shows a plain empty state pointing back to Portal Settings, rather than
+ * a blank or broken guest sign-in screen -- there is deliberately no
+ * *server-side* persistence: demo config was never saved anywhere real to
+ * begin with (see PortalPage.tsx's own `saveConfig`'s demo branch), so a
+ * stale cross-device/cross-browser preview here would show a config an
+ * admin doesn't currently have "open" anywhere, which is worse than an
+ * honest "reopen the preview from Portal Settings" prompt.
  */
 export const Route = createFileRoute("/preview/portal/demo")({
   ssr: false,
@@ -55,7 +66,7 @@ export const Route = createFileRoute("/preview/portal/demo")({
 
 function readStoredConfig(): RuntimePortalConfig | null {
   try {
-    const raw = sessionStorage.getItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY);
+    const raw = localStorage.getItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as RuntimePortalConfig) : null;
   } catch {
     return null;
