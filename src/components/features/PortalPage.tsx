@@ -187,14 +187,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // previously two separate, duplicated Button blocks (one real, one
   // demo), which made it easy to update one and miss the other. Real
   // accounts open the actual shareable route with a real org/location;
-  // demo hands /preview/portal/demo a sessionStorage snapshot instead
+  // demo hands /preview/portal/demo a localStorage snapshot instead
   // (see that route's own docstring, and DEMO_PORTAL_PREVIEW_STORAGE_KEY).
   // `window.open` with a plain URL string (not a router `Link`) so the
   // same handler covers both branches identically -- the resulting URL is
   // the same either way, this just avoids two different call shapes.
   const openExternalPreview = () => {
     if (demo) {
-      sessionStorage.setItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY, JSON.stringify(livePreviewConfig));
+      localStorage.setItem(DEMO_PORTAL_PREVIEW_STORAGE_KEY, JSON.stringify(livePreviewConfig));
       window.open("/preview/portal/demo", "_blank", "noopener,noreferrer");
       return;
     }
@@ -367,7 +367,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               (background image, branding, live sign-in methods) -- for a
               real account, pulls the real, currently-*saved*
               captive_portal_configs/brandings data for this location; for a
-              demo session (no real org/location to fetch), a sessionStorage
+              demo session (no real org/location to fetch), a localStorage
               snapshot of this page's own in-progress edits instead -- see
               openExternalPreview above and /preview/portal/demo's own
               docstring. Either way opens in a new tab. The "Live Preview"
