@@ -1638,6 +1638,34 @@ export function chunksToMarkdown(
   return lines.join("\n");
 }
 
+/** Renders a generated setup script's chunks as one plain RouterOS script
+ * file -- unlike `chunksToMarkdown` (documentation, meant to be read, never
+ * meant to be run), this has zero non-RouterOS syntax: every line is either
+ * a `#`-prefixed comment (a real RouterOS comment marker, safe on its own
+ * line) or an actual script line straight from the chunk, in the same
+ * dependency-respecting order the Master Console panel already lists them
+ * in. Meant to be uploaded once via WebFig's Files tab and run with a
+ * single `/import file=<name>.rsc` -- the file-based alternative to
+ * pasting each chunk into WinBox/WebFig's Terminal by hand, for the exact
+ * same reason the chunking itself exists (WinBox/WebFig terminal paste
+ * corruption on long input, confirmed live this session): a file upload
+ * has no keyboard/clipboard path to corrupt at all. */
+export function chunksToRouterOsScript(
+  chunks: RouterSetupScriptChunk[],
+  routerName?: string,
+): string {
+  const lines = [
+    `# CloudGuest MikroTik provisioning script${routerName ? ` -- ${routerName}` : ""}`,
+    `# Generated ${new Date().toISOString()}`,
+    `# Upload via WebFig/WinBox Files, then run: /import file=<this-filename>.rsc`,
+    "",
+  ];
+  chunks.forEach((chunk, i) => {
+    lines.push(`# --- ${i + 1}. ${chunk.label} ---`, chunk.script, "");
+  });
+  return lines.join("\n");
+}
+
 /** One WAN link's own addressing -- what used to be an undocumented manual
  * on-site step ("get each WAN interface online first, then paste the
  * script") is now part of the generated script itself. `mode: "static"`
