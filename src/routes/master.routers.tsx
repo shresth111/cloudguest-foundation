@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Search, Power, RefreshCw, ArrowUpCircle, RotateCcw, Network, Shield, Waypoints,
   MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
-  Download,
+  Download, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -18,7 +18,8 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScriptChunks, chunksToMarkdown, chunksToRouterOsScript, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import { buildRouterSetupScriptChunks, chunksToMarkdown, chunksToRouterOsScript, validateSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import type { RouterSetupScriptValidationResult } from "@/components/routers/RouterDetailTabs";
 import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
@@ -147,6 +148,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
   const [chunks, setChunks] = useState<import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null>(null);
+  const [validation, setValidation] = useState<RouterSetupScriptValidationResult[] | null>(null);
   const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
   const [wans, setWans] = useState<import("@/components/routers/RouterDetailTabs").WanEntry[]>([
     { iface: "ether1", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
@@ -208,6 +210,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     }
     setBusy(true);
     setChunks(null);
+    setValidation(null);
     try {
       // generate_provisioning_token/check-in (BE-008) is deliberately
       // gated to pending_provisioning/provisioning -- a fresh *device
@@ -517,6 +520,22 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               <button
                 type="button"
                 onClick={() => {
+                  const result = validateSetupScriptChunks(chunks);
+                  setValidation(result);
+                  const errorCount = result.reduce((n, r) => n + r.issues.filter((i) => i.severity === "error").length, 0);
+                  const warningCount = result.reduce((n, r) => n + r.issues.filter((i) => i.severity === "warning").length, 0);
+                  if (errorCount === 0 && warningCount === 0) toast.success("Validated -- no issues found");
+                  else if (errorCount > 0) toast.error(`Validation found ${errorCount} error(s), ${warningCount} warning(s) -- see details below`);
+                  else toast.warning(`Validation found ${warningCount} warning(s) -- see details below`);
+                }}
+                className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
+                title="Check this script for syntax issues (unbalanced brackets/quotes, unescaped $variables, corrupted lines) before pasting or downloading -- runs entirely in your browser, no device needed"
+              >
+                <ShieldCheck className="h-3 w-3" /> Validate
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   const rsc = chunksToRouterOsScript(chunks, router.locationName);
                   const blob = new Blob([rsc], { type: "text/plain;charset=utf-8" });
                   const url = URL.createObjectURL(blob);
@@ -552,10 +571,53 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               </button>
             </div>
           </div>
-          {chunks.map((chunk, i) => (
+          {validation && (() => {
+            const errorCount = validation.reduce((n, r) => n + r.issues.filter((i) => i.severity === "error").length, 0);
+            const warningCount = validation.reduce((n, r) => n + r.issues.filter((i) => i.severity === "warning").length, 0);
+            return (
+              <div className={`rounded-lg border p-2.5 text-[11px] ${errorCount > 0 ? "border-destructive/40 bg-destructive/5" : warningCount > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-emerald-500/40 bg-emerald-500/5"}`}>
+                <div className="flex items-center gap-1.5 font-medium">
+                  {errorCount === 0 && warningCount === 0 ? (
+                    <><ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> All {validation.length} pieces passed validation -- no issues found.</>
+                  ) : (
+                    <><AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> {errorCount} error(s), {warningCount} warning(s) found across {validation.filter((r) => r.issues.length > 0).length} piece(s).</>
+                  )}
+                </div>
+                {(errorCount > 0 || warningCount > 0) && (
+                  <ul className="mt-1.5 space-y-1">
+                    {validation.filter((r) => r.issues.length > 0).map((r) => (
+                      <li key={r.chunkIndex}>
+                        <span className="font-medium">{r.chunkIndex + 1}. {r.label}:</span>
+                        <ul className="ml-4 list-disc">
+                          {r.issues.map((issue, idx) => (
+                            <li key={idx} className={issue.severity === "error" ? "text-destructive" : "text-amber-600"}>{issue.message}</li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-1.5 text-muted-foreground">This checks the script's own text for syntax problems -- it does not run anything on a real device.</p>
+              </div>
+            );
+          })()}
+          {chunks.map((chunk, i) => {
+            const chunkValidation = validation?.[i];
+            const hasErrors = chunkValidation?.issues.some((issue) => issue.severity === "error");
+            const hasWarnings = chunkValidation?.issues.some((issue) => issue.severity === "warning");
+            return (
             <div key={chunk.label} className="space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-foreground">{i + 1}. {chunk.label}</span>
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+                  {i + 1}. {chunk.label}
+                  {chunkValidation && (hasErrors ? (
+                    <AlertTriangle className="h-3 w-3 text-destructive" />
+                  ) : hasWarnings ? (
+                    <AlertTriangle className="h-3 w-3 text-amber-600" />
+                  ) : (
+                    <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                  ))}
+                </span>
                 <button
                   type="button"
                   onClick={async () => {
@@ -572,7 +634,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 <code>{chunk.script}</code>
               </pre>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

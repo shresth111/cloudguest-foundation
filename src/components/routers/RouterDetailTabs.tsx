@@ -1666,6 +1666,126 @@ export function chunksToRouterOsScript(
   return lines.join("\n");
 }
 
+export interface RouterSetupScriptValidationIssue {
+  severity: "error" | "warning";
+  message: string;
+}
+
+export interface RouterSetupScriptValidationResult {
+  chunkIndex: number;
+  label: string;
+  issues: RouterSetupScriptValidationIssue[];
+}
+
+/** Static-analysis validator for a generated script's chunks -- runs
+ * entirely client-side against the generator's own output, before it's
+ * ever copy-pasted or `/import`-ed. Deliberately does NOT require a live
+ * device: everything here is checking the *generator's own text*, not
+ * whether a real router accepts it (that needs an actual RouterOS
+ * instance, which is a separate, heavier "test on device" capability, not
+ * this one). This exists to catch the exact class of bug this session
+ * found twice by hand -- unbalanced brackets/quotes from a template-string
+ * mistake, and unescaped `$variable` references inside a nested
+ * `on-event="..."` string (the real, confirmed-live root cause of the
+ * DHCP-heartbeat bug this session fixed: RouterOS's own double-quoted
+ * string parser eagerly interpolates `$var` even one nesting level deep,
+ * silently baking in an empty value forever unless the `$` itself is
+ * escaped as `\$`) -- automatically, on every future edit to the
+ * generator, instead of relying on someone noticing it live again. */
+export function validateSetupScriptChunks(
+  chunks: RouterSetupScriptChunk[],
+): RouterSetupScriptValidationResult[] {
+  return chunks.map((chunk, chunkIndex) => {
+    const issues: RouterSetupScriptValidationIssue[] = [];
+    const s = chunk.script;
+
+    // -- balanced {}, [], () -- ignoring anything inside a double-quoted
+    // string literal, since RouterOS strings can legitimately contain any
+    // of these characters (e.g. a JSON body in http-data=).
+    const stack: string[] = [];
+    const pairs: Record<string, string> = { "}": "{", "]": "[", ")": "(" };
+    let inString = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === "\\" && inString) {
+        i++; // skip the escaped character, whatever it is
+        continue;
+      }
+      if (c === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (c === "{" || c === "[" || c === "(") stack.push(c);
+      else if (c === "}" || c === "]" || c === ")") {
+        if (stack.pop() !== pairs[c]) {
+          issues.push({
+            severity: "error",
+            message: `Unbalanced "${c}" -- a bracket/brace/paren closes without a matching open (or in the wrong order).`,
+          });
+        }
+      }
+    }
+    if (inString) {
+      issues.push({
+        severity: "error",
+        message: `Unterminated string -- an odd number of unescaped " characters.`,
+      });
+    }
+    if (stack.length > 0) {
+      issues.push({
+        severity: "error",
+        message: `Unclosed ${stack.map((c) => `"${c}"`).join(", ")} -- opened but never closed.`,
+      });
+    }
+
+    // -- every $variable inside an on-event="..." value must be escaped
+    // (\$var), not bare -- see this function's own docstring for why a
+    // bare $ here is the exact bug class this session found live.
+    const onEventMatch = s.match(/on-event=\(?"((?:\\.|[^"\\])*)"/);
+    if (onEventMatch) {
+      const body = onEventMatch[1];
+      const bareVar = body.match(/(^|[^\\])\$[a-zA-Z]/);
+      if (bareVar) {
+        issues.push({
+          severity: "error",
+          message: `on-event body contains an unescaped "$" before a variable name -- RouterOS resolves it at creation time (usually to empty) instead of preserving it for the scheduler to resolve later. Escape it as "\\$".`,
+        });
+      }
+    }
+
+    // -- a stray character immediately before a leading "#" comment marker
+    // is exactly the WebFig/WinBox paste-corruption signature seen live
+    // this session ("v#" instead of "#") -- flags it if it somehow ended
+    // up baked into the generator's own output rather than introduced by
+    // a later paste.
+    if (/^\s*\S#/.test(s.split("\n")[0] ?? "")) {
+      issues.push({
+        severity: "warning",
+        message: `Chunk's first line has a character immediately before "#" -- this is the exact corruption pattern seen from a bad paste; double-check this chunk's source.`,
+      });
+    }
+
+    // -- every non-blank, non-continuation line should start with a
+    // recognizable RouterOS token: a command path ("/..."), a control-flow
+    // keyword (":if"/":local"/":foreach"/":put"/":error"/":set"), a bare
+    // "}"/"else={"/"}"-continuation, or a "#" comment. Anything else is
+    // either a generator bug or leftover non-script text.
+    const knownStart = /^\s*(\/|:[a-z]|\}|else\b|#)/;
+    s.split("\n").forEach((line, lineIdx) => {
+      if (line.trim() === "") return;
+      if (!knownStart.test(line)) {
+        issues.push({
+          severity: "warning",
+          message: `Line ${lineIdx + 1} doesn't start with a recognizable RouterOS token (command path, ":" keyword, "}", or "#" comment): "${line.slice(0, 60)}${line.length > 60 ? "..." : ""}"`,
+        });
+      }
+    });
+
+    return { chunkIndex, label: chunk.label, issues };
+  });
+}
+
 /** One WAN link's own addressing -- what used to be an undocumented manual
  * on-site step ("get each WAN interface online first, then paste the
  * script") is now part of the generated script itself. `mode: "static"`
