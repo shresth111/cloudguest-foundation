@@ -1607,6 +1607,37 @@ export interface RouterSetupScriptChunk {
   script: string;
 }
 
+/** Renders a generated setup script's chunks as a single reviewable
+ * Markdown document -- same numbered-piece shape the Master Console's
+ * "Setup Script" panel already shows on screen (`N. <label>` + a
+ * ```routeros``` fence per chunk), just flattened into one file an
+ * operator can download, diff against a previous router's script, or
+ * hand to someone else for review instead of copy-pasting chunk by chunk.
+ *
+ * Deliberately NOT redacted -- unlike the standalone
+ * `scripts/generate-mikrotik-md.mjs` doc generator (which exists to
+ * produce a *shareable* reference copy with every secret replaced by a
+ * placeholder), this runs inside the authenticated Master Console after
+ * the real script has already been generated and shown on screen next to
+ * a "Copy" button with the same real secrets -- redacting only the
+ * downloaded file while leaving the on-screen version and clipboard copy
+ * unredacted would be a false sense of security, not real protection. */
+export function chunksToMarkdown(
+  chunks: RouterSetupScriptChunk[],
+  routerName?: string,
+): string {
+  const lines = [
+    `# MikroTik CloudGuest Provisioning Script${routerName ? ` -- ${routerName}` : ""}`,
+    "",
+    `_Generated ${new Date().toISOString()} -- contains real device credentials. Do not commit or share outside this device's own provisioning._`,
+    "",
+  ];
+  chunks.forEach((chunk, i) => {
+    lines.push(`## ${i + 1}. ${chunk.label}`, "", "```routeros", chunk.script, "```", "");
+  });
+  return lines.join("\n");
+}
+
 /** One WAN link's own addressing -- what used to be an undocumented manual
  * on-site step ("get each WAN interface online first, then paste the
  * script") is now part of the generated script itself. `mode: "static"`

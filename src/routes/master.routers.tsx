@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   Search, Power, RefreshCw, ArrowUpCircle, RotateCcw, Network, Shield, Waypoints,
   MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
+  Download,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -17,7 +18,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import { buildRouterSetupScriptChunks, chunksToMarkdown, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
 import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
@@ -508,9 +509,29 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
 
       {chunks && (
         <div className="space-y-2.5">
-          <p className="text-[11px] text-muted-foreground">
-            Paste these <strong>one at a time</strong>, in order, into the router's WinBox New Terminal — press Enter after each before pasting the next. Splitting it up like this avoids WinBox's terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it.
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              Paste these <strong>one at a time</strong>, in order, into the router's WinBox New Terminal — press Enter after each before pasting the next. Splitting it up like this avoids WinBox's terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                const md = chunksToMarkdown(chunks, router.locationName);
+                const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `mikrotik-${router.locationName || router.id}.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("Downloaded mikrotik.md");
+              }}
+              className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
+              title="Download this router's full script as one Markdown file (contains real credentials)"
+            >
+              <Download className="h-3 w-3" /> Download .md
+            </button>
+          </div>
           {chunks.map((chunk, i) => (
             <div key={chunk.label} className="space-y-1">
               <div className="flex items-center justify-between">
