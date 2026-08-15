@@ -1545,30 +1545,55 @@ export function buildRouterSetupScript(opts: {
   }
 
   lines.push("");
-  // Confirmed live: `management_ip_address`/`public_ip_address` stay NULL
-  // on the Router row forever, even for a router that has been happily
-  // heartbeating as `status=online`/`health_status=healthy` for weeks --
-  // because this call's body was always the literal, empty `"{}"`, never
-  // actually reporting anything for the backend's own
-  // `AgentHeartbeatRequest.management_ip_address` to persist. Once a
-  // WireGuard tunnel exists, its tunnel IP *is* this router's one
-  // reliably-reachable management address (the router's real WAN IP is
-  // often dynamic/behind NAT/CGNAT and not something this script can
-  // discover reliably) -- reporting it here is what finally lets
-  // BE-008/an admin reach this router's own RouterOS API after
-  // provisioning, without hand-typing IPs from a live SSH session onto
-  // the RADIUS/WireGuard hub. Escaped once for the plain call below, and
-  // AGAIN for the scheduler's `on-event=(...)`, which is itself already
-  // one layer of RouterOS string-literal nesting deep.
-  const heartbeatJson = wireguard
+  // Confirmed live (real MikroTik CHR, RouterOS 7.16, this session): the
+  // recurring scheduler used to always send the literal, empty `"{}"`
+  // body, leaving `management_ip_address`/`public_ip_address` NULL on the
+  // Router row forever, even for a router happily heartbeating as
+  // `status=online` for weeks. A prior fix added `management_ip_address`
+  // (the WireGuard tunnel IP, when one exists) but left
+  // `public_ip_address` static-only -- correct for a static WAN1, but a
+  // DHCP WAN1 (the common case) got nothing here, ever, only from the
+  // one-shot call below at provisioning time. Real IP changes after that
+  // (an ISP DHCP renewal handing out a different address) were silently
+  // never reported again.
+  //
+  // Fixed by having the *recurring* on-event body re-resolve WAN1's
+  // address live, every time it fires -- the same `:local`/`:if`/`:set`
+  // resolution the one-shot call below already does, just embedded one
+  // string-literal-nesting level deeper (inside `on-event="..."`).
+  // Two things had to be confirmed live before trusting this, both
+  // confirmed against a real CHR instance this session:
+  //   1. RouterOS's own double-quoted-string parser eagerly interpolates
+  //      `$variable` even *inside* a string meant to be stored verbatim
+  //      for later execution (a `/system scheduler add ... on-event="..."`
+  //      value) -- `$wan1Ip` in an unescaped on-event body silently
+  //      resolves to empty at *creation* time (nothing is `$wan1Ip` yet)
+  //      and that empty value gets permanently baked into the stored
+  //      script text, never re-evaluated later. Escaping the dollar sign
+  //      itself (`\$wan1Ip`) is what makes it survive as a literal
+  //      variable reference for the *stored* script to resolve on each
+  //      firing -- exactly what `escapeForRouterOsString` below already
+  //      does (`.replace(/\$/g, "\\$")`), it just was never applied to
+  //      anything beyond the flat JSON body before this fix.
+  //   2. The resolution logic itself (`/ip address get [find
+  //      interface=...] address` + `:pick`/`:find` to strip the CIDR
+  //      suffix) was verified to correctly resolve a real (DHCP-assigned)
+  //      address, not just a manually-set static one -- so this one
+  //      dynamic path now correctly covers both static and DHCP WAN1s,
+  //      replacing the old static-only special case entirely.
+  const wan1DynamicResolution = [
+    `:local wan1Ip ""`,
+    `:if ([:len [/ip address find where interface="${wanIfs[0]}"]] > 0) do={ :local wan1Full [/ip address get [find interface="${wanIfs[0]}"] address]; :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]] }`,
+    `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
+  ].join("; ");
+  const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
+  lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
+  lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event="${onEventBody}"`);
+  lines.push(`}`);
+  const heartbeatJsonOnce = wireguard
     ? `{"management_ip_address":"${wireguard.routerTunnelIp}"}`
     : "{}";
-  const heartbeatDataOnce = escapeForRouterOsString(heartbeatJson);
-  const heartbeatDataTwice = escapeForRouterOsString(heartbeatDataOnce);
-  lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
-  lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . $apiBase . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . $agentCredential . "\\" http-data=\\"${heartbeatDataTwice}\\" output=none")`);
-  lines.push(`}`);
-  lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="${heartbeatDataOnce}" output=none`);
+  lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="${escapeForRouterOsString(heartbeatJsonOnce)}" output=none`);
   lines.push("");
   const extras = [wireguard && "WireGuard", radius && "RADIUS", apiAccess && "API access"].filter(Boolean).join(" + ");
   lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat${extras ? " + " + extras : ""} sab set ho gaya."`);
@@ -2059,58 +2084,58 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   {
-    // See buildRouterSetupScript's identical comment: reports this
-    // router's WireGuard tunnel IP (its one reliably-reachable management
-    // address) as `management_ip_address` on every heartbeat, instead of
-    // the previous always-empty `"{}"` body that left that column NULL
-    // forever regardless of how many heartbeats arrived.
-    // Only a *static* WAN1 has a known-at-generation-time address to embed
-    // here -- for a DHCP WAN1 this key is omitted entirely (not sent as an
-    // empty string), so the recurring heartbeat's `if public_ip_address is
-    // not None` backend check (see RouterService.heartbeat) leaves
-    // whatever real value the one-shot line below already recorded alone,
-    // rather than blanking it back out on this scheduler's very first tick
-    // 5 minutes later. Built as a filtered, comma-joined array (not
-    // hand-spliced strings) so an absent key never leaves a stray leading/
-    // trailing comma behind -- invalid JSON the backend would 422 on.
-    const heartbeatJsonParts = [
-      wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}"` : null,
-      wans[0].mode === "static" ? `"public_ip_address":"${wans[0].ip}"` : null,
-    ].filter((p): p is string => p !== null);
-    const heartbeatJson = `{${heartbeatJsonParts.join(",")}}`;
-    const heartbeatDataOnce = escapeForRouterOsString(heartbeatJson);
-    const heartbeatDataTwice = escapeForRouterOsString(heartbeatDataOnce);
-    const lines = [
-      // The *recurring* (every 5m) heartbeat keeps reporting a fixed,
-      // generation-time-literal body -- same proven `on-event=("..." .
-      // var . "...")` concatenation this scheduler entry already used
-      // before WAN reporting existed, deliberately not extended to also
-      // re-resolve a DHCP WAN's IP live on every tick: that needs the same
-      // string-concatenation nested *inside* this already-concatenated
-      // on-event value, a second level of RouterOS quote-escaping this
-      // addition did not get to confirm against a real device (see
-      // `render_isp_netwatch_entry`'s own "not confirmed live" precedent
-      // for the same honesty convention). A DHCP WAN1's address changing
-      // between provisioning and the next manual re-run of this script is
-      // therefore a real, reported gap, not a silent guess -- the one-shot
-      // line below (run immediately, while the field engineer is still on
-      // site to notice anything wrong) does resolve it live, just not this
-      // recurring one.
-      `:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`,
-      `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event=("/tool fetch url=\\"" . "${apiBase}" . "/agent/heartbeat\\" http-method=post http-header-field=\\"Content-Type: application/json,X-Agent-Credential: " . "${agentCredential}" . "\\" http-data=\\"${heartbeatDataTwice}\\" output=none")`,
-      `}`,
-      // The one-shot line, by contrast, runs once right now -- so it can
-      // afford to resolve WAN1's actual live address first (a plain,
-      // single-level `:local`/`:set` + one `http-data=(... . $wan1Ip .
-      // ...)` concatenation, the same nesting depth the scheduler line
-      // above already uses successfully) instead of the static value typed
-      // into the form at generation time, which for a DHCP WAN1 is empty
-      // anyway (nothing to type -- see WanEntry's own docstring).
+    // Confirmed live (real MikroTik CHR, RouterOS 7.16, this session): the
+    // recurring scheduler used to always send a fixed, generation-time-
+    // literal body -- correct for a static WAN1, but for a DHCP WAN1 (the
+    // common case) `public_ip_address` was omitted entirely, forever, past
+    // the very first one-shot call at provisioning time. A real ISP DHCP
+    // renewal handing out a different address was never reported again.
+    //
+    // Fixed by having the *recurring* on-event body re-resolve WAN1's
+    // address live, every time it fires -- the same resolution the
+    // one-shot line below already does, embedded one string-literal-
+    // nesting level deeper (inside `on-event="..."`). Two things had to be
+    // confirmed live before trusting this:
+    //   1. RouterOS's own double-quoted-string parser eagerly interpolates
+    //      `$variable` even *inside* a string meant to be stored verbatim
+    //      for later execution -- `$wan1Ip` in an unescaped on-event body
+    //      silently resolves to empty at *creation* time and that empty
+    //      value gets permanently baked into the stored script text, never
+    //      re-evaluated later. Escaping the dollar sign itself
+    //      (`\$wan1Ip`) is what makes it survive as a literal variable
+    //      reference for the *stored* script to resolve on each firing --
+    //      exactly what `escapeForRouterOsString` already does
+    //      (`.replace(/\$/g, "\\$")`), it just was never applied to
+    //      anything beyond the flat JSON body before this fix.
+    //   2. The resolution logic resolves a real DHCP-assigned address
+    //      correctly, not just a manually-set static one -- so this one
+    //      dynamic path now covers both static and DHCP WAN1s, replacing
+    //      the old static-only special case entirely.
+    //
+    // The one-shot block below is also collapsed from a multi-line
+    // `:if (...) do={` ... `}` spanning several separate array entries
+    // (joined with real newlines) into one `;`-joined single-line
+    // statement -- the multi-line form is exactly what corrupted on paste
+    // into WinBox's terminal (confirmed live: this is the literal syntax
+    // error reported against a real router this session). Every other
+    // chunk in this generator already avoids multi-line blocks for this
+    // reason; this one hadn't been brought in line yet.
+    const wan1DynamicResolution = [
       `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={`,
-      `  :local wan1Full [/ip address get [find interface="${wans[0].iface}"] address]`,
-      `  :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]]`,
+      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :local wan1Full [/ip address get [find interface="${wans[0].iface}"] address]; :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]] }`,
+      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
+    ].join("; ");
+    const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
+    const lines = [
+      `:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`,
+      `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event="${onEventBody}"`,
       `}`,
+      // The one-shot line runs once right now, immediately, top-level --
+      // no extra nesting, so it keeps its existing single-level `\"`
+      // escaping (it was never the buggy one; only the scheduler's stored
+      // copy needed the extra nesting level above).
+      `:local wan1Ip ""`,
+      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :local wan1Full [/ip address get [find interface="${wans[0].iface}"] address]; :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]] }`,
       `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
     ];
     chunks.push({ label: "Heartbeat (reports management + WAN1 IP)", script: lines.join("\n") });
