@@ -7,6 +7,8 @@ import {
   Ban,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Copy,
   DatabaseBackup,
   Eye,
@@ -42,6 +44,7 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { ComingSoonPanel } from "@/components/ui-ext/ComingSoonPanel";
 import type { RouterDevice } from "@/types/router";
+import type { DiagnosticRun, PingRunResult, TracerouteRunResult } from "@/types/network-diagnostics";
 import { PEER_STATUS_LABEL } from "@/types/router";
 import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
 import {
@@ -216,8 +219,8 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
       <TabsContent value="wifi">
         <EmptyState
           icon={Wifi}
-          title="Guest WiFi SSIDs"
-          description="SSIDs, VLANs and captive portal bindings served by this router."
+          title="Guest WiFi isn't managed here"
+          description="Hotspot/SSID and captive portal settings for this router live in the customer's own dashboard, under Network -> Hotspot -- not in Master Console. There's no impersonation/view-as-customer feature yet to jump there directly from this screen."
         />
       </TabsContent>
       <TabsContent value="devices">
@@ -739,6 +742,92 @@ function ProvisioningTab({ routerId }: { routerId: string }) {
   );
 }
 
+/** Compact, human summary of a completed run's own `result` -- see
+ * `types/network-diagnostics.ts`'s own `PingRunResult`/`TracerouteRunResult`
+ * docstrings for why `result`'s keys stay snake_case unlike the rest of
+ * `DiagnosticRun`. Failed runs have no `result` to summarize (the backend
+ * writes `{}` on failure -- `errorMessage` is the real signal there). */
+function summarizeDiagnosticResult(run: DiagnosticRun): string | null {
+  if (run.status !== "completed" && run.status !== "success") return null;
+  if (run.diagnosticType === "ping") {
+    const r = run.result as unknown as PingRunResult;
+    if (typeof r?.sent !== "number") return null;
+    const rtt = r.avg_rtt_ms != null ? `${r.avg_rtt_ms.toFixed(1)} ms avg` : "no response";
+    return `${r.received}/${r.sent} received · ${r.packet_loss_percentage}% loss · ${rtt}`;
+  }
+  if (run.diagnosticType === "traceroute") {
+    const r = run.result as unknown as TracerouteRunResult;
+    if (!Array.isArray(r?.hops)) return null;
+    return `${r.hops.length} hop${r.hops.length === 1 ? "" : "s"}`;
+  }
+  return null;
+}
+
+function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
+  const [expanded, setExpanded] = useState(false);
+  const hops = run.diagnosticType === "traceroute"
+    ? (run.result as unknown as TracerouteRunResult)?.hops ?? []
+    : [];
+  const canExpand = run.diagnosticType === "traceroute" && hops.length > 0;
+  const summary = summarizeDiagnosticResult(run);
+
+  return (
+    <>
+      <TableRow
+        className={canExpand ? "cursor-pointer" : undefined}
+        onClick={canExpand ? () => setExpanded((v) => !v) : undefined}
+      >
+        <TableCell className="capitalize">
+          <span className="flex items-center gap-1">
+            {canExpand ? (
+              expanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : null}
+            {run.diagnosticType}
+          </span>
+        </TableCell>
+        <TableCell>{run.target}</TableCell>
+        <TableCell>
+          <Badge variant={run.status === "completed" || run.status === "success" ? "default" : "outline"}>
+            {run.status}
+          </Badge>
+        </TableCell>
+        <TableCell className="text-xs">
+          {summary ?? (run.errorMessage ? <span className="text-destructive">{run.errorMessage}</span> : <span className="text-muted-foreground">—</span>)}
+        </TableCell>
+        <TableCell className="text-xs text-muted-foreground">
+          {new Date(run.createdAt).toLocaleString()}
+        </TableCell>
+      </TableRow>
+      {canExpand && expanded && (
+        <TableRow>
+          <TableCell colSpan={5} className="bg-muted/30 p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Hop</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Loss</TableHead>
+                  <TableHead>Avg RTT</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {hops.map((hop) => (
+                  <TableRow key={hop.hop_number}>
+                    <TableCell className="text-xs">{hop.hop_number}</TableCell>
+                    <TableCell className="text-xs">{hop.address ?? <span className="text-muted-foreground">* (no reply)</span>}</TableCell>
+                    <TableCell className="text-xs">{hop.packet_loss_percentage}%</TableCell>
+                    <TableCell className="text-xs">{hop.avg_rtt_ms != null ? `${hop.avg_rtt_ms.toFixed(1)} ms` : "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
 function DiagnosticsTab({ routerId, organizationId }: { routerId: string; organizationId?: string }) {
   const [target, setTarget] = useState("");
   const runs = useDiagnosticRuns(routerId, organizationId);
@@ -813,23 +902,13 @@ function DiagnosticsTab({ routerId, organizationId }: { routerId: string; organi
                   <TableHead>Type</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Result</TableHead>
                   <TableHead>Run at</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {runs.data.rows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="capitalize">{r.diagnosticType}</TableCell>
-                    <TableCell>{r.target}</TableCell>
-                    <TableCell>
-                      <Badge variant={r.status === "completed" ? "default" : "outline"}>
-                        {r.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {new Date(r.createdAt).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
+                  <DiagnosticRunRow key={r.id} run={r} />
                 ))}
               </TableBody>
             </Table>
@@ -900,6 +979,10 @@ function ProvisioningTokenCard({ routerId }: { routerId: string }) {
     <Card className="rounded-2xl border-border/70 shadow-sm sm:col-span-2 lg:col-span-1">
       <CardContent className="flex flex-col gap-2 p-4">
         <div className="text-xs text-muted-foreground">Provisioning token</div>
+        <p className="text-[11px] text-muted-foreground">
+          For a manual/scripted check-in only -- not needed if you use Master Console's
+          Setup Script below, which mints and embeds its own token automatically.
+        </p>
         {reveal ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -2308,9 +2391,11 @@ export function RemoteAccessCard({ routerId }: { routerId: string }) {
     <Card className="rounded-2xl border-border/70">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-base">Remote access</CardTitle>
+          <CardTitle className="text-base">WinBox / API login</CardTitle>
           <p className="text-sm text-muted-foreground">
-            WinBox/RouterOS API login for this device, reachable only over the tunnel above.
+            Login for connecting with an external tool (WinBox, RouterOS API), reachable only
+            over the tunnel above. To run commands right here instead, use Master Console's
+            Device Console.
           </p>
         </div>
         <Button
