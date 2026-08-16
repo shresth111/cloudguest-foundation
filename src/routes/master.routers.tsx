@@ -17,7 +17,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScriptChunks, chunksToMarkdown, chunksToRouterOsScript, validateSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import { buildRouterSetupScriptChunks, chunksToMarkdown, chunksToRouterOsScript, chunksToSingleLineScript, validateSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
 import type { RouterSetupScriptValidationResult } from "@/components/routers/RouterDetailTabs";
 import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
@@ -602,9 +602,21 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig Terminal — press Enter after each before pasting the next. Splitting it up like this avoids the terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it. Or skip pasting entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong> tab, then run <code className="rounded bg-background px-1 py-0.5">/import file=&lt;name&gt;.rsc</code> — no terminal paste at all, so nothing to corrupt.
+              Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig Terminal — press Enter after each before pasting the next. Splitting it up like this avoids the terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it. Or skip pasting entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong> tab, then run <code className="rounded bg-background px-1 py-0.5">/import file=&lt;name&gt;.rsc</code> — no terminal paste at all, so nothing to corrupt. Or, for one single paste with no file upload: <strong>Copy (1 line)</strong> below — the whole script flattened onto one line, safe to paste in one go.
             </p>
             <div className="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await copyToClipboard(chunksToSingleLineScript(chunks));
+                  if (ok) toast.success("Copied full script as one line");
+                  else toast.error("Couldn't copy automatically -- try Download .rsc instead.");
+                }}
+                className="flex items-center gap-1 rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
+                title="Copy the entire script, comments stripped, flattened onto one line -- paste it into WinBox/WebFig Terminal in a single paste instead of one chunk at a time"
+              >
+                <Copy className="h-3 w-3" /> Copy (1 line)
+              </button>
               <button
                 type="button"
                 onClick={() => {
