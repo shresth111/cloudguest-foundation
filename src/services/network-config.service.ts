@@ -55,6 +55,13 @@ interface BackendApplyResult {
   job: { id: string; status: string };
 }
 
+interface BackendApplyLiveResult {
+  router_id: string;
+  version_id: string;
+  applied: boolean;
+  detail: string | null;
+}
+
 function toPreview(p: BackendPreview): NetworkConfigPreview {
   return {
     routerId: p.router_id,
@@ -100,6 +107,20 @@ export const networkConfigService = {
       `/network-config/routers/${routerId}/push`,
     );
     return { version: toVersion(data.version), job: data.job };
+  },
+
+  // Server-side push -- see backend's own apply_network_config_live
+  // docstring for why this replaced a direct browser->config-agent-bridge
+  // fetch() (mixed-content blocked under HTTPS, and shipped the bridge's
+  // secret in this app's own JS bundle).
+  async applyLive(
+    routerId: string,
+    versionId: string,
+  ): Promise<{ applied: boolean; detail: string | null }> {
+    const { data } = await api.post<BackendApplyLiveResult>(
+      `/network-config/routers/${routerId}/versions/${versionId}/apply-live`,
+    );
+    return { applied: data.applied, detail: data.detail };
   },
 
   async listVersions(routerId: string, page = 1, pageSize = 25): Promise<ConfigVersionListResult> {

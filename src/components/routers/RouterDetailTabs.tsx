@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Activity,
@@ -10,6 +11,7 @@ import {
   DatabaseBackup,
   Eye,
   EyeOff,
+  FileCode2,
   FileText,
   Gauge,
   History,
@@ -60,6 +62,7 @@ import {
   useWhitelistDevice,
 } from "@/hooks/useConnectedDevices";
 import {
+  useApplyNetworkConfigLive,
   useConfigVersions,
   useNetworkConfigPreview,
   usePushNetworkConfig,
@@ -80,17 +83,8 @@ import {
   useRotateSecret,
 } from "@/hooks/useRouterProvisioning";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { WireGuardTunnelSecrets } from "@/types/router";
-
-// The dashboard's SSH-capable config-push bridge -- a browser can't open
-// an SSH connection itself, so this small agent (running alongside the
-// WireGuard hub) does it, given the router's real connection info fetched
-// from GET /routers/{id}/device-connection. The push itself never routes
-// through the main backend.
-const CONFIG_AGENT_URL = "http://20.219.72.235:9093/config/apply";
-const CONFIG_AGENT_SECRET = "configagent-55952aac79cbbf5ac9dc404c228ed5b7";
 
 interface Props {
   router: RouterDevice;
@@ -99,6 +93,7 @@ interface Props {
 
 export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
   const [tab, setTab] = useState(initialTab);
+  const navigate = useNavigate();
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
@@ -205,10 +200,14 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
       </TabsContent>
 
       <TabsContent value="setup-script">
-        <SetupScriptTab
-          routerId={router.id}
-          organizationId={router.organizationId}
-          locationId={router.locationId}
+        <EmptyState
+          icon={FileCode2}
+          title="Setup Script has moved to Master Console"
+          description="This tab used an older, DHCP-only script builder with no WireGuard/RADIUS options and a real, confirmed WinBox terminal paste-corruption bug on long pastes -- Master Console's Setup Script panel is the current, fixed, fully-capable version. Open this router there to generate it."
+          action={{
+            label: "Open in Master Console",
+            onClick: () => navigate({ to: "/master/routers", search: { open: router.id } }),
+          }}
         />
       </TabsContent>
       <TabsContent value="wireguard">
@@ -404,45 +403,31 @@ function ConfigTab({ routerId }: { routerId: string }) {
   const versions = useConfigVersions(routerId);
   const push = usePushNetworkConfig(routerId);
   const rollback = useRollbackNetworkConfig(routerId);
+  const applyLive = useApplyNetworkConfigLive(routerId);
   const [applying, setApplying] = useState(false);
 
   async function handlePush() {
     try {
       const result = await push.mutateAsync();
-      const rendered = result?.version?.renderedContent;
-      if (!rendered) {
+      const version = result?.version;
+      if (!version?.renderedContent) {
         toast.success("Nothing to apply -- config is empty");
         return;
       }
 
       // The record (ConfigVersion/ProvisioningJob) now exists; actually
-      // getting it onto the device is this dashboard's own job -- fetch
-      // the router's real connection info, then hand the rendered script
-      // to the SSH-capable agent directly (no backend involvement in the
-      // push itself).
+      // getting it onto the device is a separate, server-side step (see
+      // backend's own apply_network_config_live docstring) -- previously
+      // a direct browser->config-agent-bridge fetch() here, which broke
+      // under HTTPS (mixed content) and shipped the bridge's own secret
+      // in this app's JS bundle. The backend now does that same call
+      // itself, keeping the secret server-side only.
       setApplying(true);
-      const conn = await api.get<{ host: string | null; username: string | null; password: string | null }>(
-        `/routers/${routerId}/device-connection`,
-      );
-      if (!conn.data.host || !conn.data.username || !conn.data.password) {
-        toast.error("Router has no stored connection details -- can't apply live.");
-        return;
-      }
-      const applyResp = await fetch(CONFIG_AGENT_URL, {
-        method: "POST",
-        headers: { "X-Agent-Secret": CONFIG_AGENT_SECRET, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tunnel_ip: conn.data.host,
-          username: conn.data.username,
-          password: conn.data.password,
-          script: rendered,
-        }),
-      });
-      const applyResult = await applyResp.json();
-      if (applyResp.ok && applyResult.applied) {
+      const applyResult = await applyLive.mutateAsync(version.id);
+      if (applyResult.applied) {
         toast.success("Config applied to the live device");
       } else {
-        toast.error(`Queued, but live apply failed: ${applyResult.detail || applyResult.error || "unknown error"}`);
+        toast.error(`Queued, but live apply failed: ${applyResult.detail || "unknown error"}`);
       }
     } catch (err) {
       toast.error((err as unknown as AppError).message || "Failed to push config");
@@ -1000,10 +985,8 @@ function escapeForRouterOsString(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/\n/g, "\\n");
 }
 
-/** Shared by both `buildRouterSetupScript` and `buildRouterSetupScriptChunks`
- * -- whichever of the two generated a given router's script, the guest-
- * facing result (which stock MikroTik pages get overridden, and what URL
- * they redirect to) must be identical. */
+/** Used by `buildRouterSetupScriptChunks` -- which stock MikroTik pages
+ * get overridden, and what URL they redirect to. */
 export interface PortalOverrideConfig {
   frontendBase: string;
   organizationId: string;
@@ -1275,333 +1258,6 @@ function wanExistenceCheckLines(wanIfNameExprs: string[]): string[] {
   return lines;
 }
 
-export function buildRouterSetupScript(opts: {
-  apiBase: string;
-  agentCredential: string;
-  wanIfs: string[];
-  lanBridge: string;
-  lanIp: string;
-  lanCidr: string;
-  dnsServers: string;
-  hsUser: string;
-  hsPass: string;
-  enableFirewall: boolean;
-  wireguard?: WireguardPeerInfo;
-  radius?: { serverAddress: string; sharedSecret: string };
-  /** RouterOS API service + a dedicated login for the platform's own
-   * control-plane calls (Device Console, VLAN/DHCP pushes, diagnostics) --
-   * distinct from `agentCredential` above, which only authenticates the
-   * router's one-way heartbeat back to the platform. Without this, every
-   * router this script provisions starts with Device Console permanently
-   * disabled for it ("no credentials"), needing a separate manual step. */
-  apiAccess?: { username: string; secret: string };
-  /** See `buildRouterSetupScriptChunks`'s identical field for the full
-   * rationale -- overwrites MikroTik's stock hotspot template pages
-   * (login/rlogin/alogin/status/logout) to redirect to this platform's own
-   * real guest portal instead. */
-  portalUrl?: PortalOverrideConfig;
-}): string {
-  const { apiBase, agentCredential, wanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, portalUrl } = opts;
-  const octets = lanIp.split(".");
-  const base3 = octets.slice(0, 3).join(".");
-  const poolStart = `${base3}.10`;
-  const poolEnd = `${base3}.254`;
-  const lanNetwork = `${base3}.0/${lanCidr}`;
-
-  const lines: string[] = [];
-  lines.push("{");
-  lines.push(WAN_RENAME_WARNING_HEADER);
-  lines.push(`:local apiBase "${apiBase}"`);
-  lines.push(`:local agentCredential "${agentCredential}"`);
-  lines.push(`:local lanBridge "${lanBridge}"`);
-  lines.push(`:local lanIp "${lanIp}"`);
-  lines.push(`:local lanCidr "${lanCidr}"`);
-  lines.push(`:local lanNetwork "${lanNetwork}"`);
-  lines.push(`:local poolStart "${poolStart}"`);
-  lines.push(`:local poolEnd "${poolEnd}"`);
-  lines.push("");
-  lines.push(`:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`);
-  // A fully factory-reset device (no default configuration kept) has no
-  // "bridge" interface at all -- every line below that binds something to
-  // $lanBridge (IP address, DHCP server, hotspot) would otherwise fail with
-  // "input does not match any value of interface". Safe to run even when a
-  // same-named bridge already exists (e.g. the stock default config).
-  lines.push(`:if ([:len [/interface bridge find where name=$lanBridge]] = 0) do={`);
-  lines.push(`  /interface bridge add name=$lanBridge`);
-  lines.push(`}`);
-  // A pre-existing default-config bridge (comment "defconf") starts
-  // disabled on some factory images -- confirmed live on a real device.
-  lines.push(`/interface bridge set [find name=$lanBridge] disabled=no`);
-
-  // WAN IP acquisition (DHCP vs. a leased-line's static IP/gateway) is
-  // deliberately NOT handled here -- the field engineer sets that up
-  // manually on-site first (via /ip address or /ip dhcp-client directly in
-  // WinBox, whichever the actual ISP connection needs), since only they
-  // know which this link is. This script only wires each already-connected
-  // WAN interface into the "WAN" interface list and NAT, which is the same
-  // regardless of how the IP itself was obtained.
-  // See WAN_RENAME_WARNING_HEADER / wanExistenceCheckLines' own docstring:
-  // this must run BEFORE any bridge-port-removal or NAT below, since those
-  // silently no-op (rather than error) when the name doesn't match
-  // anything -- exactly the failure mode that let a renamed WAN interface
-  // end up a member of the LAN bridge instead.
-  lines.push(...wanExistenceCheckLines(wanIfs.map((wanIf) => `"${wanIf}"`)));
-  wanIfs.forEach((wanIf, idx) => {
-    const n = idx + 1;
-    const v = `wan${n}If`;
-    lines.push(`:local ${v} "${wanIf}"`);
-    lines.push(`:local wan${n}Port [/interface bridge port find where interface=$${v}]`);
-    lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
-    lines.push(`:if ([:len [/interface list member find where interface=$${v} list="WAN"]] = 0) do={ /interface list member add list="WAN" interface=$${v} }`);
-    lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface=$${v} action=masquerade]] = 0) do={`);
-    lines.push(`  /ip firewall nat add chain=srcnat out-interface=$${v} action=masquerade comment="cloudguest-nat-wan${n}"`);
-    lines.push(`}`);
-  });
-
-  lines.push("");
-  // Every other physical ethernet port (i.e. not one of the WAN interfaces
-  // above) becomes a LAN bridge member -- without this, the hotspot/DHCP
-  // server this script sets up has no physical port actually wired to it,
-  // so no guest device plugged into the router can ever reach it. Matches
-  // by RouterOS's own ether-type interfaces (whatever they're named --
-  // "ether1", "eth1", or a custom-renamed identity all show up here),
-  // not a hardcoded name pattern.
-  // Confirmed live on a real device: some units ship with a *second*,
-  // hardware-switch default bridge (seen as "bridgeLocal", comment
-  // "defconf") that silently pre-claims every physical port. Unconditionally
-  // detaches a port from whatever bridge it's currently in (if any) before
-  // re-attaching it to ours, rather than skipping it just because it
-  // already belonged to *some* bridge.
-  // "Is this a WAN port" is decided by querying the "WAN" interface list
-  // this same script just populated above (RouterOS's own live state),
-  // not by re-comparing against a second, separately-hardcoded copy of
-  // the WAN names -- one fewer place for the two to silently drift apart,
-  // and it stays correct even if a future edit changes how the WAN
-  // section above decides what counts as WAN.
-  lines.push(`:foreach eth in=[/interface ethernet find] do={`);
-  lines.push(`  :local ethName [/interface ethernet get $eth name]`);
-  lines.push(`  :local isWan ([:len [/interface list member find where interface=$ethName list="WAN"]] > 0)`);
-  lines.push(`  :if (!$isWan) do={`);
-  lines.push(`    :local existingPort [/interface bridge port find where interface=$ethName]`);
-  lines.push(`    :if ([:len $existingPort] > 0) do={`);
-  lines.push(`      :if ([:len [/interface bridge port find where interface=$ethName bridge=$lanBridge]] = 0) do={`);
-  lines.push(`        /interface bridge port remove $existingPort`);
-  lines.push(`        /interface bridge port add bridge=$lanBridge interface=$ethName`);
-  lines.push(`      }`);
-  lines.push(`    } else={`);
-  lines.push(`      /interface bridge port add bridge=$lanBridge interface=$ethName`);
-  lines.push(`    }`);
-  lines.push(`  }`);
-  lines.push(`}`);
-
-  lines.push("");
-  lines.push(`:foreach addr in=[/ip address find where interface=$lanBridge dynamic=yes] do={ /ip address remove $addr }`);
-  lines.push(`:if ([:len [/ip address find where interface=$lanBridge address=($lanIp . "/" . $lanCidr)]] = 0) do={`);
-  lines.push(`  /ip address add address=($lanIp . "/" . $lanCidr) interface=$lanBridge`);
-  lines.push(`}`);
-  lines.push(`/ip dns set servers=${dnsServers} allow-remote-requests=yes`);
-
-  lines.push("");
-  lines.push(`:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={`);
-  lines.push(`  /ip pool add name="hotspot-pool" ranges=($poolStart . "-" . $poolEnd)`);
-  lines.push(`}`);
-  lines.push(`:if ([:len [/ip dhcp-server find where interface=$lanBridge]] = 0) do={`);
-  lines.push(`  /ip dhcp-server add name="hotspot-dhcp" interface=$lanBridge address-pool="hotspot-pool" disabled=no`);
-  lines.push(`  /ip dhcp-server network add address=$lanNetwork gateway=$lanIp dns-server=$lanIp`);
-  lines.push(`}`);
-  lines.push(`:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={`);
-  // Uses RouterOS's own *stock* hotspot template ("hotspot", not a custom-
-  // uploaded one) -- present with all its supporting CSS/error/logout pages
-  // on every fresh device out of the box. This used to point at a
-  // never-uploaded custom folder ("cloudguest-hotspot") -- confirmed to be
-  // exactly the same one-off mistake buildRouterSetupScriptChunks's own
-  // "Portal Redirect Page" comment already documented and fixed there;
-  // this copy of the same logic had drifted and never got that fix. Only
-  // the specific files in PORTAL_OVERRIDE_FILES below need to be ours; the
-  // stock folder already has everything else they depend on.
-  lines.push(`  /ip hotspot profile add name="hsprof1" hotspot-address=$lanIp html-directory=hotspot dns-name="${HOTSPOT_DNS_NAME}"`);
-  lines.push(`}`);
-  // Unconditional `set` (not nested in the profile-creation `:if` above)
-  // so re-running this script also fixes a router whose hsprof1 already
-  // existed before this line was added -- same reasoning as the
-  // login-by=http-pap `set` immediately below. See HOTSPOT_DNS_NAME's own
-  // docstring for why dns-name alone isn't enough and this static record
-  // is required alongside it.
-  lines.push(`/ip hotspot profile set [find name="hsprof1"] dns-name="${HOTSPOT_DNS_NAME}"`);
-  lines.push(`:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={`);
-  lines.push(`  /ip dns static add name="${HOTSPOT_DNS_NAME}" address=$lanIp comment="cloudguest-hotspot-dns-name"`);
-  lines.push(`} else={`);
-  lines.push(`  /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=$lanIp`);
-  lines.push(`}`);
-  // RouterOS's own default login-by (cookie,http-chap) can't be satisfied
-  // by a plain external-portal form POST of username+password -- CHAP
-  // needs a challenge/response computed from a chap-id this script's
-  // guest-facing login page never fetches, so the NAS silently rejects
-  // every login regardless of how correct the username/password are.
-  // Confirmed live (Haldwani): the login POST reached the router fine,
-  // the router's own hotspot gate just never opened. An unconditional
-  // `set` (not nested in the profile-creation `:if`, which only runs
-  // for a brand-new profile) so this also fixes a router whose hsprof1
-  // already existed before this line was added.
-  lines.push(`/ip hotspot profile set [find name="hsprof1"] login-by=http-pap`);
-  lines.push(`:if ([:len [/ip hotspot find where interface=$lanBridge]] = 0) do={`);
-  lines.push(`  /ip hotspot add name="hotspot1" interface=$lanBridge address-pool="hotspot-pool" profile="hsprof1" disabled=no`);
-  lines.push(`}`);
-  lines.push(`:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={`);
-  lines.push(`  /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1"`);
-  lines.push(`}`);
-
-  if (portalUrl) {
-    lines.push("");
-    // See PORTAL_OVERRIDE_FILES' own docstring for exactly which stock
-    // MikroTik hotspot pages this replaces and why the rest are left
-    // alone. Without this, an unauthenticated guest's browser navigating
-    // to the real portal (an ordinary external address as far as the
-    // hotspot's concerned) is silently blocked -- the walled garden below
-    // is what lets it through before login.
-    const walledGarden = buildWalledGardenLine(portalUrl);
-    if (walledGarden) lines.push(walledGarden);
-    buildPortalOverrideFileSetLines(portalUrl).forEach(({ line }) => lines.push(line));
-  }
-
-  if (enableFirewall) {
-    lines.push("");
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-established"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=input connection-state=established,related action=accept comment="cloudguest-fw-established"`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-invalid"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=input connection-state=invalid action=drop comment="cloudguest-fw-drop-invalid"`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=input in-interface=$lanBridge action=accept comment="cloudguest-fw-allow-lan"`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-icmp"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=input protocol=icmp action=accept comment="cloudguest-fw-allow-icmp"`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=input in-interface-list=WAN action=drop comment="cloudguest-fw-drop-wan-input"`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-established"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=forward connection-state=established,related action=accept comment="cloudguest-fw-fwd-established"`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-drop-invalid"]] = 0) do={`);
-    lines.push(`  /ip firewall filter add chain=forward connection-state=invalid action=drop comment="cloudguest-fw-fwd-drop-invalid"`);
-    lines.push(`}`);
-  }
-
-  if (wireguard) {
-    lines.push("");
-    lines.push(`:if ([:len [/interface wireguard find where name="wg-cloudguest"]] = 0) do={`);
-    lines.push(`  /interface wireguard add name="wg-cloudguest" private-key="${wireguard.routerPrivateKey}" listen-port=13231`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/interface wireguard peers find where interface="wg-cloudguest"]] = 0) do={`);
-    lines.push(`  /interface wireguard peers add interface="wg-cloudguest" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s`);
-    lines.push(`}`);
-    lines.push(`:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`);
-    lines.push(`  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`);
-    lines.push(`}`);
-    // The tunnel is only ever reachable by the platform's own WireGuard hub
-    // (a single trusted peer, not the public internet) -- treating it as a
-    // management-trusted interface, the same as cloudguest-fw-allow-lan
-    // above, is what makes WinBox/API remote access to this router
-    // actually work once RouterOS has any input-chain firewall rules at
-    // all. Without this, remote access happens to work today only because
-    // the generated ruleset never adds a final default-drop -- traffic
-    // from an interface matched by no rule just falls through to accept.
-    // That's fragile (a future stricter default policy would silently cut
-    // off remote management with no rule anyone would think to blame), so
-    // this makes the real intent an explicit, permanent rule instead of an
-    // accident of what the ruleset happens to not block yet.
-    if (enableFirewall) {
-      lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`);
-      lines.push(`  /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`);
-      lines.push(`}`);
-    }
-  }
-
-  if (radius) {
-    lines.push("");
-    lines.push(`:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`);
-    // RouterOS's own default RADIUS timeout is 300ms -- far too aggressive
-    // for any real WAN path (let alone one tunneled over WireGuard), and
-    // confirmed live to cause routers to report "RADIUS server is not
-    // responding" on links with completely ordinary latency. 3s gives a
-    // real round trip (including a WireGuard-tunneled one) room to
-    // complete before RouterOS gives up and falls back to rejecting the
-    // login.
-    lines.push(`  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}" timeout=3s`);
-    lines.push(`}`);
-    lines.push(`/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`);
-  }
-
-  if (apiAccess) {
-    lines.push("");
-    lines.push(`/ip service set api disabled=no`);
-    lines.push(`:if ([:len [/user find where name="${apiAccess.username}"]] = 0) do={`);
-    lines.push(`  /user add name="${apiAccess.username}" password="${apiAccess.secret}" group=full comment="cloudguest-api"`);
-    lines.push(`} else={`);
-    lines.push(`  /user set [find name="${apiAccess.username}"] password="${apiAccess.secret}"`);
-    lines.push(`}`);
-  }
-
-  lines.push("");
-  // Confirmed live (real MikroTik CHR, RouterOS 7.16, this session): the
-  // recurring scheduler used to always send the literal, empty `"{}"`
-  // body, leaving `management_ip_address`/`public_ip_address` NULL on the
-  // Router row forever, even for a router happily heartbeating as
-  // `status=online` for weeks. A prior fix added `management_ip_address`
-  // (the WireGuard tunnel IP, when one exists) but left
-  // `public_ip_address` static-only -- correct for a static WAN1, but a
-  // DHCP WAN1 (the common case) got nothing here, ever, only from the
-  // one-shot call below at provisioning time. Real IP changes after that
-  // (an ISP DHCP renewal handing out a different address) were silently
-  // never reported again.
-  //
-  // Fixed by having the *recurring* on-event body re-resolve WAN1's
-  // address live, every time it fires -- the same `:local`/`:if`/`:set`
-  // resolution the one-shot call below already does, just embedded one
-  // string-literal-nesting level deeper (inside `on-event="..."`).
-  // Two things had to be confirmed live before trusting this, both
-  // confirmed against a real CHR instance this session:
-  //   1. RouterOS's own double-quoted-string parser eagerly interpolates
-  //      `$variable` even *inside* a string meant to be stored verbatim
-  //      for later execution (a `/system scheduler add ... on-event="..."`
-  //      value) -- `$wan1Ip` in an unescaped on-event body silently
-  //      resolves to empty at *creation* time (nothing is `$wan1Ip` yet)
-  //      and that empty value gets permanently baked into the stored
-  //      script text, never re-evaluated later. Escaping the dollar sign
-  //      itself (`\$wan1Ip`) is what makes it survive as a literal
-  //      variable reference for the *stored* script to resolve on each
-  //      firing -- exactly what `escapeForRouterOsString` below already
-  //      does (`.replace(/\$/g, "\\$")`), it just was never applied to
-  //      anything beyond the flat JSON body before this fix.
-  //   2. The resolution logic itself (`/ip address get [find
-  //      interface=...] address` + `:pick`/`:find` to strip the CIDR
-  //      suffix) was verified to correctly resolve a real (DHCP-assigned)
-  //      address, not just a manually-set static one -- so this one
-  //      dynamic path now correctly covers both static and DHCP WAN1s,
-  //      replacing the old static-only special case entirely.
-  const wan1DynamicResolution = [
-    `:local wan1Ip ""`,
-    `:if ([:len [/ip address find where interface="${wanIfs[0]}"]] > 0) do={ :local wan1Full [/ip address get [find interface="${wanIfs[0]}"] address]; :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]] }`,
-    `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
-  ].join("; ");
-  const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
-  lines.push(`:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`);
-  lines.push(`  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event="${onEventBody}"`);
-  lines.push(`}`);
-  const heartbeatJsonOnce = wireguard
-    ? `{"management_ip_address":"${wireguard.routerTunnelIp}"}`
-    : "{}";
-  lines.push(`/tool fetch url=($apiBase . "/agent/heartbeat") http-method=post http-header-field=("Content-Type: application/json,X-Agent-Credential: " . $agentCredential) http-data="${escapeForRouterOsString(heartbeatJsonOnce)}" output=none`);
-  lines.push("");
-  const extras = [wireguard && "WireGuard", radius && "RADIUS", apiAccess && "API access"].filter(Boolean).join(" + ");
-  lines.push(`:put "LIVE. ${wanIfs.length} WAN(s) + Hotspot + firewall + heartbeat${extras ? " + " + extras : ""} sab set ho gaya."`);
-  lines.push("}");
-
-  return lines.join("\n");
-}
-
 export interface RouterSetupScriptChunk {
   label: string;
   script: string;
@@ -1853,17 +1509,17 @@ function buildWeightedPccPlan(
   return { total, indicesByWan };
 }
 
-/** Same configuration as `buildRouterSetupScript`, split into small,
- * independently-pasteable pieces instead of one giant `{ ... }` block --
- * confirmed live on a real device that WinBox's terminal can drop/mangle
- * characters on a very long single paste (many long lines, deep `{}`
- * nesting), corrupting the RouterOS parse partway through with no clean
- * way to tell which line actually failed. Each chunk here uses literal
- * values instead of shared `:local` variables (proven live, this same
- * session) so it's safe to paste standalone, in any order, and to re-run
- * if something goes wrong -- unlike the single-block version, nothing here
- * depends on an earlier chunk having already run in the same console
- * session. */
+/** Split into small, independently-pasteable pieces instead of one giant
+ * `{ ... }` block -- confirmed live on a real device that WinBox's
+ * terminal can drop/mangle characters on a very long single paste (many
+ * long lines, deep `{}` nesting), corrupting the RouterOS parse partway
+ * through with no clean way to tell which line actually failed. Each
+ * chunk here uses literal values instead of shared `:local` variables
+ * (proven live) so it's safe to paste standalone, in any order, and to
+ * re-run if something goes wrong. (An earlier, single-block generator,
+ * `buildRouterSetupScript`, had exactly this paste-corruption bug and no
+ * static-IP/WireGuard/RADIUS support -- deleted; this is the only
+ * generator now.) */
 export function buildRouterSetupScriptChunks(opts: {
   apiBase: string;
   agentCredential: string;
@@ -2357,9 +2013,9 @@ export function buildRouterSetupScriptChunks(opts: {
       `:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`,
       `  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`,
       `}`,
-      // See buildRouterSetupScript's identical rule for why this is needed:
-      // the tunnel is only ever reachable by the platform's own WireGuard
-      // hub, so treating it as management-trusted (like the LAN rule) is
+      // Load-bearing, not optional: the tunnel is only ever reachable by
+      // the platform's own WireGuard hub, so treating it as
+      // management-trusted (like the LAN rule) is
       // what makes WinBox/API remote access actually work once any
       // input-chain firewall rules exist, rather than relying on an
       // accident of the ruleset never adding a final default-drop.
@@ -2375,8 +2031,7 @@ export function buildRouterSetupScriptChunks(opts: {
   if (radius) {
     const lines = [
       `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`,
-      // See buildRouterSetupScript's identical comment: RouterOS's own
-      // default RADIUS timeout is 300ms, confirmed live to be too
+      // RouterOS's own default RADIUS timeout is 300ms, confirmed live to be too
       // aggressive for any real (let alone WireGuard-tunneled) WAN path.
       `  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}" timeout=3s`,
       `}`,
@@ -2444,200 +2099,6 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   return chunks;
-}
-
-function SetupScriptTab({
-  routerId,
-  organizationId,
-  locationId,
-}: {
-  routerId: string;
-  organizationId: string;
-  locationId: string;
-}) {
-  const generate = useGenerateProvisioningToken();
-  const [busy, setBusy] = useState(false);
-  const [script, setScript] = useState<string | null>(null);
-  const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
-  const [wanIfs, setWanIfs] = useState<string[]>(["ether1", "ether2", "ether3"]);
-  const [enableFirewall, setEnableFirewall] = useState(true);
-  const [form, setForm] = useState({
-    lanBridge: "bridge",
-    lanIp: "192.168.88.1",
-    lanCidr: "24",
-    dnsServers: "8.8.8.8,1.1.1.1",
-    hsUser: "guest",
-    hsPass: "welcome123",
-  });
-
-  function set<K extends keyof typeof form>(key: K, value: string) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
-
-  function setWanIf(idx: number, value: string) {
-    setWanIfs((arr) => arr.map((v, i) => (i === idx ? value : v)));
-  }
-
-  async function onGenerate() {
-    setBusy(true);
-    setScript(null);
-    try {
-      const { token } = await generate.mutateAsync(routerId);
-      // Check-in is presented device-side in the zero-touch flow, but its
-      // endpoint carries no device-only auth of its own -- only the
-      // one-time token -- so performing it here, immediately after minting
-      // that token, is equivalent to the router doing it itself a minute
-      // later. This lets the dashboard hand back ONE ready-to-run script
-      // with the agent credential already baked in, instead of a token the
-      // router still has to exchange itself.
-      const checkinResp = await api.post<{
-        agent_credential?: string;
-        router_id?: string;
-      }>("/routers/provisioning/check-in", { token });
-      const agentCredential = checkinResp.data.agent_credential;
-      if (!agentCredential) {
-        toast.error("Check-in succeeded but no agent credential was returned.");
-        return;
-      }
-      // Absolute, not `api.defaults.baseURL` directly -- this gets baked
-      // verbatim into a RouterOS `/tool fetch url=...` command below, which
-      // has no origin of its own to resolve a relative URL against. See
-      // `getAbsoluteApiBase`'s docstring.
-      const apiBase = getAbsoluteApiBase();
-      setScript(
-        buildRouterSetupScript({
-          apiBase,
-          agentCredential,
-          wanIfs: wanIfs.slice(0, ispCount),
-          enableFirewall,
-          // GUEST_PORTAL_PUBLIC_BASE, not window.location.origin -- see that
-          // constant's own docstring for why: this must be the real,
-          // stable, guest-facing portal domain regardless of whatever URL
-          // Master console itself happens to be served from.
-          portalUrl: { frontendBase: GUEST_PORTAL_PUBLIC_BASE, organizationId, locationId, routerId },
-          ...form,
-        }),
-      );
-      toast.success("Script ready");
-    } catch (err) {
-      toast.error((err as AppError).message || "Failed to generate setup script");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Yeh ek complete RouterOS script generate karta hai -- WAN internet (1-3 ISP, DHCP se, extra
-        ISP hone par apne aap failover), LAN bridge, Hotspot (guest WiFi), basic firewall, aur
-        platform check-in + heartbeat scheduler, sab ek saath. Router pe sirf WinBox New Terminal
-        me paste karna hai. WAN IP khud DHCP se mil jayegi -- bharne ki zaroorat nahi.
-      </p>
-      <Card className="rounded-2xl border-border/70 shadow-sm">
-        <CardContent className="space-y-4 p-4">
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Kitne ISP / WAN connections hain?</label>
-            <div className="flex gap-2">
-              {([1, 2, 3] as const).map((n) => (
-                <Button
-                  key={n}
-                  type="button"
-                  size="sm"
-                  variant={ispCount === n ? "default" : "outline"}
-                  onClick={() => setIspCount(n)}
-                >
-                  {n} ISP{n > 1 ? "s" : ""}
-                </Button>
-              ))}
-            </div>
-            {ispCount > 1 && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Failover mode: WAN 1 primary rahega, baaki backup (ISP 1 down hote hi automatic
-                switch). DHCP hi use hoga -- static IP daalne ki zaroorat nahi.
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            {wanIfs.slice(0, ispCount).map((v, idx) => (
-              <div key={idx}>
-                <label className="mb-1 block text-xs text-muted-foreground">
-                  WAN {idx + 1} interface naam
-                </label>
-                <Input value={v} onChange={(e) => setWanIf(idx, e.target.value)} placeholder={`ether${idx + 1}`} />
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">LAN bridge interface name</label>
-              <Input value={form.lanBridge} onChange={(e) => set("lanBridge", e.target.value)} placeholder="bridge" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">LAN IP</label>
-              <Input value={form.lanIp} onChange={(e) => set("lanIp", e.target.value)} placeholder="192.168.88.1" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">LAN CIDR</label>
-              <Input value={form.lanCidr} onChange={(e) => set("lanCidr", e.target.value)} placeholder="24" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">DNS servers (comma-separated)</label>
-              <Input value={form.dnsServers} onChange={(e) => set("dnsServers", e.target.value)} placeholder="8.8.8.8,1.1.1.1" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs text-muted-foreground">Hotspot login (guest username / password)</label>
-              <div className="flex gap-2">
-                <Input value={form.hsUser} onChange={(e) => set("hsUser", e.target.value)} placeholder="guest" />
-                <Input value={form.hsPass} onChange={(e) => set("hsPass", e.target.value)} placeholder="welcome123" />
-              </div>
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={enableFirewall}
-              onChange={(e) => setEnableFirewall(e.target.checked)}
-              className="h-4 w-4 rounded border-input"
-            />
-            Basic firewall rules bhi lagao (established/related allow, invalid drop, WAN se input block)
-          </label>
-        </CardContent>
-      </Card>
-
-      <Button size="sm" onClick={onGenerate} disabled={busy}>
-        {busy ? "Generating..." : "Generate script"}
-      </Button>
-
-      {script && (
-        <Card className="rounded-2xl border-border/70 shadow-sm">
-          <CardContent className="space-y-2 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Poora copy karo aur router ke WinBox New Terminal me paste karo (ek hi baar).
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(script);
-                  toast.success("Copied");
-                }}
-              >
-                <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
-              </Button>
-            </div>
-            <pre className="max-h-96 overflow-auto rounded-lg bg-muted/50 p-3 text-xs">
-              <code>{script}</code>
-            </pre>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
 }
 
 function WireGuardTab({ routerId }: { routerId: string }) {
