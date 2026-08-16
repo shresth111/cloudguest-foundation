@@ -4,7 +4,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import {
   Search, Power, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
-  Download, ShieldCheck, AlertTriangle,
+  Download, ShieldCheck, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -144,11 +144,61 @@ function generateApiSecret(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** Real IPv4 address -- each octet 0-255, no leading-zero ambiguity issues
+ * to worry about here since this only ever gates a toast, not a parser. */
+function isValidIpv4(value: string): boolean {
+  const octets = value.trim().split(".");
+  if (octets.length !== 4) return false;
+  return octets.every((o) => /^\d{1,3}$/.test(o) && Number(o) <= 255);
+}
+
+/** A CIDR prefix length, 1-32 -- matches the WAN/LAN validation the QA
+ * report flagged as missing (no format check today; a typo only ever
+ * surfaces as a bare RouterOS error on-site). 0 is excluded: a /0 default
+ * route on a WAN or LAN address is never a real, intended configuration
+ * here. */
+function isValidCidr(value: string): boolean {
+  if (!/^\d{1,2}$/.test(value.trim())) return false;
+  const n = Number(value.trim());
+  return n >= 1 && n <= 32;
+}
+
+/** Every hotspot login this generator has ever shipped as a *placeholder*
+ * default (`welcome123`, still the field's own placeholder text) plus the
+ * handful of passwords real people reach for first when asked to "just
+ * type something" -- the QA report's own finding: a shippable default
+ * with zero warning. Not exhaustive password-strength checking (that's a
+ * much bigger job); this only catches "you typed the well-known default
+ * or something equally guessable," which is the actual reported gap. */
+const KNOWN_WEAK_HOTSPOT_PASSWORDS = new Set([
+  "welcome123", "password", "password123", "guest", "guest123",
+  "12345678", "123456789", "admin", "admin123", "changeme",
+]);
+
+/** Readable random password -- avoids visually ambiguous characters
+ * (0/O, 1/l/I) since this may end up read aloud or hand-typed by guest-
+ * facing staff, unlike `generateApiSecret`'s pure hex (never seen by a
+ * human, only pasted). Pre-fills the hotspot password field so a fresh
+ * script never ships the old `welcome123` default un-warned -- see
+ * `KNOWN_WEAK_HOTSPOT_PASSWORDS` for the inline warning if someone types
+ * a guessable value in anyway. */
+function generateHotspotPassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
   const [chunks, setChunks] = useState<import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null>(null);
   const [validation, setValidation] = useState<RouterSetupScriptValidationResult[] | null>(null);
+  // Soft step-lock: chunk N+1's Copy button stays disabled until chunk N's
+  // has actually been clicked -- these have real ordering dependencies
+  // (WAN+Bridge before anything that references the bridge, etc.) but were
+  // previously freely clickable in any order with nothing to stop a
+  // field engineer from pasting them out of sequence.
+  const [copiedChunkIdx, setCopiedChunkIdx] = useState<Set<number>>(new Set());
   const [ispCount, setIspCount] = useState<1 | 2 | 3>(1);
   const [wans, setWans] = useState<import("@/components/routers/RouterDetailTabs").WanEntry[]>([
     { iface: "ether1", mode: "dhcp", ip: "", cidr: "30", gateway: "" },
@@ -171,14 +221,16 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // existing, only-ever-generated behavior. Keyed by WAN index (0-2), a
   // plain string so a field can sit legitimately empty while typing.
   const [wanWeightsRaw, setWanWeightsRaw] = useState<Record<number, string>>({});
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     lanBridge: "bridge",
     lanIp: "192.168.88.1",
     lanCidr: "24",
     dnsServers: "8.8.8.8,1.1.1.1",
     hsUser: "guest",
-    hsPass: "welcome123",
-  });
+    // Pre-filled random, not the old "welcome123" default -- see
+    // generateHotspotPassword's own docstring.
+    hsPass: generateHotspotPassword(),
+  }));
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -197,6 +249,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       toast.error("LAN bridge name can't be empty");
       return;
     }
+    if (!isValidIpv4(form.lanIp)) {
+      toast.error(`"${form.lanIp}" isn't a valid LAN IP address`);
+      return;
+    }
+    if (!isValidCidr(form.lanCidr)) {
+      toast.error(`"${form.lanCidr}" isn't a valid CIDR prefix (1-32)`);
+      return;
+    }
     // Same "block before spending the token" reasoning as the LAN-bridge
     // check above -- a static WAN with a blank ip/cidr/gateway renders
     // `:local wan1Gw ""`, which the WAN Routing chunk's own `:if ($wan1Gw
@@ -213,6 +273,20 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     );
     if (incompleteStaticWan) {
       toast.error(`WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`);
+      return;
+    }
+    // Format validation on top of the "not empty" check above -- a typo
+    // here used to only ever surface as a bare RouterOS error on-site,
+    // after the token above was already spent.
+    const malformedStaticWan = activeWans.find(
+      (w) =>
+        w.mode === "static" &&
+        (!isValidIpv4(w.ip ?? "") || !isValidCidr(w.cidr ?? "") || !isValidIpv4(w.gateway ?? "")),
+    );
+    if (malformedStaticWan) {
+      toast.error(
+        `WAN "${malformedStaticWan.iface}": check the IP/CIDR/gateway format -- "${malformedStaticWan.ip}/${malformedStaticWan.cidr}" via "${malformedStaticWan.gateway}" doesn't look right`,
+      );
       return;
     }
     const lanWanOverlap = lanIfs.find((li) => activeWans.some((w) => w.iface === li));
@@ -234,6 +308,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     }
     setBusy(true);
     setChunks(null);
+    setCopiedChunkIdx(new Set());
     setValidation(null);
     try {
       // generate_provisioning_token/check-in (BE-008) is deliberately
@@ -559,6 +634,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot password</label>
           <input className={inputCls} value={form.hsPass} onChange={(e) => set("hsPass", e.target.value)} placeholder="welcome123" />
+          {KNOWN_WEAK_HOTSPOT_PASSWORDS.has(form.hsPass.trim().toLowerCase()) && (
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+              <AlertTriangle className="h-3 w-3" /> This is a well-known default -- pick something less guessable.
+            </p>
+          )}
         </div>
       </div>
 
@@ -705,11 +785,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             const chunkValidation = validation?.[i];
             const hasErrors = chunkValidation?.issues.some((issue) => issue.severity === "error");
             const hasWarnings = chunkValidation?.issues.some((issue) => issue.severity === "warning");
+            const isCopied = copiedChunkIdx.has(i);
+            const isLocked = i > 0 && !copiedChunkIdx.has(i - 1);
             return (
             <div key={chunk.label} className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
                   {i + 1}. {chunk.label}
+                  {isCopied && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
                   {chunkValidation && (hasErrors ? (
                     <AlertTriangle className="h-3 w-3 text-destructive" />
                   ) : hasWarnings ? (
@@ -720,17 +803,23 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 </span>
                 <button
                   type="button"
+                  disabled={isLocked}
+                  title={isLocked ? `Copy piece ${i} first -- these run in order` : undefined}
                   onClick={async () => {
                     const ok = await copyToClipboard(chunk.script);
-                    if (ok) toast.success(`Copied: ${chunk.label}`);
-                    else toast.error("Couldn't copy automatically -- select the text below and copy it manually.");
+                    if (ok) {
+                      toast.success(`Copied: ${chunk.label}`);
+                      setCopiedChunkIdx((prev) => new Set(prev).add(i));
+                    } else {
+                      toast.error("Couldn't copy automatically -- select the text below and copy it manually.");
+                    }
                   }}
-                  className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
+                  className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
                 >
                   <Copy className="h-3 w-3" /> Copy
                 </button>
               </div>
-              <pre className="max-h-48 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug">
+              <pre className={`max-h-48 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug ${isLocked ? "opacity-50" : ""}`}>
                 <code>{chunk.script}</code>
               </pre>
             </div>
@@ -891,7 +980,7 @@ function RouterFleetScreen() {
         subtitle={sel ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}` : ""}
         footer={sel && (
           demo ? (
-            <MButton variant="primary" className="w-full justify-center" onClick={() => act(`Opening remote console for ${sel.name}`)}><TerminalSquare /> Open Remote Console</MButton>
+            <MButton variant="primary" className="w-full justify-center" onClick={() => act(`Opening remote console for ${sel.name}`)}><TerminalSquare /> Open Device Console</MButton>
           ) : (
             <Link to="/master/console" className="w-full">
               <MButton variant="primary" className="w-full justify-center"><TerminalSquare /> Open Device Console</MButton>
