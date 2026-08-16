@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
   Monitor, UsersRound, Bot, Network, Settings2, Bell, Sun, Globe, ScrollText,
   Fingerprint, Server, Signal, Wifi, Ban,
-  LifeBuoy, Share2,
+  LifeBuoy, Share2, HelpCircle,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -109,6 +109,11 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // for the same restriction and why (a real, org-wide login + change
       // audit trail, independently enforced by the backend too).
       { id: "admin-logs", label: "Logs", icon: ScrollText, roles: ["owner"] },
+      // A static reference page, not a data-backed feature -- lives here
+      // (rather than getting its own top-level nav group) because "Help" is
+      // exactly where a customer already looks for it, right alongside
+      // Support Tickets and Logs. See how-it-works.tsx / HowItWorksPage.tsx.
+      { id: "how-it-works", label: "How It Works", icon: HelpCircle, roles: ["owner", "agent"] },
     ],
   },
 ];

@@ -30,6 +30,7 @@ import { Route as MasterRouteImport } from './routes/master'
 import { Route as MacAuthRouteImport } from './routes/mac-auth'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IspDetailsRouteImport } from './routes/isp-details'
+import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as GuestVouchersRouteImport } from './routes/guest-vouchers'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as GuestCampaignsRouteImport } from './routes/guest-campaigns'
@@ -287,6 +288,11 @@ const LoginRoute = LoginRouteImport.update({
 const IspDetailsRoute = IspDetailsRouteImport.update({
   id: '/isp-details',
   path: '/isp-details',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowItWorksRoute = HowItWorksRouteImport.update({
+  id: '/how-it-works',
+  path: '/how-it-works',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuestVouchersRoute = GuestVouchersRouteImport.update({
@@ -1150,6 +1156,7 @@ export interface FileRoutesByFullPath {
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
   '/guest-vouchers': typeof GuestVouchersRoute
+  '/how-it-works': typeof HowItWorksRoute
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
@@ -1324,6 +1331,7 @@ export interface FileRoutesByTo {
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
   '/guest-vouchers': typeof GuestVouchersRoute
+  '/how-it-works': typeof HowItWorksRoute
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
@@ -1496,6 +1504,7 @@ export interface FileRoutesById {
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
   '/guest-vouchers': typeof GuestVouchersRoute
+  '/how-it-works': typeof HowItWorksRoute
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
@@ -1673,6 +1682,7 @@ export interface FileRouteTypes {
     | '/guest-campaigns'
     | '/guest-portal'
     | '/guest-vouchers'
+    | '/how-it-works'
     | '/isp-details'
     | '/login'
     | '/mac-auth'
@@ -1847,6 +1857,7 @@ export interface FileRouteTypes {
     | '/guest-campaigns'
     | '/guest-portal'
     | '/guest-vouchers'
+    | '/how-it-works'
     | '/isp-details'
     | '/login'
     | '/mac-auth'
@@ -2018,6 +2029,7 @@ export interface FileRouteTypes {
     | '/guest-campaigns'
     | '/guest-portal'
     | '/guest-vouchers'
+    | '/how-it-works'
     | '/isp-details'
     | '/login'
     | '/mac-auth'
@@ -2195,6 +2207,7 @@ export interface RootRouteChildren {
   GuestCampaignsRoute: typeof GuestCampaignsRoute
   GuestPortalRoute: typeof GuestPortalRoute
   GuestVouchersRoute: typeof GuestVouchersRoute
+  HowItWorksRoute: typeof HowItWorksRoute
   IspDetailsRoute: typeof IspDetailsRoute
   LoginRoute: typeof LoginRoute
   MacAuthRoute: typeof MacAuthRoute
@@ -2378,6 +2391,13 @@ declare module '@tanstack/react-router' {
       path: '/isp-details'
       fullPath: '/isp-details'
       preLoaderRoute: typeof IspDetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/how-it-works': {
+      id: '/how-it-works'
+      path: '/how-it-works'
+      fullPath: '/how-it-works'
+      preLoaderRoute: typeof HowItWorksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guest-vouchers': {
@@ -3816,6 +3836,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCampaignsRoute: GuestCampaignsRoute,
   GuestPortalRoute: GuestPortalRoute,
   GuestVouchersRoute: GuestVouchersRoute,
+  HowItWorksRoute: HowItWorksRoute,
   IspDetailsRoute: IspDetailsRoute,
   LoginRoute: LoginRoute,
   MacAuthRoute: MacAuthRoute,
