@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Shield, Users, UserCog, Smartphone, Ban, CheckCircle, Layers } from "lucide-react";
+import { Shield, Smartphone, Ban, CheckCircle, Layers } from "lucide-react";
 import LocationPolicies from "./LocationPolicies";
 import BlockUsers from "./BlockUsers";
 import WhiteList from "./WhiteList";
@@ -77,26 +77,47 @@ function PolicyShieldIllustration() {
 // new name matches what the tab does in the venue-owner's own words:
 // "Guest WiFi Limits" caps bandwidth/session/data per Business Unit (kept in
 // sync with LocationPolicies.tsx's own card titles after real-customer
-// feedback that "Usage Limits" didn't read as clearly), "Guest Access" is
-// per-guest allow/block/PIN control, "Access Tiers" is the bandwidth/limit
-// package guests get mapped into -- deliberately not "Guest Groups" (a
-// real, different feature already has that name in the sidebar,
-// ManageTeamsPage.tsx's staff/shared-account teams).
-const POLICIES_TABS = [
-  { id: "location", label: "Guest WiFi Limits", icon: Shield },
-  { id: "user", label: "Guest Access", icon: Users },
-  { id: "group", label: "Access Tiers", icon: Layers },
+// feedback that "Usage Limits" didn't read as clearly), the "Guest Access"
+// trio is per-guest allow/block/sign-in control, "Access Tiers" is the
+// bandwidth/limit package guests get mapped into -- deliberately not
+// "Guest Groups" (a real, different feature already has that name in the
+// sidebar, ManageTeamsPage.tsx's staff/shared-account teams).
+//
+// Flattened to one tab level after owner feedback that a "Guest Access"
+// top-level tab containing its own Blocked Guests/Always Allowed/Sign-in
+// Methods sub-tabs read as tabs nested inside tabs -- two visually
+// near-identical pill bars stacked, so it was never obvious which level a
+// click landed in. There's no real hierarchy being lost by flattening:
+// each of these 5 destinations is already a fully self-contained page with
+// its own icon-badge header (see BlockUsers.tsx/WhiteList.tsx/
+// SmartIdPage.tsx/CreateGroup.tsx's own `<h1>`), so "Guest Access" was a
+// navigation-only grouping, not a shared piece of content. That grouping
+// is now carried by adjacency and by the same rose/blocked · emerald/
+// allowed color coding the sub-tabs already used (see GuestBadges.tsx /
+// OperationsFeatures.tsx), plus a static divider on either side of the
+// trio -- a visual hint, not a second clickable layer.
+const ACCESS_TABS = [
+  { id: "location", label: "Guest WiFi Limits", icon: Shield, tone: "indigo" as const },
+  { id: "block", label: "Blocked Guests", icon: Ban, tone: "rose" as const },
+  { id: "whitelist", label: "Always Allowed", icon: CheckCircle, tone: "emerald" as const },
+  { id: "smartid", label: "Sign-in Methods", icon: Smartphone, tone: "indigo" as const },
+  { id: "group", label: "Access Tiers", icon: Layers, tone: "indigo" as const },
 ];
 
-const USER_SUB_TABS = [
-  { id: "block", label: "Blocked Guests", icon: Ban },
-  { id: "whitelist", label: "Always Allowed", icon: CheckCircle },
-  { id: "smartid", label: "Sign-in Methods", icon: Smartphone },
-];
+const TAB_ACTIVE_CLASSES: Record<(typeof ACCESS_TABS)[number]["tone"], string> = {
+  indigo: "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm",
+  rose: "bg-rose-500/10 text-rose-600 shadow-sm dark:text-rose-400",
+  emerald: "bg-emerald-500/10 text-emerald-600 shadow-sm dark:text-emerald-400",
+};
+
+// Tabs right before/after this pair of ids get a static divider next to
+// them -- the "Guest Access" trio (block/whitelist/smartid) reads as one
+// visual group between "Guest WiFi Limits" and "Access Tiers" without
+// needing its own tab level to say so.
+const DIVIDER_BEFORE = new Set(["block", "group"]);
 
 export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
   const [tab, setTab] = useState("location");
-  const [userTab, setUserTab] = useState("block");
 
   return (
     <div className="space-y-6">
@@ -113,33 +134,33 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
         <PolicyShieldIllustration />
       </div>
 
-      {/* Main policy tabs -- segmented pill control matching the established
-       * pattern (e.g. Users page's status tabs), replacing the old raw
-       * slate-ring boxed-tab look. Active tab now carries the brand accent
-       * instead of a flat neutral fill, so it reads as selected at a
-       * glance, matching the sub-tab treatment below it. */}
-      {/* `relative` wrapper + a right-edge fade: at narrow (sub-~400px)
-       * widths this row is wider than the viewport (min-w-[400px] so the
-       * three tabs never get too cramped) and silently clips "Access
-       * Tiers" at the screen edge with `overflow-x-auto`'s scrollbar being
-       * the only -- easy to miss on touch devices -- hint that there's
-       * more to swipe to. The fade is a static visual affordance (no
-       * scroll-position tracking), so it stays visible even once fully
-       * scrolled right; a small tradeoff for not needing a scroll listener
-       * for what's otherwise an edge case at the very narrowest widths. */}
+      {/* One flat row, one click away from any of the 5 real sections --
+       * no second tab level underneath it. `relative` wrapper + a
+       * right-edge fade: at narrow widths this row is wider than the
+       * viewport (min-w-[600px] so five tabs never get too cramped) and
+       * silently clips "Access Tiers" at the screen edge with
+       * `overflow-x-auto`'s scrollbar being the only -- easy to miss on
+       * touch devices -- hint that there's more to swipe to. The fade is a
+       * static visual affordance (no scroll-position tracking), so it
+       * stays visible even once fully scrolled right; a small tradeoff for
+       * not needing a scroll listener for what's otherwise an edge case at
+       * the very narrowest widths. */}
       <div className="relative">
         <div className="overflow-x-auto">
-          <div className="inline-flex min-w-[400px] w-full gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-            {POLICIES_TABS.map((t) => {
+          <div className="inline-flex min-w-[600px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
+            {ACCESS_TABS.map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
               return (
-                <button key={t.id} onClick={() => setTab(t.id)} aria-current={active ? "page" : undefined}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                    active ? "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  }`}>
-                  <Icon className="h-4 w-4" />{t.label}
-                </button>
+                <div key={t.id} className="flex flex-1 items-center">
+                  {DIVIDER_BEFORE.has(t.id) && <div aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />}
+                  <button onClick={() => setTab(t.id)} aria-current={active ? "page" : undefined}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      active ? TAB_ACTIVE_CLASSES[t.tone] : "text-muted-foreground hover:text-foreground"
+                    }`}>
+                    <Icon className="h-4 w-4" />{t.label}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -147,55 +168,13 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
         <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden" />
       </div>
 
-      {/* User Policies sub-tabs -- Blocked Guests and Always Allowed are
-       * opposite ends of the same guest-access decision (deny vs. skip the
-       * portal entirely), but until now both tabs carried the identical
-       * indigo "active" treatment as Sign-in Methods, so nothing in the UI
-       * signaled that relationship. Recolored to the rose/emerald pair
-       * GuestBadges.tsx and OperationsFeatures.tsx already use everywhere
-       * else for exactly these two states ("blocklist"/"whitelist",
-       * "blocked"), and carried through to the status pills in the tables
-       * below and the header illustration above -- one consistent color
-       * story instead of three unrelated pieces. Sign-in Methods isn't a
-       * restrict/permit list, so it keeps the neutral brand-indigo tab
-       * styling used across the rest of this page. */}
-      {tab === "user" && (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-rose-600 dark:text-rose-400">Blocked Guests</span> are refused a connection until unblocked.{" "}
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">Always Allowed</span> guests skip the portal automatically.
-          </p>
-          <div className="relative">
-            <div className="overflow-x-auto">
-              <div className="inline-flex min-w-[300px] w-full gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-                {USER_SUB_TABS.map((t) => {
-                  const Icon = t.icon;
-                  const active = userTab === t.id;
-                  const activeClasses =
-                    t.id === "block" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" :
-                    t.id === "whitelist" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                    "bg-[#4f46e5]/10 text-[#4f46e5]";
-                  return (
-                    <button key={t.id} onClick={() => setUserTab(t.id)}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                        active ? activeClasses : "text-muted-foreground hover:text-foreground"
-                      }`}>
-                      <Icon className="h-4 w-4" />{t.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden" />
-          </div>
-        </div>
-      )}
-
-      {/* Content */}
+      {/* Content -- each of these already renders its own full header
+       * (icon badge + title + description), so this shell adds nothing
+       * more than the tab row above it. */}
       {tab === "location" && <LocationPolicies locationId={locationId} />}
-      {tab === "user" && userTab === "block" && <BlockUsers locationId={locationId} />}
-      {tab === "user" && userTab === "whitelist" && <WhiteList locationId={locationId} />}
-      {tab === "user" && userTab === "smartid" && <SmartIdPage locationId={locationId} />}
+      {tab === "block" && <BlockUsers locationId={locationId} />}
+      {tab === "whitelist" && <WhiteList locationId={locationId} />}
+      {tab === "smartid" && <SmartIdPage locationId={locationId} />}
       {tab === "group" && <CreateGroup locationId={locationId} />}
     </div>
   );
