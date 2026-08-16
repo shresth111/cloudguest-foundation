@@ -2269,15 +2269,34 @@ export function buildRouterSetupScriptChunks(opts: {
     //
     // The one-shot block below is also collapsed from a multi-line
     // `:if (...) do={` ... `}` spanning several separate array entries
-    // (joined with real newlines) into one `;`-joined single-line
-    // statement -- the multi-line form is exactly what corrupted on paste
-    // into WinBox's terminal (confirmed live: this is the literal syntax
-    // error reported against a real router this session). Every other
-    // chunk in this generator already avoids multi-line blocks for this
-    // reason; this one hadn't been brought in line yet.
+    // (joined with real newlines) into one line -- the multi-line form is
+    // exactly what corrupted on paste into WinBox's terminal (confirmed
+    // live: this is the literal syntax error reported against a real
+    // router this session). Every other chunk in this generator already
+    // avoids multi-line blocks for this reason; this one hadn't been
+    // brought in line yet.
+    //
+    // The collapsed line itself went through a second confirmed-live
+    // failure before landing here: it originally packed *two*
+    // `;`-separated statements into one `do={ ... }` (`:local wan1Full
+    // [...]; :set wan1Ip [...]`) -- a shape that appears nowhere else in
+    // this entire generator (every other `do={ ... }` one-liner, e.g. the
+    // WAN gateway resolution just above --
+    // `do={ :set wan${n}Gw [/ip dhcp-client get [find interface=...]
+    // gateway] }` -- holds exactly one statement) and it threw a real
+    // "syntax error" on a live router at the exact boundary between the
+    // two statements. Rather than keep chasing whether RouterOS's
+    // interactive-paste parser genuinely rejects `;`-chained statements
+    // inside an inline `do={}` here, this drops the untested shape
+    // entirely: no intermediate `wan1Full` local, no `;`, just the single
+    // `:set` every other one-liner in this file already uses -- the
+    // `/ip address get [find ...] address` lookup runs twice (once for
+    // `:pick`'s source string, once for `:find`'s) instead of being cached
+    // in a local, which costs nothing (it's a read-only query) and keeps
+    // this block byte-for-byte consistent with the rest of the generator.
     const wan1DynamicResolution = [
       `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :local wan1Full [/ip address get [find interface="${wans[0].iface}"] address]; :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]] }`,
+      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wans[0].iface}"] address] 0 [:find [/ip address get [find interface="${wans[0].iface}"] address] "/"]] }`,
       `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
     ].join("; ");
     const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
@@ -2290,7 +2309,7 @@ export function buildRouterSetupScriptChunks(opts: {
       // escaping (it was never the buggy one; only the scheduler's stored
       // copy needed the extra nesting level above).
       `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :local wan1Full [/ip address get [find interface="${wans[0].iface}"] address]; :set wan1Ip [:pick $wan1Full 0 [:find $wan1Full "/"]] }`,
+      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wans[0].iface}"] address] 0 [:find [/ip address get [find interface="${wans[0].iface}"] address] "/"]] }`,
       `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
     ];
     chunks.push({ label: "Heartbeat (reports management + WAN1 IP)", script: lines.join("\n") });
