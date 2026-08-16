@@ -55,6 +55,7 @@ import {
   useWireGuardPeer,
 } from "@/hooks/useRouters";
 import { useAuditList } from "@/hooks/useAudit";
+import { useDomainRouterAnalytics } from "@/hooks/useAnalytics";
 import {
   useBlockDevice,
   useConnectedDevices,
@@ -227,17 +228,13 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         <ConnectedDevicesTab routerId={router.id} />
       </TabsContent>
       <TabsContent value="monitoring">
-        <ComingSoonPanel
-          icon={Gauge}
-          title="Monitoring"
-          description="Live CPU/RAM/bandwidth telemetry rolls out once this console is wired to a real Monitoring domain — the backend itself only records a self-reported heartbeat today, not active metrics."
-        />
+        <MonitoringTab router={router} />
       </TabsContent>
       <TabsContent value="analytics">
-        <EmptyState
+        <ComingSoonPanel
           icon={BarChart3}
           title="Analytics"
-          description="Session, auth and usage breakdowns for this router."
+          description="Session, auth and usage breakdowns for this one router aren't broken out yet -- the guest/auth analytics endpoints this would need are org/location-scoped only today, with no per-router filter. See the Monitoring tab for real per-router CPU/RAM/bandwidth/RADIUS data, which is available now."
         />
       </TabsContent>
       <TabsContent value="config">
@@ -261,6 +258,78 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function formatUptime(seconds: number | null): string {
+  if (seconds == null) return "—";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function MonitoringStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/70 p-3 text-center">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+/** Real CPU/RAM/bandwidth/uptime telemetry, not a "coming soon" stub --
+ * `GET /analytics/routers` (via `useDomainRouterAnalytics`) already
+ * returns exactly this, per router, but nothing in the app called it
+ * before this tab (confirmed via a repo-wide grep -- the hook and its 3
+ * siblings were fully typed and completely unused). Filtered to this one
+ * router client-side since the endpoint itself is scoped to an
+ * organization/location, not a single router -- the same shape
+ * `RouterAuditTab` already works around for the same reason. */
+function MonitoringTab({ router }: { router: RouterDevice }) {
+  const { data, isLoading, isError, refetch } = useDomainRouterAnalytics(
+    router.organizationId,
+    router.locationId,
+  );
+  const stats = data?.routers.find((r) => r.routerId === router.id);
+
+  if (isLoading) return <LoadingSkeleton rows={3} />;
+  if (isError) return <ErrorState onRetry={() => refetch()} />;
+  if (!stats) {
+    return (
+      <EmptyState
+        icon={Gauge}
+        title="No telemetry yet"
+        description="This router hasn't reported CPU/RAM/bandwidth data yet -- it appears once the agent's own metrics poll runs at least once."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MonitoringStat label="CPU" value={stats.cpuUsagePercent != null ? `${stats.cpuUsagePercent.toFixed(0)}%` : "—"} />
+        <MonitoringStat label="Memory" value={stats.memoryUsagePercent != null ? `${stats.memoryUsagePercent.toFixed(0)}%` : "—"} />
+        <MonitoringStat label="Uptime" value={formatUptime(stats.uptimeSeconds)} />
+        <MonitoringStat label="Connected clients" value={stats.connectedClients != null ? String(stats.connectedClients) : "—"} />
+        <MonitoringStat label="Bandwidth (window)" value={formatBytes(stats.bandwidthTotalBytes)} />
+        <MonitoringStat label="Internet" value={stats.internetAvailable ? "Reachable" : "Unreachable"} />
+        <MonitoringStat label="WireGuard" value={stats.wireguard.available ? (stats.wireguard.status ?? "configured") : "not configured"} />
+        <MonitoringStat label="RADIUS (success/fail)" value={`${stats.radiusSuccessCount}/${stats.radiusFailureCount}`} />
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Window: {new Date(data!.windowStart).toLocaleString()} – {new Date(data!.windowEnd).toLocaleString()}
+      </p>
     </div>
   );
 }
@@ -1640,11 +1709,15 @@ function buildWeightedPccPlan(
  * long lines, deep `{}` nesting), corrupting the RouterOS parse partway
  * through with no clean way to tell which line actually failed. Each
  * chunk here uses literal values instead of shared `:local` variables
- * (proven live) so it's safe to paste standalone, in any order, and to
- * re-run if something goes wrong. (An earlier, single-block generator,
- * `buildRouterSetupScript`, had exactly this paste-corruption bug and no
- * static-IP/WireGuard/RADIUS support -- deleted; this is the only
- * generator now.) */
+ * (proven live), so it's safe to *re-run* any one chunk on its own if
+ * something goes wrong -- not the same as safe to paste in any *order*:
+ * several chunks have real dependencies on an earlier one already having
+ * run (e.g. "LAN Ports" references the bridge "WAN + Bridge" creates), so
+ * the panel enforces paste order with a soft lock (master.routers.tsx's
+ * `copiedChunkIdx`) rather than leaving chunks freely clickable. (An
+ * earlier, single-block generator, `buildRouterSetupScript`, had exactly
+ * this paste-corruption bug and no static-IP/WireGuard/RADIUS support --
+ * deleted; this is the only generator now.) */
 export function buildRouterSetupScriptChunks(opts: {
   apiBase: string;
   agentCredential: string;
