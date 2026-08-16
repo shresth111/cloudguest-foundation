@@ -1801,6 +1801,56 @@ export interface WanEntry {
   ip?: string;
   cidr?: string;
   gateway?: string;
+  /** Only meaningful when the generator's own `wanRoutingMode` option is
+   * `"load_balance"` and every other enabled WAN also has a positive
+   * weight set -- see `WanRoutingMode`'s own docstring
+   * (`app.domains.isp.constants`, backend) for why a *partial* weighting
+   * is never honored here: this generator silently falls back to the
+   * existing even split the moment even one enabled WAN is missing a
+   * weight, the same "no fake opinion, no surprising partial state"
+   * posture the backend's own `validate_wan_routing_weights` enforces
+   * before this generator ever sees the data. */
+  weight?: number;
+}
+
+export type WanRoutingMode = "load_balance" | "failover_only";
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+/** GCD-reduces a set of per-WAN weights (e.g. `[70, 30]`) to the smallest
+ * integer ratio (`[7, 3]`) and assigns each WAN a contiguous block of PCC
+ * indices within the reduced total (`N=10`: WAN1 gets indices 0-6, WAN2
+ * gets 7-9) -- the real RouterOS mangle-rule pattern this generator's own
+ * "Basic Mangle Rules" chunk needs: one rule per index in a WAN's block,
+ * not one rule per WAN, which is what actually makes an uneven split
+ * possible at all (`per-connection-classifier` has no way to express "0
+ * shares" or "get more than an even 1/N share" any other way).
+ *
+ * Caps the reduced total at 20 and falls back to `null` (even split)
+ * above that -- an unrounded ratio (e.g. two oddly-precise percentages
+ * like 97:103) can GCD-reduce to a denominator in the hundreds, which
+ * would silently generate that many linear mangle-list entries RouterOS
+ * walks on every *new* connection. The UI's own ratio input snaps to 5%
+ * increments specifically to stay well under this cap; this is the
+ * generator's own independent, defensive backstop for whatever value it's
+ * actually handed. */
+function buildWeightedPccPlan(
+  weights: number[],
+): { total: number; indicesByWan: number[][] } | null {
+  const g = weights.reduce((a, b) => gcd(a, b));
+  const reduced = weights.map((w) => w / g);
+  const total = reduced.reduce((a, b) => a + b, 0);
+  if (total > 20) return null;
+  const indicesByWan: number[][] = [];
+  let cursor = 0;
+  reduced.forEach((share) => {
+    const indices: number[] = [];
+    for (let i = 0; i < share; i++) indices.push(cursor++);
+    indicesByWan.push(indices);
+  });
+  return { total, indicesByWan };
 }
 
 /** Same configuration as `buildRouterSetupScript`, split into small,
@@ -1853,8 +1903,20 @@ export function buildRouterSetupScriptChunks(opts: {
    * makes the correct, per-router values part of the repeatable script
    * instead. */
   portalUrl?: PortalOverrideConfig;
+  /** How 2+ enabled WANs are combined on-device -- defaults to
+   * `"load_balance"`, the only behavior this generator has ever produced
+   * for a multi-WAN router (every existing caller that doesn't pass this
+   * keeps its current real behavior unchanged). `"failover_only"` is a
+   * real, structurally *simpler* alternative, not a stripped-down version
+   * of load-balance: plain `distance`-ordered `check-gateway=ping`
+   * routes, zero PCC/mangle rules of any kind -- a 100/0 weighted split
+   * isn't even expressible in RouterOS's own PCC syntax, so this is its
+   * own code path. Meaningless (ignored) for a single-WAN router, same as
+   * the existing `wans.length > 1` guard already establishes for the
+   * mangle chunk. */
+  wanRoutingMode?: WanRoutingMode;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wans, lanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl } = opts;
+  const { apiBase, agentCredential, wans, lanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl, wanRoutingMode = "load_balance" } = opts;
   const wanIfs = wans.map((w) => w.iface);
   const hasExplicitLan = !!lanIfs && lanIfs.length > 0;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
@@ -1952,7 +2014,13 @@ export function buildRouterSetupScriptChunks(opts: {
       lines.push(`  :if ([:len [/ip route find where comment="cloudguest-plain-wan${n}"]] = 0) do={`);
       lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`);
       lines.push(`  } else={ /ip route set [find comment="cloudguest-plain-wan${n}"] gateway=$wan${n}Gw }`);
-      if (wans.length > 1) {
+      // The routing-mark'd routes below are what the PCC mangle chunk
+      // marks LAN-originated connections into -- meaningless (and never
+      // generated) in failover-only mode, which relies purely on the
+      // plain distance-ordered route above and RouterOS's own
+      // lowest-active-distance selection for the entire failover
+      // mechanism, no routing-mark of any kind.
+      if (wans.length > 1 && wanRoutingMode === "load_balance") {
         // This WAN's own preferred (distance=1) routing-mark'd route --
         // what the PCC mangle rules below send this WAN's share of
         // LAN-originated connections into.
@@ -1973,7 +2041,21 @@ export function buildRouterSetupScriptChunks(opts: {
       }
       lines.push(`}`);
     });
-    chunks.push({ label: "WAN Routing (load balancing + failover)", script: lines.join("\n") });
+    if (wans.length > 1 && wanRoutingMode === "failover_only") {
+      // Cleans up routing-mark'd routes a *previous* load-balance
+      // provisioning of this same router may have left behind -- without
+      // this, old PCC-marked traffic would still be routed via those
+      // stale routing-marks even though the mangle chunk below is never
+      // generated in this mode, silently reintroducing a load-balance-
+      // shaped split under a "failover only" script. Safe to re-run: an
+      // empty find is a no-op foreach.
+      lines.push(`:foreach r in=[/ip route find where comment~"^cloudguest-route-wan"] do={ /ip route remove $r }`);
+      lines.push(`:foreach r in=[/ip route find where comment~"^cloudguest-backup-wan"] do={ /ip route remove $r }`);
+    }
+    chunks.push({
+      label: wanRoutingMode === "failover_only" ? "WAN Routing (failover only)" : "WAN Routing (load balancing + failover)",
+      script: lines.join("\n"),
+    });
   }
 
   // Only rendered when the field engineer typed an explicit LAN port list
@@ -2175,33 +2257,74 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   // Per-connection-classifier (PCC) mangle rules for real dual/multi-WAN
-  // load balancing -- only meaningful with 2+ WAN links. This marks which
-  // WAN each new LAN connection should use (split evenly by source+
-  // destination address/port), then mark-routes it into that WAN's own
-  // `to_wan<N>` routing-mark -- the exact routing-mark the "WAN Routing"
-  // chunk above already added a distance=1 (preferred) and distance=2
-  // (crossover backup, for failover) route pair for. These two chunks are
-  // a pair: mangle rules with no matching routing-mark route would silently
-  // black-hole marked traffic the instant its preferred WAN's gateway went
-  // down (no lower-distance route left for that mark to fall back to), and
-  // routes with no mangle marking would just never get used by ordinary
-  // LAN traffic in the first place (nothing sends new connections into a
-  // routing-mark without one).
-  if (wanIfs.length > 1) {
+  // load balancing -- only meaningful with 2+ WAN links, and only in
+  // "load_balance" mode (failover-only never generates this chunk at all
+  // -- see the "WAN Routing" chunk's own comment on why that's a real,
+  // structurally simpler code path, not a degenerate weighting). This
+  // marks which WAN each new LAN connection should use, then mark-routes
+  // it into that WAN's own `to_wan<N>` routing-mark -- the exact
+  // routing-mark the "WAN Routing" chunk above already added a distance=1
+  // (preferred) and distance=2 (crossover backup, for failover) route
+  // pair for. These two chunks are a pair: mangle rules with no matching
+  // routing-mark route would silently black-hole marked traffic the
+  // instant its preferred WAN's gateway went down, and routes with no
+  // mangle marking would just never get used by ordinary LAN traffic in
+  // the first place.
+  if (wanIfs.length > 1 && wanRoutingMode === "load_balance") {
     const lines: string[] = [];
+
+    // Weighted split only when EVERY enabled WAN has a positive weight --
+    // a partial weighting (the backend's own validate_wan_routing_weights
+    // already rejects this at the point an admin confirms load-balance
+    // mode, but this generator makes the identical call independently,
+    // defensively, on whatever data it's actually handed) silently falls
+    // back to the existing even split rather than guessing which WANs the
+    // missing weights were meant for.
+    const allWeighted = wans.every((w) => typeof w.weight === "number" && w.weight > 0);
+    const weightedPlan = allWeighted ? buildWeightedPccPlan(wans.map((w) => w.weight as number)) : null;
+
+    if (weightedPlan) {
+      // Ratio changes need delete-then-recreate, not the usual add-if-
+      // missing idempotency: a ratio going from e.g. 70:30 (7+3=10 rules)
+      // to 50:50 (5+5=10 rules) reuses the same total rule count but a
+      // different WAN-to-index mapping -- the existence-check-per-rule
+      // pattern every other chunk in this generator uses would leave
+      // stale index rules pointing at the wrong WAN. Safe to re-run: an
+      // empty find is a no-op foreach, so this is a no-op on a router
+      // that has never had weighted PCC rules at all.
+      lines.push(`:foreach r in=[/ip firewall mangle find where comment~"^cloudguest-mangle-pcc-wan"] do={ /ip firewall mangle remove $r }`);
+    }
+
     wanIfs.forEach((wanIf, idx) => {
       const n = idx + 1;
       lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={`);
       lines.push(`  /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}"`);
       lines.push(`}`);
-      lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={`);
-      lines.push(`  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}"`);
-      lines.push(`}`);
+      if (weightedPlan) {
+        // One rule PER INDEX in this WAN's own share of the GCD-reduced
+        // denominator, not one rule per WAN -- e.g. a 70:30 split
+        // (GCD-reduced to 7:3, N=10) gives WAN1 seven rules (indices
+        // 0-6) and WAN2 three (indices 7-9). Each rule's own comment
+        // (`...-idxK`) is unique, so the cleanup foreach above and this
+        // add-if-missing check never collide across a ratio change.
+        weightedPlan.indicesByWan[idx].forEach((i) => {
+          lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}-idx${i}"]] = 0) do={`);
+          lines.push(`  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${weightedPlan.total}/${i} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}-idx${i}"`);
+          lines.push(`}`);
+        });
+      } else {
+        lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={`);
+        lines.push(`  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}"`);
+        lines.push(`}`);
+      }
       lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-route-wan${n}"]] = 0) do={`);
       lines.push(`  /ip firewall mangle add chain=prerouting connection-mark="wan${n}_conn" action=mark-routing new-routing-mark="to_wan${n}" passthrough=yes comment="cloudguest-mangle-route-wan${n}"`);
       lines.push(`}`);
     });
-    chunks.push({ label: "Basic Mangle Rules (dual/multi-WAN load balancing)", script: lines.join("\n") });
+    chunks.push({
+      label: weightedPlan ? "Basic Mangle Rules (weighted multi-WAN load balancing)" : "Basic Mangle Rules (dual/multi-WAN load balancing)",
+      script: lines.join("\n"),
+    });
   }
 
   if (identity) {
