@@ -682,18 +682,31 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig Terminal — press Enter after each before pasting the next. Splitting it up like this avoids the terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it. Or skip pasting entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong> tab, then run <code className="rounded bg-background px-1 py-0.5">/import file=&lt;name&gt;.rsc</code> — no terminal paste at all, so nothing to corrupt. Or, for one single paste with no file upload: <strong>Copy (1 line)</strong> below — the whole script flattened onto one line, safe to paste in one go.
+              Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig Terminal — press Enter after each before pasting the next. Splitting it up like this avoids the terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it. Or skip pasting entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong> tab, then run <code className="rounded bg-background px-1 py-0.5">/import file=&lt;name&gt;.rsc</code> — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong> below is still one giant paste under the hood -- on a real config it usually ends up several times longer than any single chunk above, which is exactly the kind of paste that's corrupted terminals before. Prefer Download .rsc if you have any doubt.
             </p>
             <div className="flex shrink-0 gap-1.5">
               <button
                 type="button"
                 onClick={async () => {
-                  const ok = await copyToClipboard(chunksToSingleLineScript(chunks));
-                  if (ok) toast.success("Copied full script as one line");
+                  const oneLine = chunksToSingleLineScript(chunks);
+                  // No hard size a real config lands under -- even a
+                  // single-WAN, no-extras router flattens to 5-figure
+                  // character counts (measured directly against this
+                  // generator's own output), well past any individual
+                  // chunk that's actually been proven safe to paste. This
+                  // warns every time rather than only past some threshold,
+                  // since in practice there is no realistic "small enough"
+                  // case -- see chunksToSingleLineScript's own docstring.
+                  const proceed = window.confirm(
+                    `This paste is ${oneLine.length.toLocaleString()} characters on one line -- several times longer than any single chunk above, and this is exactly the kind of paste that has corrupted WinBox/WebFig terminals before (a corrupted hotspot/portal command silently drops the guest sign-in page, with no error shown).\n\nDownload .rsc has no such risk -- it's a real file upload, no terminal paste at all.\n\nCopy the one-line version anyway?`,
+                  );
+                  if (!proceed) return;
+                  const ok = await copyToClipboard(oneLine);
+                  if (ok) toast.success("Copied full script as one line -- verify the hotspot page after pasting");
                   else toast.error("Couldn't copy automatically -- try Download .rsc instead.");
                 }}
-                className="flex items-center gap-1 rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
-                title="Copy the entire script, comments stripped, flattened onto one line -- paste it into WinBox/WebFig Terminal in a single paste instead of one chunk at a time"
+                className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-accent"
+                title="Flattens the whole script onto one line -- still one large paste under the hood, not risk-free. Download .rsc is the actually safe alternative."
               >
                 <Copy className="h-3 w-3" /> Copy (1 line)
               </button>
@@ -804,8 +817,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 <button
                   type="button"
                   disabled={isLocked}
-                  title={isLocked ? `Copy piece ${i} first -- these run in order` : undefined}
+                  title={isLocked ? `Copy piece ${i} first -- these run in order` : hasErrors ? "This piece has a validation error -- you'll be asked to confirm" : undefined}
                   onClick={async () => {
+                    if (hasErrors) {
+                      const issues = chunkValidation?.issues.filter((iss) => iss.severity === "error").map((iss) => iss.message).join("\n- ") ?? "";
+                      const proceed = window.confirm(
+                        `"${chunk.label}" has a validation error:\n- ${issues}\n\nPasting it as-is will very likely fail (or worse, partially apply) on the real device. Copy anyway?`,
+                      );
+                      if (!proceed) return;
+                    }
                     const ok = await copyToClipboard(chunk.script);
                     if (ok) {
                       toast.success(`Copied: ${chunk.label}`);
