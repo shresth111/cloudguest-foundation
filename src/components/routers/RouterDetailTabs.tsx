@@ -1322,6 +1322,48 @@ export function chunksToRouterOsScript(
   return lines.join("\n");
 }
 
+/** Flattens every chunk into a single RouterOS-legal line -- a third way to
+ * get the script onto a device, alongside the multi-paste chunk flow and
+ * the `.rsc` file upload: one paste, no Files-tab upload step. RouterOS
+ * accepts `;` as a statement separator interchangeably with a newline (the
+ * generator itself already relies on this -- see e.g. the heartbeat
+ * chunk's own `wan1DynamicResolution.join("; ")`), so joining every real
+ * statement line with `; ` reproduces exactly what the multi-line chunks
+ * already mean, just on one line.
+ *
+ * Two things can't simply be `;`-joined:
+ * - `#` comment lines run to end-of-line, so joining one with `; ` would
+ *   silently swallow every statement after it as part of the comment.
+ *   These carry no runtime meaning (they're annotations for a human
+ *   reading the multi-line version) -- dropped entirely here, not escaped.
+ * - A statement immediately after an opening `{` (or immediately before a
+ *   standalone closing `}`) joins with a plain space instead of `; ` --
+ *   matching the inline `do={ ... }` style already used everywhere else in
+ *   this generator (e.g. `do={ /interface bridge port remove $wan1Port }`);
+ *   a leading `;` right inside a fresh block is unnecessary and untested
+ *   against real RouterOS, so this avoids introducing it. This is a
+ *   line-level heuristic, not a real brace-depth parser -- safe for every
+ *   chunk this generator emits today (each is either fully inline already,
+ *   or one block opened and closed within a few lines, never nested), but
+ *   worth re-checking if a future chunk introduces deeper nesting. */
+export function chunksToSingleLineScript(chunks: RouterSetupScriptChunk[]): string {
+  const commandLines = chunks
+    .flatMap((chunk) => chunk.script.split("\n"))
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+
+  let out = "";
+  for (const line of commandLines) {
+    if (out.length === 0) {
+      out = line;
+      continue;
+    }
+    const joinsAsBlock = out.endsWith("{") || line.startsWith("}");
+    out += (joinsAsBlock ? " " : "; ") + line;
+  }
+  return out;
+}
+
 export interface RouterSetupScriptValidationIssue {
   severity: "error" | "warning";
   message: string;
