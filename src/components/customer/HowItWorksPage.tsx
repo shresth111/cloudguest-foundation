@@ -1,14 +1,7 @@
 import type { ComponentType } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  OverviewIllustration,
-  EngagementIllustration,
-  AccessPolicyIllustration,
-  DevicesTeamIllustration,
-  NetworkIllustration,
-  HowItWorksHeroIllustration,
-} from "@/components/customer/HowItWorksIllustrations";
+import { HelpCircle, LayoutDashboard, Megaphone, ShieldCheck, Monitor, Network } from "lucide-react";
 
 interface HowItWorksItem {
   /** Matches the real sidebar label exactly (see customerNav.ts) so a
@@ -22,6 +15,9 @@ interface HowItWorksGroup {
   id: string;
   label: string;
   line: string;
+  /** The exact lucide icon customerNav.ts already assigns to this group's
+   * first sidebar item, reused here rather than a bespoke illustration --
+   * see this file's top comment for why. */
   Icon: ComponentType<{ className?: string }>;
   items: HowItWorksItem[];
 }
@@ -31,7 +27,7 @@ const GROUPS: HowItWorksGroup[] = [
     id: "overview",
     label: "Overview",
     line: "A quick, real-time read on how your guest WiFi is doing right now.",
-    Icon: OverviewIllustration,
+    Icon: LayoutDashboard,
     items: [
       {
         heading: "Dashboard",
@@ -47,7 +43,7 @@ const GROUPS: HowItWorksGroup[] = [
     id: "engagement",
     label: "Engagement",
     line: "Reach the people connected to your WiFi — surveys, offers, and a branded welcome.",
-    Icon: EngagementIllustration,
+    Icon: Megaphone,
     items: [
       {
         heading: "Campaigns",
@@ -67,7 +63,7 @@ const GROUPS: HowItWorksGroup[] = [
     id: "access-policy",
     label: "Access & Policy",
     line: "Control who can connect, how much bandwidth they get, and when WiFi is available.",
-    Icon: AccessPolicyIllustration,
+    Icon: ShieldCheck,
     items: [
       {
         heading: "Access Rules",
@@ -95,7 +91,7 @@ const GROUPS: HowItWorksGroup[] = [
     id: "devices-team",
     label: "Devices & Team",
     line: "Keep track of your hardware and shared accounts, and control what your staff can do.",
-    Icon: DevicesTeamIllustration,
+    Icon: Monitor,
     items: [
       {
         heading: "Devices",
@@ -115,7 +111,7 @@ const GROUPS: HowItWorksGroup[] = [
     id: "network",
     label: "Network",
     line: "The plumbing behind your guest WiFi — addresses, separation, forwarding, and call quality.",
-    Icon: NetworkIllustration,
+    Icon: Network,
     items: [
       {
         heading: "IP Addresses",
@@ -145,32 +141,53 @@ const GROUPS: HowItWorksGroup[] = [
  * sidebar is obvious). Rendered as the `how-it-works` case in
  * CustomerFeaturePage.tsx, reachable from the sidebar's Support & Logs
  * group.
+ *
+ * Redesigned after owner feedback that the previous version's oversized,
+ * unconstrained hero illustration (a 480x220 orbiting-node SVG rendered at
+ * `width="100%" height="auto"` with no cap, so it grew huge on wide
+ * screens) plus six bespoke "gradient badge with orbiting dashed lines"
+ * group icons read as a weak, over-illustrated concept -- more marketing
+ * hero than reference page. The fix isn't a size tweak on the same
+ * artwork, it's a different concept entirely: this is a help/reference
+ * page a customer scans for an answer, not a moment that needs to earn
+ * attention the way Dashboard's real-KPI hero does. So the header now
+ * matches the plain `FeatureHeader` pattern every other real feature page
+ * already uses (OperationsFeatures.tsx's Alerts/Notifications/Logs/etc
+ * views) -- a small fixed-size icon badge, a title, one description line
+ * -- instead of a full-bleed gradient panel. And instead of inventing new
+ * illustration motifs, each section header reuses the exact lucide icon
+ * customerNav.ts already assigns to that group's first sidebar item
+ * (LayoutDashboard, Megaphone, ShieldCheck, Monitor, Network), so this
+ * page's icons are literally the icons a customer already sees in their
+ * own sidebar rather than a separate illustrated language competing with
+ * it -- fewer visual ideas, more directly useful ones.
  */
 export function HowItWorksView() {
   return (
     <div className="space-y-8">
-      {/* Hero band -- same 3-stop indigo/violet gradient panel as the
-       * Dashboard hero (see CustomerFeaturePage.tsx's DashboardView), with
-       * the content writer's intro blurb and the illustrator's orbiting
-       * hero graphic instead of live KPI numbers, since this page has none
-       * of its own to show. */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-5 text-white shadow-xl shadow-indigo-950/30 sm:p-6">
-        <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Help</p>
-          <h1 className="font-display mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+      {/* Page header -- same small icon-badge + title + description
+       * treatment as every other real feature page's own header (see
+       * OperationsFeatures.tsx's FeatureHeader), sized as a plain
+       * reference-page header rather than a hero. The badge reuses the
+       * exact HelpCircle icon customerNav.ts assigns to this sidebar item. */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+          <HelpCircle className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             How the dashboard works
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/70">
-            Welcome to your dashboard. Everything you need to run your guest WiFi lives here —
-            from checking who's online right now to deciding exactly who gets to connect. This
-            page walks through what each section does, so you can find your way around without
-            any networking background.
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            A quick reference for what's where -- mirrors your sidebar section by section.
           </p>
         </div>
-        <div className="relative mt-5">
-          <HowItWorksHeroIllustration />
-        </div>
       </div>
+      <p className="-mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        Welcome to your dashboard. Everything you need to run your guest WiFi lives here — from
+        checking who's online right now to deciding exactly who gets to connect. Open any section
+        below for what it does, in plain language, no networking background required.
+      </p>
 
       {/* One accordion section per sidebar group, each opened by default so
        * the page is fully scannable/searchable (Cmd+F) without extra
@@ -183,9 +200,11 @@ export function HowItWorksView() {
             value={group.id}
             className="premium-card overflow-hidden rounded-2xl border px-4 sm:px-6"
           >
-            <AccordionTrigger className="py-4 hover:no-underline sm:py-5">
-              <div className="flex items-center gap-4 text-left">
-                <group.Icon className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
+            <AccordionTrigger className="py-4 hover:no-underline sm:py-4">
+              <div className="flex items-center gap-3.5 text-left">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+                  <group.Icon className="h-[18px] w-[18px] text-white" />
+                </div>
                 <div>
                   <p className="text-base font-semibold tracking-tight text-foreground">{group.label}</p>
                   <p className="mt-0.5 text-sm font-normal text-muted-foreground">{group.line}</p>
