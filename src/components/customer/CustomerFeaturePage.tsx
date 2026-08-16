@@ -25,6 +25,7 @@ import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
+import { HowItWorksView } from "@/components/customer/HowItWorksPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import { maskEmail, maskMac, maskPhone, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
@@ -173,6 +174,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 generic-feature fallback. */}
             {feature === "audit" && <AdminLogsView locationId={locationId} />}
             {feature === "tickets" && <TicketsPage locationId={locationId} />}
+            {feature === "how-it-works" && <HowItWorksView />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
             {feature === "background-image" && <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />}
