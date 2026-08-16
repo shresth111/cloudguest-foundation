@@ -169,10 +169,19 @@ export const portalRuntimeService = {
     organizationId: string;
     locationId: string;
   }): Promise<RuntimePortalConfig> {
+    // A guest device only just associated with the WiFi -- this is the very
+    // first API call it ever makes, over a fresh, sometimes-flaky pre-auth
+    // path. The client's global 20s axios timeout is right for slower
+    // operations (OTP dispatch, etc.) but far too long for a splash screen
+    // with nothing else to show: a genuinely stuck connection should surface
+    // as a retryable error in a few seconds, not leave the guest staring at
+    // a spinner for 20. See routes/portal.index.tsx's own retry affordance,
+    // which this shorter timeout exists to make actually reachable quickly.
     const { data } = await guestPortalApi.get<BackendCaptivePortalConfig>(
       "/captive-portal/resolve",
       {
         params: { organization_id: params.organizationId, location_id: params.locationId },
+        timeout: 6000,
       },
     );
     return toRuntimeConfig(data);
@@ -183,14 +192,16 @@ export const portalRuntimeService = {
    * a re-scanned QR code, a re-opened captive-portal redirect) but the
    * device's own MAC (RouterOS's trustworthy `$(mac)`) might still have a
    * live, RADIUS-authorized session on this router. Returns `null` -- not
-   * an error -- for a normal first-time visit. */
+   * an error -- for a normal first-time visit. Same shortened timeout as
+   * `resolveConfig`, same reasoning -- this also gates the splash screen's
+   * navigation decision. */
   async checkActiveSession(params: {
     routerId: string;
     deviceMac: string;
   }): Promise<RuntimeSession | null> {
     const { data } = await guestPortalApi.get<BackendGuestLoginResponse | null>(
       "/guest/session/active",
-      { params: { router_id: params.routerId, device_mac: params.deviceMac } },
+      { params: { router_id: params.routerId, device_mac: params.deviceMac }, timeout: 6000 },
     );
     return data ? toRuntimeSession(data) : null;
   },
