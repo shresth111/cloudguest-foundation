@@ -163,6 +163,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const [enableFirewall, setEnableFirewall] = useState(true);
   const [enableWireguard, setEnableWireguard] = useState(false);
   const [enableRadius, setEnableRadius] = useState(false);
+  // Only shown/meaningful with 2+ ISPs -- see buildRouterSetupScriptChunks's
+  // own WanRoutingMode docstring for why failover-only is a real,
+  // structurally simpler alternative, not a stripped-down load-balance.
+  const [wanRoutingMode, setWanRoutingMode] = useState<"load_balance" | "failover_only">("load_balance");
+  // Ratio inputs are opt-in -- undefined/empty means "even split," the
+  // existing, only-ever-generated behavior. Keyed by WAN index (0-2), a
+  // plain string so a field can sit legitimately empty while typing.
+  const [wanWeightsRaw, setWanWeightsRaw] = useState<Record<number, string>>({});
   const [form, setForm] = useState({
     lanBridge: "bridge",
     lanIp: "192.168.88.1",
@@ -194,7 +202,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     // `:local wan1Gw ""`, which the WAN Routing chunk's own `:if ($wan1Gw
     // != "")` guard then silently skips instead of erroring, leaving that
     // WAN with an address but no route at all.
-    const activeWans = wans.slice(0, ispCount);
+    const activeWans = wans.slice(0, ispCount).map((w, idx) => {
+      const raw = wanWeightsRaw[idx]?.trim();
+      const weight = raw ? Number(raw) : undefined;
+      return weight && weight > 0 ? { ...w, weight } : { ...w, weight: undefined };
+    });
     const lanIfs = lanIfsRaw.split(",").map((s) => s.trim()).filter(Boolean);
     const incompleteStaticWan = activeWans.find(
       (w) => w.mode === "static" && (!w.ip?.trim() || !w.cidr?.trim() || !w.gateway?.trim()),
@@ -207,6 +219,18 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     if (lanWanOverlap) {
       toast.error(`"${lanWanOverlap}" is listed as both a WAN and a LAN interface -- fix before generating`);
       return;
+    }
+    // Same "every enabled WAN weighted, or none of them" rule the backend's
+    // own validate_wan_routing_weights enforces -- checked here too so a
+    // half-filled ratio is caught before a token is spent, not silently
+    // treated as an even split by the generator (which would make the
+    // real on-device ratio depend on which fields happen to be filled in).
+    if (wanRoutingMode === "load_balance" && ispCount > 1) {
+      const weightedCount = activeWans.filter((w) => w.weight !== undefined).length;
+      if (weightedCount > 0 && weightedCount < activeWans.length) {
+        toast.error("Set a bandwidth ratio for every WAN, or leave all of them blank for an even split");
+        return;
+      }
     }
     setBusy(true);
     setChunks(null);
@@ -340,6 +364,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           apiBase: getAbsoluteApiBase(),
           agentCredential,
           wans: activeWans,
+          wanRoutingMode,
           lanIfs: lanIfs.length > 0 ? lanIfs : undefined,
           enableFirewall,
           wireguard,
@@ -404,11 +429,59 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         ))}
       </div>
       {ispCount > 1 && (
-        <p className="text-[11px] text-muted-foreground">
-          2+ WANs: traffic load-balances across all of them; if one WAN's gateway goes down its
-          share automatically fails over to the next WAN (ring order: WAN1 backs up WAN2, WAN2
-          backs up WAN3, ..., the last one backs up WAN1).
-        </p>
+        <div className="space-y-2 rounded-lg border border-border p-2.5">
+          <p className="text-[11px] font-medium text-foreground">If one connection goes down, what should happen?</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setWanRoutingMode("failover_only")}
+              className={`rounded-lg border p-2 text-left text-[11px] ${wanRoutingMode === "failover_only" ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent"}`}
+            >
+              <div className="font-medium text-foreground">Failover only</div>
+              <div className="text-muted-foreground">WAN 1 carries everything while healthy; the rest sit ready and take over automatically only if it drops.</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWanRoutingMode("load_balance")}
+              className={`rounded-lg border p-2 text-left text-[11px] ${wanRoutingMode === "load_balance" ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent"}`}
+            >
+              <div className="font-medium text-foreground">Share the load</div>
+              <div className="text-muted-foreground">Traffic splits across every connection all the time, still with automatic failover if one drops.</div>
+            </button>
+          </div>
+          {wanRoutingMode === "load_balance" && (
+            <div className="space-y-1.5 rounded-lg bg-muted/40 p-2">
+              <p className="text-[11px] text-muted-foreground">
+                Splits evenly by default. Only fill these in if one connection should carry more
+                than the others (e.g. a 100mbps primary paired with a 20mbps backup) — leave every
+                box blank for an even split.
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {wans.slice(0, ispCount).map((_, idx) => (
+                  <input
+                    key={idx}
+                    className={inputCls}
+                    value={wanWeightsRaw[idx] ?? ""}
+                    onChange={(e) => setWanWeightsRaw((m) => ({ ...m, [idx]: e.target.value }))}
+                    placeholder={`WAN ${idx + 1} weight`}
+                    inputMode="numeric"
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                A target, not an exact guarantee — with only a handful of devices connected, the
+                real split can look uneven for a while. It evens out as more guests connect.
+              </p>
+            </div>
+          )}
+          {wanRoutingMode === "failover_only" && (
+            <p className="text-[11px] text-muted-foreground">
+              Priority order: WAN 1 carries everything while healthy. If it drops, traffic moves to
+              WAN 2; if that also drops, to WAN 3 — and back to WAN 1 automatically once it
+              recovers. No dashboard action needed.
+            </p>
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
