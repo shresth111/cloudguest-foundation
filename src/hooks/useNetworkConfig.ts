@@ -36,3 +36,8 @@ export const useRollbackNetworkConfig = (routerId: string) => {
     onSuccess: () => qc.invalidateQueries({ queryKey: K.versions(routerId) }),
   });
 };
+
+export const useApplyNetworkConfigLive = (routerId: string) =>
+  useMutation({
+    mutationFn: (versionId: string) => networkConfigService.applyLive(routerId, versionId),
+  });

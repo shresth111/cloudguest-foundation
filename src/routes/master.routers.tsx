@@ -3,8 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
-  Search, Power, RefreshCw, ArrowUpCircle, RotateCcw, Network, Shield, Waypoints,
-  MapPinned, ScrollText, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
+  Search, Power, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
   Download, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -122,7 +121,8 @@ function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
 /** One-paste MikroTik setup: fetches a provisioning token, checks the
  * router in immediately (dashboard-side, so the agent credential is known
  * up front), and renders a ready-to-paste RouterOS script -- see
- * buildRouterSetupScript's own doc comment for exactly what it covers. */
+ * buildRouterSetupScriptChunks's own doc comment for exactly what it
+ * covers. */
 // NOTE: the RADIUS server's address baked into the generated RouterOS
 // script's `/radius add address=...` line is deliberately NOT a constant
 // here anymore -- it used to be the hub's public IP (20.219.72.235),
@@ -406,6 +406,21 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <strong> failover</strong> (a WAN whose gateway stops answering pings automatically drops
         out, its share of traffic falling back to the next WAN — no dashboard action needed).
       </p>
+
+      <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[11px]">
+        <p className="font-medium text-foreground">⚠ Before you start — check this first if the router is brand new</p>
+        <p className="mt-1 text-muted-foreground">
+          Most new MikroTik routers ship <strong>locked</strong> (RouterOS "device-mode") — they
+          won't let this script's <code className="rounded bg-background px-1 py-0.5">/tool fetch</code>/scheduler
+          commands run at all until unlocked once, by hand, <strong>with the router physically in
+          front of you</strong>: power it on, and while it's booting hold the reset button for
+          about 5 seconds. This <strong>cannot be done remotely, and cannot be done after you've
+          left the site</strong> — do it now if this is a fresh unit, especially one going
+          somewhere you won't be able to physically reach later (ceiling mount, locked cabinet,
+          shipped ahead). If a piece below fails with a permission-style error and this step was
+          skipped, that's almost always why.
+        </p>
+      </div>
 
       <ol className="list-decimal space-y-1 rounded-lg border border-border bg-muted/30 p-2.5 pl-6 text-[11px] text-muted-foreground">
         <li>Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH session, and not a browser.</li>
@@ -915,26 +930,23 @@ function RouterFleetScreen() {
             )}
 
             <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Power &amp; Firmware</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
               <div className="grid grid-cols-2 gap-2">
-                <ControlButton icon={RotateCcw} label="Restart" disabled={!demo} onClick={() => act(`${sel.name}: restart queued`)} />
                 <ControlButton icon={Power} label="Reboot" onClick={() => (demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel))} />
-                <ControlButton icon={ArrowUpCircle} label="Upgrade" disabled={!demo} onClick={() => act(`${sel.name}: firmware upgrade started`)} />
-                <ControlButton icon={RefreshCw} label="Sync Config" disabled={!demo} onClick={() => act(`${sel.name}: config synced`)} />
               </div>
             </div>
 
-            <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Network</p>
-              <div className="grid grid-cols-2 gap-2">
-                <ControlButton icon={Network} label="VLAN & DHCP" disabled={!demo} onClick={() => act("Opening VLAN & DHCP")} />
-                <ControlButton icon={Shield} label="Firewall" disabled={!demo} onClick={() => act("Opening firewall rules")} />
-                <ControlButton icon={RefreshCw} label="Reset Sessions" disabled={!demo} onClick={() => act(`${sel.name}: sessions reset`)} />
-                <ControlButton icon={Waypoints} label="WireGuard" disabled={!demo} onClick={() => act("Opening WireGuard tunnel")} />
-                <ControlButton icon={MapPinned} label="Move Location" disabled={!demo} onClick={() => act("Move location")} />
-                <ControlButton icon={ScrollText} label="View Logs" disabled={!demo} onClick={() => act(`Fetching logs for ${sel.name}`)} />
-              </div>
-            </div>
+            {!demo && (
+              <Link to="/routers/$routerId" params={{ routerId: sel.id }} className="block">
+                <MButton variant="outline" className="w-full justify-center">
+                  Manage this router <RouterIcon className="h-3.5 w-3.5" />
+                </MButton>
+                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+                  WireGuard tunnel, config rollback/backup, diagnostics, connected devices,
+                  and the audit log all live on the full router screen.
+                </p>
+              </Link>
+            )}
             <p className="flex items-center gap-2 text-xs text-muted-foreground"><RouterIcon className="h-3.5 w-3.5" /> Safe business-level operations only.</p>
           </div>
         )}
