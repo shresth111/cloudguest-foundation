@@ -14,8 +14,27 @@ export const ispKeys = {
   rules: (q: IspRoutingRuleListQuery) => ["isp", "routing-rules", q] as const,
 };
 
+// 20s poll, matching the customer dashboard's own IspDetailsView
+// (OperationsFeatures.tsx) auto-refresh -- added there after a real,
+// verified-live incident: an admin/operator watching this table had no way
+// to see a link flip healthy/unhealthy after the backend's own 60-second
+// health-check sweep updates it server-side without a manual reload or a
+// mutation of their own. `refetchIntervalInBackground` defaults to
+// `false`, so (like that same page's Page Visibility-gated interval) this
+// pauses while the tab isn't focused and catches up via React Query's own
+// default `refetchOnWindowFocus` on return -- no custom visibility
+// wiring needed here. Quiet by construction: React Query only flips
+// `isLoading` on the *first* fetch, so a background refetch never flashes
+// the table into its loading state, and this hook raises no toast of its
+// own on a blip -- same "keep showing last known-good state" intent.
+const ISP_LINKS_POLL_INTERVAL_MS = 20_000;
+
 export const useIspLinks = (q: IspLinkListQuery) =>
-  useQuery({ queryKey: ispKeys.links(q), queryFn: () => ispService.listLinks(q) });
+  useQuery({
+    queryKey: ispKeys.links(q),
+    queryFn: () => ispService.listLinks(q),
+    refetchInterval: ISP_LINKS_POLL_INTERVAL_MS,
+  });
 
 export function useCreateIspLink() {
   const qc = useQueryClient();

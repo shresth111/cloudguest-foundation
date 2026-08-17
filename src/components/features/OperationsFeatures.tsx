@@ -38,6 +38,7 @@ import {
 import type { StatTone } from "@/components/ui-ext/StatCard";
 import { NumberedPagination } from "@/components/ui-ext/NumberedPagination";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import {
   useCustomerFeatureData,
@@ -77,6 +78,7 @@ import type {
 } from "@/types/isp";
 import { api } from "@/services/api";
 import type { AppError } from "@/services/api";
+import { humanizeApiError } from "@/lib/errorMessages";
 import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
 import { normalizeMac } from "@/components/customer/BasicFeatureViews";
@@ -980,9 +982,17 @@ const TIMELINE_TICK_DOT: Record<string, string> = {
  * establishes for a link's own history. */
 function IspStatusTimeline({ link, demo }: { link: IspLink; demo: boolean }) {
   const [checks, setChecks] = useState<IspHealthCheck[] | null>(null);
+  // Distinguishes "fetched zero rows -- link is genuinely brand new" from
+  // "the fetch itself failed" -- both used to render as the exact same
+  // "No history yet" caption, which reads as "nothing has happened on this
+  // link" when the real cause could be a broken request the customer has
+  // no way to tell apart from a real empty history.
+  const [fetchFailed, setFetchFailed] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    setFetchFailed(false);
     if (demo) {
       const rows: IspHealthCheck[] = (DEMO_HEALTH_HISTORY[link.id] ?? []).map((status, i) => ({
         id: `${link.id}-demo-check-${i}`,
@@ -1004,15 +1014,26 @@ function IspStatusTimeline({ link, demo }: { link: IspLink; demo: boolean }) {
     setChecks(null);
     ispService.listHealthChecks(link.id, { page: 1, pageSize: 12 })
       .then((r) => { if (alive) setChecks(r.rows); })
-      .catch(() => { if (alive) setChecks([]); });
+      .catch(() => { if (alive) { setFetchFailed(true); setChecks([]); } });
     return () => { alive = false; };
-  }, [link.id, demo]);
+  }, [link.id, demo, retryTick]);
 
   if (checks == null) {
     return (
       <div className="flex items-center gap-0.5" aria-hidden="true">
         {Array.from({ length: 8 }).map((_, i) => <span key={i} className="h-4 w-1.5 animate-pulse rounded-sm bg-muted" />)}
       </div>
+    );
+  }
+  if (fetchFailed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setRetryTick((n) => n + 1)}
+        className="flex items-center gap-1 text-xs text-destructive underline decoration-dotted underline-offset-2 hover:text-destructive/80"
+      >
+        <AlertTriangle className="h-3 w-3" /> Couldn't load — retry
+      </button>
     );
   }
   if (checks.length === 0) {
@@ -1287,6 +1308,14 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
   const [checks, setChecks] = useState<IspHealthCheck[]>([]);
   const [summary, setSummary] = useState<IspHealthCheckSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  // Distinguishes a real "nothing recorded in this range yet" (buckets ==
+  // 0 because the sweep genuinely hasn't run/found anything) from the
+  // fetch itself failing -- the two used to render identically, including
+  // copy telling the customer "the next sweep runs within 60 seconds",
+  // which is actively wrong advice when the real problem is a broken
+  // request that a 60-second wait will never fix.
+  const [error, setError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   // Back to the default range/view every time the dialog closes, so
   // reopening it (possibly for a different link) never starts on a stale
@@ -1297,6 +1326,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
     if (!open || !linkId) return;
     let alive = true;
     setLoading(true);
+    setError(false);
     const hours = HISTORY_RANGES.find((r) => r.value === range)?.hours ?? 24;
     const endDate = new Date().toISOString();
     const startDate = new Date(Date.now() - hours * 3600_000).toISOString();
@@ -1312,10 +1342,16 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
         setChecks(list.rows);
         setSummary(sum);
       })
-      .catch(() => { if (alive) toast.error("Could not load health-check history."); })
+      .catch(() => {
+        if (!alive) return;
+        setError(true);
+        setChecks([]);
+        setSummary(null);
+        toast.error("Could not load health-check history.");
+      })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [open, linkId, range]);
+  }, [open, linkId, range, retryTick]);
 
   const buckets = summary?.buckets ?? [];
   const totalChecksInRange = buckets.reduce((sum, b) => sum + b.totalChecks, 0);
@@ -1391,6 +1427,12 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
 
         {loading ? (
           <LoadingSkeleton rows={3} />
+        ) : error ? (
+          <ErrorState
+            title="Couldn't load this history"
+            description="Something went wrong fetching health-check history for this link -- your connection or our servers, not the link itself."
+            onRetry={() => setRetryTick((n) => n + 1)}
+          />
         ) : buckets.length === 0 ? (
           <p className="py-6 text-center text-xs text-muted-foreground">No health checks recorded yet in this range -- the next sweep runs within 60 seconds, or trigger one manually.</p>
         ) : view === "uptime" ? (
@@ -1459,6 +1501,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
           </div>
         )}
 
+        {!error && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">Most recent checks in this range</p>
           <div className="max-h-56 space-y-2 overflow-y-auto">
@@ -1477,6 +1520,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
             ))}
           </div>
         </div>
+        )}
 
         <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter>
       </DialogContent>
@@ -1602,9 +1646,17 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   const demo = isDemo();
   const [routers, setRouters] = useState<RouterDevice[]>([]);
   const [routersLoading, setRoutersLoading] = useState(true);
+  // Distinguishes "the fetch failed" from "there are genuinely zero
+  // routers/links yet" -- both used to render the exact same EmptyState
+  // ("No routers provisioned" / "No ISP link configured"), which nudges a
+  // customer toward "provision a router" / "Add ISP Link" even when the
+  // real cause is a broken request that adding a link can't fix.
+  const [routersError, setRoutersError] = useState(false);
+  const [routersRetryTick, setRoutersRetryTick] = useState(0);
   const [selectedRouterId, setSelectedRouterId] = useState("");
   const [links, setLinks] = useState<IspLink[]>([]);
   const [linksLoading, setLinksLoading] = useState(false);
+  const [linksError, setLinksError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<IspLink | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1632,19 +1684,23 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     let alive = true;
     (async () => {
       setRoutersLoading(true);
+      setRoutersError(false);
       try {
         const rows = demo ? [DEMO_ROUTER] : locationId ? await routerService.listForLocation(locationId, await resolveOrgId()) : [];
         if (!alive) return;
         setRouters(rows);
         setSelectedRouterId((prev) => (prev && rows.some((r) => r.id === prev)) ? prev : (rows[0]?.id ?? ""));
       } catch {
-        if (alive) toast.error("Could not load routers for this location.");
+        if (!alive) return;
+        setRoutersError(true);
+        setRouters([]);
+        toast.error("Could not load routers for this location.");
       } finally {
         if (alive) setRoutersLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [locationId, demo]);
+  }, [locationId, demo, routersRetryTick]);
 
   // `quiet` backs the auto-refresh poll below: a background refetch
   // shouldn't flash the table into its loading-skeleton state every 20
@@ -1652,8 +1708,8 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   // error toast -- the table just keeps showing its last known-good
   // state until the next successful tick.
   const loadLinks = async (routerId: string, opts: { quiet?: boolean } = {}) => {
-    if (!routerId) { setLinks([]); return; }
-    if (!opts.quiet) setLinksLoading(true);
+    if (!routerId) { setLinks([]); setLinksError(false); return; }
+    if (!opts.quiet) { setLinksLoading(true); setLinksError(false); }
     try {
       if (demo) {
         setLinks(routerId === DEMO_ROUTER.id ? DEMO_LINKS : []);
@@ -1661,8 +1717,14 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         const result = await ispService.listLinks({ routerId, page: 1, pageSize: 25 });
         setLinks(result.rows);
       }
+      if (!opts.quiet) setLinksError(false);
     } catch {
+      // A quiet (background poll) failure keeps showing the last known-
+      // good `links`/`linksError` state rather than flipping the table
+      // into an error banner over one transient blip -- same
+      // no-toast-spam intent this poll already documents above.
       if (!opts.quiet) {
+        setLinksError(true);
         toast.error("Could not load ISP links for this router.");
         setLinks([]);
       }
@@ -1781,7 +1843,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       }
       setDialogOpen(false);
     } catch (err) {
-      toast.error((err as AppError).message || "Could not save the ISP link.");
+      toast.error(humanizeApiError(err as AppError, "Could not save the ISP link."));
     } finally {
       setSaving(false);
     }
@@ -1794,7 +1856,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       await ispService.removeLink(link.id);
       toast.success("ISP link removed");
     } catch (err) {
-      toast.error((err as AppError).message || "Could not remove the ISP link.");
+      toast.error(humanizeApiError(err as AppError, "Could not remove the ISP link."));
       setLinks((ls) => [link, ...ls]);
     }
   };
@@ -1807,7 +1869,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       setLinks((ls) => ls.map((l) => (l.id === updated.id ? updated : l)));
       toast.success(`Health check complete — ${HEALTH_BADGE[updated.healthStatus]?.label ?? updated.healthStatus}`);
     } catch (err) {
-      toast.error((err as AppError).message || "Health check failed.");
+      toast.error(humanizeApiError(err as AppError, "Health check failed."));
     } finally {
       setCheckingId(null);
     }
@@ -1825,7 +1887,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       const result = await ispService.runSpeedTest(link.id);
       setSpeedTests((s) => ({ ...s, [link.id]: { status: "done", result } }));
     } catch (err) {
-      const message = (err as AppError).message || "Speed test failed.";
+      const message = humanizeApiError(err as AppError, "Speed test failed.");
       setSpeedTests((s) => ({ ...s, [link.id]: { status: "error", message } }));
       toast.error(message);
     }
@@ -1845,7 +1907,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       setLinks((ls) => ls.map((l) => (l.id === updated.id ? updated : l)));
       toast.success(`${link.providerName} marked ${healthStatus === "healthy" ? "Up" : "Down"}`);
     } catch (err) {
-      toast.error((err as AppError).message || "Could not update ISP link status.");
+      toast.error(humanizeApiError(err as AppError, "Could not update ISP link status."));
     } finally {
       setStatusBusyId(null);
     }
@@ -1866,7 +1928,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       await loadLinks(selectedRouterId);
       toast.success("Failover triggered");
     } catch (err) {
-      toast.error((err as AppError).message || "Failover failed");
+      toast.error(humanizeApiError(err as AppError, "Failover failed"));
     } finally {
       setFailoverBusy(null);
     }
@@ -1881,7 +1943,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       await loadLinks(selectedRouterId);
       toast.success("Failback triggered");
     } catch (err) {
-      toast.error((err as AppError).message || "Failback failed");
+      toast.error(humanizeApiError(err as AppError, "Failback failed"));
     } finally {
       setFailoverBusy(null);
     }
@@ -1927,7 +1989,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       }
       setRuleDialogOpen(false);
     } catch (err) {
-      toast.error((err as AppError).message || "Could not save the routing rule.");
+      toast.error(humanizeApiError(err as AppError, "Could not save the routing rule."));
     } finally {
       setSavingRule(false);
     }
@@ -1940,7 +2002,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       await ispService.removeRoutingRule(rule.id);
       toast.success("Routing rule removed");
     } catch (err) {
-      toast.error((err as AppError).message || "Could not remove the routing rule.");
+      toast.error(humanizeApiError(err as AppError, "Could not remove the routing rule."));
       setRules((rs) => [rule, ...rs]);
     }
   };
@@ -1974,7 +2036,14 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
             </Select>
           </div>
 
-          {!routersLoading && routers.length === 0 && (
+          {!routersLoading && routersError && (
+            <ErrorState
+              title="Couldn't load routers"
+              description="Something went wrong fetching the routers for this location -- your connection or our servers, not a real empty account."
+              onRetry={() => setRoutersRetryTick((n) => n + 1)}
+            />
+          )}
+          {!routersLoading && !routersError && routers.length === 0 && (
             <EmptyState
               icon={Router}
               title="No routers provisioned"
@@ -1989,7 +2058,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
           <KpiRow items={[
             { label: "Router Status", value: selectedRouter.status === "online" ? "Online" : selectedRouter.status.replace(/_/g, " "), tone: selectedRouter.status === "online" ? "success" : "warning", icon: Router },
             { label: "ISP Links", value: String(links.length), tone: "default", icon: Network },
-            { label: "Healthy Links", value: `${healthyCount}/${links.length}`, tone: healthyCount === links.length && links.length > 0 ? "success" : "warning", icon: Signal },
+            { label: "Healthy Links", value: linksError ? "—" : `${healthyCount}/${links.length}`, tone: linksError ? "danger" : healthyCount === links.length && links.length > 0 ? "success" : "warning", icon: Signal },
             { label: "Active Uplink", value: activeLink?.providerName ?? "—", tone: "primary", icon: Globe },
           ]} />
 
@@ -2027,6 +2096,12 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
             <CardContent className="p-0">
               {linksLoading ? (
                 <div className="p-4"><LoadingSkeleton rows={4} /></div>
+              ) : linksError ? (
+                <ErrorState
+                  title="Couldn't load ISP links"
+                  description="Something went wrong fetching this router's ISP links -- your connection or our servers, not a real empty configuration."
+                  onRetry={() => loadLinks(selectedRouterId)}
+                />
               ) : links.length === 0 ? (
                 <EmptyState icon={Network} title="No ISP link configured" description={'Click "Add ISP Link" above to add one for this router.'} />
               ) : (
