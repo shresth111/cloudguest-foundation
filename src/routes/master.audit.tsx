@@ -4,7 +4,7 @@ import { ScrollText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MasterShell } from "@/components/master/MasterShell";
-import { MSectionHeader } from "@/components/master/MasterKit";
+import { MPageShell, MSectionHeader } from "@/components/master/MasterKit";
 import { AuditKpiGrid } from "@/components/audit/AuditKpiGrid";
 import { AuditFiltersBar } from "@/components/audit/AuditFiltersBar";
 import { AuditTable } from "@/components/audit/AuditTable";
@@ -39,43 +39,50 @@ function AuditScreen() {
 
   return (
     <MasterShell title="Audit Logs">
-      <MSectionHeader
-        eyebrow="Compliance"
-        title="Audit Logs"
-        actions={<p className="flex items-center gap-1.5 text-xs text-muted-foreground"><ScrollText className="h-3.5 w-3.5" /> Every operator/customer write action, across every organization</p>}
-      />
+      <MPageShell>
+        <MSectionHeader
+          eyebrow="Compliance"
+          title="Audit Logs"
+          actions={
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ScrollText className="h-3.5 w-3.5" /> Every operator/customer write action, across
+              every organization
+            </p>
+          }
+        />
 
-      <AuditKpiGrid />
+        <AuditKpiGrid />
 
-      <Card className="border-border/60">
-        <CardContent className="p-4">
-          <AuditFiltersBar
-            filters={filters}
-            onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-            onClear={() => setFilters(EMPTY)}
-          />
-        </CardContent>
-      </Card>
+        <Card className="border-border/60">
+          <CardContent className="p-4">
+            <AuditFiltersBar
+              filters={filters}
+              onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+              onClear={() => setFilters(EMPTY)}
+            />
+          </CardContent>
+        </Card>
 
-      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="logins">Login history</TabsTrigger>
-        </TabsList>
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="logs">Logs</TabsTrigger>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger value="logins">Login history</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="logs">
-          <AuditTable filters={filters} />
-        </TabsContent>
+          <TabsContent value="logs">
+            <AuditTable filters={filters} />
+          </TabsContent>
 
-        <TabsContent value="timeline">
-          <ActivityTimeline />
-        </TabsContent>
+          <TabsContent value="timeline">
+            <ActivityTimeline />
+          </TabsContent>
 
-        <TabsContent value="logins">
-          <LoginHistoryPanel />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="logins">
+            <LoginHistoryPanel />
+          </TabsContent>
+        </Tabs>
+      </MPageShell>
     </MasterShell>
   );
 }

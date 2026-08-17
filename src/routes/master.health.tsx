@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
-import { MSectionHeader } from "@/components/master/MasterKit";
+import { MPageShell, MSectionHeader } from "@/components/master/MasterKit";
 import { HealthDashboard } from "@/components/monitoring/HealthDashboard";
 
 /**
@@ -26,12 +26,18 @@ export const Route = createFileRoute("/master/health")({ component: HealthScreen
 function HealthScreen() {
   return (
     <MasterShell title="System Health">
-      <MSectionHeader
-        eyebrow="Reliability"
-        title="System Health"
-        actions={<p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Activity className="h-3.5 w-3.5" /> Live dependency checks -- API, database, cache</p>}
-      />
-      <HealthDashboard />
+      <MPageShell>
+        <MSectionHeader
+          eyebrow="Reliability"
+          title="System Health"
+          actions={
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Activity className="h-3.5 w-3.5" /> Live dependency checks -- API, database, cache
+            </p>
+          }
+        />
+        <HealthDashboard />
+      </MPageShell>
     </MasterShell>
   );
 }

@@ -5,7 +5,19 @@ import { toast } from "sonner";
 import axios from "axios";
 import { Search, Plus, Trash2, Loader2, ExternalLink } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
-import { MSectionHeader, MTag, MButton, MTable, MTh, MTd, MTr, MDialog, MField, M_INPUT } from "@/components/master/MasterKit";
+import {
+  MPageShell,
+  MSectionHeader,
+  MTag,
+  MButton,
+  MTable,
+  MTh,
+  MTd,
+  MTr,
+  MDialog,
+  MField,
+  M_INPUT,
+} from "@/components/master/MasterKit";
 import { locationService } from "@/services/location.service";
 import { organizationService } from "@/services/organization.service";
 import { toAppError } from "@/services/api";
@@ -150,7 +162,9 @@ function LocationsScreen() {
       locations.filter(
         (l) =>
           !q ||
-          `${l.locationCode ?? ""} ${l.organizationName} ${l.city}`.toLowerCase().includes(q.toLowerCase()),
+          `${l.locationCode ?? ""} ${l.organizationName} ${l.city}`
+            .toLowerCase()
+            .includes(q.toLowerCase()),
       ),
     [locations, q],
   );
@@ -163,7 +177,14 @@ function LocationsScreen() {
   }
 
   async function handleCreate() {
-    if (!form.organizationId || !form.name || !form.city || !form.stateProvince || !form.postalCode || !form.addressLine1) {
+    if (
+      !form.organizationId ||
+      !form.name ||
+      !form.city ||
+      !form.stateProvince ||
+      !form.postalCode ||
+      !form.addressLine1
+    ) {
       toast.error("Please fill in tenant, name, address, city, state and postal code.");
       return;
     }
@@ -183,7 +204,16 @@ function LocationsScreen() {
       });
       toast.success(`Location "${form.name}" created`);
       setAddOpen(false);
-      setForm({ organizationId: "", name: "", propertyType: "hotel", city: "", stateProvince: "", postalCode: "", country: "IN", addressLine1: "" });
+      setForm({
+        organizationId: "",
+        name: "",
+        propertyType: "hotel",
+        city: "",
+        stateProvince: "",
+        postalCode: "",
+        country: "IN",
+        addressLine1: "",
+      });
       refetch();
     } catch {
       toast.error("Could not create the location.");
@@ -208,108 +238,208 @@ function LocationsScreen() {
 
   return (
     <MasterShell title="All Locations">
-      <MSectionHeader
-        eyebrow="Directory"
-        title="All Locations"
-        actions={<MButton variant="primary" onClick={() => setAddOpen(true)}><Plus /> Create Location</MButton>}
-      />
-
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code, client, city…" className="w-full max-w-sm bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading locations…
-        </div>
-      ) : (
-        <MTable head={<><MTh>Site Code</MTh><MTh>Client</MTh><MTh>Type</MTh><MTh className="hidden sm:table-cell">City</MTh><MTh>Status</MTh><MTh /></>}>
-          {rows.length === 0 ? (
-            <MTr><MTd className="text-center text-muted-foreground" /><MTd /><MTd /><MTd className="hidden sm:table-cell" /><MTd /><MTd /></MTr>
-          ) : (
-            rows.map((l) => {
-              const TypeIcon = businessTypeIcon(l.propertyType);
-              return (
-              <MTr key={l.id}>
-                <MTd className="font-mono text-sm font-bold text-primary">{l.locationCode ?? "—"}</MTd>
-                <MTd className="font-semibold">{l.organizationName}</MTd>
-                <MTd className="text-sm">
-                  <span className="inline-flex items-center gap-1.5">
-                    <TypeIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                    {l.propertyType ? PROPERTY_TYPE_LABEL[l.propertyType] : "—"}
-                  </span>
-                </MTd>
-                <MTd className="hidden text-sm sm:table-cell">{l.city}</MTd>
-                <MTd><MTag label={l.status} /></MTd>
-                <MTd>
-                  <div className="flex items-center justify-end gap-1">
-                    {!isDemo() && (
-                      <Link
-                        to="/preview/portal/$locationId"
-                        params={{ locationId: l.id }}
-                        search={{ organizationId: l.organizationId }}
-                        target="_blank"
-                        aria-label={`Preview ${l.name}'s guest portal`}
-                        title="Preview guest portal"
-                        className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Link>
-                    )}
-                    <button
-                      aria-label={`Delete ${l.name}`}
-                      disabled={deletingId === l.id}
-                      onClick={() => handleDelete(l)}
-                      className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                    >
-                      {deletingId === l.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </MTd>
-              </MTr>
-              );
-            })
-          )}
-        </MTable>
-      )}
-      {!loading && rows.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground">No locations yet.</p>
-      )}
-
-      <MDialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        title="Create Location"
-        wide
-        footer={
-          <>
-            <MButton variant="outline" onClick={() => setAddOpen(false)}>Cancel</MButton>
-            <MButton variant="primary" onClick={handleCreate} disabled={saving}>
-              {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating…</> : "Create"}
+      <MPageShell>
+        <MSectionHeader
+          eyebrow="Directory"
+          title="All Locations"
+          actions={
+            <MButton variant="primary" onClick={() => setAddOpen(true)}>
+              <Plus /> Create Location
             </MButton>
-          </>
-        }
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <MField label="Tenant">
-            <select className={M_INPUT} value={form.organizationId} onChange={(e) => setForm((f) => ({ ...f, organizationId: e.target.value }))}>
-              <option value="">Select tenant…</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          </MField>
-          <MField label="Type">
-            <select className={M_INPUT} value={form.propertyType} onChange={(e) => setForm((f) => ({ ...f, propertyType: e.target.value as PropertyType }))}>
-              {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{PROPERTY_TYPE_LABEL[t]}</option>)}
-            </select>
-          </MField>
-          <MField label="Location name"><input className={M_INPUT} placeholder="Marathahalli Branch" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></MField>
-          <MField label="City"><input className={M_INPUT} placeholder="Bengaluru" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></MField>
-          <MField label="State"><input className={M_INPUT} placeholder="Karnataka" value={form.stateProvince} onChange={(e) => setForm((f) => ({ ...f, stateProvince: e.target.value }))} /></MField>
-          <MField label="Postal code"><input className={M_INPUT} placeholder="560037" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></MField>
-          <div className="sm:col-span-2"><MField label="Address"><input className={M_INPUT} placeholder="Street, area" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></MField></div>
+          }
+        />
+
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search code, client, city…"
+            className="w-full max-w-sm bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
         </div>
-      </MDialog>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading locations…
+          </div>
+        ) : (
+          <MTable
+            head={
+              <>
+                <MTh>Site Code</MTh>
+                <MTh>Client</MTh>
+                <MTh>Type</MTh>
+                <MTh className="hidden sm:table-cell">City</MTh>
+                <MTh>Status</MTh>
+                <MTh />
+              </>
+            }
+          >
+            {rows.length === 0 ? (
+              <MTr>
+                <MTd className="text-center text-muted-foreground" />
+                <MTd />
+                <MTd />
+                <MTd className="hidden sm:table-cell" />
+                <MTd />
+                <MTd />
+              </MTr>
+            ) : (
+              rows.map((l) => {
+                const TypeIcon = businessTypeIcon(l.propertyType);
+                return (
+                  <MTr key={l.id}>
+                    <MTd className="font-mono text-sm font-bold text-primary">
+                      {l.locationCode ?? "—"}
+                    </MTd>
+                    <MTd className="font-semibold">{l.organizationName}</MTd>
+                    <MTd className="text-sm">
+                      <span className="inline-flex items-center gap-1.5">
+                        <TypeIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                        {l.propertyType ? PROPERTY_TYPE_LABEL[l.propertyType] : "—"}
+                      </span>
+                    </MTd>
+                    <MTd className="hidden text-sm sm:table-cell">{l.city}</MTd>
+                    <MTd>
+                      <MTag label={l.status} />
+                    </MTd>
+                    <MTd>
+                      <div className="flex items-center justify-end gap-1">
+                        {!isDemo() && (
+                          <Link
+                            to="/preview/portal/$locationId"
+                            params={{ locationId: l.id }}
+                            search={{ organizationId: l.organizationId }}
+                            target="_blank"
+                            aria-label={`Preview ${l.name}'s guest portal`}
+                            title="Preview guest portal"
+                            className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Link>
+                        )}
+                        <button
+                          aria-label={`Delete ${l.name}`}
+                          disabled={deletingId === l.id}
+                          onClick={() => handleDelete(l)}
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                        >
+                          {deletingId === l.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </MTd>
+                  </MTr>
+                );
+              })
+            )}
+          </MTable>
+        )}
+        {!loading && rows.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground">No locations yet.</p>
+        )}
+
+        <MDialog
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          title="Create Location"
+          wide
+          footer={
+            <>
+              <MButton variant="outline" onClick={() => setAddOpen(false)}>
+                Cancel
+              </MButton>
+              <MButton variant="primary" onClick={handleCreate} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Creating…
+                  </>
+                ) : (
+                  "Create"
+                )}
+              </MButton>
+            </>
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <MField label="Tenant">
+              <select
+                className={M_INPUT}
+                value={form.organizationId}
+                onChange={(e) => setForm((f) => ({ ...f, organizationId: e.target.value }))}
+              >
+                <option value="">Select tenant…</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </MField>
+            <MField label="Type">
+              <select
+                className={M_INPUT}
+                value={form.propertyType}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, propertyType: e.target.value as PropertyType }))
+                }
+              >
+                {PROPERTY_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {PROPERTY_TYPE_LABEL[t]}
+                  </option>
+                ))}
+              </select>
+            </MField>
+            <MField label="Location name">
+              <input
+                className={M_INPUT}
+                placeholder="Marathahalli Branch"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              />
+            </MField>
+            <MField label="City">
+              <input
+                className={M_INPUT}
+                placeholder="Bengaluru"
+                value={form.city}
+                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+              />
+            </MField>
+            <MField label="State">
+              <input
+                className={M_INPUT}
+                placeholder="Karnataka"
+                value={form.stateProvince}
+                onChange={(e) => setForm((f) => ({ ...f, stateProvince: e.target.value }))}
+              />
+            </MField>
+            <MField label="Postal code">
+              <input
+                className={M_INPUT}
+                placeholder="560037"
+                value={form.postalCode}
+                onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))}
+              />
+            </MField>
+            <div className="sm:col-span-2">
+              <MField label="Address">
+                <input
+                  className={M_INPUT}
+                  placeholder="Street, area"
+                  value={form.addressLine1}
+                  onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))}
+                />
+              </MField>
+            </div>
+          </div>
+        </MDialog>
+      </MPageShell>
     </MasterShell>
   );
 }

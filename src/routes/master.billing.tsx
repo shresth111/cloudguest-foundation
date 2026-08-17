@@ -3,10 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MasterShell } from "@/components/master/MasterShell";
-import { MSectionHeader } from "@/components/master/MasterKit";
+import { MPageShell, MSectionHeader, MButton, MSeg } from "@/components/master/MasterKit";
 import { BillingKpiGrid } from "@/components/billing/BillingKpiGrid";
 import { SubscriptionTable } from "@/components/billing/SubscriptionTable";
 import { CreateSubscriptionDialog } from "@/components/billing/CreateSubscriptionDialog";
@@ -24,8 +22,33 @@ export const Route = createFileRoute("/master/billing")({
   component: BillingScreen,
 });
 
+type BillingTab =
+  | "overview"
+  | "subscriptions"
+  | "plans"
+  | "payments"
+  | "invoices"
+  | "tax-rates"
+  | "coupons"
+  | "usage"
+  | "analytics"
+  | "reminders";
+
+const BILLING_TABS: { value: BillingTab; label: string }[] = [
+  { value: "overview", label: "Overview" },
+  { value: "subscriptions", label: "Subscriptions" },
+  { value: "plans", label: "Plans" },
+  { value: "payments", label: "Payments" },
+  { value: "invoices", label: "Invoices" },
+  { value: "tax-rates", label: "GST / Tax rates" },
+  { value: "coupons", label: "Coupons" },
+  { value: "usage", label: "Usage" },
+  { value: "analytics", label: "Revenue analytics" },
+  { value: "reminders", label: "Reminders" },
+];
+
 function BillingScreen() {
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState<BillingTab>("overview");
   const [creating, setCreating] = useState(false);
   const qc = useQueryClient();
   const snap = useBillingSnapshot();
@@ -38,88 +61,83 @@ function BillingScreen() {
 
   return (
     <MasterShell title="Subscriptions & Billing">
-      <MSectionHeader
-        eyebrow="Revenue"
-        title="Subscriptions & Billing"
-        actions={
-          <Button size="sm" variant="outline" onClick={refresh}>
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-          </Button>
-        }
-      />
+      <MPageShell>
+        <MSectionHeader
+          eyebrow="Revenue"
+          title="Subscriptions & Billing"
+          actions={
+            <MButton variant="outline" onClick={refresh}>
+              <RefreshCw /> Refresh
+            </MButton>
+          }
+        />
 
-      <BillingKpiGrid data={snap.data?.kpis} {...state} />
+        <BillingKpiGrid data={snap.data?.kpis} {...state} />
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
-          <TabsTrigger value="plans">Plans</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
-          <TabsTrigger value="tax-rates">GST / Tax rates</TabsTrigger>
-          <TabsTrigger value="coupons">Coupons</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="analytics">Revenue analytics</TabsTrigger>
-          <TabsTrigger value="reminders">Reminders</TabsTrigger>
-        </TabsList>
+        {/* Same MasterKit vocabulary (MSeg) every other master page's
+            filter/tab control already uses, in place of shadcn's raw
+            Tabs -- flattening these 10 tabs into something narrower is
+            Phase 2 scope, this is just the component swap. */}
+        <MSeg
+          value={tab}
+          onChange={setTab}
+          options={BILLING_TABS}
+          className="h-auto flex-wrap justify-start"
+        />
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-            <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />
-            <RemindersPanel data={snap.data?.reminders} {...state} />
+        {tab === "overview" && (
+          <div className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+              <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />
+              <RemindersPanel data={snap.data?.reminders} {...state} />
+            </div>
+            <SubscriptionTable
+              data={snap.data?.subscriptions}
+              {...state}
+              onRefresh={refresh}
+              onCreate={() => setCreating(true)}
+            />
           </div>
+        )}
+
+        {tab === "subscriptions" && (
           <SubscriptionTable
             data={snap.data?.subscriptions}
             {...state}
             onRefresh={refresh}
             onCreate={() => setCreating(true)}
           />
-        </TabsContent>
+        )}
 
-        <TabsContent value="subscriptions" className="mt-4">
-          <SubscriptionTable
-            data={snap.data?.subscriptions}
+        {tab === "plans" && <PlanManagement plans={snap.data?.plans ?? []} />}
+
+        {tab === "payments" && <PaymentTable data={snap.data?.payments} {...state} />}
+
+        {tab === "invoices" && (
+          <InvoiceManagement
+            data={snap.data?.invoices}
+            subscriptions={snap.data?.subscriptions}
             {...state}
-            onRefresh={refresh}
-            onCreate={() => setCreating(true)}
           />
-        </TabsContent>
+        )}
 
-        <TabsContent value="plans" className="mt-4">
-          <PlanManagement plans={snap.data?.plans ?? []} />
-        </TabsContent>
+        {tab === "tax-rates" && <TaxRateManagement />}
 
-        <TabsContent value="payments" className="mt-4">
-          <PaymentTable data={snap.data?.payments} {...state} />
-        </TabsContent>
+        {tab === "coupons" && <CouponManagement data={snap.data?.coupons} {...state} />}
 
-        <TabsContent value="invoices" className="mt-4">
-          <InvoiceManagement data={snap.data?.invoices} subscriptions={snap.data?.subscriptions} {...state} />
-        </TabsContent>
+        {tab === "usage" && <UsageBillingPanel data={snap.data?.usage} {...state} />}
 
-        <TabsContent value="tax-rates" className="mt-4">
-          <TaxRateManagement />
-        </TabsContent>
+        {tab === "analytics" && <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />}
 
-        <TabsContent value="coupons" className="mt-4">
-          <CouponManagement data={snap.data?.coupons} {...state} />
-        </TabsContent>
+        {tab === "reminders" && <RemindersPanel data={snap.data?.reminders} {...state} />}
 
-        <TabsContent value="usage" className="mt-4">
-          <UsageBillingPanel data={snap.data?.usage} {...state} />
-        </TabsContent>
-
-        <TabsContent value="analytics" className="mt-4">
-          <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />
-        </TabsContent>
-
-        <TabsContent value="reminders" className="mt-4">
-          <RemindersPanel data={snap.data?.reminders} {...state} />
-        </TabsContent>
-      </Tabs>
-
-      <CreateSubscriptionDialog open={creating} onOpenChange={setCreating} plans={snap.data?.plans ?? []} coupons={snap.data?.coupons ?? []} />
+        <CreateSubscriptionDialog
+          open={creating}
+          onOpenChange={setCreating}
+          plans={snap.data?.plans ?? []}
+          coupons={snap.data?.coupons ?? []}
+        />
+      </MPageShell>
     </MasterShell>
   );
 }

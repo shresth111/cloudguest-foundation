@@ -4,8 +4,10 @@
  * from the Aurora Teal console primitives so the two surfaces never bleed.
  */
 import type { ComponentType, ReactNode } from "react";
-import { X } from "lucide-react";
+import { X, ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageShell } from "@/components/ui-ext/PageShell";
+import { AnimatedCounter } from "@/components/ui-ext/AnimatedCounter";
 
 /* Right-side drawer. Rendered INLINE (no portal) so it stays inside the
  * .master-theme subtree and inherits the Modernist tokens/font. */
@@ -34,7 +36,12 @@ export function MDrawer({
             <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
             {subtitle && <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-5 w-5" /></button>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto p-5">{children}</div>
         {footer && <div className="border-t border-border p-4">{footer}</div>}
@@ -63,13 +70,25 @@ export function MDialog({
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={cn("relative my-auto w-full rounded-xl border border-border bg-card shadow-2xl", wide ? "max-w-2xl" : "max-w-lg")}>
+      <div
+        className={cn(
+          "relative my-auto w-full rounded-xl border border-border bg-card shadow-2xl",
+          wide ? "max-w-2xl" : "max-w-lg",
+        )}
+      >
         <div className="flex items-center justify-between border-b border-border p-5">
           <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-5 w-5" /></button>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
         <div className="p-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-border p-4">{footer}</div>}
+        {footer && (
+          <div className="flex justify-end gap-2 border-t border-border p-4">{footer}</div>
+        )}
       </div>
     </div>
   );
@@ -89,36 +108,37 @@ export function MField({ label, children }: { label: string; children: ReactNode
 export const M_INPUT =
   "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20";
 
-/* Placeholder panel for screens slated for the next build pass. */
-export function MStubPanel({
-  icon: Icon,
-  title,
-  blurb,
-  points,
+/**
+ * Master-scoped wrapper around the customer console's shared `PageShell`
+ * (src/components/ui-ext/PageShell.tsx) -- max-width, vertical rhythm and
+ * an optional sticky header/mesh backdrop, one primitive instead of every
+ * master route hand-rolling its own top-level wrapper div. Every one of
+ * the 14 `/master/*` routes renders this as the single child it hands to
+ * `MasterShell`. Purely a container -- no page content or logic lives
+ * here.
+ */
+export function MPageShell({
+  children,
+  header,
+  mesh,
+  className,
+  contentClassName,
 }: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  blurb: string;
-  points: string[];
+  children: ReactNode;
+  header?: ReactNode;
+  mesh?: boolean;
+  className?: string;
+  contentClassName?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
-      <div className="flex items-center gap-3 border-b border-border pb-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></span>
-        <div>
-          <p className="text-base font-semibold tracking-tight">{title}</p>
-          <p className="text-sm text-muted-foreground">{blurb}</p>
-        </div>
-      </div>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-        {points.map((p) => (
-          <li key={p} className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> {p}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-4 text-xs font-medium text-muted-foreground">Coming soon</p>
-    </div>
+    <PageShell
+      header={header}
+      mesh={mesh}
+      className={cn("mx-auto w-full max-w-[1400px]", className)}
+      contentClassName={contentClassName}
+    >
+      {children}
+    </PageShell>
   );
 }
 
@@ -136,10 +156,17 @@ export function MSectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3", className)}>
+    <div
+      className={cn(
+        "flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3",
+        className,
+      )}
+    >
       <div>
         {eyebrow && (
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">{eyebrow}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+            {eyebrow}
+          </div>
         )}
         <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
       </div>
@@ -148,28 +175,114 @@ export function MSectionHeader({
   );
 }
 
-/* KPI tile -- flush-left, 2px border, no radius. */
+export type MStatTone = "default" | "success" | "warning" | "danger" | "info";
+export type MStatTrend = "up" | "down" | "flat";
+
+const M_STAT_ACCENT: Record<MStatTone, string> = {
+  default: "bg-primary",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  danger: "bg-rose-500",
+  info: "bg-sky-500",
+};
+
+const M_STAT_ICON_BG: Record<MStatTone, string> = {
+  default: "bg-primary/10 text-primary",
+  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  danger: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  info: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+};
+
+const M_STAT_TREND_TONE: Record<MStatTrend, string> = {
+  up: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  down: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  flat: "bg-muted text-muted-foreground",
+};
+
+/**
+ * KPI tile -- upgraded to the same pattern as the customer console's
+ * `StatCard` (src/components/ui-ext/StatCard.tsx): a left accent rail
+ * keyed to a semantic tone, the icon riding in its own tinted chip, an
+ * animated count-up for numeric values, and an optional trend badge.
+ * `label`/`value`/`delta`/`icon`/`accent` keep their exact old meaning
+ * (`accent` still just means "ring-highlighted", same as before every
+ * existing call site across the 14 master routes) -- `tone`/`trend` are
+ * new, opt-in props, so no call site needs to change to pick this up.
+ */
 export function MStat({
   label,
   value,
   delta,
+  trend,
+  tone = "default",
   icon: Icon,
   accent,
 }: {
   label: string;
-  value: string;
+  value: string | number;
   delta?: string;
+  /** Shows `delta` as a coloured trend badge instead of plain muted text. */
+  trend?: MStatTrend;
+  tone?: MStatTone;
   icon?: ComponentType<{ className?: string }>;
   accent?: boolean;
 }) {
+  const isNumeric = typeof value === "number";
   return (
-    <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", accent && "ring-1 ring-primary/30")}>
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
-        {Icon && <Icon className="h-4 w-4 text-primary" />}
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        accent && "ring-1 ring-primary/30",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-[3px] opacity-80",
+          M_STAT_ACCENT[tone],
+        )}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {Icon && (
+            <span
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                M_STAT_ICON_BG[tone],
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <span className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            {label}
+          </span>
+        </div>
+        {delta && trend && (
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+              M_STAT_TREND_TONE[trend],
+            )}
+          >
+            {trend === "up" ? (
+              <ArrowUpRight className="h-3 w-3" />
+            ) : trend === "down" ? (
+              <ArrowDownRight className="h-3 w-3" />
+            ) : (
+              <Minus className="h-3 w-3" />
+            )}
+            {delta}
+          </span>
+        )}
       </div>
-      <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">{value}</div>
-      {delta && <div className="mt-1 text-xs font-medium text-muted-foreground">{delta}</div>}
+      <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">
+        {isNumeric ? <AnimatedCounter value={value} /> : value}
+      </div>
+      {delta && !trend && (
+        <div className="mt-1 text-xs font-medium text-muted-foreground">{delta}</div>
+      )}
     </div>
   );
 }
@@ -213,13 +326,15 @@ export function MSeg<T extends string>({
   options,
   value,
   onChange,
+  className,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  className?: string;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
+    <div className={cn("inline-flex rounded-lg border border-border bg-muted/60 p-0.5", className)}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -250,7 +365,8 @@ export function MButton({
       className={cn(
         "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors [&_svg]:h-4 [&_svg]:w-4",
         variant === "primary" && "bg-primary text-primary-foreground shadow-sm hover:opacity-90",
-        variant === "outline" && "border border-border bg-card text-foreground hover:border-primary hover:bg-accent",
+        variant === "outline" &&
+          "border border-border bg-card text-foreground hover:border-primary hover:bg-accent",
         variant === "ghost" && "text-muted-foreground hover:bg-accent hover:text-foreground",
         className,
       )}
@@ -283,7 +399,15 @@ export function MTh({ children, className }: { children?: ReactNode; className?:
 export function MTd({ children, className }: { children?: ReactNode; className?: string }) {
   return <td className={cn("px-4 py-3 align-middle", className)}>{children}</td>;
 }
-export function MTr({ children, onClick, className }: { children: ReactNode; onClick?: () => void; className?: string }) {
+export function MTr({
+  children,
+  onClick,
+  className,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
   return (
     <tr
       onClick={onClick}
