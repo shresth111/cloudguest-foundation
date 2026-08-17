@@ -1644,13 +1644,26 @@ export function validateSetupScriptChunks(
  * its own address and gateway, which `buildRouterSetupScriptChunks`'s
  * "WAN Routing" chunk below then resolves live (`/ip dhcp-client get ...
  * gateway`) rather than baking in a value nobody here could have known at
- * generation time. */
+ * generation time. `mode: "pppoe"` needs `pppoeUsername`/`pppoePassword`
+ * (the ISP-issued PPPoE login, common on fiber/ADSL links, especially in
+ * India) instead of any of the static fields -- RouterOS dials this over
+ * `iface` (the physical port) but the resulting session gets its own new
+ * *virtual* interface (`/interface pppoe-client`'s own `name=`), which is
+ * what actually ends up carrying this WAN's IP; `buildRouterSetupScriptChunks`
+ * threads that virtual name through to every downstream NAT/firewall/
+ * routing/mangle reference instead of the physical `iface`, and resolves
+ * its live gateway the same "can legitimately be empty on first paste,
+ * self-heals via the Heartbeat scheduler" way DHCP's gateway is resolved. */
 export interface WanEntry {
   iface: string;
-  mode: "static" | "dhcp";
+  mode: "static" | "dhcp" | "pppoe";
   ip?: string;
   cidr?: string;
   gateway?: string;
+  /** PPPoE login credentials -- only meaningful (and required) when
+   * `mode === "pppoe"`. */
+  pppoeUsername?: string;
+  pppoePassword?: string;
   /** Only meaningful when the generator's own `wanRoutingMode` option is
    * `"load_balance"` and every other enabled WAN also has a positive
    * weight set -- see `WanRoutingMode`'s own docstring
@@ -1792,6 +1805,22 @@ export function buildRouterSetupScriptChunks(opts: {
   // Same reasoning as `lanBridge` above -- each WAN's interface name is
   // interpolated into RouterOS strings throughout this function.
   const wanIfs = wans.map((w) => escapeForRouterOsString(w.iface));
+  // The interface that actually ends up carrying a WAN's IP on-device --
+  // the physical port itself for static/dhcp, but for pppoe a brand-new
+  // *virtual* interface RouterOS creates for the PPPoE session (this
+  // generator names it deterministically, `cloudguest-pppoe-wan<N>`, so
+  // every chunk below can reference it without a live lookup). Everything
+  // downstream that needs to match this WAN's actual traffic -- NAT
+  // masquerade's `out-interface`, the "WAN" interface-list membership the
+  // firewall/mangle chunks key off of, and each WAN's own mangle
+  // `in-interface` -- must bind to THIS, not the physical name in
+  // `wanIfs`: RouterOS delivers decapsulated PPPoE traffic on the
+  // pppoe-client's own logical interface, never on the ethernet port
+  // underneath it, so matching the physical port for a pppoe WAN would
+  // silently never match anything at all.
+  const wanEffectiveIfs = wans.map((w, idx) =>
+    w.mode === "pppoe" ? `cloudguest-pppoe-wan${idx + 1}` : wanIfs[idx],
+  );
   const hasExplicitLan = !!lanIfs && lanIfs.length > 0;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1814,8 +1843,20 @@ export function buildRouterSetupScriptChunks(opts: {
       const n = idx + 1;
       lines.push(`:local wan${n}Port [/interface bridge port find where interface="${wanIf}"]`);
       lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
-      lines.push(`:if ([:len [/interface list member find where interface="${wanIf}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${wanIf}" }`);
-      lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${wanIf}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${wanIf}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
+      if (wans[idx].mode === "pppoe") {
+        // Deliberately NOT added here for pppoe -- "WAN" interface-list
+        // membership needs a real, already-existing interface object
+        // (`/interface list member add` errors on a name nothing currently
+        // matches), unlike a NAT/mangle interface-name match, which is a
+        // plain string comparison with no existence requirement. This
+        // WAN's own virtual interface (`cloudguest-pppoe-wan${n}`) doesn't
+        // exist yet at this point in the script -- the "WAN Addressing"
+        // chunk below creates it, and adds both the WAN list membership and
+        // the NAT masquerade rule itself, right after doing so.
+      } else {
+        lines.push(`:if ([:len [/interface list member find where interface="${wanIf}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${wanIf}" }`);
+        lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${wanIf}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${wanIf}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
+      }
     });
     chunks.push({ label: "WAN + Bridge", script: lines.join("\n") });
   }
@@ -1876,7 +1917,7 @@ export function buildRouterSetupScriptChunks(opts: {
         lines.push(`:if ([:len [/ip address find where interface="${iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`);
         lines.push(`  /ip address add address="${wan.ip}/${wan.cidr}" interface="${iface}" comment="cloudguest-addr-wan${n}"`);
         lines.push(`}`);
-      } else {
+      } else if (wan.mode === "dhcp") {
         // Check for OUR OWN cloudguest-commented dhcp-client specifically
         // -- not just "does any dhcp-client already exist on this
         // interface" -- the same class of bug the "Stale Factory-Default
@@ -1895,9 +1936,45 @@ export function buildRouterSetupScriptChunks(opts: {
         lines.push(`  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
         lines.push(`  /ip dhcp-client add interface="${iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`);
         lines.push(`}`);
+      } else {
+        // pppoe -- like the dhcp branch above, `add-default-route=no`
+        // deliberately: the "WAN Routing" chunk below owns every default
+        // route itself. Unlike dhcp, this doesn't attach to the physical
+        // `iface` directly -- `/interface pppoe-client add` creates a whole
+        // new *virtual* interface for the session, named deterministically
+        // here (`cloudguest-pppoe-wan${n}`, matching `wanEffectiveIfs`
+        // above) instead of whatever auto-generated name RouterOS would
+        // otherwise pick (`pppoe-out1`, ...), so every later chunk can
+        // reference it without a live lookup.
+        const pppoeIface = wanEffectiveIfs[idx];
+        const pppoeUser = escapeForRouterOsString(wan.pppoeUsername ?? "");
+        const pppoePass = escapeForRouterOsString(wan.pppoePassword ?? "");
+        // Same self-heal discipline as the dhcp branch above -- check for
+        // OUR OWN cloudguest-commented pppoe-client specifically, not just
+        // "does any pppoe-client already exist on this interface". A
+        // foreign/leftover pppoe-client already bound to this physical
+        // port (a previous provisioning attempt, or a manual on-site
+        // setup) is removed first if ours is missing, so this stays
+        // self-healing on every re-run, not just a first-run check.
+        lines.push(`:local wan${n}CloudguestPppoeClient [/interface pppoe-client find where interface="${iface}" comment="cloudguest-pppoe-wan${n}"]`);
+        lines.push(`:if ([:len $wan${n}CloudguestPppoeClient] = 0) do={`);
+        lines.push(`  :local wan${n}OtherPppoeClient [/interface pppoe-client find where interface="${iface}"]`);
+        lines.push(`  :if ([:len $wan${n}OtherPppoeClient] > 0) do={ /interface pppoe-client remove $wan${n}OtherPppoeClient }`);
+        lines.push(`  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
+        lines.push(`  /interface pppoe-client add name="${pppoeIface}" interface="${iface}" user="${pppoeUser}" password="${pppoePass}" disabled=no add-default-route=no comment="cloudguest-pppoe-wan${n}"`);
+        lines.push(`}`);
+        // WAN interface-list membership and the NAT masquerade rule for
+        // this WAN are added HERE, not in "WAN + Bridge" above, precisely
+        // because `${pppoeIface}` didn't exist as a real interface until
+        // the `add` immediately above ran (see that chunk's own comment on
+        // this same point). Both checks are idempotent the same way as
+        // every other chunk in this generator, independent of the
+        // self-heal block above -- a no-op on a healthy re-run.
+        lines.push(`:if ([:len [/interface list member find where interface="${pppoeIface}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${pppoeIface}" }`);
+        lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${pppoeIface}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${pppoeIface}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
       }
     });
-    chunks.push({ label: "WAN Addressing (static IP or DHCP client per WAN)", script: lines.join("\n") });
+    chunks.push({ label: "WAN Addressing (static IP, DHCP client, or PPPoE client per WAN)", script: lines.join("\n") });
   }
 
   // Real default routes -- both the routing-mark'd ones the PCC mangle
@@ -1924,6 +2001,14 @@ export function buildRouterSetupScriptChunks(opts: {
   // resolve-and-set logic every 5 minutes, so a DHCP WAN that wasn't bound
   // yet on first paste self-heals on its own within one heartbeat interval
   // instead of needing a second manual pass.
+  //
+  // A PPPoE WAN's gateway is resolved the same live, can-be-empty-at-first
+  // way, but from a different place: `/interface pppoe-client` has no
+  // queryable `gateway` property the way `/ip dhcp-client` does -- PPPoE is
+  // a point-to-point link, and RouterOS surfaces the far end's address (the
+  // ISP's own BRAS/concentrator, which doubles as the real next hop here)
+  // on the live PPP session instead, `/ppp active`, keyed by this WAN's own
+  // virtual interface name.
   {
     const lines: string[] = [];
     wans.forEach((wan, idx) => {
@@ -1931,6 +2016,10 @@ export function buildRouterSetupScriptChunks(opts: {
       const iface = escapeForRouterOsString(wan.iface);
       if (wan.mode === "static") {
         lines.push(`:local wan${n}Gw "${wan.gateway}"`);
+      } else if (wan.mode === "pppoe") {
+        const pppoeIface = wanEffectiveIfs[idx];
+        lines.push(`:local wan${n}Gw ""`);
+        lines.push(`:if ([:len [/ppp active find where name="${pppoeIface}"]] > 0) do={ :set wan${n}Gw [/ppp active get [find name="${pppoeIface}"] address] }`);
       } else {
         lines.push(`:local wan${n}Gw ""`);
         lines.push(`:if ([:len [/ip dhcp-client find where interface="${iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${iface}"] gateway] }`);
@@ -2323,7 +2412,7 @@ export function buildRouterSetupScriptChunks(opts: {
       lines.push(`:foreach r in=[/ip firewall mangle find where comment~"^cloudguest-mangle-pcc-wan"] do={ /ip firewall mangle remove $r }`);
     }
 
-    wanIfs.forEach((wanIf, idx) => {
+    wanEffectiveIfs.forEach((wanIf, idx) => {
       const n = idx + 1;
       lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={`);
       lines.push(`  /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}"`);
@@ -2462,6 +2551,13 @@ export function buildRouterSetupScriptChunks(opts: {
     // the very first one-shot call at provisioning time. A real ISP DHCP
     // renewal handing out a different address was never reported again.
     //
+    // Looks the address up on `wanEffectiveIfs[0]`, not `wans[0].iface`
+    // directly -- for a PPPoE WAN1 the address lands on the virtual
+    // pppoe-client interface, never on the physical port underneath it (see
+    // `wanEffectiveIfs`'s own docstring above), so the physical name would
+    // silently find nothing and this heartbeat would report an empty
+    // `public_ip_address` forever, the exact bug being fixed here for DHCP.
+    //
     // Fixed by having the *recurring* on-event body re-resolve WAN1's
     // address live, every time it fires -- the same resolution the
     // one-shot line below already does, embedded one string-literal-
@@ -2555,7 +2651,7 @@ export function buildRouterSetupScriptChunks(opts: {
     // past next-run again.
     const wan1DynamicResolution = [
       `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wans[0].iface}"] address] 0 [:find [/ip address get [find interface="${wans[0].iface}"] address] "/"]] }`,
+      `:if ([:len [/ip address find where interface="${wanEffectiveIfs[0]}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] 0 [:find [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] "/"]] }`,
       `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none } on-error={ :log warning "cloudguest-heartbeat: /tool fetch to master failed (timeout/DNS/WAN down) -- see WAN Connectivity Check chunk" }`,
     ].join("; ");
     const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
@@ -2568,7 +2664,7 @@ export function buildRouterSetupScriptChunks(opts: {
       // escaping (it was never the buggy one; only the scheduler's stored
       // copy needed the extra nesting level above).
       `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wans[0].iface}"] address] 0 [:find [/ip address get [find interface="${wans[0].iface}"] address] "/"]] }`,
+      `:if ([:len [/ip address find where interface="${wanEffectiveIfs[0]}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] 0 [:find [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] "/"]] }`,
       `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none } on-error={ :log warning "cloudguest-heartbeat: initial /tool fetch to master failed (timeout/DNS/WAN down) -- re-check the WAN Connectivity Check chunk's output above and retry" }`,
     ];
     chunks.push({ label: "Heartbeat (reports management + WAN1 IP)", script: lines.join("\n") });
