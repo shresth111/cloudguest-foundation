@@ -1800,6 +1800,33 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: "WAN + Bridge", script: lines.join("\n") });
   }
 
+  {
+    // Confirmed live on a real device (2026-08-17, router "gurugram"): the
+    // same factory-default "bridgeLocal" ("defconf") artifact called out
+    // above also ships with its own DHCP client already bound to it. Even
+    // after this script detaches every physical port from "bridgeLocal"
+    // (see the loop above), that DHCP client is left running with no
+    // physical link -- but RouterOS keeps its *last-leased address bound
+    // to "bridgeLocal" regardless*, since a dhcp-client's lease isn't
+    // released just because the interface loses its ports. On this
+    // hardware the WAN's own DHCP server hands out the *same* address to
+    // both clients (this one and the real WAN one below), so the router
+    // ends up with one IP configured on two different interfaces at once.
+    // That confuses the router's own ARP/routing for that subnet -- traffic
+    // intermittently gets misrouted toward the dead-end "bridgeLocal" and
+    // the router replies to its own pings with "host unreachable" -- seen
+    // live as ~65% packet loss to the WAN gateway with no cabling/ISP fault
+    // at all. "bridgeLocal" is never used for anything in this script (the
+    // hotspot LAN uses its own separately-created bridge), so it's always
+    // safe to remove this leftover client outright, independent of how
+    // many WANs are configured. Safe to re-run: an empty find is a no-op.
+    const lines = [
+      `:local staleDefconfClient [/ip dhcp-client find where interface="bridgeLocal"]`,
+      `:if ([:len $staleDefconfClient] > 0) do={ /ip dhcp-client remove $staleDefconfClient }`,
+    ];
+    chunks.push({ label: "Stale Factory-Default DHCP Client Cleanup", script: lines.join("\n") });
+  }
+
   // Gives each WAN interface an actual address -- this used to be an
   // undocumented manual on-site step ("get each WAN interface online
   // first, then paste the script": run `/ip dhcp-client add` or `/ip
