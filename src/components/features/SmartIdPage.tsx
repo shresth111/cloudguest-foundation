@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Fingerprint,
-  IdCard,
   DoorOpen,
   Mail,
   Ticket,
@@ -18,6 +16,7 @@ import {
   Hourglass,
   MessageCircle,
   Smartphone,
+  type LucideIcon,
 } from "lucide-react";
 import { api, type AppError } from "@/services/api";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
@@ -26,7 +25,7 @@ import { resolveOrgId } from "@/services/customer.service";
 interface LoginMethod {
   id: string;
   label: string;
-  icon: typeof Fingerprint | typeof IdCard;
+  icon: LucideIcon;
   enabled: boolean;
   required: boolean;
   order: number;
@@ -37,11 +36,11 @@ interface LoginMethod {
 // in the backend's captive_portal_configs table (otp_sms_enabled /
 // otp_email_enabled / otp_whatsapp_enabled / voucher_enabled /
 // pin_login_enabled -- see backend/app/domains/captive_portal/models.py).
-// Aadhaar/Passport/Room No./SSO have no backing column anywhere in the
-// backend (no identity-verification or SSO module exists), so toggling
-// those stays local-only -- the same honest "real field written for real,
-// no field faked as persisted" boundary portal.service.ts's own
-// LOGIN_METHOD_FLAGS already documents for this exact backend table.
+// Room No./SSO have no backing column anywhere in the backend (no
+// property-management or SSO module exists), so toggling those stays
+// local-only -- the same honest "real field written for real, no field
+// faked as persisted" boundary portal.service.ts's own LOGIN_METHOD_FLAGS
+// already documents for this exact backend table.
 const BACKED_FLAGS: Partial<
   Record<string, "otp_sms_enabled" | "otp_email_enabled" | "otp_whatsapp_enabled" | "voucher_enabled" | "pin_login_enabled">
 > = {
@@ -65,13 +64,16 @@ interface BackendCaptivePortalConfig {
   is_default: boolean;
 }
 
-// Aadhaar/Passport/Room No./SSO have no real guest-facing implementation
-// anywhere in this product -- no verification flow, no backend field,
-// nothing a guest would ever actually see on the real captive portal
-// regardless of this toggle. Shown disabled with "Coming soon" rather
-// than silently accepting a toggle that does nothing (see BACKED_FLAGS
-// above for the ones that are real).
-const UNAVAILABLE_METHOD_IDS = new Set(["aadhar", "passport", "room-no", "sso"]);
+// Room No./SSO have no real guest-facing implementation anywhere in this
+// product -- no verification flow, no backend field, nothing a guest would
+// ever actually see on the real captive portal regardless of this toggle.
+// Shown disabled with "Coming soon" rather than silently accepting a
+// toggle that does nothing (see BACKED_FLAGS above for the ones that are
+// real). Aadhaar/Passport were removed outright (not just hidden) rather
+// than kept as permanent "Coming soon" placeholders -- confirmed there was
+// no near-term plan to build ID-document verification, so the entries were
+// pure clutter, not a real roadmap item.
+const UNAVAILABLE_METHOD_IDS = new Set(["room-no", "sso"]);
 
 export default function SmartIdPage({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
@@ -83,21 +85,19 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     // at all, so an admin had no way to see or turn off the method most
     // guests actually use to sign in.
     { id: "sms-otp", label: "Mobile OTP", icon: Smartphone, enabled: true, required: false, order: 1, config: {} },
-    { id: "aadhar", label: "Aadhaar", icon: Fingerprint, enabled: false, required: false, order: 2, config: { otpVerify: true } },
-    { id: "passport", label: "Passport", icon: IdCard, enabled: false, required: false, order: 3, config: { manualVerification: true } },
-    { id: "room-no", label: "Room No.", icon: DoorOpen, enabled: false, required: false, order: 4, config: { propertyMgt: "manual" } },
+    { id: "room-no", label: "Room No.", icon: DoorOpen, enabled: false, required: false, order: 2, config: { propertyMgt: "manual" } },
     // Own icon (LogIn) rather than reusing Email OTP's Mail icon -- the two
     // previously shared an icon despite being unrelated sign-in concepts
     // (federated SSO vs. a one-time code emailed to the guest).
-    { id: "sso", label: "SSO / Email", icon: LogIn, enabled: false, required: false, order: 5, config: { domain: "" } },
-    { id: "email-otp", label: "Email OTP", icon: Mail, enabled: true, required: false, order: 6, config: {} },
+    { id: "sso", label: "SSO / Email", icon: LogIn, enabled: false, required: false, order: 3, config: { domain: "" } },
+    { id: "email-otp", label: "Email OTP", icon: Mail, enabled: true, required: false, order: 4, config: {} },
     // Defaults off (unlike Email OTP) -- a real send needs a Meta-approved
     // WhatsApp Business template configured on the backend
     // (Settings.whatsapp_twilio_content_sid), which most orgs won't have
     // set up yet. See backend/app/domains/captive_portal/models.py's
     // otp_whatsapp_enabled docstring.
-    { id: "whatsapp-otp", label: "WhatsApp OTP", icon: MessageCircle, enabled: false, required: false, order: 7, config: {} },
-    { id: "voucher", label: "Voucher Code", icon: Ticket, enabled: true, required: false, order: 8, config: {} },
+    { id: "whatsapp-otp", label: "WhatsApp OTP", icon: MessageCircle, enabled: false, required: false, order: 5, config: {} },
+    { id: "voucher", label: "Voucher Code", icon: Ticket, enabled: true, required: false, order: 6, config: {} },
     // Real, functional login method (GuestService.login_via_pin / POST
     // /guest/login/pin), gated by pin_login_enabled -- defaults off,
     // mirroring the backend column's own default (a PIN is a materially
@@ -105,7 +105,7 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     // deliberately). PIN_LENGTH is fixed at 6 digits backend-side
     // (app/domains/guest/constants.py), not an operator-configurable
     // setting, so there's no local config to carry here.
-    { id: "pin", label: "Portal PIN", icon: Key, enabled: false, required: false, order: 9, config: {} },
+    { id: "pin", label: "Portal PIN", icon: Key, enabled: false, required: false, order: 7, config: {} },
   ]);
 
   // orgId + the resolved captive-portal config id for this location (if
