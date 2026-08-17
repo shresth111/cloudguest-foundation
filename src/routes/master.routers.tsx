@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   CheckCircle2,
+  ArrowLeft,
+  WifiOff,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -28,6 +30,7 @@ import {
   MTr,
   MDrawer,
   MButton,
+  MStat,
 } from "@/components/master/MasterKit";
 import {
   AlertDialog,
@@ -62,7 +65,12 @@ export const Route = createFileRoute("/master/routers")({
   // header's real platform search) has nowhere to deep-link a router to but
   // this list's own local-state drawer (`sel` below), so it hands in the
   // router id here and this auto-selects it once the real fleet has loaded.
-  validateSearch: z.object({ open: z.string().optional() }),
+  // `setup` is the same idea for the other, heavier drill-down: it swaps
+  // the whole page into the full-width Setup Script view for that router
+  // (see RouterFleetScreen's `setupRouter` below) instead of the lightweight
+  // browse drawer -- also real, shareable/bookmarkable deep links, not just
+  // internal navigation state.
+  validateSearch: z.object({ open: z.string().optional(), setup: z.string().optional() }),
   component: RouterFleetScreen,
 });
 
@@ -1115,9 +1123,78 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   );
 }
 
+/** The setup-script drill-down's own page -- everything a real, non-demo
+ * router needs to go from "selected in the fleet table" to "script in
+ * hand," at full page width instead of squeezed into the ~448px browse
+ * drawer (`MDrawer`'s own `max-w-md`) that used to hold this directly.
+ * Purely a layout shell around the same `RouterSetupScriptPanel` /
+ * `VendorNotSupportedPanel` and the same `updateVendor` mutation the browse
+ * drawer used to call -- no script-building/validation logic lives here. */
+function RouterSetupDrilldown({
+  router,
+  demo,
+  vendorSaving,
+  onVendorChange,
+}: {
+  router: RouterDevice;
+  demo: boolean;
+  vendorSaving: boolean;
+  onVendorChange: (vendor: string) => void;
+}) {
+  const vendor = router.vendor || "mikrotik";
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div>
+          <p className="text-lg font-semibold tracking-tight">{router.name}</p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {router.model} ·{" "}
+            {router.managementIpAddress ?? router.publicIpAddress ?? "IP not yet assigned"} ·{" "}
+            {router.organizationName} / {router.locationName}
+          </p>
+        </div>
+        <MTag
+          label={router.status === "pending_provisioning" ? "Awaiting check-in" : router.status}
+          tone={router.status === "pending_provisioning" ? "pending" : undefined}
+        />
+      </div>
+
+      {demo ? (
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+          Setup Script generation isn't part of the demo experience -- it mints a real provisioning
+          token and agent credential against the live backend.
+        </div>
+      ) : (
+        <>
+          <div className="max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Vendor</label>
+            <select
+              className={inputCls}
+              value={vendor}
+              disabled={vendorSaving}
+              onChange={(e) => onVendorChange(e.target.value)}
+            >
+              {DEVICE_VENDORS.map((v) => (
+                <option key={v.value} value={v.value}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {vendor === "mikrotik" ? (
+            <RouterSetupScriptPanel router={router} />
+          ) : (
+            <VendorNotSupportedPanel vendor={vendor} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function RouterFleetScreen() {
   const navigate = useNavigate();
-  const { open: openRouterId } = Route.useSearch();
+  const { open: openRouterId, setup: setupRouterId } = Route.useSearch();
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<RouterDevice | null>(null);
@@ -1194,6 +1271,41 @@ function RouterFleetScreen() {
     [routers, filter, q],
   );
 
+  // Fleet-wide counts for the summary tiles above the table -- same 3-way
+  // bucketing as the filter segmented control (`displayStatus`), over the
+  // *unfiltered* fleet so these always read as "the whole fleet," not
+  // "whatever the current filter/search happens to show."
+  const summary = useMemo(() => {
+    let online = 0;
+    let degraded = 0;
+    let offline = 0;
+    for (const r of routers) {
+      const s = displayStatus(r);
+      if (s === "online") online++;
+      else if (s === "degraded") degraded++;
+      else offline++;
+    }
+    return { total: routers.length, online, degraded, offline };
+  }, [routers]);
+
+  // The Setup Script generator is its own drill-down (`?setup=<id>`), a
+  // distinct URL/page-state from the lightweight browse drawer (`?open=<id>`
+  // / `sel`) -- see this route's own `validateSearch` doc comment for why.
+  // Looked up against the already-loaded fleet rather than fetched
+  // separately: this list already pulls the full fleet (pageSize 200) on
+  // mount, and every router this could ever be pointed at is in it.
+  const setupRouter = useMemo(
+    () => (setupRouterId ? (routers.find((r) => r.id === setupRouterId) ?? null) : null),
+    [setupRouterId, routers],
+  );
+  function goToSetup(id: string) {
+    setSel(null);
+    navigate({ to: "/master/routers", search: { setup: id } });
+  }
+  function backToFleet() {
+    navigate({ to: "/master/routers", search: {} });
+  }
+
   // Real per-router hardware control (restart, reboot, firmware upgrade,
   // VLAN/firewall edits, etc.) has no backend endpoint for isolated
   // one-click actions like these -- the actual mechanism for running real
@@ -1219,191 +1331,268 @@ function RouterFleetScreen() {
   return (
     <MasterShell title="Router Fleet">
       <MPageShell>
-        <MSectionHeader eyebrow="Infrastructure" title="Router Fleet" />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <MSeg
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: "all", label: "All" },
-              { value: "online", label: "Online" },
-              { value: "degraded", label: "Degraded" },
-              { value: "offline", label: "Offline" },
-            ]}
-          />
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name, IP, customer…"
-              className="w-60 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading router fleet…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Router</MTh>
-                <MTh className="hidden md:table-cell">Model</MTh>
-                <MTh className="hidden sm:table-cell">Customer</MTh>
-                <MTh>RouterOS</MTh>
-                <MTh>Last seen</MTh>
-                <MTh>Status</MTh>
-              </>
-            }
-          >
-            {rows.map((r) => (
-              <MTr key={r.id} onClick={() => setSel(r)}>
-                <MTd>
-                  <p className="font-semibold">{r.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {r.managementIpAddress ?? r.publicIpAddress ?? "IP not yet assigned"} ·{" "}
-                    {r.locationName}
-                  </p>
-                </MTd>
-                <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
-                <MTd className="hidden text-sm sm:table-cell">{r.organizationName}</MTd>
-                <MTd>
-                  <span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span>
-                </MTd>
-                <MTd className="text-xs text-muted-foreground">{timeAgo(r.lastSeenAt)}</MTd>
-                <MTd>
-                  <MTag
-                    label={statusLabel(r)}
-                    tone={r.status === "pending_provisioning" ? "pending" : undefined}
-                  />
-                </MTd>
-              </MTr>
-            ))}
-          </MTable>
-        )}
-        {!loading && rows.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground">
-            {routers.length === 0 ? "No routers provisioned yet." : "No routers match your filter."}
-          </p>
-        )}
-
-        <MDrawer
-          open={!!sel}
-          onClose={() => setSel(null)}
-          title={sel?.name ?? ""}
-          subtitle={
-            sel
-              ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}`
-              : ""
-          }
-          footer={
-            sel &&
-            (demo ? (
-              <MButton
-                variant="primary"
-                className="w-full justify-center"
-                onClick={() => act(`Opening remote console for ${sel.name}`)}
-              >
-                <TerminalSquare /> Open Device Console
+        <MSectionHeader
+          eyebrow="Infrastructure"
+          title={setupRouter ? `Setup Script — ${setupRouter.name}` : "Router Fleet"}
+          actions={
+            setupRouter ? (
+              <MButton variant="outline" onClick={backToFleet}>
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to Router Fleet
               </MButton>
-            ) : (
-              <Link to="/master/console" className="w-full">
-                <MButton variant="primary" className="w-full justify-center">
-                  <TerminalSquare /> Open Device Console
-                </MButton>
-              </Link>
-            ))
+            ) : undefined
           }
-        >
-          {sel && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg border border-border p-2.5 text-center">
-                  <p className="text-[11px] font-medium text-muted-foreground">Status</p>
-                  <p className="text-lg font-semibold capitalize">{statusLabel(sel)}</p>
-                </div>
-                <div className="rounded-lg border border-border p-2.5 text-center">
-                  <p className="text-[11px] font-medium text-muted-foreground">Last seen</p>
-                  <p className="text-lg font-semibold tabular-nums">{timeAgo(sel.lastSeenAt)}</p>
-                </div>
-                <div className="rounded-lg border border-border p-2.5 text-center">
-                  <p className="text-[11px] font-medium text-muted-foreground">RouterOS</p>
-                  <p className="text-lg font-semibold">{sel.routerOsVersion ?? "—"}</p>
-                </div>
-              </div>
+        />
 
-              {!demo && (
-                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
-                  Restart/Upgrade/Sync Config aren't wired to real device control yet -- use Device
-                  Console for those. Reboot is real.
-                </p>
-              )}
-
-              {!demo && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                    Vendor
-                  </label>
-                  <select
-                    className={inputCls}
-                    value={sel.vendor || "mikrotik"}
-                    disabled={vendorSaving}
-                    onChange={(e) => updateVendor(sel, e.target.value)}
-                  >
-                    {DEVICE_VENDORS.map((v) => (
-                      <option key={v.value} value={v.value}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {!demo &&
-                ((sel.vendor || "mikrotik") === "mikrotik" ? (
-                  <RouterSetupScriptPanel router={sel} />
-                ) : (
-                  <VendorNotSupportedPanel vendor={sel.vendor || "mikrotik"} />
-                ))}
-
-              {!demo && (sel.managementIpAddress || sel.publicIpAddress) && (
-                <RemoteAccessCard routerId={sel.id} />
-              )}
-
-              <div>
-                <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <ControlButton
-                    icon={Power}
-                    label="Reboot"
-                    onClick={() =>
-                      demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel)
-                    }
-                  />
-                </div>
-              </div>
-
-              {!demo && (
-                <Link to="/routers/$routerId" params={{ routerId: sel.id }} className="block">
-                  <MButton variant="outline" className="w-full justify-center">
-                    Manage this router <RouterIcon className="h-3.5 w-3.5" />
-                  </MButton>
-                  <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                    WireGuard tunnel, config rollback/backup, diagnostics, connected devices, and
-                    the audit log all live on the full router screen.
-                  </p>
-                </Link>
-              )}
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <RouterIcon className="h-3.5 w-3.5" /> Safe business-level operations only.
-              </p>
+        {/* Two distinct modes on one route, told apart by the `setup` search
+            param: browse/manage the fleet (table + a lightweight summary
+            drawer) vs. this router's own full-width Setup Script drill-down.
+            Keeps the actively-maintained generator (RouterSetupScriptPanel,
+            untouched below) off the cramped ~448px browse drawer it used to
+            be squeezed into, without introducing a whole new route file --
+            same `?open=<id>` / now `?setup=<id>` deep-link convention this
+            page already used for the browse drawer. */}
+        {setupRouterId && !setupRouter ? (
+          loading ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading router…
             </div>
-          )}
-        </MDrawer>
+          ) : (
+            <div className="space-y-3 rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+              <p>Couldn't find that router -- it may have been removed.</p>
+              <MButton variant="outline" onClick={backToFleet}>
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to Router Fleet
+              </MButton>
+            </div>
+          )
+        ) : setupRouter ? (
+          <RouterSetupDrilldown
+            router={setupRouter}
+            demo={demo}
+            vendorSaving={vendorSaving}
+            onVendorChange={(vendor) => updateVendor(setupRouter, vendor)}
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <MStat label="Total routers" value={summary.total} icon={RouterIcon} />
+              <MStat label="Online" value={summary.online} tone="success" icon={CheckCircle2} />
+              <MStat
+                label="Degraded"
+                value={summary.degraded}
+                tone="warning"
+                icon={AlertTriangle}
+              />
+              <MStat label="Offline" value={summary.offline} tone="danger" icon={WifiOff} />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <MSeg
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "online", label: "Online" },
+                  { value: "degraded", label: "Degraded" },
+                  { value: "offline", label: "Offline" },
+                ]}
+              />
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search name, IP, customer…"
+                  className="w-60 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading router fleet…
+              </div>
+            ) : (
+              <MTable
+                head={
+                  <>
+                    <MTh>Router</MTh>
+                    <MTh className="hidden md:table-cell">Model</MTh>
+                    <MTh className="hidden sm:table-cell">Customer</MTh>
+                    <MTh>RouterOS</MTh>
+                    <MTh>Last seen</MTh>
+                    <MTh>Status</MTh>
+                    {!demo && <MTh className="text-right">Setup</MTh>}
+                  </>
+                }
+              >
+                {rows.map((r) => (
+                  <MTr key={r.id} onClick={() => setSel(r)}>
+                    <MTd>
+                      <p className="font-semibold">{r.name}</p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {r.managementIpAddress ?? r.publicIpAddress ?? "IP not yet assigned"} ·{" "}
+                        {r.locationName}
+                      </p>
+                    </MTd>
+                    <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
+                    <MTd className="hidden text-sm sm:table-cell">{r.organizationName}</MTd>
+                    <MTd>
+                      <span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span>
+                    </MTd>
+                    <MTd className="text-xs text-muted-foreground">{timeAgo(r.lastSeenAt)}</MTd>
+                    <MTd>
+                      <MTag
+                        label={statusLabel(r)}
+                        tone={r.status === "pending_provisioning" ? "pending" : undefined}
+                      />
+                    </MTd>
+                    {!demo && (
+                      <MTd className="text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goToSetup(r.id);
+                          }}
+                          title="Generate this router's setup script"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:border-primary hover:bg-accent"
+                        >
+                          <FileCode2 className="h-3 w-3" /> Setup script
+                        </button>
+                      </MTd>
+                    )}
+                  </MTr>
+                ))}
+              </MTable>
+            )}
+            {!loading && rows.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                {routers.length === 0
+                  ? "No routers provisioned yet."
+                  : "No routers match your filter."}
+              </p>
+            )}
+
+            <MDrawer
+              open={!!sel}
+              onClose={() => setSel(null)}
+              title={sel?.name ?? ""}
+              subtitle={
+                sel
+                  ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}`
+                  : ""
+              }
+              footer={
+                sel &&
+                (demo ? (
+                  <MButton
+                    variant="primary"
+                    className="w-full justify-center"
+                    onClick={() => act(`Opening remote console for ${sel.name}`)}
+                  >
+                    <TerminalSquare /> Open Device Console
+                  </MButton>
+                ) : (
+                  <Link to="/master/console" className="w-full">
+                    <MButton variant="primary" className="w-full justify-center">
+                      <TerminalSquare /> Open Device Console
+                    </MButton>
+                  </Link>
+                ))
+              }
+            >
+              {sel && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-border p-2.5 text-center">
+                      <p className="text-[11px] font-medium text-muted-foreground">Status</p>
+                      <p className="text-lg font-semibold capitalize">{statusLabel(sel)}</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-2.5 text-center">
+                      <p className="text-[11px] font-medium text-muted-foreground">Last seen</p>
+                      <p className="text-lg font-semibold tabular-nums">
+                        {timeAgo(sel.lastSeenAt)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border p-2.5 text-center">
+                      <p className="text-[11px] font-medium text-muted-foreground">RouterOS</p>
+                      <p className="text-lg font-semibold">{sel.routerOsVersion ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {!demo && (
+                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
+                      Restart/Upgrade/Sync Config aren't wired to real device control yet -- use
+                      Device Console for those. Reboot is real.
+                    </p>
+                  )}
+
+                  {!demo && (
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                        Vendor
+                      </label>
+                      <select
+                        className={inputCls}
+                        value={sel.vendor || "mikrotik"}
+                        disabled={vendorSaving}
+                        onChange={(e) => updateVendor(sel, e.target.value)}
+                      >
+                        {DEVICE_VENDORS.map((v) => (
+                          <option key={v.value} value={v.value}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {!demo && (
+                    <MButton
+                      variant="primary"
+                      className="w-full justify-center"
+                      onClick={() => goToSetup(sel.id)}
+                    >
+                      <FileCode2 className="h-4 w-4" /> Generate Setup Script
+                    </MButton>
+                  )}
+
+                  {!demo && (sel.managementIpAddress || sel.publicIpAddress) && (
+                    <RemoteAccessCard routerId={sel.id} />
+                  )}
+
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <ControlButton
+                        icon={Power}
+                        label="Reboot"
+                        onClick={() =>
+                          demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {!demo && (
+                    <Link to="/routers/$routerId" params={{ routerId: sel.id }} className="block">
+                      <MButton variant="outline" className="w-full justify-center">
+                        Manage this router <RouterIcon className="h-3.5 w-3.5" />
+                      </MButton>
+                      <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+                        WireGuard tunnel, config rollback/backup, diagnostics, connected devices,
+                        and the audit log all live on the full router screen.
+                      </p>
+                    </Link>
+                  )}
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <RouterIcon className="h-3.5 w-3.5" /> Safe business-level operations only.
+                  </p>
+                </div>
+              )}
+            </MDrawer>
+          </>
+        )}
 
         <AlertDialog
           open={!!rebootTarget}
