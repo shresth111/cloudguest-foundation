@@ -33,22 +33,23 @@ interface LoginMethod {
   config: Record<string, any>;
 }
 
-// Only these three SmartIdPage methods have a real, persisted counterpart
-// in the backend's captive_portal_configs table (otp_email_enabled /
-// otp_whatsapp_enabled / voucher_enabled -- see
-// backend/app/domains/captive_portal/models.py). Aadhaar/Passport/Room
-// No./SSO/PIN have no backing column anywhere in the backend (no
-// identity-verification or PIN-login module exists), so toggling those
-// stays local-only -- the same honest "real field written for real, no
-// field faked as persisted" boundary portal.service.ts's own
+// Only these five SmartIdPage methods have a real, persisted counterpart
+// in the backend's captive_portal_configs table (otp_sms_enabled /
+// otp_email_enabled / otp_whatsapp_enabled / voucher_enabled /
+// pin_login_enabled -- see backend/app/domains/captive_portal/models.py).
+// Aadhaar/Passport/Room No./SSO have no backing column anywhere in the
+// backend (no identity-verification or SSO module exists), so toggling
+// those stays local-only -- the same honest "real field written for real,
+// no field faked as persisted" boundary portal.service.ts's own
 // LOGIN_METHOD_FLAGS already documents for this exact backend table.
 const BACKED_FLAGS: Partial<
-  Record<string, "otp_sms_enabled" | "otp_email_enabled" | "otp_whatsapp_enabled" | "voucher_enabled">
+  Record<string, "otp_sms_enabled" | "otp_email_enabled" | "otp_whatsapp_enabled" | "voucher_enabled" | "pin_login_enabled">
 > = {
   "sms-otp": "otp_sms_enabled",
   "email-otp": "otp_email_enabled",
   "whatsapp-otp": "otp_whatsapp_enabled",
   voucher: "voucher_enabled",
+  pin: "pin_login_enabled",
 };
 
 interface BackendCaptivePortalConfig {
@@ -59,17 +60,18 @@ interface BackendCaptivePortalConfig {
   otp_email_enabled: boolean;
   otp_whatsapp_enabled: boolean;
   voucher_enabled: boolean;
+  pin_login_enabled: boolean;
   is_active: boolean;
   is_default: boolean;
 }
 
-// Aadhaar/Passport/Room No./SSO/PIN have no real guest-facing
-// implementation anywhere in this product -- no verification flow, no
-// backend field, nothing a guest would ever actually see on the real
-// captive portal regardless of this toggle. Shown disabled with
-// "Coming soon" rather than silently accepting a toggle that does
-// nothing (see BACKED_FLAGS below for the two that are real).
-const UNAVAILABLE_METHOD_IDS = new Set(["aadhar", "passport", "room-no", "sso", "pin"]);
+// Aadhaar/Passport/Room No./SSO have no real guest-facing implementation
+// anywhere in this product -- no verification flow, no backend field,
+// nothing a guest would ever actually see on the real captive portal
+// regardless of this toggle. Shown disabled with "Coming soon" rather
+// than silently accepting a toggle that does nothing (see BACKED_FLAGS
+// above for the ones that are real).
+const UNAVAILABLE_METHOD_IDS = new Set(["aadhar", "passport", "room-no", "sso"]);
 
 export default function SmartIdPage({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
@@ -96,7 +98,14 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     // otp_whatsapp_enabled docstring.
     { id: "whatsapp-otp", label: "WhatsApp OTP", icon: MessageCircle, enabled: false, required: false, order: 7, config: {} },
     { id: "voucher", label: "Voucher Code", icon: Ticket, enabled: true, required: false, order: 8, config: {} },
-    { id: "pin", label: "Set PIN", icon: Key, enabled: false, required: false, order: 9, config: { minLength: 4, maxLength: 8 } },
+    // Real, functional login method (GuestService.login_via_pin / POST
+    // /guest/login/pin), gated by pin_login_enabled -- defaults off,
+    // mirroring the backend column's own default (a PIN is a materially
+    // weaker secret than a password, so an operator opts in per location
+    // deliberately). PIN_LENGTH is fixed at 6 digits backend-side
+    // (app/domains/guest/constants.py), not an operator-configurable
+    // setting, so there's no local config to carry here.
+    { id: "pin", label: "Portal PIN", icon: Key, enabled: false, required: false, order: 9, config: {} },
   ]);
 
   // orgId + the resolved captive-portal config id for this location (if
@@ -225,6 +234,7 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
   const indexedMethods = methods.map((m, idx) => ({ method: m, idx }));
   const liveMethods = indexedMethods.filter(({ method }) => !UNAVAILABLE_METHOD_IDS.has(method.id));
   const comingSoonMethods = indexedMethods.filter(({ method }) => UNAVAILABLE_METHOD_IDS.has(method.id));
+  const pinMethod = methods.find((m) => m.id === "pin");
 
   return (
     <div className="space-y-6">
@@ -238,7 +248,7 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
       <Tabs defaultValue="methods">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
           <TabsTrigger value="methods" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Login Methods</TabsTrigger>
-          <TabsTrigger value="pin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Set PIN</TabsTrigger>
+          <TabsTrigger value="pin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Portal PIN</TabsTrigger>
           <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Portal Preview</TabsTrigger>
         </TabsList>
 
@@ -351,13 +361,21 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
 
         <TabsContent value="pin" className="mt-4">
           <Card className="shadow-sm border-0">
-            <CardHeader><CardTitle className="text-sm">Set Portal PIN</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Portal PIN</CardTitle></CardHeader>
             <CardContent className="max-w-md">
-              <div className="flex items-start gap-3 rounded-lg border border-dashed border-slate-300 p-4 dark:border-slate-600">
-                <Hourglass className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                <p className="text-xs text-amber-600 dark:text-amber-500">
-                  Coming soon — guests will be able to set a PIN for quick re-login without re-entering credentials. Not available yet.
-                </p>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
+                    <Key className="h-4 w-4 text-indigo-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Portal PIN</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Guests can set a 6-digit PIN after verifying via OTP, for faster sign-in on return visits.
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={pinMethod?.enabled ?? false} onCheckedChange={() => toggleMethod("pin")} />
               </div>
             </CardContent>
           </Card>
