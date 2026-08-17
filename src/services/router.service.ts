@@ -206,6 +206,110 @@ async function fetchAllRouters(): Promise<RouterDevice[]> {
     .flatMap((r) => r.value);
 }
 
+export interface RouterModelGroup {
+  series: string;
+  models: string[];
+}
+
+// A comprehensive, real MikroTik hardware catalog grouped by product series
+// -- like models() below, this is a model *picker's* suggestion list, UI
+// furniture, not app-state: the real backend field is a plain free-text
+// VARCHAR(100), not an enum, so a technician can always type a model that
+// isn't in this list (unreleased hardware, a niche SKU we missed, etc).
+// Entries are written as "<friendly name> (<RB/CCR/CRS code>)" (or just the
+// code, for series where the code *is* the common name) so search-by-code
+// and search-by-name both work against the same string.
+export const MIKROTIK_MODEL_GROUPS: RouterModelGroup[] = [
+  {
+    series: "hEX / hAP -- Home & SOHO",
+    models: [
+      "MikroTik hEX (RB750Gr3)",
+      "MikroTik hEX lite (RB750r2)",
+      "MikroTik hEX PoE (RB960PGS)",
+      "MikroTik hEX PoE lite (RB750UPr2)",
+      "MikroTik hEX S",
+      "MikroTik hAP lite (RB941-2nD)",
+      "MikroTik hAP mini (RB931-2nD)",
+      "MikroTik hAP (RB951Ui-2nD)",
+      "MikroTik hAP ac (RB962UiGS-5HacT2HnT)",
+      "MikroTik hAP ac2 (RBD52G-5HacD2HnD)",
+      "MikroTik hAP ac3 (RBD53iG-5HacD2HnD)",
+      "MikroTik hAP ax2 (C52iG-5HaxD2HaxD)",
+      "MikroTik hAP ax3",
+      "MikroTik hAP ax lite (L41G-2axD)",
+    ],
+  },
+  {
+    series: "RB450 / RB951 / RB4011 / RB5009 -- Enterprise Desktop",
+    models: [
+      "MikroTik RB450Gx4",
+      "MikroTik RB951G-2HnD",
+      "MikroTik RB4011iGS+RM",
+      "MikroTik RB4011iGS+5HacQ2HnD-IN",
+      "MikroTik RB5009UG+S+IN",
+      "MikroTik RB5009UPr+S+IN",
+    ],
+  },
+  {
+    series: "CCR -- Cloud Core Router",
+    models: [
+      "MikroTik CCR1009-7G-1C-1S+",
+      "MikroTik CCR1016-12G",
+      "MikroTik CCR1036-8G-2S+",
+      "MikroTik CCR1072-1G-8S+",
+      "MikroTik CCR2004-1G-12S+2XS",
+      "MikroTik CCR2004-16G-2S+",
+      "MikroTik CCR2116-12G-4S+",
+      "MikroTik CCR2216-1G-12XS-2XQ",
+    ],
+  },
+  {
+    series: "CRS -- Cloud Router Switch",
+    models: [
+      "MikroTik CRS106-1C-5S",
+      "MikroTik CRS112-8G-4S-IN",
+      "MikroTik CRS125-24G-1S-IN",
+      "MikroTik CRS226-24G-2S+IN",
+      "MikroTik CRS305-1G-4S+IN",
+      "MikroTik CRS309-1G-8S+IN",
+      "MikroTik CRS310-1G-5S-4S+IN",
+      "MikroTik CRS317-1G-16S+",
+      "MikroTik CRS326-24G-2S+",
+      "MikroTik CRS328-24P-4S+RM",
+      "MikroTik CRS354-48G-4S+2Q+RM",
+      "MikroTik CRS518-16XS-2XQ",
+    ],
+  },
+  {
+    series: "CSS -- Cloud Smart Switch",
+    models: ["MikroTik CSS106-1G-4P-1S", "MikroTik CSS326-24G-2S+", "MikroTik CSS610-8G-2S+IN"],
+  },
+  {
+    series: "wAP / cAP -- Wireless Access Points",
+    models: [
+      "MikroTik wAP (RBwAPr-2nD)",
+      "MikroTik wAP ac (RBwAPG-5HacD2HnD)",
+      "MikroTik wAP LTE kit",
+      "MikroTik cAP ac",
+      "MikroTik cAP ax",
+      "MikroTik cAP lite",
+    ],
+  },
+  {
+    series: "LtAP / Chateau / Audience -- LTE & Consumer",
+    models: [
+      "MikroTik LtAP mini LTE kit",
+      "MikroTik LtAP LTE6 kit",
+      "MikroTik Chateau LTE6",
+      "MikroTik Chateau LTE12",
+      "MikroTik Chateau 5G",
+      "MikroTik Chateau ax",
+      "MikroTik Audience",
+      "MikroTik Audience LTE6 kit",
+    ],
+  },
+];
+
 export const routerService = {
   /**
    * Location-scoped router listing for callers that already know both the
@@ -390,14 +494,9 @@ export const routerService = {
 
   models(): string[] {
     // A model picker's suggestion list -- UI furniture, not app-state; the
-    // real backend field is a plain free-text string, not an enum.
-    return [
-      "MikroTik CCR2004-1G-12S+2XS",
-      "MikroTik CCR2116-12G-4S+",
-      "MikroTik RB5009UG+S+IN",
-      "MikroTik hEX S",
-      "MikroTik hAP ax3",
-      "MikroTik CRS326-24G-2S+",
-    ];
+    // real backend field is a plain free-text string, not an enum. See
+    // MIKROTIK_MODEL_GROUPS above for the grouped/searchable version used by
+    // RouterModelCombobox.
+    return MIKROTIK_MODEL_GROUPS.flatMap((g) => g.models);
   },
 };

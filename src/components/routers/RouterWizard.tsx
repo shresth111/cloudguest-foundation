@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { routerWizardSchema, type RouterWizardValues } from "@/lib/router-schemas";
 import { useCreateRouter } from "@/hooks/useRouters";
 import { routerService } from "@/services/router.service";
+import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
 import type { AppError } from "@/services/api";
 import {
   useCancelProvisionJob,
@@ -91,8 +92,6 @@ export function RouterWizard({ open, onOpenChange }: Props) {
     queryFn: () => routerService.locations(),
     enabled: open,
   });
-  const models = routerService.models();
-
   const form = useForm<RouterWizardValues>({
     resolver: zodResolver(routerWizardSchema),
     defaultValues: DEFAULTS,
@@ -207,20 +206,13 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Router model</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select model" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {models.map((m) => (
-                                <SelectItem key={m} value={m}>
-                                  {m}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <RouterModelCombobox
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              placeholder="Select model"
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
