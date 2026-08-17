@@ -1770,8 +1770,18 @@ export function buildRouterSetupScriptChunks(opts: {
    * mangle chunk. */
   wanRoutingMode?: WanRoutingMode;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wans, lanIfs, lanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl, wanRoutingMode = "load_balance" } = opts;
-  const wanIfs = wans.map((w) => w.iface);
+  const { apiBase, agentCredential, wans, lanIfs, lanBridge: rawLanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl, wanRoutingMode = "load_balance" } = opts;
+  // Escaped once up front -- `lanBridge` is an operator-editable free-text
+  // field (see master.routers.tsx's own input for it) interpolated into
+  // RouterOS double-quoted strings all over this function (bridge
+  // creation, port adds, DNS/DHCP, hotspot, firewall/mangle in-interface
+  // matches); a raw `"` or `\` typed into it would otherwise corrupt every
+  // one of those lines the moment the script is pasted. See
+  // `escapeForRouterOsString`'s own docstring.
+  const lanBridge = escapeForRouterOsString(rawLanBridge);
+  // Same reasoning as `lanBridge` above -- each WAN's interface name is
+  // interpolated into RouterOS strings throughout this function.
+  const wanIfs = wans.map((w) => escapeForRouterOsString(w.iface));
   const hasExplicitLan = !!lanIfs && lanIfs.length > 0;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
   const poolStart = `${base3}.10`;
@@ -1841,13 +1851,39 @@ export function buildRouterSetupScriptChunks(opts: {
     const lines: string[] = [];
     wans.forEach((wan, idx) => {
       const n = idx + 1;
+      const iface = escapeForRouterOsString(wan.iface);
       if (wan.mode === "static") {
-        lines.push(`:if ([:len [/ip address find where interface="${wan.iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`);
-        lines.push(`  /ip address add address="${wan.ip}/${wan.cidr}" interface="${wan.iface}" comment="cloudguest-addr-wan${n}"`);
+        // Self-heal, same idea as "LAN IP + DNS" below: clear any dynamic
+        // (DHCP-leased) address left on this interface -- from a prior
+        // DHCP WAN mode, factory-default config, or an earlier
+        // provisioning attempt -- before laying down the static one.
+        // Without this a WAN interface can end up carrying two addresses
+        // (the intended static one plus a dangling dynamic one) at once.
+        // Only ever removes *dynamic* entries, so the static address this
+        // WAN is already configured with is never touched -- a no-op on a
+        // healthy re-run.
+        lines.push(`:foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
+        lines.push(`:if ([:len [/ip address find where interface="${iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`);
+        lines.push(`  /ip address add address="${wan.ip}/${wan.cidr}" interface="${iface}" comment="cloudguest-addr-wan${n}"`);
         lines.push(`}`);
       } else {
-        lines.push(`:if ([:len [/ip dhcp-client find where interface="${wan.iface}"]] = 0) do={`);
-        lines.push(`  /ip dhcp-client add interface="${wan.iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`);
+        // Check for OUR OWN cloudguest-commented dhcp-client specifically
+        // -- not just "does any dhcp-client already exist on this
+        // interface" -- the same class of bug the "Stale Factory-Default
+        // DHCP Client Cleanup" chunk above fixed for "bridgeLocal". A
+        // factory-default (or previous provisioning attempt's) dhcp-client
+        // already bound to this WAN port would otherwise be silently
+        // adopted as-is, `add-default-route` and all, still fighting the
+        // "WAN Routing" chunk's own routes below. If ours is missing,
+        // remove whatever foreign client (and any dynamic address it left
+        // behind) is on this interface first, then add the correct one --
+        // self-healing on every re-run, not just a first-run check.
+        lines.push(`:local wan${n}CloudguestClient [/ip dhcp-client find where interface="${iface}" comment="cloudguest-dhcp-wan${n}"]`);
+        lines.push(`:if ([:len $wan${n}CloudguestClient] = 0) do={`);
+        lines.push(`  :local wan${n}OtherClient [/ip dhcp-client find where interface="${iface}"]`);
+        lines.push(`  :if ([:len $wan${n}OtherClient] > 0) do={ /ip dhcp-client remove $wan${n}OtherClient }`);
+        lines.push(`  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
+        lines.push(`  /ip dhcp-client add interface="${iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`);
         lines.push(`}`);
       }
     });
@@ -1882,11 +1918,12 @@ export function buildRouterSetupScriptChunks(opts: {
     const lines: string[] = [];
     wans.forEach((wan, idx) => {
       const n = idx + 1;
+      const iface = escapeForRouterOsString(wan.iface);
       if (wan.mode === "static") {
         lines.push(`:local wan${n}Gw "${wan.gateway}"`);
       } else {
         lines.push(`:local wan${n}Gw ""`);
-        lines.push(`:if ([:len [/ip dhcp-client find where interface="${wan.iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${wan.iface}"] gateway] }`);
+        lines.push(`:if ([:len [/ip dhcp-client find where interface="${iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${iface}"] gateway] }`);
       }
     });
     wans.forEach((_, idx) => {
@@ -2015,12 +2052,26 @@ export function buildRouterSetupScriptChunks(opts: {
     const lines = [
       `:foreach addr in=[/ip address find where interface="${lanBridge}" dynamic=yes] do={ /ip address remove $addr }`,
       `:if ([:len [/ip address find where interface="${lanBridge}" address="${lanIp}/${lanCidr}"]] = 0) do={ /ip address add address=${lanIp}/${lanCidr} interface="${lanBridge}" }`,
-      `/ip dns set servers=${dnsServers} allow-remote-requests=yes`,
+      `/ip dns set servers="${escapeForRouterOsString(dnsServers)}" allow-remote-requests=yes`,
+      // `allow-remote-requests=yes` above is a device-wide switch -- it has
+      // to stay on so guests behind the hotspot (and anything resolving
+      // via WireGuard-tunneled management traffic) can actually use this
+      // router as a resolver, but that also means DNS is reachable from
+      // WAN the moment this chunk runs, regardless of whether the
+      // (optional, togglable) "Firewall" chunk below is ever pasted. This
+      // rule is unconditional -- not gated on `enableFirewall` -- so a
+      // technician who generates a script with the broader firewall
+      // disabled still doesn't end up with an open recursive resolver
+      // reachable from the internet.
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns" }`,
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=tcp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns-tcp" }`,
     ];
     chunks.push({ label: "LAN IP + DNS", script: lines.join("\n") });
   }
 
   {
+    const hsUserEsc = escapeForRouterOsString(hsUser);
+    const hsPassEsc = escapeForRouterOsString(hsPass);
     const lines = [
       `:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={ /ip pool add name="hotspot-pool" ranges=${poolStart}-${poolEnd} }`,
       `:if ([:len [/ip dhcp-server find where interface="${lanBridge}"]] = 0) do={`,
@@ -2055,7 +2106,7 @@ export function buildRouterSetupScriptChunks(opts: {
       `/ip hotspot profile set [find name="hsprof1"] dns-name="${HOTSPOT_DNS_NAME}"`,
       `:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={ /ip dns static add name="${HOTSPOT_DNS_NAME}" address=${lanIp} comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=${lanIp} }`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
-      `:if ([:len [/ip hotspot user find where name="${hsUser}"]] = 0) do={ /ip hotspot user add name="${hsUser}" password="${hsPass}" server="hotspot1" }`,
+      `:if ([:len [/ip hotspot user find where name="${hsUserEsc}"]] = 0) do={ /ip hotspot user add name="${hsUserEsc}" password="${hsPassEsc}" server="hotspot1" }`,
     ];
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
@@ -2211,17 +2262,19 @@ export function buildRouterSetupScriptChunks(opts: {
   if (identity) {
     chunks.push({
       label: "Router Identity",
-      script: `/system identity set name="${identity}"`,
+      script: `/system identity set name="${escapeForRouterOsString(identity)}"`,
     });
   }
 
   if (apiAccess) {
+    const apiUser = escapeForRouterOsString(apiAccess.username);
+    const apiSecret = escapeForRouterOsString(apiAccess.secret);
     const lines = [
       `/ip service set api disabled=no`,
-      `:if ([:len [/user find where name="${apiAccess.username}"]] = 0) do={`,
-      `  /user add name="${apiAccess.username}" password="${apiAccess.secret}" group=full comment="cloudguest-api"`,
+      `:if ([:len [/user find where name="${apiUser}"]] = 0) do={`,
+      `  /user add name="${apiUser}" password="${apiSecret}" group=full comment="cloudguest-api"`,
       `} else={`,
-      `  /user set [find name="${apiAccess.username}"] password="${apiAccess.secret}"`,
+      `  /user set [find name="${apiUser}"] password="${apiSecret}"`,
       `}`,
     ];
     chunks.push({ label: "API Access (unlocks Device Console)", script: lines.join("\n") });
@@ -2284,10 +2337,21 @@ export function buildRouterSetupScriptChunks(opts: {
 
   if (radius) {
     const lines = [
+      // `hsprof1` is normally created by the "Hotspot" chunk above, but
+      // this chunk's own `/ip hotspot profile set [find name="hsprof1"]
+      // ...` below silently no-ops (RouterOS's `set` on an empty `find`
+      // touches nothing and reports no error) if that hasn't run yet --
+      // confirmed by inspection, not just theory: there's no on-device
+      // signal at all that RADIUS never actually got wired up. Self-heal
+      // with the same minimal `hsprof1` shape the "Hotspot" chunk itself
+      // creates (see that chunk's own `/ip hotspot profile add` line) so
+      // the `set` below always has something real to land on, regardless
+      // of paste order.
+      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot dns-name="${HOTSPOT_DNS_NAME}" }`,
       `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`,
       // RouterOS's own default RADIUS timeout is 300ms, confirmed live to be too
       // aggressive for any real (let alone WireGuard-tunneled) WAN path.
-      `  /radius add service=hotspot address="${radius.serverAddress}" secret="${radius.sharedSecret}" timeout=3s`,
+      `  /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" timeout=3s`,
       `}`,
       `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
     ];
