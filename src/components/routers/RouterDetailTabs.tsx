@@ -1717,7 +1717,17 @@ function buildWeightedPccPlan(
  * `copiedChunkIdx`) rather than leaving chunks freely clickable. (An
  * earlier, single-block generator, `buildRouterSetupScript`, had exactly
  * this paste-corruption bug and no static-IP/WireGuard/RADIUS support --
- * deleted; this is the only generator now.) */
+ * deleted; this is the only generator now.)
+ *
+ * Order, at a glance: "WAN + Bridge" -> "Stale Factory-Default DHCP Client
+ * Cleanup" -> "WAN Addressing" -> "WAN Routing" -> **"WAN Connectivity
+ * Check"** -- a manual checkpoint a technician reads and must see PASS on
+ * before continuing (added after a confirmed-live field report of a router
+ * whose WAN never actually came up, silently breaking every later
+ * internet-dependent chunk -- see that chunk's own comment) -- then the
+ * LAN-side chunks (LAN Interfaces/Ports/IP+DNS), Hotspot/portal/firewall
+ * chunks, and finally the internet-dependent ones this checkpoint exists
+ * for: RADIUS, WireGuard, and Heartbeat. */
 export function buildRouterSetupScriptChunks(opts: {
   apiBase: string;
   agentCredential: string;
@@ -1972,6 +1982,92 @@ export function buildRouterSetupScriptChunks(opts: {
     }
     chunks.push({
       label: wanRoutingMode === "failover_only" ? "WAN Routing (failover only)" : "WAN Routing (load balancing + failover)",
+      script: lines.join("\n"),
+    });
+  }
+
+  // Confirmed live in production (2026-08-17, router "WYFY-GUEST"): a field
+  // technician pastes every chunk below top-to-bottom with nothing in
+  // between actually verifying WAN/internet/DNS came up first. The reported
+  // failure was the Heartbeat chunk's `/tool fetch` to master.wyfyguest.com
+  // dying with RouterOS's own "failure: timeout connecting" -- discovered
+  // only after the fact, by separately noticing the heartbeat scheduler's
+  // own run-count=0 and next-run stuck weeks in the past (see the
+  // Heartbeat chunk's own comment below for what this generator now does
+  // about that specific symptom). Heartbeat, RADIUS (a remote auth server),
+  // and WireGuard (a remote tunnel endpoint) all assume real internet
+  // reachability and were getting pasted and left running blind, with no
+  // way for the technician to know mid-provisioning whether WAN+DNS
+  // actually came up before committing to them.
+  //
+  // This is a manual checkpoint, not an automated gate: RouterOS has no
+  // mechanism for a later, independently-pasted chunk to refuse to run
+  // because an earlier one "failed" -- each chunk is its own paste by a
+  // human, not one connected script with shared state, so there's no way
+  // to make e.g. the Heartbeat chunk below actually block on this one. What
+  // this CAN do -- and does -- is print an unambiguous PASS/FAIL the
+  // technician reads before deciding whether to paste anything below it,
+  // exactly the manual gate this was asked for. Positioned after "WAN
+  // Routing" (needs the default route that chunk just added -- an address
+  // alone isn't enough to actually reach 8.8.8.8) and before every chunk
+  // that assumes real internet reachability; the LAN-side chunks above
+  // (LAN Ports, LAN IP + DNS, Hotspot) don't depend on WAN being up at all,
+  // so this doesn't need to come any earlier than it does.
+  {
+    let apiHost = "google.com";
+    try {
+      const parsedApiBase = new URL(apiBase);
+      if (parsedApiBase.hostname) apiHost = parsedApiBase.hostname;
+    } catch {
+      // `apiBase` isn't a valid absolute URL -- shouldn't happen in
+      // practice (see `getAbsoluteApiBase`'s own docstring, the only real
+      // caller today), but nothing at the type level guarantees it. Falls
+      // back to a well-known public host rather than emitting a DNS test
+      // that's doomed to fail regardless of the router's own DNS health.
+    }
+    const apiHostEsc = escapeForRouterOsString(apiHost);
+    const lines = [
+      `:log info "cloudguest: WAN connectivity check starting (ping 8.8.8.8, resolve ${apiHostEsc})"`,
+      `:local pingOk false`,
+      `:local dnsOk false`,
+      // `/ping` used as an expression returns the number of replies
+      // actually received -- a real reachability test, no DNS involved at
+      // all (raw IP), so this alone already tells the technician whether
+      // the WAN link/routing/ISP path works before DNS is even in play.
+      `:local pingReceived [/ping 8.8.8.8 count=4]`,
+      `:if ($pingReceived > 0) do={ :set pingOk true }`,
+      // `:resolve` throws on failure (NXDOMAIN, no DNS reachable, etc.) --
+      // caught here instead of aborting the rest of the chunk. One `:set`
+      // statement per `do=`/`on-error=` block, same discipline as the
+      // Heartbeat chunk's own fetch line below: a `;`-chained pair of
+      // statements inside an inline `do={}` has thrown a real syntax error
+      // on a live router before (see that chunk's own comment) -- this
+      // stays a single statement in each branch instead.
+      `:do { :set dnsOk ([:len [:resolve "${apiHostEsc}"]] > 0) } on-error={ :set dnsOk false }`,
+      `:local pingLabel "FAIL"`,
+      `:if ($pingOk = true) do={ :set pingLabel "PASS" }`,
+      `:local dnsLabel "FAIL"`,
+      `:if ($dnsOk = true) do={ :set dnsLabel "PASS" }`,
+      `:put "===================================================="`,
+      `:put "  WAN CONNECTIVITY CHECK"`,
+      `:put ("  Ping 8.8.8.8 (raw internet reachability): " . $pingLabel)`,
+      `:put ("  Resolve ${apiHostEsc} (DNS):                " . $dnsLabel)`,
+      `:if ($pingOk = true && $dnsOk = true) do={`,
+      `  :put "  RESULT: PASS -- internet and DNS both work. Safe to paste"`,
+      `  :put "  the remaining chunks (Hotspot, RADIUS, WireGuard, Heartbeat)."`,
+      `  :log info "cloudguest: WAN connectivity check PASSED"`,
+      `} else={`,
+      `  :put "  RESULT: FAIL -- DO NOT paste the remaining chunks yet."`,
+      `  :put "  Fix WAN cabling / ISP link / DNS servers, then re-paste THIS"`,
+      `  :put "  chunk to re-check. Heartbeat/RADIUS/WireGuard all depend on"`,
+      `  :put "  real internet reachability and will fail -- some silently --"`,
+      `  :put "  until this shows PASS on both lines above."`,
+      `  :log warning "cloudguest: WAN connectivity check FAILED (ping=$pingLabel dns=$dnsLabel)"`,
+      `}`,
+      `:put "===================================================="`,
+    ];
+    chunks.push({
+      label: "WAN Connectivity Check (confirm PASS before continuing)",
       script: lines.join("\n"),
     });
   }
@@ -2414,23 +2510,66 @@ export function buildRouterSetupScriptChunks(opts: {
     // `:pick`'s source string, once for `:find`'s) instead of being cached
     // in a local, which costs nothing (it's a read-only query) and keeps
     // this block byte-for-byte consistent with the rest of the generator.
+    // Confirmed live in production (2026-08-17, router "WYFY-GUEST"): a
+    // field technician reported this chunk's `/tool fetch` dying with
+    // RouterOS's own "failure: timeout connecting" -- a bare fetch failure
+    // that raises no RouterOS error visible anywhere except the moment it
+    // happens (a scheduler `on-event` failing produces no toast, no popup,
+    // nothing waiting for anyone to look; the one-shot copy's failure
+    // scrolls past in the terminal along with everything else pasted around
+    // it). Both fetch calls below are now wrapped in `:do {} on-error={}`
+    // so a failure leaves a real, timestamped trace in `/log print` --
+    // `:log warning` -- that a technician (or this platform's own remote
+    // support) can actually find later, instead of the router just quietly
+    // never reporting in. Each `:do {}`/`on-error={}` body still holds
+    // exactly one statement, same "no `;`-chain inside an inline do={}"
+    // discipline as everywhere else in this chunk (see below).
+    //
+    // Separately reported alongside the fetch failure: this scheduler's own
+    // `run-count=0` and `next-run` stuck weeks in the past, suggesting it
+    // may never have fired at all. RouterOS's `/system scheduler add`
+    // captures the CURRENT system clock as start-date/start-time when
+    // neither is given explicitly -- on a device with no battery-backed RTC
+    // that hasn't synced via NTP yet at the moment this chunk is first
+    // pasted (a real possibility this early in provisioning, before the
+    // "WAN Connectivity Check" chunk above has even confirmed the WAN path
+    // NTP needs is up), that captured start-date/time can be wrong by
+    // however far off the pre-sync clock was -- plausibly explaining a
+    // next-run that reads as "weeks in the past" relative to the
+    // now-corrected clock. This codebase has no prior example of a
+    // scheduler self-heal to model this on (searched; none exists), and
+    // there wasn't a way to reproduce the stuck state live to confirm this
+    // is the exact mechanism rather than just a strong match for the
+    // symptom -- flagging that honestly rather than claiming a confirmed
+    // root cause. What's done here regardless: the old logic only ever
+    // added this scheduler entry once (`:if ([:len [find]] = 0) do={ add
+    // }`) and never touched it again on a re-paste, so a device that
+    // somehow got a bad entry was stuck with it forever, permanently, with
+    // no self-heal on any future visit. Now unconditionally removed and
+    // re-added every time this chunk is pasted -- same "delete-then-
+    // recreate, not the usual add-if-missing idempotency" call already made
+    // for the "Basic Mangle Rules" chunk's ratio changes above, for the
+    // same reason: existence alone doesn't mean the existing entry is
+    // healthy. Re-pasting this chunk is exactly the recommended fix if
+    // `/system scheduler print` is ever seen showing a stuck run-count=0/
+    // past next-run again.
     const wan1DynamicResolution = [
       `:local wan1Ip ""`,
       `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wans[0].iface}"] address] 0 [:find [/ip address get [find interface="${wans[0].iface}"] address] "/"]] }`,
-      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
+      `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none } on-error={ :log warning "cloudguest-heartbeat: /tool fetch to master failed (timeout/DNS/WAN down) -- see WAN Connectivity Check chunk" }`,
     ].join("; ");
     const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
     const lines = [
-      `:if ([:len [/system scheduler find name="cloudguest-heartbeat-sched"]] = 0) do={`,
-      `  /system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event="${onEventBody}"`,
-      `}`,
+      `:local existingHeartbeatSched [/system scheduler find name="cloudguest-heartbeat-sched"]`,
+      `:if ([:len $existingHeartbeatSched] > 0) do={ /system scheduler remove $existingHeartbeatSched }`,
+      `/system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event="${onEventBody}"`,
       // The one-shot line runs once right now, immediately, top-level --
       // no extra nesting, so it keeps its existing single-level `\"`
       // escaping (it was never the buggy one; only the scheduler's stored
       // copy needed the extra nesting level above).
       `:local wan1Ip ""`,
       `:if ([:len [/ip address find where interface="${wans[0].iface}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wans[0].iface}"] address] 0 [:find [/ip address get [find interface="${wans[0].iface}"] address] "/"]] }`,
-      `/tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none`,
+      `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none } on-error={ :log warning "cloudguest-heartbeat: initial /tool fetch to master failed (timeout/DNS/WAN down) -- re-check the WAN Connectivity Check chunk's output above and retry" }`,
     ];
     chunks.push({ label: "Heartbeat (reports management + WAN1 IP)", script: lines.join("\n") });
   }
