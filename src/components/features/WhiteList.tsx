@@ -3,6 +3,10 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
@@ -138,8 +142,10 @@ function TrustedAccessIllustration() {
 }
 
 const PAGE_SIZE = 5;
+// Only the table's own search box (below) still uses this hand-rolled
+// className -- the form fields above now use the platform Input/Select/
+// Label primitives (see the "Who's Allowed"/"Access Window" sections).
 const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
-const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 
 function toEntry(r: AnyAccessRule): Entry {
   return {
@@ -454,40 +460,46 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <div className="grid gap-4 md:grid-cols-2">
               {/* Mobile / MAC */}
               {tab === "number" ? (
-                <div>
-                  <label className={labelCls}>Mobile Number <span className="text-destructive">*</span></label>
+                <div className="space-y-1.5">
+                  <Label>Mobile Number <span className="text-destructive">*</span></Label>
                   <div className="flex gap-2">
-                    <select value={f.mobileCC} onChange={e => setField("mobileCC", e.target.value)} className={cn(inputCls, "w-28 shrink-0")}>
-                      {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                    </select>
-                    <input type="text" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={f.mobile} onChange={e => setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))} className={inputCls} />
+                    <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
+                      <SelectTrigger className="w-28 shrink-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input type="text" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={f.mobile} onChange={e => setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))} />
                   </div>
                   <Err k="mobile" />
                 </div>
               ) : (
-                <div>
-                  <label className={labelCls}>MAC Address <span className="text-destructive">*</span></label>
-                  <input type="text" placeholder="AA:BB:CC:DD:EE:FF" value={f.mac} onChange={e => setField("mac", e.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").replace(/(.{2})(?!$)/g, "$1:").slice(0, 17))} className={cn(inputCls, "font-mono")} />
+                <div className="space-y-1.5">
+                  <Label>MAC Address <span className="text-destructive">*</span></Label>
+                  <Input type="text" placeholder="AA:BB:CC:DD:EE:FF" value={f.mac} onChange={e => setField("mac", e.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").replace(/(.{2})(?!$)/g, "$1:").slice(0, 17))} className="font-mono" />
                   <Err k="mac" />
                 </div>
               )}
 
-              <div>
-                <label className={labelCls}>Location <span className="text-destructive">*</span></label>
-                <select value={f.businessUnit} onChange={e => setField("businessUnit", e.target.value)} className={inputCls}>
-                  {units.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Location <span className="text-destructive">*</span></Label>
+                <Select value={f.businessUnit} onValueChange={(v) => setField("businessUnit", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div>
-                <label className={labelCls}>{tab === "number" ? "Name" : "Device label"} <span className="text-destructive">*</span></label>
-                <input type="text" placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"} value={f.name} onChange={e => setField("name", e.target.value)} className={inputCls} />
+              <div className="space-y-1.5">
+                <Label>{tab === "number" ? "Name" : "Device label"} <span className="text-destructive">*</span></Label>
+                <Input type="text" placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"} value={f.name} onChange={e => setField("name", e.target.value)} />
                 <Err k="name" />
               </div>
 
-              <div>
-                <label className={labelCls}>Email <span className="text-destructive">*</span></label>
-                <input type="email" placeholder="name@company.com" value={f.email} onChange={e => setField("email", e.target.value)} className={inputCls} />
+              <div className="space-y-1.5">
+                <Label>Email <span className="text-destructive">*</span></Label>
+                <Input type="email" placeholder="name@company.com" value={f.email} onChange={e => setField("email", e.target.value)} />
                 <Err k="email" />
               </div>
             </div>
@@ -504,21 +516,15 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             </div>
             <p className="mb-4 text-xs text-muted-foreground">When this bypass starts and automatically ends.</p>
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className={labelCls}>Start Date <span className="text-destructive">*</span></label>
-                <div className="relative">
-                  <input type="datetime-local" value={f.startDate} onChange={e => setField("startDate", e.target.value)} className={cn(inputCls, "pr-9")} />
-                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                </div>
+              <div className="space-y-1.5">
+                <Label>Start Date <span className="text-destructive">*</span></Label>
+                <Input type="datetime-local" value={f.startDate} onChange={e => setField("startDate", e.target.value)} />
                 <Err k="startDate" />
               </div>
 
-              <div>
-                <label className={labelCls}>End Date <span className="text-destructive">*</span></label>
-                <div className="relative">
-                  <input type="datetime-local" value={f.endDate} onChange={e => setField("endDate", e.target.value)} className={cn(inputCls, "pr-9")} />
-                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                </div>
+              <div className="space-y-1.5">
+                <Label>End Date <span className="text-destructive">*</span></Label>
+                <Input type="datetime-local" value={f.endDate} onChange={e => setField("endDate", e.target.value)} />
                 <Err k="endDate" />
               </div>
             </div>
@@ -527,13 +533,13 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         <hr className="my-6 border-border" />
         <div className="flex justify-center gap-2">
           {editingId && (
-            <button type="button" onClick={cancelEdit} className="rounded-lg border px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent">
+            <Button type="button" variant="outline" size="lg" onClick={cancelEdit}>
               Cancel
-            </button>
+            </Button>
           )}
-          <button type="submit" className="rounded-lg bg-primary px-8 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
+          <Button type="submit" size="lg" className="px-8">
             {editingId ? "Save Changes" : tab === "number" ? "Allow Number" : "Allow Device"}
-          </button>
+          </Button>
         </div>
         </CardContent>
       </form>
