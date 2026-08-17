@@ -125,27 +125,29 @@ function PortalLoading() {
     // resolve themselves on a second try a few seconds later.
     const isConfigMissing = isAxiosError(error) && !!error.response;
     return (
-      <PortalShell showHeader={false}>
+      <PortalShell variant="light" showHeader={false}>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           {isConfigMissing ? (
             <>
-              <p className="text-lg font-semibold">This venue's guest WiFi isn't set up yet</p>
-              <p className="max-w-sm text-sm text-white/60">
+              <p className="text-lg font-semibold text-slate-900">
+                This venue's guest WiFi isn't set up yet
+              </p>
+              <p className="max-w-sm text-sm text-slate-500">
                 No active sign-in configuration was found for this location. Please ask venue
                 staff for assistance.
               </p>
             </>
           ) : (
             <>
-              <p className="text-lg font-semibold">Having trouble connecting</p>
-              <p className="max-w-sm text-sm text-white/60">
+              <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
+              <p className="max-w-sm text-sm text-slate-500">
                 This can happen right after joining the WiFi. Check your connection and try
                 again.
               </p>
               <button
                 type="button"
                 onClick={retry}
-                className="mt-2 flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20"
+                className="mt-2 flex items-center gap-2 rounded-full bg-indigo-50 px-5 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
               >
                 <RefreshCw className="h-4 w-4" /> Try again
               </button>
@@ -157,7 +159,7 @@ function PortalLoading() {
   }
 
   return (
-    <PortalShell showHeader={false}>
+    <PortalShell variant="light" showHeader={false}>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
         {config?.logoUrl ? (
           <motion.img
@@ -173,17 +175,19 @@ function PortalLoading() {
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-2xl sm:h-28 sm:w-28 md:h-32 md:w-32"
+            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-xl shadow-indigo-500/25 sm:h-28 sm:w-28 md:h-32 md:w-32"
             style={{
-              background: `linear-gradient(135deg, var(--pr-primary,#0EA5E9), var(--pr-accent,#6366F1))`,
+              background: `linear-gradient(135deg, var(--pr-primary,#6366f1), var(--pr-accent,#4f46e5))`,
             }}
           >
             <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
           </motion.div>
         )}
         <div>
-          <p className="text-lg font-semibold">{config?.name ?? "Wyfy Guest"}</p>
-          <p className="mt-1 text-sm text-white/60">
+          <p className="font-display text-lg font-semibold text-slate-900">
+            {config?.name ?? "Wyfy Guest"}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
             {showSlowNotice ? "Still connecting..." : t("loading")}
           </p>
         </div>
@@ -191,7 +195,7 @@ function PortalLoading() {
           {[0, 1, 2].map((i) => (
             <motion.span
               key={i}
-              className="h-2 w-2 rounded-full bg-white/70"
+              className="h-2 w-2 rounded-full bg-[var(--pr-primary,#6366f1)]"
               animate={{ opacity: [0.2, 1, 0.2] }}
               transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
             />
@@ -203,7 +207,7 @@ function PortalLoading() {
             animate={{ opacity: 1 }}
             type="button"
             onClick={retry}
-            className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white/80 hover:bg-white/20"
+            className="flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Taking a while -- retry
           </motion.button>
