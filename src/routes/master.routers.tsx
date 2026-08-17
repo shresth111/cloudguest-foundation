@@ -880,8 +880,13 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig
               Terminal — press Enter after each before pasting the next. Splitting it up like this
               avoids the terminal dropping characters on one huge paste (confirmed live on a real
-              device). Each piece is safe to re-run if you need to retry it. Or skip pasting
-              entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's{" "}
+              device). Each piece is safe to re-run if you need to retry it. After the WAN chunks,
+              paste <strong>"WAN Connectivity Check"</strong> and read its output before continuing
+              — it must print <strong>PASS</strong> on both lines (ping + DNS) before it's safe to
+              paste anything below it (Hotspot, RADIUS, WireGuard, Heartbeat all assume the internet
+              is actually up). If it prints FAIL, fix the WAN link/DNS and re-paste that same chunk
+              to re-check — don't continue past a FAIL. Or skip pasting entirely: download the{" "}
+              <strong>.rsc</strong> file below, upload it once via WebFig's{" "}
               <strong>Files</strong> tab, then run{" "}
               <code className="rounded bg-background px-1 py-0.5">
                 /import file=&lt;name&gt;.rsc
