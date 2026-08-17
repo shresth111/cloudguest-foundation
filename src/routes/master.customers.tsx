@@ -6,7 +6,6 @@ import {
   Search,
   Plus,
   MapPin,
-  UserCog,
   CreditCard,
   Ban,
   CheckCircle,
@@ -267,12 +266,6 @@ function CustomersScreen() {
                   }}
                 >
                   <MapPin /> New Location
-                </MButton>
-                <MButton
-                  variant="outline"
-                  onClick={() => toast.info("Impersonation isn't available yet.")}
-                >
-                  <UserCog /> Impersonate
                 </MButton>
                 <MButton variant="outline" onClick={() => navigate({ to: "/master/billing" })}>
                   <CreditCard /> Edit Plan
