@@ -1,9 +1,27 @@
 import { useState, type ComponentType } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutGrid, Building2, MapPin, CreditCard, Server, Router, LineChart,
-  Activity, LifeBuoy, ScrollText, Settings, Sun, Moon, LogOut, Menu, X,
-  TerminalSquare, CalendarClock, FileText,
+  LayoutGrid,
+  Building2,
+  MapPin,
+  CreditCard,
+  Server,
+  Router,
+  LineChart,
+  Activity,
+  LifeBuoy,
+  ScrollText,
+  Settings,
+  Sun,
+  Moon,
+  LogOut,
+  Menu,
+  X,
+  TerminalSquare,
+  CalendarClock,
+  FileText,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -29,10 +47,47 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
   { to: "/master/tickets", label: "Support Tickets", icon: LifeBuoy, cap: "tickets" },
-  { to: "/master/demo-requests", label: "Demo Requests", icon: CalendarClock, cap: "demo-requests" },
+  {
+    to: "/master/demo-requests",
+    label: "Demo Requests",
+    icon: CalendarClock,
+    cap: "demo-requests",
+  },
   { to: "/master/quotations", label: "Quotations", icon: FileText, cap: "quotations" },
   { to: "/master/audit", label: "Audit Logs", icon: ScrollText, cap: "audit" },
   { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
+];
+
+/** Purely presentational grouping of `MASTER_NAV`'s items for the sidebar
+ * (labelled sections, same pattern as the customer console's
+ * `CUSTOMER_NAV_GROUPS`, see src/lib/customerNav.ts). Deliberately kept
+ * separate from `MASTER_NAV`/`CAP_PERMISSIONS` themselves -- this is only a
+ * list of `to` paths, never anything permission-bearing, so grouping the
+ * nav visually can't change which items a given operator can see. Render
+ * time still filters strictly against the same real, backend-issued
+ * `caps` set as before (see `useOperatorCaps`) and simply skips over any
+ * group left empty by that filter, exactly like `customerNavGroupsForRole`
+ * does. */
+const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
+  {
+    label: "Growth",
+    items: ["/master", "/master/customers", "/master/locations", "/master/billing"],
+  },
+  {
+    label: "Infrastructure",
+    items: ["/master/nas", "/master/routers", "/master/console", "/master/health"],
+  },
+  {
+    label: "Operations",
+    items: [
+      "/master/analytics",
+      "/master/tickets",
+      "/master/demo-requests",
+      "/master/quotations",
+      "/master/audit",
+      "/master/settings",
+    ],
+  },
 ];
 
 /** Maps each Master console capability key to the real backend
@@ -108,64 +163,136 @@ export function MasterShell({ title, children }: { title: string; children: Reac
   const [dark, setDark] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const expanded = !collapsed;
 
+  // Identical filter to before grouping was introduced -- every item
+  // rendered anywhere in the sidebar still has to pass this same
+  // `caps.has(...)` check first. Grouping (below) only decides where an
+  // already-permitted item is drawn, never whether it is.
   const nav = MASTER_NAV.filter((n) => !n.cap || caps.has(n.cap));
-  const isActive = (to: string) => (to === "/master" ? pathname === "/master" : pathname.startsWith(to));
-  const handleLogout = async () => { await logout(); navigate({ to: "/master-login", replace: true }); };
+  const navByPath = new Map(nav.map((n) => [n.to, n]));
+  const groups = MASTER_NAV_GROUPS.map((g) => ({
+    label: g.label,
+    items: g.items.map((to) => navByPath.get(to)).filter((n): n is MasterNavItem => !!n),
+  })).filter((g) => g.items.length > 0);
+  const isActive = (to: string) =>
+    to === "/master" ? pathname === "/master" : pathname.startsWith(to);
+  const handleLogout = async () => {
+    await logout();
+    navigate({ to: "/master-login", replace: true });
+  };
 
   return (
     <div className={cn("master-theme", dark && "dark")}>
       <div className="flex min-h-screen bg-background text-foreground">
-        {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
+        {mobile && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setMobile(false)}
+          />
+        )}
 
-        {/* Sidebar */}
+        {/* Sidebar -- grouped nav + chip icons + left-indicator active
+            state, same visual language as the customer console's
+            CustomerSidebar (see src/components/customer/CustomerSidebar.tsx),
+            built from Master's own "Clean Enterprise" tokens (border/
+            bg-sidebar/bg-primary) rather than the customer surface's
+            dark-indigo gradient -- the two chrome systems are deliberately
+            kept visually distinct (see MasterKit.tsx's own module comment)
+            even while sharing this structural pattern. Collapsible to an
+            icon rail on desktop; always full-width on the mobile overlay. */}
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
-            mobile ? "translate-x-0" : "-translate-x-full",
+            "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-all lg:static",
+            expanded ? "w-64" : "lg:w-[72px]",
+            mobile ? "w-64 translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
-          <div className="flex h-16 items-center gap-3 border-b border-border px-5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm">
+          <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm">
               <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
             </div>
-            <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight">Wyfy Guest</p>
-              <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
-            </div>
-            <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}><X className="h-5 w-5" /></button>
+            {(expanded || mobile) && (
+              <div className="leading-tight">
+                <p className="text-sm font-semibold tracking-tight">Wyfy Guest</p>
+                <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
+              </div>
+            )}
+            <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}>
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-            {nav.map((item) => {
-              const active = isActive(item.to);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMobile(false)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
-                    active
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              );
-            })}
+          <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-3">
+            {groups.map((g) => (
+              <div key={g.label} className="space-y-1">
+                {(expanded || mobile) && (
+                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {g.label}
+                  </p>
+                )}
+                {g.items.map((item) => {
+                  const active = isActive(item.to);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setMobile(false)}
+                      title={item.label}
+                      className={cn(
+                        "group relative flex items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-[13px] font-medium transition-all duration-150",
+                        active
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
+                        !expanded && !mobile && "justify-center px-0",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150",
+                          active
+                            ? "bg-primary/15 text-primary"
+                            : "bg-muted text-muted-foreground group-hover:bg-accent-foreground/10 group-hover:text-foreground",
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                      </span>
+                      {(expanded || mobile) && <span className="truncate">{item.label}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
           <div className="border-t border-border px-5 py-3 text-[11px] font-medium text-muted-foreground">
-            Platform Operator
+            {expanded || mobile ? (
+              "Platform Operator"
+            ) : (
+              <span className="sr-only">Platform Operator</span>
+            )}
+          </div>
+          <div className="hidden border-t border-border p-2 lg:block">
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {expanded ? (
+                <ChevronsLeft className="h-4 w-4" />
+              ) : (
+                <ChevronsRight className="h-4 w-4" />
+              )}
+            </button>
           </div>
         </aside>
 
         {/* Main */}
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
-            <button className="lg:hidden" onClick={() => setMobile(true)}><Menu className="h-5 w-5" /></button>
+            <button className="lg:hidden" onClick={() => setMobile(true)}>
+              <Menu className="h-5 w-5" />
+            </button>
             <h1 className="text-base font-semibold tracking-tight">{title}</h1>
             <div className="ml-auto flex items-center gap-1.5">
               <MasterSearch />
@@ -183,17 +310,26 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                 {dark ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
               </button>
               <div className="relative">
-                <button onClick={() => setMenu((m) => !m)} className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
-                  {(user?.firstName?.[0] ?? "S")}{(user?.lastName?.[0] ?? "A")}
+                <button
+                  onClick={() => setMenu((m) => !m)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm"
+                >
+                  {user?.firstName?.[0] ?? "S"}
+                  {user?.lastName?.[0] ?? "A"}
                 </button>
                 {menu && (
                   <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1 shadow-lg">
                     <div className="px-3 py-2">
                       <p className="text-sm font-semibold">{user?.name ?? "Super Admin"}</p>
-                      <p className="text-xs text-muted-foreground">{user?.email ?? "operator@cloudguest.io"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.email ?? "operator@cloudguest.io"}
+                      </p>
                     </div>
                     <div className="my-1 border-t border-border" />
-                    <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-accent">
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-accent"
+                    >
                       <LogOut className="h-4 w-4" /> Sign out
                     </button>
                   </div>
@@ -202,9 +338,15 @@ export function MasterShell({ title, children }: { title: string; children: Reac
             </div>
           </header>
 
-          <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
-            <div className="mx-auto max-w-[1400px] space-y-6">{children}</div>
-          </main>
+          {/* Max-width + vertical rhythm used to live in a hard-coded div
+              right here -- every child pays for it no matter what. Moved
+              into MPageShell (src/components/master/MasterKit.tsx),
+              a thin master-scoped wrapper around the customer console's
+              own PageShell primitive, so each of the 14 master routes
+              renders it explicitly (same as every _authenticated/* and
+              customer/* page already does) instead of it being baked
+              silently into the shell. See `MPageShell` there. */}
+          <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">{children}</main>
         </div>
       </div>
     </div>
