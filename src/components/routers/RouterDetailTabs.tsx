@@ -2007,8 +2007,32 @@ export function buildRouterSetupScriptChunks(opts: {
   // queryable `gateway` property the way `/ip dhcp-client` does -- PPPoE is
   // a point-to-point link, and RouterOS surfaces the far end's address (the
   // ISP's own BRAS/concentrator, which doubles as the real next hop here)
-  // on the live PPP session instead, `/ppp active`, keyed by this WAN's own
-  // virtual interface name.
+  // via the pppoe-client interface's own live runtime state.
+  //
+  // NOT `/ppp active` (a same-day self-correction of this generator's own
+  // prior commit, which used exactly that and shipped believing it worked):
+  // `/ppp active` is RouterOS's list of PPP sessions *this router accepted
+  // as a server* (PPPoE/PPTP/L2TP/OVPN/SSTP server, or async dial-in) --
+  // it is never populated by a session this router itself *dialed out*
+  // as a client, which is what `/interface pppoe-client` always is here.
+  // `/ppp active find where name="cloudguest-pppoe-wan<N>"` therefore
+  // matches nothing, ever, on any real router -- `wan${n}Gw` stayed
+  // permanently empty and this WAN's default (and, in load-balance mode,
+  // routing-mark'd) route silently never got created, no error, nothing
+  // for the Heartbeat scheduler to self-heal since it only ever re-resolves
+  // WAN1's *address* (see that chunk's own comment below), never any
+  // WAN's gateway or routes. The actual RouterOS-documented mechanism for
+  // a pppoe-client's live remote/gateway address is `/interface
+  // pppoe-client monitor <name> once as-value` -- a one-shot runtime
+  // snapshot (the same family as `/interface ethernet monitor`, not a
+  // `find`/`get`-able stored property) whose `remote-address` key is
+  // documented by MikroTik as "Remote IP Address allocated to server (ie
+  // gateway address)" -- exactly the value this needs. Guarded the same
+  // "skip, don't error" way as DHCP's own resolution below: the interface
+  // may not exist yet (WAN Addressing hasn't run) or may still be
+  // negotiating (status not yet "connected"), and re-pasting this chunk is
+  // this generator's own established self-heal for that, not a new
+  // mechanism.
   {
     const lines: string[] = [];
     wans.forEach((wan, idx) => {
@@ -2019,7 +2043,7 @@ export function buildRouterSetupScriptChunks(opts: {
       } else if (wan.mode === "pppoe") {
         const pppoeIface = wanEffectiveIfs[idx];
         lines.push(`:local wan${n}Gw ""`);
-        lines.push(`:if ([:len [/ppp active find where name="${pppoeIface}"]] > 0) do={ :set wan${n}Gw [/ppp active get [find name="${pppoeIface}"] address] }`);
+        lines.push(`:if ([:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0) do={ :do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :log warning "cloudguest: PPPoE WAN${n} gateway not resolved yet (still negotiating) -- re-paste this chunk once connected" } }`);
       } else {
         lines.push(`:local wan${n}Gw ""`);
         lines.push(`:if ([:len [/ip dhcp-client find where interface="${iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${iface}"] gateway] }`);
@@ -2028,9 +2052,36 @@ export function buildRouterSetupScriptChunks(opts: {
     wans.forEach((_, idx) => {
       const n = idx + 1;
       lines.push(`:if ($wan${n}Gw != "") do={`);
-      lines.push(`  :if ([:len [/ip route find where comment="cloudguest-plain-wan${n}"]] = 0) do={`);
+      // Adopt-don't-duplicate: checked by OUR OWN comment first (the normal,
+      // healthy-re-run case), but if that's missing this also checks for
+      // ANY other route already sitting at this exact dst-address+gateway
+      // before adding a new one. Confirmed-plausible failure mode audited
+      // into this generator (2026-08-18): a DHCP WAN whose interface
+      // already carries a foreign dhcp-client -- e.g. a field engineer's
+      // own manually-added client, made before this platform's "WAN
+      // Addressing" chunk ever got pasted (or re-pasted) to replace it with
+      // this generator's own `add-default-route=no` one -- keeps RouterOS's
+      // *default* `add-default-route=yes` behavior, which auto-manages its
+      // own dynamic `dst-address=0.0.0.0/0 gateway=<same IP> distance=1`
+      // route with no `cloudguest-` comment. `/ip route add` on a
+      // byte-identical dst-address+gateway (RouterOS's real duplicate-route
+      // check, independent of comment) throws "failure: already have such
+      // route" -- a real, visible route-related error, not the usual silent
+      // skip this chunk otherwise relies on. Re-tagging that existing route
+      // as ours instead of blindly adding a second one fixes this for any
+      // WAN mode a foreign default route could show up under, DHCP being
+      // the realistic trigger since it's the only mode where RouterOS
+      // itself can independently create one.
+      lines.push(`  :local plainRoute${n} [/ip route find where comment="cloudguest-plain-wan${n}"]`);
+      // `routing-mark=""` on the fallback find so this only ever adopts an
+      // unmarked (plain/foreign) route -- never one of this same WAN's own
+      // routing-mark'd load-balance/failover routes below, which share this
+      // exact dst-address+gateway by design and would otherwise get
+      // wrongly mistaken for the plain route on a re-run.
+      lines.push(`  :if ([:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw routing-mark=""] }`);
+      lines.push(`  :if ([:len $plainRoute${n}] = 0) do={`);
       lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`);
-      lines.push(`  } else={ /ip route set [find comment="cloudguest-plain-wan${n}"] gateway=$wan${n}Gw }`);
+      lines.push(`  } else={ /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`);
       // The routing-mark'd routes below are what the PCC mangle chunk
       // marks LAN-originated connections into -- meaningless (and never
       // generated) in failover-only mode, which relies purely on the
