@@ -364,6 +364,20 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       );
       return;
     }
+    // Same "block before spending the token" reasoning as the static-WAN
+    // checks above -- a PPPoE WAN with a blank username/password renders
+    // `/interface pppoe-client add ... user="" password=""`, which the
+    // router accepts without complaint and then just never establishes a
+    // session, silently, with nothing in this UI to explain why.
+    const incompletePppoeWan = activeWans.find(
+      (w) => w.mode === "pppoe" && (!w.pppoeUsername?.trim() || !w.pppoePassword?.trim()),
+    );
+    if (incompletePppoeWan) {
+      toast.error(
+        `WAN "${incompletePppoeWan.iface}" is set to PPPoE but is missing a username or password`,
+      );
+      return;
+    }
     const lanWanOverlap = lanIfs.find((li) => activeWans.some((w) => w.iface === li));
     if (lanWanOverlap) {
       toast.error(
@@ -719,14 +733,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               />
             </div>
             <div className="flex gap-1.5">
-              {(["dhcp", "static"] as const).map((m) => (
+              {(["dhcp", "static", "pppoe"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setWan(idx, { mode: m })}
                   className={`rounded border px-2 py-0.5 text-[11px] font-medium ${w.mode === m ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-accent"}`}
                 >
-                  {m === "dhcp" ? "DHCP" : "Static"}
+                  {m === "dhcp" ? "DHCP" : m === "static" ? "Static" : "PPPoE"}
                 </button>
               ))}
             </div>
@@ -749,6 +763,23 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   value={w.gateway ?? ""}
                   onChange={(e) => setWan(idx, { gateway: e.target.value })}
                   placeholder="Gateway e.g. 203.0.113.1"
+                />
+              </div>
+            )}
+            {w.mode === "pppoe" && (
+              <div className="grid grid-cols-2 gap-1.5">
+                <input
+                  className={inputCls}
+                  value={w.pppoeUsername ?? ""}
+                  onChange={(e) => setWan(idx, { pppoeUsername: e.target.value })}
+                  placeholder="PPPoE username"
+                />
+                <input
+                  className={inputCls}
+                  type="password"
+                  value={w.pppoePassword ?? ""}
+                  onChange={(e) => setWan(idx, { pppoePassword: e.target.value })}
+                  placeholder="PPPoE password"
                 />
               </div>
             )}
