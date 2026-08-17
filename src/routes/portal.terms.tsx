@@ -7,8 +7,18 @@ export const Route = createFileRoute("/portal/terms")({
   component: TermsPage,
 });
 
+/**
+ * The one page every light-variant guest screen's footer links to (see
+ * PortalShell's own "Terms & Privacy" footer link, present on welcome/
+ * success/expired/auth-method) -- previously still the old dark "glass on
+ * navy" look this whole redesign moved away from everywhere else, so a
+ * guest clicking that footer link from the (light) sign-in card landed on
+ * a visually unrelated page mid-flow. Same light shell, same card/heading/
+ * link treatment as the rest of the redesigned flow now.
+ */
 function TermsPage() {
-  const { config, t } = usePortalRuntime();
+  const { config, t, organizationId, locationId, routerId } = usePortalRuntime();
+  const portalSearch = { organizationId, locationId, routerId };
 
   const sections = [
     config?.termsAndConditionsText || config?.termsAndConditionsUrl
@@ -24,36 +34,38 @@ function TermsPage() {
   ].filter((s): s is { title: string; text: string | null; url: string | null } => s !== null);
 
   return (
-    <PortalShell>
+    <PortalShell variant="light" showHeader={false}>
       <div className="flex flex-1 flex-col gap-5">
         <Link
           to="/portal/welcome"
           from="/portal/terms"
           search={(prev) => prev}
-          className="inline-flex w-fit items-center gap-1.5 text-sm text-white/70 hover:text-white"
+          className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
         >
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
         </Link>
-        <h1 className="text-2xl font-semibold">{t("termsTitle")}</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+          {t("termsTitle")}
+        </h1>
         <div className="space-y-3">
           {sections.length === 0 ? (
-            <PortalCard>
-              <p className="text-sm text-white/70">
+            <PortalCard variant="light">
+              <p className="text-sm text-slate-500">
                 This venue hasn't published specific terms. By connecting you agree to reasonable,
                 lawful use of this network.
               </p>
             </PortalCard>
           ) : (
             sections.map((s) => (
-              <PortalCard key={s.title}>
-                <p className="text-sm font-semibold">{s.title}</p>
-                {s.text && <p className="mt-2 text-sm text-white/70">{s.text}</p>}
+              <PortalCard key={s.title} variant="light">
+                <p className="text-sm font-semibold text-slate-900">{s.title}</p>
+                {s.text && <p className="mt-2 text-sm leading-relaxed text-slate-500">{s.text}</p>}
                 {s.url && (
                   <a
                     href={s.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 inline-block text-sm text-white underline underline-offset-2"
+                    className="mt-2 inline-block text-sm font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
                   >
                     Read the full document
                   </a>
@@ -62,6 +74,13 @@ function TermsPage() {
             ))
           )}
         </div>
+        <Link
+          to="/portal/welcome"
+          search={portalSearch}
+          className="mt-1 text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
+        >
+          Back to sign in
+        </Link>
       </div>
     </PortalShell>
   );
