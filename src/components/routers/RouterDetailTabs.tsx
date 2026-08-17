@@ -1396,12 +1396,25 @@ const WAN_RENAME_WARNING_HEADER = [
  * ``WAN_RENAME_WARNING_HEADER`` documents: if the name was changed (or
  * simply mistyped) after all, this turns "WAN port silently ends up in
  * the LAN bridge" into an impossible-to-miss banner in the terminal,
- * printed once per missing interface, immediately. */
+ * printed once per missing interface, immediately.
+ *
+ * Queries the generic `/interface` menu, not `/interface ethernet` --
+ * every physical ethernet port is still found here (RouterOS lists every
+ * interface type, physical and virtual, under the generic menu), so this
+ * is unchanged for the ethernet-only names this used to be called with
+ * exclusively. It has to be the generic menu now that
+ * `buildRouterSetupScriptChunks`'s `basicConfigOnly` mode exists: a
+ * technician who set up a WAN's PPPoE session by hand in WinBox before
+ * pasting this script names the *virtual* pppoe-client interface it
+ * creates however they like, and that name would never be found under
+ * `/interface ethernet` -- this check would otherwise loudly (and
+ * wrongly) abort a perfectly valid basic-config script on its very first
+ * chunk. */
 function wanExistenceCheckLines(wanIfNameExprs: string[]): string[] {
   const lines: string[] = [];
   wanIfNameExprs.forEach((expr) => {
     lines.push(
-      `:if ([:len [/interface ethernet find where name=${expr}]] = 0) do={`,
+      `:if ([:len [/interface find where name=${expr}]] = 0) do={`,
       `  :put ("*** ERROR: WAN interface \\"" . ${expr} . "\\" was not found on this device. Did you rename it? Re-check /interface print and re-generate this script with the CURRENT name -- do NOT rename the interface to match the script. Aborting before touching bridge/NAT config. ***")`,
       `  :error ("cloudguest-setup: WAN interface " . ${expr} . " not found")`,
       `}`,
@@ -1732,15 +1745,29 @@ function buildWeightedPccPlan(
  * this paste-corruption bug and no static-IP/WireGuard/RADIUS support --
  * deleted; this is the only generator now.)
  *
- * Order, at a glance: "WAN + Bridge" -> "Stale Factory-Default DHCP Client
- * Cleanup" -> "WAN Addressing" -> "WAN Routing" -> **"WAN Connectivity
- * Check"** -- a manual checkpoint a technician reads and must see PASS on
- * before continuing (added after a confirmed-live field report of a router
- * whose WAN never actually came up, silently breaking every later
- * internet-dependent chunk -- see that chunk's own comment) -- then the
- * LAN-side chunks (LAN Interfaces/Ports/IP+DNS), Hotspot/portal/firewall
- * chunks, and finally the internet-dependent ones this checkpoint exists
- * for: RADIUS, WireGuard, and Heartbeat. */
+ * Order, at a glance (default, `basicConfigOnly: false`): "WAN + Bridge" ->
+ * "Stale Factory-Default DHCP Client Cleanup" -> "WAN Addressing" -> "WAN
+ * Routing" -> **"WAN Connectivity Check"** -- a manual checkpoint a
+ * technician reads and must see PASS on before continuing (added after a
+ * confirmed-live field report of a router whose WAN never actually came
+ * up, silently breaking every later internet-dependent chunk -- see that
+ * chunk's own comment) -- then the LAN-side chunks (LAN Interfaces/Ports/
+ * IP+DNS), Hotspot/portal/firewall chunks, "Basic Mangle Rules" (paired
+ * with "WAN Routing", see that chunk's own comment), and finally the
+ * internet-dependent ones this checkpoint exists for: RADIUS, WireGuard,
+ * and Heartbeat.
+ *
+ * `basicConfigOnly: true` shortens this to: "WAN + Bridge" -> "Stale
+ * Factory-Default DHCP Client Cleanup" -> **"WAN Connectivity Check"** ->
+ * the same LAN-side chunks (now just "LAN IP", no DNS-server line) ->
+ * Hotspot/portal/firewall -> RADIUS/WireGuard/Heartbeat. "WAN Addressing",
+ * "WAN Routing", and "Basic Mangle Rules" never appear at all -- the
+ * technician has already brought each WAN's own connectivity (and the
+ * router's own upstream DNS servers) up by hand in WinBox before pasting
+ * this. See `basicConfigOnly`'s own docstring below for exactly what still
+ * runs and why (NAT masquerade / "WAN" interface-list membership in
+ * particular still do, against whatever interface name the technician
+ * already set up). */
 export function buildRouterSetupScriptChunks(opts: {
   apiBase: string;
   agentCredential: string;
@@ -1792,8 +1819,57 @@ export function buildRouterSetupScriptChunks(opts: {
    * the existing `wans.length > 1` guard already establishes for the
    * mangle chunk. */
   wanRoutingMode?: WanRoutingMode;
+  /** Defaults to `false` (today's only behavior, unchanged for every
+   * existing caller). `true` drops every chunk this generator produces
+   * that either configures a WAN's own IP or decides how traffic is
+   * routed across multiple WANs -- "WAN Addressing" (static IP/dhcp-
+   * client/pppoe-client per WAN) and "WAN Routing" (the routing-mark'd/
+   * distance-ordered default routes) entirely, plus "Basic Mangle Rules"
+   * (meaningless without the routing marks "WAN Routing" would have
+   * added -- these two chunks are a tightly-coupled pair, see "Basic
+   * Mangle Rules"' own comment) and the DNS-server-setting half of "LAN
+   * IP + DNS". The technician is expected to have already brought up
+   * each WAN's connectivity by hand in WinBox (static/DHCP/PPPoE, their
+   * choice) and to set the router's own upstream DNS servers by hand too
+   * -- this mode is for a site where automating that is unwanted (a
+   * technician who already knows exactly how they want WAN/DNS
+   * configured and would rather not have this generator second-guess
+   * it), not for one where it's unknown.
+   *
+   * **What still runs, and why:** every WAN entry's `iface` is still
+   * required and still means something concrete even in this mode --
+   * NAT masquerade (`out-interface=`) and "WAN" interface-list
+   * membership (both normally added in "WAN + Bridge" above, or deferred
+   * to "WAN Addressing" for a pppoe WAN whose virtual interface doesn't
+   * exist yet at that point) still need to bind to *some* real interface
+   * name, addressing mode or not -- dropping them along with the
+   * addressing logic would silently leave a technician-configured WAN
+   * with no outbound NAT at all, a real regression from today's script,
+   * not a simplification of it. Since "WAN Addressing" never runs in
+   * this mode, there is no later chunk to defer a pppoe WAN's NAT/list-
+   * membership to the way today's script does -- so `wanEffectiveIfs`
+   * and the "WAN + Bridge" loop below both ignore `wan.mode` entirely
+   * under this flag and add NAT/list-membership immediately, using
+   * `wan.iface` literally. That's correct precisely because the
+   * technician's manual setup (whatever it produced -- a physical port
+   * for static/DHCP, or a virtual pppoe-client interface for PPPoE)
+   * already exists on the device by the time this script is ever pasted
+   * (see this mode's own contract above), unlike the automated-PPPoE
+   * case this generator otherwise handles, where that virtual interface
+   * is created mid-script and genuinely doesn't exist yet when "WAN +
+   * Bridge" runs. `wanExistenceCheckLines` below was generalized from
+   * `/interface ethernet find` to plain `/interface find` for exactly
+   * this reason -- a technician-provided PPPoE virtual interface name
+   * would never be found under `/interface ethernet`, silently tripping
+   * the loud abort this check exists to provide, even though the
+   * interface is completely real. "WAN Connectivity Check" also still
+   * runs unconditionally in this mode -- it's a read-only ping/DNS
+   * diagnostic, not a WAN-configuring chunk, and stays exactly as useful
+   * for confirming a technician's manual WAN setup actually works as it
+   * is for confirming this generator's own. */
+  basicConfigOnly?: boolean;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wans, lanIfs, lanBridge: rawLanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl, wanRoutingMode = "load_balance" } = opts;
+  const { apiBase, agentCredential, wans, lanIfs, lanBridge: rawLanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl, wanRoutingMode = "load_balance", basicConfigOnly = false } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
   // field (see master.routers.tsx's own input for it) interpolated into
   // RouterOS double-quoted strings all over this function (bridge
@@ -1818,8 +1894,15 @@ export function buildRouterSetupScriptChunks(opts: {
   // pppoe-client's own logical interface, never on the ethernet port
   // underneath it, so matching the physical port for a pppoe WAN would
   // silently never match anything at all.
+  // `!basicConfigOnly &&` matters here: in that mode "WAN Addressing"
+  // (the chunk that actually creates `cloudguest-pppoe-wan<N>`) never
+  // runs at all, so that name would never exist on the device -- every
+  // WAN's effective interface in `basicConfigOnly` mode is always
+  // `wanIfs[idx]` literally, whatever the technician already set up by
+  // hand and typed into the "WAN N interface" field (see
+  // `basicConfigOnly`'s own docstring above for the full reasoning).
   const wanEffectiveIfs = wans.map((w, idx) =>
-    w.mode === "pppoe" ? `cloudguest-pppoe-wan${idx + 1}` : wanIfs[idx],
+    !basicConfigOnly && w.mode === "pppoe" ? `cloudguest-pppoe-wan${idx + 1}` : wanIfs[idx],
   );
   const hasExplicitLan = !!lanIfs && lanIfs.length > 0;
   const base3 = lanIp.split(".").slice(0, 3).join(".");
@@ -1843,7 +1926,16 @@ export function buildRouterSetupScriptChunks(opts: {
       const n = idx + 1;
       lines.push(`:local wan${n}Port [/interface bridge port find where interface="${wanIf}"]`);
       lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
-      if (wans[idx].mode === "pppoe") {
+      // `!basicConfigOnly &&` on the pppoe check -- in `basicConfigOnly`
+      // mode "WAN Addressing" never runs (see that flag's own docstring),
+      // so there is no later chunk to defer to. Every WAN's NAT/list-
+      // membership is added right here instead, unconditionally, against
+      // `wanIf` literally -- correct because in this mode the technician
+      // has already brought that interface up by hand (physical port or,
+      // for a manually-configured PPPoE WAN, its own virtual pppoe-client
+      // interface) before ever pasting this script, so it already exists
+      // on the device the moment this chunk runs.
+      if (!basicConfigOnly && wans[idx].mode === "pppoe") {
         // Deliberately NOT added here for pppoe -- "WAN" interface-list
         // membership needs a real, already-existing interface object
         // (`/interface list member add` errors on a name nothing currently
@@ -1898,7 +1990,13 @@ export function buildRouterSetupScriptChunks(opts: {
   // the same way it owns a static WAN's route; letting RouterOS's own
   // dhcp-client add a second, unmarked, unmonitored default route of its
   // own would silently fight that chunk's check-gateway-driven failover.
-  {
+  //
+  // Skipped entirely in `basicConfigOnly` mode -- the technician has
+  // already brought each WAN's own addressing up by hand in WinBox (see
+  // `basicConfigOnly`'s own docstring above), so generating this at all
+  // would fight whatever they already configured instead of leaving it
+  // alone.
+  if (!basicConfigOnly) {
     const lines: string[] = [];
     wans.forEach((wan, idx) => {
       const n = idx + 1;
@@ -2033,7 +2131,17 @@ export function buildRouterSetupScriptChunks(opts: {
   // negotiating (status not yet "connected"), and re-pasting this chunk is
   // this generator's own established self-heal for that, not a new
   // mechanism.
-  {
+  //
+  // Skipped entirely in `basicConfigOnly` mode, together with the "Basic
+  // Mangle Rules" chunk below -- these two are a tightly-coupled pair (see
+  // that chunk's own comment): mangle rules with no matching routing-mark
+  // route would black-hole marked traffic, and routes with no mangle
+  // marking would never get any ordinary LAN traffic routed into them in
+  // the first place, so there is no useful partial version of dropping
+  // just one. A technician working in this mode is expected to have
+  // already set up their own routing/failover (or accepted the router's
+  // own single default route) by hand.
+  if (!basicConfigOnly) {
     const lines: string[] = [];
     wans.forEach((wan, idx) => {
       const n = idx + 1;
@@ -2285,24 +2393,45 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   {
+    // Split so `basicConfigOnly` can drop only the DNS-server-setting line
+    // below and keep LAN address assignment (never optional -- the
+    // hotspot/DHCP-server chunks right after this one both hard-depend on
+    // `lanBridge` already carrying `lanIp`) -- see `basicConfigOnly`'s own
+    // docstring above for why a technician in this mode wants to set the
+    // router's own upstream DNS servers by hand instead.
+    //
+    // The two WAN-DNS-block firewall rules at the end stay UNCONDITIONAL,
+    // in every mode, including `basicConfigOnly` -- unlike the `/ip dns
+    // set servers=...` line, they don't set or depend on any particular
+    // DNS server value, they only close off port 53 on WAN input. That's
+    // real hardening against this router acting as (or being probed as) an
+    // open resolver from the internet regardless of whose DNS servers it's
+    // actually using or who configured them -- dropping these along with
+    // the DNS-server line in basic mode would remove a real security rule
+    // for a reason that has nothing to do with it.
     const lines = [
       `:foreach addr in=[/ip address find where interface="${lanBridge}" dynamic=yes] do={ /ip address remove $addr }`,
       `:if ([:len [/ip address find where interface="${lanBridge}" address="${lanIp}/${lanCidr}"]] = 0) do={ /ip address add address=${lanIp}/${lanCidr} interface="${lanBridge}" }`,
-      `/ip dns set servers="${escapeForRouterOsString(dnsServers)}" allow-remote-requests=yes`,
-      // `allow-remote-requests=yes` above is a device-wide switch -- it has
-      // to stay on so guests behind the hotspot (and anything resolving
-      // via WireGuard-tunneled management traffic) can actually use this
-      // router as a resolver, but that also means DNS is reachable from
-      // WAN the moment this chunk runs, regardless of whether the
-      // (optional, togglable) "Firewall" chunk below is ever pasted. This
-      // rule is unconditional -- not gated on `enableFirewall` -- so a
-      // technician who generates a script with the broader firewall
-      // disabled still doesn't end up with an open recursive resolver
-      // reachable from the internet.
+      ...(basicConfigOnly
+        ? []
+        : [
+            `/ip dns set servers="${escapeForRouterOsString(dnsServers)}" allow-remote-requests=yes`,
+            // `allow-remote-requests=yes` above is a device-wide switch --
+            // it has to stay on so guests behind the hotspot (and anything
+            // resolving via WireGuard-tunneled management traffic) can
+            // actually use this router as a resolver, but that also means
+            // DNS is reachable from WAN the moment this chunk runs,
+            // regardless of whether the (optional, togglable) "Firewall"
+            // chunk below is ever pasted. This rule is unconditional --
+            // not gated on `enableFirewall` -- so a technician who
+            // generates a script with the broader firewall disabled still
+            // doesn't end up with an open recursive resolver reachable
+            // from the internet.
+          ]),
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=tcp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns-tcp" }`,
     ];
-    chunks.push({ label: "LAN IP + DNS", script: lines.join("\n") });
+    chunks.push({ label: basicConfigOnly ? "LAN IP" : "LAN IP + DNS", script: lines.join("\n") });
   }
 
   {
@@ -2438,7 +2567,7 @@ export function buildRouterSetupScriptChunks(opts: {
   // instant its preferred WAN's gateway went down, and routes with no
   // mangle marking would just never get used by ordinary LAN traffic in
   // the first place.
-  if (wanIfs.length > 1 && wanRoutingMode === "load_balance") {
+  if (!basicConfigOnly && wanIfs.length > 1 && wanRoutingMode === "load_balance") {
     const lines: string[] = [];
 
     // Weighted split only when EVERY enabled WAN has a positive weight --

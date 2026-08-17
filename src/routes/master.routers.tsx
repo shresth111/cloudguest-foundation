@@ -284,6 +284,18 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const [wanRoutingMode, setWanRoutingMode] = useState<"load_balance" | "failover_only">(
     "load_balance",
   );
+  // Higher-level choice than `wanRoutingMode` above (and meaningful even
+  // with a single WAN, unlike that toggle) -- see
+  // buildRouterSetupScriptChunks's own `basicConfigOnly` docstring for
+  // exactly what this drops (WAN Addressing, WAN Routing, Basic Mangle
+  // Rules, and the DNS-server-setting half of LAN IP + DNS) versus what it
+  // keeps (NAT masquerade + "WAN" interface-list membership still bind to
+  // whatever's typed into "WAN N interface" below -- that field stays
+  // meaningful and required even in this mode, only the mode-specific
+  // static/DHCP/PPPoE fields under it disappear). Defaults to `false` --
+  // the full, existing flow -- so nothing about today's default script
+  // changes for a technician who never touches this toggle.
+  const [basicConfigOnly, setBasicConfigOnly] = useState(false);
   // Ratio inputs are opt-in -- undefined/empty means "even split," the
   // existing, only-ever-generated behavior. Keyed by WAN index (0-2), a
   // plain string so a field can sit legitimately empty while typing.
@@ -341,42 +353,52 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const incompleteStaticWan = activeWans.find(
-      (w) => w.mode === "static" && (!w.ip?.trim() || !w.cidr?.trim() || !w.gateway?.trim()),
-    );
-    if (incompleteStaticWan) {
-      toast.error(
-        `WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`,
+    // Every check in this block only makes sense against the mode-specific
+    // WAN fields (static IP/CIDR/gateway, PPPoE credentials) -- all hidden,
+    // and irrelevant, in `basicConfigOnly` mode (buildRouterSetupScriptChunks
+    // never generates "WAN Addressing"/"WAN Routing" there at all, so it
+    // never reads any of them). Skipped outright so a WAN whose `mode`
+    // happens to still say "static"/"pppoe" from before this toggle was
+    // switched on -- fields the technician can no longer even see, let
+    // alone fix -- can't block generation with a confusing error.
+    if (!basicConfigOnly) {
+      const incompleteStaticWan = activeWans.find(
+        (w) => w.mode === "static" && (!w.ip?.trim() || !w.cidr?.trim() || !w.gateway?.trim()),
       );
-      return;
-    }
-    // Format validation on top of the "not empty" check above -- a typo
-    // here used to only ever surface as a bare RouterOS error on-site,
-    // after the token above was already spent.
-    const malformedStaticWan = activeWans.find(
-      (w) =>
-        w.mode === "static" &&
-        (!isValidIpv4(w.ip ?? "") || !isValidCidr(w.cidr ?? "") || !isValidIpv4(w.gateway ?? "")),
-    );
-    if (malformedStaticWan) {
-      toast.error(
-        `WAN "${malformedStaticWan.iface}": check the IP/CIDR/gateway format -- "${malformedStaticWan.ip}/${malformedStaticWan.cidr}" via "${malformedStaticWan.gateway}" doesn't look right`,
+      if (incompleteStaticWan) {
+        toast.error(
+          `WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`,
+        );
+        return;
+      }
+      // Format validation on top of the "not empty" check above -- a typo
+      // here used to only ever surface as a bare RouterOS error on-site,
+      // after the token above was already spent.
+      const malformedStaticWan = activeWans.find(
+        (w) =>
+          w.mode === "static" &&
+          (!isValidIpv4(w.ip ?? "") || !isValidCidr(w.cidr ?? "") || !isValidIpv4(w.gateway ?? "")),
       );
-      return;
-    }
-    // Same "block before spending the token" reasoning as the static-WAN
-    // checks above -- a PPPoE WAN with a blank username/password renders
-    // `/interface pppoe-client add ... user="" password=""`, which the
-    // router accepts without complaint and then just never establishes a
-    // session, silently, with nothing in this UI to explain why.
-    const incompletePppoeWan = activeWans.find(
-      (w) => w.mode === "pppoe" && (!w.pppoeUsername?.trim() || !w.pppoePassword?.trim()),
-    );
-    if (incompletePppoeWan) {
-      toast.error(
-        `WAN "${incompletePppoeWan.iface}" is set to PPPoE but is missing a username or password`,
+      if (malformedStaticWan) {
+        toast.error(
+          `WAN "${malformedStaticWan.iface}": check the IP/CIDR/gateway format -- "${malformedStaticWan.ip}/${malformedStaticWan.cidr}" via "${malformedStaticWan.gateway}" doesn't look right`,
+        );
+        return;
+      }
+      // Same "block before spending the token" reasoning as the static-WAN
+      // checks above -- a PPPoE WAN with a blank username/password renders
+      // `/interface pppoe-client add ... user="" password=""`, which the
+      // router accepts without complaint and then just never establishes a
+      // session, silently, with nothing in this UI to explain why.
+      const incompletePppoeWan = activeWans.find(
+        (w) => w.mode === "pppoe" && (!w.pppoeUsername?.trim() || !w.pppoePassword?.trim()),
       );
-      return;
+      if (incompletePppoeWan) {
+        toast.error(
+          `WAN "${incompletePppoeWan.iface}" is set to PPPoE but is missing a username or password`,
+        );
+        return;
+      }
     }
     const lanWanOverlap = lanIfs.find((li) => activeWans.some((w) => w.iface === li));
     if (lanWanOverlap) {
@@ -390,7 +412,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     // half-filled ratio is caught before a token is spent, not silently
     // treated as an even split by the generator (which would make the
     // real on-device ratio depend on which fields happen to be filled in).
-    if (wanRoutingMode === "load_balance" && ispCount > 1) {
+    if (!basicConfigOnly && wanRoutingMode === "load_balance" && ispCount > 1) {
       const weightedCount = activeWans.filter((w) => w.weight !== undefined).length;
       if (weightedCount > 0 && weightedCount < activeWans.length) {
         toast.error(
@@ -536,6 +558,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           agentCredential,
           wans: activeWans,
           wanRoutingMode,
+          basicConfigOnly,
           lanIfs: lanIfs.length > 0 ? lanIfs : undefined,
           enableFirewall,
           wireguard,
@@ -570,12 +593,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <FileCode2 className="h-3.5 w-3.5" /> Setup Script -- 1-shot MikroTik configuration
       </p>
       <p className="text-xs text-muted-foreground">
-        WAN interface list + NAT (1-3 ISPs), WAN addressing (static IP or DHCP, per link), LAN
-        bridge, hotspot, basic firewall, platform check-in + heartbeat (also reports WAN1's live
+        WAN interface list + NAT (1-3 ISPs), WAN addressing (static IP, DHCP, or PPPoE, per link),
+        LAN bridge, hotspot, basic firewall, platform check-in + heartbeat (also reports WAN1's live
         IP), and Device Console access — all in one script, one paste. 2+ ISPs also get real
         per-connection-classifier <strong>load balancing</strong> plus distance/check-gateway-based
         <strong> failover</strong> (a WAN whose gateway stops answering pings automatically drops
         out, its share of traffic falling back to the next WAN — no dashboard action needed).
+        Already configured WAN connectivity and DNS by hand? Pick{" "}
+        <strong>Basic (I'll configure WAN/DNS myself)</strong> below for a shorter script that skips
+        all of that and only covers LAN/hotspot/firewall/etc.
       </p>
 
       <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[11px]">
@@ -624,9 +650,22 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           successfully.
         </li>
         <li>
-          For each WAN below, pick <strong>Static</strong> or <strong>DHCP</strong> to match what
-          that specific ISP link actually is — a static/leased-line IP needs the IP, CIDR, and
-          gateway your ISP gave you; DHCP needs nothing, the router negotiates its own address.
+          {basicConfigOnly ? (
+            <>
+              Bring each WAN's own connectivity up yourself first — <strong>Static</strong>,{" "}
+              <strong>DHCP</strong>, or <strong>PPPoE</strong>, whichever that specific ISP link
+              needs — and set the router's own DNS servers, both by hand in WinBox, before pasting
+              anything below. "Basic Configuration" mode is selected, so this script only fills in
+              the interface's name for NAT — it never touches WAN IP/routing/DNS itself.
+            </>
+          ) : (
+            <>
+              For each WAN below, pick <strong>Static</strong> or <strong>DHCP</strong> to match
+              what that specific ISP link actually is — a static/leased-line IP needs the IP, CIDR,
+              and gateway your ISP gave you; DHCP needs nothing, the router negotiates its own
+              address.
+            </>
+          )}
         </li>
         <li>
           Fill in the rest of the fields below, then click <strong>Generate script</strong> and{" "}
@@ -654,7 +693,39 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           </button>
         ))}
       </div>
-      {ispCount > 1 && (
+
+      <div className="space-y-2 rounded-lg border border-border p-2.5">
+        <p className="text-[11px] font-medium text-foreground">
+          How should WAN connectivity + DNS be set up?
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setBasicConfigOnly(false)}
+            className={`rounded-lg border p-2 text-left text-[11px] ${!basicConfigOnly ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent"}`}
+          >
+            <div className="font-medium text-foreground">Full (script configures it)</div>
+            <div className="text-muted-foreground">
+              This script sets each WAN's own IP (static/DHCP/PPPoE), routing/failover, and the
+              router's DNS servers for you.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBasicConfigOnly(true)}
+            className={`rounded-lg border p-2 text-left text-[11px] ${basicConfigOnly ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent"}`}
+          >
+            <div className="font-medium text-foreground">Basic (I'll configure WAN/DNS myself)</div>
+            <div className="text-muted-foreground">
+              You've already brought each WAN up by hand in WinBox and set DNS yourself — this
+              script skips all of that and only touches LAN/hotspot/firewall/etc. Still needs to
+              know each WAN's interface name, for NAT.
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {!basicConfigOnly && ispCount > 1 && (
         <div className="space-y-2 rounded-lg border border-border p-2.5">
           <p className="text-[11px] font-medium text-foreground">
             If one connection goes down, what should happen?
@@ -732,19 +803,29 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 placeholder={`ether${idx + 1}`}
               />
             </div>
-            <div className="flex gap-1.5">
-              {(["dhcp", "static", "pppoe"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setWan(idx, { mode: m })}
-                  className={`rounded border px-2 py-0.5 text-[11px] font-medium ${w.mode === m ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-accent"}`}
-                >
-                  {m === "dhcp" ? "DHCP" : m === "static" ? "Static" : "PPPoE"}
-                </button>
-              ))}
-            </div>
-            {w.mode === "static" && (
+            {basicConfigOnly && (
+              <p className="text-[11px] text-muted-foreground">
+                Whatever this WAN's own interface is named on the device already — the physical port
+                for a static/DHCP link you set up yourself, or the virtual PPPoE interface WinBox
+                created if you dialed PPPoE by hand. Only used for NAT + the "WAN" interface list;
+                its IP/routing are entirely up to what you already configured.
+              </p>
+            )}
+            {!basicConfigOnly && (
+              <div className="flex gap-1.5">
+                {(["dhcp", "static", "pppoe"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setWan(idx, { mode: m })}
+                    className={`rounded border px-2 py-0.5 text-[11px] font-medium ${w.mode === m ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-accent"}`}
+                  >
+                    {m === "dhcp" ? "DHCP" : m === "static" ? "Static" : "PPPoE"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!basicConfigOnly && w.mode === "static" && (
               <div className="grid grid-cols-3 gap-1.5">
                 <input
                   className={inputCls}
@@ -766,7 +847,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 />
               </div>
             )}
-            {w.mode === "pppoe" && (
+            {!basicConfigOnly && w.mode === "pppoe" && (
               <div className="grid grid-cols-2 gap-1.5">
                 <input
                   className={inputCls}
@@ -827,15 +908,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             placeholder="blank = auto (all non-WAN ports)"
           />
         </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted-foreground">DNS servers</label>
-          <input
-            className={inputCls}
-            value={form.dnsServers}
-            onChange={(e) => set("dnsServers", e.target.value)}
-            placeholder="8.8.8.8,1.1.1.1"
-          />
-        </div>
+        {!basicConfigOnly && (
+          <div>
+            <label className="mb-1 block text-[11px] text-muted-foreground">DNS servers</label>
+            <input
+              className={inputCls}
+              value={form.dnsServers}
+              onChange={(e) => set("dnsServers", e.target.value)}
+              placeholder="8.8.8.8,1.1.1.1"
+            />
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot username</label>
           <input
@@ -917,8 +1000,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               paste anything below it (Hotspot, RADIUS, WireGuard, Heartbeat all assume the internet
               is actually up). If it prints FAIL, fix the WAN link/DNS and re-paste that same chunk
               to re-check — don't continue past a FAIL. Or skip pasting entirely: download the{" "}
-              <strong>.rsc</strong> file below, upload it once via WebFig's{" "}
-              <strong>Files</strong> tab, then run{" "}
+              <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong>{" "}
+              tab, then run{" "}
               <code className="rounded bg-background px-1 py-0.5">
                 /import file=&lt;name&gt;.rsc
               </code>{" "}
