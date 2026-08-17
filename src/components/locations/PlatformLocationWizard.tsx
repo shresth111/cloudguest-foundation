@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -624,7 +625,11 @@ function RouterStep({
         </div>
         <div>
           <Label>Model</Label>
-          <Input value={state.model} onChange={(e) => setState({ ...state, model: e.target.value })} placeholder="RB5009UG+S+" />
+          <RouterModelCombobox
+            value={state.model}
+            onValueChange={(v) => setState({ ...state, model: v })}
+            placeholder="Select or type a model"
+          />
           <ErrorText msg={errors["router.model"]} />
         </div>
         <div>
