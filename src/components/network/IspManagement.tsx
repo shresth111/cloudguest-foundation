@@ -72,6 +72,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
+import { humanizeApiError } from "@/lib/errorMessages";
 import type { IspLink, IspLinkRole, IspRoutingRule, IspRoutingRuleType } from "@/types/isp";
 
 const PAGE_SIZE = 25;
@@ -184,7 +185,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                   await failover.mutateAsync({ routerId });
                   toast.success("Failover triggered");
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failover failed");
+                  toast.error(humanizeApiError(err as AppError, "Failover failed"));
                 }
               }}
             >
@@ -199,7 +200,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                   await failback.mutateAsync({ routerId });
                   toast.success("Failback triggered");
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failback failed");
+                  toast.error(humanizeApiError(err as AppError, "Failback failed"));
                 }
               }}
             >
@@ -283,7 +284,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                                 await checkHealth.mutateAsync(l.id);
                                 toast.success("Health check completed");
                               } catch (err) {
-                                toast.error((err as AppError).message || "Health check failed");
+                                toast.error(humanizeApiError(err as AppError, "Health check failed"));
                               }
                             }}
                           >
@@ -410,7 +411,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                   await del.mutateAsync(confirmDeleteLink.id);
                   toast.success("Uplink deleted");
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete uplink");
+                  toast.error(humanizeApiError(err as AppError, "Failed to delete uplink"));
                 }
                 setConfirmDeleteLink(null);
               }}
@@ -436,7 +437,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                   await delRule.mutateAsync(confirmDeleteRule.id);
                   toast.success("Rule deleted");
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete rule");
+                  toast.error(humanizeApiError(err as AppError, "Failed to delete rule"));
                 }
                 setConfirmDeleteRule(null);
               }}
@@ -532,7 +533,7 @@ function LinkDialog({
       }
       onClose();
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save uplink");
+      toast.error(humanizeApiError(err as AppError, "Failed to save uplink"));
     }
   }
 
@@ -722,7 +723,7 @@ function RuleDialog({
       }
       onClose();
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save rule");
+      toast.error(humanizeApiError(err as AppError, "Failed to save rule"));
     }
   }
 
