@@ -3,21 +3,54 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
-  Search, Power, TerminalSquare, Router as RouterIcon, Loader2, Copy, FileCode2, Globe,
-  Download, ShieldCheck, AlertTriangle, CheckCircle2,
+  Search,
+  Power,
+  TerminalSquare,
+  Router as RouterIcon,
+  Loader2,
+  Copy,
+  FileCode2,
+  Globe,
+  Download,
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
-  MSectionHeader, MSeg, MTag, MTable, MTh, MTd, MTr, MDrawer, MButton,
+  MPageShell,
+  MSectionHeader,
+  MSeg,
+  MTag,
+  MTable,
+  MTh,
+  MTd,
+  MTr,
+  MDrawer,
+  MButton,
 } from "@/components/master/MasterKit";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useGenerateProvisioningToken } from "@/hooks/useRouters";
-import { buildRouterSetupScriptChunks, chunksToMarkdown, chunksToRouterOsScript, chunksToSingleLineScript, validateSetupScriptChunks, GUEST_PORTAL_PUBLIC_BASE, RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import {
+  buildRouterSetupScriptChunks,
+  chunksToMarkdown,
+  chunksToRouterOsScript,
+  chunksToSingleLineScript,
+  validateSetupScriptChunks,
+  GUEST_PORTAL_PUBLIC_BASE,
+  RemoteAccessCard,
+} from "@/components/routers/RouterDetailTabs";
 import type { RouterSetupScriptValidationResult } from "@/components/routers/RouterDetailTabs";
 import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
@@ -61,12 +94,26 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(m / 1440)}d ago`;
 }
 
-function ControlButton({ icon: Icon, label, onClick, disabled }: { icon: typeof Power; label: string; onClick: () => void; disabled?: boolean }) {
+function ControlButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: typeof Power;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={disabled ? "Real device control isn't wired up yet -- use Device Console for real commands." : undefined}
+      title={
+        disabled
+          ? "Real device control isn't wired up yet -- use Device Console for real commands."
+          : undefined
+      }
       className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-background"
     >
       <Icon className="h-4 w-4 text-primary" /> {label}
@@ -110,9 +157,9 @@ function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
       <FileCode2 className="mx-auto h-5 w-5 text-muted-foreground" />
       <p className="text-sm font-medium text-foreground">{label} support is coming soon</p>
       <p className="mx-auto max-w-sm text-xs text-muted-foreground">
-        MikroTik is the only supported vendor today -- there's no setup script or provisioning
-        flow for {label} hardware yet. Switch the vendor back to MikroTik if this router is
-        actually a MikroTik device, or check back once {label} support ships.
+        MikroTik is the only supported vendor today -- there's no setup script or provisioning flow
+        for {label} hardware yet. Switch the vendor back to MikroTik if this router is actually a
+        MikroTik device, or check back once {label} support ships.
       </p>
     </div>
   );
@@ -171,8 +218,16 @@ function isValidCidr(value: string): boolean {
  * much bigger job); this only catches "you typed the well-known default
  * or something equally guessable," which is the actual reported gap. */
 const KNOWN_WEAK_HOTSPOT_PASSWORDS = new Set([
-  "welcome123", "password", "password123", "guest", "guest123",
-  "12345678", "123456789", "admin", "admin123", "changeme",
+  "welcome123",
+  "password",
+  "password123",
+  "guest",
+  "guest123",
+  "12345678",
+  "123456789",
+  "admin",
+  "admin123",
+  "changeme",
 ]);
 
 /** Readable random password -- avoids visually ambiguous characters
@@ -191,7 +246,9 @@ function generateHotspotPassword(): string {
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
-  const [chunks, setChunks] = useState<import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null>(null);
+  const [chunks, setChunks] = useState<
+    import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null
+  >(null);
   const [validation, setValidation] = useState<RouterSetupScriptValidationResult[] | null>(null);
   // Soft step-lock: chunk N+1's Copy button stays disabled until chunk N's
   // has actually been clicked -- these have real ordering dependencies
@@ -216,7 +273,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // Only shown/meaningful with 2+ ISPs -- see buildRouterSetupScriptChunks's
   // own WanRoutingMode docstring for why failover-only is a real,
   // structurally simpler alternative, not a stripped-down load-balance.
-  const [wanRoutingMode, setWanRoutingMode] = useState<"load_balance" | "failover_only">("load_balance");
+  const [wanRoutingMode, setWanRoutingMode] = useState<"load_balance" | "failover_only">(
+    "load_balance",
+  );
   // Ratio inputs are opt-in -- undefined/empty means "even split," the
   // existing, only-ever-generated behavior. Keyed by WAN index (0-2), a
   // plain string so a field can sit legitimately empty while typing.
@@ -235,7 +294,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
-  function setWan(idx: number, patch: Partial<import("@/components/routers/RouterDetailTabs").WanEntry>) {
+  function setWan(
+    idx: number,
+    patch: Partial<import("@/components/routers/RouterDetailTabs").WanEntry>,
+  ) {
     setWans((arr) => arr.map((w, i) => (i === idx ? { ...w, ...patch } : w)));
   }
 
@@ -267,12 +329,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       const weight = raw ? Number(raw) : undefined;
       return weight && weight > 0 ? { ...w, weight } : { ...w, weight: undefined };
     });
-    const lanIfs = lanIfsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+    const lanIfs = lanIfsRaw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     const incompleteStaticWan = activeWans.find(
       (w) => w.mode === "static" && (!w.ip?.trim() || !w.cidr?.trim() || !w.gateway?.trim()),
     );
     if (incompleteStaticWan) {
-      toast.error(`WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`);
+      toast.error(
+        `WAN "${incompleteStaticWan.iface}" is set to Static but is missing an IP, CIDR, or gateway`,
+      );
       return;
     }
     // Format validation on top of the "not empty" check above -- a typo
@@ -291,7 +358,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     }
     const lanWanOverlap = lanIfs.find((li) => activeWans.some((w) => w.iface === li));
     if (lanWanOverlap) {
-      toast.error(`"${lanWanOverlap}" is listed as both a WAN and a LAN interface -- fix before generating`);
+      toast.error(
+        `"${lanWanOverlap}" is listed as both a WAN and a LAN interface -- fix before generating`,
+      );
       return;
     }
     // Same "every enabled WAN weighted, or none of them" rule the backend's
@@ -302,7 +371,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     if (wanRoutingMode === "load_balance" && ispCount > 1) {
       const weightedCount = activeWans.filter((w) => w.weight !== undefined).length;
       if (weightedCount > 0 && weightedCount < activeWans.length) {
-        toast.error("Set a bandwidth ratio for every WAN, or leave all of them blank for an even split");
+        toast.error(
+          "Set a bandwidth ratio for every WAN, or leave all of them blank for an even split",
+        );
         return;
       }
     }
@@ -400,7 +471,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           );
           // The hub's tunnel-side IP, not its public one -- see this
           // panel's own module-level comment above for why.
-          radius = { serverAddress: wireguard.hubTunnelIpAddress, sharedSecret: nas.data.shared_secret };
+          radius = {
+            serverAddress: wireguard.hubTunnelIpAddress,
+            sharedSecret: nas.data.shared_secret,
+          };
         } catch (err) {
           radius = undefined;
           toast.error(
@@ -483,27 +557,67 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       </p>
 
       <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[11px]">
-        <p className="font-medium text-foreground">⚠ Before you start — check this first if the router is brand new</p>
+        <p className="font-medium text-foreground">
+          ⚠ Before you start — check this first if the router is brand new
+        </p>
         <p className="mt-1 text-muted-foreground">
           Most new MikroTik routers ship <strong>locked</strong> (RouterOS "device-mode") — they
-          won't let this script's <code className="rounded bg-background px-1 py-0.5">/tool fetch</code>/scheduler
-          commands run at all until unlocked once, by hand, <strong>with the router physically in
-          front of you</strong>: power it on, and while it's booting hold the reset button for
-          about 5 seconds. This <strong>cannot be done remotely, and cannot be done after you've
-          left the site</strong> — do it now if this is a fresh unit, especially one going
-          somewhere you won't be able to physically reach later (ceiling mount, locked cabinet,
-          shipped ahead). If a piece below fails with a permission-style error and this step was
-          skipped, that's almost always why.
+          won't let this script's{" "}
+          <code className="rounded bg-background px-1 py-0.5">/tool fetch</code>/scheduler commands
+          run at all until unlocked once, by hand,{" "}
+          <strong>with the router physically in front of you</strong>: power it on, and while it's
+          booting hold the reset button for about 5 seconds. This{" "}
+          <strong>cannot be done remotely, and cannot be done after you've left the site</strong> —
+          do it now if this is a fresh unit, especially one going somewhere you won't be able to
+          physically reach later (ceiling mount, locked cabinet, shipped ahead). If a piece below
+          fails with a permission-style error and this step was skipped, that's almost always why.
         </p>
       </div>
 
       <ol className="list-decimal space-y-1 rounded-lg border border-border bg-muted/30 p-2.5 pl-6 text-[11px] text-muted-foreground">
-        <li>Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH session, and not a browser.</li>
-        <li>In WinBox, open <strong>New Terminal</strong> and run <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface names vary by model/device (<code className="rounded bg-background px-1 py-0.5">ether1</code>, <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up there.</li>
-        <li><strong>Do not rename a WAN interface</strong> (e.g. <code className="rounded bg-background px-1 py-0.5">/interface ethernet set ... name=...</code>) at any point before or while pasting this script — every line below refers to it by the exact name entered in step above. Renaming it first (even to something more readable) makes every later match on that name silently fail, and that unrecognized port then gets swept into the guest LAN bridge instead of staying on the WAN side (confirmed live). If you want a friendlier name, rename it only <strong>after</strong> the whole script has run successfully.</li>
-        <li>For each WAN below, pick <strong>Static</strong> or <strong>DHCP</strong> to match what that specific ISP link actually is — a static/leased-line IP needs the IP, CIDR, and gateway your ISP gave you; DHCP needs nothing, the router negotiates its own address.</li>
-        <li>Fill in the rest of the fields below, then click <strong>Generate script</strong> and <strong>Copy</strong>.</li>
-        <li>The script appears below in numbered pieces — copy and paste each one into WinBox's New Terminal <strong>one at a time, in order</strong>, pressing Enter after each. This avoids WinBox's terminal dropping characters on one huge paste. If a piece prints a loud <code className="rounded bg-background px-1 py-0.5">*** ERROR ***</code> banner about a missing WAN interface, stop and fix the interface name (do not continue pasting further pieces) before re-running.</li>
+        <li>
+          Connect a laptop to the router by <strong>Ethernet cable</strong> (not a serial/console
+          cable), then open <strong>WinBox</strong> (the graphical app) — not a terminal/SSH
+          session, and not a browser.
+        </li>
+        <li>
+          In WinBox, open <strong>New Terminal</strong> and run{" "}
+          <code className="rounded bg-background px-1 py-0.5">/interface print</code>. Interface
+          names vary by model/device (
+          <code className="rounded bg-background px-1 py-0.5">ether1</code>,{" "}
+          <code className="rounded bg-background px-1 py-0.5">eth1</code>, or even a custom-renamed
+          name) — match the "WAN 1/2/3 interface" fields below to whatever name actually shows up
+          there.
+        </li>
+        <li>
+          <strong>Do not rename a WAN interface</strong> (e.g.{" "}
+          <code className="rounded bg-background px-1 py-0.5">
+            /interface ethernet set ... name=...
+          </code>
+          ) at any point before or while pasting this script — every line below refers to it by the
+          exact name entered in step above. Renaming it first (even to something more readable)
+          makes every later match on that name silently fail, and that unrecognized port then gets
+          swept into the guest LAN bridge instead of staying on the WAN side (confirmed live). If
+          you want a friendlier name, rename it only <strong>after</strong> the whole script has run
+          successfully.
+        </li>
+        <li>
+          For each WAN below, pick <strong>Static</strong> or <strong>DHCP</strong> to match what
+          that specific ISP link actually is — a static/leased-line IP needs the IP, CIDR, and
+          gateway your ISP gave you; DHCP needs nothing, the router negotiates its own address.
+        </li>
+        <li>
+          Fill in the rest of the fields below, then click <strong>Generate script</strong> and{" "}
+          <strong>Copy</strong>.
+        </li>
+        <li>
+          The script appears below in numbered pieces — copy and paste each one into WinBox's New
+          Terminal <strong>one at a time, in order</strong>, pressing Enter after each. This avoids
+          WinBox's terminal dropping characters on one huge paste. If a piece prints a loud{" "}
+          <code className="rounded bg-background px-1 py-0.5">*** ERROR ***</code> banner about a
+          missing WAN interface, stop and fix the interface name (do not continue pasting further
+          pieces) before re-running.
+        </li>
       </ol>
 
       <div className="flex gap-1.5">
@@ -520,7 +634,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       </div>
       {ispCount > 1 && (
         <div className="space-y-2 rounded-lg border border-border p-2.5">
-          <p className="text-[11px] font-medium text-foreground">If one connection goes down, what should happen?</p>
+          <p className="text-[11px] font-medium text-foreground">
+            If one connection goes down, what should happen?
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
@@ -528,7 +644,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               className={`rounded-lg border p-2 text-left text-[11px] ${wanRoutingMode === "failover_only" ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent"}`}
             >
               <div className="font-medium text-foreground">Failover only</div>
-              <div className="text-muted-foreground">WAN 1 carries everything while healthy; the rest sit ready and take over automatically only if it drops.</div>
+              <div className="text-muted-foreground">
+                WAN 1 carries everything while healthy; the rest sit ready and take over
+                automatically only if it drops.
+              </div>
             </button>
             <button
               type="button"
@@ -536,7 +655,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               className={`rounded-lg border p-2 text-left text-[11px] ${wanRoutingMode === "load_balance" ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent"}`}
             >
               <div className="font-medium text-foreground">Share the load</div>
-              <div className="text-muted-foreground">Traffic splits across every connection all the time, still with automatic failover if one drops.</div>
+              <div className="text-muted-foreground">
+                Traffic splits across every connection all the time, still with automatic failover
+                if one drops.
+              </div>
             </button>
           </div>
           {wanRoutingMode === "load_balance" && (
@@ -578,8 +700,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         {wans.slice(0, ispCount).map((w, idx) => (
           <div key={idx} className="space-y-1.5 rounded-lg border border-border p-2">
             <div className="flex items-center gap-2">
-              <label className="block text-[11px] text-muted-foreground">WAN {idx + 1} interface</label>
-              <input className={`${inputCls} flex-1`} value={w.iface} onChange={(e) => setWan(idx, { iface: e.target.value })} placeholder={`ether${idx + 1}`} />
+              <label className="block text-[11px] text-muted-foreground">
+                WAN {idx + 1} interface
+              </label>
+              <input
+                className={`${inputCls} flex-1`}
+                value={w.iface}
+                onChange={(e) => setWan(idx, { iface: e.target.value })}
+                placeholder={`ether${idx + 1}`}
+              />
             </div>
             <div className="flex gap-1.5">
               {(["dhcp", "static"] as const).map((m) => (
@@ -595,9 +724,24 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             </div>
             {w.mode === "static" && (
               <div className="grid grid-cols-3 gap-1.5">
-                <input className={inputCls} value={w.ip ?? ""} onChange={(e) => setWan(idx, { ip: e.target.value })} placeholder="IP e.g. 203.0.113.5" />
-                <input className={inputCls} value={w.cidr ?? ""} onChange={(e) => setWan(idx, { cidr: e.target.value })} placeholder="CIDR e.g. 30" />
-                <input className={inputCls} value={w.gateway ?? ""} onChange={(e) => setWan(idx, { gateway: e.target.value })} placeholder="Gateway e.g. 203.0.113.1" />
+                <input
+                  className={inputCls}
+                  value={w.ip ?? ""}
+                  onChange={(e) => setWan(idx, { ip: e.target.value })}
+                  placeholder="IP e.g. 203.0.113.5"
+                />
+                <input
+                  className={inputCls}
+                  value={w.cidr ?? ""}
+                  onChange={(e) => setWan(idx, { cidr: e.target.value })}
+                  placeholder="CIDR e.g. 30"
+                />
+                <input
+                  className={inputCls}
+                  value={w.gateway ?? ""}
+                  onChange={(e) => setWan(idx, { gateway: e.target.value })}
+                  placeholder="Gateway e.g. 203.0.113.1"
+                />
               </div>
             )}
           </div>
@@ -607,36 +751,73 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">LAN bridge name</label>
-          <input className={inputCls} value={form.lanBridge} onChange={(e) => set("lanBridge", e.target.value)} placeholder="bridge" />
+          <input
+            className={inputCls}
+            value={form.lanBridge}
+            onChange={(e) => set("lanBridge", e.target.value)}
+            placeholder="bridge"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">LAN IP</label>
-          <input className={inputCls} value={form.lanIp} onChange={(e) => set("lanIp", e.target.value)} placeholder="192.168.88.1" />
+          <input
+            className={inputCls}
+            value={form.lanIp}
+            onChange={(e) => set("lanIp", e.target.value)}
+            placeholder="192.168.88.1"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">LAN CIDR</label>
-          <input className={inputCls} value={form.lanCidr} onChange={(e) => set("lanCidr", e.target.value)} placeholder="24" />
+          <input
+            className={inputCls}
+            value={form.lanCidr}
+            onChange={(e) => set("lanCidr", e.target.value)}
+            placeholder="24"
+          />
         </div>
         <div className="sm:col-span-3">
           <label className="mb-1 block text-[11px] text-muted-foreground">
-            LAN interfaces (comma-separated, e.g. ether4,ether5) — blank = every port that isn't a WAN above
+            LAN interfaces (comma-separated, e.g. ether4,ether5) — blank = every port that isn't a
+            WAN above
           </label>
-          <input className={inputCls} value={lanIfsRaw} onChange={(e) => setLanIfsRaw(e.target.value)} placeholder="blank = auto (all non-WAN ports)" />
+          <input
+            className={inputCls}
+            value={lanIfsRaw}
+            onChange={(e) => setLanIfsRaw(e.target.value)}
+            placeholder="blank = auto (all non-WAN ports)"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">DNS servers</label>
-          <input className={inputCls} value={form.dnsServers} onChange={(e) => set("dnsServers", e.target.value)} placeholder="8.8.8.8,1.1.1.1" />
+          <input
+            className={inputCls}
+            value={form.dnsServers}
+            onChange={(e) => set("dnsServers", e.target.value)}
+            placeholder="8.8.8.8,1.1.1.1"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot username</label>
-          <input className={inputCls} value={form.hsUser} onChange={(e) => set("hsUser", e.target.value)} placeholder="guest" />
+          <input
+            className={inputCls}
+            value={form.hsUser}
+            onChange={(e) => set("hsUser", e.target.value)}
+            placeholder="guest"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot password</label>
-          <input className={inputCls} value={form.hsPass} onChange={(e) => set("hsPass", e.target.value)} placeholder="welcome123" />
+          <input
+            className={inputCls}
+            value={form.hsPass}
+            onChange={(e) => set("hsPass", e.target.value)}
+            placeholder="welcome123"
+          />
           {KNOWN_WEAK_HOTSPOT_PASSWORDS.has(form.hsPass.trim().toLowerCase()) && (
             <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
-              <AlertTriangle className="h-3 w-3" /> This is a well-known default -- pick something less guessable.
+              <AlertTriangle className="h-3 w-3" /> This is a well-known default -- pick something
+              less guessable.
             </p>
           )}
         </div>
@@ -644,7 +825,12 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
 
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-xs text-foreground">
-          <input type="checkbox" checked={enableFirewall} onChange={(e) => setEnableFirewall(e.target.checked)} className="h-3.5 w-3.5 rounded border-input" />
+          <input
+            type="checkbox"
+            checked={enableFirewall}
+            onChange={(e) => setEnableFirewall(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-input"
+          />
           Also add basic firewall rules
         </label>
         <label className="flex items-center gap-2 text-xs text-foreground">
@@ -669,7 +855,8 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
-          Also enable RADIUS (needs a WireGuard tunnel IP for a unique NAS identity — WireGuard will turn on automatically)
+          Also enable RADIUS (needs a WireGuard tunnel IP for a unique NAS identity — WireGuard will
+          turn on automatically)
         </label>
       </div>
 
@@ -682,7 +869,19 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig Terminal — press Enter after each before pasting the next. Splitting it up like this avoids the terminal dropping characters on one huge paste (confirmed live on a real device). Each piece is safe to re-run if you need to retry it. Or skip pasting entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong> tab, then run <code className="rounded bg-background px-1 py-0.5">/import file=&lt;name&gt;.rsc</code> — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong> below is still one giant paste under the hood -- on a real config it usually ends up several times longer than any single chunk above, which is exactly the kind of paste that's corrupted terminals before. Prefer Download .rsc if you have any doubt.
+              Paste these <strong>one at a time</strong>, in order, into the router's WinBox/WebFig
+              Terminal — press Enter after each before pasting the next. Splitting it up like this
+              avoids the terminal dropping characters on one huge paste (confirmed live on a real
+              device). Each piece is safe to re-run if you need to retry it. Or skip pasting
+              entirely: download the <strong>.rsc</strong> file below, upload it once via WebFig's{" "}
+              <strong>Files</strong> tab, then run{" "}
+              <code className="rounded bg-background px-1 py-0.5">
+                /import file=&lt;name&gt;.rsc
+              </code>{" "}
+              — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong>{" "}
+              below is still one giant paste under the hood -- on a real config it usually ends up
+              several times longer than any single chunk above, which is exactly the kind of paste
+              that's corrupted terminals before. Prefer Download .rsc if you have any doubt.
             </p>
             <div className="flex shrink-0 gap-1.5">
               <button
@@ -702,7 +901,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   );
                   if (!proceed) return;
                   const ok = await copyToClipboard(oneLine);
-                  if (ok) toast.success("Copied full script as one line -- verify the hotspot page after pasting");
+                  if (ok)
+                    toast.success(
+                      "Copied full script as one line -- verify the hotspot page after pasting",
+                    );
                   else toast.error("Couldn't copy automatically -- try Download .rsc instead.");
                 }}
                 className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-accent"
@@ -715,11 +917,24 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 onClick={() => {
                   const result = validateSetupScriptChunks(chunks);
                   setValidation(result);
-                  const errorCount = result.reduce((n, r) => n + r.issues.filter((i) => i.severity === "error").length, 0);
-                  const warningCount = result.reduce((n, r) => n + r.issues.filter((i) => i.severity === "warning").length, 0);
-                  if (errorCount === 0 && warningCount === 0) toast.success("Validated -- no issues found");
-                  else if (errorCount > 0) toast.error(`Validation found ${errorCount} error(s), ${warningCount} warning(s) -- see details below`);
-                  else toast.warning(`Validation found ${warningCount} warning(s) -- see details below`);
+                  const errorCount = result.reduce(
+                    (n, r) => n + r.issues.filter((i) => i.severity === "error").length,
+                    0,
+                  );
+                  const warningCount = result.reduce(
+                    (n, r) => n + r.issues.filter((i) => i.severity === "warning").length,
+                    0,
+                  );
+                  if (errorCount === 0 && warningCount === 0)
+                    toast.success("Validated -- no issues found");
+                  else if (errorCount > 0)
+                    toast.error(
+                      `Validation found ${errorCount} error(s), ${warningCount} warning(s) -- see details below`,
+                    );
+                  else
+                    toast.warning(
+                      `Validation found ${warningCount} warning(s) -- see details below`,
+                    );
                 }}
                 className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
                 title="Check this script for syntax issues (unbalanced brackets/quotes, unescaped $variables, corrupted lines) before pasting or downloading -- runs entirely in your browser, no device needed"
@@ -764,85 +979,134 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               </button>
             </div>
           </div>
-          {validation && (() => {
-            const errorCount = validation.reduce((n, r) => n + r.issues.filter((i) => i.severity === "error").length, 0);
-            const warningCount = validation.reduce((n, r) => n + r.issues.filter((i) => i.severity === "warning").length, 0);
-            return (
-              <div className={`rounded-lg border p-2.5 text-[11px] ${errorCount > 0 ? "border-destructive/40 bg-destructive/5" : warningCount > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-emerald-500/40 bg-emerald-500/5"}`}>
-                <div className="flex items-center gap-1.5 font-medium">
-                  {errorCount === 0 && warningCount === 0 ? (
-                    <><ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> All {validation.length} pieces passed validation -- no issues found.</>
-                  ) : (
-                    <><AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> {errorCount} error(s), {warningCount} warning(s) found across {validation.filter((r) => r.issues.length > 0).length} piece(s).</>
+          {validation &&
+            (() => {
+              const errorCount = validation.reduce(
+                (n, r) => n + r.issues.filter((i) => i.severity === "error").length,
+                0,
+              );
+              const warningCount = validation.reduce(
+                (n, r) => n + r.issues.filter((i) => i.severity === "warning").length,
+                0,
+              );
+              return (
+                <div
+                  className={`rounded-lg border p-2.5 text-[11px] ${errorCount > 0 ? "border-destructive/40 bg-destructive/5" : warningCount > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-emerald-500/40 bg-emerald-500/5"}`}
+                >
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {errorCount === 0 && warningCount === 0 ? (
+                      <>
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> All{" "}
+                        {validation.length} pieces passed validation -- no issues found.
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> {errorCount}{" "}
+                        error(s), {warningCount} warning(s) found across{" "}
+                        {validation.filter((r) => r.issues.length > 0).length} piece(s).
+                      </>
+                    )}
+                  </div>
+                  {(errorCount > 0 || warningCount > 0) && (
+                    <ul className="mt-1.5 space-y-1">
+                      {validation
+                        .filter((r) => r.issues.length > 0)
+                        .map((r) => (
+                          <li key={r.chunkIndex}>
+                            <span className="font-medium">
+                              {r.chunkIndex + 1}. {r.label}:
+                            </span>
+                            <ul className="ml-4 list-disc">
+                              {r.issues.map((issue, idx) => (
+                                <li
+                                  key={idx}
+                                  className={
+                                    issue.severity === "error"
+                                      ? "text-destructive"
+                                      : "text-amber-600"
+                                  }
+                                >
+                                  {issue.message}
+                                </li>
+                              ))}
+                            </ul>
+                          </li>
+                        ))}
+                    </ul>
                   )}
+                  <p className="mt-1.5 text-muted-foreground">
+                    This checks the script's own text for syntax problems -- it does not run
+                    anything on a real device.
+                  </p>
                 </div>
-                {(errorCount > 0 || warningCount > 0) && (
-                  <ul className="mt-1.5 space-y-1">
-                    {validation.filter((r) => r.issues.length > 0).map((r) => (
-                      <li key={r.chunkIndex}>
-                        <span className="font-medium">{r.chunkIndex + 1}. {r.label}:</span>
-                        <ul className="ml-4 list-disc">
-                          {r.issues.map((issue, idx) => (
-                            <li key={idx} className={issue.severity === "error" ? "text-destructive" : "text-amber-600"}>{issue.message}</li>
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="mt-1.5 text-muted-foreground">This checks the script's own text for syntax problems -- it does not run anything on a real device.</p>
-              </div>
-            );
-          })()}
+              );
+            })()}
           {chunks.map((chunk, i) => {
             const chunkValidation = validation?.[i];
             const hasErrors = chunkValidation?.issues.some((issue) => issue.severity === "error");
-            const hasWarnings = chunkValidation?.issues.some((issue) => issue.severity === "warning");
+            const hasWarnings = chunkValidation?.issues.some(
+              (issue) => issue.severity === "warning",
+            );
             const isCopied = copiedChunkIdx.has(i);
             const isLocked = i > 0 && !copiedChunkIdx.has(i - 1);
             return (
-            <div key={chunk.label} className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
-                  {i + 1}. {chunk.label}
-                  {isCopied && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
-                  {chunkValidation && (hasErrors ? (
-                    <AlertTriangle className="h-3 w-3 text-destructive" />
-                  ) : hasWarnings ? (
-                    <AlertTriangle className="h-3 w-3 text-amber-600" />
-                  ) : (
-                    <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                  ))}
-                </span>
-                <button
-                  type="button"
-                  disabled={isLocked}
-                  title={isLocked ? `Copy piece ${i} first -- these run in order` : hasErrors ? "This piece has a validation error -- you'll be asked to confirm" : undefined}
-                  onClick={async () => {
-                    if (hasErrors) {
-                      const issues = chunkValidation?.issues.filter((iss) => iss.severity === "error").map((iss) => iss.message).join("\n- ") ?? "";
-                      const proceed = window.confirm(
-                        `"${chunk.label}" has a validation error:\n- ${issues}\n\nPasting it as-is will very likely fail (or worse, partially apply) on the real device. Copy anyway?`,
-                      );
-                      if (!proceed) return;
+              <div key={chunk.label} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+                    {i + 1}. {chunk.label}
+                    {isCopied && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
+                    {chunkValidation &&
+                      (hasErrors ? (
+                        <AlertTriangle className="h-3 w-3 text-destructive" />
+                      ) : hasWarnings ? (
+                        <AlertTriangle className="h-3 w-3 text-amber-600" />
+                      ) : (
+                        <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                      ))}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isLocked}
+                    title={
+                      isLocked
+                        ? `Copy piece ${i} first -- these run in order`
+                        : hasErrors
+                          ? "This piece has a validation error -- you'll be asked to confirm"
+                          : undefined
                     }
-                    const ok = await copyToClipboard(chunk.script);
-                    if (ok) {
-                      toast.success(`Copied: ${chunk.label}`);
-                      setCopiedChunkIdx((prev) => new Set(prev).add(i));
-                    } else {
-                      toast.error("Couldn't copy automatically -- select the text below and copy it manually.");
-                    }
-                  }}
-                  className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
+                    onClick={async () => {
+                      if (hasErrors) {
+                        const issues =
+                          chunkValidation?.issues
+                            .filter((iss) => iss.severity === "error")
+                            .map((iss) => iss.message)
+                            .join("\n- ") ?? "";
+                        const proceed = window.confirm(
+                          `"${chunk.label}" has a validation error:\n- ${issues}\n\nPasting it as-is will very likely fail (or worse, partially apply) on the real device. Copy anyway?`,
+                        );
+                        if (!proceed) return;
+                      }
+                      const ok = await copyToClipboard(chunk.script);
+                      if (ok) {
+                        toast.success(`Copied: ${chunk.label}`);
+                        setCopiedChunkIdx((prev) => new Set(prev).add(i));
+                      } else {
+                        toast.error(
+                          "Couldn't copy automatically -- select the text below and copy it manually.",
+                        );
+                      }
+                    }}
+                    className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-background"
+                  >
+                    <Copy className="h-3 w-3" /> Copy
+                  </button>
+                </div>
+                <pre
+                  className={`max-h-48 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug ${isLocked ? "opacity-50" : ""}`}
                 >
-                  <Copy className="h-3 w-3" /> Copy
-                </button>
+                  <code>{chunk.script}</code>
+                </pre>
               </div>
-              <pre className={`max-h-48 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug ${isLocked ? "opacity-50" : ""}`}>
-                <code>{chunk.script}</code>
-              </pre>
-            </div>
             );
           })}
         </div>
@@ -920,7 +1184,13 @@ function RouterFleetScreen() {
     () =>
       routers
         .filter((r) => (filter === "all" ? true : displayStatus(r) === filter))
-        .filter((r) => !q || `${r.name} ${r.managementIpAddress ?? ""} ${r.publicIpAddress ?? ""} ${r.organizationName} ${r.locationName}`.toLowerCase().includes(q.toLowerCase())),
+        .filter(
+          (r) =>
+            !q ||
+            `${r.name} ${r.managementIpAddress ?? ""} ${r.publicIpAddress ?? ""} ${r.organizationName} ${r.locationName}`
+              .toLowerCase()
+              .includes(q.toLowerCase()),
+        ),
     [routers, filter, q],
   );
 
@@ -943,162 +1213,228 @@ function RouterFleetScreen() {
   // the real data backing that). Keeps the same amber "in progress" tone
   // (via the explicit `tone="pending"` passed at each call site below),
   // just with honest, less alarming copy.
-  const statusLabel = (r: RouterDevice) => (r.status === "pending_provisioning" ? "Awaiting check-in" : r.status);
+  const statusLabel = (r: RouterDevice) =>
+    r.status === "pending_provisioning" ? "Awaiting check-in" : r.status;
 
   return (
     <MasterShell title="Router Fleet">
-      <MSectionHeader eyebrow="Infrastructure" title="Router Fleet" />
+      <MPageShell>
+        <MSectionHeader eyebrow="Infrastructure" title="Router Fleet" />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <MSeg
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: "All" },
-            { value: "online", label: "Online" },
-            { value: "degraded", label: "Degraded" },
-            { value: "offline", label: "Offline" },
-          ]}
-        />
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, IP, customer…" className="w-60 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading router fleet…
-        </div>
-      ) : (
-        <MTable head={<><MTh>Router</MTh><MTh className="hidden md:table-cell">Model</MTh><MTh className="hidden sm:table-cell">Customer</MTh><MTh>RouterOS</MTh><MTh>Last seen</MTh><MTh>Status</MTh></>}>
-          {rows.map((r) => (
-            <MTr key={r.id} onClick={() => setSel(r)}>
-              <MTd>
-                <p className="font-semibold">{r.name}</p>
-                <p className="font-mono text-xs text-muted-foreground">{r.managementIpAddress ?? r.publicIpAddress ?? "IP not yet assigned"} · {r.locationName}</p>
-              </MTd>
-              <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
-              <MTd className="hidden text-sm sm:table-cell">{r.organizationName}</MTd>
-              <MTd><span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span></MTd>
-              <MTd className="text-xs text-muted-foreground">{timeAgo(r.lastSeenAt)}</MTd>
-              <MTd><MTag label={statusLabel(r)} tone={r.status === "pending_provisioning" ? "pending" : undefined} /></MTd>
-            </MTr>
-          ))}
-        </MTable>
-      )}
-      {!loading && rows.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground">
-          {routers.length === 0 ? "No routers provisioned yet." : "No routers match your filter."}
-        </p>
-      )}
-
-      <MDrawer
-        open={!!sel}
-        onClose={() => setSel(null)}
-        title={sel?.name ?? ""}
-        subtitle={sel ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}` : ""}
-        footer={sel && (
-          demo ? (
-            <MButton variant="primary" className="w-full justify-center" onClick={() => act(`Opening remote console for ${sel.name}`)}><TerminalSquare /> Open Device Console</MButton>
-          ) : (
-            <Link to="/master/console" className="w-full">
-              <MButton variant="primary" className="w-full justify-center"><TerminalSquare /> Open Device Console</MButton>
-            </Link>
-          )
-        )}
-      >
-        {sel && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg border border-border p-2.5 text-center"><p className="text-[11px] font-medium text-muted-foreground">Status</p><p className="text-lg font-semibold capitalize">{statusLabel(sel)}</p></div>
-              <div className="rounded-lg border border-border p-2.5 text-center"><p className="text-[11px] font-medium text-muted-foreground">Last seen</p><p className="text-lg font-semibold tabular-nums">{timeAgo(sel.lastSeenAt)}</p></div>
-              <div className="rounded-lg border border-border p-2.5 text-center"><p className="text-[11px] font-medium text-muted-foreground">RouterOS</p><p className="text-lg font-semibold">{sel.routerOsVersion ?? "—"}</p></div>
-            </div>
-
-            {!demo && (
-              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
-                Restart/Upgrade/Sync Config aren't wired to real device control yet -- use Device
-                Console for those. Reboot is real.
-              </p>
-            )}
-
-            {!demo && (
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Vendor</label>
-                <select
-                  className={inputCls}
-                  value={sel.vendor || "mikrotik"}
-                  disabled={vendorSaving}
-                  onChange={(e) => updateVendor(sel, e.target.value)}
-                >
-                  {DEVICE_VENDORS.map((v) => (
-                    <option key={v.value} value={v.value}>{v.label}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {!demo &&
-              ((sel.vendor || "mikrotik") === "mikrotik" ? (
-                <RouterSetupScriptPanel router={sel} />
-              ) : (
-                <VendorNotSupportedPanel vendor={sel.vendor || "mikrotik"} />
-              ))}
-
-            {!demo && (sel.managementIpAddress || sel.publicIpAddress) && (
-              <RemoteAccessCard routerId={sel.id} />
-            )}
-
-            <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
-              <div className="grid grid-cols-2 gap-2">
-                <ControlButton icon={Power} label="Reboot" onClick={() => (demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel))} />
-              </div>
-            </div>
-
-            {!demo && (
-              <Link to="/routers/$routerId" params={{ routerId: sel.id }} className="block">
-                <MButton variant="outline" className="w-full justify-center">
-                  Manage this router <RouterIcon className="h-3.5 w-3.5" />
-                </MButton>
-                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                  WireGuard tunnel, config rollback/backup, diagnostics, connected devices,
-                  and the audit log all live on the full router screen.
-                </p>
-              </Link>
-            )}
-            <p className="flex items-center gap-2 text-xs text-muted-foreground"><RouterIcon className="h-3.5 w-3.5" /> Safe business-level operations only.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <MSeg
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "all", label: "All" },
+              { value: "online", label: "Online" },
+              { value: "degraded", label: "Degraded" },
+              { value: "offline", label: "Offline" },
+            ]}
+          />
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name, IP, customer…"
+              className="w-60 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
           </div>
-        )}
-      </MDrawer>
+        </div>
 
-      <AlertDialog open={!!rebootTarget} onOpenChange={(o) => !o && !rebooting && setRebootTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reboot {rebootTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This immediately restarts the physical device. Every guest currently connected at{" "}
-              {rebootTarget?.locationName} will be disconnected, and the router will be
-              unreachable for its normal 1-2 minute boot cycle. Use with caution — this cannot be
-              undone once sent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={rebooting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                confirmReboot();
-              }}
-              disabled={rebooting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {rebooting ? "Rebooting…" : "Reboot device"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading router fleet…
+          </div>
+        ) : (
+          <MTable
+            head={
+              <>
+                <MTh>Router</MTh>
+                <MTh className="hidden md:table-cell">Model</MTh>
+                <MTh className="hidden sm:table-cell">Customer</MTh>
+                <MTh>RouterOS</MTh>
+                <MTh>Last seen</MTh>
+                <MTh>Status</MTh>
+              </>
+            }
+          >
+            {rows.map((r) => (
+              <MTr key={r.id} onClick={() => setSel(r)}>
+                <MTd>
+                  <p className="font-semibold">{r.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {r.managementIpAddress ?? r.publicIpAddress ?? "IP not yet assigned"} ·{" "}
+                    {r.locationName}
+                  </p>
+                </MTd>
+                <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
+                <MTd className="hidden text-sm sm:table-cell">{r.organizationName}</MTd>
+                <MTd>
+                  <span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span>
+                </MTd>
+                <MTd className="text-xs text-muted-foreground">{timeAgo(r.lastSeenAt)}</MTd>
+                <MTd>
+                  <MTag
+                    label={statusLabel(r)}
+                    tone={r.status === "pending_provisioning" ? "pending" : undefined}
+                  />
+                </MTd>
+              </MTr>
+            ))}
+          </MTable>
+        )}
+        {!loading && rows.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground">
+            {routers.length === 0 ? "No routers provisioned yet." : "No routers match your filter."}
+          </p>
+        )}
+
+        <MDrawer
+          open={!!sel}
+          onClose={() => setSel(null)}
+          title={sel?.name ?? ""}
+          subtitle={
+            sel
+              ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}`
+              : ""
+          }
+          footer={
+            sel &&
+            (demo ? (
+              <MButton
+                variant="primary"
+                className="w-full justify-center"
+                onClick={() => act(`Opening remote console for ${sel.name}`)}
+              >
+                <TerminalSquare /> Open Device Console
+              </MButton>
+            ) : (
+              <Link to="/master/console" className="w-full">
+                <MButton variant="primary" className="w-full justify-center">
+                  <TerminalSquare /> Open Device Console
+                </MButton>
+              </Link>
+            ))
+          }
+        >
+          {sel && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg border border-border p-2.5 text-center">
+                  <p className="text-[11px] font-medium text-muted-foreground">Status</p>
+                  <p className="text-lg font-semibold capitalize">{statusLabel(sel)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-2.5 text-center">
+                  <p className="text-[11px] font-medium text-muted-foreground">Last seen</p>
+                  <p className="text-lg font-semibold tabular-nums">{timeAgo(sel.lastSeenAt)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-2.5 text-center">
+                  <p className="text-[11px] font-medium text-muted-foreground">RouterOS</p>
+                  <p className="text-lg font-semibold">{sel.routerOsVersion ?? "—"}</p>
+                </div>
+              </div>
+
+              {!demo && (
+                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
+                  Restart/Upgrade/Sync Config aren't wired to real device control yet -- use Device
+                  Console for those. Reboot is real.
+                </p>
+              )}
+
+              {!demo && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Vendor
+                  </label>
+                  <select
+                    className={inputCls}
+                    value={sel.vendor || "mikrotik"}
+                    disabled={vendorSaving}
+                    onChange={(e) => updateVendor(sel, e.target.value)}
+                  >
+                    {DEVICE_VENDORS.map((v) => (
+                      <option key={v.value} value={v.value}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!demo &&
+                ((sel.vendor || "mikrotik") === "mikrotik" ? (
+                  <RouterSetupScriptPanel router={sel} />
+                ) : (
+                  <VendorNotSupportedPanel vendor={sel.vendor || "mikrotik"} />
+                ))}
+
+              {!demo && (sel.managementIpAddress || sel.publicIpAddress) && (
+                <RemoteAccessCard routerId={sel.id} />
+              )}
+
+              <div>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <ControlButton
+                    icon={Power}
+                    label="Reboot"
+                    onClick={() =>
+                      demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel)
+                    }
+                  />
+                </div>
+              </div>
+
+              {!demo && (
+                <Link to="/routers/$routerId" params={{ routerId: sel.id }} className="block">
+                  <MButton variant="outline" className="w-full justify-center">
+                    Manage this router <RouterIcon className="h-3.5 w-3.5" />
+                  </MButton>
+                  <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+                    WireGuard tunnel, config rollback/backup, diagnostics, connected devices, and
+                    the audit log all live on the full router screen.
+                  </p>
+                </Link>
+              )}
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <RouterIcon className="h-3.5 w-3.5" /> Safe business-level operations only.
+              </p>
+            </div>
+          )}
+        </MDrawer>
+
+        <AlertDialog
+          open={!!rebootTarget}
+          onOpenChange={(o) => !o && !rebooting && setRebootTarget(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reboot {rebootTarget?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This immediately restarts the physical device. Every guest currently connected at{" "}
+                {rebootTarget?.locationName} will be disconnected, and the router will be
+                unreachable for its normal 1-2 minute boot cycle. Use with caution — this cannot be
+                undone once sent.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={rebooting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  confirmReboot();
+                }}
+                disabled={rebooting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {rebooting ? "Rebooting…" : "Reboot device"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </MPageShell>
     </MasterShell>
   );
 }

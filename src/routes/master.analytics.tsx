@@ -3,10 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MasterShell } from "@/components/master/MasterShell";
-import { MSectionHeader } from "@/components/master/MasterKit";
+import { MPageShell, MSectionHeader, MButton, MSeg } from "@/components/master/MasterKit";
 import { AnalyticsKpiGrid } from "@/components/analytics/AnalyticsKpiGrid";
 import { GuestAnalyticsPanel } from "@/components/analytics/GuestAnalyticsPanel";
 import { NetworkAnalyticsPanel } from "@/components/analytics/NetworkAnalyticsPanel";
@@ -51,9 +49,38 @@ function downloadBlobUrl(url: string, filename: string) {
  */
 export const Route = createFileRoute("/master/analytics")({ component: AnalyticsScreen });
 
+type AnalyticsTab =
+  | "overview"
+  | "guests"
+  | "network"
+  | "routers"
+  | "locations"
+  | "organizations"
+  | "devices"
+  | "auth"
+  | "reports"
+  | "builder"
+  | "scheduled"
+  | "settings";
+
+const ANALYTICS_TABS: { value: AnalyticsTab; label: string }[] = [
+  { value: "overview", label: "Overview" },
+  { value: "guests", label: "Guests" },
+  { value: "network", label: "Network" },
+  { value: "routers", label: "Routers" },
+  { value: "locations", label: "Locations" },
+  { value: "organizations", label: "Organizations" },
+  { value: "devices", label: "Devices" },
+  { value: "auth", label: "Authentication" },
+  { value: "reports", label: "Reports" },
+  { value: "builder", label: "Custom builder" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "settings", label: "Settings" },
+];
+
 function AnalyticsScreen() {
   const [range, setRange] = useState<DateRangePreset>("last30");
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState<AnalyticsTab>("overview");
   const qc = useQueryClient();
   const snap = useAnalyticsSnapshot(range);
   const generateReport = useGenerateReport();
@@ -86,87 +113,70 @@ function AnalyticsScreen() {
 
   return (
     <MasterShell title="Global Analytics">
-      <MSectionHeader
-        eyebrow="Insights"
-        title="Global Analytics"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <DateRangeFilter value={range} onChange={setRange} />
-            <Button size="sm" variant="outline" onClick={refresh}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-            </Button>
-            <Button size="sm" onClick={exportDashboard}>
-              <Download className="mr-2 h-4 w-4" /> Export
-            </Button>
+      <MPageShell>
+        <MSectionHeader
+          eyebrow="Insights"
+          title="Global Analytics"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <DateRangeFilter value={range} onChange={setRange} />
+              <MButton variant="outline" onClick={refresh}>
+                <RefreshCw /> Refresh
+              </MButton>
+              <MButton variant="primary" onClick={exportDashboard}>
+                <Download /> Export
+              </MButton>
+            </div>
+          }
+        />
+
+        <AnalyticsKpiGrid
+          data={snap.data?.kpis}
+          isLoading={snap.isLoading}
+          isError={snap.isError}
+          onRetry={() => snap.refetch()}
+        />
+
+        {/* Same MasterKit vocabulary (MSeg) every other master page's
+            filter/tab control already uses, in place of shadcn's raw
+            Tabs -- flattening these 12 tabs into something narrower is
+            Phase 2 scope, this is just the component swap. */}
+        <MSeg
+          value={tab}
+          onChange={setTab}
+          options={ANALYTICS_TABS}
+          className="h-auto flex-wrap justify-start"
+        />
+
+        {tab === "overview" && (
+          <div className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+              <GuestAnalyticsPanel data={snap.data?.guests} {...state} />
+              <AnalyticsQuickActions
+                onRefresh={refresh}
+                onExportDashboard={exportDashboard}
+                onGenerateReport={() => setTab("reports")}
+                onScheduleReport={() => setTab("scheduled")}
+              />
+            </div>
+            <NetworkAnalyticsPanel data={snap.data?.network} {...state} />
           </div>
-        }
-      />
+        )}
 
-      <AnalyticsKpiGrid data={snap.data?.kpis} isLoading={snap.isLoading} isError={snap.isError} onRetry={() => snap.refetch()} />
-
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="guests">Guests</TabsTrigger>
-          <TabsTrigger value="network">Network</TabsTrigger>
-          <TabsTrigger value="routers">Routers</TabsTrigger>
-          <TabsTrigger value="locations">Locations</TabsTrigger>
-          <TabsTrigger value="organizations">Organizations</TabsTrigger>
-          <TabsTrigger value="devices">Devices</TabsTrigger>
-          <TabsTrigger value="auth">Authentication</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
-          <TabsTrigger value="builder">Custom builder</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-            <GuestAnalyticsPanel data={snap.data?.guests} {...state} />
-            <AnalyticsQuickActions
-              onRefresh={refresh}
-              onExportDashboard={exportDashboard}
-              onGenerateReport={() => setTab("reports")}
-              onScheduleReport={() => setTab("scheduled")}
-            />
-          </div>
-          <NetworkAnalyticsPanel data={snap.data?.network} {...state} />
-        </TabsContent>
-
-        <TabsContent value="guests" className="mt-4">
-          <GuestAnalyticsPanel data={snap.data?.guests} {...state} />
-        </TabsContent>
-        <TabsContent value="network" className="mt-4">
-          <NetworkAnalyticsPanel data={snap.data?.network} {...state} />
-        </TabsContent>
-        <TabsContent value="routers" className="mt-4">
-          <RouterAnalyticsPanel data={snap.data?.routers} {...state} />
-        </TabsContent>
-        <TabsContent value="locations" className="mt-4">
-          <LocationAnalyticsPanel data={snap.data?.locations} {...state} />
-        </TabsContent>
-        <TabsContent value="organizations" className="mt-4">
+        {tab === "guests" && <GuestAnalyticsPanel data={snap.data?.guests} {...state} />}
+        {tab === "network" && <NetworkAnalyticsPanel data={snap.data?.network} {...state} />}
+        {tab === "routers" && <RouterAnalyticsPanel data={snap.data?.routers} {...state} />}
+        {tab === "locations" && <LocationAnalyticsPanel data={snap.data?.locations} {...state} />}
+        {tab === "organizations" && (
           <OrganizationAnalyticsPanel data={snap.data?.organizations} {...state} />
-        </TabsContent>
-        <TabsContent value="devices" className="mt-4">
-          <DeviceAnalyticsPanel data={snap.data?.devices} {...state} />
-        </TabsContent>
-        <TabsContent value="auth" className="mt-4">
-          <AuthAnalyticsPanel data={snap.data?.auth} {...state} />
-        </TabsContent>
-        <TabsContent value="reports" className="mt-4">
-          <ReportCenter range={range} />
-        </TabsContent>
-        <TabsContent value="builder" className="mt-4">
-          <CustomReportBuilder />
-        </TabsContent>
-        <TabsContent value="scheduled" className="mt-4">
-          <ScheduledReportsPanel />
-        </TabsContent>
-        <TabsContent value="settings" className="mt-4">
-          <AnalyticsSettingsPanel />
-        </TabsContent>
-      </Tabs>
+        )}
+        {tab === "devices" && <DeviceAnalyticsPanel data={snap.data?.devices} {...state} />}
+        {tab === "auth" && <AuthAnalyticsPanel data={snap.data?.auth} {...state} />}
+        {tab === "reports" && <ReportCenter range={range} />}
+        {tab === "builder" && <CustomReportBuilder />}
+        {tab === "scheduled" && <ScheduledReportsPanel />}
+        {tab === "settings" && <AnalyticsSettingsPanel />}
+      </MPageShell>
     </MasterShell>
   );
 }
