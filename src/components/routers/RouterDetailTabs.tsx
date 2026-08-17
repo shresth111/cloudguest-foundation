@@ -2217,9 +2217,38 @@ export function buildRouterSetupScriptChunks(opts: {
       // what makes WinBox/API remote access actually work once any
       // input-chain firewall rules exist, rather than relying on an
       // accident of the ruleset never adding a final default-drop.
+      // `place-before=` (not a plain `add`, which always appends to the
+      // *end* of the list) is what makes this rule land above
+      // `cloudguest-fw-drop-wan-input` regardless of which chunk the
+      // operator happens to paste first -- confirmed live in production
+      // (2026-08-16, router "gurugram"): the Firewall chunk's blanket
+      // WAN-input drop rule is generated *before* this one in the array
+      // below, so on a plain `add`, pasting chunks in their natural order
+      // put this accept rule physically *after* that drop rule --
+      // RouterOS evaluates input-chain rules top to bottom and stops at
+      // the first match, so the drop rule caught WireGuard's own inbound
+      // handshake-response traffic before it ever reached this accept
+      // rule, and the tunnel could never handshake at all. `place-before`
+      // targets the drop rule if it already exists (Firewall pasted
+      // first) and simply appends normally if it doesn't yet (WireGuard
+      // pasted first, nothing to place before) -- correct either way, and
+      // self-healing if this chunk is ever re-pasted after the bug's
+      // effects are already on the device (see `cloudguest-fw-drop-wan-input`
+      // below in the Firewall chunk for the paired half of this fix).
       ...(enableFirewall ? [
         `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`,
-        `  /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
+        `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
+        `  :if ([:len $wanDropRule] > 0) do={`,
+        `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule`,
+        `  } else={`,
+        `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
+        `  }`,
+        `} else={`,
+        `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
+        `  :local wgAllowRule [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
+        `  :if ([:len $wanDropRule] > 0 && [:len $wgAllowRule] > 0) do={`,
+        `    /ip firewall filter move $wgAllowRule destination=$wanDropRule`,
+        `  }`,
         `}`,
       ] : []),
     ];
