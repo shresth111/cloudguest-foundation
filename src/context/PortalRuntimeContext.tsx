@@ -285,14 +285,28 @@ export function PortalRuntimeProvider({
   const config = hasPreset ? (presetConfig ?? undefined) : fetchedConfig;
   const isLoading = hasPreset ? !!presetConfigLoading : fetchIsLoading;
 
-  // Seeded from the guest's own persisted choice (localStorage) when one
-  // exists -- a returning guest's earlier language pick wins over the
-  // location's own `config.defaultLanguage` once they've made one. Falls
-  // through to `config.defaultLanguage` below (via the effect) on a first
-  // visit, same as before.
-  const [language, setLanguageState] = useState<RuntimeLanguage | undefined>(() =>
-    loadPersistedLanguage(),
-  );
+  // Deliberately NOT seeded from localStorage in the initial state (that
+  // used to be `useState(() => loadPersistedLanguage())`). A lazy
+  // `useState` initializer runs during the very first render on BOTH sides
+  // -- server (no `window`, so `loadPersistedLanguage()` always returned
+  // `undefined` there -> "en") and the client's own first hydration render
+  // (real `window`, so it read the guest's actual persisted value straight
+  // away, in-render). Those two first renders producing different text
+  // for every `t(...)` call is a textbook SSR/CSR hydration mismatch
+  // (React error #418) -- confirmed live on `/portal/expired`, reproduced
+  // intermittently there (only on the loads where a persisted language
+  // happened to differ from the server's unconditional "en" fallback) even
+  // with `cg_portal_lang` cleared for one repro pass, which just meant that
+  // pass's SSR default itself matched, not that this code path was clean.
+  // Same root cause the earlier build-time audit flagged separately as "a
+  // pre-existing SSR/hydration-mismatch in the language-persistence
+  // mechanism" -- not a distinct bug. Starting `undefined` here keeps the
+  // client's first hydration render identical to the server's (both fall
+  // through to the "en" default below), then the effect further down
+  // applies the real persisted value (or `config.defaultLanguage` on a
+  // first-ever visit) immediately after mount -- same standard fix as
+  // React's own hydration-mismatch guidance for browser-only storage reads.
+  const [language, setLanguageState] = useState<RuntimeLanguage | undefined>(undefined);
 
   const setLanguage = useCallback((l: RuntimeLanguage) => {
     setLanguageState(l);
@@ -320,8 +334,26 @@ export function PortalRuntimeProvider({
     persistIdentifier(v);
   }, []);
 
+  // Applies a returning guest's persisted language choice right after
+  // mount -- see the `useState` above for why this can't happen during
+  // the initial render itself. Runs once; a real language *switch* still
+  // goes through `setLanguage` (state + persist together), this only ever
+  // reads. See the effect right below for how this stays race-free against
+  // the config-default effect regardless of which one actually runs first.
   useEffect(() => {
-    if (config && !language) setLanguage(config.defaultLanguage);
+    const persisted = loadPersistedLanguage();
+    if (persisted) setLanguageState(persisted);
+  }, []);
+
+  useEffect(() => {
+    // Also re-checks localStorage directly (not just the `language` state)
+    // so this can never race the persisted-language effect above and stomp
+    // a returning guest's real choice with the location's default -- both
+    // effects can fire in the same commit (e.g. `presetConfig` supplies a
+    // config synchronously on the very first render), and effects in one
+    // commit see each other's *pre-update* closure values, not each
+    // other's dispatched updates.
+    if (config && !language && !loadPersistedLanguage()) setLanguage(config.defaultLanguage);
   }, [config, language]);
 
   const resolvedLanguage = language ?? "en";
