@@ -1,7 +1,12 @@
 import { createFileRoute, Outlet, SearchParamError } from "@tanstack/react-router";
 import { QrCode } from "lucide-react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
-import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
+import {
+  PortalRuntimeProvider,
+  loadPersistedRuntimeIds,
+  persistRuntimeIds,
+} from "@/context/PortalRuntimeContext";
 import { ErrorComponent as RootErrorComponent } from "./__root";
 
 // A real captive-portal redirect from a NAS/router would encode equivalent
@@ -80,8 +85,12 @@ const searchSchema = z.object({
  * `searchSchema` above) -- but this URL can also reach a browser with one
  * missing any other way a link can go wrong: a bookmark saved before a
  * redirect finished building its query string, a hand-typed URL, a QR code
- * that got cropped/mistyped when printed. This is a real, expected, honest
- * case, not a validation failure -- the app-wide root error boundary's
+ * that got cropped/mistyped when printed, a plain reload/OS captive-portal
+ * re-probe/back-forward navigation landing on a bare URL after the guest
+ * is already connected (see `PortalRuntimeLayout`'s own
+ * `loadPersistedRuntimeIds` fallback, which resolves most of that last
+ * category before ever reaching this component at all). This is a real,
+ * expected, honest case, not a validation failure -- the app-wide root error boundary's
  * generic "This page didn't load / Something went wrong on our end" reads
  * like a server bug to a guest, giving them no idea this is about the link
  * itself or what to actually do about it, so `PortalRuntimeLayout` checks
@@ -169,8 +178,43 @@ export const Route = createFileRoute("/portal")({
 
 function PortalRuntimeLayout() {
   const search = Route.useSearch();
-  const { organizationId, locationId, routerId, mac, ip, dst } = search;
+  const {
+    organizationId: urlOrganizationId,
+    locationId: urlLocationId,
+    routerId: urlRouterId,
+    mac,
+    ip,
+    dst,
+  } = search;
   const linkLoginOnly = search["link-login-only"];
+
+  // Fallback only -- read once per mount, same lazy-initializer idiom
+  // PortalRuntimeContext's own `session`/`guestIdentifier` persistence
+  // uses. A real NAS/QR-code/bookmark link always supplies all three IDs
+  // on the URL itself; this is only ever consulted when one is missing
+  // from a *later* load (see `loadPersistedRuntimeIds`'s own doc comment
+  // in PortalRuntimeContext.tsx for the concrete, confirmed-live ways that
+  // happens even after a guest is already connected).
+  const [persistedIds] = useState(() => loadPersistedRuntimeIds());
+
+  const organizationId = urlOrganizationId ?? persistedIds?.organizationId;
+  const locationId = urlLocationId ?? persistedIds?.locationId;
+  const routerId = urlRouterId ?? persistedIds?.routerId;
+
+  // Persist a genuinely-complete URL's three IDs so the fallback above has
+  // something real to fall back to on a later load. Only ever writes what
+  // the URL itself just supplied -- never the merged/fallback values above
+  // -- so a stale persisted ID can't perpetuate itself once a fresh, real
+  // link (a different router, say) provides a new one.
+  useEffect(() => {
+    if (urlOrganizationId && urlLocationId && urlRouterId) {
+      persistRuntimeIds({
+        organizationId: urlOrganizationId,
+        locationId: urlLocationId,
+        routerId: urlRouterId,
+      });
+    }
+  }, [urlOrganizationId, urlLocationId, urlRouterId]);
 
   if (!organizationId || !locationId || !routerId) {
     return <IncompletePortalLinkError />;
