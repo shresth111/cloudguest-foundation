@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -16,6 +17,9 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { PlatformBrandingProvider } from "@/context/PlatformBrandingContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+// Side-effect import -- runs i18next's init() before first render. See
+// docs/hindi-language-rollout-spec.md, "Introduce react-i18next".
+import i18n from "@/lib/i18n";
 
 function NotFoundComponent() {
   return (
@@ -195,19 +199,21 @@ function RootComponent() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <PlatformBrandingProvider>
-          <AuthProvider>
-            <AuthRouterContextSync />
-            <TooltipProvider delayDuration={200}>
-              <Outlet />
-              <Toaster position="top-right" richColors closeButton />
-            </TooltipProvider>
-          </AuthProvider>
-        </PlatformBrandingProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <PlatformBrandingProvider>
+            <AuthProvider>
+              <AuthRouterContextSync />
+              <TooltipProvider delayDuration={200}>
+                <Outlet />
+                <Toaster position="top-right" richColors closeButton />
+              </TooltipProvider>
+            </AuthProvider>
+          </PlatformBrandingProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </I18nextProvider>
   );
 }
 

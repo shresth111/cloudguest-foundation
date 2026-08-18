@@ -6,6 +6,7 @@ import {
   Users, X, Download, Smartphone, Wifi,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ export const Route = createFileRoute("/users")({
 });
 
 function CustomerUsersPage() {
+  const { t } = useTranslation("guests");
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation, activeLocationId } = useCustomerStore();
@@ -135,7 +137,7 @@ function CustomerUsersPage() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
-          title={<p className="truncate text-sm font-semibold">Connected guests · {activeLocation?.name ?? ""}</p>}
+          title={<p className="truncate text-sm font-semibold">{t("title")} · {activeLocation?.name ?? ""}</p>}
           locationId={locationId}
           planExpiryIso={planExpiryIso}
           onMobileMenuClick={() => setMobile(true)}
@@ -171,7 +173,7 @@ function CustomerUsersPage() {
                 <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-3 premium-card premium-card-hover">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Users className="h-4 w-4 text-white" /></div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">Total guests</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("totalGuests")}</p>
                     <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">{data.total.toLocaleString()}</p>
                   </div>
                 </div>
@@ -182,7 +184,7 @@ function CustomerUsersPage() {
                   {(onlineNow.data ?? 0) > 0 && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-ping rounded-full bg-emerald-400" />}
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Online now</p>
+                  <p className="text-xs font-medium text-muted-foreground">{t("onlineNow")}</p>
                   <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">
                     {onlineNow.isLoading ? <span className="inline-block h-5 w-8 animate-pulse rounded bg-muted align-middle" /> : (onlineNow.data ?? 0).toLocaleString()}
                   </p>
@@ -191,18 +193,18 @@ function CustomerUsersPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="relative flex-1 sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Search users…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="h-10 pl-9 bg-background" /></div>
-              <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">{["all", "online", "offline"].map((tab) => (<button key={tab} onClick={() => { setStatusTab(tab); setPage(0); }} className={cn("px-3 py-1.5 text-xs font-medium rounded-md capitalize", statusTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground")}>{tab}</button>))}</div>
+              <div className="relative flex-1 sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder={t("searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="h-10 pl-9 bg-background" /></div>
+              <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">{(["all", "online", "offline"] as const).map((tab) => (<button key={tab} onClick={() => { setStatusTab(tab); setPage(0); }} className={cn("px-3 py-1.5 text-xs font-medium rounded-md capitalize", statusTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground")}>{tab === "all" ? t("tabAll") : tab === "online" ? t("tabOnline") : t("tabOffline")}</button>))}</div>
             </div>
 
             <div className="rounded-2xl overflow-x-auto premium-card">
               <Table>
-                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">IP</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Connected at</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">Disconnected at</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">{t("colUser")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">{t("colPhone")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">{t("colMac")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">{t("colIp")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">{t("colDevice")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">{t("colDuration")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">{t("colConnectedAt")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">{t("colDisconnectedAt")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">{t("colDownload")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">{t("colStatus")}</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">{t("colActions")}</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 11 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
                   : !data || data.users.length === 0 ? (
                     <TableRow><TableCell colSpan={11} className="p-0">
-                      <UsersEmptyState label={search || statusTab !== "all" ? "No guests match your search or filter." : "No guests have connected yet."} />
+                      <UsersEmptyState label={search || statusTab !== "all" ? t("emptyNoMatch") : t("emptyNone")} />
                     </TableCell></TableRow>
                   )
                   : data.users.map((u, i) => (
@@ -229,7 +231,7 @@ function CustomerUsersPage() {
                           one visit built from N real, separately-accounted
                           GuestSession rows (a reconnect blip a few minutes
                           apart), not a fabricated single session. */}
-                      <TableCell className="text-xs"><div className="flex items-center gap-1.5">{u.duration}{!!u.mergedSessionCount && u.mergedSessionCount > 1 && (<Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal" title={`${u.mergedSessionCount} reconnects grouped into this visit`}>×{u.mergedSessionCount}</Badge>)}</div></TableCell>
+                      <TableCell className="text-xs"><div className="flex items-center gap-1.5">{u.duration}{!!u.mergedSessionCount && u.mergedSessionCount > 1 && (<Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal" title={t("reconnectsTooltip", { count: u.mergedSessionCount })}>×{u.mergedSessionCount}</Badge>)}</div></TableCell>
                       <TableCell className="text-xs text-muted-foreground hidden lg:table-cell">{new Date(u.connectedAt).toLocaleString()}</TableCell>
                       <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">{u.disconnectedAt ? new Date(u.disconnectedAt).toLocaleString() : "—"}</TableCell>
                       <TableCell className="text-xs hidden lg:table-cell">{u.download}</TableCell>
@@ -239,7 +241,7 @@ function CustomerUsersPage() {
                             {u.status === "online" && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />}
                             <span className={cn("relative inline-flex h-2 w-2 rounded-full", u.status === "online" ? "bg-emerald-500" : u.status === "idle" ? "bg-amber-500" : "bg-muted-foreground")} />
                           </span>
-                          {u.status}
+                          {u.status === "online" ? t("statusOnline") : u.status === "idle" ? t("statusIdle") : t("statusOffline")}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
@@ -250,7 +252,7 @@ function CustomerUsersPage() {
                             size="icon"
                             className="h-8 w-8 text-destructive disabled:text-muted-foreground"
                             disabled={u.status === "offline" || disconnect.isPending}
-                            title={u.status === "offline" ? "Already offline" : "Disconnect"}
+                            title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
                             onClick={(e) => {
                               e.stopPropagation();
                               setConfirmDisconnect({ id: u.id, name: u.name, guestId: u.guestId });
@@ -266,7 +268,7 @@ function CustomerUsersPage() {
               </Table>
             </div>
 
-            {totalPages > 1 && (<div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">{data?.total ?? 0} users</span><div className="flex items-center gap-1"><Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>{Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => (<Button key={i} variant={page === i ? "default" : "outline"} size="sm" className="h-8 w-8 p-0" onClick={() => setPage(i)}>{i + 1}</Button>))}<Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button></div></div>)}
+            {totalPages > 1 && (<div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">{t("usersCount", { count: data?.total ?? 0 })}</span><div className="flex items-center gap-1"><Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>{Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => (<Button key={i} variant={page === i ? "default" : "outline"} size="sm" className="h-8 w-8 p-0" onClick={() => setPage(i)}>{i + 1}</Button>))}<Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button></div></div>)}
           </div>
         </main>
       </div>
@@ -297,23 +299,23 @@ function CustomerUsersPage() {
                     <span className={cn("relative inline-flex h-3 w-3 rounded-full", detailUser.status === "online" ? "bg-emerald-500" : detailUser.status === "idle" ? "bg-amber-500" : "bg-muted-foreground")} />
                   </span>
                   <div>
-                    <p className="text-[11px] font-medium text-muted-foreground">Status</p>
-                    <p className={cn("text-sm font-semibold capitalize", detailUser.status === "online" ? "text-emerald-600" : detailUser.status === "idle" ? "text-amber-600" : "text-foreground")}>{detailUser.status}</p>
+                    <p className="text-[11px] font-medium text-muted-foreground">{t("detailStatus")}</p>
+                    <p className={cn("text-sm font-semibold capitalize", detailUser.status === "online" ? "text-emerald-600" : detailUser.status === "idle" ? "text-amber-600" : "text-foreground")}>{detailUser.status === "online" ? t("statusOnline") : detailUser.status === "idle" ? t("statusIdle") : t("statusOffline")}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Duration</p><p className="mt-1 text-sm font-semibold">{detailUser.duration}</p>{!!detailUser.mergedSessionCount && detailUser.mergedSessionCount > 1 && <p className="mt-0.5 text-[11px] text-muted-foreground">Across {detailUser.mergedSessionCount} reconnects</p>}</div>
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Device</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Smartphone className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.device}</p></div>
-                  <div className="rounded-xl border p-3 col-span-2"><p className="text-[11px] font-medium text-muted-foreground">Data used</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Download className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.download}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailDuration")}</p><p className="mt-1 text-sm font-semibold">{detailUser.duration}</p>{!!detailUser.mergedSessionCount && detailUser.mergedSessionCount > 1 && <p className="mt-0.5 text-[11px] text-muted-foreground">{t("reconnectsAcross", { count: detailUser.mergedSessionCount })}</p>}</div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailDevice")}</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Smartphone className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.device}</p></div>
+                  <div className="rounded-xl border p-3 col-span-2"><p className="text-[11px] font-medium text-muted-foreground">{t("detailDataUsed")}</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Download className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.download}</p></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Connected at</p><p className="mt-1 text-sm font-semibold">{new Date(detailUser.connectedAt).toLocaleString()}</p></div>
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Disconnected at</p><p className="mt-1 text-sm font-semibold">{detailUser.disconnectedAt ? new Date(detailUser.disconnectedAt).toLocaleString() : "—"}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailConnectedAt")}</p><p className="mt-1 text-sm font-semibold">{new Date(detailUser.connectedAt).toLocaleString()}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailDisconnectedAt")}</p><p className="mt-1 text-sm font-semibold">{detailUser.disconnectedAt ? new Date(detailUser.disconnectedAt).toLocaleString() : "—"}</p></div>
                 </div>
-                <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Phone</p><p className="mt-1 text-sm">{masked ? maskPhone(detailUser.phone) : detailUser.phone}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailPhone")}</p><p className="mt-1 text-sm">{masked ? maskPhone(detailUser.phone) : detailUser.phone}</p></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">MAC Address</p><p className="mt-1 font-mono text-sm">{masked ? maskMac(detailUser.mac) : detailUser.mac}</p></div>
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">IP Address</p><p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailMac")}</p><p className="mt-1 font-mono text-sm">{masked ? maskMac(detailUser.mac) : detailUser.mac}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailIp")}</p><p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p></div>
                 </div>
               </div>
               <div className="border-t p-4">
@@ -324,7 +326,7 @@ function CustomerUsersPage() {
                   onClick={() => setConfirmDisconnect({ id: detailUser.id, name: detailUser.name, guestId: detailUser.guestId })}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
-                  {detailUser.status === "offline" ? "Already offline" : "Disconnect user"}
+                  {detailUser.status === "offline" ? t("alreadyOffline") : t("disconnectUser")}
                 </Button>
               </div>
             </motion.div>
@@ -342,15 +344,13 @@ function CustomerUsersPage() {
       <AlertDialog open={!!confirmDisconnect} onOpenChange={(o) => !o && setConfirmDisconnect(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect {confirmDisconnect?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("confirmDisconnectTitle", { name: confirmDisconnect?.name })}</AlertDialogTitle>
             <AlertDialogDescription>
-              This ends their session and forces their device off this network's router (Wi-Fi
-              registration + DHCP lease) -- not just our own record of it. They'll see the login
-              page again if they try to reconnect.
+              {t("confirmDisconnectDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -363,16 +363,16 @@ function CustomerUsersPage() {
                     // best-effort (see disconnectSession()'s docstring): a
                     // guest can have zero tracked ConnectedDevice rows if
                     // the router-sync mechanism hasn't discovered them yet.
-                    if (result.deviceDisconnected) toast.success(`${confirmDisconnect.name} disconnected -- session ended and device cleared from the router`);
-                    else toast.warning(`${confirmDisconnect.name}'s session ended -- device-level disconnect wasn't available for this guest`);
+                    if (result.deviceDisconnected) toast.success(t("disconnectSuccess", { name: confirmDisconnect.name }));
+                    else toast.warning(t("disconnectPartial", { name: confirmDisconnect.name }));
                   },
-                  onError: (err) => toast.error((err as unknown as AppError).message || "Couldn't disconnect this session"),
+                  onError: (err) => toast.error((err as unknown as AppError).message || t("disconnectError")),
                 });
                 setConfirmDisconnect(null);
                 setDetailUser(null);
               }}
             >
-              Disconnect
+              {t("confirmDisconnect")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

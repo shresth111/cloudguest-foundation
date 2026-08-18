@@ -1,0 +1,11 @@
+{
+  "title": "Account preferences",
+  "description": "Localization and display settings for your account.",
+  "language": "Language",
+  "timezone": "Timezone",
+  "compactDensity": "Compact density",
+  "compactDensityDescription": "Reduce padding across tables and cards.",
+  "save": "Save",
+  "saved": "Preferences saved",
+  "saveFailed": "Failed to save preferences"
+}

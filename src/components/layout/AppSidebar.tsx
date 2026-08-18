@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { BrandTitle } from "@/components/brand/BrandTitle";
@@ -24,6 +25,7 @@ import { primaryRoleLabel } from "@/lib/roles";
 import type { SidebarGroupDef, SidebarNode } from "@/types/permissions";
 
 export function AppSidebar() {
+  const { t } = useTranslation("nav");
   const { user, roles } = useAuth();
   const { sidebar, isLoading } = usePermissions();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -56,7 +58,7 @@ export function AppSidebar() {
           groups.map((g) => (
             <SidebarGroup key={g.id}>
               <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
-                {g.label}
+                {t(`group.${g.id}`, g.label)}
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -85,6 +87,8 @@ export function AppSidebar() {
 }
 
 function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: string }) {
+  const { t } = useTranslation("nav");
+  const label = t(`item.${item.id}`, item.label);
   const Icon = resolveIcon(item.icon);
   const to = item.to ?? "#";
   const active =
@@ -97,11 +101,11 @@ function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: strin
       <SidebarMenuItem>
         <SidebarMenuButton
           disabled
-          tooltip={`${item.label} — Access restricted. Contact your Administrator.`}
+          tooltip={`${label} — Access restricted. Contact your Administrator.`}
           className="opacity-60"
         >
           <Icon className="h-4 w-4" />
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{label}</span>
           <Lock className="h-3.5 w-3.5 opacity-70" />
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -119,7 +123,7 @@ function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: strin
       <SidebarMenuButton
         asChild
         isActive={active}
-        tooltip={item.label}
+        tooltip={label}
         className={cn(
           "relative transition-colors",
           active &&
@@ -128,7 +132,7 @@ function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: strin
       >
         <Link to={to} className="flex items-center gap-2">
           <Icon className="h-4 w-4" />
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{label}</span>
           {typeof item.counter === "number" && item.counter > 0 && (
             <span className="ml-auto rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[10px] font-medium text-sidebar-accent-foreground">
               {item.counter > 99 ? "99+" : item.counter}

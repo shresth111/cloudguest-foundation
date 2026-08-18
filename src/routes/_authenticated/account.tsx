@@ -23,6 +23,7 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import { SectionHeader } from "@/components/ui-ext";
 import { authService } from "@/services/auth.service";
 import { rbacService } from "@/services/rbac.service";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/hooks/useSystem";
+import { setDashboardLanguage } from "@/lib/i18n";
 import type { AppError } from "@/services/api";
 import {
   changePasswordSchema,
@@ -259,6 +261,7 @@ function ProfileSection() {
 }
 
 function AccountSection() {
+  const { t } = useTranslation("account");
   const { user, updateUser } = useAuth();
   const [lang, setLang] = useState(user?.language ?? "en");
   const [tz, setTz] = useState(user?.timezone ?? "Asia/Kolkata");
@@ -269,9 +272,13 @@ function AccountSection() {
     try {
       const updated = await authService.updateMyProfile({ language: lang, timezone: tz });
       updateUser(updated);
-      toast.success("Preferences saved");
+      // Makes the change take effect immediately, no reload -- this is the
+      // fix for the gap described in docs/hindi-language-rollout-spec.md:
+      // this selector saved successfully before, but nothing reacted to it.
+      setDashboardLanguage(lang);
+      toast.success(t("saved"));
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save preferences");
+      toast.error((err as AppError).message || t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -279,27 +286,27 @@ function AccountSection() {
 
   return (
     <SectionCard
-      title="Account preferences"
-      description="Localization and display settings for your account."
-      footer={<Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save</Button>}
+      title={t("title")}
+      description={t("description")}
+      footer={<Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("save")}</Button>}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Language</Label>
+          <Label>{t("language")}</Label>
           <select
             value={lang}
             onChange={(e) => setLang(e.target.value)}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             <option value="en">English</option>
-            <option value="hi">Hindi</option>
+            <option value="hi">हिन्दी (Hindi)</option>
             <option value="fr">French</option>
             <option value="es">Spanish</option>
             <option value="ar">Arabic</option>
           </select>
         </div>
         <div className="space-y-2">
-          <Label>Timezone</Label>
+          <Label>{t("timezone")}</Label>
           <select
             value={tz}
             onChange={(e) => setTz(e.target.value)}
@@ -316,10 +323,8 @@ function AccountSection() {
       <Separator />
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-medium">Compact density</div>
-          <div className="text-xs text-muted-foreground">
-            Reduce padding across tables and cards.
-          </div>
+          <div className="text-sm font-medium">{t("compactDensity")}</div>
+          <div className="text-xs text-muted-foreground">{t("compactDensityDescription")}</div>
         </div>
         <Switch />
       </div>

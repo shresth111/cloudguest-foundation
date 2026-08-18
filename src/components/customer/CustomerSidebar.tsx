@@ -1,4 +1,5 @@
 import { Shield, Eye, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { customerNavGroupsForRole, getCustomerLoginRole } from "@/lib/customerNav";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
@@ -45,6 +46,7 @@ export function CustomerSidebar({
   subtitle,
   dataMasking,
 }: CustomerSidebarProps) {
+  const { t } = useTranslation("nav");
   const role = getCustomerLoginRole();
   const navGroups = customerNavGroupsForRole(role);
   const expanded = !collapsed;
@@ -77,17 +79,18 @@ export function CustomerSidebar({
           <div key={g.id} className="space-y-1">
             {expanded && (
               <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                {g.label}
+                {t(`customerGroup.${g.id}`, g.label)}
               </p>
             )}
             {g.items.map((item) => {
               const Icon = item.icon;
               const active = item.id === activeId;
+              const label = t(`customerItem.${item.id}`, item.label);
               return (
                 <button
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
-                  title={item.label}
+                  title={label}
                   className={cn(
                     // A left indicator bar + soft tinted background/glow on
                     // the active item (never used for hover, so hovering a
@@ -112,7 +115,7 @@ export function CustomerSidebar({
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                   </span>
-                  {expanded && <span className="truncate">{item.label}</span>}
+                  {expanded && <span className="truncate">{label}</span>}
                 </button>
               );
             })}
