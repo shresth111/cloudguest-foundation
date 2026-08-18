@@ -59,7 +59,7 @@ export const Route = createFileRoute("/portal/team")({
  * worth a backend migration for a card a guest with no code can just skip.
  */
 function TeamJoinPage() {
-  const { session, guestIdentifier, deviceMac } = usePortalRuntime();
+  const { session, guestIdentifier, deviceMac, t } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/team" });
 
   useEffect(() => {
@@ -100,11 +100,9 @@ function TeamJoinPage() {
             <Users2 className="h-6 w-6" />
           </div>
           <h1 className="font-display mt-4 text-2xl font-bold tracking-tight text-slate-900">
-            Join a team
+            {t("teamPageTitle")}
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Enter the team code your group organizer shared with you.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">{t("teamPageSubtitle")}</p>
         </div>
 
         <PortalCard variant="light">
@@ -112,15 +110,11 @@ function TeamJoinPage() {
             <div className="flex flex-col items-center gap-3 py-2 text-center">
               <CheckCircle2 className="h-10 w-10 text-emerald-500" />
               <p className="text-sm font-semibold text-slate-800">
-                {joined.alreadyMember
-                  ? "You're already part of this team."
-                  : "You've joined the team!"}
+                {joined.alreadyMember ? t("teamAlreadyJoined") : t("teamJoined")}
               </p>
-              <p className="text-xs text-slate-500">
-                Your connection isn't affected -- this only groups you with your team.
-              </p>
+              <p className="text-xs text-slate-500">{t("teamJoinedHelper")}</p>
               <button type="button" onClick={backToSession} className={PG_PRIMARY_BTN}>
-                Back to my connection
+                {t("backToConnection")}
               </button>
             </div>
           ) : (
@@ -131,11 +125,11 @@ function TeamJoinPage() {
               }}
               className="space-y-3"
             >
-              <label className="text-xs font-semibold text-slate-500">Team code</label>
+              <label className="text-xs font-semibold text-slate-500">{t("teamCodeLabel")}</label>
               <Input
                 value={teamCode}
                 onChange={(e) => setTeamCode(e.target.value.toUpperCase())}
-                placeholder="e.g. AB23CD45"
+                placeholder={t("teamCodePlaceholder")}
                 maxLength={32}
                 autoFocus
                 autoCapitalize="characters"
@@ -153,7 +147,7 @@ function TeamJoinPage() {
                 {join.isPending ? (
                   <Loader2 className="mx-auto h-4 w-4 animate-spin" />
                 ) : (
-                  "Join team"
+                  t("joinTeam")
                 )}
               </button>
               <button
@@ -162,7 +156,7 @@ function TeamJoinPage() {
                 disabled={join.isPending}
                 className="h-11 w-full rounded-[14px] text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
               >
-                Skip for now
+                {t("skipForNow")}
               </button>
             </form>
           )}

@@ -163,7 +163,7 @@ function InitialLoader() {
 const LOAD_FONTS_SCRIPT = `(function(){
   var l = document.createElement("link");
   l.rel = "stylesheet";
-  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap";
+  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap";
   document.head.appendChild(l);
 })();`;
 
