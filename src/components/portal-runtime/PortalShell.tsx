@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,42 +7,15 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 
-// Two soft, blurred color washes -- nothing else. The previous version of
-// this (concentric range rings + a connected-node "network mesh" + a
-// faint grid) was the exact generic "tech/connectivity" cliche this
-// codebase's own design guidance warns against, and read as busy/
-// templated rather than the clean, premium feel a guest's first real
-// touchpoint with a venue should have (bug report: "clean design abhi
-// bhi nahi hai" -- the mesh was the problem, not a bug in it). A guest's
-// own attention belongs on the sign-in card, not a decorative pattern
-// behind it. Colors still come from `--pr-primary`/`--pr-accent`, so
-// this stays genuinely on-brand per organization rather than a
-// hardcoded indigo. Deliberately static (no animation loop) -- this
-// renders on a guest's own phone before they have real internet, not
-// worth the extra CPU/battery for a decorative touch. Never rendered
-// at all when the organization has its own uploaded background image
-// (see this component's own caller) -- a real photo/artwork should
-// never compete with a default decoration behind it.
-function AmbientGlow() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        aria-hidden
-        className="absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full opacity-[0.16] blur-3xl"
-        style={{
-          background: "radial-gradient(circle, var(--pr-primary, #6366f1) 0%, transparent 70%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full opacity-[0.14] blur-3xl"
-        style={{
-          background: "radial-gradient(circle, var(--pr-accent, #4f46e5) 0%, transparent 70%)",
-        }}
-      />
-    </div>
-  );
-}
+// System-font stack for the redesigned "light" guest flow -- see the
+// captive-portal redesign spec's §2/§3: the guest path only ever used one
+// of the app's four Google-Fonts families (Manrope, hardcoded here), and
+// dropping webfonts from this path entirely both removes a network
+// dependency a captive-portal guest may not even be able to reach
+// pre-auth and is itself part of not repeating the previous "generic
+// friendly SaaS" visual recipe (Manrope is a very recognizable instance
+// of that). Carried by weight/tracking/size choices, not a custom face.
+const PG_FONT_STACK = '-apple-system, "Segoe UI", Roboto, ui-sans-serif, system-ui, sans-serif';
 
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
  * that used to be empty gradient next to a small floating card. Copy is
@@ -53,17 +25,32 @@ function AmbientGlow() {
  * length) this codebase has no real config field for -- see this
  * session's own audit call-out on not inventing guest-facing copy that
  * isn't backed by real data. */
-function BrandPanel({ venueName, hasBackgroundImage }: { venueName?: string; hasBackgroundImage?: boolean }) {
+function BrandPanel({
+  venueName,
+  hasBackgroundImage,
+}: {
+  venueName?: string;
+  hasBackgroundImage?: boolean;
+}) {
   const content = (
     <>
-      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--pr-primary,#6366f1)]/20 bg-white/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--pr-primary,#6366f1)] backdrop-blur">
+      {/* Solid chip, not a glassy `bg-white/70 backdrop-blur` badge -- the
+       * "quiet, confident, venue signage" direction (redesign spec §2)
+       * deliberately drops the glass-panel vocabulary of the previous
+       * pass; a flat neutral background no longer needs a blur to stay
+       * legible underneath this. */}
+      <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--pr-primary,#6366f1)]">
         <Wifi className="h-3.5 w-3.5" /> Guest network
       </span>
-      <h2 className="font-display mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]">
+      <h2 className="mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]">
         Fast, secure WiFi{venueName ? <>, courtesy of {venueName}</> : null}.
       </h2>
+      {/* No "it takes about fifteen seconds" -- that was a fabricated
+       * timing claim this codebase has no real config field to back (see
+       * redesign spec §1a.2); the rest of the sentence already tells a
+       * guest exactly what to do next without inventing a number. */}
       <p className="mt-5 max-w-md text-[16px] leading-relaxed text-slate-500">
-        Verify your device on the right to get connected -- it takes about fifteen seconds.
+        Verify your device on the right to get connected.
       </p>
     </>
   );
@@ -94,10 +81,12 @@ interface Props {
   /** "dark" (default) is the original glass-on-navy look, still used by
    * every portal.* route this visual redesign didn't touch
    * (offline/failure/ad/redirect/terms/auth picker). "light" is
-   * the new spec-driven look (white card, 24px radius, soft layered
-   * shadow, indigo-tinted gradient background with an animated glow
-   * blob) used by the redesigned guest sign-in flow itself (welcome,
-   * success, session, expired, set-password). */
+   * the redesign-#2 "quiet, confident, venue signage" look (flat neutral
+   * `#FAFAF8` background, thin-bordered 16px-radius white card, flat
+   * single-color CTA fill, system-font stack -- see
+   * docs/captive-portal-redesign-spec.md §2) used by the redesigned guest
+   * sign-in flow itself (welcome, success, session, expired,
+   * set-password). */
   variant?: "dark" | "light";
   /** When true, sizes to 100% of its parent container (`h-full`) instead
    * of the full viewport (`min-h-dvh`) -- used by the admin Portal
@@ -140,8 +129,8 @@ export function PortalShell({
           // "portal-runtime" is the selector PortalRuntimeContext's own
           // injected <style> scopes --pr-primary/--pr-accent to (see that
           // file's own useEffect) -- missing here meant every var(--pr-*)
-          // reference in this file (AmbientGlow's own wash, plus every
-          // descendant that reads it) silently fell back to its
+          // reference in this file (every descendant that reads it, e.g.
+          // PortalCard/PG_PRIMARY_BTN) silently fell back to its
           // hardcoded #6366f1/#4f46e5 default forever, regardless of the
           // organization's real brand color. The dark variant below
           // already carries this class; the light variant -- the one
@@ -170,8 +159,15 @@ export function PortalShell({
           largeText && "text-[17px]",
         )}
         style={{
-          fontFamily: "'Manrope', ui-sans-serif, system-ui, sans-serif",
-          background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)",
+          fontFamily: PG_FONT_STACK,
+          // Flat, near-flat neutral -- not a colored gradient wash. The
+          // previous indigo-tinted gradient here tinted every venue's page
+          // the same color regardless of that venue's own brand, and read
+          // as the generic "SaaS onboarding" look this redesign moves away
+          // from (spec §2). The venue's real `--pr-primary`/`--pr-accent`
+          // now only show up in small, deliberate places (button fill,
+          // active tab state, focus ring) instead of the whole background.
+          background: "#FAFAF8",
         }}
       >
         {/* Same organization-uploaded background image the "dark" variant
@@ -208,7 +204,13 @@ export function PortalShell({
             />
           </>
         )}
-        {!config?.backgroundImageUrl && <AmbientGlow />}
+        {/* No decorative wash for the default (no-custom-background) case
+         * under the new flat/neutral direction -- the previous two
+         * blurred-gradient "AmbientGlow" blobs were dropped entirely
+         * (redesign spec §3): they cost two extra blurred paints for no
+         * visual payoff once the page itself is already a flat neutral,
+         * and a guest's attention belongs on the sign-in card, not a
+         * decorative pattern behind it. */}
 
         {/* Below lg:, this fills the viewport edge-to-edge like every
          * phone/tablet captive-portal page should (single column, the
@@ -232,7 +234,10 @@ export function PortalShell({
         >
           {!constrained && (
             <div className="hidden lg:block">
-              <BrandPanel venueName={config?.name} hasBackgroundImage={!!config?.backgroundImageUrl} />
+              <BrandPanel
+                venueName={config?.name}
+                hasBackgroundImage={!!config?.backgroundImageUrl}
+              />
             </div>
           )}
           <div
@@ -245,14 +250,17 @@ export function PortalShell({
               <LanguageSwitcher tone="light" />
               <A11yMenu tone="light" />
             </div>
-            <motion.main
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-              className={cn("flex flex-1 flex-col", contentClassName)}
-            >
+            {/* CSS-only mount fade-in (`pg-enter`, defined in styles.css)
+             * replaces a `framer-motion` `motion.main` fade -- see the
+             * redesign spec's §3: a single 150-200ms ease-out
+             * fade/translate on mount doesn't need a JS animation library,
+             * and dropping this import (along with GuestSignInCard's tab
+             * pill, its other framer-motion usage) is what lets Rollup
+             * stop pulling framer-motion into the shared guest-portal
+             * entry chunk every portal.* route loads. */}
+            <main className={cn("pg-enter flex flex-1 flex-col", contentClassName)}>
               {children}
-            </motion.main>
+            </main>
             <footer className="mt-8 flex items-center justify-center gap-2.5 text-center text-[11px]">
               {/* One link, not two -- /portal/terms already covers both
                * Terms of service and Privacy policy as separate sections
@@ -343,14 +351,9 @@ export function PortalShell({
             </div>
           </header>
         )}
-        <motion.main
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className={cn("flex flex-1 flex-col", contentClassName)}
-        >
-          {children}
-        </motion.main>
+        {/* See the "light" variant's own comment above -- same CSS-only
+         * `pg-enter` fade-in, no framer-motion import. */}
+        <main className={cn("pg-enter flex flex-1 flex-col", contentClassName)}>{children}</main>
         {/* Same real footer convention as the light variant (Terms/Privacy
          * link to the real /portal/terms page, "Support" left as plain
          * text -- see that footer's own comment for why) -- this variant
@@ -387,11 +390,17 @@ export function PortalCard({
   variant?: "dark" | "light";
 }) {
   if (variant === "light") {
+    // Flattened per the redesign spec's §2 "Card" direction: a thin 1px
+    // border + a small, tight shadow, not the previous `0 24px 60px -20px
+    // rgba(79,70,229,.28)` -- that much blur/spread on an already-neutral
+    // background was part of the "glassy SaaS" signal this redesign moves
+    // away from. Radius pulled back from 24px to 16px (`rounded-2xl`) --
+    // still soft, less "bubble."
     return (
       <div
-        className={cn("rounded-[24px] border border-indigo-100/80 bg-white p-6", className)}
+        className={cn("rounded-2xl border border-slate-200 bg-white p-6", className)}
         style={{
-          boxShadow: "0 24px 60px -20px rgba(79,70,229,0.28), 0 8px 24px -10px rgba(15,23,42,0.12)",
+          boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.12)",
         }}
       >
         {children}

@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Smartphone, Mail, Ticket, KeyRound, MessageCircle } from "lucide-react";
+import { Smartphone, Mail, Ticket, KeyRound, MessageCircle, ChevronDown } from "lucide-react";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
-import { AlertBanner, ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
+import {
+  AlertBanner,
+  ConnectingOverlay,
+  DEFAULT_PORTAL_LOGO_SRC,
+  PG_INPUT,
+  PG_PRIMARY_BTN,
+} from "./PortalGuestUi";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -19,8 +24,10 @@ import type { AppError } from "@/services/api";
 
 /**
  * The redesigned guest sign-in card: centered logo mark, "Welcome to
- * [venue]" heading, a pill two-tab toggle ("New user · Mobile OTP" /
- * "Registered user"), and each tab's real, already-working backend call
+ * [venue]" heading, a pill two-tab toggle (plain, action-first labels --
+ * "Text me a code" / "I have a password", not the previous admin-facing
+ * "New user"/"Registered" language -- see the captive-portal redesign
+ * spec's §1a.3/§4), and each tab's real, already-working backend call
  * (``/guest/otp/request`` -> ``/guest/otp/verify`` via
  * ``portalRuntimeService.requestOtp``/``loginWithOtp``; ``/guest/login/
  * password`` via ``loginWithPassword``) -- this component owns no new
@@ -293,9 +300,7 @@ export function GuestSignInCard() {
   const onSendOtp = () => {
     const id = identifierForChannel.trim();
     const isPhoneChannel = otpChannel !== "email";
-    if (
-      isPhoneChannel ? id.replace(countryCode, "").trim().length < 6 : !/.+@.+\..+/.test(id)
-    ) {
+    if (isPhoneChannel ? id.replace(countryCode, "").trim().length < 6 : !/.+@.+\..+/.test(id)) {
       setOtpError(
         isPhoneChannel
           ? otpChannel === "whatsapp"
@@ -380,6 +385,27 @@ export function GuestSignInCard() {
   const showTabs = hasOtp && hasPassword;
   const noMethods = !hasOtp && !hasPassword && !hasVoucher;
 
+  // Plain, action-first tab label (redesign spec §4) instead of the
+  // previous admin-facing "New user / Mobile OTP" -- picks the right verb
+  // for whichever OTP channel is actually this venue's primary one
+  // (reuses the same `otpChannel` state the OTP form itself is driven by,
+  // never hardcoded to "text").
+  const otpTabLabel =
+    otpChannel === "email"
+      ? "Email me a code"
+      : otpChannel === "whatsapp"
+        ? "WhatsApp me a code"
+        : "Text me a code";
+
+  // Secondary-link hierarchy fix (redesign spec §4): the alternate OTP
+  // channel links and the voucher fallback used to always render open,
+  // competing with the one primary CTA most guests actually need. Both
+  // collapse into a single low-emphasis disclosure now -- same underlying
+  // `otherMethodLinks`/`hasVoucher` data and logic, just not open by
+  // default.
+  const showVoucherFallback = hasVoucher && (hasOtp || hasPassword);
+  const hasMoreSignInOptions = otherMethodLinks.length > 0 || showVoucherFallback;
+
   const TermsCheckbox = (
     <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">
       <Checkbox
@@ -416,7 +442,7 @@ export function GuestSignInCard() {
           alt=""
           className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
         />
-        <h1 className="font-display mt-4 text-[26px] font-bold tracking-tight leading-tight text-slate-900">
+        <h1 className="mt-4 text-[26px] font-bold tracking-tight leading-tight text-slate-900">
           {heading}
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">{subtext}</p>
@@ -435,17 +461,27 @@ export function GuestSignInCard() {
         ) : (
           <>
             {showTabs && (
+              // CSS-only sliding pill (redesign spec §3): there are always
+              // exactly 2 tabs in this fixed 2-column grid, so no
+              // framer-motion `layoutId` shared-element measurement is
+              // needed -- `.pg-tab-pill` (styles.css) is a single
+              // absolutely positioned pill sized to one grid cell,
+              // sliding via `transform` driven by this container's own
+              // `data-active-tab` attribute.
               <div
                 role="tablist"
                 aria-label="Sign-in method"
-                className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-indigo-50 p-1 ring-1 ring-inset ring-indigo-100"
+                data-active-tab={tab}
+                className="relative mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-indigo-50 p-1 ring-1 ring-inset ring-indigo-100"
               >
-                {(
-                  [
-                    { id: "otp" as const, label: "New user", hint: "Mobile OTP" },
-                    { id: "password" as const, label: "Registered", hint: "Password" },
-                  ]
-                ).map((item) => {
+                <span
+                  aria-hidden
+                  className="pg-tab-pill absolute bottom-1 left-1 top-1 w-[calc(50%-6px)] rounded-[14px] bg-white shadow-[0_1px_2px_rgba(17,20,40,0.06),0_6px_16px_-8px_rgba(49,46,129,0.35)]"
+                />
+                {[
+                  { id: "otp" as const, label: otpTabLabel },
+                  { id: "password" as const, label: "I have a password" },
+                ].map((item) => {
                   const active = tab === item.id;
                   return (
                     <button
@@ -454,32 +490,15 @@ export function GuestSignInCard() {
                       role="tab"
                       aria-selected={active}
                       onClick={() => setTab(item.id)}
-                      className="relative min-h-[52px] rounded-[14px] px-2 py-2 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-50"
+                      className="relative z-10 min-h-[52px] rounded-[14px] px-2 py-2 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-50"
                     >
-                      {active && (
-                        <motion.span
-                          layoutId="guest-signin-tab-pill"
-                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                          className="absolute inset-0 rounded-[14px] bg-white shadow-[0_1px_2px_rgba(17,20,40,0.06),0_6px_16px_-8px_rgba(49,46,129,0.35)]"
-                        />
-                      )}
-                      <span className="relative block">
-                        <span
-                          className={
-                            "block text-[13px] font-semibold leading-tight " +
-                            (active ? "text-indigo-700" : "text-slate-500")
-                          }
-                        >
-                          {item.label}
-                        </span>
-                        <span
-                          className={
-                            "mt-0.5 block text-[10px] font-medium uppercase tracking-[0.08em] " +
-                            (active ? "text-indigo-500" : "text-slate-400")
-                          }
-                        >
-                          {item.hint}
-                        </span>
+                      <span
+                        className={
+                          "block text-[13px] font-semibold leading-tight " +
+                          (active ? "text-indigo-700" : "text-slate-500")
+                        }
+                      >
+                        {item.label}
                       </span>
                     </button>
                   );
@@ -492,7 +511,8 @@ export function GuestSignInCard() {
                 {phase === "profile" ? (
                   <>
                     <p className="text-center text-sm text-slate-500">
-                      You're connected! Tell us a bit about yourself <span className="text-slate-400">(optional)</span>.
+                      You're connected! Tell us a bit about yourself{" "}
+                      <span className="text-slate-400">(optional)</span>.
                     </p>
                     <div>
                       <label className="text-xs font-semibold text-slate-500">Name</label>
@@ -587,7 +607,7 @@ export function GuestSignInCard() {
                             <InputOTPSlot
                               key={i}
                               index={i}
-                              className="font-display h-14 w-11 rounded-2xl border-slate-200 bg-white text-xl font-semibold tabular-nums text-slate-900 shadow-none transition-all duration-150 first:rounded-2xl last:rounded-2xl"
+                              className="h-14 w-11 rounded-2xl border-slate-200 bg-white text-xl font-semibold tabular-nums text-slate-900 shadow-none transition-[border-color,box-shadow] duration-150 first:rounded-2xl last:rounded-2xl"
                             />
                           ))}
                         </InputOTPGroup>
@@ -692,37 +712,51 @@ export function GuestSignInCard() {
               </p>
             )}
 
-            {otherMethodLinks.length > 0 && (
-              <div className="mt-3 flex flex-col items-center gap-1.5">
-                {otherMethodLinks.map((l) => (
-                  <button
-                    key={l.label}
-                    type="button"
-                    onClick={l.onClick}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
-                  >
-                    <l.icon className="h-3.5 w-3.5" /> {l.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {hasVoucher && (hasOtp || hasPassword) && (
-              <Link
-                to="/portal/auth/$method"
-                params={{ method: "voucher" }}
-                search={portalSearch}
-                className="mt-3 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
-              >
-                <Ticket className="h-3.5 w-3.5" /> Have a voucher code? Use it instead
-              </Link>
+            {/* Secondary-link hierarchy fix (redesign spec §4): the
+             * alternate OTP channel links and the voucher fallback used to
+             * always render open, competing with the one primary CTA most
+             * guests actually need. A single low-emphasis disclosure now
+             * holds whichever of those are actually enabled, collapsed by
+             * default -- same underlying data/logic
+             * (`otherMethodLinks`/`hasVoucher`), just not open by default.
+             * Native `<details>`, not JS state, so the expand/collapse
+             * itself costs nothing extra. */}
+            {hasMoreSignInOptions && (
+              <details className="group mt-3">
+                <summary className="flex cursor-pointer list-none items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-indigo-600 [&::-webkit-details-marker]:hidden">
+                  Other ways to sign in
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform duration-150 group-open:rotate-180" />
+                </summary>
+                <div className="mt-2 flex flex-col items-center gap-1.5">
+                  {otherMethodLinks.map((l) => (
+                    <button
+                      key={l.label}
+                      type="button"
+                      onClick={l.onClick}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
+                    >
+                      <l.icon className="h-3.5 w-3.5" /> {l.label}
+                    </button>
+                  ))}
+                  {showVoucherFallback && (
+                    <Link
+                      to="/portal/auth/$method"
+                      params={{ method: "voucher" }}
+                      search={portalSearch}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
+                    >
+                      <Ticket className="h-3.5 w-3.5" /> Have a voucher code? Use it instead
+                    </Link>
+                  )}
+                </div>
+              </details>
             )}
           </>
         )}
       </PortalCard>
 
       {tab === "password" && (
-        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-slate-400">
+        <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-400">
           <KeyRound className="h-3 w-3" /> Saved passwords are set right after your first OTP
           sign-in.
         </p>

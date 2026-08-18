@@ -552,3 +552,42 @@
 @media (prefers-reduced-motion: reduce) {
   .pg-glow-1, .pg-glow-2 { animation: none !important; }
 }
+
+/**
+ * CSS-only replacements for the two `framer-motion` usages that used to be
+ * in PortalShell.tsx / GuestSignInCard.tsx (see the captive-portal
+ * redesign spec's §3) -- removing that JS-driven pair is what lets Rollup
+ * stop pulling framer-motion into the shared guest-portal entry chunk
+ * every portal.* route (and, transitively, every unrelated admin route)
+ * loads. Both are trivial enough in CSS that the JS library was never
+ * doing anything a browser doesn't already do natively.
+ */
+@keyframes pg-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.pg-enter {
+  animation: pg-enter 0.2s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-enter { animation: none; }
+}
+
+/* Two-option sliding tab pill (GuestSignInCard's sign-in-method tablist).
+ * There are always exactly two tabs in a fixed 2-column grid, so no
+ * FLIP/shared-element measurement is needed -- a single absolutely
+ * positioned pill sized to one grid cell (see the `calc()` below, which
+ * accounts for the container's own p-1 inset and gap-1 gutter) slides via
+ * `transform`, driven purely by the `data-active-tab` attribute the
+ * tablist container carries. */
+.pg-tab-pill {
+  transform: translateX(0%);
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+[data-active-tab="password"] .pg-tab-pill {
+  transform: translateX(calc(100% + 4px));
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-tab-pill { transition: none; }
+}
