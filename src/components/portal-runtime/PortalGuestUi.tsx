@@ -102,6 +102,38 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
 // scopes those variables was missing from its wrapper, so the CSS
 // variable was never actually defined, and the fallback value inside
 // var(--pr-primary, #6366f1) is exactly what silently rendered instead.
+/**
+ * Full-page "Connecting you to the internet…" state -- the one steady
+ * visual shown both by `portal.index.tsx` (once a persisted session says
+ * this device is already authenticated and just passing through on its way
+ * to `/portal/success` or `/portal/session`) and `portal.success.tsx`
+ * (actually firing the real hotspot-login POST). Real incident: iOS/
+ * Android's own captive-portal-detection mini-browser periodically reloads
+ * itself back to the original portal URL mid-flow (see
+ * PortalRuntimeContext's `loadPersistedHotspotSubmit` docstring for the
+ * confirmed-live specifics) -- that used to bounce a guest between this
+ * page's own differently-styled "loading" screen (branded logo fade-in +
+ * pulsing dots) and success.tsx's spinner+copy, and two visually distinct
+ * screens alternating rapidly is exactly what read as a jarring "flick
+ * flick" flash, on top of (and separate from) the remounting itself.
+ * Rendering this identical frame on both sides means an already-
+ * authenticated guest sees one steady, unchanging spinner throughout,
+ * regardless of how many times the underlying route remounts underneath
+ * it. Deliberately NOT shown for a genuinely first-time guest (no session
+ * yet) -- that case keeps the real branded welcome/loading screen, since
+ * there's no remount-bounce risk before any session exists at all. */
+export function PortalConnectingState() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+      <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
+      <div>
+        <p className="text-lg font-semibold text-slate-900">Connecting you to the internet…</p>
+        <p className="mt-1 text-sm text-slate-500">Just a moment.</p>
+      </div>
+    </div>
+  );
+}
+
 export const PG_PRIMARY_BTN =
   "h-[52px] w-full rounded-2xl bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
