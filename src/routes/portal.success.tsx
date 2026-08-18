@@ -3,8 +3,6 @@ import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-// TEMP DIAGNOSTIC — remove after incident resolved
-import { sendPortalDiagnosticBeacon } from "@/lib/portal-diagnostic-beacon";
 
 export const Route = createFileRoute("/portal/success")({
   component: SuccessPage,
@@ -121,24 +119,6 @@ function SuccessPage() {
   // Guarded to fire at most once per mount, not on every re-render.
   const hotspotLoginSubmitted = useRef(false);
   useEffect(() => {
-    // TEMP DIAGNOSTIC — remove after incident resolved. Fires every time
-    // this effect runs, before the gate below decides anything, so a
-    // captured beacon shows the exact present/absent state of every gate
-    // condition for a real device -- including the case where the effect
-    // runs but every single field is present and yet no beacon "before
-    // submitHotspotLogin" ever follows (which would itself be a huge clue
-    // that this effect never actually re-fires on the real device).
-    sendPortalDiagnosticBeacon({
-      event: "portal_success_effect_ran",
-      guestIdentifier,
-      routerId,
-      details: {
-        sessionPresent: !!session,
-        hotspotLoginUrlPresent: !!hotspotLoginUrl,
-        guestIdentifierPresent: !!guestIdentifier,
-        alreadySubmitted: hotspotLoginSubmitted.current,
-      },
-    });
     // No guestIdentifier means there's no real phone/email this platform
     // ever verified for this browsing session (e.g. a page reload that
     // lost it) -- submitting anything else is guaranteed to be rejected
@@ -146,31 +126,11 @@ function SuccessPage() {
     // skips rather than firing a doomed request.
     if (!session || !hotspotLoginUrl || !guestIdentifier || hotspotLoginSubmitted.current) return;
     hotspotLoginSubmitted.current = true;
-    // TEMP DIAGNOSTIC — remove after incident resolved. Proves the gate
-    // above passed and submitHotspotLogin is genuinely about to run.
-    sendPortalDiagnosticBeacon({
-      event: "portal_success_before_submit",
-      guestIdentifier,
-      routerId,
-      details: { hotspotLoginUrlPresent: !!hotspotLoginUrl },
-    });
     submitHotspotLogin(
       hotspotLoginUrl,
       guestIdentifier,
       buildSessionUrl(organizationId, locationId, routerId),
     );
-    // TEMP DIAGNOSTIC — remove after incident resolved. Only reachable if
-    // form.submit() didn't actually trigger a top-level navigation away
-    // from this page (e.g. blocked by a beforeunload handler, CSP, or
-    // WebKit's captive-portal-specific handling of programmatic form
-    // submission) -- a real navigation away would normally never let this
-    // line's beacon fire at all.
-    sendPortalDiagnosticBeacon({
-      event: "portal_success_after_submit_still_here",
-      guestIdentifier,
-      routerId,
-      details: {},
-    });
   }, [session, hotspotLoginUrl, guestIdentifier, organizationId, locationId, routerId]);
 
   useEffect(() => {

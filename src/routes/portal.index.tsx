@@ -7,8 +7,6 @@ import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
-// TEMP DIAGNOSTIC — remove after incident resolved
-import { sendPortalDiagnosticBeacon } from "@/lib/portal-diagnostic-beacon";
 
 export const Route = createFileRoute("/portal/")({
   component: PortalLoading,
@@ -155,25 +153,8 @@ function PortalLoading() {
       : config.isOpenNow === false
         ? "/portal/closed"
         : "/portal/welcome";
-    // TEMP DIAGNOSTIC — remove after incident resolved. Fires every time
-    // this routing decision runs, so a captured beacon shows exactly which
-    // branch a real device took (hasSession / hotspotLoginUrl truthiness /
-    // the target actually chosen) without any browser console access.
-    sendPortalDiagnosticBeacon({
-      event: "portal_index_routing_decision",
-      deviceMac,
-      routerId,
-      details: {
-        hasSession,
-        hasLiveSession: !!liveSession,
-        hasLocalSession: !!session,
-        hotspotLoginUrlPresent: !!hotspotLoginUrl,
-        isOpenNow: config.isOpenNow,
-        target,
-      },
-    });
     navigate({ to: target, replace: true, search: (prev) => prev });
-  }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, hotspotLoginUrl, navigate, routerId]);
+  }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, hotspotLoginUrl, navigate]);
 
   if (!isLoading && error) {
     // A real response (404/400/etc) means the server looked this location
