@@ -19,7 +19,7 @@ import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
-import type { PortalLoginMethod } from "@/types/portal";
+import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
 import type { RuntimeLanguage, RuntimePortalConfig } from "@/types/portal-runtime";
 
 const SWATCHES = ["#1B57F5", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#0f172a"];
@@ -341,6 +341,18 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         login: { redirectUrl: form.redirectUrl } as any,
         loginMethods: authMethods as PortalLoginMethod[],
         seo: { pageTitle: headline, metaDescription: msg } as any,
+        // Real bug: this field was missing from the patch entirely, so the
+        // "Languages" input above -- which does round-trip on load (line
+        // ~166) and does drive the Live Preview in real time (langList
+        // feeds livePreviewConfig.supportedLanguages just above) -- never
+        // actually reached the backend on Save. An admin could type "hi"
+        // here, watch the live preview render it, click "Save
+        // Configuration", get the success toast, and the real captive
+        // portal a guest hits would still resolve `supported_languages:
+        // ["en"]` forever. Same normalization already used for the live
+        // preview (unknown codes fall back to "en") so what's saved always
+        // matches what was just previewed.
+        languages: (langList.length ? langList.map(toRuntimeLanguage) : ["en"]) as PortalLanguage[],
       };
       if (portalId) {
         await portalService.update(portalId, patch, orgId);
