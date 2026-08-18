@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket } from "@/components/features/HeaderControls";
+import { DashboardLanguageSwitcher } from "@/components/layout/DashboardLanguageSwitcher";
 import { customerFeatureHref } from "@/lib/customerNav";
 
 interface CustomerHeaderProps {
@@ -75,6 +76,14 @@ export function CustomerHeader({
           <RefreshCw className="h-4 w-4" />
         </Button>
       )}
+      {/* Was missing entirely on this header -- the dashboard i18n rollout
+          only wired DashboardLanguageSwitcher into TopNavbar.tsx (the
+          Master Console layout), leaving every real customer/org-admin page
+          (everything under /c/$locationId, which is what this component
+          renders) with no way to switch language short of a trip to Account
+          settings. Styled to match the refresh button beside it since the
+          default ghost styling isn't legible on this header's dark gradient. */}
+      <DashboardLanguageSwitcher className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" />
       <span className="[&_button]:text-white/70 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
         <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
       </span>
