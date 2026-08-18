@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "./AnimatedCounter";
+import { BorderBeam } from "@/components/magicui/border-beam";
 
 export type StatTone = "default" | "primary" | "success" | "warning" | "danger" | "info";
 export type StatTrend = "up" | "down" | "flat";
@@ -17,6 +18,13 @@ export interface StatCardProps {
   icon?: ComponentType<{ className?: string }>;
   footer?: ReactNode;
   className?: string;
+  /** Opt-in Magic UI "Border Beam" rotating-highlight border -- design v3
+   * Part 4's one sanctioned stat-tile accent: "install that one specific
+   * accent... and wrap it around the existing StatCard, rather than
+   * replacing the counting logic." Off by default; set on the single
+   * genuinely-hero KPI tile a page wants to call out, not on every card --
+   * a border animating on every tile in a grid stops reading as emphasis. */
+  highlight?: boolean;
 }
 
 const TONE_ACCENT: Record<StatTone, string> = {
@@ -58,6 +66,7 @@ export function StatCard({
   icon: Icon,
   footer,
   className,
+  highlight = false,
 }: StatCardProps) {
   const TrendIcon = trend === "up" ? ArrowUpRight : trend === "down" ? ArrowDownRight : Minus;
   const isNumeric = typeof value === "number";
@@ -115,6 +124,7 @@ export function StatCard({
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
         {footer && <div className="mt-3">{footer}</div>}
       </CardContent>
+      {highlight && <BorderBeam size={80} duration={8} borderWidth={1.5} />}
     </Card>
   );
 }

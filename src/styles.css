@@ -91,6 +91,16 @@
   --dur-fast: 140ms;
   --dur-med: 240ms;
   --gradient-surface: linear-gradient(180deg, oklch(1 0 0 / 0.6), oklch(1 0 0 / 0));
+  /* Aceternity "Aurora Background" primitive's own background-position
+   * sweep -- a continuous ambient loop, not a discrete enter/exit, so it
+   * intentionally doesn't use --ease-emphasized (that curve is for finite
+   * transitions; upstream's plain linear infinite loop is the correct
+   * choice here, same reasoning as the .aurora-blob-N / .aurora-grid loops
+   * below already using ease-in-out/linear rather than the emphasized
+   * curve). Registered as a Tailwind v4 theme animation so `animate-aurora`
+   * exists as a utility class (this repo has no tailwind.config.js --
+   * v4's CSS-based config needs it declared here). */
+  --animate-aurora: aurora 60s linear infinite;
 }
 
 
@@ -123,11 +133,13 @@
   --border: oklch(0.905 0.012 220);
   --input: oklch(0.925 0.012 220);
   --ring: oklch(0.6 0.19 265);
-  /* Indigo brand accent (glows, active rail, chart-1 highlights). Not
-     currently consumed by any component (no bg-brand/text-brand usage
-     found repo-wide), but normalized to match --primary's hue so it
-     can't become a latent green/cyan regression if used later. */
-  --brand: oklch(0.55 0.19 265);
+  /* Cyan/teal "Aurora" accent -- design v3 spec Part 0 Fix 1: this token's
+     own comment above (line ~66) always said "electric cyan/teal", but its
+     value had drifted to hue 265, a second copy of --primary's indigo.
+     Recolored to reuse --chart-1's real cyan/teal hue (oklch(0.58 0.13 205))
+     so --brand is finally distinct from --primary, as v3's Border Beam
+     (StatCard) and empty-state accents now rely on. */
+  --brand: oklch(0.62 0.14 200);
   --brand-foreground: oklch(0.16 0.03 232);
   --chart-1: oklch(0.58 0.13 205);
   --chart-2: oklch(0.7 0.14 189);
@@ -165,7 +177,9 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 13%);
   --ring: oklch(0.68 0.19 265);
-  --brand: oklch(0.68 0.19 265);
+  /* Cyan/teal, dark-mode counterpart -- see :root's own Fix 1 comment.
+     Lightness/chroma bumped the same way --chart-1 steps up for .dark. */
+  --brand: oklch(0.74 0.13 196);
   --brand-foreground: oklch(0.15 0.02 236);
   --chart-1: oklch(0.72 0.14 196);
   --chart-2: oklch(0.76 0.13 186);
@@ -454,6 +468,16 @@
   0% { background-position: 0 0; }
   100% { background-position: 48px 48px; }
 }
+/* Aceternity "Aurora Background" primitive's keyframe (`npx shadcn add
+ * @aceternity/aurora-background` -> src/components/ui/aurora-background.tsx)
+ * -- registered here rather than a tailwind.config.js because this repo's
+ * Tailwind v4 setup is CSS-config-only. Drives the customer login hero's
+ * backdrop (login.tsx) via the `.login-aurora` utility below, recolored to
+ * this app's indigo/violet/cyan set instead of the library default blue. */
+@keyframes aurora {
+  from { background-position: 50% 50%, 50% 50%; }
+  to { background-position: 350% 50%, 350% 50%; }
+}
 @keyframes float-badge {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
@@ -470,8 +494,18 @@
 .float-badge { animation: float-badge 6s ease-in-out infinite; }
 .glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
 
+/* Customer login hero backdrop (login.tsx) -- `.login-aurora` is just a
+ * stable hook for the reduced-motion override below; the Aceternity Aurora
+ * Background primitive's actual technique (base blurred gradient + a
+ * `::after` copy swept via mix-blend-difference, driven by the
+ * `animate-aurora` utility registered above) is authored inline as
+ * Tailwind arbitrary-value classes in login.tsx itself, matching how the
+ * installed primitive (src/components/ui/aurora-background.tsx) authors
+ * it, recolored to this app's cyan/violet/primary-purple set. See that
+ * file's own comment for the full rationale. */
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse {
+  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse,
+  .login-aurora, .login-aurora::after {
     animation: none !important;
   }
 }
@@ -621,4 +655,149 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .pg-pulse-dot { animation: none; opacity: 0.6; }
+}
+
+/**
+ * Master Console v3 accents (see docs/design-v3-unified-system-spec.md
+ * Part 5) -- all hand-authored CSS, added once here rather than as
+ * `npx shadcn add @magicui/...`/`@aceternity/...` packages, and all
+ * consumed exclusively from `src/components/master/MasterKit.tsx`
+ * (`MStat`'s `beam` prop, `MTable`'s `loading` prop, `MEmptyState`,
+ * `MDrawer`/`MDialog`'s mount transition) -- never from a `master.*`
+ * route directly, per Part 5's "everything routes through MasterKit"
+ * rule. Hand-authored instead of installing the real packages for the
+ * same shared-bundle reason Part 3 gives for the captive portal, just
+ * lower-stakes here: `MasterKit.tsx` is the one file every one of the 16
+ * `/master/*` routes imports, so a `framer-motion`/`motion` dependency
+ * added there is a cost paid by every route that mounts it, not just
+ * the one route that wanted the new accent (confirmed today: the real
+ * `@magicui/border-beam` registry component pulls in `motion`, a
+ * *second*, separate animation package alongside the `framer-motion`
+ * already used elsewhere in this app -- installing it here would both
+ * add that shared cost and fragment the app onto two motion libraries).
+ * `--ease-emphasized`/`--dur-fast`/`--dur-med` (Part 0, defined in this
+ * file's `:root` `@theme` block) are used below for every finite
+ * enter/exit transition, same rule as this file's own `--animate-aurora`
+ * comment already states; the one continuous ambient loop below
+ * (`m-beam-spin`) stays plain `linear infinite` instead, same reasoning.
+ */
+
+/* MStat's opt-in "Border Beam" accent -- a slim conic-gradient ring that
+ * sweeps the card's edge once every few seconds, reserved for a hero/
+ * priority KPI tile (`beam` prop), not a default so the other call
+ * sites across the 14 pre-v3 master routes render pixel-identical to
+ * before. `@property` makes the custom-property sweep interpolate
+ * smoothly in browsers that support it; where it isn't supported the
+ * ring simply renders static at its start angle -- a harmless,
+ * purely-decorative degrade, no layout or functional impact. */
+@property --m-beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes m-beam-spin {
+  to { --m-beam-angle: 360deg; }
+}
+.m-stat-beam {
+  isolation: isolate;
+}
+.m-stat-beam::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--m-beam-angle),
+    transparent 0%,
+    color-mix(in oklab, var(--color-primary) 85%, transparent) 8%,
+    transparent 22%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: m-beam-spin 3.4s linear infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-stat-beam::after { animation: none; }
+}
+
+/* MTable's loading state -- shimmering skeleton rows in place of real
+ * data, reusing the existing `shimmer` utility (this file's `@utility
+ * shimmer`, already built for the customer console) rather than a new
+ * mechanism. This is what replaces a route hand-rolling its own
+ * spinner block (see master.channel-partners.tsx's pre-v3 loading
+ * branch) once `MTable`'s own `loading` prop is used. */
+.m-table-skel-bar {
+  height: 0.875rem;
+  width: 100%;
+  max-width: 22rem;
+  border-radius: var(--radius);
+}
+
+/* MPageShell's `empty` slot -- the one Aceternity-catalog-inspired
+ * moment this console's budget allows (Part 5: "a channel-partner list
+ * with zero partners yet, a fresh tenant with zero routers"), re-
+ * implemented as a restrained CSS dot-field ("Sparkles" effect
+ * category) behind the empty-state icon/copy rather than installing
+ * the real framer-motion-backed component, for the shared-`MasterKit`
+ * bundle reason in the block comment above. Tinted entirely off
+ * `--color-primary`, so it automatically reads as Master Console's own
+ * blue "Clean Enterprise" brand (`.master-theme`'s `--primary`) with
+ * zero hardcoded color. Deliberately subtle -- low opacity, slow drift,
+ * masked to a soft ellipse so it never competes with the empty-state
+ * copy/CTA it sits behind (Part 5's "never persistent chrome" rule,
+ * applied to the one moment this surface allows it at all). */
+@keyframes m-sparkle-drift {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-6px); opacity: 0.85; }
+}
+.m-empty-sparkle {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--color-primary) 55%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 65% at 50% 38%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse 60% 65% at 50% 38%, #000 0%, transparent 72%);
+  opacity: 0.3;
+  animation: m-sparkle-drift 8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-empty-sparkle { animation: none; }
+}
+
+/* MDrawer/MDialog mount transition -- a Magic UI "Blur Fade"-style
+ * entrance (opacity + slight rise/slide + blur-out), platform-wide
+ * since Part 5 treats this as shared chrome ("if a ... entrance is
+ * wanted for drawers/dialogs platform-wide, it goes into these two
+ * shared components, not per-usage"), not an opt-in per call site.
+ * Runs once on mount only (both components already unmount instantly
+ * on close via `if (!open) return null`, so there is no exit phase to
+ * animate). Uses the shared `--ease-emphasized`/`--dur-med` tokens --
+ * see this block's own header comment. */
+@keyframes m-panel-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes m-drawer-in {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes m-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.m-dialog-panel-in {
+  animation: m-panel-in var(--dur-med) var(--ease-emphasized) both;
+}
+.m-drawer-panel-in {
+  animation: m-drawer-in var(--dur-med) var(--ease-emphasized) both;
+}
+.m-backdrop-in {
+  animation: m-backdrop-in var(--dur-fast) ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-dialog-panel-in, .m-drawer-panel-in, .m-backdrop-in { animation: none; }
 }

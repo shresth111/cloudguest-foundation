@@ -66,7 +66,11 @@ export function BasicDashboardView({ locationId, masked = true }: { locationId?:
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {kpis.map((k) => <StatCard key={k.l} label={k.l} value={k.v} tone={k.t} />)}
+        {/* Design v3 Part 4: one Border Beam highlight on the single
+         * genuinely-hero KPI tile ("Online Users" -- the same headline
+         * number c.index.tsx's own hero calls "Online right now"), not on
+         * every tile in the row. */}
+        {kpis.map((k, i) => <StatCard key={k.l} label={k.l} value={k.v} tone={k.t} highlight={i === 0} />)}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-2xl">

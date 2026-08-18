@@ -95,6 +95,16 @@ export type ThresholdOperator = "gt" | "gte" | "lt" | "lte" | "eq";
  * that watches per-router health instead of a platform HealthComponent. */
 export const ALERT_TARGET_ROUTER = "router";
 
+/** Sentinel `AlertRule.targetComponent` value for a health_status_change rule
+ * that watches every in-scope `IspLink.healthStatus` (kept fresh by the ISP
+ * domain's own 30s health-check sweep) instead of a platform HealthComponent
+ * -- see backend `app.domains.monitoring.constants.ALERT_TARGET_ISP_LINK`
+ * and `AlertService._evaluate_health_status_rule`'s own `ALERT_TARGET_ISP_LINK`
+ * branch. Same "any in scope" evaluation shape as `ALERT_TARGET_ROUTER`
+ * above: one rule watches every ISP link visible to the rule's
+ * `organizationId`, not a single hand-picked link. */
+export const ALERT_TARGET_ISP_LINK = "isp_link";
+
 export interface AlertRule {
   id: string;
   name: string;

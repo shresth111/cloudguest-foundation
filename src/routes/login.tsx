@@ -271,14 +271,46 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
        * the customer dashboard's hero band, for one consistent visual
        * identity across the product instead of a flat single-hue fill. */}
       <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-12 text-white overflow-hidden">
+        {/* Backdrop glow -- Aceternity's Aurora Background primitive
+         * (`src/components/ui/aurora-background.tsx`, installed via
+         * `npx shadcn add @aceternity/aurora-background`), reproduced here
+         * as an inset backdrop layer -- same technique the primitive itself
+         * uses (a blurred static base gradient plus a `::after` copy of it
+         * that sweeps via `mix-blend-difference`) -- rather than the
+         * library's default full-page wrapper, so it sits behind
+         * HeroWifiIllustration/CountUp without disturbing this panel's own
+         * layout. Replaces the previous two static blur-3xl glow circles.
+         * Recolored from the library's default blue/indigo to this app's
+         * cyan/violet/primary-purple set (already used by
+         * HeroWifiIllustration's signal arcs); uses upstream's
+         * already-dark rendering path directly (dark-gradient, no invert)
+         * since this panel is always in its dark treatment regardless of
+         * visitor OS theme, rather than the light-default/dark: pair the
+         * raw component ships with. `.login-aurora` in styles.css only
+         * supplies the prefers-reduced-motion guard for the animation
+         * Tailwind's `animate-aurora` utility (registered as a v4 theme
+         * token since this repo has no tailwind.config.js) drives below. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[#6C4EFF]/25 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-[#8B5CF6]/20 blur-3xl"
-        />
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+          style={
+            {
+              "--aurora": "repeating-linear-gradient(100deg,#22d3ee 10%,#8B5CF6 15%,#6C4EFF 20%,#a78bfa 25%,#22d3ee 30%)",
+              "--dark-gradient": "repeating-linear-gradient(100deg,#000 0%,#000 7%,transparent 10%,transparent 12%,#000 16%)",
+            } as React.CSSProperties
+          }
+        >
+          <div
+            className={cn(
+              "login-aurora after:animate-aurora pointer-events-none absolute -inset-[10px]",
+              "[background-image:var(--dark-gradient),var(--aurora)] [background-size:300%,_200%] [background-position:50%_50%,50%_50%]",
+              "opacity-40 blur-[10px] will-change-transform",
+              "after:absolute after:inset-0 after:content-['']",
+              "after:[background-image:var(--dark-gradient),var(--aurora)] after:[background-size:200%,_100%] after:[background-attachment:fixed] after:mix-blend-difference",
+              "[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,transparent_70%)]",
+            )}
+          />
+        </div>
         {/* Faint dot-grid for depth */}
         <div
           aria-hidden

@@ -31,6 +31,8 @@ import { IspProviderIcon } from "@/components/icons/isp";
 import { DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/components/customer/BasicFeatureViews";
+import { BlurFade } from "@/components/magicui/blur-fade";
+import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 
 // Categorical, brand-checked -- indigo/cyan/magenta/orange/violet. The old
 // palette here included green, which conflicts with this project's
@@ -228,7 +230,7 @@ function useWanSummary(locationId: string): WanSummaryState {
 type BandwidthSeriesState =
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "ready"; link: IspLink; checks: IspHealthCheck[] };
+  | { status: "ready"; link: IspLink; checks: IspHealthCheck[]; otherLinks: IspLink[] };
 
 // Same 20s cadence the Internet Connection page's own links table already
 // polls at (OperationsFeatures.tsx's ISP_LINKS_POLL_INTERVAL_MS) -- reused
@@ -254,19 +256,31 @@ const BANDWIDTH_POLL_INTERVAL_MS = 20_000;
  * `BANDWIDTH_POLL_INTERVAL_MS`, paused while the tab is hidden -- the same
  * Page Visibility API pattern `IspDetailsView`'s own auto-refresh already
  * establishes, so a backgrounded dashboard tab doesn't keep hammering the
- * API for nothing. */
+ * API for nothing.
+ *
+ * Also resolves `otherLinks` -- every other enabled link at this location
+ * (e.g. a standby backup), from that same first-phase list fetch. Nothing
+ * about the chart itself changes for these: they're surfaced as a compact
+ * status row only (see `BandwidthUtilizationCard`), never separately
+ * polled/charted here -- a location with a backup link shouldn't go
+ * completely invisible on the one screen an admin checks daily, but this
+ * card's own detail view stays scoped to the single active link it's
+ * always been built around. */
 function useBandwidthSeries(locationId: string): BandwidthSeriesState {
   const [phase, setPhase] = useState<"loading" | "empty" | "ready">("loading");
   const [link, setLink] = useState<IspLink | null>(null);
+  const [otherLinks, setOtherLinks] = useState<IspLink[]>([]);
   const [checks, setChecks] = useState<IspHealthCheck[]>([]);
 
   useEffect(() => {
     let alive = true;
     setPhase("loading");
     setLink(null);
+    setOtherLinks([]);
     setChecks([]);
     if (isDemo()) {
       setLink(DEMO_WAN_LINK);
+      setOtherLinks([DEMO_WAN_BACKUP_LINK]);
       setChecks(DEMO_BANDWIDTH_CHECKS);
       setPhase("ready");
       return;
@@ -279,6 +293,7 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
         if (!alive) return;
         if (!active) { setPhase("empty"); return; }
         setLink(active);
+        setOtherLinks(links.filter((l) => l.id !== active.id));
       } catch {
         if (alive) setPhase("empty");
       }
@@ -315,7 +330,7 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
   }, [link]);
 
   if (phase === "empty") return { status: "empty" };
-  if (phase === "ready" && link) return { status: "ready", link, checks };
+  if (phase === "ready" && link) return { status: "ready", link, checks, otherLinks };
   return { status: "loading" };
 }
 
@@ -702,6 +717,37 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
         </div>
       </CardHeader>
+      {/* A location with a second (usually backup/failover) ISP link
+       * shouldn't have that link go completely invisible just because
+       * this card's own detail chart only ever tracks one at a time --
+       * compact status chips, not a second full-size chart, so a backup
+       * link's real health/live-Mbps is visible at a glance without a
+       * click-through to Internet Connection, and without disrupting this
+       * card's existing single-chart layout rhythm. */}
+      {bw.status === "ready" && bw.otherLinks.length > 0 && (
+        <div className="mx-4 mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Also here</span>
+          {bw.otherLinks.map((l) => {
+            const style = WAN_HEALTH_STYLE[l.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+            return (
+              <span
+                key={l.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2 py-1 text-[11px]"
+                title={`${l.providerName} (${l.role === "primary" ? "Primary" : "Backup"}) — ${style.label}`}
+              >
+                <IspProviderIcon providerName={l.providerName} className="h-3.5 w-3.5 shrink-0" />
+                <span className="max-w-[8rem] truncate font-medium text-foreground">{l.providerName}</span>
+                <span className="text-muted-foreground">{l.role === "primary" ? "Primary" : "Backup"}</span>
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", style.dot)} />
+                <span className={cn("font-medium", style.text)}>{style.label}</span>
+                {l.currentDownloadMbps != null && (
+                  <span className="text-muted-foreground tabular-nums">{l.currentDownloadMbps.toFixed(0)} Mbps↓</span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
       {/* The real "should I upgrade my plan" answer -- always visible
        * (unlike the point-in-time badge above, which is `hidden sm:flex`
        * and only ever shows one instant), and a frequency, not a single
@@ -745,6 +791,12 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           ) : !hasTraffic ? (
             <ChartEmptyState label="No bandwidth samples yet — the next health-check sweep runs within 60 seconds." />
           ) : (
+            // Settles in once real data replaces the loading skeleton/empty
+            // state -- mounts fresh into this branch each time bw.status
+            // flips to "ready", so it fades the *first real render*, not
+            // every subsequent poll tick (the chart itself keeps
+            // `isAnimationActive={false}` on its own Areas, untouched).
+            <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                 <defs>
@@ -789,6 +841,7 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                 )}
               </AreaChart>
             </ResponsiveContainer>
+            </BlurFade>
           )}
         </div>
         {bw.status === "ready" && capacityDownload == null && (
@@ -832,20 +885,34 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
       </CardHeader>
       <CardContent>
         {devices.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
-              {/* Sitting right below the "routers online" KPI at the top of
-               * this same dashboard, an unqualified "no hardware" read as
-               * contradicting it (bug report from a product review: "wait,
-               * don't I have a router?"). This card only tracks *other*
-               * hardware you add yourself (APs, printers, etc.) -- your
-               * router is already monitored automatically and isn't meant
-               * to show up here, so that needs to be said explicitly. */}
-              <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it. Your router is already tracked separately above.</p>
+          <div className="relative flex flex-col items-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+            {/* The one Aceternity moment this surface gets (design v3 Part
+             * 4): a low-frequency, first-run "connect your first
+             * router"-adjacent empty state, and nowhere else on this page.
+             * See background-boxes.tsx's own comment for why it's a small
+             * static re-author, not the registry component verbatim. */}
+            <BackgroundBoxes />
+            {/* Everything a user actually reads/clicks stays in its own
+             * `relative` stacking layer, painted after (so: above) the
+             * absolutely-positioned decorative grid regardless of DOM
+             * order inside it -- otherwise the plain-flow Button below
+             * would paint *under* an `absolute` sibling per normal CSS
+             * stacking rules. */}
+            <div className="relative flex flex-col items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
+                {/* Sitting right below the "routers online" KPI at the top of
+                 * this same dashboard, an unqualified "no hardware" read as
+                 * contradicting it (bug report from a product review: "wait,
+                 * don't I have a router?"). This card only tracks *other*
+                 * hardware you add yourself (APs, printers, etc.) -- your
+                 * router is already monitored automatically and isn't meant
+                 * to show up here, so that needs to be said explicitly. */}
+                <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it. Your router is already tracked separately above.</p>
+              </div>
+              <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
             </div>
-            <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1277,7 +1344,13 @@ export function CustomerDashboardPage() {
                       </CardHeader>
                       <CardContent><div className="h-56">
                         {d.usersTrend.length === 0 ? <ChartEmptyState label="No trend data yet." /> : (
+                          // Settles in rather than popping on mount -- Magic
+                          // UI's "Blur Fade" idea, wrapping the chart's
+                          // container only; Recharts' own render/animation
+                          // props are untouched (design v3 Part 4).
+                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }} /><Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#ug)" strokeWidth={2} /></AreaChart></ResponsiveContainer>
+                          </BlurFade>
                         )}
                       </div></CardContent>
                     </Card>
@@ -1288,6 +1361,7 @@ export function CustomerDashboardPage() {
                       </CardHeader>
                       <CardContent><div className="h-56">
                         {d.deviceDistribution.length === 0 ? <ChartEmptyState label="No devices reporting yet." /> : (
+                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <div className="flex h-full flex-col justify-center gap-2.5">
                             {(() => {
                               const max = Math.max(...d.deviceDistribution.map((x) => x.value), 1);
@@ -1300,6 +1374,7 @@ export function CustomerDashboardPage() {
                               ));
                             })()}
                           </div>
+                          </BlurFade>
                         )}
                       </div></CardContent>
                     </Card>
@@ -1310,7 +1385,9 @@ export function CustomerDashboardPage() {
                       </CardHeader>
                       <CardContent><div className="h-56">
                         {d.hourlySessions.length === 0 ? <ChartEmptyState label="No session activity yet today." /> : (
+                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px" }} /><Bar dataKey="sessions" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer>
+                          </BlurFade>
                         )}
                       </div></CardContent>
                     </Card>
