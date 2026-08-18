@@ -64,6 +64,7 @@ export function GuestSignInCard() {
     setTermsAccepted,
     previewMode,
     setGuestIdentifier,
+    t,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = { organizationId, locationId, routerId };
@@ -108,10 +109,9 @@ export function GuestSignInCard() {
 
   const venueName = config?.name;
   const heading =
-    config?.splashHeadline?.trim() || (venueName ? `Welcome to ${venueName}` : "Welcome");
-  const subtext =
-    config?.splashWelcomeMessage?.trim() ||
-    "Sign in for complimentary WiFi access on this network.";
+    config?.splashHeadline?.trim() ||
+    (venueName ? t("welcomeToVenueTemplate").replace("{venue}", venueName) : t("welcomeBare"));
+  const subtext = config?.splashWelcomeMessage?.trim() || t("signInSubtext");
 
   const requiresTermsLink = !!(
     config?.termsAndConditionsText ||
@@ -304,9 +304,9 @@ export function GuestSignInCard() {
       setOtpError(
         isPhoneChannel
           ? otpChannel === "whatsapp"
-            ? "Enter a valid WhatsApp number"
-            : "Enter a valid mobile number"
-          : "Enter a valid email address",
+            ? t("errValidWhatsapp")
+            : t("errValidMobile")
+          : t("errValidEmail"),
       );
       return;
     }
@@ -320,11 +320,11 @@ export function GuestSignInCard() {
 
   const onVerifyOtp = () => {
     if (code.length !== 6) {
-      setOtpError("Enter the 6-digit code");
+      setOtpError(t("errEnterCode"));
       return;
     }
     if (!termsAccepted) {
-      setOtpError("Please accept the Terms & Acceptable Use Policy to continue.");
+      setOtpError(t("errAcceptTerms"));
       return;
     }
     if (previewMode) {
@@ -343,11 +343,11 @@ export function GuestSignInCard() {
 
   const onSignInPassword = () => {
     if (!identifier.trim() || !password) {
-      setPasswordError("Enter your phone/email and password");
+      setPasswordError(t("errPhoneEmailPassword"));
       return;
     }
     if (!termsAccepted) {
-      setPasswordError("Please accept the Terms & Acceptable Use Policy to continue.");
+      setPasswordError(t("errAcceptTerms"));
       return;
     }
     if (previewMode) {
@@ -361,9 +361,9 @@ export function GuestSignInCard() {
     "sms" | "email" | "whatsapp",
     { label: string; icon: typeof Ticket; enabled: boolean }
   > = {
-    sms: { label: "Use mobile number instead", icon: Smartphone, enabled: hasOtpSms },
-    email: { label: "Use email instead", icon: Mail, enabled: hasOtpEmail },
-    whatsapp: { label: "Use WhatsApp instead", icon: MessageCircle, enabled: hasOtpWhatsapp },
+    sms: { label: t("useMobileInstead"), icon: Smartphone, enabled: hasOtpSms },
+    email: { label: t("useEmailInstead"), icon: Mail, enabled: hasOtpEmail },
+    whatsapp: { label: t("useWhatsappInstead"), icon: MessageCircle, enabled: hasOtpWhatsapp },
   };
 
   const otherMethodLinks = useMemo(() => {
@@ -392,10 +392,10 @@ export function GuestSignInCard() {
   // never hardcoded to "text").
   const otpTabLabel =
     otpChannel === "email"
-      ? "Email me a code"
+      ? t("otpTabEmail")
       : otpChannel === "whatsapp"
-        ? "WhatsApp me a code"
-        : "Text me a code";
+        ? t("otpTabWhatsapp")
+        : t("otpTabSms");
 
   // Secondary-link hierarchy fix (redesign spec §4): the alternate OTP
   // channel links and the voucher fallback used to always render open,
@@ -414,17 +414,17 @@ export function GuestSignInCard() {
         className="mt-0.5 border-slate-300 data-[state=checked]:border-indigo-600 data-[state=checked]:bg-indigo-600"
       />
       <span>
-        I agree to the{" "}
+        {t("agreeToThe")}{" "}
         {requiresTermsLink ? (
           <Link
             to="/portal/terms"
             search={portalSearch}
             className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
           >
-            Terms &amp; Acceptable Use Policy
+            {t("termsAcceptableUsePolicy")}
           </Link>
         ) : (
-          <span className="font-medium text-slate-800">Terms &amp; Acceptable Use Policy</span>
+          <span className="font-medium text-slate-800">{t("termsAcceptableUsePolicy")}</span>
         )}
       </span>
     </label>
@@ -451,13 +451,11 @@ export function GuestSignInCard() {
       <PortalCard variant="light" className="relative">
         <ConnectingOverlay
           active={verifyOtp.isPending || loginPassword.isPending}
-          label={verifyOtp.isPending ? "Verifying your code…" : "Signing you in…"}
+          label={verifyOtp.isPending ? t("verifyingCode") : t("signingIn")}
         />
 
         {noMethods ? (
-          <p className="py-6 text-center text-sm text-slate-500">
-            No sign-in methods are available. Please contact reception.
-          </p>
+          <p className="py-6 text-center text-sm text-slate-500">{t("noMethodsAvailable")}</p>
         ) : (
           <>
             {showTabs && (
@@ -480,7 +478,7 @@ export function GuestSignInCard() {
                 />
                 {[
                   { id: "otp" as const, label: otpTabLabel },
-                  { id: "password" as const, label: "I have a password" },
+                  { id: "password" as const, label: t("haveAPassword") },
                 ].map((item) => {
                   const active = tab === item.id;
                   return (
@@ -511,11 +509,10 @@ export function GuestSignInCard() {
                 {phase === "profile" ? (
                   <>
                     <p className="text-center text-sm text-slate-500">
-                      You're connected! Tell us a bit about yourself{" "}
-                      <span className="text-slate-400">(optional)</span>.
+                      {t("tellUsAboutYourself")} <span className="text-slate-400">{t("optionalLabel")}</span>.
                     </p>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500">Name</label>
+                      <label className="text-xs font-semibold text-slate-500">{t("nameLabel")}</label>
                       <Input
                         value={profileName}
                         onChange={(e) => setProfileName(e.target.value)}
@@ -525,7 +522,7 @@ export function GuestSignInCard() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500">Email address</label>
+                      <label className="text-xs font-semibold text-slate-500">{t("emailAddress")}</label>
                       <Input
                         value={profileEmail}
                         onChange={(e) => setProfileEmail(e.target.value)}
@@ -540,7 +537,7 @@ export function GuestSignInCard() {
                       disabled={savingProfile}
                       className={PG_PRIMARY_BTN}
                     >
-                      {savingProfile ? "Saving…" : "Continue"}
+                      {savingProfile ? t("savingLabel") : t("continueCta")}
                     </button>
                     <button
                       type="button"
@@ -548,17 +545,17 @@ export function GuestSignInCard() {
                       disabled={savingProfile}
                       className="w-full text-center text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
                     >
-                      Skip for now
+                      {t("skipForNow")}
                     </button>
                   </>
                 ) : phase === "phone" ? (
                   <>
                     <label className="text-xs font-semibold text-slate-500">
                       {otpChannel === "email"
-                        ? "Email address"
+                        ? t("emailAddress")
                         : otpChannel === "whatsapp"
-                          ? "WhatsApp number"
-                          : "Mobile number"}
+                          ? t("whatsappNumberLabel")
+                          : t("mobileNumber")}
                     </label>
                     {otpChannel !== "email" ? (
                       <div className="grid grid-cols-[84px_1fr] gap-2">
@@ -591,13 +588,13 @@ export function GuestSignInCard() {
                       disabled={sendOtp.isPending}
                       className={PG_PRIMARY_BTN}
                     >
-                      {sendOtp.isPending ? "Sending…" : "Send OTP"}
+                      {sendOtp.isPending ? t("sendingLabel") : t("sendOtp")}
                     </button>
                   </>
                 ) : (
                   <>
                     <p className="text-center text-sm text-slate-500">
-                      We sent a 6-digit code to{" "}
+                      {t("sentCodeToPrefix")}{" "}
                       <span className="font-semibold text-slate-800">{target}</span>
                     </p>
                     <div className="flex justify-center">
@@ -621,12 +618,15 @@ export function GuestSignInCard() {
                       disabled={code.length !== 6 || verifyOtp.isPending}
                       className={PG_PRIMARY_BTN}
                     >
-                      {verifyOtp.isPending ? "Verifying…" : "Verify OTP & connect"}
+                      {verifyOtp.isPending ? t("verifyingLabel") : t("verifyOtpConnect")}
                     </button>
                     <div className="flex items-center justify-center gap-3 pt-0.5 text-xs">
                       {resendCooldown > 0 ? (
                         <span className="text-slate-400">
-                          Resend available in {resendCooldown}s
+                          {t("resendAvailableInTemplate").replace(
+                            "{n}",
+                            String(resendCooldown),
+                          )}
                         </span>
                       ) : (
                         <button
@@ -635,7 +635,7 @@ export function GuestSignInCard() {
                           disabled={sendOtp.isPending}
                           className="font-medium text-indigo-600 hover:underline"
                         >
-                          Resend
+                          {t("resend")}
                         </button>
                       )}
                       <span className="text-slate-300">|</span>
@@ -644,7 +644,7 @@ export function GuestSignInCard() {
                         onClick={onChangeNumber}
                         className="font-medium text-slate-500 hover:text-slate-700 hover:underline"
                       >
-                        Change number
+                        {t("changeNumberLabel")}
                       </button>
                     </div>
                   </>
@@ -656,7 +656,7 @@ export function GuestSignInCard() {
               <div className="space-y-3.5">
                 <div>
                   <label className="text-xs font-semibold text-slate-500">
-                    Mobile number or email
+                    {t("mobileOrEmailLabel")}
                   </label>
                   <Input
                     value={identifier}
@@ -666,7 +666,7 @@ export function GuestSignInCard() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500">Password</label>
+                  <label className="text-xs font-semibold text-slate-500">{t("password")}</label>
                   <Input
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -683,7 +683,7 @@ export function GuestSignInCard() {
                   disabled={loginPassword.isPending}
                   className={PG_PRIMARY_BTN}
                 >
-                  {loginPassword.isPending ? "Signing in…" : "Sign in & connect"}
+                  {loginPassword.isPending ? t("signingInLabel") : t("signInConnect")}
                 </button>
                 {hasOtp && (
                   <button
@@ -691,7 +691,7 @@ export function GuestSignInCard() {
                     onClick={() => setTab("otp")}
                     className="block w-full text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
                   >
-                    Forgot? Use OTP instead
+                    {t("forgotUseOtp")}
                   </button>
                 )}
               </div>
@@ -699,14 +699,14 @@ export function GuestSignInCard() {
 
             {!hasOtp && !hasPassword && hasVoucher && (
               <p className="py-2 text-center text-xs text-slate-500">
-                This location signs guests in with a voucher code --{" "}
+                {t("voucherFallbackPrefix")}{" "}
                 <Link
                   to="/portal/auth/$method"
                   params={{ method: "voucher" }}
                   search={portalSearch}
                   className="font-medium text-indigo-600 hover:underline"
                 >
-                  redeem yours here
+                  {t("redeemVoucherLink")}
                 </Link>
                 .
               </p>
@@ -724,7 +724,7 @@ export function GuestSignInCard() {
             {hasMoreSignInOptions && (
               <details className="group mt-3">
                 <summary className="flex cursor-pointer list-none items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-indigo-600 [&::-webkit-details-marker]:hidden">
-                  Other ways to sign in
+                  {t("otherWaysToSignIn")}
                   <ChevronDown className="h-3.5 w-3.5 transition-transform duration-150 group-open:rotate-180" />
                 </summary>
                 <div className="mt-2 flex flex-col items-center gap-1.5">
@@ -745,7 +745,7 @@ export function GuestSignInCard() {
                       search={portalSearch}
                       className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
                     >
-                      <Ticket className="h-3.5 w-3.5" /> Have a voucher code? Use it instead
+                      <Ticket className="h-3.5 w-3.5" /> {t("haveVoucherUseInstead")}
                     </Link>
                   )}
                 </div>
@@ -757,8 +757,7 @@ export function GuestSignInCard() {
 
       {tab === "password" && (
         <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-400">
-          <KeyRound className="h-3 w-3" /> Saved passwords are set right after your first OTP
-          sign-in.
+          <KeyRound className="h-3 w-3" /> {t("savedPasswordsNote")}
         </p>
       )}
     </div>

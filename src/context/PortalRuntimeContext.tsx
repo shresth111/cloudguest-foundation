@@ -15,7 +15,7 @@ import type {
   RuntimePortalConfig,
   RuntimeSession,
 } from "@/types/portal-runtime";
-import { RTL_LANGS, translate } from "@/lib/portal-i18n";
+import { RTL_LANGS, translate, loadPersistedLanguage, persistLanguage } from "@/lib/portal-i18n";
 
 const SESSION_STORAGE_KEY = "cloudguest_portal_session";
 const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
@@ -259,7 +259,19 @@ export function PortalRuntimeProvider({
   const config = hasPreset ? (presetConfig ?? undefined) : fetchedConfig;
   const isLoading = hasPreset ? !!presetConfigLoading : fetchIsLoading;
 
-  const [language, setLanguage] = useState<RuntimeLanguage | undefined>();
+  // Seeded from the guest's own persisted choice (localStorage) when one
+  // exists -- a returning guest's earlier language pick wins over the
+  // location's own `config.defaultLanguage` once they've made one. Falls
+  // through to `config.defaultLanguage` below (via the effect) on a first
+  // visit, same as before.
+  const [language, setLanguageState] = useState<RuntimeLanguage | undefined>(() =>
+    loadPersistedLanguage(),
+  );
+
+  const setLanguage = useCallback((l: RuntimeLanguage) => {
+    setLanguageState(l);
+    persistLanguage(l);
+  }, []);
   const [highContrast, setHighContrast] = useState(false);
   const [largeText, setLargeText] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<RuntimeAuthMethod | undefined>();

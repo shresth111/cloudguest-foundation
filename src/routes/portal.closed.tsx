@@ -17,7 +17,7 @@ export const Route = createFileRoute("/portal/closed")({
  * no guest-facing effect at all -- see that page's own comment.
  */
 function ClosedPage() {
-  const { config } = usePortalRuntime();
+  const { config, t } = usePortalRuntime();
 
   return (
     <PortalShell variant="light" showHeader={false}>
@@ -27,12 +27,11 @@ function ClosedPage() {
             <Moon className="h-10 w-10" />
           </div>
           <h1 className="font-display mt-5 text-2xl font-bold tracking-tight text-slate-900">
-            {config?.name ? `${config.name} is currently closed` : "Currently closed"}
+            {config?.name ? `${config.name} ${t("closedTitleDefault")}` : t("closedTitleDefault")}
           </h1>
         </div>
         <PortalCard variant="light" className="text-center text-sm text-slate-500">
-          {config?.businessHoursClosedMessage?.trim() ||
-            "We're currently closed. Please check back during business hours to connect."}
+          {config?.businessHoursClosedMessage?.trim() || t("closedSubtitle")}
         </PortalCard>
       </div>
     </PortalShell>

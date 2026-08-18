@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { campaignPortalService } from "@/services/campaign-portal.service";
+import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import type { CampaignAnswerValue, NextCampaign, NextCampaignQuestion } from "@/types/campaign";
 
 /** How long a *skippable* banner/redirect campaign stays up before it
@@ -46,6 +47,7 @@ function QuestionField({
   value: CampaignAnswerValue | undefined;
   onChange: (v: CampaignAnswerValue) => void;
 }) {
+  const { t } = usePortalRuntime();
   if (question.answerType === "single_choice") {
     return (
       <RadioGroup
@@ -121,7 +123,7 @@ function QuestionField({
     <Textarea
       value={typeof value === "string" ? value : ""}
       onChange={(e) => onChange(e.target.value)}
-      placeholder="Type your answer…"
+      placeholder={t("answerPlaceholder")}
       rows={3}
       className="rounded-xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
     />
@@ -148,6 +150,7 @@ interface Props {
  * this never delays the real hotspot-login POST underneath it.
  */
 export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
+  const { t } = usePortalRuntime();
   const [answers, setAnswers] = useState<Record<string, CampaignAnswerValue>>({});
   const finished = useRef(false);
 
@@ -214,7 +217,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
         <div className="flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
             <MessageSquareText className="h-3.5 w-3.5" />
-            {campaign.campaignType === "survey" ? "Quick question" : "Sponsored"}
+            {campaign.campaignType === "survey" ? t("surveyQuestion") : t("sponsored")}
           </span>
           {campaign.isSkippable && (
             <button
@@ -222,7 +225,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
               onClick={skip}
               className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             >
-              Skip <X className="h-3.5 w-3.5" />
+              {t("skipAd")} <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
@@ -253,7 +256,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
               onClick={() => submitSurvey.mutate()}
               className={PG_PRIMARY_BTN}
             >
-              {submitSurvey.isPending ? "Submitting…" : "Submit"}
+              {submitSurvey.isPending ? t("submitting") : t("submit")}
             </button>
           </>
         ) : (
@@ -269,13 +272,13 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
                 </button>
               ) : (
                 <div className="p-8 text-center">
-                  <p className="text-sm text-slate-500">A sponsor has a message for you.</p>
+                  <p className="text-sm text-slate-500">{t("sponsorMessage")}</p>
                 </div>
               )}
             </PortalCard>
             <button type="button" onClick={openBanner} className={PG_PRIMARY_BTN}>
               <span className="inline-flex items-center justify-center gap-2">
-                Continue <ArrowRight className="h-4 w-4" />
+                {t("continueCta")} <ArrowRight className="h-4 w-4" />
               </span>
             </button>
           </>
