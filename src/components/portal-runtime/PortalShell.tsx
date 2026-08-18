@@ -283,8 +283,17 @@ export function PortalShell({
               >
                 Terms &amp; Privacy
               </Link>
-              <span className="text-slate-300">·</span>
-              <span className="text-slate-300">Support: ask venue staff</span>
+              {/* Real incident, live: text-slate-300 (~#cbd5e1) on this
+               * shell's #FAFAF8 background reads as barely-there --
+               * confirmed live, a guest couldn't make out this text at
+               * all. "Dimmer than the real Terms link" was the right
+               * instinct (this isn't a link, it shouldn't invite a tap),
+               * but slate-300 overshot into illegible. slate-400 matches
+               * Terms & Privacy's own resting (non-hover) shade -- still
+               * visually quieter than a guest's eye lands on first, but
+               * actually readable at rest, not just on close inspection. */}
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-400">Support: ask venue staff</span>
             </footer>
           </div>
         </div>
