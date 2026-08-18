@@ -285,7 +285,7 @@ function deviceDistributionFrom(sessions: { userAgent: string | null }[]): { nam
  * lives on GuestDevice, which /guest-sessions doesn't join in), so this is
  * the honest, non-fabricated stand-in -- not the session's device_id (a raw
  * UUID FK, not a device name). */
-function deviceLabelFrom(userAgent: string | null | undefined): string {
+export function deviceLabelFrom(userAgent: string | null | undefined): string {
   const ua = (userAgent ?? "").toLowerCase();
   if (!ua) return "Unknown device";
   if (ua.includes("ipad")) return "iPad";
@@ -354,7 +354,7 @@ function matchDeviceForSession(
  * actually presented at login -- same `@`-presence dispatch backend's own
  * `mask_identifier` uses, since there's no separate typed column to tell
  * them apart. */
-interface RawGuest {
+export interface RawGuest {
   id: string;
   identifier: string | null;
   display_name: string | null;
@@ -385,7 +385,7 @@ interface RawIspHealthCheckBucket {
  * captures it (`Guest.identifier`/`display_name`) and the UI already has
  * working `maskEmail`/`maskPhone` display logic wired up -- built and
  * proven out against demo data, just never connected to the real API. */
-function identityFromGuest(guest: RawGuest | undefined): { name: string; email: string; phone: string } {
+export function identityFromGuest(guest: RawGuest | undefined): { name: string; email: string; phone: string } {
   const name = guest?.display_name || "Guest";
   const identifier = guest?.identifier ?? "";
   const isEmail = identifier.includes("@");
