@@ -22,7 +22,12 @@ import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 // non-blocking alongside the rest of this app's fonts -- see __root.tsx's
 // LOAD_FONTS_SCRIPT comment for why a captive-portal page can never afford
 // a render-blocking font request.
-const PG_FONT_STACK =
+// Exported (not just module-local) so every other "light"-flow surface --
+// e.g. portal.tsx's IncompletePortalLinkError, which renders standalone,
+// before/without a PortalRuntimeProvider mounting this shell at all --
+// stays on the exact same system-font stack instead of a second hardcoded
+// copy (or worse, a stray webfont) drifting in independently over time.
+export const PG_FONT_STACK =
   '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif';
 
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
