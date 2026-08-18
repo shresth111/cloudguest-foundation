@@ -2594,6 +2594,20 @@ export function buildRouterSetupScriptChunks(opts: {
       // silently rejecting or misbehaving on real hardware. `5` is the
       // exact value already confirmed live in production today.
       `/ip hotspot user profile set [find name="default"] shared-users=5`,
+      // RouterOS's own factory default `keepalive-timeout` on this same
+      // "default" user profile is 2 minutes -- confirmed live (WYFY-GUEST,
+      // same incident as shared-users above): a real guest's phone
+      // briefly locking/backgrounding (ordinary, extremely common mobile
+      // behavior, not an actual disconnect) missed the router's periodic
+      // keepalive check and got a hard `logged out: keepalive timeout`,
+      // even though real data had been flowing seconds earlier (a genuine
+      // Acct-Session-Time in the hundreds of seconds, not a stuck/never-
+      // worked session). `none` disables this specific check entirely --
+      // `idle-timeout=5m` on the hotspot server itself (`/ip hotspot`,
+      // untouched by this script) is the actual "guest is truly gone"
+      // backstop: it only fires on zero real traffic for 5 minutes, not a
+      // missed ping while the guest's screen is simply off.
+      `/ip hotspot user profile set [find name="default"] keepalive-timeout=none`,
     ];
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
