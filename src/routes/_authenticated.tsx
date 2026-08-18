@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { CommandPalette } from "@/components/command-palette/CommandPalette";
 import { ActivityFeed } from "@/components/activity-feed/ActivityFeed";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { useSyncDashboardLanguage } from "@/lib/i18n/useSyncDashboardLanguage";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -93,6 +94,11 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { status } = useAuth();
+  // Resolves the signed-in user's saved `language` (already returned by
+  // /auth/me) into i18next's active language -- this layout route is the
+  // one place that guarantees `user` is loaded, per
+  // docs/hindi-language-rollout-spec.md.
+  useSyncDashboardLanguage();
   const [activityOpen, setActivityOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   // QuickActionsFab only ever links to platform-only pages (/locations,

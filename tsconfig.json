@@ -13,6 +13,9 @@
     "verbatimModuleSyntax": false,
     "noEmit": true,
 
+    /* JSON */
+    "resolveJsonModule": true,
+
     /* Linting */
     "skipLibCheck": true,
     "strict": true,

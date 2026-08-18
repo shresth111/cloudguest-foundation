@@ -16,6 +16,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { SpaceContextChip } from "./SpaceContextChip";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
+import { DashboardLanguageSwitcher } from "./DashboardLanguageSwitcher";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { OrganizationSwitcher } from "@/components/org-switcher/OrganizationSwitcher";
@@ -145,6 +146,7 @@ export function TopNavbar({ onToggleActivityFeed }: TopNavbarProps) {
           >
             <LifeBuoy className="h-4 w-4" />
           </Button>
+          <DashboardLanguageSwitcher />
           <ThemeToggle />
           <UserMenu />
         </div>

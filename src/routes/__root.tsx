@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -16,6 +17,9 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { PlatformBrandingProvider } from "@/context/PlatformBrandingContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+// Side-effect import -- runs i18next's init() before first render. See
+// docs/hindi-language-rollout-spec.md, "Introduce react-i18next".
+import i18n from "@/lib/i18n";
 
 function NotFoundComponent() {
   return (
@@ -163,7 +167,7 @@ function InitialLoader() {
 const LOAD_FONTS_SCRIPT = `(function(){
   var l = document.createElement("link");
   l.rel = "stylesheet";
-  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap";
+  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap";
   document.head.appendChild(l);
 })();`;
 
@@ -195,19 +199,21 @@ function RootComponent() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <PlatformBrandingProvider>
-          <AuthProvider>
-            <AuthRouterContextSync />
-            <TooltipProvider delayDuration={200}>
-              <Outlet />
-              <Toaster position="top-right" richColors closeButton />
-            </TooltipProvider>
-          </AuthProvider>
-        </PlatformBrandingProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <PlatformBrandingProvider>
+            <AuthProvider>
+              <AuthRouterContextSync />
+              <TooltipProvider delayDuration={200}>
+                <Outlet />
+                <Toaster position="top-right" richColors closeButton />
+              </TooltipProvider>
+            </AuthProvider>
+          </PlatformBrandingProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </I18nextProvider>
   );
 }
 
