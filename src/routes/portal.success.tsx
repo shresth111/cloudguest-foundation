@@ -1,12 +1,22 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
-import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
+import {
+  usePortalRuntime,
+  loadPersistedHotspotSubmit,
+  persistHotspotSubmit,
+} from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/success")({
   component: SuccessPage,
 });
+
+// See PortalRuntimeContext's `loadPersistedHotspotSubmit` docstring for the
+// full "why" -- covers the OS-triggered remount-bounce window (confirmed
+// live at ~600ms for 3 cycles) with margin, while staying far short of any
+// real WiFi-reconnect timescale that genuinely needs this POST to re-fire.
+const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
 
 // Real incident #2, found live at Haldwani: a hardcoded shared
 // "guest"/"welcome123" here only ever worked for a hotspot profile with
@@ -126,12 +136,33 @@ function SuccessPage() {
     // skips rather than firing a doomed request.
     if (!session || !hotspotLoginUrl || !guestIdentifier || hotspotLoginSubmitted.current) return;
     hotspotLoginSubmitted.current = true;
+
+    // Real incident, live captive-portal "flick flick" flash: a remount
+    // landing back here within HOTSPOT_RESUBMIT_COOLDOWN_MS of this exact
+    // identifier's last real submit (see PortalRuntimeContext's
+    // `loadPersistedHotspotSubmit` docstring) is treated as one of the
+    // OS-triggered bounces, not a genuine new attempt -- skip the redundant
+    // top-level POST (itself a full navigation away and back, the actual
+    // visible flash) and go straight to the real resting page instead,
+    // exactly where the previous attempt's own `dst` was already taking
+    // this guest.
+    const lastSubmit = loadPersistedHotspotSubmit();
+    const recentlySubmitted =
+      !!lastSubmit &&
+      lastSubmit.identifier === guestIdentifier &&
+      Date.now() - lastSubmit.at < HOTSPOT_RESUBMIT_COOLDOWN_MS;
+    if (recentlySubmitted) {
+      navigate({ to: "/portal/session", replace: true, search: (prev) => prev });
+      return;
+    }
+
+    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
     submitHotspotLogin(
       hotspotLoginUrl,
       guestIdentifier,
       buildSessionUrl(organizationId, locationId, routerId),
     );
-  }, [session, hotspotLoginUrl, guestIdentifier, organizationId, locationId, routerId]);
+  }, [session, hotspotLoginUrl, guestIdentifier, organizationId, locationId, routerId, navigate]);
 
   useEffect(() => {
     if (!session) navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
@@ -141,13 +172,7 @@ function SuccessPage() {
 
   return (
     <PortalShell variant="light" showHeader={false}>
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-        <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
-        <div>
-          <p className="text-lg font-semibold text-slate-900">Connecting you to the internet…</p>
-          <p className="mt-1 text-sm text-slate-500">Just a moment.</p>
-        </div>
-      </div>
+      <PortalConnectingState />
     </PortalShell>
   );
 }

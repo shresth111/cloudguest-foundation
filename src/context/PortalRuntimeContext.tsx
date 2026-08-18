@@ -93,6 +93,52 @@ function persistIdentifier(identifier: string | undefined) {
   else window.sessionStorage.removeItem(IDENTIFIER_STORAGE_KEY);
 }
 
+const HOTSPOT_SUBMIT_STORAGE_KEY = "cloudguest_portal_hotspot_submit";
+
+/** Real incident, live captive-portal "flick flick" flash right after a
+ * successful OTP login: a captured diagnostic beacon (since removed) showed
+ * `/portal/` and `/portal/success` remounting 3 times in ~600ms around a
+ * SINGLE already-successful RADIUS login -- the login itself succeeded on
+ * the first cycle; the remounts kept happening afterward regardless,
+ * re-firing `/portal/success`'s real top-level hotspot-login POST every
+ * time (a harmless no-op to RouterOS for an already-authorized session, but
+ * each one is itself a real full-page navigation away and back -- the
+ * actual visible flash). Leading cause: iOS/Android's own
+ * captive-portal-detection mini-browser periodically re-probes connectivity
+ * mid-flow and can reload itself straight back to the original portal URL,
+ * outside this app's control.
+ *
+ * This records *when* (and for which identifier) that POST was last
+ * actually submitted, sessionStorage-backed like `session`/`guestIdentifier`
+ * above -- a plain `useRef`/module-level flag does NOT survive a real full
+ * document reload, exactly what these OS-triggered remounts can be. Read by
+ * `portal.success.tsx` as a short cooldown: a remount landing back there
+ * within a few seconds of the last real submit skips the redundant POST
+ * entirely and goes straight to `/portal/session` instead, rather than
+ * firing another one. Deliberately a cooldown, not a permanent flag -- a
+ * real WiFi reconnect (real incident #4/#5, see portal.index.tsx) needs
+ * this POST to genuinely re-fire, and that happens on the timescale of a
+ * guest physically reconnecting, not a sub-10-second OS bounce. */
+interface PersistedHotspotSubmit {
+  identifier: string;
+  at: number;
+}
+
+function loadPersistedHotspotSubmit(): PersistedHotspotSubmit | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.sessionStorage.getItem(HOTSPOT_SUBMIT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as PersistedHotspotSubmit) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function persistHotspotSubmit(v: PersistedHotspotSubmit) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
+}
+
 interface PortalRuntimeState {
   organizationId: string;
   locationId: string;
@@ -332,8 +378,13 @@ export function PortalRuntimeProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export { loadPersistedRuntimeIds, persistRuntimeIds };
-export type { PersistedRuntimeIds };
+export {
+  loadPersistedRuntimeIds,
+  persistRuntimeIds,
+  loadPersistedHotspotSubmit,
+  persistHotspotSubmit,
+};
+export type { PersistedRuntimeIds, PersistedHotspotSubmit };
 
 export function usePortalRuntime() {
   const ctx = useContext(Ctx);

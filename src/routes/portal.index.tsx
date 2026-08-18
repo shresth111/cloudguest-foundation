@@ -6,6 +6,7 @@ import { isAxiosError } from "axios";
 import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 
 export const Route = createFileRoute("/portal/")({
@@ -194,6 +195,35 @@ function PortalLoading() {
             </>
           )}
         </div>
+      </PortalShell>
+    );
+  }
+
+  // Real incident, live captive-portal "flick flick" flash: a persisted
+  // `session` (rehydrated from sessionStorage, known synchronously from this
+  // component's very first render -- see PortalRuntimeContext) means this
+  // exact device is already authenticated, and the routing effect above is
+  // guaranteed to navigate it on to /portal/success or /portal/session (the
+  // `hasSession` branch, never welcome/closed) the instant config/liveSession
+  // resolve. A device in that state is never a genuine first-time guest --
+  // it's either a normal one-time pass-through, or one of the OS-triggered
+  // remount bounces this whole page and portal.success.tsx can get caught in
+  // (see PortalRuntimeContext's `loadPersistedHotspotSubmit` docstring).
+  // Rendering the exact same steady "Connecting…" visual portal.success.tsx
+  // shows -- instead of this page's own branded logo fade-in + pulsing dots
+  // -- means a guest bouncing between the two sees one unchanging frame
+  // throughout, not two visually distinct screens flashing back and forth.
+  //
+  // Gated on `!showSlowNotice`: the real, confirmed-live bounce cycle
+  // resolves in ~600ms, well under that 3s threshold, so the common case
+  // never reaches it. A genuine stall past 3s falls back to the original
+  // branded screen with its own "Taking a while -- retry" button instead --
+  // an already-authenticated guest stuck on a real stalled connection still
+  // needs that escape hatch, not an endless silent spinner.
+  if (session && !showSlowNotice) {
+    return (
+      <PortalShell variant="light" showHeader={false}>
+        <PortalConnectingState />
       </PortalShell>
     );
   }
