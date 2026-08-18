@@ -1,6 +1,6 @@
 import { KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PortalCard } from "@/components/portal-runtime/PortalShell";
+import { GUEST_LEGIBILITY_CARD_CLASS, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { useGuestSignIn } from "./useGuestSignIn";
@@ -30,17 +30,24 @@ import { PasswordSignInForm } from "./PasswordSignInForm";
 export function GuestSignInCard() {
   const { config, t } = usePortalRuntime();
   const sign = useGuestSignIn();
+  const hasBackgroundImage = !!config?.backgroundImageUrl;
 
   return (
     <div className="flex flex-1 flex-col gap-5">
-      {/* No `hasBackgroundImage &&` legibility conditional here anymore --
-       * that's `<GuestBackdrop>`'s job now, structurally, for every child
-       * of `PortalShell` at once (v4 §3). This header simply sits inside
-       * that guarantee instead of maintaining its own second copy of it
-       * (previously added independently here on Aug 18, four days after
-       * `BrandPanel` got the identical fix -- exactly the "same bug,
-       * patched twice" pattern v4 exists to close). */}
-      <div className={cn("flex flex-col items-center text-center")}>
+      {/* Own bounded legibility card again when a real background photo is
+       * configured -- mirrors BrandPanel's identical treatment. v4 (#81)
+       * briefly delegated this to `<GuestBackdrop>` wrapping the entire
+       * content column in one page-wide opaque panel instead; that
+       * over-corrected into washing out the photo itself (see
+       * GuestBackdrop's own comment in PortalShell.tsx), so this header is
+       * back to owning its own scoped backing via the same shared
+       * `GUEST_LEGIBILITY_CARD_CLASS` BrandPanel and the footer use. */}
+      <div
+        className={cn(
+          "flex flex-col items-center text-center",
+          hasBackgroundImage && cn("p-6", GUEST_LEGIBILITY_CARD_CLASS),
+        )}
+      >
         {/* Real per-location logo always wins when configured; otherwise
             fall back to the actual Wyfy Guest brand mark (not a generic
             placeholder icon) so an un-customized location's guests still
