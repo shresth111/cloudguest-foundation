@@ -671,7 +671,7 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           <div>
             <CardTitle className="text-sm">Bandwidth Utilization</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, new reading roughly every 10 min
+              Traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, new reading roughly every 30 sec
             </p>
           </div>
         </div>
@@ -1327,7 +1327,7 @@ export function CustomerDashboardPage() {
                  * see BandwidthUtilizationCard's own comment for the full
                  * reasoning. */}
                 <div>
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">Bandwidth on your primary uplink, sampled roughly every 10 minutes.</p>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">Bandwidth on your primary uplink, sampled roughly every 30 seconds.</p>
                   <BandwidthUtilizationCard locationId={locationId} onManage={() => handleNav("isp-details")} />
                 </div>
 
