@@ -91,6 +91,16 @@
   --dur-fast: 140ms;
   --dur-med: 240ms;
   --gradient-surface: linear-gradient(180deg, oklch(1 0 0 / 0.6), oklch(1 0 0 / 0));
+  /* Aceternity "Aurora Background" primitive's own background-position
+   * sweep -- a continuous ambient loop, not a discrete enter/exit, so it
+   * intentionally doesn't use --ease-emphasized (that curve is for finite
+   * transitions; upstream's plain linear infinite loop is the correct
+   * choice here, same reasoning as the .aurora-blob-N / .aurora-grid loops
+   * below already using ease-in-out/linear rather than the emphasized
+   * curve). Registered as a Tailwind v4 theme animation so `animate-aurora`
+   * exists as a utility class (this repo has no tailwind.config.js --
+   * v4's CSS-based config needs it declared here). */
+  --animate-aurora: aurora 60s linear infinite;
 }
 
 
@@ -454,6 +464,16 @@
   0% { background-position: 0 0; }
   100% { background-position: 48px 48px; }
 }
+/* Aceternity "Aurora Background" primitive's keyframe (`npx shadcn add
+ * @aceternity/aurora-background` -> src/components/ui/aurora-background.tsx)
+ * -- registered here rather than a tailwind.config.js because this repo's
+ * Tailwind v4 setup is CSS-config-only. Drives the customer login hero's
+ * backdrop (login.tsx) via the `.login-aurora` utility below, recolored to
+ * this app's indigo/violet/cyan set instead of the library default blue. */
+@keyframes aurora {
+  from { background-position: 50% 50%, 50% 50%; }
+  to { background-position: 350% 50%, 350% 50%; }
+}
 @keyframes float-badge {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
@@ -470,8 +490,18 @@
 .float-badge { animation: float-badge 6s ease-in-out infinite; }
 .glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
 
+/* Customer login hero backdrop (login.tsx) -- `.login-aurora` is just a
+ * stable hook for the reduced-motion override below; the Aceternity Aurora
+ * Background primitive's actual technique (base blurred gradient + a
+ * `::after` copy swept via mix-blend-difference, driven by the
+ * `animate-aurora` utility registered above) is authored inline as
+ * Tailwind arbitrary-value classes in login.tsx itself, matching how the
+ * installed primitive (src/components/ui/aurora-background.tsx) authors
+ * it, recolored to this app's cyan/violet/primary-purple set. See that
+ * file's own comment for the full rationale. */
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse {
+  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse,
+  .login-aurora, .login-aurora::after {
     animation: none !important;
   }
 }
