@@ -1307,6 +1307,109 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
     : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`;
 }
 
+/** THE actual fix for a confirmed, severe, fleet-wide bug (field-diagnosed
+ * live 2026-08-18, router "WYFY-GUEST"): MikroTik hotspot has TWO separate,
+ * independent walled-garden mechanisms, and `buildWalledGardenLine` above
+ * only ever populates one of them. `/ip hotspot walled-garden` (host-based,
+ * what that function adds) works by inspecting the Host header at the
+ * HTTP-proxy layer -- a layer that simply doesn't exist for TLS-encrypted
+ * HTTPS traffic, so it can only ever bypass authentication for *plain HTTP*
+ * requests. `/ip hotspot walled-garden ip` (IP-address-based, firewall/
+ * NAT-layer) is the ONLY mechanism that can bypass authentication for
+ * HTTPS, since it acts before the port-443 hotspot redirect fires at all.
+ *
+ * Confirmed live via firewall hit-counters on a real router: ~98% of real
+ * guest traffic today is HTTPS (1,965 HTTPS hits vs. 30 HTTP hits on the
+ * hotspot's own redirect rules) -- meaning that, with only the host-based
+ * entry in place, the vast majority of guests' very first attempt to reach
+ * the real portal (`GUEST_PORTAL_PUBLIC_BASE`, always HTTPS) gets caught by
+ * the hotspot's own unauthenticated-HTTPS-redirect instead of passing
+ * through -- which wraps the connection in the router's own untrusted
+ * self-signed certificate -- producing exactly the "could not establish a
+ * secure connection" / "a problem occurred, the webpage couldn't be loaded"
+ * errors real guests hit, with the captive portal effectively broken for
+ * most real-world devices, not an edge case. Confirmed FIXED live on that
+ * same router by manually running `/ip hotspot walled-garden ip add
+ * action=accept dst-address=<resolved portal IP>
+ * comment="cloudguest-portal-https"`. This function generates the
+ * repeatable, self-healing equivalent of that manual fix.
+ *
+ * `walled-garden ip` needs a real IP address -- unlike the host-based table
+ * above, there is no hostname form of this one. The portal's IP is a real
+ * DNS A record on this platform's own backend (see
+ * `GUEST_PORTAL_PUBLIC_BASE`'s own docstring), not a fixed address baked
+ * into this platform, so it can't just be resolved once here at
+ * script-GENERATION time and hardcoded as a literal the way e.g.
+ * `WAN_RENAME_WARNING_HEADER` bakes in a name -- that would silently go
+ * stale the instant the backend's DNS record ever changed, with no signal
+ * to an already-provisioned router that anything broke. Instead this
+ * resolves the hostname ON THE ROUTER ITSELF, at script-RUN time, via
+ * RouterOS's own `:resolve` -- the same primitive the "WAN Connectivity
+ * Check" chunk above already uses for its own DNS probe, including the same
+ * `:do {} on-error={}` guard (`:resolve` throws on failure -- NXDOMAIN, no
+ * DNS reachable yet this early in provisioning, etc. -- and an uncaught
+ * throw here would abort the rest of this paste) -- and then ADD-OR-UPDATE
+ * (not just add-if-missing) the walled-garden-ip entry with whatever
+ * address comes back, every time this chunk is (re-)pasted, matching the
+ * "safe to re-paste, self-heals" idiom used everywhere else in this file
+ * (e.g. `HOTSPOT_DNS_NAME`'s own static-DNS entry a few lines up: `:if (...
+ * = 0) do={ add } else={ set }`).
+ *
+ * **Known limitation, deliberately not solved here**: this only re-resolves
+ * when a human re-pastes this chunk. If the backend's DNS record for the
+ * portal ever changes in between, this on-device entry goes stale until the
+ * next re-paste -- there is no automatic re-resolve, unlike WAN1's own IP
+ * (which the Heartbeat chunk below already re-resolves on its own 5-minute
+ * schedule). Deliberately NOT wired into that scheduler here: WAN1's IP is
+ * expected to change routinely (DHCP renewal is normal, ordinary operation),
+ * while the portal's DNS record is expected to be effectively static (a
+ * production A record on this platform's own backend, changed rarely if
+ * ever) -- piggybacking a rarely-needed re-resolve onto a 5-minute scheduler
+ * that already does something else (report to master) trades a small,
+ * real-but-rare staleness window for a permanently-running extra `:resolve`
+ * + `/ip hotspot walled-garden ip set` on every device in the fleet, every 5
+ * minutes, forever. If the portal's DNS record does change, re-pasting this
+ * one chunk (cheap, already how every other self-heal in this file is
+ * recovered from) fixes every affected router. Left as a candidate for a
+ * dedicated periodic refresh if this specific staleness window ever
+ * actually bites in production -- not added preemptively.
+ *
+ * Returns `null` under the same "not a parseable URL" condition
+ * `buildWalledGardenLine` already handles. An IP-literal `frontendBase` (the
+ * same rare case that function special-cases) skips `:resolve` entirely --
+ * there's nothing to resolve, the literal IS the address -- and so skips its
+ * `on-error` guard too, since a literal assignment can't fail the way a
+ * live DNS lookup can. */
+function buildWalledGardenIpLines(portalUrl: PortalOverrideConfig): string[] | null {
+  const portalHost = (() => {
+    try {
+      return new URL(portalUrl.frontendBase).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  if (!portalHost) return null;
+  const portalHostEsc = escapeForRouterOsString(portalHost);
+  const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
+  const addOrUpdate = [
+    `:local existingPortalGardenIp [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]`,
+    `:if ([:len $existingPortalGardenIp] = 0) do={`,
+    `  /ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https"`,
+    `} else={`,
+    `  /ip hotspot walled-garden ip set $existingPortalGardenIp dst-address=$portalIp`,
+    `}`,
+  ];
+  return isIpLiteral
+    ? [`:local portalIp "${portalHostEsc}"`, ...addOrUpdate]
+    : [
+        `:local portalIp ""`,
+        `:do { :set portalIp [:resolve "${portalHostEsc}"] } on-error={ :log warning "cloudguest: could not resolve ${portalHostEsc} for HTTPS walled-garden -- guest portal may be unreachable over HTTPS for new devices until this resolves; re-paste this chunk once DNS is healthy" }`,
+        `:if ([:len $portalIp] > 0) do={`,
+        ...addOrUpdate.map((l) => `  ${l}`),
+        `}`,
+      ];
+}
+
 /** The `dns-name` this script sets on `hsprof1` (RouterOS's own
  * `/ip hotspot profile` field) -- once set, RouterOS's hotspot redirect
  * uses this hostname instead of the hotspot's raw LAN IP when it sends a
@@ -2476,6 +2579,71 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
 
+  {
+    // Best-effort and SECONDARY to the "Walled Garden IP" chunk above,
+    // which is the actual, confirmed fix for the primary bug (see
+    // `buildWalledGardenIpLines`'s own docstring). Properly
+    // walled-gardened HTTPS traffic to the real portal bypasses the
+    // hotspot's own interception/redirect ENTIRELY -- it never touches
+    // hsprof1's certificate at all, so this chunk is NOT needed for the
+    // primary guest-portal flow to work, and was not required to fix the
+    // confirmed bug. What it's for instead: any *other* HTTPS site a
+    // not-yet-authenticated guest's device tries first (their OS's own
+    // captive-portal-detection probe, a bookmarked HTTPS page, etc.) is
+    // still intercepted by the hotspot's HTTPS redirect, and giving that
+    // interception a real (if self-signed) certificate to present is
+    // strictly better than whatever RouterOS falls back to with none
+    // configured at all. The guest will still see a browser security
+    // warning for any THIRD-PARTY domain either way -- MITM-ing arbitrary
+    // HTTPS without the client trusting this router's own CA is not
+    // solvable at all, by design; only the platform's own domain can ever
+    // be made to work cleanly pre-auth, and that's exactly what Walled
+    // Garden IP above already does.
+    //
+    // Two-step self-signed pattern -- a CA-capable cert that signs
+    // itself, then a separate leaf cert signed BY that CA -- confirmed
+    // live, working, this session: both `/certificate add` calls and both
+    // `/certificate sign` calls completed with no error on a real router
+    // (RouterOS 7.23.3, hEX lite). Signing only happens nested inside the
+    // same not-yet-exists `:if` as its own `add`, never re-attempted
+    // against an already-existing cert on re-paste -- re-signing an
+    // already-signed cert was not tested live, and "already exists, leave
+    // it alone" is exactly as correct and matches every other
+    // not-meant-to-be-refreshed self-heal idiom in this file.
+    //
+    // **UNRESOLVED ODDITY -- flagged honestly, not claimed fixed**: binding
+    // this certificate to hsprof1 via `/ip hotspot profile set
+    // [find name="hsprof1"] ssl-certificate=...` was ALSO field-tested
+    // live today (same router/RouterOS version). The CLI accepted the
+    // command with no error at the time, but the `ssl-certificate`
+    // property never subsequently appeared in `/ip hotspot profile
+    // print`, `export`, or `print terse` output on that same device -- no
+    // working alternative syntax was found this session. Left in below
+    // anyway: it matches the documented syntax, it's harmless if it
+    // silently no-ops the same way it did in testing (the certificate
+    // still gets created either way, which is all Walled Garden IP above
+    // actually needs), and it costs nothing to leave in place in case a
+    // future RouterOS version or a syntax variant this session didn't try
+    // makes it stick. Do NOT assume hsprof1 is actually serving this
+    // certificate for non-portal HTTPS interception without re-verifying
+    // directly on-device after pasting this chunk.
+    const lines = [
+      `:if ([:len [/certificate find where name="cloudguest-ca"]] = 0) do={`,
+      `  /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server`,
+      `  /certificate sign cloudguest-ca ca=cloudguest-ca`,
+      `}`,
+      `:if ([:len [/certificate find where name="cloudguest-hotspot-cert"]] = 0) do={`,
+      `  /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server`,
+      `  /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca`,
+      `}`,
+      `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert"`,
+    ];
+    chunks.push({
+      label: "Self-Signed HTTPS Certificate (best-effort -- see comment: hsprof1 binding unverified)",
+      script: lines.join("\n"),
+    });
+  }
+
   if (portalUrl) {
     // Confirmed live: without this, an unauthenticated guest's browser
     // navigating to the real portal (an ordinary external address as far
@@ -2486,6 +2654,20 @@ export function buildRouterSetupScriptChunks(opts: {
     const walledGarden = buildWalledGardenLine(portalUrl);
     if (walledGarden) {
       chunks.push({ label: "Walled Garden (let unauthenticated guests reach the portal)", script: walledGarden });
+    }
+
+    // Separate chunk, deliberately not folded into the one above: the
+    // host-based entry alone only covers plain HTTP -- see
+    // `buildWalledGardenIpLines`'s own docstring for the confirmed,
+    // severe, fleet-wide bug this fixes (the vast majority of real guest
+    // traffic is HTTPS, and without this, that traffic never reaches the
+    // real portal at all). Both are needed together, not either/or.
+    const walledGardenIp = buildWalledGardenIpLines(portalUrl);
+    if (walledGardenIp) {
+      chunks.push({
+        label: "Walled Garden IP (let unauthenticated guests reach the portal over HTTPS)",
+        script: walledGardenIp.join("\n"),
+      });
     }
 
     // RouterOS's own string-literal parser evaluates $(...) as command
