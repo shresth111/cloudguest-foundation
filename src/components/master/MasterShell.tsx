@@ -20,6 +20,7 @@ import {
   TerminalSquare,
   CalendarClock,
   FileText,
+  Handshake,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
@@ -39,6 +40,12 @@ export interface MasterNavItem {
 export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master", label: "Platform Overview", icon: LayoutGrid, cap: "overview" },
   { to: "/master/customers", label: "Customers", icon: Building2, cap: "customers" },
+  {
+    to: "/master/channel-partners",
+    label: "Channel Partners",
+    icon: Handshake,
+    cap: "channel-partners",
+  },
   { to: "/master/locations", label: "All Locations", icon: MapPin, cap: "locations" },
   { to: "/master/billing", label: "Subscriptions & Billing", icon: CreditCard, cap: "billing" },
   { to: "/master/nas", label: "NAS / RADIUS", icon: Server, cap: "nas" },
@@ -71,7 +78,13 @@ export const MASTER_NAV: MasterNavItem[] = [
 const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
   {
     label: "Growth",
-    items: ["/master", "/master/customers", "/master/locations", "/master/billing"],
+    items: [
+      "/master",
+      "/master/customers",
+      "/master/channel-partners",
+      "/master/locations",
+      "/master/billing",
+    ],
   },
   {
     label: "Infrastructure",
@@ -115,6 +128,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
 const CAP_PERMISSIONS: Record<string, string[]> = {
   overview: ["dashboard.view"],
   customers: ["organizations.read"],
+  "channel-partners": ["channel_partners.read"],
   locations: ["locations.read"],
   billing: ["billing.read"],
   nas: ["radius.read"],
