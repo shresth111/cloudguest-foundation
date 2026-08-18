@@ -35,6 +35,17 @@ import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 export const PG_FONT_STACK =
   '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif';
 
+// Bounded, opaque-enough legibility backing for a single text/logo zone
+// sitting directly on a venue's uploaded photo -- white/80-90 +
+// backdrop-blur-md, the exact pattern BrandPanel's Aug 5 fix (ab5226f)
+// and GuestSignInCard header's PR #80 fix independently arrived at.
+// Shared here (not three copies) so the *styling* stays structural
+// without making the *coverage area* structural -- see GuestBackdrop's
+// own comment for why those are two different things and conflating them
+// was the actual v4 regression.
+export const GUEST_LEGIBILITY_CARD_CLASS =
+  "rounded-3xl border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md";
+
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
  * that used to be empty gradient next to a small floating card. Copy is
  * deliberately generic (real venue name, phrased so it never repeats the
@@ -44,19 +55,25 @@ export const PG_FONT_STACK =
  * session's own audit call-out on not inventing guest-facing copy that
  * isn't backed by real data.
  *
- * v4 §6.3/§3: no longer owns its own `hasBackgroundImage` legibility
- * treatment -- that's now `<GuestBackdrop>`'s job, structurally, for
- * every child of this shell at once. This component is back to being a
- * pure content component with nothing to keep in sync with the shell's
- * own background-image logic. */
-function BrandPanel({ venueName }: { venueName?: string }) {
+ * Owns its own `hasBackgroundImage` legibility backing again (previously
+ * this delegated to `<GuestBackdrop>`'s v4 full-column panel -- see that
+ * component's own comment for why that delegation was reverted: it
+ * legibility-backed this text by washing out the photo behind everything
+ * else too). */
+function BrandPanel({
+  venueName,
+  hasBackgroundImage,
+}: {
+  venueName?: string;
+  hasBackgroundImage?: boolean;
+}) {
   const { t } = usePortalRuntime();
   // {venue} substitution done here rather than inside translate() itself --
   // see courtesyOfTemplate's own doc comment in portal-i18n.ts for why the
   // word order needs to flip per language ("courtesy of X" vs "X की ओर से").
   const courtesySuffix = venueName ? t("courtesyOfTemplate").replace("{venue}", venueName) : "";
-  return (
-    <div className="max-w-lg">
+  const content = (
+    <>
       {/* Solid chip, not a glassy `bg-white/70 backdrop-blur` badge -- the
        * "quiet, confident, venue signage" direction deliberately drops the
        * glass-panel vocabulary of the previous pass; a flat neutral
@@ -74,47 +91,57 @@ function BrandPanel({ venueName }: { venueName?: string }) {
        * rest of the sentence already tells a guest exactly what to do
        * next without inventing a number. */}
       <p className="mt-5 max-w-md pg-body text-[var(--pg-ink-muted)]">{t("verifyDeviceCta")}</p>
-    </div>
+    </>
   );
+  // The page-level scrim (`GuestBackdrop`) is a top/bottom vignette --
+  // fully transparent through the vertical middle, exactly where this
+  // panel sits once vertically centered. Fine against the plain
+  // gradient/flat-canvas background (no photo, no contrast problem), but
+  // a real customer photo can be any tone at all, so this needs its own
+  // guaranteed-legible backing rather than trusting whatever's directly
+  // behind it.
+  if (hasBackgroundImage) {
+    return <div className={cn("max-w-lg p-8", GUEST_LEGIBILITY_CARD_CLASS)}>{content}</div>;
+  }
+  return <div className="max-w-lg">{content}</div>;
 }
 
-// The top/bottom vignette scrim protects the logo and the Terms/Privacy
-// footer whenever there's no opaque panel behind them -- fully
-// transparent through the vertical middle, exactly where <GuestBackdrop>'s
-// own panel sits once vertically centered. Kept as defense-in-depth
-// underneath that panel (belt-and-suspenders, not either/or) for the
-// sliver of photo still visible around the panel's edges.
+// The top/bottom vignette scrim protects any edge-of-page content (the
+// logo/heading zone, the footer) that sits directly on the photo with no
+// bounded card of its own behind it -- fully transparent through the
+// vertical middle, where the actual sign-in card already carries its own
+// opaque background. Defense-in-depth alongside the per-zone
+// GUEST_LEGIBILITY_CARD_CLASS cards below, not a replacement for them.
 const GUEST_BACKDROP_SCRIM =
   "linear-gradient(to bottom, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 16%, rgba(255,255,255,0) 34%, rgba(255,255,255,0) 72%, rgba(255,255,255,0.65) 100%)";
 
 /**
- * Owns the guest-portal legibility guarantee against a venue-uploaded
- * background photo -- v4 §3, the structural fix for the bug class that
- * had been patched twice, independently (`BrandPanel` Aug 5, then
- * `GuestSignInCard`'s own header PR #80, four days apart, because nobody
- * had connected the two as the same underlying gap).
+ * Renders the venue's uploaded background photo at full clarity, plus the
+ * top/bottom vignette scrim -- nothing more. Does NOT wrap `children` in
+ * any opaque panel; legibility for the actual text/logo content is each
+ * zone's own job (`GUEST_LEGIBILITY_CARD_CLASS`, applied by `BrandPanel`,
+ * `GuestSignInCard`'s header, and this shell's footer).
  *
- * Current mechanism before this component existed: the shell rendered the
- * photo, then a scrim that's deliberately transparent through the middle,
- * on the assumption that whatever content sits in that band supplies its
- * own opaque backing -- an opt-in each content block had to remember, not
- * a guarantee. The footer never got that memo at all and had no backing.
+ * v4 (#81) first shipped this as one continuous `--pg-surface/92` panel
+ * wrapping the *entire* content column -- logo, heading, sign-in card,
+ * footer, min-h-dvh tall -- on the reasoning that a single structural
+ * guarantee beats three independently-drifting per-block fixes. Correct
+ * problem, wrong mechanism: on a real venue photo that panel covered
+ * essentially the whole viewport at ~90% white, which is indistinguishable
+ * from "the photo doesn't render" -- confirmed live on production
+ * (/portal/welcome), the venue's real background photo was reduced to a
+ * barely-visible ghost. That traded genuine illegibility for genuine
+ * invisibility; neither is acceptable, and the photo is the actual point
+ * of this feature (a venue's own branding asset).
  *
- * v4 fix: invert who's responsible. One continuous `--pg-surface` panel
- * (not per-block cards) contains the *entire* content column -- logo,
- * heading, sign-in card, footer, and at lg:+ both the BrandPanel column
- * and the sign-in column -- as one visual object sitting on the photo,
- * not text floating over a photo hoping each piece remembered its own
- * backing. Any content added to this shell's children next month
- * inherits legibility automatically, because it's inside a layout-level
- * guarantee, not because someone remembered to write a fourth
- * `hasBackgroundImage &&` conditional.
- *
- * No `backgroundImageUrl`: unchanged from before -- content sits directly
- * on `--pg-canvas`, no panel, no scrim, no photo. Same conditional that
- * existed before, just resolved once here instead of three times
- * (this shell's scrim, BrandPanel's own check, GuestSignInCard header's
- * own check).
+ * This reverts to bounded, per-zone cards -- same visual recipe
+ * (white/80-90 + backdrop-blur-md) v4 already used, just scoped to the
+ * text-bearing zones instead of the whole page -- while keeping the one
+ * genuinely structural win v4 introduced: a single shared class
+ * (`GUEST_LEGIBILITY_CARD_CLASS`) instead of three independently-typed
+ * copies of the same Tailwind string. That's the part of "don't repeat
+ * yourself three times" worth keeping; "cover the whole page" was never
+ * the part that needed fixing.
  */
 function GuestBackdrop({
   backgroundImageUrl,
@@ -142,15 +169,7 @@ function GuestBackdrop({
         className="pointer-events-none absolute inset-0"
         style={{ background: GUEST_BACKDROP_SCRIM }}
       />
-      {/* The one continuous legibility panel -- full-bleed to the
-       * viewport edges below sm: (matches how the content column it wraps
-       * already behaves at that width), inset with rounded corners and a
-       * hairline border + soft shadow above it, so the panel reads as a
-       * distinct object via its own edge even in the pathological case of
-       * a photo whose luminance happens to be close to the panel's own. */}
-      <div className="relative z-10 w-full overflow-hidden bg-[var(--pg-surface)]/92 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md sm:my-6 sm:rounded-[28px] sm:border sm:border-white/70">
-        {children}
-      </div>
+      {children}
     </>
   );
 }
@@ -210,6 +229,7 @@ export function PortalShell({
   // can grow to fit whatever the real content needs instead of ever
   // clipping or needing to scroll.
   const heightCls = constrained ? "min-h-full" : "min-h-dvh";
+  const hasBackgroundImage = !!config?.backgroundImageUrl;
 
   return (
     <div
@@ -268,7 +288,7 @@ export function PortalShell({
         >
           {!constrained && showBrandPanel && (
             <div className="hidden lg:block">
-              <BrandPanel venueName={config?.name} />
+              <BrandPanel venueName={config?.name} hasBackgroundImage={hasBackgroundImage} />
             </div>
           )}
           <div
@@ -287,7 +307,19 @@ export function PortalShell({
             <main className={cn("pg-enter flex flex-1 flex-col", contentClassName)}>
               {children}
             </main>
-            <footer className="mt-8 flex items-center justify-center gap-2.5 text-center pg-micro">
+            <footer
+              className={cn(
+                "mt-8 flex items-center justify-center gap-2.5 text-center pg-micro",
+                // Same bounded legibility card as BrandPanel/GuestSignInCard's
+                // header -- the footer sits directly on the photo with no
+                // other opaque backing (the vignette scrim below is
+                // deliberately transparent through the middle and only
+                // partial at this bottom edge), so without its own card
+                // this text is exactly the same "washed to ghost text"
+                // failure mode a busy photo can otherwise cause.
+                hasBackgroundImage && cn("rounded-full px-4 py-2", GUEST_LEGIBILITY_CARD_CLASS),
+              )}
+            >
               {/* One link, not two -- /portal/terms already covers both
                * Terms of service and Privacy policy as separate sections.
                * "Support" has no real guest-facing contact field wired
