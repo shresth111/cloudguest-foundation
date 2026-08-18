@@ -19,6 +19,52 @@ import { RTL_LANGS, translate } from "@/lib/portal-i18n";
 
 const SESSION_STORAGE_KEY = "cloudguest_portal_session";
 const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
+const RUNTIME_IDS_STORAGE_KEY = "cloudguest_portal_runtime_ids";
+
+/** The three IDs `src/routes/portal.tsx`'s search schema treats as required
+ * (organizationId/locationId/routerId) -- see that file's own
+ * `IncompletePortalLinkError` doc comment for the full "why". Unlike that
+ * schema's other, genuinely-optional fields, these were never given the
+ * same sessionStorage-backing `session`/`guestIdentifier` got above: they
+ * were assumed to always ride along on the current URL's search params.
+ * That's true for the very first NAS-redirected load, but NOT for every
+ * later one -- a plain browser reload of `/portal/session` while already
+ * connected, an OS's own periodic captive-portal-detection re-probe
+ * reopening a bare/remembered URL, browser back/forward navigation -- none
+ * of those are guaranteed to carry this app's own query string forward,
+ * and any one of them landing on a bare URL hit `IncompletePortalLinkError`
+ * immediately, even for a guest who already has a perfectly valid,
+ * persisted `session`. Confirmed live: a guest saw exactly this, right
+ * after their connection had already fully succeeded.
+ *
+ * Persisted once genuinely present (a real link/redirect always supplies
+ * all three), then used as a fallback on a later load that's missing them
+ * -- same pattern as `loadPersistedSession`/`persistSession` above. Safe
+ * to persist for the lifetime of a browsing session, unlike the
+ * `hotspotLoginUrl` persistence attempted and later reverted earlier
+ * today: these three identify the same organization/location/router for
+ * as long as this guest is on this network, they don't carry a one-time
+ * NAS login token that can go stale. */
+interface PersistedRuntimeIds {
+  organizationId: string;
+  locationId: string;
+  routerId: string;
+}
+
+function loadPersistedRuntimeIds(): PersistedRuntimeIds | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.sessionStorage.getItem(RUNTIME_IDS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as PersistedRuntimeIds) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function persistRuntimeIds(ids: PersistedRuntimeIds) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(RUNTIME_IDS_STORAGE_KEY, JSON.stringify(ids));
+}
 
 function loadPersistedSession(): RuntimeSession | undefined {
   if (typeof window === "undefined") return undefined;
@@ -285,6 +331,9 @@ export function PortalRuntimeProvider({
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
+
+export { loadPersistedRuntimeIds, persistRuntimeIds };
+export type { PersistedRuntimeIds };
 
 export function usePortalRuntime() {
   const ctx = useContext(Ctx);
