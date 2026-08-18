@@ -15,7 +15,15 @@ import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 // pre-auth and is itself part of not repeating the previous "generic
 // friendly SaaS" visual recipe (Manrope is a very recognizable instance
 // of that). Carried by weight/tracking/size choices, not a custom face.
-const PG_FONT_STACK = '-apple-system, "Segoe UI", Roboto, ui-sans-serif, system-ui, sans-serif';
+// "Noto Sans Devanagari" covers Hindi -- none of the system-font stack
+// below does, so Hindi text used to fall through to whatever Devanagari
+// font (if any) the guest's OS happened to have, with visibly inconsistent
+// weight/line-height versus the rest of this UI. Loaded best-effort,
+// non-blocking alongside the rest of this app's fonts -- see __root.tsx's
+// LOAD_FONTS_SCRIPT comment for why a captive-portal page can never afford
+// a render-blocking font request.
+const PG_FONT_STACK =
+  '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif';
 
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
  * that used to be empty gradient next to a small floating card. Copy is
@@ -32,6 +40,13 @@ function BrandPanel({
   venueName?: string;
   hasBackgroundImage?: boolean;
 }) {
+  const { t } = usePortalRuntime();
+  // {venue} substitution done here rather than inside translate() itself --
+  // see courtesyOfTemplate's own doc comment in portal-i18n.ts for why the
+  // word order needs to flip per language ("courtesy of X" vs "X की ओर से").
+  const courtesySuffix = venueName
+    ? t("courtesyOfTemplate").replace("{venue}", venueName)
+    : "";
   const content = (
     <>
       {/* Solid chip, not a glassy `bg-white/70 backdrop-blur` badge -- the
@@ -40,17 +55,18 @@ function BrandPanel({
        * pass; a flat neutral background no longer needs a blur to stay
        * legible underneath this. */}
       <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--pr-primary,#6366f1)]">
-        <Wifi className="h-3.5 w-3.5" /> Guest network
+        <Wifi className="h-3.5 w-3.5" /> {t("guestNetwork")}
       </span>
       <h2 className="mt-6 text-[42px] font-bold leading-[1.08] tracking-[-0.02em] text-slate-900 xl:text-[50px]">
-        Fast, secure WiFi{venueName ? <>, courtesy of {venueName}</> : null}.
+        {t("brandHeadlineBase")}
+        {courtesySuffix}.
       </h2>
       {/* No "it takes about fifteen seconds" -- that was a fabricated
        * timing claim this codebase has no real config field to back (see
        * redesign spec §1a.2); the rest of the sentence already tells a
        * guest exactly what to do next without inventing a number. */}
       <p className="mt-5 max-w-md text-[16px] leading-relaxed text-slate-500">
-        Verify your device on the right to get connected.
+        {t("verifyDeviceCta")}
       </p>
     </>
   );
@@ -103,7 +119,7 @@ export function PortalShell({
   variant = "dark",
   constrained = false,
 }: Props) {
-  const { config, highContrast, largeText, organizationId, locationId, routerId } =
+  const { config, highContrast, largeText, organizationId, locationId, routerId, t } =
     usePortalRuntime();
   // Every portal.* route requires these three as real, required search
   // params (see src/routes/portal.tsx's own searchSchema) -- built
@@ -281,7 +297,7 @@ export function PortalShell({
                 search={portalSearch}
                 className="text-slate-400 hover:text-slate-600 hover:underline"
               >
-                Terms &amp; Privacy
+                {t("termsTitle")}
               </Link>
               {/* Real incident, live: text-slate-300 (~#cbd5e1) on this
                * shell's #FAFAF8 background reads as barely-there --
@@ -293,7 +309,7 @@ export function PortalShell({
                * visually quieter than a guest's eye lands on first, but
                * actually readable at rest, not just on close inspection. */}
               <span className="text-slate-400">·</span>
-              <span className="text-slate-400">Support: ask venue staff</span>
+              <span className="text-slate-400">{t("supportAskStaff")}</span>
             </footer>
           </div>
         </div>
@@ -350,7 +366,7 @@ export function PortalShell({
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{config?.name ?? "Wyfy Guest"}</p>
                 <p className="truncate text-[11px] text-white/60">
-                  {config?.splashHeadline ?? "Guest WiFi"}
+                  {config?.splashHeadline ?? t("guestWifiFallback")}
                 </p>
               </div>
             </div>
@@ -379,10 +395,10 @@ export function PortalShell({
             search={portalSearch}
             className="text-white/40 hover:text-white/70 hover:underline"
           >
-            Terms &amp; Privacy
+            {t("termsTitle")}
           </Link>
           <span className="text-white/25">·</span>
-          <span className="text-white/25">Support: ask venue staff</span>
+          <span className="text-white/25">{t("supportAskStaff")}</span>
         </footer>
       </div>
     </div>

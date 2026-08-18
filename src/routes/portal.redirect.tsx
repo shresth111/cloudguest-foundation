@@ -8,6 +8,29 @@ export const Route = createFileRoute("/portal/redirect")({
   component: RedirectPage,
 });
 
+/** `destinationUrl` is `dst` straight off this route's own URL (RouterOS's
+ * `$(link-orig)`, see src/routes/portal.tsx's `searchSchema.dst` doc
+ * comment) -- an unauthenticated visitor can put anything there, no login
+ * or real router redirect required to reach this page (this route has no
+ * session gate of its own, by design -- see the file's own history). Below,
+ * `url` gets assigned straight to `window.location.href` and to an anchor's
+ * `href`, both real navigation sinks: a `javascript:`-scheme value there
+ * runs script in this page's own origin on click, and `window.location.href
+ * = "javascript:..."` runs it with NO click at all, straight off this page's
+ * own 5-second auto-redirect timer. `config?.redirectUrl` (an org's own
+ * configured post-login destination) is admin-entered free text with no
+ * scheme validation of its own either, so the same check applies to it too.
+ * Restricting to http/https before either sink ever sees it is the fix --
+ * not a broader sanitizer, since a real `link-orig`/`redirectUrl` is always
+ * meant to be an ordinary web destination anyway. */
+function isSafeRedirectTarget(candidate: string): boolean {
+  try {
+    return ["http:", "https:"].includes(new URL(candidate, window.location.origin).protocol);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Reached right after a real login when the guest had an actual
  * pre-hotspot destination (RouterOS's `$(link-orig)`, or the location's
@@ -22,7 +45,8 @@ function RedirectPage() {
   const { config, t, destinationUrl } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/redirect" });
   const [remaining, setRemaining] = useState(5);
-  const url = destinationUrl || config?.redirectUrl;
+  const rawUrl = destinationUrl || config?.redirectUrl;
+  const url = rawUrl && isSafeRedirectTarget(rawUrl) ? rawUrl : undefined;
 
   useEffect(() => {
     if (!url) {
