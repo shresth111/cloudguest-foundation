@@ -92,7 +92,7 @@ function CustomerUsersPage() {
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; ip: string; device: string; duration: string; connectedAt: string; disconnectedAt: string | null; download: string; status: string; guestId: string | null } | null>(null);
+  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; ip: string; device: string; duration: string; connectedAt: string; disconnectedAt: string | null; download: string; status: string; guestId: string | null; mergedSessionCount?: number } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState<{ id: string; name: string; guestId: string | null } | null>(null);
   const PAGE_SIZE = 8;
 
@@ -224,7 +224,12 @@ function CustomerUsersPage() {
                       <TableCell className="font-mono text-xs hidden sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
                       <TableCell className="font-mono text-xs hidden xl:table-cell">{u.ip || "—"}</TableCell>
                       <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
-                      <TableCell className="text-xs">{u.duration}</TableCell>
+                      {/* Honest about a grouped display row -- see
+                          groupFragmentedVisits()'s own docstring: this is
+                          one visit built from N real, separately-accounted
+                          GuestSession rows (a reconnect blip a few minutes
+                          apart), not a fabricated single session. */}
+                      <TableCell className="text-xs"><div className="flex items-center gap-1.5">{u.duration}{!!u.mergedSessionCount && u.mergedSessionCount > 1 && (<Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal" title={`${u.mergedSessionCount} reconnects grouped into this visit`}>×{u.mergedSessionCount}</Badge>)}</div></TableCell>
                       <TableCell className="text-xs text-muted-foreground hidden lg:table-cell">{new Date(u.connectedAt).toLocaleString()}</TableCell>
                       <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">{u.disconnectedAt ? new Date(u.disconnectedAt).toLocaleString() : "—"}</TableCell>
                       <TableCell className="text-xs hidden lg:table-cell">{u.download}</TableCell>
@@ -297,7 +302,7 @@ function CustomerUsersPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Duration</p><p className="mt-1 text-sm font-semibold">{detailUser.duration}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Duration</p><p className="mt-1 text-sm font-semibold">{detailUser.duration}</p>{!!detailUser.mergedSessionCount && detailUser.mergedSessionCount > 1 && <p className="mt-0.5 text-[11px] text-muted-foreground">Across {detailUser.mergedSessionCount} reconnects</p>}</div>
                   <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Device</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Smartphone className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.device}</p></div>
                   <div className="rounded-xl border p-3 col-span-2"><p className="text-[11px] font-medium text-muted-foreground">Data used</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Download className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.download}</p></div>
                 </div>

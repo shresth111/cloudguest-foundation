@@ -68,7 +68,74 @@ export interface CustomerDashboardData {
   hourlySessions: { hour: string; sessions: number }[];
 }
 
-export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; connectedAt: string; disconnectedAt: string | null; download: string; status: "online" | "offline" | "idle"; guestId: string | null; }[]; total: number; page: number; pageSize: number; }
+export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; connectedAt: string; disconnectedAt: string | null; download: string; status: "online" | "offline" | "idle"; guestId: string | null; /** Display-only: how many raw GuestSession rows this one table row represents -- see groupFragmentedVisits()'s own docstring. 1 (or absent) for an ungrouped row. */ mergedSessionCount?: number; }[]; total: number; page: number; pageSize: number; }
+
+type RawUserRow = CustomerUsersData["users"][number];
+
+// A brief Wi-Fi reconnect (OS captive-portal re-probe, a phone locking/
+// backgrounding and missing the router's keepalive, a captive-portal tab
+// remounting) legitimately closes one GuestSession and opens another --
+// see backend/app/domains/guest/service.py's `_reuse_or_create_session`
+// docstring for why the backend itself still keeps these as separate,
+// real accounting rows rather than resurrecting one. That's correct for
+// billing/audit, but reads as noise here: a guest's real single visit to
+// the venue showing up as 5-8 near-identical rows a few minutes apart.
+// Purely a presentation grouping -- the real per-interval rows this reads
+// are untouched, and nothing downstream of this file ever sees the merge.
+const RECONNECT_GROUP_GAP_MS = 5 * 60 * 1000;
+
+/**
+ * Collapses consecutive rows (this page's own already-sorted-newest-first,
+ * already-paginated slice -- see getUsers() below) for the same guest+MAC
+ * into one displayed "visit" whenever the gap between one row ending and
+ * the next (chronologically earlier, since this list is newest-first)
+ * starting is small. Deliberately narrow, mirroring the backend's own
+ * `_find_reusable_active_session` precision concern: only ever merges
+ * rows that share a real `guestId` *and* a real, matched `mac` (an
+ * "Unknown" MAC never merges -- no reliable device fingerprint to prove
+ * these rows are really the same visit rather than two different,
+ * simultaneously-unmatched devices), and only ever merges strictly
+ * adjacent rows -- a guest whose fragments land non-adjacently in this
+ * page's slice (interleaved with a different guest's rows) is left
+ * ungrouped rather than merged out of order.
+ *
+ * Known limitation: this only ever sees one server page (`pageSize` rows)
+ * at a time, so a guest's fragments that straddle a page boundary stay on
+ * separate pages/rows -- full cross-page grouping would need a real
+ * server-side aggregate, out of scope for a display-only pass.
+ */
+function groupFragmentedVisits(rows: RawUserRow[]): RawUserRow[] {
+  const groups: RawUserRow[][] = [];
+  for (const row of rows) {
+    const group = groups[groups.length - 1];
+    const earliestInGroup = group?.[group.length - 1];
+    const gapMs = earliestInGroup && row.disconnectedAt
+      ? new Date(earliestInGroup.connectedAt).getTime() - new Date(row.disconnectedAt).getTime()
+      : null;
+    const sameVisit = !!earliestInGroup && !!row.guestId && row.guestId === earliestInGroup.guestId
+      && row.mac !== "Unknown" && row.mac === earliestInGroup.mac
+      && gapMs !== null && gapMs >= 0 && gapMs <= RECONNECT_GROUP_GAP_MS;
+    if (sameVisit) group.push(row);
+    else groups.push([row]);
+  }
+  return groups.map((group) => {
+    if (group.length === 1) return group[0];
+    const newest = group[0];
+    const oldest = group[group.length - 1];
+    const totalMb = group.reduce((sum, r) => sum + (parseInt(r.download, 10) || 0), 0);
+    const startMs = new Date(oldest.connectedAt).getTime();
+    const endMs = newest.disconnectedAt ? new Date(newest.disconnectedAt).getTime() : Date.now();
+    return {
+      // id/status/device/etc from the most recent fragment -- the one
+      // "Disconnect" (if online) or the detail panel should act on.
+      ...newest,
+      connectedAt: oldest.connectedAt,
+      duration: `${Math.max(0, Math.round((endMs - startMs) / 60_000))} min`,
+      download: `${totalMb} MB`,
+      mergedSessionCount: group.length,
+    };
+  });
+}
 
 /** Real server-side pagination metadata -- this codebase's established
  * `PaginationMeta` shape (see backend/app/database/utils/pagination.py),
@@ -768,6 +835,12 @@ export const customerService = {
           download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
         };
       });
+      // See groupFragmentedVisits()'s own docstring -- collapses a burst of
+      // reconnect-driven fragments (same guest+device, a few minutes apart)
+      // into one row before search/status filtering runs, so a filter/
+      // search reflects what the guest actually sees, not the raw
+      // per-interval row count.
+      users = groupFragmentedVisits(users);
       if (search) { const q = search.toLowerCase(); users = users.filter((u) => u.name.toLowerCase().includes(q)); }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
       return { users, total: data?.total_items ?? users.length, page, pageSize };
