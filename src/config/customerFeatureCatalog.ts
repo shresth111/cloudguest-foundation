@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
   ShieldCheck, Shield, Fingerprint, Sun, Monitor, UsersRound, Bot, Network, Wifi,
   Server, Share2, Signal, Globe, Settings2, Ban,
-  ScrollText, LifeBuoy,
+  ScrollText, LifeBuoy, Radar,
 } from "lucide-react";
 
 export interface FeatureDef {
@@ -96,6 +96,14 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // "Audit Log" is no longer a separate grantable feature -- its real
       // data was merged into Admin Logs' own "Account Activity" section.
       { id: "admin-logs", label: "Logs", icon: ScrollText },
+      // Guest session/login records -- see customerNav.ts's matching entry
+      // and NetworkActivityLog.tsx for why this is a separate feature id
+      // from "admin-logs", not a merge into it. Listed here (grantable, not
+      // `core`) same as "admin-logs" is -- real access still requires the
+      // owner login role (customerNav.ts's `roles: ["owner"]` and this
+      // component's own render-time guard), so granting it to an agent has
+      // no effect until that separate restriction is ever relaxed.
+      { id: "network-activity", label: "Network Activity Log", icon: Radar },
     ],
   },
 ];

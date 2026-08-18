@@ -20,6 +20,7 @@ import { AdvancedPage } from "@/components/features/FeatureComponents";
 import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import UserReports from "@/components/features/UserReports";
+import NetworkActivityLog from "@/components/features/NetworkActivityLog";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
@@ -181,6 +182,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             {feature === "notification" && <NotificationView />}
             {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
             {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
+            {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
             {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
             {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
             {feature === "dhcp" && <DhcpView locationId={locationId} />}

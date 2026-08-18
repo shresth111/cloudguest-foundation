@@ -75,6 +75,22 @@ const SMS_REPORT_TYPES: ReportType[] = [
   { id: "sms-daywise", label: "Daily SMS Delivery Rate", desc: "Daily sent/delivered/failed totals across the period." },
 ];
 
+// "Network Activity Log" -- Support & Logs' own nav item
+// (src/lib/customerNav.ts's "network-activity" entry), a distinct page from
+// this file's own "Reports" categories above, not a sixth CATEGORIES tab.
+// Rendered by NetworkActivityLog.tsx via the exported ReportPanel below --
+// see docs/ipdr-logs-syslog-spec.md §5 for why this is named "Network
+// Activity Log," not "IPDR Logs": it's session-level (who/when/how much),
+// never per-flow (what destination/port), and that distinction is
+// deliberately kept out of the product copy until real per-flow capture
+// exists. Exported (not folded into CATEGORY_CONFIG) because this report
+// group lives on its own page/nav item, gated owner-only, rather than as a
+// tab inside the general Reports page.
+export const NETWORK_ACTIVITY_REPORT_TYPES: ReportType[] = [
+  { id: "guest-session-log", label: "Guest Session Log", desc: "Every guest connection: identity, device, IP, auth method, duration and data used." },
+  { id: "login-access-log", label: "Login/Access Attempt Log", desc: "Every login attempt -- success or failure -- with identifier, IP and reason." },
+];
+
 const COLUMNS: Record<string, ColumnDef[]> = {
   "user-data": [{ key: "rank", label: "#", sortType: "number" }, { key: "name", label: "Name", sortType: "string" }, { key: "mobile", label: "Mobile Number", sortType: "string" }, { key: "devices", label: "Devices", sortType: "number" }, { key: "data", label: "Data Used", sortType: "number" }, { key: "lastSeen", label: "Last Seen", sortType: "date" }],
   "user-sessions": [{ key: "rank", label: "#", sortType: "number" }, { key: "name", label: "Name", sortType: "string" }, { key: "mobile", label: "Mobile Number", sortType: "string" }, { key: "device", label: "Device", sortType: "string" }, { key: "sessionStart", label: "Session Start", sortType: "date" }, { key: "sessionEnd", label: "Session End", sortType: "date" }, { key: "duration", label: "Duration", sortType: "number" }, { key: "data", label: "Data Used", sortType: "number" }],
@@ -104,6 +120,15 @@ const COLUMNS: Record<string, ColumnDef[]> = {
 
   "otp-delivery": [{ key: "rank", label: "#", sortType: "number" }, { key: "mobile", label: "Mobile Number", sortType: "string" }, { key: "sentAt", label: "Sent At", sortType: "date" }, { key: "status", label: "Status", sortType: "string" }, { key: "latencyMs", label: "Latency (ms)", sortType: "number" }],
   "sms-daywise": [{ key: "date", label: "Date", sortType: "date" }, { key: "sent", label: "Sent", sortType: "number" }, { key: "delivered", label: "Delivered", sortType: "number" }, { key: "failed", label: "Failed", sortType: "number" }, { key: "rate", label: "Delivery Rate", sortType: "string" }],
+
+  // "Network Activity Log" columns -- see NETWORK_ACTIVITY_REPORT_TYPES
+  // above. `ip`/`mac` are deliberately never masked (see fmtCell below):
+  // this report's whole purpose is "who had IP X at time T," the actual
+  // record a law-enforcement request would ask for (docs/ipdr-logs-syslog-
+  // spec.md §5) -- masking the one column the report exists to show would
+  // defeat it.
+  "guest-session-log": [{ key: "rank", label: "#", sortType: "number" }, { key: "name", label: "Name", sortType: "string" }, { key: "mobile", label: "Mobile Number", sortType: "string" }, { key: "ip", label: "IP Address", sortType: "string" }, { key: "mac", label: "Device MAC", sortType: "string" }, { key: "device", label: "Device", sortType: "string" }, { key: "authMethod", label: "Auth Method", sortType: "string" }, { key: "sessionStart", label: "Session Start", sortType: "date" }, { key: "sessionEnd", label: "Session End", sortType: "date" }, { key: "duration", label: "Duration", sortType: "number" }, { key: "bytesUp", label: "Uploaded", sortType: "number" }, { key: "bytesDown", label: "Downloaded", sortType: "number" }, { key: "disconnectReason", label: "Disconnect Reason", sortType: "string" }],
+  "login-access-log": [{ key: "rank", label: "#", sortType: "number" }, { key: "identifier", label: "Identifier", sortType: "string" }, { key: "ip", label: "IP Address", sortType: "string" }, { key: "authMethod", label: "Auth Method", sortType: "string" }, { key: "status", label: "Status", sortType: "string" }, { key: "failureReason", label: "Failure Reason", sortType: "string" }, { key: "attemptedAt", label: "Attempted At", sortType: "date" }],
 };
 
 const NEEDS_TEAM = new Set(["team-report"]);
@@ -112,6 +137,7 @@ const NEEDS_RANGE = new Set([
   "user-data", "user-sessions", "daywise-data", "daywise-unique",
   "voucher-usage", "voucher-batch", "campaign-performance", "campaign-daywise",
   "data-consumption", "data-by-location", "otp-delivery", "sms-daywise",
+  "guest-session-log", "login-access-log",
 ]);
 const NEEDS_CAMPAIGN_TYPE = new Set(["campaign-performance", "campaign-daywise", "top-campaigns"]);
 const NEEDS_RATE = new Set(["data-consumption", "data-by-location"]);
@@ -203,6 +229,31 @@ function mockRow(reportType: string, i: number, count: number, campaignType?: st
 
     case "otp-delivery": r.mobile = phone(i); r.sentAt = new Date(Date.now() - Math.random() * 86400000 * 3).toISOString(); r.status = Math.random() > 0.08 ? "Delivered" : "Failed"; r.latencyMs = Math.floor(Math.random() * 4000) + 300; break;
     case "sms-daywise": { const sent = Math.floor(Math.random() * 1200) + 200; const failed = Math.floor(sent * Math.random() * 0.06); r.date = new Date(Date.now() - (count - i) * 86400000).toISOString().slice(0, 10); r.sent = sent; r.delivered = sent - failed; r.failed = failed; r.rate = `${(((sent - failed) / sent) * 100).toFixed(1)}%`; break; }
+
+    case "guest-session-log": {
+      r.name = NAMES[i % NAMES.length]; r.mobile = phone(i);
+      r.ip = `10.0.${(i % 4) + 1}.${(i % 250) + 2}`;
+      r.mac = ["00:1A:2B:3C:4D:5E", "AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66", "AB:CD:EF:01:23:45"][i % 4];
+      r.device = ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air"][i % 5];
+      r.authMethod = ["otp", "voucher", "mac-auth"][i % 3];
+      const start = new Date(Date.now() - Math.random() * 86400000 * 14);
+      const end = new Date(start.getTime() + (Math.floor(Math.random() * 180) + 5) * 60000);
+      r.sessionStart = start.toISOString(); r.sessionEnd = end.toISOString();
+      r.duration = Math.round((end.getTime() - start.getTime()) / 60000);
+      r.bytesUp = Math.random() * 200; r.bytesDown = Math.random() * 1500;
+      r.disconnectReason = ["guest-logout", "idle-timeout", "data-limit-reached"][i % 3];
+      break;
+    }
+    case "login-access-log": {
+      r.identifier = phone(i);
+      r.ip = `10.0.${(i % 4) + 1}.${(i % 250) + 2}`;
+      r.authMethod = ["otp", "voucher"][i % 2];
+      const ok = Math.random() > 0.15;
+      r.status = ok ? "Success" : "Failed";
+      r.failureReason = ok ? null : ["Invalid OTP", "OTP expired", "Voucher already used"][i % 3];
+      r.attemptedAt = new Date(Date.now() - Math.random() * 86400000 * 10).toISOString();
+      break;
+    }
   }
   return r;
 }
@@ -273,10 +324,38 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 // unavailable reasons below for campaign-performance/top-campaigns and
 // otp-delivery specifically). Those stay honestly unavailable for real
 // accounts rather than fabricated -- see UNAVAILABLE_REASON below.
+// "guest-session-log" and "login-access-log" back the Network Activity Log
+// page (NetworkActivityLog.tsx / NETWORK_ACTIVITY_REPORT_TYPES above), per
+// docs/ipdr-logs-syslog-spec.md §7's documented FE/BE contract:
+//
+// - "guest-session-log" reuses the existing, already-real GET
+//   /guest-sessions (fetchRealSessions below, same endpoint every other
+//   real report in this file already calls) for every column except the
+//   resolved device MAC. **Assumption, flagged here and in this feature's
+//   PR**: the spec leaves that MAC gap to be closed one of two ways -- a
+//   bulk GET /guest-devices endpoint, or denormalizing `mac_address`
+//   directly onto GuestSessionResponse via a join -- and defers the choice
+//   to whichever the backend engineer finds less invasive. This code
+//   assumes the denormalized-field approach (see RealGuestSession's own
+//   `mac_address` doc comment below): if the backend ships the bulk
+//   endpoint instead, `mac_address` simply stays absent on every row and
+//   the Device MAC column honestly renders "--" (fmtCell's existing null
+//   handling) until this file is updated to call that endpoint too --
+//   never a fabricated MAC either way.
+// - "login-access-log" calls `GET /guest-login-history`, confirmed missing
+//   from the real backend as of this spec (§7: "New endpoint needed,
+//   confirmed missing"). Written against that section's documented
+//   contract (`location_id`/`start_date`/`end_date`/`page`/`page_size`
+//   query params, `{items, has_next}` response shape mirroring
+//   GET /guest-sessions exactly) since a BE engineer is adding it in
+//   parallel -- **assumption flagged here and in this feature's PR**: if
+//   the shipped endpoint's param names or response envelope differ,
+//   fetchRealLoginHistory below is the only place that needs to change.
 const REAL_REPORT_TYPES = new Set([
   "data-consumption", "data-by-location", "voucher-usage", "top-vouchers",
   "user-data", "user-sessions", "user-presence", "top-users",
   "daywise-data", "daywise-unique", "voucher-batch",
+  "guest-session-log", "login-access-log",
 ]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
@@ -300,6 +379,21 @@ interface RealGuestSession {
   guest_id?: string | null;
   device_id?: string | null;
   user_agent?: string | null;
+  // The four fields below are already on the real GuestSessionResponse
+  // (backend/app/domains/guest/schemas.py) and already returned by GET
+  // /guest-sessions today -- just never previously requested by this
+  // file's own narrower type, same story as user_agent's own doc comment
+  // above. Added for the Guest Session Log report (realGuestSessionLog
+  // below); every other real report in this file keeps working unchanged
+  // since these are additive optional fields.
+  ip_address?: string | null;
+  auth_method?: string | null;
+  disconnect_reason?: string | null;
+  // NOT on GuestSessionResponse as of this writing -- see REAL_REPORT_TYPES'
+  // own doc comment above for the two ways the backend might close this gap
+  // and why this field is written as optional/best-effort rather than
+  // assumed present.
+  mac_address?: string | null;
 }
 
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
@@ -430,6 +524,44 @@ async function realUserSessions(orgId: string, locationId: string, from: string,
         sessionEnd: s.ended_at ?? null,
         duration,
         data: ((s.bytes_uploaded ?? 0) + (s.bytes_downloaded ?? 0)) / 1e6, // MB, matches fmtCell's "data" formatting
+      };
+    });
+}
+
+/** "Guest Session Log" -- the Network Activity Log's session-level record,
+ * the "who had IP X at time T" row a law-enforcement request would ask for
+ * (docs/ipdr-logs-syslog-spec.md §5). Same fetch+join as realUserSessions
+ * above; kept as its own function rather than reused because this report's
+ * columns are a real superset (IP, device MAC, auth method, disconnect
+ * reason) -- see COLUMNS["guest-session-log"] and RealGuestSession's own
+ * ip_address/auth_method/disconnect_reason/mac_address doc comments. */
+async function realGuestSessionLog(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const [sessions, guestsById] = await Promise.all([
+    fetchRealSessions(orgId, locationId, from, to),
+    fetchRealGuestsById(orgId, locationId),
+  ]);
+  return sessions
+    .slice()
+    .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+    .map((s, i) => {
+      const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
+      const duration = s.ended_at
+        ? Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60_000)
+        : null; // still-active session -- honest "—", not a fabricated duration (see realUserSessions' identical comment).
+      return {
+        rank: i + 1,
+        name: identity.name,
+        mobile: identity.phone || null,
+        ip: s.ip_address ?? null,
+        mac: s.mac_address ?? null, // "--" until the backend closes this gap -- see RealGuestSession's own doc comment.
+        device: deviceLabelFrom(s.user_agent),
+        authMethod: s.auth_method ?? null,
+        sessionStart: s.started_at,
+        sessionEnd: s.ended_at ?? null,
+        duration,
+        bytesUp: (s.bytes_uploaded ?? 0) / 1e6, // MB, matches fmtCell's fmtBytes routing
+        bytesDown: (s.bytes_downloaded ?? 0) / 1e6,
+        disconnectReason: s.disconnect_reason ?? null,
       };
     });
 }
@@ -750,6 +882,66 @@ async function realVoucherBatchRate(orgId: string, locationId: string, from: str
   return rows;
 }
 
+interface RealGuestLoginAttempt {
+  identifier: string;
+  ip_address?: string | null;
+  auth_method: string;
+  success: boolean;
+  failure_reason?: string | null;
+  attempted_at: string;
+}
+
+// GET /guest-login-history -- confirmed missing from the real backend as of
+// this report's own spec (docs/ipdr-logs-syslog-spec.md §7: "New endpoint
+// needed, confirmed missing" -- GuestLoginHistory today is only consumed
+// internally by analytics aggregates, e.g. OTP success rate, never listed
+// through its own route). Written against that section's documented
+// contract exactly -- same location_id/start_date/end_date/page/page_size
+// query params and {items, has_next} response envelope as GET
+// /guest-sessions, since a BE engineer is adding this endpoint in parallel.
+// **Assumption flagged in this feature's PR**: if the shipped endpoint's
+// param names or response shape differ from this contract, this function is
+// the only place that needs to change. Same 100-row-page/has_next
+// pagination discipline as fetchRealSessions/fetchRealVoucherRedemptions.
+async function fetchRealLoginHistory(orgId: string, locationId: string, from: string, to: string): Promise<RealGuestLoginAttempt[]> {
+  const all: RealGuestLoginAttempt[] = [];
+  for (let page = 1; page <= MAX_REPORT_PAGES; page++) {
+    const { data } = await api.get<{ items: RealGuestLoginAttempt[]; has_next?: boolean }>("/guest-login-history", {
+      params: {
+        location_id: locationId,
+        start_date: new Date(from).toISOString(),
+        end_date: new Date(new Date(to).getTime() + 86400000).toISOString(),
+        page,
+        page_size: SESSIONS_PAGE_SIZE,
+      },
+      headers: { "X-Organization-Id": orgId },
+    });
+    all.push(...(data?.items ?? []));
+    if (!data?.has_next) break;
+  }
+  return all;
+}
+
+/** "Login/Access Attempt Log" -- one row per real GuestLoginHistory entry,
+ * newest first. Captures failed-access attempts the session log alone
+ * wouldn't show -- the security angle docs/ipdr-logs-syslog-spec.md §5
+ * calls out (repeated failed logins from one IP/identifier). */
+async function realLoginAccessLog(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const attempts = await fetchRealLoginHistory(orgId, locationId, from, to);
+  return attempts
+    .slice()
+    .sort((a, b) => new Date(b.attempted_at).getTime() - new Date(a.attempted_at).getTime())
+    .map((a, i) => ({
+      rank: i + 1,
+      identifier: a.identifier,
+      ip: a.ip_address ?? null,
+      authMethod: a.auth_method,
+      status: a.success ? "Success" : "Failed",
+      failureReason: a.failure_reason ?? null,
+      attemptedAt: a.attempted_at,
+    }));
+}
+
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
 /** `masked` is the current viewer's data-masking state -- the owner's own
  * (always-on, see CustomerHeader's read-only OtpMaskToggle) or, when this
@@ -758,7 +950,7 @@ async function realVoucherBatchRate(orgId: string, locationId: string, from: str
  * (AgentsPage.tsx's "Data masking" switch). Defaults to `true` so any other
  * caller keeps the safer-by-default behavior every other guest-PII view in
  * this app already follows. */
-function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: ReportType[]; csvPrefix: string; masked?: boolean }) {
+export function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: ReportType[]; csvPrefix: string; masked?: boolean }) {
   // UNITS ("Marina Bay Hotel" etc.) is demo-only seed data -- a real
   // customer only has their own real locations, same real-vs-demo split
   // WhiteList.tsx/TicketsPage.tsx already use for their own "Business
@@ -817,8 +1009,24 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
   // busting sortedRows' memoization on every render once it's a dependency.
   const fmtCell = useCallback((key: string, val: string | number | null): string => {
     if (val == null) return "—";
-    if (key === "redeemedBy") return masked ? maskRedeemedIdentifier(String(val)) : String(val);
+    // "identifier" (Login/Access Attempt Log) is the same shape of
+    // guest-self-reported free text as "redeemedBy" (phone/email, no
+    // server-side shape validation -- see login_via_otp/login_via_voucher's
+    // shared `normalize_identifier`), so it's masked and formula-injection
+    // -neutralized the same way.
+    if (key === "redeemedBy" || key === "identifier") return masked ? maskRedeemedIdentifier(String(val)) : String(val);
     if (PHONE_COLUMNS.has(key)) return masked ? maskPhone(String(val)) : String(val);
+    // "mac" (Guest Session Log) always routes through maskMac, matching
+    // every other MAC display in this app (WhiteList.tsx, CustomerFeaturePage
+    // .tsx's Devices table) -- currently a deliberate no-op (see maskMac's
+    // own doc comment: customers/compliance need the real address), called
+    // explicitly rather than skipped so a future policy change here applies
+    // automatically.
+    if (key === "mac") return maskMac(String(val));
+    // "ip" (Guest Session Log, Login/Access Attempt Log) is intentionally
+    // never masked -- see COLUMNS["guest-session-log"]'s own doc comment
+    // just above: this report's reason to exist is showing real IP-to-guest
+    // mapping.
     if (key === "cost") return `₹${(+val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
     if (key === "peakMbps") return `${(+val).toFixed(1)} Mbps`;
     // uploadGB/downloadGB/totalGB are computed in GB (see realDataConsumption),
@@ -829,9 +1037,9 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
     // totalData/avgPerUser already use (fmtBytes, MB in, "6 MB" or "1.2 GB"
     // out) instead of losing all resolution below 100 MB.
     if (["totalGB", "uploadGB", "downloadGB"].includes(key)) return fmtBytes(+val * 1000);
-    if (["data", "totalData", "avgPerUser", "avgPerMember"].includes(key)) return fmtBytes(+val);
+    if (["data", "totalData", "avgPerUser", "avgPerMember", "bytesUp", "bytesDown"].includes(key)) return fmtBytes(+val);
     if (key === "duration") return fmtDur(+val);
-    if (["sessionStart", "sessionEnd", "firstSeen", "lastSeen", "redeemedAt", "sentAt"].includes(key)) return fmtDT(String(val));
+    if (["sessionStart", "sessionEnd", "firstSeen", "lastSeen", "redeemedAt", "sentAt", "attemptedAt"].includes(key)) return fmtDT(String(val));
     return String(val);
   }, [masked]);
 
@@ -910,6 +1118,10 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
           data = loc ? await realDaywiseUnique(orgId, loc.id, from, to) : [];
         } else if (reportType === "voucher-batch") {
           data = loc ? await realVoucherBatchRate(orgId, loc.id, from, to) : [];
+        } else if (reportType === "guest-session-log") {
+          data = loc ? await realGuestSessionLog(orgId, loc.id, from, to) : [];
+        } else if (reportType === "login-access-log") {
+          data = loc ? await realLoginAccessLog(orgId, loc.id, from, to) : [];
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }

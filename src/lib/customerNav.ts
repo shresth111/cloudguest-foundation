@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
   Monitor, UsersRound, Bot, Network, Settings2, Bell, Sun, Globe, ScrollText,
   Fingerprint, Server, Signal, Wifi, Ban,
-  LifeBuoy, Share2, HelpCircle,
+  LifeBuoy, Share2, HelpCircle, Radar,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -109,6 +109,16 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // for the same restriction and why (a real, org-wide login + change
       // audit trail, independently enforced by the backend too).
       { id: "admin-logs", label: "Logs", icon: ScrollText, roles: ["owner"] },
+      // Distinct nav item from "Logs" above -- different data (real *guest*
+      // WiFi usage records: session connections + login/access attempts),
+      // different audience framing (a compliance-relevant record, not a
+      // dashboard/infra-access log) -- see
+      // docs/ipdr-logs-syslog-spec.md §4/§7 for the full reasoning against
+      // merging this into admin-logs. Owner-only, same restriction and same
+      // reasoning as "Logs" (security-sensitive guest data) -- see
+      // NetworkActivityLog.tsx's own render-time guard for the matching
+      // three-layer defense-in-depth.
+      { id: "network-activity", label: "Network Activity Log", icon: Radar, roles: ["owner"] },
       // A static reference page, not a data-backed feature -- lives here
       // (rather than getting its own top-level nav group) because "Help" is
       // exactly where a customer already looks for it, right alongside

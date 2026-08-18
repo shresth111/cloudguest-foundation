@@ -25,6 +25,7 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortForwardingRouteImport } from './routes/port-forwarding'
 import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as NotificationRouteImport } from './routes/notification'
+import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as MasterLoginRouteImport } from './routes/master-login'
 import { Route as MasterRouteImport } from './routes/master'
 import { Route as MacAuthRouteImport } from './routes/mac-auth'
@@ -264,6 +265,11 @@ const PoliciesRoute = PoliciesRouteImport.update({
 const NotificationRoute = NotificationRouteImport.update({
   id: '/notification',
   path: '/notification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetworkActivityRoute = NetworkActivityRouteImport.update({
+  id: '/network-activity',
+  path: '/network-activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MasterLoginRoute = MasterLoginRouteImport.update({
@@ -1168,6 +1174,7 @@ export interface FileRoutesByFullPath {
   '/mac-auth': typeof MacAuthRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
+  '/network-activity': typeof NetworkActivityRoute
   '/notification': typeof NotificationRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
@@ -1343,6 +1350,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
   '/master-login': typeof MasterLoginRoute
+  '/network-activity': typeof NetworkActivityRoute
   '/notification': typeof NotificationRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
@@ -1518,6 +1526,7 @@ export interface FileRoutesById {
   '/mac-auth': typeof MacAuthRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
+  '/network-activity': typeof NetworkActivityRoute
   '/notification': typeof NotificationRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
@@ -1697,6 +1706,7 @@ export interface FileRouteTypes {
     | '/mac-auth'
     | '/master'
     | '/master-login'
+    | '/network-activity'
     | '/notification'
     | '/policies'
     | '/port-forwarding'
@@ -1872,6 +1882,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/mac-auth'
     | '/master-login'
+    | '/network-activity'
     | '/notification'
     | '/policies'
     | '/port-forwarding'
@@ -2046,6 +2057,7 @@ export interface FileRouteTypes {
     | '/mac-auth'
     | '/master'
     | '/master-login'
+    | '/network-activity'
     | '/notification'
     | '/policies'
     | '/port-forwarding'
@@ -2225,6 +2237,7 @@ export interface RootRouteChildren {
   MacAuthRoute: typeof MacAuthRoute
   MasterRoute: typeof MasterRouteWithChildren
   MasterLoginRoute: typeof MasterLoginRoute
+  NetworkActivityRoute: typeof NetworkActivityRoute
   NotificationRoute: typeof NotificationRoute
   PoliciesRoute: typeof PoliciesRoute
   PortForwardingRoute: typeof PortForwardingRoute
@@ -2368,6 +2381,13 @@ declare module '@tanstack/react-router' {
       path: '/notification'
       fullPath: '/notification'
       preLoaderRoute: typeof NotificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/network-activity': {
+      id: '/network-activity'
+      path: '/network-activity'
+      fullPath: '/network-activity'
+      preLoaderRoute: typeof NetworkActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/master-login': {
@@ -3863,6 +3883,7 @@ const rootRouteChildren: RootRouteChildren = {
   MacAuthRoute: MacAuthRoute,
   MasterRoute: MasterRouteWithChildren,
   MasterLoginRoute: MasterLoginRoute,
+  NetworkActivityRoute: NetworkActivityRoute,
   NotificationRoute: NotificationRoute,
   PoliciesRoute: PoliciesRoute,
   PortForwardingRoute: PortForwardingRoute,
