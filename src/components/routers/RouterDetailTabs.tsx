@@ -2331,6 +2331,19 @@ export function buildRouterSetupScriptChunks(opts: {
       lines.push(`:foreach r in=[/ip route find where comment~"^cloudguest-route-wan"] do={ /ip route remove $r }`);
       lines.push(`:foreach r in=[/ip route find where comment~"^cloudguest-backup-wan"] do={ /ip route remove $r }`);
     }
+    // MANDATORY for the dashboard's Bandwidth Utilization widget and the
+    // whole ISP-health/alerting system (app.domains.isp) to mean anything on
+    // this router: `check-gateway=ping` on the default route(s) this chunk
+    // adds is what actually detects a dead upstream link at the network
+    // level. Skip this chunk (or a technician never pastes it -- see the
+    // "Confirmed live in production" comment right below for exactly that
+    // failure mode) and the router has no gateway-health signal at all: its
+    // only route is RouterOS's bare auto-DHCP one, and dashboard bandwidth
+    // numbers/ISP alert rules will read from stale/absent health-check data
+    // with no way to distinguish "internet's actually fine" from "nobody
+    // ever wired up monitoring." Found live on WYFY-GUEST (2026-08-18) --
+    // confirmed via direct RouterOS inspection that its only default route
+    // had no check-gateway at all, months after provisioning.
     chunks.push({
       label: wanRoutingMode === "failover_only" ? "WAN Routing (failover only)" : "WAN Routing (load balancing + failover)",
       script: lines.join("\n"),
