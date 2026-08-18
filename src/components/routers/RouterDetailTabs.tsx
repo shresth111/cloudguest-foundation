@@ -2575,11 +2575,54 @@ export function buildRouterSetupScriptChunks(opts: {
       `:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={ /ip dns static add name="${HOTSPOT_DNS_NAME}" address=${lanIp} comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=${lanIp} }`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
       `:if ([:len [/ip hotspot user find where name="${hsUserEsc}"]] = 0) do={ /ip hotspot user add name="${hsUserEsc}" password="${hsPassEsc}" server="hotspot1" }`,
+      // RouterOS's own factory default for `/ip hotspot user profile
+      // name="default"` is `shared-users=1` -- ONE device logged in per
+      // guest identity at a time. Confirmed live (WYFY-GUEST, this
+      // incident): a guest reusing the same email/phone on a second
+      // device (the ordinary phone+laptop case) gets a hard `login
+      // failed: no more sessions are allowed for user` on RouterOS's own
+      // hotspot login page, not a soft/recoverable error. This profile is
+      // never created by this script (it's a built-in RouterOS default
+      // that always exists), so there's nothing to gate this `set` on --
+      // no `:if [:len [find ...]]` guard needed, same as `login-by`/
+      // `dns-name` above being plain unconditional `set`s against
+      // `hsprof1`. `shared-users` was NOT set to `0` for "unlimited":
+      // MikroTik's own docs give its range as `1..4294967295` with no
+      // documented `0`-means-unlimited sentinel (checked, not assumed --
+      // unlike `shared-users=0` on some *other* MikroTik properties,
+      // this one has no confirmed unlimited value), so `0` would risk
+      // silently rejecting or misbehaving on real hardware. `5` is the
+      // exact value already confirmed live in production today.
+      `/ip hotspot user profile set [find name="default"] shared-users=5`,
     ];
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
 
   {
+    // **BOOTSTRAP-ONLY FALLBACK -- not the fleet's real fix.** As of
+    // 2026-08-18 there is now a REAL, publicly-trusted Let's Encrypt
+    // certificate for the hotspot, issued centrally (DNS-01 against
+    // GoDaddy's API from `cloudguest-vm`, `20.219.51.94`) and pushed to
+    // routers by `ops/letsencrypt-hotspot/renew-hotspot-certs.sh` on a
+    // systemd timer -- see `cloud-guest-repo/backend/ops/letsencrypt-hotspot
+    // /README.md` for the full mechanism. That real cert is NOT something
+    // this generator can produce or embed itself: DNS-01 needs a real
+    // DNS-provider API credential and a server that can reach it, neither
+    // of which RouterOS's own scripting environment has or should have
+    // (the entire point of DNS-01 + centralized renewal is that it does
+    // NOT require per-router internet-facing validation). This chunk's
+    // self-signed CA + leaf cert below still runs on every provision,
+    // purely so `hsprof1` never has NO certificate at all (RouterOS's
+    // hotspot HTTPS flatly won't come up with none configured) in the
+    // window between this router being provisioned and it being added to
+    // `renew-hotspot-certs.sh`'s own `ROUTERS` fleet list. Once that
+    // addition happens (a manual, out-of-band step -- see this same
+    // README's "Fleet rollout" section for exactly what it requires per
+    // router), the centralized renewal script overwrites this
+    // self-signed binding with the real cert on its own, and this
+    // chunk's output becomes dead weight left on the device, not
+    // something anyone needs to come back and clean up here.
+    //
     // Best-effort and SECONDARY to the "Walled Garden IP" chunk above,
     // which is the actual, confirmed fix for the primary bug (see
     // `buildWalledGardenIpLines`'s own docstring). Properly
@@ -2641,7 +2684,8 @@ export function buildRouterSetupScriptChunks(opts: {
       `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="${HOTSPOT_DNS_NAME}"`,
     ];
     chunks.push({
-      label: "Self-Signed HTTPS Certificate",
+      label:
+        "Self-Signed HTTPS Certificate (bootstrap only — replace with the fleet's real Let's Encrypt cert via ops/letsencrypt-hotspot/renew-hotspot-certs.sh once this router is added to that script's fleet list)",
       script: lines.join("\n"),
     });
   }
