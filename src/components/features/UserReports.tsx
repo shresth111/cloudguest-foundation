@@ -13,6 +13,8 @@ import { api } from "@/services/api";
 import { resolveOrgId, identityFromGuest, deviceLabelFrom, type RawGuest } from "@/services/customer.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
+import { voucherService } from "@/services/voucher.service";
+import type { VoucherBatch } from "@/types/voucher";
 
 const CATEGORIES = ["Guest Activity Report", "Voucher Redemption Report", "Campaign Engagement Report", "Bandwidth & Cost Report", "OTP & SMS Delivery Report"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -233,30 +235,56 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 // realTopUsers below) and aggregate client-side, the same pattern already
 // used for data-consumption/data-by-location's day/location rollups.
 //
-// Every remaining report type still needs either engagement/redemption
-// event data (campaign opens/clicks, per-voucher-batch issued-vs-redeemed
-// rate, OTP delivery logs, team rosters) with no backing endpoint anywhere
-// in this codebase's real data paths, or a real day-wise/unique-count
-// aggregate the backend doesn't compute. Those stay honestly unavailable
-// for real accounts rather than fabricated -- see UNAVAILABLE_REASON below.
 // "voucher-usage"/"top-vouchers" moved out of UNAVAILABLE_REASON below --
 // GET /analytics/voucher-redemptions/log (backend/app/domains/analytics)
 // now backs both real report types, see realVoucherRedemptionLog/
 // realTopRedeemedVouchers above.
+//
+// "daywise-data"/"daywise-unique" were previously listed in
+// UNAVAILABLE_REASON below on the claim that per-guest/per-day breakdown
+// "isn't exposed"/"isn't tracked" by the real backend. That claim was
+// already stale by the time it was written: GET /guest-sessions -- the
+// same endpoint fetchRealSessions/realDataConsumption above already call
+// successfully -- returns guest_id and device_id on every row
+// (GuestSessionResponse, backend/app/domains/guest/schemas.py), so both
+// reports are just the identical paginated fetch bucketed by day and
+// counted for distinct guest_id/device_id, same aggregation shape as
+// realDataConsumption's own byte-total rollup. See realDaywiseData/
+// realDaywiseUnique below. "New Users" (daywise-unique) additionally
+// cross-references each distinct guest's Guest.created_at (now on
+// RawGuest, see customer.service.ts) against the day bucket, since a
+// guest is only meaningfully "new" on the one day matching when their
+// Guest record was actually created.
+//
+// "voucher-batch" was similarly listed on the claim that "per-batch
+// issued-vs-redeemed rate isn't computed in the real backend yet." GET
+// /voucher-batches (org-scoped list) and GET /voucher-batches/{id}/stats
+// (total/unused/active/exhausted/expired/revoked/redemption_rate) already
+// exist and already back the real Vouchers tab (voucher.service.ts's
+// listBatches/getStats) -- this report just wasn't wired to them. See
+// realVoucherBatchRate below for how "Redeemed" is derived (there's no
+// literal "redeemed" field in VoucherBatchStatsResponse).
+//
+// Every remaining report type still needs either engagement/redemption
+// event data (campaign opens/clicks, team rosters) with no backing
+// endpoint anywhere in this codebase's real data paths, or a real
+// aggregate the backend doesn't compute in a shape this report's columns
+// can use without a copy/product decision (see the corrected, still-
+// unavailable reasons below for campaign-performance/top-campaigns and
+// otp-delivery specifically). Those stay honestly unavailable for real
+// accounts rather than fabricated -- see UNAVAILABLE_REASON below.
 const REAL_REPORT_TYPES = new Set([
   "data-consumption", "data-by-location", "voucher-usage", "top-vouchers",
   "user-data", "user-sessions", "user-presence", "top-users",
+  "daywise-data", "daywise-unique", "voucher-batch",
 ]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
-  "daywise-data": "Aggregated day-wise totals need the same per-guest breakdown the backend doesn't expose yet -- see Bandwidth & Cost Report for real day-wise totals.",
-  "daywise-unique": "Unique user/device counts aren't tracked per day in the real backend yet.",
   "team-report": "Guest teams aren't tied to usage totals in the real backend yet.",
-  "voucher-batch": "Per-batch issued-vs-redeemed rate isn't computed in the real backend yet -- see Voucher Redemption Log for real per-voucher redemption data.",
-  "campaign-performance": "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
+  "campaign-performance": "GET /campaigns/{id}/results now returns real engagement counts (impressions/responses/skipped/clicked), but this report's Sent/Delivered/Opened/Clicked columns have no backend equivalent -- campaigns are served in-session, not through a delivery channel with those stages. Needs a column relabel (e.g. Impressions/Responses/Skipped/Clicked) before it can show real data honestly.",
   "campaign-daywise": "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
-  "top-campaigns": "Campaign reach/click metrics aren't tracked in the real backend yet.",
-  "otp-delivery": "Per-message OTP delivery status/latency isn't logged in the real backend yet.",
+  "top-campaigns": "GET /campaigns/{id}/results now returns real engagement counts (impressions/responses/skipped/clicked), but this report's Reach/CTR columns assume delivery-channel semantics campaigns don't have -- campaigns are served in-session, not through a delivery channel. Needs a column relabel before it can show real data honestly.",
+  "otp-delivery": "GET /otp/requests returns real per-request rows (identifier, channel, created_at, verified_at, is_consumed), but this report needs three things that endpoint doesn't have yet: start_date/end_date query params for server-side date filtering, a true provider delivery-status field (a delivered-but-never-verified request looks identical to one that never arrived in this data), and a latency field.",
   "sms-daywise": "Per-message SMS delivery status isn't logged in the real backend yet.",
 };
 
@@ -514,6 +542,72 @@ async function realUserPresence(orgId: string, locationId: string, date: string)
     });
 }
 
+/** "Daily Guest Data Trend" -- same fetchRealSessions call and per-day
+ * bucketing realDataConsumption above already does for byte totals, plus a
+ * distinct-guest count per day for "Users"/"Avg Per User" (guest_id is
+ * present on every real /guest-sessions row per GuestSessionResponse, see
+ * RealGuestSession's own doc comment above -- the `if (s.guest_id)` guard
+ * below is defensive, matching aggregateSessionsByGuest's identical
+ * posture, not an expected real-world skip). */
+async function realDaywiseData(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const sessions = await fetchRealSessions(orgId, locationId, from, to);
+  const byDay = new Map<string, { data: number; guests: Set<string> }>();
+  for (const s of sessions) {
+    const day = s.started_at.slice(0, 10);
+    const bucket = byDay.get(day) ?? { data: 0, guests: new Set<string>() };
+    bucket.data += (s.bytes_uploaded ?? 0) + (s.bytes_downloaded ?? 0);
+    if (s.guest_id) bucket.guests.add(s.guest_id);
+    byDay.set(day, bucket);
+  }
+  return Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { data, guests }]) => {
+      const totalData = data / 1e6; // MB, matches fmtBytes()
+      const users = guests.size;
+      return { date, totalData, users, avgPerUser: users ? totalData / users : 0 };
+    });
+}
+
+/** "Daily Guest & Device Footfall" -- same per-day session bucketing as
+ * realDaywiseData above, tracking distinct guest_id/device_id per day
+ * instead of bytes.
+ *
+ * "New Users" is the one column that needs more than /guest-sessions alone
+ * provides: telling a guest seen today apart from one merely *returning*
+ * today requires knowing when that guest first ever showed up, which this
+ * endpoint's rows don't carry. Guest.created_at (now on RawGuest, see its
+ * own doc comment in customer.service.ts) is that signal -- a guest counts
+ * as "new" on the one day matching their own created_at, via the same bulk
+ * /guests lookup (fetchRealGuestsById) every other real per-guest report in
+ * this file already does. A guest_id with no matching row in guestsById
+ * (fetch failed, or created after that page loaded) is conservatively left
+ * uncounted rather than guessed, same best-effort-undercount posture
+ * fetchRealGuestsById's own doc comment describes for its "Guest" fallback. */
+async function realDaywiseUnique(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const [sessions, guestsById] = await Promise.all([
+    fetchRealSessions(orgId, locationId, from, to),
+    fetchRealGuestsById(orgId, locationId),
+  ]);
+  const byDay = new Map<string, { guests: Set<string>; devices: Set<string> }>();
+  for (const s of sessions) {
+    const day = s.started_at.slice(0, 10);
+    const bucket = byDay.get(day) ?? { guests: new Set<string>(), devices: new Set<string>() };
+    if (s.guest_id) bucket.guests.add(s.guest_id);
+    if (s.device_id) bucket.devices.add(s.device_id);
+    byDay.set(day, bucket);
+  }
+  return Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { guests, devices }]) => {
+      let newUsers = 0;
+      for (const guestId of guests) {
+        const createdAt = guestsById.get(guestId)?.created_at;
+        if (createdAt && createdAt.slice(0, 10) === date) newUsers += 1;
+      }
+      return { date, uniqueUsers: guests.size, uniqueDevices: devices.size, newUsers };
+    });
+}
+
 interface RealVoucherRedemption {
   code: string;
   batch_name: string;
@@ -591,6 +685,69 @@ async function realTopRedeemedVouchers(orgId: string, locationId: string): Promi
     value: r.plan_name ?? "—",
     redeemedAt: r.redeemed_at,
   }));
+}
+
+/** "Voucher Batch Redemption Rate" -- per-batch issued-vs-redeemed rollup,
+ * built from the same voucherService.listBatches()/getStats() the real
+ * Vouchers tab already calls (voucher.service.ts), not a new fetch path.
+ *
+ * GET /voucher-batches has no server-side `location_id` filter (backend/
+ * app/domains/voucher/router.py's own `list_voucher_batches`), so batches
+ * are paged in full for the org (has_next, same discipline as
+ * fetchRealGuestsById/fetchRealSessions above) and filtered client-side on
+ * `batch.locationId`. There's also no server-side date filter, so batches
+ * are further filtered client-side to `createdAt` falling within the
+ * picked [from, to) window -- "voucher-batch" is in NEEDS_RANGE, so its
+ * date pickers are real controls here, not dead ones, using the same
+ * day-window math as fetchRealSessions.
+ *
+ * "Redeemed" is deliberately `stats.total - stats.unused`, mirroring the
+ * backend's own `redemption_rate` calculation exactly
+ * (VoucherService.get_batch_stats, voucher/service.py: `redeemed = total -
+ * unused; redemption_rate = redeemed / total`) rather than a different
+ * bucket. VoucherStatus.ACTIVE means "redeemed at least once, uses
+ * remaining" (voucher/constants.py's own docstring) -- not "never
+ * redeemed" -- so `unused` is the only status that means "not yet
+ * redeemed"; active/exhausted/expired/revoked all already happened via at
+ * least one real redemption. This also keeps the displayed "Redeemed"
+ * count numerically consistent with the displayed "Redemption Rate" --
+ * both derive from the same total-minus-unused delta the backend already
+ * computes, rather than two independently-guessed numbers that could
+ * disagree.
+ *
+ * Per-batch stats fetches run independently (Promise.allSettled, like
+ * realDataByLocation above); a batch whose stats call fails is dropped
+ * from the result rather than shown with a fabricated 0% rate. */
+async function realVoucherBatchRate(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const allBatches: VoucherBatch[] = [];
+  for (let page = 1; page <= MAX_REPORT_PAGES; page++) {
+    const { rows: batchRows, hasNext } = await voucherService.listBatches(page, SESSIONS_PAGE_SIZE, orgId);
+    allBatches.push(...batchRows);
+    if (!hasNext) break;
+  }
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime() + 86400000; // inclusive end-of-day, same [from, to) convention as fetchRealSessions
+  const matching = allBatches.filter((b) => {
+    if (b.locationId !== locationId) return false;
+    const createdMs = new Date(b.createdAt).getTime();
+    return createdMs >= fromMs && createdMs < toMs;
+  });
+  const settled = await Promise.allSettled(matching.map((b) => voucherService.getStats(b.id, orgId)));
+  const rows: Row[] = [];
+  matching.forEach((b, i) => {
+    const result = settled[i];
+    if (result.status !== "fulfilled") return;
+    const stats = result.value;
+    const redeemed = stats.total - stats.unused;
+    rows.push({
+      batch: b.name,
+      generated: stats.total,
+      redeemed,
+      expired: stats.expired,
+      rate: `${Math.round(stats.redemptionRate * 100)}%`,
+    });
+  });
+  return rows;
 }
 
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
@@ -747,6 +904,12 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
           data = loc ? await realUserPresence(orgId, loc.id, singleDate) : [];
         } else if (reportType === "top-users") {
           data = loc ? await realTopUsers(orgId, loc.id) : [];
+        } else if (reportType === "daywise-data") {
+          data = loc ? await realDaywiseData(orgId, loc.id, from, to) : [];
+        } else if (reportType === "daywise-unique") {
+          data = loc ? await realDaywiseUnique(orgId, loc.id, from, to) : [];
+        } else if (reportType === "voucher-batch") {
+          data = loc ? await realVoucherBatchRate(orgId, loc.id, from, to) : [];
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }
