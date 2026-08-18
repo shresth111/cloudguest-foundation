@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
+import { toAppError } from "@/services/api";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
@@ -215,8 +217,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     try {
       await loadPortal();
       toast.success("Preview refreshed with the last saved configuration");
-    } catch {
-      toast.error("Could not refresh — check the connection and try again.");
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not refresh — check the connection and try again.");
     } finally {
       setRefreshing(false);
     }
@@ -294,8 +296,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       await brandAssetService.uploadLogo(file, orgId);
       await loadLogo(orgId);
       toast.success("Logo uploaded");
-    } catch {
-      toast.error("Could not upload the logo — check the connection and try again.");
+    } catch (err) {
+      // Real incident: a plain "check the connection" here for every
+      // failure swallowed a real 402 (plan doesn't include the
+      // 'white_label' feature) behind a misleading network-error message
+      // -- surfacing the backend's own real message (toAppError) instead
+      // whenever this genuinely was a server response, not just a dropped
+      // connection.
+      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not upload the logo — check the connection and try again.");
     } finally {
       setUploadingLogo(false);
     }
@@ -314,8 +322,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       await brandAssetService.deleteLogo(orgId);
       await loadLogo(orgId);
       toast.success("Logo removed");
-    } catch {
-      toast.error("Could not remove the logo — check the connection and try again.");
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not remove the logo — check the connection and try again.");
     } finally {
       setUploadingLogo(false);
     }
@@ -341,8 +349,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         setPortalId(created.id);
       }
       toast.success("Portal configuration saved");
-    } catch {
-      toast.error("Could not save — check the connection and try again.");
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not save — check the connection and try again.");
     }
   };
 
