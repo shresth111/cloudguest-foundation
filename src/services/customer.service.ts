@@ -68,7 +68,7 @@ export interface CustomerDashboardData {
   hourlySessions: { hour: string; sessions: number }[];
 }
 
-export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; download: string; status: "online" | "offline" | "idle"; guestId: string | null; }[]; total: number; page: number; pageSize: number; }
+export interface CustomerUsersData { users: { id: string; name: string; email: string; phone: string; device: string; mac: string; ip: string; duration: string; connectedAt: string; disconnectedAt: string | null; download: string; status: "online" | "offline" | "idle"; guestId: string | null; }[]; total: number; page: number; pageSize: number; }
 
 /** Real server-side pagination metadata -- this codebase's established
  * `PaginationMeta` shape (see backend/app/database/utils/pagination.py),
@@ -661,11 +661,22 @@ export const customerService = {
     if (isDemo()) {
       const all = Array.from({ length: 24 }, (_, i) => {
         const identity = DEMO_GUEST_IDENTITIES[i % DEMO_GUEST_IDENTITIES.length];
+        const durationMinutes = 15 + (i % 6) * 10;
+        const status = (i < 16 ? "online" : i < 20 ? "idle" : "offline") as "online" | "offline" | "idle";
+        // Demo has no real GuestSession row to read started_at/ended_at
+        // from, so these are derived to stay consistent with the fixture's
+        // own `duration` figure above: connectedAt is `durationMinutes` ago,
+        // and only an "offline" demo row gets a disconnectedAt (now) -- an
+        // online/idle row is still connected, same "no ended_at yet" shape
+        // real active sessions have.
+        const connectedAt = new Date(Date.now() - durationMinutes * 60_000).toISOString();
+        const disconnectedAt = status === "offline" ? new Date().toISOString() : null;
         return {
           id: `u-${i}`, name: identity.name, email: identity.email, phone: identity.phone,
           device: ["iPhone 15", "Samsung S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop"][i % 6],
-          mac: `00:1A:${10 + i}`, ip: `10.0.${Math.floor(i / 8) + 1}.${100 + i}`, duration: `${15 + (i % 6) * 10} min`,
-          download: `${(Math.random() * 500).toFixed(0)} MB`, status: (i < 16 ? "online" : i < 20 ? "idle" : "offline") as "online" | "offline" | "idle",
+          mac: `00:1A:${10 + i}`, ip: `10.0.${Math.floor(i / 8) + 1}.${100 + i}`, duration: `${durationMinutes} min`,
+          connectedAt, disconnectedAt,
+          download: `${(Math.random() * 500).toFixed(0)} MB`, status,
           // No real guest/device row backs a demo fixture -- disconnectSession()
           // is already a no-op in demo mode, so this is never dereferenced, but
           // keeping it null (not a fabricated id) matches this file's honest-
@@ -749,6 +760,11 @@ export const customerService = {
           // s.ip_address is only a fallback for a session with no matched
           // device row at all.
           ip: matched?.ip_address || s.ip_address || "", duration: s.started_at && s.ended_at ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min` : "Active",
+          // Real per-row session timestamps -- GuestSession.started_at/
+          // ended_at, already read above for `duration` but never
+          // surfaced to the UI on their own. ended_at stays null (not a
+          // fabricated time) for a still-active session.
+          connectedAt: s.started_at, disconnectedAt: s.ended_at ?? null,
           download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`, status: (s.status === "active" ? "online" : s.status === "paused" ? "idle" : "offline") as "online" | "offline" | "idle",
         };
       });

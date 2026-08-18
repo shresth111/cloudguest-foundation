@@ -92,7 +92,7 @@ function CustomerUsersPage() {
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; ip: string; device: string; duration: string; download: string; status: string; guestId: string | null } | null>(null);
+  const [detailUser, setDetailUser] = useState<{ id: string; name: string; email: string; phone: string; mac: string; ip: string; device: string; duration: string; connectedAt: string; disconnectedAt: string | null; download: string; status: string; guestId: string | null } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState<{ id: string; name: string; guestId: string | null } | null>(null);
   const PAGE_SIZE = 8;
 
@@ -197,11 +197,11 @@ function CustomerUsersPage() {
 
             <div className="rounded-2xl overflow-x-auto premium-card">
               <Table>
-                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">IP</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">Phone</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">MAC</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">IP</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Connected at</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">Disconnected at</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">Download</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
+                  {isLoading ? Array.from({ length: 5 }).map((_, i) => (<TableRow key={i}>{Array.from({ length: 11 }).map((_, j) => (<TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>))}</TableRow>))
                   : !data || data.users.length === 0 ? (
-                    <TableRow><TableCell colSpan={9} className="p-0">
+                    <TableRow><TableCell colSpan={11} className="p-0">
                       <UsersEmptyState label={search || statusTab !== "all" ? "No guests match your search or filter." : "No guests have connected yet."} />
                     </TableCell></TableRow>
                   )
@@ -225,6 +225,8 @@ function CustomerUsersPage() {
                       <TableCell className="font-mono text-xs hidden xl:table-cell">{u.ip || "—"}</TableCell>
                       <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
                       <TableCell className="text-xs">{u.duration}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground hidden lg:table-cell">{new Date(u.connectedAt).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">{u.disconnectedAt ? new Date(u.disconnectedAt).toLocaleString() : "—"}</TableCell>
                       <TableCell className="text-xs hidden lg:table-cell">{u.download}</TableCell>
                       <TableCell>
                         <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", u.status === "online" ? "text-emerald-500" : u.status === "idle" ? "text-amber-500" : "text-muted-foreground")}>
@@ -298,6 +300,10 @@ function CustomerUsersPage() {
                   <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Duration</p><p className="mt-1 text-sm font-semibold">{detailUser.duration}</p></div>
                   <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Device</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Smartphone className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.device}</p></div>
                   <div className="rounded-xl border p-3 col-span-2"><p className="text-[11px] font-medium text-muted-foreground">Data used</p><p className="mt-1 flex items-center gap-1.5 text-sm font-semibold"><Download className="h-3.5 w-3.5 text-muted-foreground" />{detailUser.download}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Connected at</p><p className="mt-1 text-sm font-semibold">{new Date(detailUser.connectedAt).toLocaleString()}</p></div>
+                  <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Disconnected at</p><p className="mt-1 text-sm font-semibold">{detailUser.disconnectedAt ? new Date(detailUser.disconnectedAt).toLocaleString() : "—"}</p></div>
                 </div>
                 <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">Phone</p><p className="mt-1 text-sm">{masked ? maskPhone(detailUser.phone) : detailUser.phone}</p></div>
                 <div className="grid grid-cols-2 gap-3">
