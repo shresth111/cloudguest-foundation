@@ -13,6 +13,7 @@ import { AdvancedPage } from "@/components/features/FeatureComponents";
 import ManageTeamsPage from "@/components/features/ManageTeamsPage";
 import WhiteList from "@/components/features/WhiteList";
 import UserReports from "@/components/features/UserReports";
+import NetworkActivityLog from "@/components/features/NetworkActivityLog";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
@@ -59,6 +60,7 @@ export function renderFeature(id: string, ctx: { locationId?: string; masked?: b
     case "notification": return <NotificationView />;
     case "isp-details": return <IspDetailsView />;
     case "admin-logs": return <AdminLogsView />;
+    case "network-activity": return <NetworkActivityLog masked={ctx.masked} />;
     case "mac-auth": return <MacAuthView locationId={ctx.locationId} />;
     case "port-forwarding": return <PortForwardingView locationId={ctx.locationId} />;
     case "dhcp": return <DhcpView locationId={ctx.locationId} />;
