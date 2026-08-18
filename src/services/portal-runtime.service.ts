@@ -142,6 +142,7 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
   const s = data.session;
   return {
     guestId: data.guest_id,
+    identifier: data.identifier,
     sessionId: s.id,
     deviceId: s.device_id,
     routerId: s.router_id,
