@@ -2,6 +2,26 @@ import { createFileRoute, Outlet, SearchParamError } from "@tanstack/react-route
 import { QrCode } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+
+// Real incident: a now-removed admin "Open live guest flow" preview button
+// (see src/routes/preview.portal.$locationId.tsx's own history) used to
+// build exactly this route with a fake, non-UUID `routerId=preview` --
+// every real caller of organizationId/locationId/routerId sends them
+// straight to the backend as literal UUIDs (OTP verify, password, voucher
+// login -- see src/services/portal-runtime.service.ts), so a non-UUID
+// value was never going to complete a real sign-in anyway, it would just
+// reach a guest's browser looking like a working link and then fail
+// further downstream with a raw backend error instead of this route's own
+// honest, friendly IncompletePortalLinkError. That button is gone, but a
+// stale bookmark/copied link built before this fix can still exist and
+// get hit directly -- checked here the same way a *missing* value already
+// is (as a normal, expected case, not a schema-level throw -- see
+// searchSchema's own comment above on why validation intentionally
+// doesn't throw for this route).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function looksLikeRealId(v: string | undefined): v is string {
+  return !!v && UUID_RE.test(v);
+}
 import {
   PortalRuntimeProvider,
   loadPersistedRuntimeIds,
@@ -207,7 +227,7 @@ function PortalRuntimeLayout() {
   // -- so a stale persisted ID can't perpetuate itself once a fresh, real
   // link (a different router, say) provides a new one.
   useEffect(() => {
-    if (urlOrganizationId && urlLocationId && urlRouterId) {
+    if (looksLikeRealId(urlOrganizationId) && looksLikeRealId(urlLocationId) && looksLikeRealId(urlRouterId)) {
       persistRuntimeIds({
         organizationId: urlOrganizationId,
         locationId: urlLocationId,
@@ -216,7 +236,7 @@ function PortalRuntimeLayout() {
     }
   }, [urlOrganizationId, urlLocationId, urlRouterId]);
 
-  if (!organizationId || !locationId || !routerId) {
+  if (!looksLikeRealId(organizationId) || !looksLikeRealId(locationId) || !looksLikeRealId(routerId)) {
     return <IncompletePortalLinkError />;
   }
 
