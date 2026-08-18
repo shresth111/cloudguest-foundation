@@ -10,7 +10,11 @@ import { PageShell } from "@/components/ui-ext/PageShell";
 import { AnimatedCounter } from "@/components/ui-ext/AnimatedCounter";
 
 /* Right-side drawer. Rendered INLINE (no portal) so it stays inside the
- * .master-theme subtree and inherits the Modernist tokens/font. */
+ * .master-theme subtree and inherits the Modernist tokens/font. Mount
+ * transition (backdrop fade + panel slide-in, `.m-backdrop-in`/
+ * `.m-drawer-panel-in` in styles.css) is a shared v3 accent applied here
+ * once so every drawer platform-wide picks it up automatically -- see
+ * design-v3-unified-system-spec.md Part 5. */
 export function MDrawer({
   open,
   onClose,
@@ -29,8 +33,8 @@ export function MDrawer({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
+      <div className="m-backdrop-in absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="m-drawer-panel-in absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-border p-5">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
@@ -50,7 +54,9 @@ export function MDrawer({
   );
 }
 
-/* Centered modal dialog. Also inline (no portal). */
+/* Centered modal dialog. Also inline (no portal). Mount transition
+ * (`.m-backdrop-in`/`.m-dialog-panel-in`) same shared v3 accent as
+ * `MDrawer` above. */
 export function MDialog({
   open,
   onClose,
@@ -69,10 +75,10 @@ export function MDialog({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="m-backdrop-in absolute inset-0 bg-black/40" onClick={onClose} />
       <div
         className={cn(
-          "relative my-auto w-full rounded-xl border border-border bg-card shadow-2xl",
+          "m-dialog-panel-in relative my-auto w-full rounded-xl border border-border bg-card shadow-2xl",
           wide ? "max-w-2xl" : "max-w-lg",
         )}
       >
@@ -123,12 +129,23 @@ export function MPageShell({
   mesh,
   className,
   contentClassName,
+  empty,
 }: {
   children: ReactNode;
   header?: ReactNode;
   mesh?: boolean;
   className?: string;
   contentClassName?: string;
+  /**
+   * Renders `MEmptyState` in place of `children` for a first-run "zero
+   * X yet" moment (a channel-partner list with no partners onboarded,
+   * a fresh tenant with no routers) -- see design-v3-unified-system-spec.md
+   * Part 5. Pass this instead of a route hand-rolling its own empty-state
+   * markup, so the one Aceternity-catalog-inspired accent this surface's
+   * budget allows lives in one place, not scattered per route. `header`
+   * (title/actions/filters) still renders as normal above it.
+   */
+  empty?: MEmptyStateProps;
 }) {
   return (
     <PageShell
@@ -137,8 +154,49 @@ export function MPageShell({
       className={cn("mx-auto w-full max-w-[1400px]", className)}
       contentClassName={contentClassName}
     >
-      {children}
+      {empty ? <MEmptyState {...empty} /> : children}
     </PageShell>
+  );
+}
+
+export interface MEmptyStateProps {
+  icon?: ComponentType<{ className?: string }>;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}
+
+/**
+ * First-run empty-state card -- shadcn-plain frame, a restrained CSS
+ * dot-field ("Sparkles" effect category) behind the icon/copy as the one
+ * Aceternity-catalog-inspired moment this console's budget allows (Part 5),
+ * hand-authored as `.m-empty-sparkle` (styles.css) instead of installing
+ * the real framer-motion-backed Aceternity component: `MasterKit.tsx` is
+ * imported by all 16 `/master/*` routes, so a new animation dependency
+ * added here is a cost every route pays, not just the empty-state one --
+ * same shared-bundle reasoning Part 3 uses to keep framer-motion off the
+ * captive portal, just lower-stakes here. Reached via `MPageShell`'s
+ * `empty` prop, never rendered directly by a route.
+ */
+export function MEmptyState({ icon: Icon, title, description, action }: MEmptyStateProps) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-10 text-center">
+      <span aria-hidden className="m-empty-sparkle pointer-events-none absolute inset-0" />
+      <div className="relative flex flex-col items-center gap-3">
+        {Icon && (
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Icon className="h-6 w-6" />
+          </span>
+        )}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          {description && (
+            <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">{description}</p>
+          )}
+        </div>
+        {action && <div className="mt-1">{action}</div>}
+      </div>
+    </div>
   );
 }
 
@@ -209,6 +267,14 @@ const M_STAT_TREND_TONE: Record<MStatTrend, string> = {
  * (`accent` still just means "ring-highlighted", same as before every
  * existing call site across the 14 master routes) -- `tone`/`trend` are
  * new, opt-in props, so no call site needs to change to pick this up.
+ *
+ * `beam` (v3) is the one Magic UI accent this KPI tile gets -- a slim
+ * rotating "Border Beam"-style highlight ring (`.m-stat-beam` in
+ * styles.css, hand-authored CSS `conic-gradient`, no new dependency), for
+ * a hero/priority tile only. Opt-in and default-off so the other call
+ * sites across the pre-v3 master routes render exactly as before -- see
+ * design-v3-unified-system-spec.md Part 5 ("MStat is the one file to
+ * touch for counter/KPI polish, not individual routes").
  */
 export function MStat({
   label,
@@ -218,6 +284,7 @@ export function MStat({
   tone = "default",
   icon: Icon,
   accent,
+  beam,
 }: {
   label: string;
   value: string | number;
@@ -227,6 +294,9 @@ export function MStat({
   tone?: MStatTone;
   icon?: ComponentType<{ className?: string }>;
   accent?: boolean;
+  /** Opt-in rotating "Border Beam" highlight ring -- reserve for a single
+   * hero/priority KPI tile, not every tile on a page. */
+  beam?: boolean;
 }) {
   const isNumeric = typeof value === "number";
   return (
@@ -234,6 +304,7 @@ export function MStat({
       className={cn(
         "group relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
         accent && "ring-1 ring-primary/30",
+        beam && "m-stat-beam",
       )}
     >
       <span
@@ -377,8 +448,28 @@ export function MButton({
   );
 }
 
-/* Data table wrapper with rounded card frame. */
-export function MTable({ head, children }: { head: ReactNode; children: ReactNode }) {
+/**
+ * Data table wrapper with rounded card frame. `loading` (v3) swaps
+ * `children` for `skeletonRows` shimmering placeholder rows -- the Magic
+ * UI shimmer-skeleton accent Part 5 calls for, reusing the existing
+ * `shimmer` utility (already built for the customer console) rather than
+ * a new mechanism, added once here so every route's loading state picks
+ * it up automatically instead of hand-rolling a spinner block per route
+ * (see master.channel-partners.tsx's own pre-v3 loading branch for what
+ * this replaces going forward). Opt-in via `loading` -- omitting it
+ * renders `children` exactly as before.
+ */
+export function MTable({
+  head,
+  children,
+  loading,
+  skeletonRows = 5,
+}: {
+  head: ReactNode;
+  children: ReactNode;
+  loading?: boolean;
+  skeletonRows?: number;
+}) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -387,7 +478,17 @@ export function MTable({ head, children }: { head: ReactNode; children: ReactNod
             {head}
           </tr>
         </thead>
-        <tbody>{children}</tbody>
+        <tbody>
+          {loading
+            ? Array.from({ length: skeletonRows }).map((_, i) => (
+                <tr key={i} className="border-b border-border/70 last:border-0">
+                  <td colSpan={999} className="px-4 py-3">
+                    <div className="shimmer m-table-skel-bar" />
+                  </td>
+                </tr>
+              ))
+            : children}
+        </tbody>
       </table>
     </div>
   );
