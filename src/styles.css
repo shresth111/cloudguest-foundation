@@ -598,3 +598,27 @@
 @media (prefers-reduced-motion: reduce) {
   .pg-tab-pill { transition: none; }
 }
+
+/* v3 polish pass: CSS-only replacement for the three `framer-motion`
+ * `animate={{ opacity: [0.2, 1, 0.2] }}` status dots that used to live in
+ * portal.index.tsx's loading screen (plus that same file's redundant
+ * `motion.img`/`motion.div` scale+fade entrance on the logo, which is
+ * simply dropped -- the `pg-enter` fade+rise on this screen's own <main>
+ * wrapper already covers that entrance, so the extra per-element
+ * animation was doing the same job twice via two different mechanisms).
+ * `/portal/` is the very first route nearly every real guest device
+ * loads before ever reaching welcome/success/session, so pulling
+ * framer-motion into its route chunk for three pulsing dots was the
+ * single most guest-visible instance of exactly the regression this
+ * surface's earlier framer-motion removal (see the block above) already
+ * fixed elsewhere -- see the v3 spec's Part 3 for why this stays CSS. */
+@keyframes pg-pulse-dot {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+.pg-pulse-dot {
+  animation: pg-pulse-dot 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-pulse-dot { animation: none; opacity: 0.6; }
+}

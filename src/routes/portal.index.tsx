@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { isAxiosError } from "axios";
 import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -230,28 +229,38 @@ function PortalLoading() {
 
   return (
     <PortalShell variant="light" showHeader={false}>
+      {/* v3 polish pass: this screen's logo/icon used to run its own
+       * `framer-motion` scale+fade entrance on top of PortalShell's own
+       * CSS-only `pg-enter` fade+rise on the <main> this whole block
+       * already sits inside -- the same entrance animated twice via two
+       * different mechanisms. `/portal/` is the very first route nearly
+       * every real guest device loads (see the routing effect above), so
+       * it was also the single most guest-visible instance of pulling
+       * `framer-motion` into a portal.* route chunk, exactly the
+       * regression this surface's earlier framer-motion removal
+       * (styles.css lines 563-570) already fixed elsewhere. `pg-enter`
+       * alone already covers the entrance; the three status dots below
+       * now pulse via the CSS-only `pg-pulse-dot` utility instead of a
+       * per-dot `animate={{opacity:[...]}}` loop. */}
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
         {config?.logoUrl ? (
-          <motion.img
-            initial={{ scale: 0.85, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
+          <img
             src={config.logoUrl}
             alt={config.name}
             className="h-24 w-24 object-contain drop-shadow-lg sm:h-32 sm:w-32 md:h-36 md:w-36"
           />
         ) : (
-          <motion.div
-            initial={{ scale: 0.85, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="grid h-20 w-20 place-items-center rounded-3xl text-3xl font-bold text-white shadow-xl shadow-indigo-500/25 sm:h-28 sm:w-28 md:h-32 md:w-32"
-            style={{
-              background: `linear-gradient(135deg, var(--pr-primary,#6366f1), var(--pr-accent,#4f46e5))`,
-            }}
-          >
+          // Flat single-color fill in the venue's own --pr-primary, not a
+          // --pr-primary/--pr-accent gradient -- same reasoning as
+          // PG_PRIMARY_BTN (PortalGuestUi.tsx): a gradient across two
+          // independently-configured brand colors can go muddy or
+          // low-contrast for a venue that never picked them to work
+          // together as a gradient. Shadow pulled back from the previous
+          // shadow-xl/25 glow to the same small, tight shadow the rest of
+          // this flat card system already uses.
+          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-3xl font-bold text-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
             <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
-          </motion.div>
+          </div>
         )}
         <div>
           <p className="font-display text-lg font-semibold text-slate-900">
@@ -263,24 +272,21 @@ function PortalLoading() {
         </div>
         <div className="flex gap-1.5">
           {[0, 1, 2].map((i) => (
-            <motion.span
+            <span
               key={i}
-              className="h-2 w-2 rounded-full bg-[var(--pr-primary,#6366f1)]"
-              animate={{ opacity: [0.2, 1, 0.2] }}
-              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+              className="pg-pulse-dot h-2 w-2 rounded-full bg-[var(--pr-primary,#6366f1)]"
+              style={{ animationDelay: `${i * 0.2}s` }}
             />
           ))}
         </div>
         {showSlowNotice && (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <button
             type="button"
             onClick={retry}
-            className="flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+            className="pg-enter flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Taking a while -- retry
-          </motion.button>
+          </button>
         )}
       </div>
     </PortalShell>

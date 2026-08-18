@@ -27,6 +27,7 @@ import {
   loadPersistedRuntimeIds,
   persistRuntimeIds,
 } from "@/context/PortalRuntimeContext";
+import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShell";
 import { ErrorComponent as RootErrorComponent } from "./__root";
 
 // A real captive-portal redirect from a NAS/router would encode equivalent
@@ -126,25 +127,28 @@ const searchSchema = z.object({
  * falls through to the same root error boundary every other route in the
  * app uses.)
  */
+// v3 polish pass: this used to be its own one-off gradient-wash page
+// (`linear-gradient(160deg, #eef2ff...)`) around a heavy glass-card
+// (`rounded-[24px]`, a `0 24px 60px -20px rgba(79,70,229,.28)` glow
+// shadow, a gradient icon badge) in the "Manrope" webfont -- exactly the
+// "glassy SaaS" recipe the rest of this guest flow's redesign already
+// moved away from (see PortalCard's own "light" variant comment) and the
+// exact webfont this surface deliberately dropped (see PG_FONT_STACK's
+// doc comment in PortalShell.tsx). This renders before/without a real
+// PortalRuntimeProvider (a required search param is missing, so there's
+// no venue config yet to theme against), so it can't reuse PortalShell
+// itself -- but PortalCard has no such dependency, and reusing it here
+// keeps this screen's "flat card on a flat neutral canvas" look
+// identical to every other light-flow screen instead of a visually
+// orphaned one-off.
 function IncompletePortalLinkError() {
   return (
     <div
-      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden px-4"
-      style={{
-        fontFamily: "'Manrope', ui-sans-serif, system-ui, sans-serif",
-        background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)",
-      }}
+      className="flex min-h-dvh w-full items-center justify-center px-4"
+      style={{ fontFamily: PG_FONT_STACK, background: "#FAFAF8" }}
     >
-      <div
-        className="relative z-10 w-full max-w-[400px] rounded-[24px] border border-indigo-100/80 bg-white p-7 text-center"
-        style={{
-          boxShadow: "0 24px 60px -20px rgba(79,70,229,0.28), 0 8px 24px -10px rgba(15,23,42,0.12)",
-        }}
-      >
-        <div
-          className="mx-auto grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25"
-          style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-        >
+      <PortalCard variant="light" className="pg-enter w-full max-w-[400px] text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#6366f1]">
           <QrCode className="h-7 w-7 text-white" />
         </div>
         <h1 className="mt-4 text-xl font-bold text-slate-900">This WiFi link looks incomplete</h1>
@@ -152,7 +156,7 @@ function IncompletePortalLinkError() {
           Please scan the venue's QR code or connect through its guest WiFi network again to get a
           fresh sign-in link.
         </p>
-      </div>
+      </PortalCard>
     </div>
   );
 }
