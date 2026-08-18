@@ -9,6 +9,7 @@ import {
   Loader2,
   Search,
   Plus,
+  Ban,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -27,6 +28,16 @@ import {
   MField,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
@@ -75,6 +86,7 @@ function emptyForm() {
 function ChannelPartnersScreen() {
   const { can } = useAuth();
   const canCreate = can("channel_partners.create");
+  const canManage = can("channel_partners.manage");
 
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
@@ -86,6 +98,9 @@ function ChannelPartnersScreen() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [confirmRevoke, setConfirmRevoke] = useState<ChannelPartner | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   async function refetch() {
     setLoading(true);
@@ -200,6 +215,21 @@ function ChannelPartnersScreen() {
       toast.error((err as AppError).message || "Could not onboard this channel partner.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRevoke(partner: ChannelPartner) {
+    setRevoking(true);
+    try {
+      const updated = await channelPartnerService.revoke(partner.id);
+      setPartners((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setSelected((prev) => (prev && prev.id === updated.id ? updated : prev));
+      toast.success(`${updated.name} revoked`);
+      setConfirmRevoke(null);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not revoke this channel partner.");
+    } finally {
+      setRevoking(false);
     }
   }
 
@@ -324,6 +354,19 @@ function ChannelPartnersScreen() {
             selected
               ? `${selected.city} · onboarded ${new Date(selected.createdAt).toLocaleDateString()}`
               : ""
+          }
+          footer={
+            selected &&
+            canManage &&
+            selected.status === "active" && (
+              <MButton
+                variant="outline"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={() => setConfirmRevoke(selected)}
+              >
+                <Ban /> Revoke Partner
+              </MButton>
+            )
           }
         >
           {selected && (
@@ -507,6 +550,41 @@ function ChannelPartnersScreen() {
             </p>
           </div>
         </MDialog>
+
+        {/* Revoke confirmation */}
+        <AlertDialog
+          open={!!confirmRevoke}
+          onOpenChange={(open) => !open && setConfirmRevoke(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke {confirmRevoke?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This partner will be marked inactive and can no longer be referred to as an
+                onboarded Wyfy Guest channel partner. This can be reversed later by re-onboarding
+                them.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={revoking}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={revoking}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (confirmRevoke) handleRevoke(confirmRevoke);
+                }}
+              >
+                {revoking ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Revoking…
+                  </>
+                ) : (
+                  "Revoke Partner"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </MPageShell>
     </MasterShell>
   );

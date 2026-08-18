@@ -91,4 +91,14 @@ export const channelPartnerService = {
     const { data } = await api.get<BackendChannelPartner>(`/channel-partners/${partnerId}`);
     return toChannelPartner(data);
   },
+
+  /** Master console -- deactivates a channel partner, gated by
+   * channel_partners.manage (a mutation, unlike the .read-gated calls
+   * above). Idempotent on the backend: revoking an already-inactive
+   * partner is a 200 no-op, not an error, so this never needs its own
+   * "already revoked" handling here. */
+  async revoke(partnerId: string): Promise<ChannelPartner> {
+    const { data } = await api.post<BackendChannelPartner>(`/channel-partners/${partnerId}/revoke`);
+    return toChannelPartner(data);
+  },
 };
