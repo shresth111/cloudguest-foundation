@@ -358,6 +358,14 @@ export interface RawGuest {
   id: string;
   identifier: string | null;
   display_name: string | null;
+  // Real `Guest.created_at` (backend `GuestResponse.created_at`, always
+  // present) -- when the guest record itself was created, i.e. their very
+  // first login ever, distinct from a *session's* started_at. Used by
+  // UserReports.tsx's daily new-vs-returning breakdown to tell "first seen
+  // today" apart from "seen today, but returning" without a separate
+  // endpoint. Optional here only because this type is also used in call
+  // sites that never read it and shouldn't be forced to supply it.
+  created_at?: string;
 }
 
 /** Minimal shape for resolving this location's active ISP uplink, same
