@@ -95,7 +95,7 @@
    * sweep -- a continuous ambient loop, not a discrete enter/exit, so it
    * intentionally doesn't use --ease-emphasized (that curve is for finite
    * transitions; upstream's plain linear infinite loop is the correct
-   * choice here, same reasoning as the .aurora-blob-*/–grid-pan loops
+   * choice here, same reasoning as the .aurora-blob-N / .aurora-grid loops
    * below already using ease-in-out/linear rather than the emphasized
    * curve). Registered as a Tailwind v4 theme animation so `animate-aurora`
    * exists as a utility class (this repo has no tailwind.config.js --
@@ -490,40 +490,18 @@
 .float-badge { animation: float-badge 6s ease-in-out infinite; }
 .glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
 
-/* Customer login hero backdrop -- the Aceternity Aurora Background
- * primitive's actual technique (repeating-linear-gradient sweep +
- * mix-blend-difference), used as an inset backdrop layer behind the
- * existing bespoke HeroWifiIllustration/CountUp foreground rather than as
- * the library's default full-page wrapper (that wrapper's own <main>/
- * h-[100vh]/flex-center layout would fight this panel's own flex-col
- * justify-between structure). Replaces the two static blur-3xl glow divs
- * that previously sat here. Colors swapped from the library's default
- * blue/indigo ramp to this app's cyan/violet/primary-purple set (already
- * used by HeroWifiIllustration's signal arcs) per the design spec's
- * palette note. The hero panel is always in its dark treatment regardless
- * of visitor OS/browser theme (see login.tsx's own comment on the right
- * panel's forced-light override), so this uses upstream's "already dark"
- * rendering path directly (dark-gradient + no invert) instead of the
- * light-default/dark: pair the raw component ships with -- using the
- * light-default path here would invert against a visitor in light-mode
- * OS, since the `dark:` variant is keyed off the app's own `.dark` class,
- * not this panel's fixed-dark background. */
-.login-aurora {
-  animation: aurora 60s linear infinite;
-  background-image:
-    repeating-linear-gradient(100deg, #000 0%, #000 7%, transparent 10%, transparent 12%, #000 16%),
-    repeating-linear-gradient(100deg, #22d3ee 10%, #8B5CF6 15%, #6C4EFF 20%, #a78bfa 25%, #22d3ee 30%);
-  background-size: 300% 200%;
-  background-position: 50% 50%, 50% 50%;
-  opacity: 0.35;
-  filter: blur(18px);
-  mix-blend-mode: difference;
-  mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
-  -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
-}
-
+/* Customer login hero backdrop (login.tsx) -- `.login-aurora` is just a
+ * stable hook for the reduced-motion override below; the Aceternity Aurora
+ * Background primitive's actual technique (base blurred gradient + a
+ * `::after` copy swept via mix-blend-difference, driven by the
+ * `animate-aurora` utility registered above) is authored inline as
+ * Tailwind arbitrary-value classes in login.tsx itself, matching how the
+ * installed primitive (src/components/ui/aurora-background.tsx) authors
+ * it, recolored to this app's cyan/violet/primary-purple set. See that
+ * file's own comment for the full rationale. */
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse, .login-aurora {
+  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse,
+  .login-aurora, .login-aurora::after {
     animation: none !important;
   }
 }
