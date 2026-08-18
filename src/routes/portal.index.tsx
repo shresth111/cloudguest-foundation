@@ -24,6 +24,7 @@ function PortalLoading() {
     setSession,
     organizationId,
     locationId,
+    hotspotLoginUrl,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
   const queryClient = useQueryClient();
@@ -108,13 +109,36 @@ function PortalLoading() {
     if (isLoading || !config) return;
     if (!session && deviceMac && !liveSessionChecked) return;
     const hasSession = !!(session || liveSession);
+    // Real incident #4: an existing app-level session says nothing about
+    // whether the NAS's own hotspot gate is *currently* open -- RouterOS
+    // ties that state to the live pre-auth network attachment, which does
+    // NOT survive a real Wi-Fi disconnect/reconnect (a new DHCP lease means
+    // a brand-new, unauthenticated hotspot session on the router), even
+    // though this platform's own backend session is deliberately
+    // long-lived (hours). Confirmed live: a guest whose Wi-Fi blipped even
+    // briefly landed straight on "you're connected" here -- this route's
+    // whole point being to never bounce an existing session back through
+    // sign-in -- while genuinely having zero real internet, because the
+    // one thing that actually reopens the NAS's gate (`/portal/success`'s
+    // hotspot-login POST) was skipped entirely. A `hotspotLoginUrl` being
+    // present here means the guest arrived via a *fresh* NAS redirect this
+    // time (RouterOS reissues one for any currently-unauthenticated
+    // client) -- routing through `/portal/success` first re-fires that
+    // POST (a genuine no-op if the gate's already open) before landing on
+    // this same `/portal/session` destination via its own `dst` handling.
+    // No `hotspotLoginUrl` at all means there's no fresh redirect to act
+    // on (e.g. a plain in-app reopen with no NAS involvement this time) --
+    // falls back to the original direct behavior, since there's nothing
+    // more this route can safely do in that case.
     const target = hasSession
-      ? "/portal/session"
+      ? hotspotLoginUrl
+        ? "/portal/success"
+        : "/portal/session"
       : config.isOpenNow === false
         ? "/portal/closed"
         : "/portal/welcome";
     navigate({ to: target, replace: true, search: (prev) => prev });
-  }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, navigate]);
+  }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, hotspotLoginUrl, navigate]);
 
   if (!isLoading && error) {
     // A real response (404/400/etc) means the server looked this location

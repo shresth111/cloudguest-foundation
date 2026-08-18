@@ -19,7 +19,6 @@ import { RTL_LANGS, translate } from "@/lib/portal-i18n";
 
 const SESSION_STORAGE_KEY = "cloudguest_portal_session";
 const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
-const HOTSPOT_LOGIN_URL_STORAGE_KEY = "cloudguest_portal_hotspot_login_url";
 
 function loadPersistedSession(): RuntimeSession | undefined {
   if (typeof window === "undefined") return undefined;
@@ -48,17 +47,6 @@ function persistIdentifier(identifier: string | undefined) {
   else window.sessionStorage.removeItem(IDENTIFIER_STORAGE_KEY);
 }
 
-function loadPersistedHotspotLoginUrl(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(HOTSPOT_LOGIN_URL_STORAGE_KEY) ?? undefined;
-}
-
-function persistHotspotLoginUrl(url: string | undefined) {
-  if (typeof window === "undefined") return;
-  if (url) window.sessionStorage.setItem(HOTSPOT_LOGIN_URL_STORAGE_KEY, url);
-  else window.sessionStorage.removeItem(HOTSPOT_LOGIN_URL_STORAGE_KEY);
-}
-
 interface PortalRuntimeState {
   organizationId: string;
   locationId: string;
@@ -78,26 +66,7 @@ interface PortalRuntimeState {
    * never told the router anything, so the hotspot's own gate stayed shut
    * even after a "successful" login here (confirmed live). Optional --
    * absent for any NAS/flow that doesn't use this mechanism (e.g. a
-   * RADIUS-authorized device that never reaches this portal at all).
-   *
-   * Real incident #3: unlike `session`/`guestIdentifier`, this used to be a
-   * pure pass-through of the current URL's `link-login-only` search param
-   * -- nothing persisted it. A confirmed-live case (OTP verified, a real
-   * GuestSession created server-side, yet RouterOS's own hotspot log shows
-   * *zero* login attempts for that device) traced back to exactly this: any
-   * full top-level reload that lands back on a /portal/* route with a URL
-   * missing (or carrying a stale/cached) `link-login-only` -- e.g. macOS's
-   * Captive Network Assistant, which is known to cache/reuse a captive
-   * portal URL per network and can reissue a request against an earlier,
-   * incomplete version of it -- silently drops this value while `session`/
-   * `guestIdentifier` (sessionStorage-backed) survive the same reload
-   * intact. `portal.success.tsx`'s gate (`if (!hotspotLoginUrl) return`)
-   * then no-ops forever: no error, no redirect, just a guest stuck on
-   * "Connecting you to the internet…" with a real backend session and zero
-   * real network access. Now sessionStorage-backed the same way `session`
-   * is: the live URL param always wins when present (a fresh NAS redirect
-   * is always the most trustworthy source), and only a *missing* current
-   * param falls back to the last-seen value for this tab. */
+   * RADIUS-authorized device that never reaches this portal at all). */
   hotspotLoginUrl?: string;
   config?: RuntimePortalConfig;
   isLoading: boolean;
@@ -210,19 +179,6 @@ export function PortalRuntimeProvider({
   const [guestIdentifier, setGuestIdentifierState] = useState<string | undefined>(() =>
     loadPersistedIdentifier(),
   );
-  // See PortalRuntimeState.hotspotLoginUrl's own docstring (real incident
-  // #3) -- the `link-login-only` URL search param always wins when
-  // present; this is only the last-seen fallback for a reload that lands
-  // back here without it.
-  const [persistedHotspotLoginUrl, setPersistedHotspotLoginUrl] = useState<string | undefined>(
-    () => loadPersistedHotspotLoginUrl(),
-  );
-  useEffect(() => {
-    if (!hotspotLoginUrl) return;
-    setPersistedHotspotLoginUrl(hotspotLoginUrl);
-    persistHotspotLoginUrl(hotspotLoginUrl);
-  }, [hotspotLoginUrl]);
-  const resolvedHotspotLoginUrl = hotspotLoginUrl ?? persistedHotspotLoginUrl;
 
   const setSession = useCallback((s: RuntimeSession | undefined) => {
     setSessionState(s);
@@ -278,7 +234,7 @@ export function PortalRuntimeProvider({
       deviceMac,
       deviceIp,
       destinationUrl,
-      hotspotLoginUrl: resolvedHotspotLoginUrl,
+      hotspotLoginUrl,
       previewMode,
       config,
       isLoading,
@@ -308,7 +264,7 @@ export function PortalRuntimeProvider({
       deviceMac,
       deviceIp,
       destinationUrl,
-      resolvedHotspotLoginUrl,
+      hotspotLoginUrl,
       previewMode,
       config,
       isLoading,
