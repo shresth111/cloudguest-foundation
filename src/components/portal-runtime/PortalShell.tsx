@@ -341,6 +341,8 @@ export function PortalShell({
                * floor. */}
               <span className="text-[var(--pg-ink-faint)]">·</span>
               <span className="text-[var(--pg-ink-faint)]">{t("supportAskStaff")}</span>
+              <span className="text-[var(--pg-ink-faint)]">·</span>
+              <span className="text-[var(--pg-ink-faint)]">{t("poweredByWyfy")}</span>
             </footer>
           </div>
         </div>

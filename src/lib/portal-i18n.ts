@@ -98,6 +98,7 @@ const EN: Dict = {
   courtesyOfTemplate: ", courtesy of {venue}",
   verifyDeviceCta: "Verify your device on the right to get connected.",
   supportAskStaff: "Support: ask venue staff",
+  poweredByWyfy: "Powered by Wyfy Guest",
 
   // Closes GuestSignInCard.tsx's gap -- the actual primary sign-in card
   // rendered for the redesigned guest flow (portal.welcome.tsx); found
@@ -255,6 +256,7 @@ const HI: Dict = {
   courtesyOfTemplate: ", {venue} की ओर से",
   verifyDeviceCta: "कनेक्ट होने के लिए दाईं ओर अपना डिवाइस सत्यापित करें।",
   supportAskStaff: "सहायता: वेन्यू स्टाफ से पूछें",
+  poweredByWyfy: "Wyfy Guest द्वारा संचालित",
 
   // Closes GuestSignInCard.tsx's gap.
   welcomeToVenueTemplate: "{venue} में आपका स्वागत है",
