@@ -2945,6 +2945,16 @@ export function buildRouterSetupScriptChunks(opts: {
       // RouterOS's own default RADIUS timeout is 300ms, confirmed live to be too
       // aggressive for any real (let alone WireGuard-tunneled) WAN path.
       `  /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" timeout=3s`,
+      `} else={`,
+      // Not today's actual root cause (that was server-side, on the
+      // FreeRADIUS hub VM) -- flagged separately by an earlier pass over
+      // this file as a real, if unrelated, gap: an entry that already
+      // exists here could still be sitting `disabled=yes` (e.g. someone
+      // toggled it off in WinBox while debugging), and the `:if` above
+      // only ever handles "missing entirely", never "present but off".
+      // Cheap, harmless, self-heals the same idiom as everywhere else in
+      // this file -- re-enabling an already-enabled entry is a no-op.
+      `  /radius set [find where address="${radius.serverAddress}"] disabled=no`,
       `}`,
       `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
     ];
