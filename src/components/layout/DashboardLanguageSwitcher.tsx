@@ -23,7 +23,7 @@ const DASHBOARD_LANGUAGES: { code: "en" | "hi"; label: string }[] = [
   { code: "hi", label: "हिन्दी" },
 ];
 
-export function DashboardLanguageSwitcher() {
+export function DashboardLanguageSwitcher({ className }: { className?: string }) {
   const { user, updateUser } = useAuth();
   const current = user?.language ?? "en";
 
@@ -48,7 +48,7 @@ export function DashboardLanguageSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Language">
+        <Button variant="ghost" size="icon" className={className ?? "h-9 w-9"} aria-label="Language">
           <Languages className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
