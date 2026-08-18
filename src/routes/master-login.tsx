@@ -1,13 +1,28 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
-import { Loader2, Eye, EyeOff, ShieldCheck, Building2, Router, Activity, type LucideIcon } from "lucide-react";
+import { Loader2, Eye, EyeOff, ShieldCheck, Building2, Router, Activity, Mail, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
+import { authService } from "@/services/auth.service";
 import type { AppError } from "@/services/api";
+
+// Inline style override for Dialog components on this page: Radix's
+// DialogPortal renders outside the `.master-theme` div (portals to
+// document.body), so it can't pick up that class's scoped --primary. Same
+// fix login.tsx already applies to its own portalled dialogs -- pin just
+// the accent vars this dialog actually uses to `.master-theme`'s light
+// values, matching this page's "Clean Enterprise" indigo/blue rather than
+// falling back to whatever the base app's un-scoped theme happens to be.
+const MASTER_DIALOG_VARS = {
+  "--primary": "oklch(0.52 0.19 260)",
+  "--primary-foreground": "oklch(0.99 0.002 255)",
+  "--ring": "oklch(0.52 0.19 260)",
+} as React.CSSProperties;
 
 export const Route = createFileRoute("/master-login")({
   validateSearch: (s: Record<string, unknown>): { redirect?: string } =>
@@ -200,6 +215,38 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Real backend endpoint (POST /auth/forgot-password), same service call
+  // UserTable.tsx already uses for the admin-triggered "reset a user's
+  // password" action -- a Dialog here (rather than login.tsx's full
+  // page-swap to ForgotPasswordPage/AuthLayout) because this page's own
+  // bespoke hero/illustration stays put per the design spec; swapping to
+  // the customer-branded AuthLayout would also pull in whitelabel branding
+  // context that has no place on this internal operator page.
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+
+  const openForgotPassword = () => {
+    setForgotEmail(email);
+    setForgotOpen(true);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) { toast.error("Enter your operator email"); return; }
+    setForgotSubmitting(true);
+    try {
+      await authService.forgotPassword(forgotEmail);
+      // Deliberately account-existence-agnostic wording (same as
+      // forgot-password.tsx's own copy) -- doesn't confirm or deny whether
+      // that email belongs to a real operator account.
+      toast.success("If that email is registered, a password reset link is on its way.");
+      setForgotOpen(false);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not send the reset link. Please try again.");
+    } finally { setForgotSubmitting(false); }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { toast.error("Please enter email and password"); return; }
@@ -341,7 +388,12 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                 <Input id="email" type="email" placeholder="operator@wyfyguest.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <button type="button" onClick={openForgotPassword} className="text-xs font-medium text-primary hover:underline">
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="relative">
                   <Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
                   <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -398,6 +450,41 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           </motion.div>
         </div>
       </div>
+
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent className="sm:max-w-sm" style={MASTER_DIALOG_VARS}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" /> Reset your password
+            </DialogTitle>
+            <DialogDescription>
+              Enter your operator email and we'll send a password reset link.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="forgot-email">Operator email</Label>
+              <Input
+                id="forgot-email"
+                type="email"
+                placeholder="operator@wyfyguest.com"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setForgotOpen(false)} disabled={forgotSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={forgotSubmitting}>
+                {forgotSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {forgotSubmitting ? "Sending…" : "Send reset link"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
