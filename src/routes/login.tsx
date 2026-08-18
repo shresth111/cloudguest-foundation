@@ -271,14 +271,15 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
        * the customer dashboard's hero band, for one consistent visual
        * identity across the product instead of a flat single-hue fill. */}
       <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-12 text-white overflow-hidden">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[#6C4EFF]/25 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-[#8B5CF6]/20 blur-3xl"
-        />
+        {/* Backdrop glow -- Aceternity's Aurora Background primitive
+         * (`src/components/ui/aurora-background.tsx`, installed via
+         * `npx shadcn add @aceternity/aurora-background`), used as an inset
+         * backdrop layer rather than the library's default full-page
+         * wrapper so it sits behind HeroWifiIllustration/CountUp without
+         * disturbing this panel's own layout. Replaces the previous two
+         * static blur-3xl glow circles. See the `.login-aurora` utility in
+         * styles.css for the recolor/tuning rationale. */}
+        <div aria-hidden className="pointer-events-none absolute -inset-[10px] overflow-hidden login-aurora" />
         {/* Faint dot-grid for depth */}
         <div
           aria-hidden
