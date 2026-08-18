@@ -31,6 +31,8 @@ import { IspProviderIcon } from "@/components/icons/isp";
 import { DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/components/customer/BasicFeatureViews";
+import { BlurFade } from "@/components/magicui/blur-fade";
+import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 
 // Categorical, brand-checked -- indigo/cyan/magenta/orange/violet. The old
 // palette here included green, which conflicts with this project's
@@ -745,6 +747,12 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           ) : !hasTraffic ? (
             <ChartEmptyState label="No bandwidth samples yet — the next health-check sweep runs within 60 seconds." />
           ) : (
+            // Settles in once real data replaces the loading skeleton/empty
+            // state -- mounts fresh into this branch each time bw.status
+            // flips to "ready", so it fades the *first real render*, not
+            // every subsequent poll tick (the chart itself keeps
+            // `isAnimationActive={false}` on its own Areas, untouched).
+            <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                 <defs>
@@ -789,6 +797,7 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                 )}
               </AreaChart>
             </ResponsiveContainer>
+            </BlurFade>
           )}
         </div>
         {bw.status === "ready" && capacityDownload == null && (
@@ -832,20 +841,34 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
       </CardHeader>
       <CardContent>
         {devices.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
-              {/* Sitting right below the "routers online" KPI at the top of
-               * this same dashboard, an unqualified "no hardware" read as
-               * contradicting it (bug report from a product review: "wait,
-               * don't I have a router?"). This card only tracks *other*
-               * hardware you add yourself (APs, printers, etc.) -- your
-               * router is already monitored automatically and isn't meant
-               * to show up here, so that needs to be said explicitly. */}
-              <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it. Your router is already tracked separately above.</p>
+          <div className="relative flex flex-col items-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+            {/* The one Aceternity moment this surface gets (design v3 Part
+             * 4): a low-frequency, first-run "connect your first
+             * router"-adjacent empty state, and nowhere else on this page.
+             * See background-boxes.tsx's own comment for why it's a small
+             * static re-author, not the registry component verbatim. */}
+            <BackgroundBoxes />
+            {/* Everything a user actually reads/clicks stays in its own
+             * `relative` stacking layer, painted after (so: above) the
+             * absolutely-positioned decorative grid regardless of DOM
+             * order inside it -- otherwise the plain-flow Button below
+             * would paint *under* an `absolute` sibling per normal CSS
+             * stacking rules. */}
+            <div className="relative flex flex-col items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
+                {/* Sitting right below the "routers online" KPI at the top of
+                 * this same dashboard, an unqualified "no hardware" read as
+                 * contradicting it (bug report from a product review: "wait,
+                 * don't I have a router?"). This card only tracks *other*
+                 * hardware you add yourself (APs, printers, etc.) -- your
+                 * router is already monitored automatically and isn't meant
+                 * to show up here, so that needs to be said explicitly. */}
+                <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it. Your router is already tracked separately above.</p>
+              </div>
+              <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
             </div>
-            <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1277,7 +1300,13 @@ export function CustomerDashboardPage() {
                       </CardHeader>
                       <CardContent><div className="h-56">
                         {d.usersTrend.length === 0 ? <ChartEmptyState label="No trend data yet." /> : (
+                          // Settles in rather than popping on mount -- Magic
+                          // UI's "Blur Fade" idea, wrapping the chart's
+                          // container only; Recharts' own render/animation
+                          // props are untouched (design v3 Part 4).
+                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }} /><Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#ug)" strokeWidth={2} /></AreaChart></ResponsiveContainer>
+                          </BlurFade>
                         )}
                       </div></CardContent>
                     </Card>
@@ -1288,6 +1317,7 @@ export function CustomerDashboardPage() {
                       </CardHeader>
                       <CardContent><div className="h-56">
                         {d.deviceDistribution.length === 0 ? <ChartEmptyState label="No devices reporting yet." /> : (
+                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <div className="flex h-full flex-col justify-center gap-2.5">
                             {(() => {
                               const max = Math.max(...d.deviceDistribution.map((x) => x.value), 1);
@@ -1300,6 +1330,7 @@ export function CustomerDashboardPage() {
                               ));
                             })()}
                           </div>
+                          </BlurFade>
                         )}
                       </div></CardContent>
                     </Card>
@@ -1310,7 +1341,9 @@ export function CustomerDashboardPage() {
                       </CardHeader>
                       <CardContent><div className="h-56">
                         {d.hourlySessions.length === 0 ? <ChartEmptyState label="No session activity yet today." /> : (
+                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px" }} /><Bar dataKey="sessions" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer>
+                          </BlurFade>
                         )}
                       </div></CardContent>
                     </Card>
