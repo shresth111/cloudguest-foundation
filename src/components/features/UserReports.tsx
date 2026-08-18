@@ -126,6 +126,20 @@ const PHONE_COLUMNS = new Set(["mobile", "redeemedBy"]);
 
 const MAC_ADDRESS_RE = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
 
+/** Standard CSV/Excel formula-injection trigger characters -- a cell whose
+ * value starts with any of these is interpreted by Excel/Sheets as a
+ * formula, not text, when the file is opened (e.g. `=cmd|'/c calc'!A1` or
+ * `+HYPERLINK(...)`). `redeemed_identifier` (Voucher Redemption reports)
+ * and `display_name` (Guest Activity reports, via identityFromGuest) are
+ * both guest-self-reported free text with no server-side shape validation
+ * (see `normalize_redeemed_identifier` in
+ * backend/app/domains/voucher/validators.py, which only strips whitespace,
+ * by design) -- a guest can redeem/register with either one set to a
+ * formula payload. Used both by `csvField` below (export-time escaping,
+ * every CSV field) and by `maskRedeemedIdentifier`'s own fallback (so the
+ * masked *display* value doesn't echo a live trigger character either). */
+const CSV_FORMULA_TRIGGER_RE = /^[=+\-@]/;
+
 /** "redeemedBy" specifically (Voucher Redemption reports) is `Voucher
  * .redeemed_identifier`, which per that column's own backend docstring
  * (backend/app/domains/voucher/models.py) is "phone/email/device-MAC, or
@@ -147,7 +161,19 @@ function maskRedeemedIdentifier(value: string): string {
   if (MAC_ADDRESS_RE.test(value)) return maskMac(value);
   const digitCount = (value.match(/\d/g) ?? []).length;
   if (digitCount > 5) return maskPhone(value);
-  return value.length <= 2 ? value : `${value.slice(0, 2)}${"•".repeat(Math.max(3, value.length - 2))}`;
+  // Fallback for anything unclassifiable: show a short visible prefix,
+  // redact the rest. If a guest's self-reported identifier starts with a
+  // CSV/Excel formula-injection trigger character (see
+  // CSV_FORMULA_TRIGGER_RE above), that prefix must never be echoed
+  // verbatim -- "=cmd..." masked to "=c••••••" is still a live formula
+  // when the export is opened in Excel/Sheets, even with masking ON.
+  // Redact the prefix too in that case rather than relying solely on
+  // export-time escaping (csvField), so the masked display value itself
+  // never carries a live trigger character.
+  if (value.length <= 2) return CSV_FORMULA_TRIGGER_RE.test(value) ? "•".repeat(value.length) : value;
+  const rawPrefix = value.slice(0, 2);
+  const prefix = CSV_FORMULA_TRIGGER_RE.test(rawPrefix) ? "••" : rawPrefix;
+  return `${prefix}${"•".repeat(Math.max(3, value.length - 2))}`;
 }
 
 function mockRow(reportType: string, i: number, count: number, campaignType?: string, ratePerGb?: number): Row {
@@ -625,28 +651,14 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
   };
 
   const cols = reportType ? COLUMNS[reportType] || [] : [];
-  const sortedRows = useMemo(() => {
-    if (!rows) return [];
-    const q = searchTxt.toLowerCase();
-    let filtered = q ? rows.filter((r) => Object.values(r).some((v) => String(v).toLowerCase().includes(q))) : rows;
-    const col = cols.find((c) => c.key === sortKey);
-    if (col) {
-      filtered = [...filtered].sort((a, b) => {
-        const av = a[sortKey]; const bv = b[sortKey];
-        if (av == null) return 1; if (bv == null) return -1;
-        if (col.sortType === "number") return sortDir === "asc" ? (+av) - (+bv) : (+bv) - (+av);
-        if (col.sortType === "date") return sortDir === "asc" ? new Date(String(av)).getTime() - new Date(String(bv)).getTime() : new Date(String(bv)).getTime() - new Date(String(av)).getTime();
-        return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-      });
-    }
-    return filtered;
-  }, [rows, searchTxt, sortKey, sortDir, cols]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages - 1);
-  const paged = sortedRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
-
-  const fmtCell = (key: string, val: string | number | null): string => {
+  // Defined ahead of sortedRows below (rather than where fmtCell used to
+  // sit, right before the JSX that renders each cell) because the filter
+  // predicate now needs it too -- see that comment for why. useCallback'd
+  // (keyed only on `masked`, its one external input) so it stays a stable
+  // reference across renders, same as `cols`/`rows` already are, instead of
+  // busting sortedRows' memoization on every render once it's a dependency.
+  const fmtCell = useCallback((key: string, val: string | number | null): string => {
     if (val == null) return "—";
     if (key === "redeemedBy") return masked ? maskRedeemedIdentifier(String(val)) : String(val);
     if (PHONE_COLUMNS.has(key)) return masked ? maskPhone(String(val)) : String(val);
@@ -664,7 +676,38 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
     if (key === "duration") return fmtDur(+val);
     if (["sessionStart", "sessionEnd", "firstSeen", "lastSeen", "redeemedAt", "sentAt"].includes(key)) return fmtDT(String(val));
     return String(val);
-  };
+  }, [masked]);
+
+  const sortedRows = useMemo(() => {
+    if (!rows) return [];
+    const q = searchTxt.toLowerCase();
+    // Filter against the same masked/formatted strings the table actually
+    // renders (fmtCell), NOT the raw Row values. Matching raw values let
+    // the filter box work as a confirmation oracle with masking ON: typing
+    // a guessed phone number/email/identifier surfaced (and kept visible)
+    // any row whose *raw* value matched, de-anonymizing that field -- and,
+    // since a row's other columns stay visible alongside it, positionally
+    // correlating every other still-masked-looking field on that row too.
+    // Routing through fmtCell means a query only matches what masking
+    // actually left on screen, same as a sighted user manually scanning
+    // the table would see.
+    let filtered = q ? rows.filter((r) => cols.some((c) => fmtCell(c.key, r[c.key] ?? null).toLowerCase().includes(q))) : rows;
+    const col = cols.find((c) => c.key === sortKey);
+    if (col) {
+      filtered = [...filtered].sort((a, b) => {
+        const av = a[sortKey]; const bv = b[sortKey];
+        if (av == null) return 1; if (bv == null) return -1;
+        if (col.sortType === "number") return sortDir === "asc" ? (+av) - (+bv) : (+bv) - (+av);
+        if (col.sortType === "date") return sortDir === "asc" ? new Date(String(av)).getTime() - new Date(String(bv)).getTime() : new Date(String(bv)).getTime() - new Date(String(av)).getTime();
+        return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+      });
+    }
+    return filtered;
+  }, [rows, searchTxt, sortKey, sortDir, cols, fmtCell]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const paged = sortedRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   const handleRun = useCallback(async () => {
     const e: Record<string, string> = {};
@@ -724,8 +767,26 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
   // quotes/newlines per RFC 4180, same as any real CSV writer would;
   // mock/demo data never exercises this (fixed values, no commas) which is
   // why it went unnoticed there.
-  const csvField = (val: string): string =>
-    /[",\n]/.test(val) ? `"${val.replace(/"/g, '""')}"` : val;
+  //
+  // Every field passed through here also gets CSV/Excel formula-injection
+  // neutralized (see CSV_FORMULA_TRIGGER_RE above) -- not just
+  // `redeemedBy`. This function wraps every column of every exported row
+  // (see exportCsv below: `cols.map((c) => csvField(fmtCell(...)))`), so a
+  // guest-controlled free-text column starting with =, +, -, or @ --
+  // `redeemed_identifier` (Voucher Redemption reports) or `display_name`
+  // (Guest Activity reports, now wired to real guest identity) -- is
+  // caught here regardless of which column it lands in, and regardless of
+  // whether masking is on (fmtCell's masked output for an unclassifiable
+  // identifier can still start with a trigger character -- see
+  // maskRedeemedIdentifier above -- so this check runs on the
+  // already-masked value, not just the raw one). A leading single quote is
+  // the standard mitigation: Excel/Sheets render the cell as plain text
+  // from the character after it, so a legitimate value is unaffected and
+  // exports byte-for-byte as displayed.
+  const csvField = (val: string): string => {
+    const safe = CSV_FORMULA_TRIGGER_RE.test(val) ? `'${val}` : val;
+    return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
 
   const exportCsv = () => {
     if (!rows || !rows.length) return;
