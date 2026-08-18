@@ -57,6 +57,13 @@ export interface RuntimePortalConfig {
  * than re-fetched. */
 export interface RuntimeSession {
   guestId: string;
+  /** The phone/email this guest verified via OTP/password/voucher, or (see
+   * portal.index.tsx's live-session check) that a matching ACTIVE
+   * GuestSession was already found under. Needed downstream by
+   * portal.success.tsx's hotspot-login POST, which is keyed on this exact
+   * value -- RadiusService.authorize looks up sessions by identifier, not
+   * by guestId. */
+  identifier: string;
   sessionId: string;
   deviceId: string | null;
   routerId: string;

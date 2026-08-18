@@ -22,6 +22,7 @@ function PortalLoading() {
     deviceMac,
     session,
     setSession,
+    setGuestIdentifier,
     organizationId,
     locationId,
     hotspotLoginUrl,
@@ -48,8 +49,23 @@ function PortalLoading() {
   });
 
   useEffect(() => {
-    if (liveSession) setSession(liveSession);
-  }, [liveSession, setSession]);
+    if (!liveSession) return;
+    setSession(liveSession);
+    // Real incident #5: this used to only call setSession, never
+    // setGuestIdentifier. portal.success.tsx's hotspot-login POST is
+    // gated on `!guestIdentifier` right alongside `!session` and
+    // `!hotspotLoginUrl` -- a device found here via the live-session
+    // check (a fresh tab, a re-scanned QR code, or -- confirmed live --
+    // any WiFi reconnect that lands in a *new* browser/webview context
+    // without the previous one's sessionStorage, which is exactly what
+    // iOS/macOS's Captive Network Assistant does on every reconnect) had
+    // `session` set but `guestIdentifier` permanently undefined, so
+    // portal.index.tsx's own #45 fix correctly routed it to
+    // /portal/success, but that page's gate silently no-op'd forever --
+    // a guest stuck on a spinner with zero evidence the router ever saw
+    // a login attempt, because the POST was never actually attempted.
+    setGuestIdentifier(liveSession.identifier);
+  }, [liveSession, setSession, setGuestIdentifier]);
 
   // A first-time guest device is, by definition, on a fresh, sometimes-flaky
   // pre-auth network path -- these two calls (the config resolve above, via
