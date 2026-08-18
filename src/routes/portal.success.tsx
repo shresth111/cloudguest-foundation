@@ -170,6 +170,16 @@ function SuccessPage() {
 
   if (!session) return null;
 
+  // KNOWN GAP, flagged not fixed here (see this PR's description): at
+  // desktop width PortalShell's own two-column "light" composition still
+  // renders its sign-in-oriented BrandPanel ("Verify your device on the
+  // right...") next to PortalConnectingState below, which is wrong context
+  // once there's nothing left to verify. The real fix is a
+  // `showBrandPanel?: boolean` prop on PortalShell (default true) that this
+  // page would pass `false` -- but PortalShell.tsx is mid-rewrite on the
+  // parallel login-page redesign branch right now, so that one-line addition
+  // is intentionally left out of this diff to avoid colliding with that
+  // in-flight work. See the PR description for the exact proposed patch.
   return (
     <PortalShell variant="light" showHeader={false}>
       <PortalConnectingState />

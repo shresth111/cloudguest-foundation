@@ -121,14 +121,36 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
  * regardless of how many times the underlying route remounts underneath
  * it. Deliberately NOT shown for a genuinely first-time guest (no session
  * yet) -- that case keeps the real branded welcome/loading screen, since
- * there's no remount-bounce risk before any session exists at all. */
+ * there's no remount-bounce risk before any session exists at all.
+ *
+ * Visual note (captive-portal-redesign-spec.md §4, Engineer B): restyled
+ * to read as the same flattened "card" language as the rest of this
+ * flow (thin 1px border, 16px radius, a small tight shadow -- not the
+ * `0 24px 60px -20px rgba(79,70,229,.28)` glass-card recipe the spec
+ * calls out as the thing to move away from) instead of a bare spinner
+ * floating in open page space, so the guest's one continuous "getting you
+ * online" moment reads as one visual object throughout, not "card, then
+ * nothing." Deliberately does NOT reuse `ConnectingOverlay` (that
+ * component is an *overlay* absolutely-positioned over a real in-flight
+ * mutation's own card in `GuestSignInCard`, and drives a creeping
+ * progress bar off that mutation's real `isPending`) -- this state has no
+ * real mutation of its own to track, so per the spec's own "simpler and
+ * honest" alternative this stays a spinner + label, just inside the same
+ * card shape, with no fabricated progress indicator. Spinner color reads
+ * `--pr-primary` (the venue's own brand color, same as `ConnectingOverlay`)
+ * rather than a hardcoded indigo, so it stays on-brand per organization
+ * like the rest of the redesigned flow. Still the single shared component
+ * across `portal.index.tsx` and `portal.success.tsx` -- do not fork this
+ * into a second component (see PR #50 / this file's own docstring above). */
 export function PortalConnectingState() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-      <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
-      <div>
-        <p className="text-lg font-semibold text-slate-900">Connecting you to the internet…</p>
-        <p className="mt-1 text-sm text-slate-500">Just a moment.</p>
+    <div className="flex flex-1 flex-col items-center justify-center">
+      <div className="flex w-full max-w-[360px] flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white px-8 py-10 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)]">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
+        <div>
+          <p className="text-base font-semibold text-slate-900">Connecting you to the internet…</p>
+          <p className="mt-1 text-sm text-slate-500">Just a moment.</p>
+        </div>
       </div>
     </div>
   );
