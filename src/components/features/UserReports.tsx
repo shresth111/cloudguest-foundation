@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import { resolveOrgId } from "@/services/customer.service";
+import { resolveOrgId, identityFromGuest, deviceLabelFrom, type RawGuest } from "@/services/customer.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 
@@ -192,30 +192,37 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 // Every report type above used Math.random() unconditionally, for every
 // account, demo or real -- a real customer running "User Sessions By Date
 // Range" for their own business saw entirely fabricated names, mobile
-// numbers and data totals with no real backend call anywhere. Two report
-// types are genuinely, honestly buildable from data the backend actually
-// exposes to this session (GET /guest-sessions' bytes_uploaded/
-// bytes_downloaded per real location -- see customer.service.ts's
-// RawGuestSession): both "Bandwidth & Cost Report" sub-reports, which need no
-// per-guest identity at all. Every other report type needs either
-// per-guest PII the guest-sessions list doesn't expose (name/mobile --
-// see customer.service.ts's own getUsers(), which hardcodes
-// name: "Guest", email: "" for the same reason) or engagement/redemption
-// event data (campaign opens/clicks, individual voucher redemptions, OTP
-// delivery logs, team rosters) with no backing endpoint anywhere in this
-// codebase's real data paths. Those stay honestly unavailable for real
-// accounts rather than fabricated -- see UNAVAILABLE_REASON below.
+// numbers and data totals with no real backend call anywhere.
+//
+// The four "Guest Activity" per-guest reports (user-data/user-sessions/
+// user-presence/top-users) were previously listed in UNAVAILABLE_REASON
+// below on the claim that "per-guest identity (name/mobile) isn't exposed
+// by the real session data this account can access." That claim went stale
+// once identityFromGuest() (customer.service.ts) landed: GET /guests
+// genuinely does return real Guest.identifier/display_name for this
+// account, already joined to /guest-sessions rows by guest_id in
+// getUsers()'s own Connected Guests table. These four reports now do the
+// same bulk /guest-sessions + /guests fetch-and-join (see
+// fetchRealGuestsById/realUserData/realUserSessions/realUserPresence/
+// realTopUsers below) and aggregate client-side, the same pattern already
+// used for data-consumption/data-by-location's day/location rollups.
+//
+// Every remaining report type still needs either engagement/redemption
+// event data (campaign opens/clicks, per-voucher-batch issued-vs-redeemed
+// rate, OTP delivery logs, team rosters) with no backing endpoint anywhere
+// in this codebase's real data paths, or a real day-wise/unique-count
+// aggregate the backend doesn't compute. Those stay honestly unavailable
+// for real accounts rather than fabricated -- see UNAVAILABLE_REASON below.
 // "voucher-usage"/"top-vouchers" moved out of UNAVAILABLE_REASON below --
 // GET /analytics/voucher-redemptions/log (backend/app/domains/analytics)
 // now backs both real report types, see realVoucherRedemptionLog/
 // realTopRedeemedVouchers above.
-const REAL_REPORT_TYPES = new Set(["data-consumption", "data-by-location", "voucher-usage", "top-vouchers"]);
+const REAL_REPORT_TYPES = new Set([
+  "data-consumption", "data-by-location", "voucher-usage", "top-vouchers",
+  "user-data", "user-sessions", "user-presence", "top-users",
+]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
-  "user-data": "Per-guest identity (name/mobile) isn't exposed by the real session data this account can access.",
-  "user-sessions": "Per-guest identity (name/mobile) isn't exposed by the real session data this account can access.",
-  "user-presence": "Per-guest identity isn't exposed by the real session data this account can access.",
-  "top-users": "Per-guest identity isn't exposed by the real session data this account can access.",
   "daywise-data": "Aggregated day-wise totals need the same per-guest breakdown the backend doesn't expose yet -- see Bandwidth & Cost Report for real day-wise totals.",
   "daywise-unique": "Unique user/device counts aren't tracked per day in the real backend yet.",
   "team-report": "Guest teams aren't tied to usage totals in the real backend yet.",
@@ -227,7 +234,19 @@ const UNAVAILABLE_REASON: Record<string, string> = {
   "sms-daywise": "Per-message SMS delivery status isn't logged in the real backend yet.",
 };
 
-interface RealGuestSession { started_at: string; ended_at?: string | null; bytes_uploaded?: number; bytes_downloaded?: number }
+// Same real /guest-sessions row shape as customer.service.ts's own
+// RawGuestSession -- guest_id/device_id/user_agent are already returned by
+// this endpoint (getUsers() and getDashboard() already read them), just
+// never previously requested by this file's own narrower type.
+interface RealGuestSession {
+  started_at: string;
+  ended_at?: string | null;
+  bytes_uploaded?: number;
+  bytes_downloaded?: number;
+  guest_id?: string | null;
+  device_id?: string | null;
+  user_agent?: string | null;
+}
 
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
 // `page_size: int = Query(default=25, ge=1, le=100)`) -- a single page_size=500
@@ -306,6 +325,167 @@ async function realDataByLocation(orgId: string, locations: { id: string; name: 
     const avgPerUser = sessions.length ? totalData / sessions.length : 0;
     return { businessUnit: l.name, totalData, avgPerUser, peakHour: "—", cost: ratePerGb ? (totalData / 1000) * ratePerGb : null };
   });
+}
+
+// Bulk guest-identity lookup for this location, matched to /guest-sessions
+// rows client-side by guest_id -- same "one bulk fetch, matched by
+// guest_id" shape as customer.service.ts's own getUsers()/getDashboard(),
+// just paged with has_next (like fetchRealSessions/
+// fetchRealVoucherRedemptions above) rather than capped at a single
+// page_size=100 request, since a report covering a wide date range can
+// genuinely span more distinct guests than one page's worth. Best-effort:
+// a guest_id with no matching row here (fetch failed, or a guest created
+// after this page loaded) just falls back to identityFromGuest's own
+// "Guest" placeholder, same honest-fallback contract as everywhere else
+// this join happens.
+async function fetchRealGuestsById(orgId: string, locationId: string): Promise<Map<string, RawGuest>> {
+  const guestsById = new Map<string, RawGuest>();
+  for (let page = 1; page <= MAX_REPORT_PAGES; page++) {
+    const { data } = await api.get<{ items: RawGuest[]; has_next?: boolean }>("/guests", {
+      params: { location_id: locationId, page, page_size: SESSIONS_PAGE_SIZE },
+      headers: { "X-Organization-Id": orgId },
+    });
+    for (const g of data?.items ?? []) guestsById.set(g.id, g);
+    if (!data?.has_next) break;
+  }
+  return guestsById;
+}
+
+/** "Guest Dwell Time By Date Range" -- one row per real session, newest
+ * first, joined to the guest who ran it via identityFromGuest (same
+ * name/phone resolution as the real Connected Guests table). */
+async function realUserSessions(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const [sessions, guestsById] = await Promise.all([
+    fetchRealSessions(orgId, locationId, from, to),
+    fetchRealGuestsById(orgId, locationId),
+  ]);
+  return sessions
+    .slice()
+    .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+    .map((s, i) => {
+      const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
+      const duration = s.ended_at
+        ? Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60_000)
+        : null; // still-active session -- honest "—" (fmtCell's null handling), not a fabricated duration.
+      return {
+        rank: i + 1,
+        name: identity.name,
+        mobile: identity.phone || null,
+        device: deviceLabelFrom(s.user_agent),
+        sessionStart: s.started_at,
+        sessionEnd: s.ended_at ?? null,
+        duration,
+        data: ((s.bytes_uploaded ?? 0) + (s.bytes_downloaded ?? 0)) / 1e6, // MB, matches fmtCell's "data" formatting
+      };
+    });
+}
+
+/** Real per-guest aggregate over sessions in a date range -- shared by
+ * "Guest Data Usage By Date Range" (realUserData) and "Heaviest Data Users
+ * (This Month)" (realTopUsers) below, which differ only in date window and
+ * result shape. Sessions with no guest_id (never linked to a real Guest
+ * row) are skipped rather than lumped into one fake "Guest" aggregate row --
+ * see identityFromGuest's own "Guest" placeholder, which is honest for a
+ * single row but would misleadingly merge unrelated guests together here. */
+function aggregateSessionsByGuest(sessions: RealGuestSession[]) {
+  const byGuest = new Map<string, { data: number; devices: Set<string>; sessions: number; lastSeen: string }>();
+  for (const s of sessions) {
+    if (!s.guest_id) continue;
+    const bucket = byGuest.get(s.guest_id) ?? { data: 0, devices: new Set<string>(), sessions: 0, lastSeen: s.started_at };
+    bucket.data += (s.bytes_uploaded ?? 0) + (s.bytes_downloaded ?? 0);
+    bucket.sessions += 1;
+    if (s.device_id) bucket.devices.add(s.device_id);
+    const seenAt = s.ended_at ?? s.started_at;
+    if (new Date(seenAt).getTime() > new Date(bucket.lastSeen).getTime()) bucket.lastSeen = seenAt;
+    byGuest.set(s.guest_id, bucket);
+  }
+  return byGuest;
+}
+
+/** "Guest Data Usage By Date Range" -- per-guest totals (data, distinct
+ * device count, last-seen) over the picked range, heaviest first. */
+async function realUserData(orgId: string, locationId: string, from: string, to: string): Promise<Row[]> {
+  const [sessions, guestsById] = await Promise.all([
+    fetchRealSessions(orgId, locationId, from, to),
+    fetchRealGuestsById(orgId, locationId),
+  ]);
+  const byGuest = aggregateSessionsByGuest(sessions);
+  return Array.from(byGuest.entries())
+    .sort(([, a], [, b]) => b.data - a.data)
+    .map(([guestId, bucket], i) => {
+      const identity = identityFromGuest(guestsById.get(guestId));
+      return {
+        rank: i + 1,
+        name: identity.name,
+        mobile: identity.phone || null,
+        devices: bucket.devices.size,
+        data: bucket.data / 1e6,
+        lastSeen: bucket.lastSeen,
+      };
+    });
+}
+
+const TOP_USERS_LIMIT = 10;
+
+/** "Heaviest Data Users (This Month)" -- same per-guest aggregate as
+ * realUserData above, scoped to the current month and capped to the top
+ * TOP_USERS_LIMIT, same "(This Month)"/top-N convention as
+ * realTopRedeemedVouchers. */
+async function realTopUsers(orgId: string, locationId: string): Promise<Row[]> {
+  const { from, to } = currentMonthBounds();
+  const [sessions, guestsById] = await Promise.all([
+    fetchRealSessions(orgId, locationId, from, to),
+    fetchRealGuestsById(orgId, locationId),
+  ]);
+  const byGuest = aggregateSessionsByGuest(sessions);
+  return Array.from(byGuest.entries())
+    .sort(([, a], [, b]) => b.data - a.data)
+    .slice(0, TOP_USERS_LIMIT)
+    .map(([guestId, bucket], i) => {
+      const identity = identityFromGuest(guestsById.get(guestId));
+      return { rank: i + 1, name: identity.name, mobile: identity.phone || null, data: bucket.data / 1e6, sessions: bucket.sessions };
+    });
+}
+
+/** "Hourly Guest Traffic (Single-Day Snapshot)" -- despite the label, this
+ * report's own columns (see COLUMNS["user-presence"]) are a per-guest
+ * same-day rollup (first/last seen, total presence, session count), not an
+ * hour-by-hour histogram -- matching the existing mock fixture's shape,
+ * which this real implementation reproduces faithfully rather than
+ * reinterpreting. `date` is used as both the from and to bound of a single
+ * real day (see fetchRealSessions' own [start, end) day-window math). */
+async function realUserPresence(orgId: string, locationId: string, date: string): Promise<Row[]> {
+  const [sessions, guestsById] = await Promise.all([
+    fetchRealSessions(orgId, locationId, date, date),
+    fetchRealGuestsById(orgId, locationId),
+  ]);
+  const byGuest = new Map<string, { firstSeen: string; lastSeen: string; totalMs: number; sessions: number }>();
+  for (const s of sessions) {
+    if (!s.guest_id) continue;
+    const startMs = new Date(s.started_at).getTime();
+    const endMs = s.ended_at ? new Date(s.ended_at).getTime() : Date.now();
+    const lastCandidate = s.ended_at ?? s.started_at;
+    const bucket = byGuest.get(s.guest_id) ?? { firstSeen: s.started_at, lastSeen: lastCandidate, totalMs: 0, sessions: 0 };
+    if (startMs < new Date(bucket.firstSeen).getTime()) bucket.firstSeen = s.started_at;
+    if (new Date(lastCandidate).getTime() > new Date(bucket.lastSeen).getTime()) bucket.lastSeen = lastCandidate;
+    bucket.totalMs += Math.max(0, endMs - startMs);
+    bucket.sessions += 1;
+    byGuest.set(s.guest_id, bucket);
+  }
+  return Array.from(byGuest.entries())
+    .sort(([, a], [, b]) => b.totalMs - a.totalMs)
+    .map(([guestId, bucket], i) => {
+      const identity = identityFromGuest(guestsById.get(guestId));
+      return {
+        rank: i + 1,
+        name: identity.name,
+        mobile: identity.phone || null,
+        firstSeen: bucket.firstSeen,
+        lastSeen: bucket.lastSeen,
+        totalPresence: fmtDur(Math.round(bucket.totalMs / 60_000)),
+        sessions: bucket.sessions,
+      };
+    });
 }
 
 interface RealVoucherRedemption {
@@ -516,6 +696,14 @@ function ReportPanel({ reportTypes, csvPrefix, masked = true }: { reportTypes: R
           data = loc ? await realVoucherRedemptionLog(orgId, loc.id, from, to) : [];
         } else if (reportType === "top-vouchers") {
           data = loc ? await realTopRedeemedVouchers(orgId, loc.id) : [];
+        } else if (reportType === "user-data") {
+          data = loc ? await realUserData(orgId, loc.id, from, to) : [];
+        } else if (reportType === "user-sessions") {
+          data = loc ? await realUserSessions(orgId, loc.id, from, to) : [];
+        } else if (reportType === "user-presence") {
+          data = loc ? await realUserPresence(orgId, loc.id, singleDate) : [];
+        } else if (reportType === "top-users") {
+          data = loc ? await realTopUsers(orgId, loc.id) : [];
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }
