@@ -228,7 +228,7 @@ function useWanSummary(locationId: string): WanSummaryState {
 type BandwidthSeriesState =
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "ready"; link: IspLink; checks: IspHealthCheck[] };
+  | { status: "ready"; link: IspLink; checks: IspHealthCheck[]; otherLinks: IspLink[] };
 
 // Same 20s cadence the Internet Connection page's own links table already
 // polls at (OperationsFeatures.tsx's ISP_LINKS_POLL_INTERVAL_MS) -- reused
@@ -254,19 +254,31 @@ const BANDWIDTH_POLL_INTERVAL_MS = 20_000;
  * `BANDWIDTH_POLL_INTERVAL_MS`, paused while the tab is hidden -- the same
  * Page Visibility API pattern `IspDetailsView`'s own auto-refresh already
  * establishes, so a backgrounded dashboard tab doesn't keep hammering the
- * API for nothing. */
+ * API for nothing.
+ *
+ * Also resolves `otherLinks` -- every other enabled link at this location
+ * (e.g. a standby backup), from that same first-phase list fetch. Nothing
+ * about the chart itself changes for these: they're surfaced as a compact
+ * status row only (see `BandwidthUtilizationCard`), never separately
+ * polled/charted here -- a location with a backup link shouldn't go
+ * completely invisible on the one screen an admin checks daily, but this
+ * card's own detail view stays scoped to the single active link it's
+ * always been built around. */
 function useBandwidthSeries(locationId: string): BandwidthSeriesState {
   const [phase, setPhase] = useState<"loading" | "empty" | "ready">("loading");
   const [link, setLink] = useState<IspLink | null>(null);
+  const [otherLinks, setOtherLinks] = useState<IspLink[]>([]);
   const [checks, setChecks] = useState<IspHealthCheck[]>([]);
 
   useEffect(() => {
     let alive = true;
     setPhase("loading");
     setLink(null);
+    setOtherLinks([]);
     setChecks([]);
     if (isDemo()) {
       setLink(DEMO_WAN_LINK);
+      setOtherLinks([DEMO_WAN_BACKUP_LINK]);
       setChecks(DEMO_BANDWIDTH_CHECKS);
       setPhase("ready");
       return;
@@ -279,6 +291,7 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
         if (!alive) return;
         if (!active) { setPhase("empty"); return; }
         setLink(active);
+        setOtherLinks(links.filter((l) => l.id !== active.id));
       } catch {
         if (alive) setPhase("empty");
       }
@@ -315,7 +328,7 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
   }, [link]);
 
   if (phase === "empty") return { status: "empty" };
-  if (phase === "ready" && link) return { status: "ready", link, checks };
+  if (phase === "ready" && link) return { status: "ready", link, checks, otherLinks };
   return { status: "loading" };
 }
 
@@ -702,6 +715,37 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
         </div>
       </CardHeader>
+      {/* A location with a second (usually backup/failover) ISP link
+       * shouldn't have that link go completely invisible just because
+       * this card's own detail chart only ever tracks one at a time --
+       * compact status chips, not a second full-size chart, so a backup
+       * link's real health/live-Mbps is visible at a glance without a
+       * click-through to Internet Connection, and without disrupting this
+       * card's existing single-chart layout rhythm. */}
+      {bw.status === "ready" && bw.otherLinks.length > 0 && (
+        <div className="mx-4 mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Also here</span>
+          {bw.otherLinks.map((l) => {
+            const style = WAN_HEALTH_STYLE[l.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+            return (
+              <span
+                key={l.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2 py-1 text-[11px]"
+                title={`${l.providerName} (${l.role === "primary" ? "Primary" : "Backup"}) — ${style.label}`}
+              >
+                <IspProviderIcon providerName={l.providerName} className="h-3.5 w-3.5 shrink-0" />
+                <span className="max-w-[8rem] truncate font-medium text-foreground">{l.providerName}</span>
+                <span className="text-muted-foreground">{l.role === "primary" ? "Primary" : "Backup"}</span>
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", style.dot)} />
+                <span className={cn("font-medium", style.text)}>{style.label}</span>
+                {l.currentDownloadMbps != null && (
+                  <span className="text-muted-foreground tabular-nums">{l.currentDownloadMbps.toFixed(0)} Mbps↓</span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
       {/* The real "should I upgrade my plan" answer -- always visible
        * (unlike the point-in-time badge above, which is `hidden sm:flex`
        * and only ever shows one instant), and a frequency, not a single

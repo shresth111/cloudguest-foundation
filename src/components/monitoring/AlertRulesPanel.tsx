@@ -56,6 +56,7 @@ import {
   useUpdateAlertRule,
 } from "@/hooks/useMonitoring";
 import {
+  ALERT_TARGET_ISP_LINK,
   ALERT_TARGET_ROUTER,
   ALERT_TRIGGER_TYPE_LABEL,
   HEALTH_COMPONENT_LABEL,
@@ -420,6 +421,9 @@ function AlertRuleFormDialog({
                         </FormControl>
                         <SelectContent>
                           <SelectItem value={ALERT_TARGET_ROUTER}>Router health (any router in scope)</SelectItem>
+                          <SelectItem value={ALERT_TARGET_ISP_LINK}>
+                            Internet connection (any ISP link in scope)
+                          </SelectItem>
                           {HEALTH_COMPONENT_OPTIONS.map((c) => (
                             <SelectItem key={c} value={c}>
                               {HEALTH_COMPONENT_LABEL[c]}
