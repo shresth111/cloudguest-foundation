@@ -93,19 +93,17 @@ function SetPasswordPage() {
   const skip = () => navigate({ to: nextRoute, search: (prev) => prev });
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
         <div className="text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
             <KeyRound className="h-6 w-6" />
           </div>
-          <h1 className="font-display mt-4 text-2xl font-bold tracking-tight text-slate-900">
-            {t("setPasswordTitle")}
-          </h1>
+          <h1 className="pg-subtitle mt-4 text-[var(--pg-ink)]">{t("setPasswordTitle")}</h1>
           <p className="mt-1 text-sm text-slate-500">{t("setPasswordSubtitle")}</p>
         </div>
 
-        <PortalCard variant="light">
+        <PortalCard>
           <form onSubmit={form.handleSubmit((v) => save.mutate(v))} className="space-y-3">
             <label className="text-xs font-semibold text-slate-500">{t("newPassword")}</label>
             <Input

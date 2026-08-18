@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
+import { defaultCountryCode } from "@/lib/portal-locale";
 import { PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
+import { PhoneNumberFields, EmailField } from "./AuthFields";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -21,6 +24,14 @@ import type { AppError } from "@/services/api";
  * the deep-linkable per-method route (src/routes/portal.auth.$method.tsx,
  * kept for direct/bookmarked links) so the two can never drift into
  * different field sets or validation for the same method.
+ *
+ * v4 §6.8: `MobileForm`/`WhatsAppForm`/`EmailForm`'s actual phone/email
+ * inputs now render `AuthFields.tsx`'s shared `PhoneNumberFields`/
+ * `EmailField` -- the exact same pieces `GuestSignInCard`'s `OtpForm`
+ * uses for the real, primary sign-in path -- instead of a second
+ * hand-authored copy of the same JSX (UX v4 §3.2/§3.8's audit finding).
+ * `PasswordForm`/`VoucherForm` are unchanged -- v4 §6.8 only asked for
+ * the phone/email/code fields to stop being duplicated.
  */
 
 export const METHOD_META: Record<
@@ -42,151 +53,109 @@ export const METHOD_META: Record<
   voucher: { icon: Ticket, labelKey: "voucherCode", desc: "Redeem a voucher code" },
 };
 
-const mobileSchema = z.object({
-  countryCode: z.string().min(1, "Required"),
-  phone: z.string().min(6, "Enter a valid number"),
-});
-export function MobileForm({
-  organizationId,
-  locationId,
-  onSent,
-}: {
+type PhoneFormProps = {
   organizationId: string;
   locationId: string;
   onSent: (target: string) => void;
-}) {
-  const { t } = usePortalRuntime();
-  const form = useForm<z.infer<typeof mobileSchema>>({
-    resolver: zodResolver(mobileSchema),
-    defaultValues: { countryCode: "+1", phone: "" },
-  });
+};
+
+function usePhoneOtpForm(
+  channel: "sms" | "whatsapp",
+  { organizationId, locationId, onSent }: PhoneFormProps,
+) {
+  const { config } = usePortalRuntime();
+  const [countryCode, setCountryCode] = useState(() => defaultCountryCode(config?.defaultLanguage));
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const send = useMutation({
-    mutationFn: (v: z.infer<typeof mobileSchema>) =>
-      portalRuntimeService.requestOtp({
-        identifier: v.countryCode + v.phone,
-        channel: "sms",
-        organizationId,
-        locationId,
-      }),
-    onSuccess: (_r, v) => {
+    mutationFn: (identifier: string) =>
+      portalRuntimeService.requestOtp({ identifier, channel, organizationId, locationId }),
+    onSuccess: (_r, identifier) => {
       toast.success("Code sent");
-      onSent(v.countryCode + v.phone);
+      onSent(identifier);
     },
     onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
   });
-  return (
-    <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
-      <div className="grid grid-cols-[90px_1fr] gap-2">
-        <Input {...form.register("countryCode")} className={PG_INPUT} />
-        <Input
-          {...form.register("phone")}
-          inputMode="tel"
-          placeholder="555 010 2200"
-          className={PG_INPUT}
-        />
-      </div>
-      {form.formState.errors.phone && (
-        <p className="text-xs text-red-600">{form.formState.errors.phone.message}</p>
-      )}
-      <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
-        {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
-      </button>
-    </form>
-  );
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const identifier = countryCode + phone;
+    if (phone.trim().replace(/\D/g, "").length < 6) {
+      setError("Enter a valid number");
+      return;
+    }
+    setError(null);
+    send.mutate(identifier);
+  };
+  return { countryCode, setCountryCode, phone, setPhone, error, send, onSubmit };
 }
 
-export function WhatsAppForm({
-  organizationId,
-  locationId,
-  onSent,
-}: {
-  organizationId: string;
-  locationId: string;
-  onSent: (target: string) => void;
-}) {
+export function MobileForm(props: PhoneFormProps) {
   const { t } = usePortalRuntime();
-  const form = useForm<z.infer<typeof mobileSchema>>({
-    resolver: zodResolver(mobileSchema),
-    defaultValues: { countryCode: "+1", phone: "" },
-  });
-  const send = useMutation({
-    mutationFn: (v: z.infer<typeof mobileSchema>) =>
-      portalRuntimeService.requestOtp({
-        identifier: v.countryCode + v.phone,
-        channel: "whatsapp",
-        organizationId,
-        locationId,
-      }),
-    onSuccess: (_r, v) => {
-      toast.success("Code sent");
-      onSent(v.countryCode + v.phone);
-    },
-    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
-  });
+  const f = usePhoneOtpForm("sms", props);
   return (
-    <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
+    <form onSubmit={f.onSubmit} className="space-y-3">
       <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
-      <div className="grid grid-cols-[90px_1fr] gap-2">
-        <Input {...form.register("countryCode")} className={PG_INPUT} />
-        <Input
-          {...form.register("phone")}
-          inputMode="tel"
-          placeholder="555 010 2200"
-          className={PG_INPUT}
-        />
-      </div>
-      {form.formState.errors.phone && (
-        <p className="text-xs text-red-600">{form.formState.errors.phone.message}</p>
-      )}
-      <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
-        {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
-      </button>
-    </form>
-  );
-}
-
-const emailSchema = z.object({ email: z.string().email("Enter a valid email") });
-export function EmailForm({
-  organizationId,
-  locationId,
-  onSent,
-}: {
-  organizationId: string;
-  locationId: string;
-  onSent: (target: string) => void;
-}) {
-  const { t } = usePortalRuntime();
-  const form = useForm<z.infer<typeof emailSchema>>({
-    resolver: zodResolver(emailSchema),
-    defaultValues: { email: "" },
-  });
-  const send = useMutation({
-    mutationFn: (v: z.infer<typeof emailSchema>) =>
-      portalRuntimeService.requestOtp({
-        identifier: v.email,
-        channel: "email",
-        organizationId,
-        locationId,
-      }),
-    onSuccess: (_r, v) => {
-      toast.success("Code sent");
-      onSent(v.email);
-    },
-    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
-  });
-  return (
-    <form onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("emailAddress")}</Label>
-      <Input
-        {...form.register("email")}
-        type="email"
-        placeholder="you@example.com"
-        className={PG_INPUT}
+      <PhoneNumberFields
+        countryCode={f.countryCode}
+        onCountryCodeChange={f.setCountryCode}
+        phone={f.phone}
+        onPhoneChange={f.setPhone}
       />
-      {form.formState.errors.email && (
-        <p className="text-xs text-red-600">{form.formState.errors.email.message}</p>
-      )}
+      {f.error && <p className="text-xs text-red-600">{f.error}</p>}
+      <button type="submit" disabled={f.send.isPending} className={PG_PRIMARY_BTN}>
+        {f.send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+      </button>
+    </form>
+  );
+}
+
+export function WhatsAppForm(props: PhoneFormProps) {
+  const { t } = usePortalRuntime();
+  const f = usePhoneOtpForm("whatsapp", props);
+  return (
+    <form onSubmit={f.onSubmit} className="space-y-3">
+      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
+      <PhoneNumberFields
+        countryCode={f.countryCode}
+        onCountryCodeChange={f.setCountryCode}
+        phone={f.phone}
+        onPhoneChange={f.setPhone}
+      />
+      {f.error && <p className="text-xs text-red-600">{f.error}</p>}
+      <button type="submit" disabled={f.send.isPending} className={PG_PRIMARY_BTN}>
+        {f.send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+      </button>
+    </form>
+  );
+}
+
+export function EmailForm({ organizationId, locationId, onSent }: PhoneFormProps) {
+  const { t } = usePortalRuntime();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const send = useMutation({
+    mutationFn: (identifier: string) =>
+      portalRuntimeService.requestOtp({ identifier, channel: "email", organizationId, locationId }),
+    onSuccess: (_r, identifier) => {
+      toast.success("Code sent");
+      onSent(identifier);
+    },
+    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
+  });
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/.+@.+\..+/.test(email.trim())) {
+      setError("Enter a valid email");
+      return;
+    }
+    setError(null);
+    send.mutate(email.trim());
+  };
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <Label className="text-xs font-semibold text-slate-500">{t("emailAddress")}</Label>
+      <EmailField email={email} onEmailChange={setEmail} />
+      {error && <p className="text-xs text-red-600">{error}</p>}
       <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
         {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
       </button>
@@ -319,7 +288,11 @@ export function VoucherForm({
         <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
       )}
       <Label className="text-xs font-semibold text-slate-500">{t("voucherCode")}</Label>
-      <Input {...form.register("code")} placeholder="ABCD-1234" className={`${PG_INPUT} uppercase`} />
+      <Input
+        {...form.register("code")}
+        placeholder="ABCD-1234"
+        className={`${PG_INPUT} uppercase`}
+      />
       {form.formState.errors.code && (
         <p className="text-xs text-red-600">{form.formState.errors.code.message}</p>
       )}

@@ -145,6 +145,23 @@ const EN: Dict = {
   errEnterCode: "Enter the 6-digit code",
   errAcceptTerms: "Please accept the Terms & Acceptable Use Policy to continue.",
   errPhoneEmailPassword: "Enter your phone/email and password",
+
+  // Closes portal.success.tsx's gap (v4 §6.1 -- the timeout/retry escape
+  // hatch this page never had).
+  successSlowNotice: "This is taking longer than expected.",
+  successStuckNotice: "Still working on it -- you can wait, or try signing in again.",
+  signInAgainLink: "Sign in again",
+
+  // Closes GuestSignInCard's tier-2 OTP-channel switcher (v4 §6.7 -- the
+  // "2+ OTP channels, no password" case, previously an undiscoverable
+  // disclosure link).
+  switchOtpChannel: "Get the code another way",
+
+  // Closes portal.session.tsx's new profile nudge card (v4 §6.5 --
+  // relocated out of the login funnel, same pattern as the password/team
+  // nudges already on this page).
+  profileNudgeTitle: "Tell us a bit about yourself",
+  profileNudgeSubtitle: "Optional -- helps venue staff recognize you next time.",
 };
 
 const HI: Dict = {
@@ -281,6 +298,18 @@ const HI: Dict = {
   errEnterCode: "6 अंकों का कोड दर्ज करें",
   errAcceptTerms: "जारी रखने के लिए कृपया शर्तें और उपयोग नीति स्वीकार करें।",
   errPhoneEmailPassword: "अपना फ़ोन/ईमेल और पासवर्ड दर्ज करें",
+
+  // Closes portal.success.tsx's gap.
+  successSlowNotice: "इसमें अपेक्षा से अधिक समय लग रहा है।",
+  successStuckNotice: "हम अभी भी कोशिश कर रहे हैं -- आप प्रतीक्षा कर सकते हैं, या फिर से साइन इन करने की कोशिश करें।",
+  signInAgainLink: "फिर से साइन इन करें",
+
+  // Closes GuestSignInCard's tier-2 OTP-channel switcher.
+  switchOtpChannel: "कोड पाने का दूसरा तरीका",
+
+  // Closes portal.session.tsx's new profile nudge card.
+  profileNudgeTitle: "हमें अपने बारे में थोड़ा बताएं",
+  profileNudgeSubtitle: "वैकल्पिक -- अगली बार वेन्यू स्टाफ को आपको पहचानने में मदद करता है।",
 };
 const AR: Dict = {
   ...EN,

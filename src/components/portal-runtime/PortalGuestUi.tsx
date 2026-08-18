@@ -31,7 +31,12 @@ export function AlertBanner({ message }: { message?: string | null }) {
   return (
     <div
       role="alert"
-      className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+      className="flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm"
+      style={{
+        borderColor: "var(--pg-danger-border, #FECACA)",
+        backgroundColor: "var(--pg-danger-bg, #FEF2F2)",
+        color: "var(--pg-danger, #DC2626)",
+      }}
     >
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
       <span>{message}</span>
@@ -74,9 +79,9 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
   if (!active && pct === 0) return null;
 
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-[24px] bg-white/90 px-6 text-center backdrop-blur-sm">
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-[24px] bg-[var(--pg-surface,#fff)]/90 px-6 text-center backdrop-blur-sm">
       <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
-      <p className="text-sm font-medium text-slate-700">{label}</p>
+      <p className="pg-body font-medium text-[var(--pg-ink,#0F172A)]">{label}</p>
       <div className="h-1.5 w-40 overflow-hidden rounded-full bg-[var(--pr-primary,#6366f1)]/15">
         <div
           className="h-full rounded-full bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] transition-[width] duration-200 ease-out"
@@ -145,11 +150,20 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
 export function PortalConnectingState() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center">
-      <div className="flex w-full max-w-[360px] flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white px-8 py-10 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)]">
+      <div
+        className="flex w-full max-w-[360px] flex-col items-center gap-4 rounded-2xl border px-8 py-10 text-center"
+        style={{
+          borderColor: "var(--pg-border, #E2E8F0)",
+          backgroundColor: "var(--pg-surface, #fff)",
+          boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.10)",
+        }}
+      >
         <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
         <div>
-          <p className="text-base font-semibold text-slate-900">Connecting you to the internet…</p>
-          <p className="mt-1 text-sm text-slate-500">Just a moment.</p>
+          <p className="pg-body font-semibold text-[var(--pg-ink,#0F172A)]">
+            Connecting you to the internet…
+          </p>
+          <p className="mt-1 text-sm text-[var(--pg-ink-muted,#64748B)]">Just a moment.</p>
         </div>
       </div>
     </div>
@@ -164,8 +178,15 @@ export function PortalConnectingState() {
 // things that actually change on hover/press/disabled (background/shadow/
 // transform), not `transition-all`, which used to animate every
 // animatable property on every state change for no visual payoff.
+// `text-[color:var(--pr-primary-foreground,#ffffff)]`, not a hardcoded
+// `text-white` -- v4 §2's contrast-safe fix: a venue that picks a pale
+// accent color (a light yellow, a pastel) used to get illegible button
+// text, the identical legibility failure PR #80 fixed for background
+// photos, just for a different element. `--pr-primary-foreground` is
+// computed once, alongside `--pr-primary` itself, by
+// `accessibleForeground()` (PortalRuntimeContext.tsx).
 export const PG_PRIMARY_BTN =
-  "h-[52px] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] font-semibold text-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-[52px] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
 export const PG_INPUT =
-  "h-[52px] rounded-2xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 transition-[border-color,box-shadow] duration-200 hover:border-slate-300 focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "h-[52px] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] text-[15px] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-faint,#94A3B8)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#94A3B8)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";

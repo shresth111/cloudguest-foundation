@@ -125,7 +125,7 @@ function DemoPortalPreviewPage() {
                   presetConfig={config}
                   presetConfigLoading={false}
                 >
-                  <PortalShell variant="light" showHeader={false} constrained>
+                  <PortalShell constrained>
                     <GuestSignInCard />
                   </PortalShell>
                 </PortalRuntimeProvider>

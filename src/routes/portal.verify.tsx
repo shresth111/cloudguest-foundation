@@ -5,11 +5,12 @@ import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { OtpCodeInput } from "@/components/portal-runtime/AuthFields";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
+import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/verify")({
@@ -44,8 +45,13 @@ function VerifyPage() {
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/verify" });
   const [code, setCode] = useState("");
-  const [countdown, setCountdown] = useState(60);
   const [error, setError] = useState<string | null>(null);
+  // v4 UX §6.4: was a fixed 60-second client-side countdown regardless of
+  // server truth -- the same server-driven cooldown GuestSignInCard's own
+  // inline OTP flow uses (see this hook's own docstring for the full
+  // "why"). Starts at 0 (a guest can resend immediately) exactly like the
+  // inline flow, and only gets a real cooldown once the server 429s.
+  const { cooldown, applyServerCooldown, resetCooldown } = useOtpResendCooldown();
 
   const requiresTerms = !!(
     config?.termsAndConditionsText ||
@@ -58,12 +64,6 @@ function VerifyPage() {
     if (!otpTarget || !selectedMethod)
       navigate({ to: "/portal/auth", replace: true, search: (prev) => prev });
   }, [otpTarget, selectedMethod, navigate]);
-
-  useEffect(() => {
-    if (countdown <= 0) return;
-    const id = setInterval(() => setCountdown((c) => c - 1), 1000);
-    return () => clearInterval(id);
-  }, [countdown]);
 
   const login = useMutation({
     mutationFn: (c: string) =>
@@ -114,13 +114,16 @@ function VerifyPage() {
       }),
     onSuccess: () => {
       toast.success("New code sent");
-      setCountdown(60);
+      resetCooldown();
     },
-    onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "otp_request")),
+    onError: (e: AppError) => {
+      applyServerCooldown(e);
+      toast.error(friendlyGuestAuthError(e, "otp_request"));
+    },
   });
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
         <Link
           to="/portal/auth"
@@ -131,28 +134,14 @@ function VerifyPage() {
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t("changeNumber")}
         </Link>
         <div className="text-center">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-            Enter your code
-          </h1>
+          <h1 className="pg-subtitle text-[var(--pg-ink)]">Enter your code</h1>
           <p className="mt-1.5 text-sm text-slate-500">
             We sent a 6-digit code to{" "}
             <span className="font-semibold text-slate-800">{otpTarget}</span>
           </p>
         </div>
-        <PortalCard variant="light" className="space-y-4">
-          <div className="flex justify-center">
-            <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
-              <InputOTPGroup className="gap-2 sm:gap-2.5">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <InputOTPSlot
-                    key={i}
-                    index={i}
-                    className="font-display h-14 w-11 rounded-2xl border-slate-200 bg-white text-xl font-semibold tabular-nums text-slate-900 shadow-none transition-all duration-150 first:rounded-2xl last:rounded-2xl"
-                  />
-                ))}
-              </InputOTPGroup>
-            </InputOTP>
-          </div>
+        <PortalCard className="space-y-4">
+          <OtpCodeInput value={code} onChange={setCode} autoFocus />
 
           {requiresTerms && (
             <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">
@@ -176,12 +165,15 @@ function VerifyPage() {
             {login.isPending ? "Verifying…" : t("verifyOtp")}
           </button>
           <div className="flex items-center justify-center gap-2 text-xs">
-            {countdown > 0 ? (
-              <span className="text-slate-400">Resend in {countdown}s</span>
+            {cooldown > 0 ? (
+              <span className="text-slate-400">
+                {t("resendAvailableInTemplate").replace("{n}", String(cooldown))}
+              </span>
             ) : (
               <button
                 type="button"
                 onClick={() => resend.mutate()}
+                disabled={resend.isPending}
                 className="font-medium text-indigo-600 hover:underline"
               >
                 {t("resend")}

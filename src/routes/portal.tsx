@@ -147,7 +147,7 @@ function IncompletePortalLinkError() {
       className="flex min-h-dvh w-full items-center justify-center px-4"
       style={{ fontFamily: PG_FONT_STACK, background: "#FAFAF8" }}
     >
-      <PortalCard variant="light" className="pg-enter w-full max-w-[400px] text-center">
+      <PortalCard className="pg-enter w-full max-w-[400px] text-center">
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#6366f1]">
           <QrCode className="h-7 w-7 text-white" />
         </div>
@@ -231,7 +231,11 @@ function PortalRuntimeLayout() {
   // -- so a stale persisted ID can't perpetuate itself once a fresh, real
   // link (a different router, say) provides a new one.
   useEffect(() => {
-    if (looksLikeRealId(urlOrganizationId) && looksLikeRealId(urlLocationId) && looksLikeRealId(urlRouterId)) {
+    if (
+      looksLikeRealId(urlOrganizationId) &&
+      looksLikeRealId(urlLocationId) &&
+      looksLikeRealId(urlRouterId)
+    ) {
       persistRuntimeIds({
         organizationId: urlOrganizationId,
         locationId: urlLocationId,
@@ -240,7 +244,11 @@ function PortalRuntimeLayout() {
     }
   }, [urlOrganizationId, urlLocationId, urlRouterId]);
 
-  if (!looksLikeRealId(organizationId) || !looksLikeRealId(locationId) || !looksLikeRealId(routerId)) {
+  if (
+    !looksLikeRealId(organizationId) ||
+    !looksLikeRealId(locationId) ||
+    !looksLikeRealId(routerId)
+  ) {
     return <IncompletePortalLinkError />;
   }
 

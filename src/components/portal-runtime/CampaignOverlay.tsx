@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { ArrowRight, MessageSquareText, Star, X } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
@@ -192,7 +191,10 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
   // the guest's own explicit action).
   useEffect(() => {
     if (campaign.campaignType === "survey" || !campaign.isSkippable) return;
-    const id = setTimeout(() => finish({ wasSkipped: false, wasClicked: false }), BANNER_AUTO_ADVANCE_MS);
+    const id = setTimeout(
+      () => finish({ wasSkipped: false, wasClicked: false }),
+      BANNER_AUTO_ADVANCE_MS,
+    );
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.campaignType, campaign.isSkippable]);
@@ -207,13 +209,19 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
   };
 
   return (
-    <PortalShell variant="light" showHeader={false}>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
-        className="flex flex-1 flex-col gap-5"
-      >
+    <PortalShell>
+      {/* v4 §5: this used to run its own `framer-motion` fade+rise
+       * (opacity 0->1, y 10->0) on top of PortalShell's own CSS-only
+       * `pg-enter` fade+rise, already applied to the <main> this content
+       * sits inside -- the exact same "same entrance animated twice via
+       * two different mechanisms" pattern portal.index.tsx's own
+       * framer-motion removal already fixed elsewhere on this surface.
+       * `pg-enter` alone already covers it; dropping this import is one
+       * of the two real, live `framer-motion` usages left on the guest
+       * portal (`ConnectedIllustration`, portal.session.tsx, is the
+       * other) -- closing both is what makes the "zero framer-motion on
+       * this surface" budget line actually true. */}
+      <div className="flex flex-1 flex-col gap-5">
         <div className="flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
             <MessageSquareText className="h-3.5 w-3.5" />
@@ -232,7 +240,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
 
         {campaign.campaignType === "survey" ? (
           <>
-            <PortalCard variant="light" className="space-y-6">
+            <PortalCard className="space-y-6">
               {campaign.questions
                 .slice()
                 .sort((a, b) => a.orderIndex - b.orderIndex)
@@ -261,7 +269,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
           </>
         ) : (
           <>
-            <PortalCard variant="light" className="overflow-hidden p-0">
+            <PortalCard className="overflow-hidden p-0">
               {campaign.asset?.imageUrl ? (
                 <button type="button" onClick={openBanner} className="block w-full">
                   <img
@@ -283,7 +291,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
             </button>
           </>
         )}
-      </motion.div>
+      </div>
     </PortalShell>
   );
 }

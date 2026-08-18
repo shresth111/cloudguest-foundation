@@ -581,7 +581,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   presetConfig={livePreviewConfig}
                   presetConfigLoading={false}
                 >
-                  <PortalShell variant="light" showHeader={false} constrained>
+                  <PortalShell constrained>
                     <GuestSignInCard />
                   </PortalShell>
                 </PortalRuntimeProvider>
