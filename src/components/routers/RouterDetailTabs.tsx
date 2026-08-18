@@ -2611,22 +2611,23 @@ export function buildRouterSetupScriptChunks(opts: {
     // it alone" is exactly as correct and matches every other
     // not-meant-to-be-refreshed self-heal idiom in this file.
     //
-    // **UNRESOLVED ODDITY -- flagged honestly, not claimed fixed**: binding
-    // this certificate to hsprof1 via `/ip hotspot profile set
-    // [find name="hsprof1"] ssl-certificate=...` was ALSO field-tested
-    // live today (same router/RouterOS version). The CLI accepted the
-    // command with no error at the time, but the `ssl-certificate`
-    // property never subsequently appeared in `/ip hotspot profile
-    // print`, `export`, or `print terse` output on that same device -- no
-    // working alternative syntax was found this session. Left in below
-    // anyway: it matches the documented syntax, it's harmless if it
-    // silently no-ops the same way it did in testing (the certificate
-    // still gets created either way, which is all Walled Garden IP above
-    // actually needs), and it costs nothing to leave in place in case a
-    // future RouterOS version or a syntax variant this session didn't try
-    // makes it stick. Do NOT assume hsprof1 is actually serving this
-    // certificate for non-portal HTTPS interception without re-verifying
-    // directly on-device after pasting this chunk.
+    // **UPDATE -- the binding oddity below is now resolved, confirmed
+    // live** (same router/RouterOS version, same-day follow-up). The
+    // earlier attempt (`ssl-certificate=...` alone) silently no-op'd
+    // because two things were missing, both required in the SAME `set`
+    // command: (1) the leaf certificate must be marked `trusted=yes`
+    // explicitly -- signing it by our own CA does not implicitly mark it
+    // trusted, unlike the CA cert itself; (2) `login-by` must include
+    // `https` -- RouterOS's hotspot module appears to only apply/persist
+    // `ssl-certificate` when the profile's own `login-by` actually calls
+    // for an HTTPS challenge, otherwise the property is accepted (no
+    // console error -- it's a real, valid property, confirmed by a
+    // control test against a bogus certificate name correctly erroring)
+    // but silently discarded rather than stored. With both pieces
+    // present, `ssl-certificate=cloudguest-hotspot-leaf` immediately
+    // showed up in `print terse` output as expected. `http-pap` is kept
+    // alongside `https` in `login-by` (not replaced) since it's what the
+    // Hotspot chunk already sets and other flows may still rely on it.
     const lines = [
       `:if ([:len [/certificate find where name="cloudguest-ca"]] = 0) do={`,
       `  /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server`,
@@ -2636,10 +2637,11 @@ export function buildRouterSetupScriptChunks(opts: {
       `  /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server`,
       `  /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca`,
       `}`,
-      `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert"`,
+      `/certificate set [find name="cloudguest-hotspot-cert"] trusted=yes`,
+      `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="${HOTSPOT_DNS_NAME}"`,
     ];
     chunks.push({
-      label: "Self-Signed HTTPS Certificate (best-effort -- see comment: hsprof1 binding unverified)",
+      label: "Self-Signed HTTPS Certificate",
       script: lines.join("\n"),
     });
   }
