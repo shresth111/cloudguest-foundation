@@ -134,8 +134,16 @@ export function PortalConnectingState() {
   );
 }
 
+// Flat, single-color fill in the venue's own --pr-primary -- not the
+// previous from/to gradient across --pr-primary/--pr-accent, which can
+// produce muddy or low-contrast combinations for venues that didn't pick
+// those two colors to work together as a gradient (see the visual-redesign
+// spec's §2 "Card" note). `transition-property` is scoped to the 2-3
+// things that actually change on hover/press/disabled (background/shadow/
+// transform), not `transition-all`, which used to animate every
+// animatable property on every state change for no visual payoff.
 export const PG_PRIMARY_BTN =
-  "h-[52px] w-full rounded-2xl bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-[52px] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] font-semibold text-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
 export const PG_INPUT =
-  "h-[52px] rounded-2xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 transition-all duration-200 hover:border-slate-300 focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "h-[52px] rounded-2xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 transition-[border-color,box-shadow] duration-200 hover:border-slate-300 focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
