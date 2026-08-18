@@ -133,11 +133,13 @@
   --border: oklch(0.905 0.012 220);
   --input: oklch(0.925 0.012 220);
   --ring: oklch(0.6 0.19 265);
-  /* Indigo brand accent (glows, active rail, chart-1 highlights). Not
-     currently consumed by any component (no bg-brand/text-brand usage
-     found repo-wide), but normalized to match --primary's hue so it
-     can't become a latent green/cyan regression if used later. */
-  --brand: oklch(0.55 0.19 265);
+  /* Cyan/teal "Aurora" accent -- design v3 spec Part 0 Fix 1: this token's
+     own comment above (line ~66) always said "electric cyan/teal", but its
+     value had drifted to hue 265, a second copy of --primary's indigo.
+     Recolored to reuse --chart-1's real cyan/teal hue (oklch(0.58 0.13 205))
+     so --brand is finally distinct from --primary, as v3's Border Beam
+     (StatCard) and empty-state accents now rely on. */
+  --brand: oklch(0.62 0.14 200);
   --brand-foreground: oklch(0.16 0.03 232);
   --chart-1: oklch(0.58 0.13 205);
   --chart-2: oklch(0.7 0.14 189);
@@ -175,7 +177,9 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 13%);
   --ring: oklch(0.68 0.19 265);
-  --brand: oklch(0.68 0.19 265);
+  /* Cyan/teal, dark-mode counterpart -- see :root's own Fix 1 comment.
+     Lightness/chroma bumped the same way --chart-1 steps up for .dark. */
+  --brand: oklch(0.74 0.13 196);
   --brand-foreground: oklch(0.15 0.02 236);
   --chart-1: oklch(0.72 0.14 196);
   --chart-2: oklch(0.76 0.13 186);
