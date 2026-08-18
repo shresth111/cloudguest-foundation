@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Smartphone, Mail, Ticket, KeyRound, MessageCircle, ChevronDown } from "lucide-react";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
 import {
   AlertBanner,
   ConnectingOverlay,
@@ -430,9 +431,28 @@ export function GuestSignInCard() {
     </label>
   );
 
+  const hasBackgroundImage = !!config?.backgroundImageUrl;
+
   return (
     <div className="flex flex-1 flex-col gap-5">
-      <div className="flex flex-col items-center text-center">
+      {/* Same guaranteed-legible backing BrandPanel gets against a real
+       * background photo (see PortalShell.tsx's BrandPanel + its own
+       * "Fix BrandPanel text illegible against a real background photo"
+       * commit) -- this header sits in the exact same page-level-scrim
+       * "fully transparent through the vertical middle" zone once the
+       * lg: two-column layout vertically centers this column, so without
+       * its own backing a busy real photo left it a barely-legible
+       * "ghost" panel underneath the actual sign-in card (confirmed live
+       * on a real street-photo background at desktop width). Only kicks
+       * in when a real image is configured -- the plain-gradient/default
+       * case (which is already high-contrast) is untouched. */}
+      <div
+        className={cn(
+          "flex flex-col items-center text-center",
+          hasBackgroundImage &&
+            "rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md",
+        )}
+      >
         {/* Real per-location logo always wins when configured; otherwise
             fall back to the actual Wyfy Guest brand mark (not a generic
             placeholder icon) so an un-customized location's guests still
