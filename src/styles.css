@@ -658,6 +658,147 @@
 }
 
 /**
+ * Captive-portal v4 design tokens (docs/captive-portal-v4-design-spec.md
+ * §2) -- a small, closed, permanently-fixed token set, scoped to
+ * `.portal-runtime` (the same class PortalRuntimeContext's own injected
+ * `<style>` already scopes `--pr-primary`/`--pr-accent` to). Deliberately
+ * NOT the dashboard's `--primary`/`--background`/dark-mode system
+ * (`:root`/`.dark`/`.master-theme`/`.customer-theme` above): a captive-
+ * portal guest signing in for thirty seconds should never see this screen
+ * shift because their OS is in dark mode or an internal dashboard theme
+ * decision -- this scope makes that separation explicit and permanent
+ * rather than leaving it true only by nobody having written a `dark:`
+ * class on a portal route yet.
+ */
+.portal-runtime {
+  --pg-canvas: #FAFAF8;
+  --pg-surface: #FFFFFF;
+  --pg-ink: #0F172A;
+  --pg-ink-muted: #64748B;
+  /* Real incident, live (PR #77-era, PortalShell.tsx's old footer): the
+   * previous slate-300 on this canvas was confirmed genuinely illegible in
+   * production. slate-400 is the empirically-confirmed legibility floor on
+   * `--pg-canvas` -- treat as a hard minimum, never fade further than this. */
+  --pg-ink-faint: #94A3B8;
+  --pg-border: #E2E8F0;
+  --pg-danger: #DC2626;
+  --pg-danger-bg: #FEF2F2;
+  --pg-danger-border: #FECACA;
+  /* Matches ConnectedIllustration's existing verified badge -- reuse, not a
+   * second green. */
+  --pg-success: #10B981;
+}
+
+/* Numeric type scale (v4 §4) -- replaces today's scattered per-screen sizes
+ * (26px, 2xl, 42px, 50px, 4xl, lg, sm, xs, 11px, each hand-picked per
+ * file) with one shared set. All on `PG_FONT_STACK` (system fonts) --
+ * never a webfont, see that stack's own doc comment in PortalShell.tsx. */
+@utility pg-display {
+  font-size: 42px;
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* xl: (1280px+) bump -- plain media query rather than Tailwind's `@variant`
+ * nesting, which applies to a *consumer* of a utility, not the utility
+ * definition itself. */
+@media (min-width: 1280px) {
+  .pg-display { font-size: 50px; }
+}
+@utility pg-title {
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+@utility pg-subtitle {
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@utility pg-body {
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+@utility pg-meta {
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+@utility pg-micro {
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* CSS-only replacement for ConnectedIllustration's (portal.session.tsx)
+ * `framer-motion` `pathLength` SVG draw-in -- v4 §5 closes the last real
+ * framer-motion usage on this surface (CampaignOverlay.tsx's is the other,
+ * dropped entirely rather than ported, since its fade+rise is exactly what
+ * `pg-enter` already does). `stroke-dasharray`/`stroke-dashoffset` is the
+ * same mechanism `pathLength` animates under the hood -- a path with
+ * `stroke-dasharray: <its own length>` and `stroke-dashoffset` animated
+ * from that same length down to 0 draws itself in, no JS. The exact path
+ * length varies per icon, so callers pass it in as `--pg-draw-length`
+ * (inline style) rather than this utility hardcoding one value. */
+@keyframes pg-draw {
+  from { stroke-dashoffset: var(--pg-draw-length, 100); }
+  to { stroke-dashoffset: 0; }
+}
+.pg-draw {
+  stroke-dasharray: var(--pg-draw-length, 100);
+  stroke-dashoffset: var(--pg-draw-length, 100);
+  animation: pg-draw 0.6s ease-out forwards;
+  animation-delay: var(--pg-draw-delay, 0s);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-draw { animation: none; stroke-dashoffset: 0; }
+}
+/* The verified-badge pulse and cyan activity dot are ongoing (not
+ * one-shot draw-ins) -- same CSS-only technique as `pg-pulse-dot` above,
+ * a new pair here rather than reusing that one directly since these two
+ * animate different properties (scale+opacity vs. opacity alone) at a
+ * slower, more deliberate cadence suited to a one-time celebratory beat
+ * rather than a loading indicator. */
+@keyframes pg-badge-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+.pg-badge-pulse {
+  animation: pg-badge-pulse 2.2s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes pg-dot-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.pg-dot-pulse {
+  animation: pg-dot-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-badge-pulse, .pg-dot-pulse { animation: none; }
+}
+
+/* Ongoing "data flowing" dash-offset loop -- the fourth (of four)
+ * `framer-motion` usage `ConnectedIllustration` ported off, for the line
+ * connecting the access point to the guest's device. Same
+ * `stroke-dashoffset` mechanism as `pg-draw` above, but looping rather
+ * than a one-shot draw-in, so it's a separate utility rather than a
+ * `pg-draw` variant. */
+@keyframes pg-flow-dash {
+  to { stroke-dashoffset: -16; }
+}
+.pg-flow-dash {
+  animation: pg-flow-dash 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-flow-dash { animation: none; }
+}
+
+/**
  * Master Console v3 accents (see docs/design-v3-unified-system-spec.md
  * Part 5) -- all hand-authored CSS, added once here rather than as
  * `npx shadcn add @magicui/...`/`@aceternity/...` packages, and all

@@ -365,7 +365,7 @@ function PortalPreviewPage() {
                   presetConfig={mergedConfig}
                   presetConfigLoading={false}
                 >
-                  <PortalShell variant="light" showHeader={false} constrained>
+                  <PortalShell constrained>
                     <GuestSignInCard />
                   </PortalShell>
                 </PortalRuntimeProvider>

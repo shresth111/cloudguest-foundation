@@ -1,5 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import {
@@ -7,6 +8,18 @@ import {
   loadPersistedHotspotSubmit,
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
+
+// v4 §6.1: the same "taking longer than expected" threshold
+// portal.index.tsx's own loading screen already uses, for the identical
+// reason -- well past the confirmed-live OS-remount-bounce window
+// (~600ms for 3 cycles), so the common case (this POST resolving quickly)
+// never reaches it, but a genuinely slow/unreachable NAS surfaces an
+// actionable notice instead of an indefinite spinner.
+const SLOW_NOTICE_DELAY_MS = 4_000;
+// A longer bound past which this reads as more than "just slow" -- offers
+// a real way back to sign-in rather than leaving a stuck guest with only
+// a retry button that's already been sitting there for 11 more seconds.
+const ESCAPE_HATCH_DELAY_MS = 15_000;
 
 export const Route = createFileRoute("/portal/success")({
   component: SuccessPage,
@@ -116,24 +129,48 @@ function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
  * `dst`, see `buildSessionUrl`) -- this page's own job is now only to
  * fire the real hotspot-login POST and show an honest "connecting"
  * state while that's in flight.
+ *
+ * v4 §6.1 (highest priority in the whole brief): this used to render
+ * `PortalConnectingState` with zero timeout, zero retry, zero escape
+ * hatch -- if the POST target (a flaky in-venue LAN segment, RouterOS
+ * momentarily busy) is slow or unreachable, the guest was stuck on "Just
+ * a moment" indefinitely, with no way back. `portal.index.tsx`'s own
+ * loading screen already learned this exact lesson (a 3s "still
+ * connecting" notice + manual retry); this page now gets the same
+ * pattern, plus a longer-bound escape hatch back to sign-in since a real
+ * top-level form POST can't be "cancelled and retried" the way a query
+ * can -- the retry action re-runs the same `submitHotspotLogin` call
+ * instead (safe: RADIUS authorize is a no-op for an already-authorized
+ * session, see that function's own docstring).
  */
 function SuccessPage() {
-  const { session, organizationId, locationId, routerId, hotspotLoginUrl, guestIdentifier } =
+  const { session, organizationId, locationId, routerId, hotspotLoginUrl, guestIdentifier, t } =
     usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/success" });
+  const portalSearch = { organizationId, locationId, routerId };
+  const [showSlowNotice, setShowSlowNotice] = useState(false);
+  const [showEscapeHatch, setShowEscapeHatch] = useState(false);
+  // Bumped by `retry()` purely to re-run the timeout-timer effect below
+  // (a fresh attempt deserves its own fresh 4s/15s clock) -- the actual
+  // submit-retry logic lives in `attemptSubmit`, not here.
+  const [attempt, setAttempt] = useState(0);
 
   // Our own login (OTP/password/voucher) only just created a session in
   // this platform's own database -- the NAS's own gate is a completely
   // separate thing and stays shut until it sees this POST (confirmed live:
   // a guest could "log in" here and still have zero real internet access).
-  // Guarded to fire at most once per mount, not on every re-render.
+  // Guarded to fire at most once per real attempt, not on every re-render
+  // -- `retry()` below explicitly clears this to allow a second real one.
   const hotspotLoginSubmitted = useRef(false);
-  useEffect(() => {
+
+  function attemptSubmit() {
     // No guestIdentifier means there's no real phone/email this platform
     // ever verified for this browsing session (e.g. a page reload that
     // lost it) -- submitting anything else is guaranteed to be rejected
     // by RadiusService.authorize's username-to-session lookup, so this
-    // skips rather than firing a doomed request.
+    // skips rather than firing a doomed request. This is itself one of
+    // the real reasons a guest can land here and never leave without the
+    // timeout/retry below: there is nothing in flight at all to wait for.
     if (!session || !hotspotLoginUrl || !guestIdentifier || hotspotLoginSubmitted.current) return;
     hotspotLoginSubmitted.current = true;
 
@@ -162,27 +199,82 @@ function SuccessPage() {
       guestIdentifier,
       buildSessionUrl(organizationId, locationId, routerId),
     );
+  }
+
+  useEffect(() => {
+    attemptSubmit();
+    // Real dependencies only -- `attemptSubmit` itself is intentionally
+    // excluded (it's redefined every render but reads current props via
+    // closure, same pattern the rest of this hook already relied on
+    // before this refactor).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, hotspotLoginUrl, guestIdentifier, organizationId, locationId, routerId, navigate]);
 
   useEffect(() => {
     if (!session) navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
   }, [session, navigate]);
 
+  // See this component's own docstring (§6.1) -- a fresh pair of timers
+  // per `attempt`, so tapping retry gives the guest a full fresh window
+  // rather than the escape hatch appearing instantly because the old
+  // timers were still running.
+  useEffect(() => {
+    setShowSlowNotice(false);
+    setShowEscapeHatch(false);
+    const slow = window.setTimeout(() => setShowSlowNotice(true), SLOW_NOTICE_DELAY_MS);
+    const escape = window.setTimeout(() => setShowEscapeHatch(true), ESCAPE_HATCH_DELAY_MS);
+    return () => {
+      window.clearTimeout(slow);
+      window.clearTimeout(escape);
+    };
+  }, [attempt]);
+
+  function retry() {
+    hotspotLoginSubmitted.current = false;
+    setAttempt((a) => a + 1);
+    attemptSubmit();
+  }
+
   if (!session) return null;
 
-  // KNOWN GAP, flagged not fixed here (see this PR's description): at
-  // desktop width PortalShell's own two-column "light" composition still
-  // renders its sign-in-oriented BrandPanel ("Verify your device on the
-  // right...") next to PortalConnectingState below, which is wrong context
-  // once there's nothing left to verify. The real fix is a
-  // `showBrandPanel?: boolean` prop on PortalShell (default true) that this
-  // page would pass `false` -- but PortalShell.tsx is mid-rewrite on the
-  // parallel login-page redesign branch right now, so that one-line addition
-  // is intentionally left out of this diff to avoid colliding with that
-  // in-flight work. See the PR description for the exact proposed patch.
+  // `showBrandPanel={false}`: BrandPanel's copy ("Verify your device on
+  // the right...") is sign-in-oriented, wrong context once there's
+  // nothing left to verify -- see PortalShell's own doc comment on this
+  // prop. Set identically on portal.index.tsx's own PortalConnectingState
+  // render (never just one of the two): v4 §5's non-negotiable #3
+  // requires these to stay the pixel-identical connecting visual for the
+  // real, confirmed-live OS-remount-bounce window (well under
+  // SLOW_NOTICE_DELAY_MS) -- everything below only ever appears well
+  // past that window, once this is unambiguously a genuine stall on this
+  // specific page rather than a bounce between the two.
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell showBrandPanel={false}>
       <PortalConnectingState />
+      {showSlowNotice && (
+        <div className="pg-enter mt-5 flex flex-col items-center gap-3 text-center">
+          <p className="pg-meta text-[var(--pg-ink-muted)]">
+            {showEscapeHatch ? t("successStuckNotice") : t("successSlowNotice")}
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={retry}
+              className="flex items-center gap-1.5 rounded-full bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> {t("retry")}
+            </button>
+            {showEscapeHatch && (
+              <Link
+                to="/portal/welcome"
+                search={portalSearch}
+                className="text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+              >
+                {t("signInAgainLink")}
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </PortalShell>
   );
 }

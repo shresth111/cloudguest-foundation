@@ -17,6 +17,32 @@ import type {
 } from "@/types/portal-runtime";
 import { RTL_LANGS, translate, loadPersistedLanguage, persistLanguage } from "@/lib/portal-i18n";
 
+/**
+ * v4 §2's contrast-safe accent-foreground fix. `PG_PRIMARY_BTN` and the
+ * tab-pill's active state used to hardcode white text on `var(--pr-primary)`
+ * -- a venue that picks a pale accent color (a light yellow, a pastel) gets
+ * the identical legibility failure PR #80 fixed for background photos, just
+ * for button text instead. Computed here, alongside the existing
+ * `--pr-primary`/`--pr-accent` write, using the real WCAG relative-luminance
+ * formula (no new dependency) rather than a rule of thumb -- the same
+ * "legible against anything a venue provides" mandate, extended from
+ * backgrounds to accent colors.
+ */
+export function accessibleForeground(hex: string): "#ffffff" | "#0F172A" {
+  const clean = hex.replace("#", "");
+  // A venue's stored color should always be a real 6-digit hex (validated
+  // on the admin side), but this runs inside a `<style>` string built at
+  // render time -- fail safe to white (today's existing default) rather
+  // than crash the whole portal shell on an unexpected shape.
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return "#ffffff";
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(clean.slice(i, i + 2), 16) / 255);
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  // Contrast of white (L=1) vs this color's luminance, WCAG formula:
+  // (1 + 0.05) / (L + 0.05). >= 4.5 is the standard AA text-contrast floor.
+  return 1.05 / (L + 0.05) >= 4.5 ? "#ffffff" : "#0F172A";
+}
+
 const SESSION_STORAGE_KEY = "cloudguest_portal_session";
 const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
 const RUNTIME_IDS_STORAGE_KEY = "cloudguest_portal_runtime_ids";
@@ -319,6 +345,7 @@ export function PortalRuntimeProvider({
         --pr-accent: ${config.secondaryColor};
         --pr-bg-from: ${config.primaryColor};
         --pr-bg-to: ${config.secondaryColor};
+        --pr-primary-foreground: ${accessibleForeground(config.primaryColor)};
         --pr-radius: 18px;
       }
     `;

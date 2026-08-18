@@ -91,7 +91,9 @@ function PortalLoading() {
 
   function retry() {
     setShowSlowNotice(false);
-    queryClient.invalidateQueries({ queryKey: ["portal-runtime-config", organizationId, locationId] });
+    queryClient.invalidateQueries({
+      queryKey: ["portal-runtime-config", organizationId, locationId],
+    });
     if (!session && deviceMac) refetchLiveSession();
   }
 
@@ -154,7 +156,16 @@ function PortalLoading() {
         ? "/portal/closed"
         : "/portal/welcome";
     navigate({ to: target, replace: true, search: (prev) => prev });
-  }, [isLoading, config, session, deviceMac, liveSession, liveSessionChecked, hotspotLoginUrl, navigate]);
+  }, [
+    isLoading,
+    config,
+    session,
+    deviceMac,
+    liveSession,
+    liveSessionChecked,
+    hotspotLoginUrl,
+    navigate,
+  ]);
 
   if (!isLoading && error) {
     // A real response (404/400/etc) means the server looked this location
@@ -165,7 +176,7 @@ function PortalLoading() {
     // resolve themselves on a second try a few seconds later.
     const isConfigMissing = isAxiosError(error) && !!error.response;
     return (
-      <PortalShell variant="light" showHeader={false}>
+      <PortalShell>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           {isConfigMissing ? (
             <>
@@ -173,16 +184,15 @@ function PortalLoading() {
                 This venue's guest WiFi isn't set up yet
               </p>
               <p className="max-w-sm text-sm text-slate-500">
-                No active sign-in configuration was found for this location. Please ask venue
-                staff for assistance.
+                No active sign-in configuration was found for this location. Please ask venue staff
+                for assistance.
               </p>
             </>
           ) : (
             <>
               <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
               <p className="max-w-sm text-sm text-slate-500">
-                This can happen right after joining the WiFi. Check your connection and try
-                again.
+                This can happen right after joining the WiFi. Check your connection and try again.
               </p>
               <button
                 type="button"
@@ -220,15 +230,21 @@ function PortalLoading() {
   // an already-authenticated guest stuck on a real stalled connection still
   // needs that escape hatch, not an endless silent spinner.
   if (session && !showSlowNotice) {
+    // `showBrandPanel={false}` -- see PortalShell's own doc comment. Set
+    // identically on portal.success.tsx's own PortalConnectingState
+    // render (never just one of the two): v4 §5's non-negotiable #3
+    // requires these to stay the pixel-identical connecting visual, and a
+    // BrandPanel next to one but not the other is exactly the kind of
+    // divergence that invariant exists to prevent.
     return (
-      <PortalShell variant="light" showHeader={false}>
+      <PortalShell showBrandPanel={false}>
         <PortalConnectingState />
       </PortalShell>
     );
   }
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       {/* v3 polish pass: this screen's logo/icon used to run its own
        * `framer-motion` scale+fade entrance on top of PortalShell's own
        * CSS-only `pg-enter` fade+rise on the <main> this whole block
@@ -258,15 +274,15 @@ function PortalLoading() {
           // together as a gradient. Shadow pulled back from the previous
           // shadow-xl/25 glow to the same small, tight shadow the rest of
           // this flat card system already uses.
-          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-3xl font-bold text-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
+          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
             <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
           </div>
         )}
         <div>
-          <p className="font-display text-lg font-semibold text-slate-900">
+          <p className="pg-body font-semibold text-[var(--pg-ink)]">
             {config?.name ?? "Wyfy Guest"}
           </p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
             {showSlowNotice ? "Still connecting..." : t("loading")}
           </p>
         </div>

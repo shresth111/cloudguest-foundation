@@ -101,7 +101,7 @@ function TermsPage() {
   ].filter((s): s is { title: string; text: string | null; url: string | null } => s !== null);
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
         <Link
           to="/portal/welcome"
@@ -111,13 +111,11 @@ function TermsPage() {
         >
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
         </Link>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-          {t("termsTitle")}
-        </h1>
+        <h1 className="pg-subtitle text-[var(--pg-ink)]">{t("termsTitle")}</h1>
         <div className="space-y-3">
           {sections.length === 0
             ? DEFAULT_SECTIONS.map((s) => (
-                <PortalCard key={s.title} variant="light">
+                <PortalCard key={s.title}>
                   <p className="text-sm font-semibold text-slate-900">{s.title}</p>
                   <div className="mt-2 space-y-3">
                     {s.groups.map((g) => (
@@ -132,7 +130,7 @@ function TermsPage() {
                 </PortalCard>
               ))
             : sections.map((s) => (
-                <PortalCard key={s.title} variant="light">
+                <PortalCard key={s.title}>
                   <p className="text-sm font-semibold text-slate-900">{s.title}</p>
                   {s.text && (
                     <p className="mt-2 text-sm leading-relaxed text-slate-500">{s.text}</p>

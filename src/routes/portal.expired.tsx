@@ -33,18 +33,16 @@ function ExpiredPage() {
   };
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-5">
         <div className="text-center">
           <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-50 text-amber-500">
             <Clock className="h-10 w-10" />
           </div>
-          <h1 className="font-display mt-5 text-2xl font-bold tracking-tight text-slate-900">
-            {t("sessionExpired")}
-          </h1>
+          <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("sessionExpired")}</h1>
           <p className="mt-1 text-sm text-slate-500">You've been disconnected from the network.</p>
         </div>
-        <PortalCard variant="light" className="text-center text-sm text-slate-500">
+        <PortalCard className="text-center text-sm text-slate-500">
           Sign in again to continue using guest WiFi.
         </PortalCard>
         <div className="flex flex-col gap-2.5">

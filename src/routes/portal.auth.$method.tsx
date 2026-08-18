@@ -123,7 +123,7 @@ function AuthMethodPage() {
             : "mobileOtp";
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
         <Link
           to="/portal/auth"
@@ -149,13 +149,11 @@ function AuthMethodPage() {
               <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
             </div>
           )}
-          <h1 className="font-display mt-4 text-[26px] font-bold tracking-tight leading-tight text-slate-900">
-            {t(titleKey)}
-          </h1>
+          <h1 className="pg-title mt-4 text-[var(--pg-ink)]">{t(titleKey)}</h1>
           <p className="mt-1.5 text-sm text-slate-500">Complete the form below to get online.</p>
         </div>
 
-        <PortalCard variant="light">
+        <PortalCard>
           {m === "otp_sms" && (
             <MobileForm
               organizationId={organizationId}

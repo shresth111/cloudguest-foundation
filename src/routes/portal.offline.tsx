@@ -16,18 +16,16 @@ function OfflinePage() {
   const { t } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/offline" });
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-5">
         <div className="text-center">
           <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-slate-100 text-slate-400">
             <WifiOff className="h-10 w-10" />
           </div>
-          <h1 className="font-display mt-5 text-2xl font-bold tracking-tight text-slate-900">
-            {t("offlineTitle")}
-          </h1>
+          <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("offlineTitle")}</h1>
           <p className="mt-1 text-sm text-slate-500">{t("offlineSubtitle")}</p>
         </div>
-        <PortalCard variant="light" className="text-center text-sm text-slate-500">
+        <PortalCard className="text-center text-sm text-slate-500">
           Make sure you're connected to the venue's guest network, then retry.
         </PortalCard>
         <button

@@ -69,24 +69,25 @@ function RedirectPage() {
   if (!url) return null;
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-5">
         <div className="text-center">
           <div
             className="mx-auto grid h-16 w-16 place-items-center rounded-2xl text-white shadow-lg shadow-indigo-500/25"
-            style={{ background: "linear-gradient(135deg, var(--pr-primary, #6366f1), var(--pr-accent, #4f46e5))" }}
+            style={{
+              background:
+                "linear-gradient(135deg, var(--pr-primary, #6366f1), var(--pr-accent, #4f46e5))",
+            }}
           >
             <ExternalLink className="h-7 w-7" />
           </div>
-          <h1 className="font-display mt-5 text-2xl font-bold tracking-tight text-slate-900">
-            {t("redirecting")}
-          </h1>
+          <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("redirecting")}</h1>
           <p className="mt-1.5 break-all text-sm text-slate-500">
             You'll be sent to <span className="font-medium text-slate-700">{url}</span> shortly.
           </p>
         </div>
-        <PortalCard variant="light" className="text-center">
-          <p className="font-display text-4xl font-bold tabular-nums text-slate-900">{remaining}</p>
+        <PortalCard className="text-center">
+          <p className="text-4xl font-bold tabular-nums text-[var(--pg-ink)]">{remaining}</p>
           <p className="mt-1 text-xs uppercase tracking-wider text-slate-400">seconds</p>
         </PortalCard>
         <a

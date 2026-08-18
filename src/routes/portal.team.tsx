@@ -93,19 +93,17 @@ function TeamJoinPage() {
   if (!session || !guestIdentifier) return null;
 
   return (
-    <PortalShell variant="light" showHeader={false}>
+    <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
         <div className="text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
             <Users2 className="h-6 w-6" />
           </div>
-          <h1 className="font-display mt-4 text-2xl font-bold tracking-tight text-slate-900">
-            {t("teamPageTitle")}
-          </h1>
+          <h1 className="pg-subtitle mt-4 text-[var(--pg-ink)]">{t("teamPageTitle")}</h1>
           <p className="mt-1 text-sm text-slate-500">{t("teamPageSubtitle")}</p>
         </div>
 
-        <PortalCard variant="light">
+        <PortalCard>
           {joined ? (
             <div className="flex flex-col items-center gap-3 py-2 text-center">
               <CheckCircle2 className="h-10 w-10 text-emerald-500" />
