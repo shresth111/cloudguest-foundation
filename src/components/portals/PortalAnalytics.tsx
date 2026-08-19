@@ -49,9 +49,9 @@ export function PortalAnalytics({ portalId }: { portalId: string }) {
                   <linearGradient id="v" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0EA5E9" stopOpacity={0.5} /><stop offset="100%" stopColor="#0EA5E9" stopOpacity={0} /></linearGradient>
                   <linearGradient id="l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10B981" stopOpacity={0.5} /><stop offset="100%" stopColor="#10B981" stopOpacity={0} /></linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="date" fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Area name="Views" dataKey="views" stroke="#0EA5E9" fill="url(#v)" strokeWidth={2} />
@@ -66,9 +66,9 @@ export function PortalAnalytics({ portalId }: { portalId: string }) {
           <CardContent style={{ height: 260 }}>
             <ResponsiveContainer>
               <BarChart data={data.trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="date" fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Bar dataKey="failed" fill="#EF4444" radius={[6, 6, 0, 0]} />
               </BarChart>

@@ -9,12 +9,12 @@ export const CHART_COLORS = [
   "hsl(120, 60%, 45%)",
 ];
 
-export const AXIS_STYLE = { fontSize: 11, fill: "hsl(var(--muted-foreground))" } as const;
+export const AXIS_STYLE = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
 
 export const TOOLTIP_STYLE = {
-  backgroundColor: "hsl(var(--popover))",
-  border: "1px solid hsl(var(--border))",
+  backgroundColor: "var(--popover)",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   fontSize: 12,
-  color: "hsl(var(--popover-foreground))",
+  color: "var(--popover-foreground)",
 } as const;

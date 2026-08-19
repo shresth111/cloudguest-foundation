@@ -39,7 +39,7 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
                 <stop offset="100%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => `₹${v.toLocaleString()}`} />
@@ -51,7 +51,7 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
       <ChartCard title="Monthly growth" description="% change month-over-month" {...state} isEmpty={!data?.trend?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.trend ?? []}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} tickFormatter={(v) => `${v}%`} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => `${v}%`} />
@@ -79,7 +79,7 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
       <ChartCard title="Plan distribution" description="Subscribers and revenue by tier" {...state} isEmpty={!data?.planDistribution?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.planDistribution ?? []}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="tier" tick={AXIS_STYLE} interval={0} />
             <YAxis tick={AXIS_STYLE} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
@@ -93,7 +93,7 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
       <ChartCard title="Payment success rate" description="Success vs failed payments" {...state} isEmpty={!data?.paymentSuccessRate?.length}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data?.paymentSuccessRate ?? []}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
@@ -113,7 +113,7 @@ export function RevenueAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
                 <stop offset="100%" stopColor={CHART_COLORS[4]} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} tickFormatter={(v) => `${v}%`} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => `${v}%`} />

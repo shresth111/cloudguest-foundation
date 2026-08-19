@@ -55,7 +55,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
             <Bar dataKey="value" fill={CHART_COLORS[1]} radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -79,7 +79,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="new" stackId="g" fill={CHART_COLORS[0]} radius={[0, 0, 0, 0]} />
             <Bar dataKey="returning" stackId="g" fill={CHART_COLORS[3]} radius={[6, 6, 0, 0]} />
@@ -130,7 +130,7 @@ export function GuestAnalyticsPanel({ data, isLoading, isError, onRetry }: Props
             <CartesianGrid strokeOpacity={0.15} horizontal={false} />
             <XAxis type="number" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
             <YAxis type="category" dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} width={130} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
             <Bar dataKey="value" fill={CHART_COLORS[5]} radius={[0, 6, 6, 0]} />
           </BarChart>
         </ResponsiveContainer>

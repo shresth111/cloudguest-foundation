@@ -57,7 +57,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} interval={2} />
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
             <Bar dataKey="value" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -99,7 +99,7 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
             <Bar dataKey="value" fill={CHART_COLORS[6]} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

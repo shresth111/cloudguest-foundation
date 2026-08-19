@@ -34,7 +34,7 @@ export function LocationMapView({ rows }: { rows: Location[] }) {
           className="relative h-[520px] w-full"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 20% 30%, hsl(var(--primary) / 0.08), transparent 40%), radial-gradient(circle at 80% 70%, hsl(var(--primary) / 0.06), transparent 45%), linear-gradient(180deg, hsl(var(--muted) / 0.4), hsl(var(--muted) / 0.15))",
+              "radial-gradient(circle at 20% 30%, color-mix(in oklch, var(--primary) 8%, transparent), transparent 40%), radial-gradient(circle at 80% 70%, color-mix(in oklch, var(--primary) 6%, transparent), transparent 45%), linear-gradient(180deg, color-mix(in oklch, var(--muted) 40%, transparent), color-mix(in oklch, var(--muted) 15%, transparent))",
           }}
         >
           {/* grid overlay */}
@@ -43,7 +43,7 @@ export function LocationMapView({ rows }: { rows: Location[] }) {
             className="absolute inset-0 opacity-40"
             style={{
               backgroundImage:
-                "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
+                "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
               backgroundSize: "48px 48px",
             }}
           />

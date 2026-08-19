@@ -66,7 +66,7 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
               <CartesianGrid strokeOpacity={0.15} vertical={false} />
               <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
               <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="success" stackId="a" fill={CHART_COLORS[1]} radius={[0, 0, 0, 0]} />
               <Bar dataKey="failure" stackId="a" fill={CHART_COLORS[4]} radius={[6, 6, 0, 0]} />
