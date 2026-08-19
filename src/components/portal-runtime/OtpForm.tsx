@@ -51,22 +51,22 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   if (sign.phase === "phone") {
     return (
       <div className="space-y-3">
-        <label className="text-xs font-semibold text-slate-500">
-          {sign.otpChannel === "email"
-            ? t("emailAddress")
-            : sign.otpChannel === "whatsapp"
-              ? t("whatsappNumberLabel")
-              : t("mobileNumber")}
-        </label>
+        {/* v7 §7.2: this used to be a floating `<label>` with no `htmlFor`
+         * sitting above a two-input row -- an element that named nothing,
+         * for either a screen reader or a sighted guest trying to work out
+         * which of the two boxes it belonged to. The name is now passed
+         * into the field component, which owns the `htmlFor`/`id` pairing
+         * so the two cannot drift apart again. */}
         {sign.otpChannel !== "email" ? (
           <PhoneNumberFields
+            label={sign.otpChannel === "whatsapp" ? t("whatsappNumberLabel") : t("mobileNumber")}
             countryCode={sign.countryCode}
             onCountryCodeChange={sign.setCountryCode}
             phone={sign.phone}
             onPhoneChange={sign.setPhone}
           />
         ) : (
-          <EmailField email={sign.email} onEmailChange={sign.setEmail} />
+          <EmailField label={t("emailAddress")} email={sign.email} onEmailChange={sign.setEmail} />
         )}
         {TermsCheckbox}
         <AlertBanner message={sign.otpError} />
@@ -87,7 +87,15 @@ export function OtpForm(sign: UseGuestSignInReturn) {
       <p className="text-center text-sm text-slate-500">
         {t("sentCodeToPrefix")} <span className="font-semibold text-slate-800">{sign.target}</span>
       </p>
-      <OtpCodeInput value={sign.code} onChange={sign.setCode} autoFocus />
+      {/* v7 §7.2: `autoComplete` is a required, literal-typed prop -- SC
+       * 3.3.8 (AA) is not left resting on the `input-otp` dependency's
+       * internal default. */}
+      <OtpCodeInput
+        value={sign.code}
+        onChange={sign.setCode}
+        autoFocus
+        autoComplete="one-time-code"
+      />
       <AlertBanner message={sign.otpError} />
       <button
         type="button"

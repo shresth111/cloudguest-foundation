@@ -137,7 +137,20 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
         // Native <details>, not JS state, so the expand/collapse itself
         // costs nothing extra. Collapsed by default.
         <details className="group mt-3">
-          <summary className="flex cursor-pointer list-none items-center justify-center gap-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 [&::-webkit-details-marker]:hidden">
+          {/* captive-portal-v7-design-spec.md Part 9-1: WCAG 2.2 SC 2.5.8
+           * Target Size (Minimum) is **24x24 CSS px at AA** -- 44x44 is SC
+           * 2.5.5, which is AAA. Applying the right threshold, the 36x36
+           * language/accessibility triggers pass, the checkbox glyph inside
+           * its wrapping <label> passes (the label is the target), and the
+           * footer Terms link is exempt under 2.5.8's inline exception.
+           * This tier-3 disclosure and the standalone links inside it are
+           * the only genuine AA target-size failure on this surface: at
+           * `pg-meta` with no padding they are ~18px tall. `min-h-6` is
+           * 24px, and the vertical padding is what makes the height come
+           * from the box rather than from the glyph, so it holds up when
+           * the text scales. Nothing else on this screen is padded to
+           * chase a threshold it already meets. */}
+          <summary className="flex min-h-6 cursor-pointer list-none items-center justify-center gap-1 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 [&::-webkit-details-marker]:hidden">
             {t("otherWaysToSignIn")}
             <ChevronDown className="h-3.5 w-3.5 transition-transform duration-150 group-open:rotate-180" />
           </summary>
@@ -147,7 +160,7 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
                 key={l.label}
                 type="button"
                 onClick={l.onClick}
-                className="inline-flex items-center gap-1.5 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+                className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
               >
                 <l.icon className="h-3.5 w-3.5" /> {l.label}
               </button>
@@ -157,7 +170,7 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
                 to="/portal/auth/$method"
                 params={{ method: "voucher" }}
                 search={sign.portalSearch}
-                className="inline-flex items-center gap-1.5 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+                className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
               >
                 <Ticket className="h-3.5 w-3.5" /> {t("haveVoucherUseInstead")}
               </Link>

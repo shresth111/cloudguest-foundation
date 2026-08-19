@@ -644,12 +644,38 @@
   --pg-canvas: #FAFAF8;
   --pg-surface: #FFFFFF;
   --pg-ink: #0F172A;
-  --pg-ink-muted: #64748B;
-  /* Real incident, live (PR #77-era, PortalShell.tsx's old footer): the
-   * previous slate-300 on this canvas was confirmed genuinely illegible in
-   * production. slate-400 is the empirically-confirmed legibility floor on
-   * `--pg-canvas` -- treat as a hard minimum, never fade further than this. */
-  --pg-ink-faint: #94A3B8;
+  /* captive-portal-v7-design-spec.md §1.5/§7.4-4 -- was #64748B (slate-500).
+   * Every ratio below is computed (sRGB relative luminance, WCAG 2.x
+   * formula), not eyeballed; see this token block's `--pg-ink-faint` note
+   * for the worst-composite derivation both tokens are sized against.
+   *   #64748B: 4.76:1 on #FFFFFF, 4.55:1 on --pg-canvas, 3.36:1 on the
+   *            worst legibility-card composite. Per v7 Part 9-4 a 4.76:1
+   *            token passes only at >=16px, and this is used at pg-meta
+   *            (13px) and pg-body (15px) -- so it was failing in practice.
+   *   #475569: 7.58:1 on #FFFFFF, 7.25:1 on --pg-canvas, 5.36:1 on the
+   *            worst legibility-card composite. Passes AA at every size
+   *            in every zone it is actually used in. */
+  --pg-ink-muted: #475569;
+  /* Was #94A3B8 (slate-400), with a comment calling it "the empirically-
+   * confirmed legibility floor". It was not a floor; it was a failure, and
+   * that comment is how the failure survived three design specs. Real
+   * computed figures for #94A3B8:
+   *   2.56:1 on #FFFFFF, 2.45:1 on --pg-canvas, 1.81:1 on the worst
+   *   legibility-card composite. AA needs 4.5:1. It failed everywhere.
+   * The worst composite for this token's own zone is the footer's
+   * GUEST_LEGIBILITY_CARD backing (`--pg-surface` at 85% alpha) over a
+   * near-black region of an arbitrary venue photo: 0.85*255 = #D9D9D9,
+   * relative luminance 0.6921. Clearing 4.5:1 against that caps text
+   * luminance at 0.11490, which is why this token had to travel most of
+   * the way to `--pg-ink-muted`: there is no room left on this backdrop
+   * for a genuinely lighter third grey. Hierarchy below `--pg-ink-muted`
+   * now has to come from size/weight, not from lightness.
+   *   #505E73: 6.58:1 on #FFFFFF, 6.30:1 on --pg-canvas, 4.65:1 on the
+   *            worst legibility-card composite (luminance 0.1095).
+   * NOT the placeholder colour any more -- v7 §7.2/§7.4-4, a placeholder
+   * is not a label, and PG_INPUT now uses `--pg-ink-muted` for its
+   * example text plus a real <Label htmlFor> for the actual name. */
+  --pg-ink-faint: #505E73;
   --pg-border: #E2E8F0;
   --pg-danger: #DC2626;
   --pg-danger-bg: #FEF2F2;
@@ -657,6 +683,100 @@
   /* Matches ConnectedIllustration's existing verified badge -- reuse, not a
    * second green. */
   --pg-success: #10B981;
+  /* v7 §7.3: gives the shell root an explicit, scale-aware font-size so
+   * that everything inheriting from it (button labels, plain <p>/<span>
+   * text with no size utility of its own) responds to the in-page text-size
+   * control too. `calc(1rem * 1)` is byte-for-byte today's inherited 16px
+   * at the default scale. */
+  font-size: calc(1rem * var(--pg-type-scale, 1));
+  /* Unitless multiplier the `pg-*` type utilities below fold into their
+   * own `rem` sizes (v7 §7.3/§7.5). Two independent axes, deliberately:
+   * `rem` carries whatever the *platform* does (desktop browser base font
+   * size, iOS Dynamic Type via the `@supports` opt-in below, Android
+   * WebView `textZoom`), and this multiplier carries the portal's own
+   * in-page control. A unitless number, never an `em`, so it composes
+   * multiplicatively instead of compounding through nesting. */
+  --pg-type-scale: 1;
+}
+
+/* v7 §7.1/§7.4-1: the in-page "large text" control. Was
+ * `largeText && "text-[17px]"` on the shell root, which could not cascade
+ * into a single one of `pg-title`/`pg-body`/`pg-micro`/`text-sm`/`text-xs`
+ * -- every one of those sets its own absolute font-size, so the control
+ * was inert and the menu item was lying. This multiplier is the same knob
+ * the platform's own text scaling turns, so the two compose. */
+.portal-runtime[data-pg-text-size="large"] {
+  --pg-type-scale: 1.25;
+}
+
+/* v7 §7.4-6 -- OS-honouring token blocks, same shape as the
+ * `prefers-reduced-motion` handling already used at 11 sites in this file.
+ * Deliberately re-declares *tokens*; never a CSS `filter` (v7 §7.5: a
+ * filter is blind to tokens, blind to forced-colors, cannot tell text from
+ * photo, and establishes a containing block for fixed-position
+ * descendants -- which is exactly the bug §7.1 documents).
+ *   #334155 (slate-700): 10.35:1 on #FFFFFF, 9.91:1 on --pg-canvas,
+ *                        7.32:1 on the worst legibility-card composite.
+ *   #0F172A (--pg-ink):  17.85:1 on #FFFFFF, 12.62:1 on that composite.
+ *   --pg-border #E2E8F0 is 1.23:1 against --pg-surface and so fails SC
+ *   1.4.11's 3:1 for the input boundary; #64748B is 4.76:1 and clears it.
+ *   (The *default* --pg-border is left alone on purpose -- see the report
+ *   for why that one is a separate, visible-redesign decision.) */
+@media (prefers-contrast: more) {
+  .portal-runtime {
+    --pg-ink-muted: #334155;
+    --pg-ink-faint: #334155;
+    --pg-border: #64748B;
+  }
+}
+
+/* Ordered after the media query on purpose (v7 §7.5, "escalation only"):
+ * an explicit in-page choice outranks the OS for this page, and because
+ * the two rules have identical specificity, source order is the whole
+ * mechanism. There is deliberately no "off" state that undoes the media
+ * query -- the control can only escalate above the OS baseline. */
+.portal-runtime[data-pg-contrast="more"] {
+  --pg-ink-muted: #334155;
+  --pg-ink-faint: #334155;
+  --pg-border: #64748B;
+}
+
+/* Forced Colors Mode (Windows High Contrast and friends). The UA replaces
+ * every colour it controls with the user's own palette; our job is to stop
+ * fighting it -- drop the photo, the scrim and the backdrop blur so the
+ * text sits on the user's real system canvas, and hand the remaining
+ * tokens over to the system keywords. `forced-color-adjust: none` is
+ * deliberately NOT used anywhere here. Mirrors v7 §7.5's composition rule:
+ * under forced colors, drop the photo entirely rather than trying to
+ * compute a "more contrasty scrim". */
+@media (forced-colors: active) {
+  .portal-runtime {
+    --pg-canvas: Canvas;
+    --pg-surface: Canvas;
+    --pg-ink: CanvasText;
+    --pg-ink-muted: CanvasText;
+    --pg-ink-faint: CanvasText;
+    --pg-border: CanvasText;
+    --pg-danger: LinkText;
+    --pg-danger-bg: Canvas;
+    --pg-danger-border: CanvasText;
+    --pg-success: CanvasText;
+  }
+  /* The photo, its scrim and the no-photo pattern are all `aria-hidden`
+   * decorative layers carrying no information; in forced colors they can
+   * only wreck legibility, because the UA is about to repaint the text on
+   * top of them without knowing they exist. All three are direct children
+   * of this element (GuestBackdrop renders a fragment), which is what this
+   * structural selector leans on. It leans on their Tailwind classes only
+   * because `GuestBackdrop` is owned by the Part 1 legibility workstream
+   * and was deliberately not edited here -- when that lands, give those
+   * layers a `data-pg-backdrop` attribute and match on it instead. */
+  .portal-runtime > .pointer-events-none.absolute.inset-0 {
+    display: none !important;
+  }
+  .portal-runtime .backdrop-blur-md {
+    backdrop-filter: none;
+  }
 }
 
 /* captive-portal-v5-design-spec.md §2.3 (UX/Perf): PortalShell's own
@@ -688,10 +808,62 @@
     system-ui, sans-serif;
 }
 
+/* captive-portal-v7-design-spec.md §7.3 -- the iOS Dynamic Type opt-in.
+ * iOS Safari does not apply Dynamic Type to web text sized in px *or* rem
+ * unless the page opts in with `font: -apple-system-body` on the root, so
+ * a guest at 235% Larger Text currently gets nothing at all: a silent SC
+ * 1.4.4 failure that generates no support tickets and therefore has never
+ * been filed. (Android WebView is the same root cause with the opposite,
+ * visible symptom -- it scales px text inside fixed `h-[48px]` boxes until
+ * it clips, which is what the `min-height` conversions below address.)
+ *
+ * Three deliberate narrowings of the spec's one-line version, each of
+ * which would otherwise be a regression:
+ *
+ * 1. `:has(.portal-runtime)`. `rem` is root-relative, so the opt-in has to
+ *    live on `:root` -- but `:root` is shared with the whole admin
+ *    dashboard, which is not part of this remediation and has not been
+ *    reviewed for it. `:has()` scopes the effect to pages that actually
+ *    mount a portal shell. Any engine that supports `-apple-system-body`
+ *    at all (WebKit) has supported `:has()` since Safari 15.4; older
+ *    Safari simply doesn't get the opt-in, which is today's behaviour.
+ * 2. `(hover: none) and (pointer: coarse)`. `-apple-system-body` is a
+ *    valid system font on *macOS* Safari too, where it resolves to roughly
+ *    13px -- ungated, this rule would shrink the portal ~19% on every Mac.
+ *    The pointer query keeps it to iOS/iPadOS, which is the platform whose
+ *    accessibility setting we are trying to honour.
+ * 3. `font-family` is restored immediately after the shorthand, because
+ *    `font:` is a shorthand and resets the family to the system UI face.
+ *    Keep this string in sync with `PG_FONT_STACK` (PortalShell.tsx) --
+ *    CSS cannot import a JS constant.
+ *
+ * Consequence to know about: on iOS at *default* Dynamic Type the root
+ * becomes 17px rather than 16px, so the portal renders ~6.25% larger than
+ * it does today. That is Apple's own body metric and is the price of the
+ * feature working at all; every other engine is unchanged to the pixel. */
+@supports (font: -apple-system-body) {
+  @media (hover: none) and (pointer: coarse) {
+    :root:has(.portal-runtime) {
+      font: -apple-system-body;
+      font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif,
+        system-ui, sans-serif;
+    }
+  }
+}
+
 /* Numeric type scale (v4 §4) -- replaces today's scattered per-screen sizes
  * (26px, 2xl, 42px, 50px, 4xl, lg, sm, xs, 11px, each hand-picked per
  * file) with one shared set. All on `PG_FONT_STACK` (system fonts) --
- * never a webfont, see that stack's own doc comment in PortalShell.tsx. */
+ * never a webfont, see that stack's own doc comment in PortalShell.tsx.
+ *
+ * v7 §7.3: every size below is now `rem * var(--pg-type-scale)` rather
+ * than an absolute px value. The px equivalents are unchanged at a 16px
+ * root with the scale at 1 (42/16 = 2.625rem, and so on down) -- this is a
+ * units change, not a redesign. `rem` is what makes the platform's own
+ * text scaling (the `@supports` block above, desktop browser base font
+ * size, Android `textZoom`) actually reach this type ramp; the unitless
+ * `--pg-type-scale` multiplier is the portal's own in-page control, and
+ * the two compose instead of one clobbering the other. */
 /* captive-portal-v6-design-spec.md §3.1/§3.3.6: heading-layer-only font
  * choice (never body/UI text -- see PG_FONT_STACK's own comment in
  * PortalShell.tsx for why every non-heading utility stays on it
@@ -701,7 +873,7 @@
  * resolves through `.pg-shell`'s own inline `font-family: PG_FONT_STACK`,
  * pixel-identical to today's output, not a new default to verify against. */
 @utility pg-display {
-  font-size: 42px;
+  font-size: calc(2.625rem * var(--pg-type-scale, 1)); /* 42px @ 16px root */
   line-height: 1.08;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -711,34 +883,34 @@
  * nesting, which applies to a *consumer* of a utility, not the utility
  * definition itself. */
 @media (min-width: 1280px) {
-  .pg-display { font-size: 50px; }
+  .pg-display { font-size: calc(3.125rem * var(--pg-type-scale, 1)); } /* 50px @ 16px root */
 }
 @utility pg-title {
-  font-size: 26px;
+  font-size: calc(1.625rem * var(--pg-type-scale, 1)); /* 26px @ 16px root */
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.015em;
   font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-subtitle {
-  font-size: 20px;
+  font-size: calc(1.25rem * var(--pg-type-scale, 1)); /* 20px @ 16px root */
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.01em;
   font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-body {
-  font-size: 15px;
+  font-size: calc(0.9375rem * var(--pg-type-scale, 1)); /* 15px @ 16px root */
   line-height: 1.5;
   font-weight: 500;
 }
 @utility pg-meta {
-  font-size: 13px;
+  font-size: calc(0.8125rem * var(--pg-type-scale, 1)); /* 13px @ 16px root */
   line-height: 1.4;
   font-weight: 600;
 }
 @utility pg-micro {
-  font-size: 11px;
+  font-size: calc(0.6875rem * var(--pg-type-scale, 1)); /* 11px @ 16px root */
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: 0.02em;
