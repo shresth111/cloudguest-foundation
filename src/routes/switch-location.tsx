@@ -1022,18 +1022,11 @@ function CustomerHomePage() {
                         return (
                           <span
                             key={t}
-                            role="button"
-                            tabIndex={0}
+                            aria-hidden="true"
                             title={`Filter: ${t}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               setTypeFilter(active ? null : t);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.stopPropagation();
-                                setTypeFilter(active ? null : t);
-                              }
                             }}
                             className={cn(
                               "rounded-full p-1 transition-all hover:scale-125 hover:bg-white/15 hover:text-white",
@@ -1042,6 +1035,7 @@ function CustomerHomePage() {
                           >
                             <Icon className="h-3 w-3" />
                           </span>
+
                         );
                       })}
                     </div>
