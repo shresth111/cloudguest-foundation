@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
+import { PortalShell, GUEST_LEGIBILITY_CARD_CLASS } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import {
   usePortalRuntime,
@@ -125,8 +126,25 @@ function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
  * session, see that function's own docstring).
  */
 function SuccessPage() {
-  const { session, organizationId, locationId, routerId, hotspotLoginUrl, guestIdentifier, t } =
-    usePortalRuntime();
+  const {
+    config,
+    session,
+    organizationId,
+    locationId,
+    routerId,
+    hotspotLoginUrl,
+    guestIdentifier,
+    t,
+  } = usePortalRuntime();
+  // captive-portal-v7-design-spec.md §1.1 (L1). This route is NOT in the
+  // spec's own L1 route list, and that list is wrong: the slow/stuck
+  // notice below renders past SLOW_NOTICE_DELAY_MS as plain text directly
+  // on the venue photo, outside `PortalConnectingState`'s card and in the
+  // scrim's fully-transparent 24-78% band -- the identical defect, on the
+  // one screen a guest only ever sees when something has already gone
+  // wrong. Same bounded plate as the other portal.* routes; the retry
+  // control beside it already carries its own opaque `bg-indigo-50` fill.
+  const hasPhoto = !!config?.backgroundImageUrl;
   const navigate = useNavigate({ from: "/portal/success" });
   const portalSearch = { organizationId, locationId, routerId };
   const [showSlowNotice, setShowSlowNotice] = useState(false);
@@ -258,7 +276,12 @@ function SuccessPage() {
       <PortalConnectingState />
       {showSlowNotice && (
         <div className="pg-enter mt-5 flex flex-col items-center gap-3 text-center">
-          <p className="pg-meta text-[var(--pg-ink-muted)]">
+          <p
+            className={cn(
+              "pg-meta max-w-full text-[var(--pg-ink-muted)]",
+              hasPhoto && cn("px-4 py-3", GUEST_LEGIBILITY_CARD_CLASS),
+            )}
+          >
             {showEscapeHatch ? t("successStuckNotice") : t("successSlowNotice")}
           </p>
           <div className="flex items-center gap-3">
@@ -273,7 +296,10 @@ function SuccessPage() {
               <Link
                 to="/portal/welcome"
                 search={portalSearch}
-                className="text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+                className={cn(
+                  "text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline",
+                  hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-4 py-2"),
+                )}
               >
                 {t("signInAgainLink")}
               </Link>
