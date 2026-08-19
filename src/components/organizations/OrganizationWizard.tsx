@@ -292,17 +292,17 @@ function TextField<T extends FieldValues>({
   );
 }
 
-function SelectField({
+function SelectField<T extends FieldValues>({
   name,
   label,
   options,
   form,
   capitalize,
 }: {
-  name: any;
+  name: FieldPath<T>;
   label: string;
   options: readonly string[];
-  form: any;
+  form: UseFormReturn<T>;
   capitalize?: boolean;
 }) {
   return (

@@ -1438,7 +1438,9 @@ export const customerService = {
                 average_session_duration_seconds: number | null;
               }>("/guest-analytics/summary")
               .catch(() => null),
-            api.get<{ items: Array<Record<string, unknown>> }>("/guest-analytics/top-devices").catch(() => null),
+            api
+              .get<{ items: Array<Record<string, unknown>> }>("/guest-analytics/top-devices")
+              .catch(() => null),
           ]);
           const s =
             summary.status === "fulfilled" && summary.value?.data ? summary.value.data : null;
