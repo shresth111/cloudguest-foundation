@@ -333,12 +333,17 @@ function CustomerHomePage() {
     return () => clearInterval(t);
   }, []);
 
-  const filtered = (locations ?? []).filter(
-    (l) =>
-      !search ||
-      l.name.toLowerCase().includes(search.toLowerCase()) ||
-      l.city.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = (locations ?? [])
+    .filter(
+      (l) =>
+        !search ||
+        l.name.toLowerCase().includes(search.toLowerCase()) ||
+        l.city.toLowerCase().includes(search.toLowerCase()),
+    )
+    // Starred venues first -- the star was purely decorative before, it never
+    // changed the order of the grid it was pinned to.
+    .sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id)));
+
   // Distinguish "this org genuinely has zero locations" from "the search
   // typed above matched nothing" -- these used to share one empty-state
   // branch keyed off `filtered.length === 0`, which showed "No venues match
