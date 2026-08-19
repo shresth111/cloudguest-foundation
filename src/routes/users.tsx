@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { Input } from "@/components/ui/input";
@@ -68,7 +69,7 @@ export const Route = createFileRoute("/users")({
 });
 
 function CustomerUsersPage() {
-  const { t } = useTranslation("guests");
+  const { t } = useTranslation("guests", { i18n });
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation, activeLocationId } = useCustomerStore();

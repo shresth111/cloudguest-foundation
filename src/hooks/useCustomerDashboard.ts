@@ -5,7 +5,13 @@ import type { CustomerUsersData } from "@/services/customer.service";
 import { rbacService } from "@/services/rbac.service";
 import { useAuth } from "@/context/AuthContext";
 import { useDataMaskingStore } from "@/stores/dataMaskingStore";
-import { maskPhone } from "@/components/features/HeaderControls";
+// From `@/lib/masking`, NOT `@/components/features/HeaderControls` (which
+// re-exports the same function): `customerLocationGuard.ts` imports
+// `customerKeys` from this module and is called from a dozen route
+// `beforeLoad`s, which never get code-split away from the entry chunk --
+// so importing this through the HeaderControls module would put the whole
+// of framer-motion in front of every guest. See `@/lib/masking`'s note.
+import { maskPhone } from "@/lib/masking";
 import { toast } from "sonner";
 
 /** SSR-safe demo-mode flag. isDemo() reads localStorage, which doesn't
