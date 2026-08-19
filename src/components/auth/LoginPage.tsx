@@ -88,7 +88,7 @@ function HeroWifiIllustration() {
     <svg
       aria-hidden="true"
       viewBox="0 0 480 210"
-      className="h-auto w-full max-w-[300px] text-white"
+      className="h-auto w-full max-w-[360px] text-white"
       fill="none"
     >
       <defs>
@@ -173,7 +173,10 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", message: "" });
   const [demoSubmitting, setDemoSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [capsLock, setCapsLock] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   // A freshly-provisioned owner's welcome-email temporary password can't be
   // used for an ordinary login -- the backend raises a distinct 403 asking
@@ -199,7 +202,16 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) { toast.error("Please enter email and password"); return; }
+    // Inline, field-level validation instead of a toast: a toast disappears
+    // and never tells the visitor *which* field is wrong, and screen readers
+    // never get pointed back at the offending input.
+    const nextErrors: { email?: string; password?: string } = {};
+    if (!email.trim()) nextErrors.email = "Enter your email address.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = "Enter a valid email address.";
+    if (!password) nextErrors.password = "Enter your password.";
+    setErrors(nextErrors);
+    if (nextErrors.email) { emailInputRef.current?.focus(); return; }
+    if (nextErrors.password) { passwordInputRef.current?.focus(); return; }
     setLoading(true);
     try {
       // Store role before login so AuthContext can use it
@@ -430,43 +442,66 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           </div>
           <div className="mb-8"><h1 className="text-2xl font-bold tracking-tight">Sign in</h1><p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p></div>
 
-          {/* Role Selector */}
+          {/* Role Selector -- exposed as a real radiogroup so keyboard and
+              screen-reader users get "Owner, selected, 1 of 2" instead of two
+              unrelated buttons. */}
           <div className="mb-6">
-            <p className="text-sm font-medium mb-3">I'm signing in as</p>
-            <div className="grid grid-cols-2 gap-3">
-              <motion.button
-                type="button"
-                onClick={() => selectRole("owner")}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                className={cn("relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-colors", role === "owner" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30")}
-              >
-                {role === "owner" && (
-                  <motion.span layoutId="role-active" className="absolute inset-0 -z-10 bg-primary/5" transition={{ type: "spring", bounce: 0.25, duration: 0.4 }} />
-                )}
-                <ShieldCheck className={cn("h-5 w-5", role === "owner" ? "text-primary" : "text-muted-foreground")} />
-                <span className="text-sm font-semibold">Owner</span>
-                <span className="text-xs text-muted-foreground">Full workspace access</span>
-              </motion.button>
-              <motion.button
-                type="button"
-                onClick={() => selectRole("agent")}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                className={cn("relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-colors", role === "agent" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30")}
-              >
-                {role === "agent" && (
-                  <motion.span layoutId="role-active" className="absolute inset-0 -z-10 bg-primary/5" transition={{ type: "spring", bounce: 0.25, duration: 0.4 }} />
-                )}
-                <UserRound className={cn("h-5 w-5", role === "agent" ? "text-primary" : "text-muted-foreground")} />
-                <span className="text-sm font-semibold">Staff</span>
-                <span className="text-xs text-muted-foreground">Assigned features only</span>
-              </motion.button>
+            <p id="role-label" className="text-sm font-medium mb-3">I'm signing in as</p>
+            <div role="radiogroup" aria-labelledby="role-label" className="grid grid-cols-2 gap-3">
+              {([
+                { key: "owner", Icon: ShieldCheck, title: "Owner", hint: "Full workspace access" },
+                { key: "agent", Icon: UserRound, title: "Staff", hint: "Assigned features only" },
+              ] as const).map(({ key, Icon, title, hint }) => {
+                const active = role === key;
+                return (
+                  <motion.button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    tabIndex={active ? 0 : -1}
+                    onClick={() => selectRole(key)}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={cn(
+                      "relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15",
+                      active
+                        ? "border-primary/70 bg-primary/[0.06] shadow-sm shadow-primary/10"
+                        : "border-border hover:border-primary/40 hover:bg-muted/40",
+                    )}
+                  >
+                    {active && (
+                      <motion.span layoutId="role-active" className="absolute inset-0 -z-10 bg-primary/5" transition={{ type: "spring", bounce: 0.25, duration: 0.4 }} />
+                    )}
+                    <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-muted-foreground")} />
+                    <span className="text-sm font-semibold">{title}</span>
+                    <span className="text-xs text-muted-foreground">{hint}</span>
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input ref={emailInputRef} id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus /></div>
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                ref={emailInputRef}
+                id="email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors((p) => ({ ...p, email: undefined })); }}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                className={cn("h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10", errors.email && "border-destructive focus-visible:ring-destructive/15")}
+                autoFocus
+              />
+              {errors.email && <p id="email-error" className="text-xs font-medium text-destructive">{errors.email}</p>}
+            </div>
             {/* order-2/order-1 below keep the visual layout identical
                 (label+"Forgot password?" row on top, field below) while
                 fixing DOM/tab order -- as plain source order this put the
@@ -477,14 +512,47 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               {/* space-y-2's sibling margin follows DOM order, which no
                   longer matches visual order here -- an explicit mb-2 on
                   the row that's visually first keeps the same gap. */}
-              <div className="relative order-2"><Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
-                <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
-              <div className="order-1 mb-2 flex items-center justify-between"><Label htmlFor="password">Password</Label><button type="button" onClick={() => setView("forgot-password")} className="text-xs font-medium text-primary hover:underline">Forgot password?</button></div>
+              <div className="order-2 space-y-2">
+                <div className="relative">
+                  <Input
+                    ref={passwordInputRef}
+                    id="password"
+                    name="password"
+                    type={show ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((p) => ({ ...p, password: undefined })); }}
+                    onKeyUp={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
+                    onBlur={() => setCapsLock(false)}
+                    aria-invalid={!!errors.password}
+                    aria-describedby={cn(errors.password ? "password-error" : "", capsLock ? "caps-hint" : "").trim() || undefined}
+                    className={cn("h-11 pr-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10", errors.password && "border-destructive focus-visible:ring-destructive/15")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShow(!show)}
+                    aria-label={show ? "Hide password" : "Show password"}
+                    aria-pressed={show}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.password && <p id="password-error" className="text-xs font-medium text-destructive">{errors.password}</p>}
+                {/* Caps Lock is the single most common cause of a "wrong
+                    password" that isn't -- warn before the failed attempt. */}
+                {capsLock && !errors.password && (
+                  <p id="caps-hint" className="text-xs font-medium text-amber-600">Caps Lock is on.</p>
+                )}
+              </div>
+              <div className="order-1 mb-2 flex items-center justify-between"><Label htmlFor="password">Password</Label><button type="button" onClick={() => setView("forgot-password")} className="rounded text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">Forgot password?</button></div>
             </div>
             <motion.div whileHover={{ scale: loading ? 1 : 1.01 }} whileTap={{ scale: loading ? 1 : 0.98 }}>
-              <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Staff")}</Button>
+              <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading} aria-busy={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Staff")}</Button>
             </motion.div>
           </form>
+
 
           {/* Real infrastructure trust strip -- this deployment genuinely
               runs on Azure (the app VM) and AWS (S3-compatible storage for
