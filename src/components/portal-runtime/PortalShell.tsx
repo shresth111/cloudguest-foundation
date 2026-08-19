@@ -6,6 +6,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
+import { PortalNoPhotoPattern } from "./PortalNoPhotoPattern";
 
 // System-font stack for the redesigned "light" guest flow -- see the
 // captive-portal redesign spec's §2/§3: the guest path only ever used one
@@ -220,13 +221,23 @@ export function PortalShell({
             />
           </>
         )}
-        {/* No decorative wash for the default (no-custom-background) case
-         * under the new flat/neutral direction -- the previous two
-         * blurred-gradient "AmbientGlow" blobs were dropped entirely
-         * (redesign spec §3): they cost two extra blurred paints for no
-         * visual payoff once the page itself is already a flat neutral,
-         * and a guest's attention belongs on the sign-in card, not a
-         * decorative pattern behind it. */}
+        {/* v5 Visual Assets: the no-custom-background case used to render
+         * nothing at all here -- confirmed live (org "WYFY-GUEST"'s own
+         * Live Preview has no background image configured and shows a
+         * completely bare #FAFAF8 field). That was a deliberate reaction
+         * to the previous two blurred-gradient "AmbientGlow" blobs
+         * (redesign spec §3), which really were worth dropping -- two
+         * saturated, blurred color shapes competing for attention in open
+         * space, for no payoff. `PortalNoPhotoPattern` is not that
+         * mistake under a new name: it's a flat, hairline, ~4-10%-opacity
+         * geometric texture built from the same signal-arc motif already
+         * established on the marketing site, not a colored glow -- see
+         * that component's own doc comment for the full reasoning. It's
+         * quiet enough to disappear the moment a guest's eye reaches the
+         * actual sign-in card. */}
+        {!config?.backgroundImageUrl && (
+          <PortalNoPhotoPattern className="pointer-events-none absolute inset-0" />
+        )}
 
         {/* Below lg:, this fills the viewport edge-to-edge like every
          * phone/tablet captive-portal page should (single column, the
