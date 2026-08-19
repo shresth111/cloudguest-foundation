@@ -689,7 +689,13 @@ function CustomerHomePage() {
             ) : filtered.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-white/40">
                 <MapPin className="mb-4 h-12 w-12 opacity-30" />
-                <p>No venues match that search. Try a different name or city.</p>
+                <p className="text-sm">No venues match “{search}”. Try a different name or city.</p>
+                <button
+                  onClick={() => setSearch("")}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear search
+                </button>
               </div>
             ) : (
               filtered.map((loc, i) => {
