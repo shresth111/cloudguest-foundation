@@ -1222,6 +1222,8 @@ function CustomerHomePage() {
                               <Eye className="h-3 w-3" aria-hidden="true" />
                               View
                             </button>
+                          </td>
+
 
                         </tr>
                       );
