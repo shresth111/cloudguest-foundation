@@ -837,11 +837,12 @@ function CustomerHomePage() {
                       </div>
                       <div className="min-w-0 flex-1 pt-0.5">
                         <p className="font-display truncate text-lg font-semibold tracking-tight text-white">
-                          {loc.name}
+                          <HighlightedText text={loc.name} query={query} />
                         </p>
                         <p className="text-xs text-white/50">
-                          {loc.city} · {loc.organizationName}
+                          <HighlightedText text={loc.city} query={query} /> · {loc.organizationName}
                         </p>
+
                       </div>
                     </div>
 
