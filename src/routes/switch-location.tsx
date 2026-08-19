@@ -1105,8 +1105,6 @@ function CustomerHomePage() {
                     )}
                   </div>
                 </button>
-
-                </button>
               );
             })}
           </div>
