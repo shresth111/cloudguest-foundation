@@ -466,6 +466,13 @@ async function fetchOnePortal(id: string, orgId?: string): Promise<Portal> {
 // Service
 // ============================================================================
 
+/** A partial portal patch: nested config groups (branding, login, seo, ...)
+ * may themselves be partial, since the UI only ever edits a few fields at a
+ * time and the backend merges the rest. */
+export type PortalPatch = {
+  [K in keyof Portal]?: Portal[K] extends object ? Partial<Portal[K]> : Portal[K];
+};
+
 export const portalService = {
   async kpis(): Promise<PortalKpis> {
     const configs = await fetchAllConfigs();
@@ -525,7 +532,7 @@ export const portalService = {
   },
 
   async create(
-    input: Partial<Portal> & { name: string; organizationId: string; locationId: string },
+    input: PortalPatch & { name: string; organizationId: string; locationId: string },
   ): Promise<Portal> {
     const flags = loginMethodFlags(input.loginMethods ?? ["mobile_otp"]);
     // Only the header drives RBAC scope resolution server-side (the
@@ -561,7 +568,7 @@ export const portalService = {
     return fetchOnePortal(data.id, input.organizationId);
   },
 
-  async update(id: string, patch: Partial<Portal>, organizationId?: string): Promise<Portal> {
+  async update(id: string, patch: PortalPatch, organizationId?: string): Promise<Portal> {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
     if (patch.themeId !== undefined) body.theme = patch.themeId;
