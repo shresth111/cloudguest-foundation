@@ -168,7 +168,13 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
           onLogout={handleLogout}
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        {/* pb-24 clears the fixed AssistantWidget launcher (h-14, bottom-6 ==
+            80px) that floats over every feature page below -- without it,
+            the last row/card on a page that fills the viewport renders
+            partly behind the button (seen concretely on Alerts' "Recent
+            alerts" list). One padding bump here covers all ~22 feature
+            views this shell renders. */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
             {feature === "dashboard" && <DashboardView locationId={locationId} masked={masked} />}
             {feature === "users" && <UsersView locationId={locationId} masked={masked} />}

@@ -467,10 +467,19 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input ref={emailInputRef} id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus /></div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><button type="button" onClick={() => setView("forgot-password")} className="text-xs font-medium text-primary hover:underline">Forgot password?</button></div>
-              <div className="relative"><Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
+            {/* order-2/order-1 below keep the visual layout identical
+                (label+"Forgot password?" row on top, field below) while
+                fixing DOM/tab order -- as plain source order this put the
+                "Forgot password?" button between the email and password
+                fields, so Tab from Email address skipped straight past
+                Password to it instead. */}
+            <div className="flex flex-col">
+              {/* space-y-2's sibling margin follows DOM order, which no
+                  longer matches visual order here -- an explicit mb-2 on
+                  the row that's visually first keeps the same gap. */}
+              <div className="relative order-2"><Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
                 <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+              <div className="order-1 mb-2 flex items-center justify-between"><Label htmlFor="password">Password</Label><button type="button" onClick={() => setView("forgot-password")} className="text-xs font-medium text-primary hover:underline">Forgot password?</button></div>
             </div>
             <motion.div whileHover={{ scale: loading ? 1 : 1.01 }} whileTap={{ scale: loading ? 1 : 0.98 }}>
               <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Staff")}</Button>
