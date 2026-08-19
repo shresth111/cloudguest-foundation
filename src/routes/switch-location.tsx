@@ -1185,7 +1185,7 @@ function CustomerHomePage() {
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
                         active
-                          ? cn("bg-opacity-20 ring-1 ring-opacity-40", DEVICE_TYPE_TINT[type])
+                          ? cn("ring-1", DEVICE_TYPE_ACTIVE_TINT[type])
                           : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
                       )}
                     >
