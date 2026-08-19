@@ -1038,10 +1038,12 @@ function CustomerHomePage() {
             </div>
           ) : (
             <>
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-
-            {FLOORS.map((f) => {
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {/* Only floors that actually hold hardware -- disabled "No devices"
+             * tiles were pure noise and unclickable by design. */}
+            {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
               const onFloor = devices.filter((d) => d.floor === f);
+
               const down = onFloor.filter((d) => d.status === "down").length;
               const up = onFloor.filter((d) => d.status === "up").length;
               const typesHere = Array.from(new Set(onFloor.map((d) => d.type)));
