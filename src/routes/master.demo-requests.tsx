@@ -152,23 +152,20 @@ function DemoRequestsScreen() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading demo requests…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Prospect</MTh>
-                <MTh>Company</MTh>
-                <MTh className="hidden sm:table-cell">Contact</MTh>
-                <MTh>Status</MTh>
-                <MTh className="hidden md:table-cell">Submitted</MTh>
-              </>
-            }
-          >
-            {rows.map((r) => (
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>Prospect</MTh>
+              <MTh>Company</MTh>
+              <MTh className="hidden sm:table-cell">Contact</MTh>
+              <MTh>Status</MTh>
+              <MTh className="hidden md:table-cell">Submitted</MTh>
+            </>
+          }
+        >
+          {!loading &&
+            rows.map((r) => (
               <MTr key={r.id} onClick={() => setSelected(r)}>
                 <MTd>
                   <p className="font-semibold">{r.fullName}</p>
@@ -186,15 +183,14 @@ function DemoRequestsScreen() {
                 </MTd>
               </MTr>
             ))}
-            {rows.length === 0 && (
-              <MTr>
-                <MTd className="py-10 text-center text-muted-foreground">
-                  <span className="block">No demo requests match this filter.</span>
-                </MTd>
-              </MTr>
-            )}
-          </MTable>
-        )}
+          {!loading && rows.length === 0 && (
+            <MTr>
+              <MTd className="py-10 text-center text-muted-foreground">
+                <span className="block">No demo requests match this filter.</span>
+              </MTd>
+            </MTr>
+          )}
+        </MTable>
         <p className="text-xs text-muted-foreground">
           Every submission from the public "Book a Demo" form appears here.
         </p>

@@ -289,24 +289,21 @@ function ChannelPartnersScreen() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading channel partners…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Name</MTh>
-                <MTh className="hidden sm:table-cell">Phone</MTh>
-                <MTh className="hidden md:table-cell">City</MTh>
-                <MTh>GST Number</MTh>
-                <MTh>Status</MTh>
-                <MTh className="hidden md:table-cell">Onboarded</MTh>
-              </>
-            }
-          >
-            {rows.map((p) => (
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>Name</MTh>
+              <MTh className="hidden sm:table-cell">Phone</MTh>
+              <MTh className="hidden md:table-cell">City</MTh>
+              <MTh>GST Number</MTh>
+              <MTh>Status</MTh>
+              <MTh className="hidden md:table-cell">Onboarded</MTh>
+            </>
+          }
+        >
+          {!loading &&
+            rows.map((p) => (
               <MTr key={p.id} onClick={() => setSelected(p)}>
                 <MTd>
                   <p className="font-semibold">{p.name}</p>
@@ -331,15 +328,14 @@ function ChannelPartnersScreen() {
                 </MTd>
               </MTr>
             ))}
-            {rows.length === 0 && (
-              <MTr>
-                <MTd className="py-10 text-center text-muted-foreground">
-                  <span className="block">No channel partners match this filter.</span>
-                </MTd>
-              </MTr>
-            )}
-          </MTable>
-        )}
+          {!loading && rows.length === 0 && (
+            <MTr>
+              <MTd className="py-10 text-center text-muted-foreground">
+                <span className="block">No channel partners match this filter.</span>
+              </MTd>
+            </MTr>
+          )}
+        </MTable>
         <p className="text-xs text-muted-foreground">
           Every partner onboarded from "Onboard Partner" appears here, whether or not the welcome
           message delivered.

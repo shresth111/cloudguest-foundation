@@ -264,24 +264,21 @@ function QuotationsScreen() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading quotations…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Quotation #</MTh>
-                <MTh>Client</MTh>
-                <MTh className="hidden sm:table-cell">Company</MTh>
-                <MTh>Status</MTh>
-                <MTh>Amount</MTh>
-                <MTh className="hidden md:table-cell">Created</MTh>
-              </>
-            }
-          >
-            {rows.map((q) => (
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>Quotation #</MTh>
+              <MTh>Client</MTh>
+              <MTh className="hidden sm:table-cell">Company</MTh>
+              <MTh>Status</MTh>
+              <MTh>Amount</MTh>
+              <MTh className="hidden md:table-cell">Created</MTh>
+            </>
+          }
+        >
+          {!loading &&
+            rows.map((q) => (
               <MTr key={q.id} onClick={() => setSelected(q)}>
                 <MTd className="font-mono text-sm font-bold text-primary">{q.quotationNumber}</MTd>
                 <MTd>
@@ -300,15 +297,14 @@ function QuotationsScreen() {
                 </MTd>
               </MTr>
             ))}
-            {rows.length === 0 && (
-              <MTr>
-                <MTd className="py-10 text-center text-muted-foreground">
-                  <span className="block">No quotations match this filter.</span>
-                </MTd>
-              </MTr>
-            )}
-          </MTable>
-        )}
+          {!loading && rows.length === 0 && (
+            <MTr>
+              <MTd className="py-10 text-center text-muted-foreground">
+                <span className="block">No quotations match this filter.</span>
+              </MTd>
+            </MTr>
+          )}
+        </MTable>
         <p className="text-xs text-muted-foreground">
           Every quotation generated from "Generate & Send" appears here, whether or not the email
           delivered.

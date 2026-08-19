@@ -248,24 +248,21 @@ function TicketsScreen() {
           ]}
         />
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading tickets…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Ticket</MTh>
-                <MTh>Customer</MTh>
-                <MTh>Priority</MTh>
-                <MTh className="hidden sm:table-cell">Assignee</MTh>
-                <MTh>Status</MTh>
-                <MTh className="hidden md:table-cell">Updated</MTh>
-              </>
-            }
-          >
-            {rows.map((t) => (
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>Ticket</MTh>
+              <MTh>Customer</MTh>
+              <MTh>Priority</MTh>
+              <MTh className="hidden sm:table-cell">Assignee</MTh>
+              <MTh>Status</MTh>
+              <MTh className="hidden md:table-cell">Updated</MTh>
+            </>
+          }
+        >
+          {!loading &&
+            rows.map((t) => (
               <MTr key={t.id} onClick={() => setSelected(t)}>
                 <MTd>
                   <p className="font-mono text-xs text-muted-foreground">{t.id.slice(0, 8)}</p>
@@ -275,7 +272,9 @@ function TicketsScreen() {
                 <MTd>
                   <MTag
                     label={TICKET_PRIORITY_LABEL[t.priority]}
-                    tone={t.priority === "urgent" || t.priority === "high" ? "high" : "normal"}
+                    tone={
+                      t.priority === "urgent" ? "urgent" : t.priority === "high" ? "high" : "normal"
+                    }
                   />
                 </MTd>
                 <MTd className="hidden text-sm sm:table-cell">
@@ -298,15 +297,14 @@ function TicketsScreen() {
                 </MTd>
               </MTr>
             ))}
-            {rows.length === 0 && (
-              <MTr>
-                <MTd className="py-10 text-center text-muted-foreground">
-                  <span className="block">No tickets match this filter.</span>
-                </MTd>
-              </MTr>
-            )}
-          </MTable>
-        )}
+          {!loading && rows.length === 0 && (
+            <MTr>
+              <MTd className="py-10 text-center text-muted-foreground">
+                <span className="block">No tickets match this filter.</span>
+              </MTd>
+            </MTr>
+          )}
+        </MTable>
         <p className="text-xs text-muted-foreground">
           Tickets raised from any customer's dashboard appear here in real time.
         </p>
