@@ -717,23 +717,33 @@ function CustomerHomePage() {
                   Add your first location to start managing guest WiFi.
                 </p>
                 <button
+                  type="button"
                   onClick={() => setAddLocationOpen(true)}
-                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-500/20 hover:opacity-90"
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-500/20 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
-                  <Plus className="h-4 w-4" /> Add location
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Add location
                 </button>
               </div>
             ) : filtered.length === 0 ? (
-              <div className="col-span-full flex flex-col items-center justify-center py-20 text-white/40">
-                <MapPin className="mb-4 h-12 w-12 opacity-30" />
+              <div
+                role="status"
+                aria-live="polite"
+                className="col-span-full flex flex-col items-center justify-center py-20 text-white/40"
+              >
+                <MapPin className="mb-4 h-12 w-12 opacity-30" aria-hidden="true" />
                 <p className="text-sm">No venues match “{search}”. Try a different name or city.</p>
                 <button
-                  onClick={() => setSearch("")}
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    searchRef.current?.focus();
+                  }}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
-                  <X className="h-3.5 w-3.5" /> Clear search
+                  <X className="h-3.5 w-3.5" aria-hidden="true" /> Clear search
                 </button>
               </div>
+
             ) : (
               filtered.map((loc, i) => {
                 const LocationIcon = businessTypeIcon(loc.propertyType);
