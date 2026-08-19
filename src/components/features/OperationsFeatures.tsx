@@ -1447,7 +1447,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" interval="preserveStartEnd" />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" width={32} />
                   <RechartsTooltip
-                    contentStyle={{ background: "hsl(var(--popover, 0 0% 100%))", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12, padding: "8px 10px" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12, padding: "8px 10px" }}
                     formatter={(value: number) => [`${value.toFixed(1)}%`, "Uptime"]}
                   />
                   <Bar dataKey="uptime" radius={[3, 3, 0, 0]}>
@@ -1484,7 +1484,7 @@ function IspHealthHistoryDialog({ linkId, open, onOpenChange }: { linkId: string
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" width={32} />
                   <RechartsTooltip
-                    contentStyle={{ background: "hsl(var(--popover, 0 0% 100%))", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12, padding: "8px 10px" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12, padding: "8px 10px" }}
                     formatter={(value: number | string | Array<number | string> | undefined, name: string | number) => [
                       typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
                       name === "avgDownload" ? "Avg Download" : "Avg Upload",

@@ -402,7 +402,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
   };
   const DEVICE_COLORS = ["#6366f1", "#06b6d4", "#a855f7", "#f472b6", "#22c55e", "#f59e0b"];
   const chartTooltip = {
-    background: "hsl(var(--popover, 0 0% 100%))",
+    background: "var(--popover)",
     border: "1px solid var(--color-border, #e2e8f0)",
     borderRadius: 12,
     fontSize: 12,
