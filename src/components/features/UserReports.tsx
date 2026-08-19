@@ -1387,12 +1387,21 @@ export default function UserReports({ masked = true }: { masked?: boolean } = {}
       </div>
 
       <div className="print:hidden overflow-x-auto rounded-xl border bg-muted/40 p-1">
+        {/* whitespace-nowrap: the container already opts into horizontal
+            scroll (overflow-x-auto) for narrow viewports, but without this
+            each button's own text wrapped instead of the row scrolling --
+            on the longer labels ("Campaign Engagement Report") that meant
+            three ragged text lines and a much taller tab bar even on a
+            full-width desktop viewport, well before scrolling was ever
+            needed. flex-1's default min-width:auto already keeps a
+            nowrap'd button from shrinking below its own text, so this
+            alone is enough to fall back to the intended scroll. */}
         <div className="flex min-w-[500px] gap-1">
           {CATEGORIES.map((label) => {
             const active = label === category;
             return (
               <button key={label} onClick={() => setCategory(label)} aria-current={active ? "page" : undefined}
-                className={cn("relative flex-1 rounded-lg px-3 py-2.5 text-center text-sm font-medium transition-colors", active ? "bg-card text-[#4f46e5] shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                className={cn("relative flex-1 whitespace-nowrap rounded-lg px-3 py-2.5 text-center text-sm font-medium transition-colors", active ? "bg-card text-[#4f46e5] shadow-sm" : "text-muted-foreground hover:text-foreground")}>
                 {label}
               </button>
             );
