@@ -227,7 +227,7 @@ export function EmptyState({
 }
 
 /* ── Sortable DataTable ──────────────────────────────────── */
-export function DataTable({
+export function DataTable<T>({
   cols,
   rows,
   renderRow,
@@ -244,8 +244,8 @@ export function DataTable({
   setSortDir,
 }: {
   cols: { key: string; label: string; sortType?: string }[];
-  rows: unknown[];
-  renderRow: (r: never, i: number) => React.ReactNode;
+  rows: T[];
+  renderRow: (r: T, i: number) => React.ReactNode;
   search?: string;
   onSearch?: (v: string) => void;
   page: number;
