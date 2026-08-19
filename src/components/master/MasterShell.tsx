@@ -23,6 +23,7 @@ import {
   Handshake,
   ChevronsLeft,
   ChevronsRight,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -62,6 +63,7 @@ export const MASTER_NAV: MasterNavItem[] = [
   },
   { to: "/master/quotations", label: "Quotations", icon: FileText, cap: "quotations" },
   { to: "/master/audit", label: "Audit Logs", icon: ScrollText, cap: "audit" },
+  { to: "/master/operators", label: "Team & Access", icon: Users, cap: "operators" },
   { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
 ];
 
@@ -98,6 +100,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/demo-requests",
       "/master/quotations",
       "/master/audit",
+      "/master/operators",
       "/master/settings",
     ],
   },
@@ -140,6 +143,28 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   "demo-requests": ["demo_requests.read"],
   quotations: ["quotations.read"],
   audit: ["audit_logs.read"],
+  /** `/master/operators` ("Team & Access") -- who can view/invite/revoke
+   * internal staff (GLOBAL-scope) access to this console. Deliberately
+   * gated on `users.manage`, not the broader `users.read` the endpoints
+   * technically only require to *view* the roster -- checked against
+   * `app/domains/rbac/seed.py`'s actual `SYSTEM_ROLES` grants, not
+   * guessed: Super Admin and Platform Admin both hold `users.*` at FULL
+   * (includes `manage`) and `roles.*` at FULL (includes `assign`), so they
+   * can see, invite, re-role, and deactivate/reactivate every account.
+   * Platform Support's own override only raises `USERS` to OPERATE
+   * (`expand_grant_level` there explicitly excludes MANAGE/DELETE) and
+   * leaves `ROLES` at its READ default (excludes ASSIGN) -- real
+   * `users.read`/`users.create`, but no `users.manage` and no
+   * `roles.assign`. Billing Manager holds neither module at all. Gating on
+   * `users.manage` instead of `users.read` means a read-only Platform
+   * Support session never lands on a page built around re-assigning and
+   * revoking every other operator's platform-wide access (including its
+   * own) with most of the page's real actions 403ing for them -- the same
+   * "Super Admin only, maybe Platform Admin" intent `docs/pm-master-
+   * console-roadmap.md` calls for, reasoned the same way `DEVICE_CONSOLE`'s
+   * own MODULE_ACTIONS comment reasons about Super-Admin-exclusivity,
+   * applied here via grant analysis instead of a dedicated module. */
+  operators: ["users.manage"],
   settings: ["system_settings.read"],
   "billing.edit": ["billing.update", "billing.manage"],
   "router.control": ["routers.execute", "routers.manage"],

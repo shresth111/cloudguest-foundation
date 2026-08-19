@@ -1,5 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ShieldCheck, Receipt, Server, ScrollText, CircleSlash, ArrowRight } from "lucide-react";
+import {
+  ShieldCheck,
+  Receipt,
+  Server,
+  ScrollText,
+  CircleSlash,
+  ArrowRight,
+  Users,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +24,12 @@ export const Route = createFileRoute("/master/settings")({ component: SettingsSc
  * backend + UI elsewhere in the console -- this page links to the real
  * thing instead of duplicating it under a second "Settings" surface. */
 const LINKED_AREAS = [
+  {
+    to: "/master/operators",
+    icon: Users,
+    title: "Team & Access",
+    description: "See who holds each role below, invite new staff, and revoke access.",
+  },
   {
     to: "/master/billing",
     icon: Receipt,
@@ -44,13 +58,15 @@ const LINKED_AREAS = [
  * those six already being fully real, already-built features elsewhere in
  * this console (RBAC's own GLOBAL-scope system roles via `GET /roles`,
  * Billing & tax under /master/billing, RADIUS/NAS under /master/nas, audit
- * under /master/audit). Now: the real operator-role data (live from
- * `GET /roles`, the same `useRbacRoles()` hook the customer RBAC page
+ * under /master/audit; a fourth, /master/operators's "Team & Access", was
+ * added alongside it since -- see that route's own module comment for who
+ * actually holds each role below). Now: the real operator-role data (live
+ * from `GET /roles`, the same `useRbacRoles()` hook the customer RBAC page
  * itself uses -- with no `X-Organization-Id` header this call resolves
  * GLOBAL scope, per rbac.service.ts's own "listRoles(): infers GLOBAL scope
  * whenever X-Organization-Id is absent" comment) is shown directly, and the
- * three already-real configuration areas link to where they actually live
- * rather than being re-built here.
+ * already-real configuration areas link to where they actually live rather
+ * than being re-built here.
  *
  * White-label branding, platform API keys/webhooks, and notification
  * routing are honestly left out (not faked as "coming soon" bullets): each
