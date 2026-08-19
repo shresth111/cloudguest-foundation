@@ -1214,13 +1214,15 @@ function CustomerHomePage() {
                           </td>
                           <td className="px-3 py-2 text-right">
                             <button
+                              type="button"
+                              aria-label={`View history for ${d.name}`}
                               onClick={() => toast.success(`History for ${d.name}`)}
-                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10"
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                             >
-                              <Eye className="h-3 w-3" />
+                              <Eye className="h-3 w-3" aria-hidden="true" />
                               View
                             </button>
-                          </td>
+
                         </tr>
                       );
                     })
