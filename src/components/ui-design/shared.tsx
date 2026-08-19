@@ -145,19 +145,15 @@ export function DataTable({ cols, rows, renderRow, search, onSearch, page, setPa
 
   return (
     <div>
-      {(onSearch ? true : true) && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           {onSearch && (
             <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input type="text" placeholder="Search…" value={search || ""} onChange={e => { onSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500" /></div>
           )}
-          {setPageSize && (
-            <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5">
-              {[10, 25, 50].map(n => <button key={n} onClick={() => { setPageSize(n); setPage(0); }} className={`rounded px-2 py-1 text-xs font-medium ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}>{n}</button>)}
-            </div>
-          )}
-        </div>
-      )}
+          <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5">
+            {[10, 25, 50].map(n => <button key={n} onClick={() => { setPageSize(n); setPage(0); }} className={`rounded px-2 py-1 text-xs font-medium ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}>{n}</button>)}
+          </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-[800px] w-full text-sm">
           <thead><tr className="border-b border-slate-200 text-left">{cols.map(c => (
