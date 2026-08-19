@@ -584,9 +584,11 @@ function CustomerHomePage() {
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => setAddLocationOpen(true)}
-                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90"
+                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
+
                   <Plus className="h-4 w-4" /> Add location
                 </button>
               </div>
