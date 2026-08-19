@@ -667,16 +667,20 @@ function CustomerHomePage() {
               </span>
               Live · updated {secondsAgo}s ago
               <button
+                type="button"
                 onClick={doRefetch}
-                className="ml-1 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white"
+                aria-label="Refresh location data"
+                className="ml-1 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className="h-3 w-3" aria-hidden="true" />
               </button>
             </span>
             <button
+              type="button"
               onClick={() => setDeviceSheetOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
+
               <Radio className="h-3.5 w-3.5" /> Device health
               {totalDownAcrossLocations > 0 && (
                 <span className="rounded-full bg-rose-500/20 px-1.5 text-[10px] font-semibold text-rose-300">
