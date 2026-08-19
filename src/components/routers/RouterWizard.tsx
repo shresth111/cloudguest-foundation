@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertCircle,
@@ -608,18 +609,18 @@ function ProvisionStep({ router }: { router: { id: string; name: string } }) {
   );
 }
 
-function TextField({
+function TextField<T extends FieldValues>({
   name,
   label,
   placeholder,
   type,
   form,
 }: {
-  name: any;
+  name: FieldPath<T>;
   label: string;
   placeholder?: string;
   type?: string;
-  form: any;
+  form: UseFormReturn<T>;
 }) {
   return (
     <FormField
@@ -638,16 +639,16 @@ function TextField({
   );
 }
 
-function SelectFieldOpts({
+function SelectFieldOpts<T extends FieldValues>({
   name,
   label,
   options,
   form,
 }: {
-  name: any;
+  name: FieldPath<T>;
   label: string;
   options: { id: string; name: string }[];
-  form: any;
+  form: UseFormReturn<T>;
 }) {
   return (
     <FormField
@@ -677,16 +678,16 @@ function SelectFieldOpts({
   );
 }
 
-function ToggleField({
+function ToggleField<T extends FieldValues>({
   name,
   label,
   description,
   form,
 }: {
-  name: any;
+  name: FieldPath<T>;
   label: string;
   description: string;
-  form: any;
+  form: UseFormReturn<T>;
 }) {
   return (
     <FormField

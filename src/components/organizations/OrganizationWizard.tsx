@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -261,18 +262,18 @@ export function OrganizationWizard({ open, onOpenChange }: Props) {
   );
 }
 
-function TextField({
+function TextField<T extends FieldValues>({
   name,
   label,
   placeholder,
   type,
   form,
 }: {
-  name: any;
+  name: FieldPath<T>;
   label: string;
   placeholder?: string;
   type?: string;
-  form: any;
+  form: UseFormReturn<T>;
 }) {
   return (
     <FormField

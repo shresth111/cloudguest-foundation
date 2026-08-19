@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
@@ -300,16 +301,16 @@ export function LocationWizard({
   );
 }
 
-function TextField({
+function TextField<T extends FieldValues>({
   name,
   label,
   placeholder,
   form,
 }: {
-  name: any;
+  name: FieldPath<T>;
   label: string;
   placeholder?: string;
-  form: any;
+  form: UseFormReturn<T>;
 }) {
   return (
     <FormField
