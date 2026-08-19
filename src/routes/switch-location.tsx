@@ -931,12 +931,14 @@ function CustomerHomePage() {
             )}
             {!hasNoLocationsAtAll && filtered.length > 0 && (
               <button
+                type="button"
                 onClick={() => setAddLocationOpen(true)}
-                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05]"
+                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors group-hover:border-[#8B5CF6]/40 group-hover:text-white">
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                 </span>
+
                 <span className="text-sm font-medium text-white/80">Add a location</span>
                 <span className="max-w-[16rem] text-xs text-white/40">
                   Provision a new venue and bring its network online.
