@@ -125,7 +125,10 @@ export function useForceLogoutUser() {
 // -- Permissions / Permission Groups -----------------------------------------
 
 export const useRbacPermissionGroups = () =>
-  useQuery({ queryKey: rbacKeys.permissionGroups, queryFn: () => rbacService.listPermissionGroups() });
+  useQuery({
+    queryKey: rbacKeys.permissionGroups,
+    queryFn: () => rbacService.listPermissionGroups(),
+  });
 
 export const useRbacPermissions = (groupId?: string) =>
   useQuery({

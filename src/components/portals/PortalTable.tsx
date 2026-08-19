@@ -67,7 +67,9 @@ function toCsv(rows: Portal[]) {
       p.themeName,
       p.status,
       p.updatedAt,
-    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","),
+    ]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+      .join(","),
   );
   return [header.join(","), ...body].join("\n");
 }
@@ -177,7 +179,9 @@ export function PortalTable() {
             />
           </div>
           <Select value={status} onValueChange={(v) => setStatus(v as PortalStatus | "all")}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="published">Published</SelectItem>
@@ -187,16 +191,22 @@ export function PortalTable() {
             </SelectContent>
           </Select>
           <Select value={orgId} onValueChange={setOrgId}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Organization" /></SelectTrigger>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Organization" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All organizations</SelectItem>
               {orgs.map((o) => (
-                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={method} onValueChange={(v) => setMethod(v as PortalLoginMethod | "all")}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Method" /></SelectTrigger>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="Method" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All methods</SelectItem>
               <SelectItem value="mobile_otp">Mobile OTP</SelectItem>
@@ -251,7 +261,10 @@ export function PortalTable() {
                 variant="destructive"
                 onClick={() => {
                   Array.from(selected).forEach((id) =>
-                    delMut.mutate({ id, organizationId: items.find((p) => p.id === id)?.organizationId }),
+                    delMut.mutate({
+                      id,
+                      organizationId: items.find((p) => p.id === id)?.organizationId,
+                    }),
                   );
                   setSelected(new Set());
                 }}
@@ -281,7 +294,10 @@ export function PortalTable() {
                     <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                   </TableHead>
                   <TableHead>
-                    <button className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
+                    <button
+                      className="inline-flex items-center gap-1"
+                      onClick={() => toggleSort("name")}
+                    >
                       Portal <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </TableHead>
@@ -291,7 +307,10 @@ export function PortalTable() {
                   <TableHead>Theme</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>
-                    <button className="inline-flex items-center gap-1" onClick={() => toggleSort("updatedAt")}>
+                    <button
+                      className="inline-flex items-center gap-1"
+                      onClick={() => toggleSort("updatedAt")}
+                    >
                       Updated <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </TableHead>
@@ -303,7 +322,10 @@ export function PortalTable() {
                 {items.map((p) => (
                   <TableRow key={p.id} className="group">
                     <TableCell>
-                      <Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggleRow(p.id)} />
+                      <Checkbox
+                        checked={selected.has(p.id)}
+                        onCheckedChange={() => toggleRow(p.id)}
+                      />
                     </TableCell>
                     <TableCell>
                       <Link
@@ -317,9 +339,13 @@ export function PortalTable() {
                     </TableCell>
                     <TableCell className="text-sm">{p.organizationName}</TableCell>
                     <TableCell className="text-sm">{p.locationName}</TableCell>
-                    <TableCell><LoginMethodBadge method={p.primaryLoginMethod} /></TableCell>
+                    <TableCell>
+                      <LoginMethodBadge method={p.primaryLoginMethod} />
+                    </TableCell>
                     <TableCell className="text-sm">{p.themeName}</TableCell>
-                    <TableCell><PortalStatusBadge status={p.status} /></TableCell>
+                    <TableCell>
+                      <PortalStatusBadge status={p.status} />
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(p.updatedAt).toLocaleString()}
                     </TableCell>
@@ -387,10 +413,20 @@ export function PortalTable() {
             Page {page} of {pages}
           </span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
               Previous
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(pages, p + 1))}
+              disabled={page >= pages}
+            >
               Next
             </Button>
           </div>
@@ -414,7 +450,9 @@ export function PortalTable() {
               <div className="flex h-full items-center justify-center">
                 <div className="rounded-2xl bg-white/10 p-8 text-center backdrop-blur">
                   <div className="text-white/80 text-sm">Welcome to</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">{previewPortal.organizationName}</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {previewPortal.organizationName}
+                  </div>
                   <button
                     className="mt-6 rounded-lg px-5 py-2 text-sm font-medium text-white"
                     style={{ background: previewPortal.branding.primaryColor }}

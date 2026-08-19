@@ -10,16 +10,22 @@ export function ErrorMaintenancePage() {
       </div>
       <h1 className="text-5xl font-bold text-foreground">Under maintenance</h1>
       <p className="mt-4 max-w-md text-sm text-muted-foreground">
-        We're performing scheduled maintenance to improve your experience. Services will be back shortly.
+        We're performing scheduled maintenance to improve your experience. Services will be back
+        shortly.
       </p>
       <div className="mt-4 flex items-center gap-2">
-        <Badge variant="outline" className="text-sm">Estimated completion: 2 hours</Badge>
+        <Badge variant="outline" className="text-sm">
+          Estimated completion: 2 hours
+        </Badge>
       </div>
       <div className="mt-8 flex gap-3">
         <Button variant="outline">
           <Bell className="mr-2 h-4 w-4" /> Notify me when done
         </Button>
-        <Button variant="outline" onClick={() => window.open("https://status.cloudguest.io", "_blank")}>
+        <Button
+          variant="outline"
+          onClick={() => window.open("https://status.cloudguest.io", "_blank")}
+        >
           Status page
         </Button>
       </div>

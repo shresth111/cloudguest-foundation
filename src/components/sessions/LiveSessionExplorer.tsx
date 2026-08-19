@@ -1,15 +1,24 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import {
-  Search, ArrowUpDown, ChevronLeft, ChevronRight, Wifi, XCircle, Eye,
-} from "lucide-react";
+import { Search, ArrowUpDown, ChevronLeft, ChevronRight, Wifi, XCircle, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { RightDrawer } from "@/components/ui-ext/RightDrawer";
 import { cn } from "@/lib/utils";
@@ -30,16 +39,37 @@ interface Session {
   status: "active" | "idle" | "disconnected";
 }
 
-const DEVICES = ["iPhone 15", "Samsung Galaxy S24", "MacBook Pro", "Pixel 8", "iPad Air", "Windows Laptop", "Xiaomi 14", "OnePlus 12"];
-const ROUTERS = ["GW-01 (Mumbai)", "GW-02 (Mumbai)", "GW-03 (Delhi)", "GW-04 (Bangalore)", "GW-05 (Chennai)"];
+const DEVICES = [
+  "iPhone 15",
+  "Samsung Galaxy S24",
+  "MacBook Pro",
+  "Pixel 8",
+  "iPad Air",
+  "Windows Laptop",
+  "Xiaomi 14",
+  "OnePlus 12",
+];
+const ROUTERS = [
+  "GW-01 (Mumbai)",
+  "GW-02 (Mumbai)",
+  "GW-03 (Delhi)",
+  "GW-04 (Bangalore)",
+  "GW-05 (Chennai)",
+];
 const SSIDS = ["CloudGuest-Corporate", "CloudGuest-Guest", "CloudGuest-IoT", "CloudGuest-VIP"];
 
-function rand<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function rand<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 const SESSIONS: Session[] = Array.from({ length: 45 }, (_, i) => ({
   id: `sess-${i + 1}`,
   username: `user${i + 1}@email.com`,
-  mac: `00:1A:${String(2 + i).padStart(2, "0")}:${String(3 + i).padStart(2, "0")}:${String(i).padStart(2, "0")}:${String(i * 3).slice(-2).padStart(2, "0")}`,
+  mac: `00:1A:${String(2 + i).padStart(2, "0")}:${String(3 + i).padStart(2, "0")}:${String(i).padStart(2, "0")}:${String(
+    i * 3,
+  )
+    .slice(-2)
+    .padStart(2, "0")}`,
   ip: `10.0.${Math.floor(i / 10)}.${100 + i}`,
   ssid: rand(SSIDS),
   nas: `NAS-${String(Math.floor(i / 5) + 1).padStart(2, "0")}`,
@@ -78,18 +108,22 @@ export function LiveSessionExplorer() {
     let items = [...SESSIONS];
     if (search) {
       const q = search.toLowerCase();
-      items = items.filter((s) =>
-        s.username.toLowerCase().includes(q) ||
-        s.mac.toLowerCase().includes(q) ||
-        s.ip.toLowerCase().includes(q) ||
-        s.router.toLowerCase().includes(q)
+      items = items.filter(
+        (s) =>
+          s.username.toLowerCase().includes(q) ||
+          s.mac.toLowerCase().includes(q) ||
+          s.ip.toLowerCase().includes(q) ||
+          s.router.toLowerCase().includes(q),
       );
     }
     if (statusFilter !== "all") items = items.filter((s) => s.status === statusFilter);
     items.sort((a, b) => {
       const av = a[sortKey] ?? "";
       const bv = b[sortKey] ?? "";
-      if (typeof av === "string") return sortDir === "asc" ? av.localeCompare(bv as string) : (bv as string).localeCompare(av);
+      if (typeof av === "string")
+        return sortDir === "asc"
+          ? av.localeCompare(bv as string)
+          : (bv as string).localeCompare(av);
       return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return items;
@@ -100,7 +134,10 @@ export function LiveSessionExplorer() {
 
   const toggleSort = (key: keyof Session) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
     setPage(0);
   };
 
@@ -122,12 +159,23 @@ export function LiveSessionExplorer() {
           <Input
             placeholder="Search username, MAC, IP…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
             className="h-9 pl-8"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
-          <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v);
+            setPage(0);
+          }}
+        >
+          <SelectTrigger className="w-36 h-9">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
@@ -179,10 +227,17 @@ export function LiveSessionExplorer() {
                   <TableCell className="text-xs">{s.device}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <div className={cn(
-                        "h-1.5 w-8 rounded-full",
-                        s.signal > 85 ? "bg-emerald-500" : s.signal > 70 ? "bg-amber-500" : "bg-rose-500",
-                      )} style={{ width: `${s.signal}%` }} />
+                      <div
+                        className={cn(
+                          "h-1.5 w-8 rounded-full",
+                          s.signal > 85
+                            ? "bg-emerald-500"
+                            : s.signal > 70
+                              ? "bg-amber-500"
+                              : "bg-rose-500",
+                        )}
+                        style={{ width: `${s.signal}%` }}
+                      />
                       <span className="text-xs text-muted-foreground">{s.signal}%</span>
                     </div>
                   </TableCell>
@@ -190,16 +245,34 @@ export function LiveSessionExplorer() {
                   <TableCell className="text-xs">{formatBytes(s.download)}</TableCell>
                   <TableCell className="text-xs">{formatBytes(s.upload)}</TableCell>
                   <TableCell>
-                    <Badge variant={s.status === "active" ? "default" : s.status === "idle" ? "secondary" : "outline"} className="capitalize">
+                    <Badge
+                      variant={
+                        s.status === "active"
+                          ? "default"
+                          : s.status === "idle"
+                            ? "secondary"
+                            : "outline"
+                      }
+                      className="capitalize"
+                    >
                       {s.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedSession(s)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setSelectedSession(s)}
+                      >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                      >
                         <XCircle className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -218,7 +291,12 @@ export function LiveSessionExplorer() {
             Page {page + 1} of {totalPages}
           </span>
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage(page - 1)}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => (
@@ -232,7 +310,12 @@ export function LiveSessionExplorer() {
                 {i + 1}
               </Button>
             ))}
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage(page + 1)}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

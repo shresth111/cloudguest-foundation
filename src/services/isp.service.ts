@@ -36,9 +36,8 @@ import type {
 let cachedOrganizationId: string | null = null;
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } = await api.get<Array<{ organization_id: string; status: string }>>(
-    "/me/organizations",
-  );
+  const { data } =
+    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
   if (!membership) throw new Error("No organization found for the current session");
   cachedOrganizationId = membership.organization_id;
@@ -344,11 +343,9 @@ export const ispService = {
 
   async checkLinkHealth(id: string): Promise<IspLink> {
     const orgId = await resolveOrganizationId();
-    const { data } = await api.post<BackendIspLink>(
-      `/isp/links/${id}/check-health`,
-      undefined,
-      { headers: { "X-Organization-Id": orgId } },
-    );
+    const { data } = await api.post<BackendIspLink>(`/isp/links/${id}/check-health`, undefined, {
+      headers: { "X-Organization-Id": orgId },
+    });
     return toIspLink(data);
   },
 
@@ -501,7 +498,10 @@ export const ispService = {
     return toIspRoutingRule(data);
   },
 
-  async updateRoutingRule(id: string, payload: UpdateIspRoutingRulePayload): Promise<IspRoutingRule> {
+  async updateRoutingRule(
+    id: string,
+    payload: UpdateIspRoutingRulePayload,
+  ): Promise<IspRoutingRule> {
     const orgId = await resolveOrganizationId();
     const { data } = await api.put<BackendIspRoutingRule>(
       `/isp-routing/rules/${id}`,

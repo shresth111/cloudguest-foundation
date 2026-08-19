@@ -511,11 +511,21 @@ export const guestService = {
     if (organizationId) {
       const headers = { "X-Organization-Id": organizationId };
       const [identifierRes, deviceRes] = await Promise.allSettled([
-        api.get<BackendListResponse<BackendAccessRule>>("/guest-access/rules", { params: { page_size: 100 }, headers }),
-        api.get<BackendListResponse<BackendDeviceAccessRule>>("/guest-access/device-rules", { params: { page_size: 100 }, headers }),
+        api.get<BackendListResponse<BackendAccessRule>>("/guest-access/rules", {
+          params: { page_size: 100 },
+          headers,
+        }),
+        api.get<BackendListResponse<BackendDeviceAccessRule>>("/guest-access/device-rules", {
+          params: { page_size: 100 },
+          headers,
+        }),
       ]);
-      const identifierRules = identifierRes.status === "fulfilled" ? identifierRes.value.data.items.map(toAccessRule) : [];
-      const deviceRules = deviceRes.status === "fulfilled" ? deviceRes.value.data.items.map(toDeviceAccessRule) : [];
+      const identifierRules =
+        identifierRes.status === "fulfilled"
+          ? identifierRes.value.data.items.map(toAccessRule)
+          : [];
+      const deviceRules =
+        deviceRes.status === "fulfilled" ? deviceRes.value.data.items.map(toDeviceAccessRule) : [];
       return [...identifierRules, ...deviceRules];
     }
     const [identifierRules, deviceRules] = await Promise.all([
@@ -560,14 +570,22 @@ export const guestService = {
       : toDeviceAccessRule(data as BackendDeviceAccessRule);
   },
 
-  async deactivateAccessRule(kind: "identifier" | "device", ruleId: string, organizationId?: string): Promise<void> {
+  async deactivateAccessRule(
+    kind: "identifier" | "device",
+    ruleId: string,
+    organizationId?: string,
+  ): Promise<void> {
     const path = kind === "identifier" ? "/guest-access/rules" : "/guest-access/device-rules";
     await api.post(`${path}/${ruleId}/deactivate`, undefined, {
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
   },
 
-  async deleteAccessRule(kind: "identifier" | "device", ruleId: string, organizationId?: string): Promise<void> {
+  async deleteAccessRule(
+    kind: "identifier" | "device",
+    ruleId: string,
+    organizationId?: string,
+  ): Promise<void> {
     const path = kind === "identifier" ? "/guest-access/rules" : "/guest-access/device-rules";
     await api.delete(`${path}/${ruleId}`, {
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
@@ -636,7 +654,11 @@ export const guestService = {
     await api.delete(`/guest-teams/${teamId}/members/${guestId}`, { data: { reason } });
   },
 
-  async revokeTeam(teamId: string, reason?: string, organizationId?: string): Promise<GuestTeamRevokeResult> {
+  async revokeTeam(
+    teamId: string,
+    reason?: string,
+    organizationId?: string,
+  ): Promise<GuestTeamRevokeResult> {
     const { data } = await api.post<BackendGuestTeamRevokeResponse>(
       `/guest-teams/${teamId}/revoke`,
       { reason },

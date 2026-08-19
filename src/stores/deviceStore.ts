@@ -50,7 +50,8 @@ export function deriveStatus(mac: string): { status: "up" | "down"; statusChange
 export function deriveCpu(mac: string, status: "up" | "down"): number | null {
   if (status === "down") return null;
   const rand = seededRand(hashMac(mac) + 13);
-  rand(); rand(); // skip past the values deriveStatus already consumed for this seed family
+  rand();
+  rand(); // skip past the values deriveStatus already consumed for this seed family
   return Math.round(rand() * 80) + 5;
 }
 
@@ -66,7 +67,13 @@ export function formatSince(iso: string): string {
   return `${minutes}m`;
 }
 
-function seedDevice(locationId: string, name: string, mac: string, type: DeviceType, floor: string): MonitoredDevice {
+function seedDevice(
+  locationId: string,
+  name: string,
+  mac: string,
+  type: DeviceType,
+  floor: string,
+): MonitoredDevice {
   return { id: mac, locationId, name, mac, type, floor, ...deriveStatus(mac) };
 }
 
@@ -82,7 +89,13 @@ const SEED_DEVICES: MonitoredDevice[] = [
 
 interface DeviceState {
   devices: MonitoredDevice[];
-  addDevice: (locationId: string, name: string, mac: string, type: DeviceType, floor: string) => void;
+  addDevice: (
+    locationId: string,
+    name: string,
+    mac: string,
+    type: DeviceType,
+    floor: string,
+  ) => void;
   removeDevice: (id: string) => void;
 }
 
@@ -91,7 +104,9 @@ export const useDeviceStore = create<DeviceState>()(
     (set) => ({
       devices: SEED_DEVICES,
       addDevice: (locationId, name, mac, type, floor) =>
-        set((s) => ({ devices: [...s.devices, seedDevice(locationId, name || mac, mac, type, floor)] })),
+        set((s) => ({
+          devices: [...s.devices, seedDevice(locationId, name || mac, mac, type, floor)],
+        })),
       removeDevice: (id) => set((s) => ({ devices: s.devices.filter((d) => d.id !== id) })),
     }),
     { name: "cg-monitored-devices", version: 2 },

@@ -27,8 +27,8 @@ function MonitoringPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Monitoring & alerts</h1>
           <p className="text-sm text-muted-foreground">
-            Real health checks, alert rules, notifications, incidents, SLA reports, and device
-            fleet status across the platform.
+            Real health checks, alert rules, notifications, incidents, SLA reports, and device fleet
+            status across the platform.
           </p>
         </div>
         <Button

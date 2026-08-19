@@ -71,16 +71,52 @@ export function MonitoringKpiGrid() {
       label: "Overall platform health",
       value: HEALTH_STATUS_LABEL[healthStatus],
       icon: ShieldCheck,
-      tone: healthStatus === "healthy" ? "success" : healthStatus === "unknown" ? "default" : "warning",
+      tone:
+        healthStatus === "healthy" ? "success" : healthStatus === "unknown" ? "default" : "warning",
     },
-    { label: "Organizations", value: String(topology?.organizations ?? "—"), icon: Building2, tone: "default" },
-    { label: "Locations", value: String(topology?.locations ?? "—"), icon: MapPin, tone: "default" },
-    { label: "Total routers", value: String(topology?.routers ?? "—"), icon: RouterIcon, tone: "default" },
+    {
+      label: "Organizations",
+      value: String(topology?.organizations ?? "—"),
+      icon: Building2,
+      tone: "default",
+    },
+    {
+      label: "Locations",
+      value: String(topology?.locations ?? "—"),
+      icon: MapPin,
+      tone: "default",
+    },
+    {
+      label: "Total routers",
+      value: String(topology?.routers ?? "—"),
+      icon: RouterIcon,
+      tone: "default",
+    },
     { label: "Online routers", value: String(onlineRouters), icon: ShieldCheck, tone: "success" },
-    { label: "Offline routers", value: String(offlineRouters), icon: WifiOff, tone: offlineRouters > 0 ? "danger" : "default" },
-    { label: "Pending enrollments", value: String(data.pendingEnrollmentCount), icon: Activity, tone: "default" },
-    { label: "Active alerts", value: String(activeAlerts), icon: AlertTriangle, tone: activeAlerts > 0 ? "warning" : "default" },
-    { label: "Critical alerts", value: String(criticalAlerts), icon: ShieldAlert, tone: criticalAlerts > 0 ? "danger" : "default" },
+    {
+      label: "Offline routers",
+      value: String(offlineRouters),
+      icon: WifiOff,
+      tone: offlineRouters > 0 ? "danger" : "default",
+    },
+    {
+      label: "Pending enrollments",
+      value: String(data.pendingEnrollmentCount),
+      icon: Activity,
+      tone: "default",
+    },
+    {
+      label: "Active alerts",
+      value: String(activeAlerts),
+      icon: AlertTriangle,
+      tone: activeAlerts > 0 ? "warning" : "default",
+    },
+    {
+      label: "Critical alerts",
+      value: String(criticalAlerts),
+      icon: ShieldAlert,
+      tone: criticalAlerts > 0 ? "danger" : "default",
+    },
   ];
 
   if (data.availabilityPercentage !== null) {
@@ -106,10 +142,17 @@ export function MonitoringKpiGrid() {
             <Card className="hover:shadow-md transition-shadow">
               <CardContent className="flex items-start justify-between gap-4 p-4">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.label}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {t.label}
+                  </div>
                   <div className="mt-1 text-2xl font-semibold tracking-tight">{t.value}</div>
                 </div>
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneClass[t.tone])}>
+                <div
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-lg",
+                    toneClass[t.tone],
+                  )}
+                >
                   <Icon className="h-5 w-5" />
                 </div>
               </CardContent>

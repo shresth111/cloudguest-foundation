@@ -7,13 +7,47 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import axios from "axios";
-import { Activity, CheckCircle2, Wifi, XCircle, AlertTriangle, Printer, Router, Camera, HardDrive, Plus, Trash2, Tag, MapPin } from "lucide-react";
+import {
+  Activity,
+  CheckCircle2,
+  Wifi,
+  XCircle,
+  AlertTriangle,
+  Printer,
+  Router,
+  Camera,
+  HardDrive,
+  Plus,
+  Trash2,
+  Tag,
+  MapPin,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -41,7 +75,13 @@ const GUEST_IDENTITIES: { name: string; email: string; phone: string }[] = [
   { name: "Sarah Wilson", email: "sarah.wilson1@gmail.com", phone: "+91 97654 32109" },
 ];
 
-export function BasicDashboardView({ locationId, masked = true }: { locationId?: string; masked?: boolean }) {
+export function BasicDashboardView({
+  locationId,
+  masked = true,
+}: {
+  locationId?: string;
+  masked?: boolean;
+}) {
   void locationId;
   const kpis = [
     { l: "Online Users", v: "1,247", t: "primary" as const },
@@ -70,20 +110,50 @@ export function BasicDashboardView({ locationId, masked = true }: { locationId?:
          * genuinely-hero KPI tile ("Online Users" -- the same headline
          * number c.index.tsx's own hero calls "Online right now"), not on
          * every tile in the row. */}
-        {kpis.map((k, i) => <StatCard key={k.l} label={k.l} value={k.v} tone={k.t} highlight={i === 0} />)}
+        {kpis.map((k, i) => (
+          <StatCard key={k.l} label={k.l} value={k.v} tone={k.t} highlight={i === 0} />
+        ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-2xl">
-          <CardHeader><CardTitle className="text-base">Recent Users</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Users</CardTitle>
+          </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Time</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {users.map((u) => (
                   <TableRow key={u.n}>
-                    <TableCell><p className="text-sm font-medium">{u.n}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.e) : u.e}</p></TableCell>
+                    <TableCell>
+                      <p className="text-sm font-medium">{u.n}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {masked ? maskEmail(u.e) : u.e}
+                      </p>
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{u.t}</TableCell>
-                    <TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.s === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.s === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.s}</span></TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-xs font-medium",
+                          u.s === "online" ? "text-emerald-500" : "text-muted-foreground",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            u.s === "online" ? "bg-emerald-500" : "bg-muted-foreground",
+                          )}
+                        />
+                        {u.s}
+                      </span>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -91,11 +161,21 @@ export function BasicDashboardView({ locationId, masked = true }: { locationId?:
           </CardContent>
         </Card>
         <Card className="rounded-2xl">
-          <CardHeader><CardTitle className="text-base">Alerts</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Alerts</CardTitle>
+          </CardHeader>
           <CardContent className="divide-y">
             {alerts.map((a) => (
               <div key={a.m} className="flex items-start gap-3 py-3">
-                {a.t === "error" ? <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" /> : a.t === "warning" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" /> : a.t === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> : <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />}
+                {a.t === "error" ? (
+                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                ) : a.t === "warning" ? (
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                ) : a.t === "success" ? (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                ) : (
+                  <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                )}
                 <p className="text-sm">{a.m}</p>
               </div>
             ))}
@@ -135,19 +215,64 @@ export function BasicUsersView({ masked = true }: { masked?: boolean } = {}) {
   const rows = all.filter((u) => !q || u.name.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="space-y-4">
-      <Input placeholder="Search users…" value={q} onChange={(e) => setQ(e.target.value)} className="h-10 max-w-xs" />
+      <Input
+        placeholder="Search users…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        className="h-10 max-w-xs"
+      />
       <Card className="rounded-2xl">
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><TableHead>User</TableHead><TableHead className="hidden sm:table-cell">Phone</TableHead><TableHead className="hidden sm:table-cell">MAC</TableHead><TableHead>Duration</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead className="hidden sm:table-cell">Phone</TableHead>
+                <TableHead className="hidden sm:table-cell">MAC</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {rows.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell>
-                  <TableCell className="hidden text-xs sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
-                  <TableCell className="hidden font-mono text-xs sm:table-cell">{maskMac(u.mac)}</TableCell>
+                  <TableCell>
+                    <p className="text-sm font-medium">{u.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {masked ? maskEmail(u.email) : u.email}
+                    </p>
+                  </TableCell>
+                  <TableCell className="hidden text-xs sm:table-cell">
+                    {masked ? maskPhone(u.phone) : u.phone}
+                  </TableCell>
+                  <TableCell className="hidden font-mono text-xs sm:table-cell">
+                    {maskMac(u.mac)}
+                  </TableCell>
                   <TableCell className="text-xs">{u.duration}</TableCell>
-                  <TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : u.status === "idle" ? "text-amber-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : u.status === "idle" ? "bg-amber-500" : "bg-muted-foreground")} />{u.status}</span></TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-xs font-medium",
+                        u.status === "online"
+                          ? "text-emerald-500"
+                          : u.status === "idle"
+                            ? "text-amber-500"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          u.status === "online"
+                            ? "bg-emerald-500"
+                            : u.status === "idle"
+                              ? "bg-amber-500"
+                              : "bg-muted-foreground",
+                        )}
+                      />
+                      {u.status}
+                    </span>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -161,7 +286,12 @@ export function BasicUsersView({ masked = true }: { masked?: boolean } = {}) {
 export function BasicAnalyticsView() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {[{ l: "Total Sessions", v: "1,892" }, { l: "Unique Guests", v: "847" }, { l: "Return Rate", v: "34%" }, { l: "Avg Duration", v: "28 min" }].map((k) => (
+      {[
+        { l: "Total Sessions", v: "1,892" },
+        { l: "Unique Guests", v: "847" },
+        { l: "Return Rate", v: "34%" },
+        { l: "Avg Duration", v: "28 min" },
+      ].map((k) => (
         <StatCard key={k.l} label={k.l} value={k.v} tone="primary" />
       ))}
     </div>
@@ -176,10 +306,19 @@ export function BasicDevicesView() {
   ];
   return (
     <Card className="rounded-2xl">
-      <CardHeader><CardTitle className="text-base">Connected Devices</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Connected Devices</CardTitle>
+      </CardHeader>
       <CardContent className="p-0">
         <Table>
-          <TableHeader><TableRow><TableHead>MAC</TableHead><TableHead>IP</TableHead><TableHead>Device</TableHead><TableHead>Last Seen</TableHead></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>MAC</TableHead>
+              <TableHead>IP</TableHead>
+              <TableHead>Device</TableHead>
+              <TableHead>Last Seen</TableHead>
+            </TableRow>
+          </TableHeader>
           <TableBody>
             {devices.map((d) => (
               <TableRow key={d.m}>
@@ -201,7 +340,10 @@ export function BasicDevicesView() {
  * (an owner scanning a mixed list of APs/printers/cameras couldn't tell
  * types apart by color before -- only by the small text label next to
  * the name). Hue choice is otherwise arbitrary; kept distinct per type. */
-export const DEVICE_TYPE_META: Record<DeviceType, { icon: typeof Wifi; gradient: string; text: string }> = {
+export const DEVICE_TYPE_META: Record<
+  DeviceType,
+  { icon: typeof Wifi; gradient: string; text: string }
+> = {
   "Access Point": { icon: Wifi, gradient: "from-sky-500 to-cyan-500", text: "text-sky-500" },
   Printer: { icon: Printer, gradient: "from-amber-500 to-orange-500", text: "text-amber-500" },
   Router: { icon: Router, gradient: "from-indigo-500 to-violet-500", text: "text-indigo-500" },
@@ -209,7 +351,12 @@ export const DEVICE_TYPE_META: Record<DeviceType, { icon: typeof Wifi; gradient:
   Other: { icon: HardDrive, gradient: "from-slate-500 to-slate-600", text: "text-slate-500" },
 };
 
-const emptyHardwareForm = { name: "", mac: "", type: "Access Point" as DeviceType, floor: FLOORS[FLOORS.length - 1] };
+const emptyHardwareForm = {
+  name: "",
+  mac: "",
+  type: "Access Point" as DeviceType,
+  floor: FLOORS[FLOORS.length - 1],
+};
 
 const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
@@ -243,12 +390,41 @@ function HardwareEmptyState() {
     <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
       <svg aria-hidden="true" viewBox="0 0 120 90" className="h-20 w-28" fill="none">
         <ellipse cx="60" cy="78" rx="40" ry="5" fill="#4f46e5" opacity="0.08" />
-        <path d="M50 32a10 10 0 0 1 20 0" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.3" strokeDasharray="2 4" />
-        <path d="M45 42l-6-14" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
-        <path d="M75 42l6-14" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
+        <path
+          d="M50 32a10 10 0 0 1 20 0"
+          stroke="#22d3ee"
+          strokeWidth="2"
+          strokeLinecap="round"
+          fill="none"
+          opacity="0.3"
+          strokeDasharray="2 4"
+        />
+        <path
+          d="M45 42l-6-14"
+          stroke="#a78bfa"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.5"
+        />
+        <path
+          d="M75 42l6-14"
+          stroke="#a78bfa"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.5"
+        />
         <circle cx="39" cy="26" r="2" fill="#a78bfa" opacity="0.5" />
         <circle cx="81" cy="26" r="2" fill="#a78bfa" opacity="0.5" />
-        <rect x="30" y="42" width="60" height="26" rx="8" fill="#f5f0ff" stroke="#4f46e5" strokeWidth="2.5" />
+        <rect
+          x="30"
+          y="42"
+          width="60"
+          height="26"
+          rx="8"
+          fill="#f5f0ff"
+          stroke="#4f46e5"
+          strokeWidth="2.5"
+        />
         <circle cx="42" cy="55" r="2.2" fill="#a78bfa" />
         <circle cx="52" cy="55" r="2.2" fill="#22d3ee" />
         <circle cx="62" cy="55" r="2.2" fill="#f0abfc" />
@@ -256,7 +432,9 @@ function HardwareEmptyState() {
       </svg>
       <div>
         <p className="text-sm font-medium">No hardware set up yet</p>
-        <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Add a device by MAC address to start monitoring it.
+        </p>
       </div>
     </div>
   );
@@ -271,7 +449,10 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!locationId) { toast.error("Select a location first."); return; }
+    if (!locationId) {
+      toast.error("Select a location first.");
+      return;
+    }
     const normalizedMac = normalizeMac(form.mac);
     if (!normalizedMac || !STRICT_MAC_RE.test(normalizedMac)) {
       const msg = "Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF";
@@ -309,158 +490,284 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       await removeDevice(id);
       toast.success(`${name} removed`);
     } catch (err) {
-      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not remove this device.");
+      toast.error(
+        axios.isAxiosError(err) ? toAppError(err).message : "Could not remove this device.",
+      );
     }
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-    <Card className="border-0 shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <HardDrive className="h-3.5 w-3.5 text-white" />
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+    >
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+              <HardDrive className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold tracking-tight">
+                Network Hardware
+              </CardTitle>
+              <CardDescription>
+                Set up Access Points, Printers, and other hardware for this location by MAC address
+                and floor so Device Monitoring can track them.
+              </CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-lg font-semibold tracking-tight">Network Hardware</CardTitle>
-            <CardDescription>Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them.</CardDescription>
-          </div>
-        </div>
-        <Button size="sm" onClick={() => { setMacError(null); setOpen(true); }}><Plus className="h-4 w-4" />Add Device</Button>
-      </CardHeader>
-      <CardContent className="p-0">
-        {loading ? (
-          <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">Loading devices…</div>
-        ) : devices.length === 0 ? (
-          <HardwareEmptyState />
-        ) : (
-        <Table>
-          <TableHeader><TableRow><TableHead>Device</TableHead><TableHead>MAC</TableHead><TableHead>Floor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
-          <TableBody>
-            {devices.map((d) => {
-              const meta = DEVICE_TYPE_META[d.type];
-              const Icon = meta.icon;
-              return (
-                <TableRow key={d.id}>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-2 text-sm font-medium">
-                      {/* `title` moved onto this span -- lucide-react icon
+          <Button
+            size="sm"
+            onClick={() => {
+              setMacError(null);
+              setOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Add Device
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+              Loading devices…
+            </div>
+          ) : devices.length === 0 ? (
+            <HardwareEmptyState />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Device</TableHead>
+                  <TableHead>MAC</TableHead>
+                  <TableHead>Floor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {devices.map((d) => {
+                  const meta = DEVICE_TYPE_META[d.type];
+                  const Icon = meta.icon;
+                  return (
+                    <TableRow key={d.id}>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-2 text-sm font-medium">
+                          {/* `title` moved onto this span -- lucide-react icon
                           components don't accept a `title` prop (it was
                           silently dropped here before, so hovering the icon
                           showed nothing despite the code's apparent intent;
                           confirmed via `tsc`'s TS2322 on the old `<Icon
                           title=.../>`). A real DOM element can carry it. */}
-                      <span title={d.type} className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white", meta.gradient)}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      {d.name}<span className="font-normal text-xs text-muted-foreground">({d.type})</span>
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{d.mac}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
-                  <TableCell>
-                    {/* "unknown" (never observed by the router's own sync
+                          <span
+                            title={d.type}
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
+                              meta.gradient,
+                            )}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          {d.name}
+                          <span className="font-normal text-xs text-muted-foreground">
+                            ({d.type})
+                          </span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {d.mac}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
+                      <TableCell>
+                        {/* "unknown" (never observed by the router's own sync
                         yet -- e.g. just added) gets its own neutral
                         treatment, never lumped in with a confirmed "Down"
                         -- see useMonitoredHardware's own honesty note. */}
-                    <span className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      d.status === "up" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
-                        : d.status === "down" ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
-                        : "border-border bg-muted text-muted-foreground",
-                    )}>
-                      <span className={cn("h-1.5 w-1.5 rounded-full", d.status === "up" ? "bg-emerald-500" : d.status === "down" ? "bg-rose-500" : "bg-muted-foreground/50")} />
-                      {d.status === "up" ? "Up" : d.status === "down" ? "Down" : "Not yet observed"}
-                      {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <button onClick={() => handleRemove(d.id, d.name)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
-                      <Trash2 className="h-3 w-3" />Remove
-                    </button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        )}
-      </CardContent>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                            d.status === "up"
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                              : d.status === "down"
+                                ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+                                : "border-border bg-muted text-muted-foreground",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              d.status === "up"
+                                ? "bg-emerald-500"
+                                : d.status === "down"
+                                  ? "bg-rose-500"
+                                  : "bg-muted-foreground/50",
+                            )}
+                          />
+                          {d.status === "up"
+                            ? "Up"
+                            : d.status === "down"
+                              ? "Down"
+                              : "Not yet observed"}
+                          {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          onClick={() => handleRemove(d.id, d.name)}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remove
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
 
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setMacError(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Network Hardware</DialogTitle>
-            <DialogDescription>Enter the device's MAC address, type, and the floor it's installed on.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submit} className="space-y-5">
-            {/* Identity -- name + MAC grouped in one labeled section with a
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) setMacError(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add Network Hardware</DialogTitle>
+              <DialogDescription>
+                Enter the device's MAC address, type, and the floor it's installed on.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={submit} className="space-y-5">
+              {/* Identity -- name + MAC grouped in one labeled section with a
                 persistent caption under each field, matching this session's
                 LocationPolicies.tsx grouping pattern, instead of the flat
                 un-sectioned field stack this dialog had before. */}
-            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-              <div className="mb-1 flex items-center gap-2">
-                <Tag className="h-4 w-4 text-indigo-500" />
-                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Identify the device</h3>
-              </div>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">A name and MAC address so this device can be told apart from every other one.</p>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="hw-name">Device name</Label>
-                  <Input id="hw-name" placeholder="e.g. AP Lobby North" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                  <p className="text-[11px] text-muted-foreground">Shown across the dashboard instead of the raw MAC address.</p>
+              <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+                <div className="mb-1 flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-indigo-500" />
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Identify the device
+                  </h3>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="hw-mac">MAC address</Label>
-                  <Input
-                    id="hw-mac"
-                    placeholder="AA:BB:CC:DD:EE:FF"
-                    value={form.mac}
-                    onChange={(e) => { setForm({ ...form, mac: e.target.value }); if (macError) setMacError(null); }}
-                    className={cn("font-mono", macError && "border-destructive focus-visible:ring-destructive/20")}
-                    aria-invalid={!!macError}
-                  />
-                  <p className="text-[11px] text-muted-foreground">Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.</p>
-                  {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
+                <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                  A name and MAC address so this device can be told apart from every other one.
+                </p>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="hw-name">Device name</Label>
+                    <Input
+                      id="hw-name"
+                      placeholder="e.g. AP Lobby North"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Shown across the dashboard instead of the raw MAC address.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="hw-mac">MAC address</Label>
+                    <Input
+                      id="hw-mac"
+                      placeholder="AA:BB:CC:DD:EE:FF"
+                      value={form.mac}
+                      onChange={(e) => {
+                        setForm({ ...form, mac: e.target.value });
+                        if (macError) setMacError(null);
+                      }}
+                      className={cn(
+                        "font-mono",
+                        macError && "border-destructive focus-visible:ring-destructive/20",
+                      )}
+                      aria-invalid={!!macError}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.
+                    </p>
+                    {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Type & location -- the "what" and "where", grouped
+              {/* Type & location -- the "what" and "where", grouped
                 separately from identity above so the dialog reads as two
                 clear questions instead of four unrelated-looking fields. */}
-            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-              <div className="mb-1 flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-indigo-500" />
-                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Type &amp; location</h3>
-              </div>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">What kind of hardware this is, and which floor it's installed on.</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Device type</Label>
-                  <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as DeviceType })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{DEVICE_TYPES.map((t) => { const meta = DEVICE_TYPE_META[t]; const Icon = meta.icon; return <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><Icon className={cn("h-3.5 w-3.5", meta.text)} />{t}</span></SelectItem>; })}</SelectContent>
-                  </Select>
+              <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+                <div className="mb-1 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-indigo-500" />
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Type &amp; location
+                  </h3>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Floor</Label>
-                  <Select value={form.floor} onValueChange={(v) => setForm({ ...form, floor: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{FLOORS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-                  </Select>
+                <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                  What kind of hardware this is, and which floor it's installed on.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Device type</Label>
+                    <Select
+                      value={form.type}
+                      onValueChange={(v) => setForm({ ...form, type: v as DeviceType })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEVICE_TYPES.map((t) => {
+                          const meta = DEVICE_TYPE_META[t];
+                          const Icon = meta.icon;
+                          return (
+                            <SelectItem key={t} value={t}>
+                              <span className="inline-flex items-center gap-2">
+                                <Icon className={cn("h-3.5 w-3.5", meta.text)} />
+                                {t}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Floor</Label>
+                    <Select
+                      value={form.floor}
+                      onValueChange={(v) => setForm({ ...form, floor: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FLOORS.map((f) => (
+                          <SelectItem key={f} value={f}>
+                            {f}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Adding…" : "Add Device"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </Card>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? "Adding…" : "Add Device"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </Card>
     </motion.div>
   );
 }
@@ -480,12 +787,19 @@ export function BasicAuditView({ masked = true }: { masked?: boolean } = {}) {
   ];
   return (
     <Card className="rounded-2xl">
-      <CardHeader><CardTitle className="text-base">Audit Trail</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Audit Trail</CardTitle>
+      </CardHeader>
       <CardContent className="divide-y">
         {items.map((ev, i) => (
           <div key={i} className="flex items-start gap-3 py-3">
             <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-            <div className="min-w-0 flex-1"><p className="text-sm">{ev.a}</p><p className="truncate text-xs text-muted-foreground">{ev.guest && masked ? maskEmail(ev.w) : ev.w} · {ev.t}</p></div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">{ev.a}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {ev.guest && masked ? maskEmail(ev.w) : ev.w} · {ev.t}
+              </p>
+            </div>
           </div>
         ))}
       </CardContent>
@@ -496,12 +810,23 @@ export function BasicAuditView({ masked = true }: { masked?: boolean } = {}) {
 export function BasicHelpView() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[{ n: "Documentation", d: "Guides and API reference" }, { n: "FAQs", d: "Frequently asked questions" }, { n: "Raise Ticket", d: "Contact support" }].map((h) => (
+      {[
+        { n: "Documentation", d: "Guides and API reference" },
+        { n: "FAQs", d: "Frequently asked questions" },
+        { n: "Raise Ticket", d: "Contact support" },
+      ].map((h) => (
         <Card key={h.n} className="rounded-2xl transition-shadow hover:shadow-md">
           <CardContent className="p-5">
             <p className="font-semibold">{h.n}</p>
             <p className="mt-1 text-xs text-muted-foreground">{h.d}</p>
-            <Button size="sm" variant="outline" className="mt-3 h-7 text-xs" onClick={() => toast.success(`Opening ${h.n}`)}>Open</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-3 h-7 text-xs"
+              onClick={() => toast.success(`Opening ${h.n}`)}
+            >
+              Open
+            </Button>
           </CardContent>
         </Card>
       ))}

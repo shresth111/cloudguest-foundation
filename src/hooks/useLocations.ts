@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { locationService } from "@/services/location.service";
-import type { CreateLocationPayload, LocationListQuery, LocationStatus, ProvisionLocationPayload } from "@/types/location";
+import type {
+  CreateLocationPayload,
+  LocationListQuery,
+  LocationStatus,
+  ProvisionLocationPayload,
+} from "@/types/location";
 
 export const locationKeys = {
   all: ["locations"] as const,
@@ -40,8 +45,13 @@ export function useCreateLocation() {
     // GET /organizations 403s (see location.service.ts's create() docstring)
     // and would otherwise surface as a false "failed to create" error even
     // though the location was created successfully.
-    mutationFn: ({ payload, knownOrgName }: { payload: CreateLocationPayload; knownOrgName?: string }) =>
-      locationService.create(payload, knownOrgName),
+    mutationFn: ({
+      payload,
+      knownOrgName,
+    }: {
+      payload: CreateLocationPayload;
+      knownOrgName?: string;
+    }) => locationService.create(payload, knownOrgName),
     onSuccess: () => qc.invalidateQueries({ queryKey: locationKeys.all }),
   });
 }

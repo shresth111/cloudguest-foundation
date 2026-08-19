@@ -48,7 +48,11 @@ import {
   useOrgLocationLookup,
   useUpdateIncident,
 } from "@/hooks/useMonitoring";
-import { INCIDENT_STATUS_TRANSITIONS, type Incident, type IncidentStatus } from "@/types/monitoring";
+import {
+  INCIDENT_STATUS_TRANSITIONS,
+  type Incident,
+  type IncidentStatus,
+} from "@/types/monitoring";
 import type { AppError } from "@/services/api";
 
 const CREATE_DEFAULTS: IncidentFormValues = {
@@ -98,7 +102,11 @@ export function IncidentManagement() {
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {incidents.map((i) => (
-            <Card key={i.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelected(i)}>
+            <Card
+              key={i.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => setSelected(i)}
+            >
               <CardHeader className="pb-2">
                 <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="flex-1">{i.title}</span>
@@ -130,19 +138,37 @@ export function IncidentManagement() {
             Page {data.page} of {data.totalPages}
           </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!data.hasPrevious}
+              onClick={() => setPage((p) => p - 1)}
+            >
               Previous
             </Button>
-            <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!data.hasNext}
+              onClick={() => setPage((p) => p + 1)}
+            >
               Next
             </Button>
           </div>
         </div>
       )}
 
-      <CreateIncidentDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={() => refetch()} />
+      <CreateIncidentDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => refetch()}
+      />
       {selected && (
-        <IncidentDetailDialog incident={selected} onClose={() => setSelected(null)} onChanged={() => refetch()} />
+        <IncidentDetailDialog
+          incident={selected}
+          onClose={() => setSelected(null)}
+          onChanged={() => refetch()}
+        />
       )}
     </div>
   );
@@ -355,7 +381,10 @@ function IncidentDetailDialog({
           <DialogTitle>{incident.title}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(submit)} className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+          <form
+            onSubmit={form.handleSubmit(submit)}
+            className="max-h-[70vh] space-y-4 overflow-y-auto pr-1"
+          >
             <FormField
               control={form.control}
               name="title"
@@ -435,7 +464,9 @@ function IncidentDetailDialog({
 
             <div className="space-y-2 rounded-lg border p-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Attached alerts ({attachedAlerts?.length ?? 0})</span>
+                <span className="text-sm font-medium">
+                  Attached alerts ({attachedAlerts?.length ?? 0})
+                </span>
               </div>
               {(attachedAlerts ?? []).map((a) => (
                 <div key={a.id} className="flex items-center justify-between text-xs">

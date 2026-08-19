@@ -13,7 +13,7 @@ function Page() {
         title="Guest Analytics"
         description="Guest behavior, repeat visit rate, dwell time and demographic segmentation."
         icon={Users}
-        bullets={["Repeat vs new","Dwell heatmaps","Segments"]}
+        bullets={["Repeat vs new", "Dwell heatmaps", "Segments"]}
       />
     </PageShell>
   );

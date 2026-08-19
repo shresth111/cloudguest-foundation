@@ -32,17 +32,20 @@ function BillingPage() {
 
   function handleDownload(invoiceId: string, invoiceNumber: string) {
     setDownloadingId(invoiceId);
-    download.mutate({ id: invoiceId, organizationId: customer?.organizationId }, {
-      onSuccess: ({ url, fileName }) => {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        toast.success(`Downloading ${invoiceNumber}`);
+    download.mutate(
+      { id: invoiceId, organizationId: customer?.organizationId },
+      {
+        onSuccess: ({ url, fileName }) => {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          toast.success(`Downloading ${invoiceNumber}`);
+        },
+        onError: () => toast.error("Could not download the invoice PDF."),
+        onSettled: () => setDownloadingId(null),
       },
-      onError: () => toast.error("Could not download the invoice PDF."),
-      onSettled: () => setDownloadingId(null),
-    });
+    );
   }
 
   return (

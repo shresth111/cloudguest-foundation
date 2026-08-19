@@ -83,7 +83,14 @@ const ROLES: IspLinkRole[] = ["primary", "backup"];
 // than re-deriving a second copy that could drift from this one -- this
 // file (the Master Console's own /network/isp page) keeps its own
 // IspManagement component and full CRUD UI unchanged.
-export const RULE_TYPES: IspRoutingRuleType[] = ["vlan", "user", "ip", "source", "interface", "policy"];
+export const RULE_TYPES: IspRoutingRuleType[] = [
+  "vlan",
+  "user",
+  "ip",
+  "source",
+  "interface",
+  "policy",
+];
 
 function healthTone(status: string): "default" | "destructive" | "secondary" {
   if (status === "healthy") return "default";
@@ -155,7 +162,12 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Uplinks" value={links?.total ?? 0} icon={Cable} tone="primary" />
         <StatCard label="Healthy" value={healthyCount} icon={ShieldCheck} tone="success" />
-        <StatCard label="Unhealthy / Unknown" value={rows.length - healthyCount} icon={ShieldOff} tone="warning" />
+        <StatCard
+          label="Unhealthy / Unknown"
+          value={rows.length - healthyCount}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -238,14 +250,20 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                 <TableBody>
                   {linksLoading && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={7}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         Loading…
                       </TableCell>
                     </TableRow>
                   )}
                   {!linksLoading && rows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={7}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         No uplinks for this router yet.
                       </TableCell>
                     </TableRow>
@@ -256,7 +274,9 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                         <div className="font-medium">{l.providerName}</div>
                         <div className="text-xs text-muted-foreground">{l.linkType}</div>
                       </TableCell>
-                      <TableCell className="text-xs uppercase text-muted-foreground">{l.role}</TableCell>
+                      <TableCell className="text-xs uppercase text-muted-foreground">
+                        {l.role}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={l.isActiveUplink ? "default" : "secondary"}>
                           {l.isActiveUplink ? "Active" : "Standby"}
@@ -284,7 +304,9 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                                 await checkHealth.mutateAsync(l.id);
                                 toast.success("Health check completed");
                               } catch (err) {
-                                toast.error(humanizeApiError(err as AppError, "Health check failed"));
+                                toast.error(
+                                  humanizeApiError(err as AppError, "Health check failed"),
+                                );
                               }
                             }}
                           >
@@ -293,7 +315,11 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                           <Button size="icon" variant="ghost" onClick={() => setEditingLink(l)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => setConfirmDeleteLink(l)}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setConfirmDeleteLink(l)}
+                          >
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </div>
@@ -328,14 +354,20 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                 <TableBody>
                   {rulesLoading && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={7}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         Loading…
                       </TableCell>
                     </TableRow>
                   )}
                   {!rulesLoading && ruleRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={7}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         No routing rules for this router yet.
                       </TableCell>
                     </TableRow>
@@ -343,12 +375,21 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                   {ruleRows.map((r) => (
                     <TableRow key={r.id} className="group">
                       <TableCell className="font-medium">{r.name}</TableCell>
-                      <TableCell className="text-xs uppercase text-muted-foreground">{r.ruleType}</TableCell>
+                      <TableCell className="text-xs uppercase text-muted-foreground">
+                        {r.ruleType}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {r.vlanId ?? r.sourceMacAddress ?? r.ipAddress ?? r.sourceCidr ?? r.interfaceName ?? r.policyId ?? "—"}
+                        {r.vlanId ??
+                          r.sourceMacAddress ??
+                          r.ipAddress ??
+                          r.sourceCidr ??
+                          r.interfaceName ??
+                          r.policyId ??
+                          "—"}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {rows.find((l) => l.id === r.ispLinkId)?.providerName ?? r.ispLinkId.slice(0, 8)}
+                        {rows.find((l) => l.id === r.ispLinkId)?.providerName ??
+                          r.ispLinkId.slice(0, 8)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{r.priority}</TableCell>
                       <TableCell>
@@ -361,7 +402,11 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
                           <Button size="icon" variant="ghost" onClick={() => setEditingRule(r)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => setConfirmDeleteRule(r)}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setConfirmDeleteRule(r)}
+                          >
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </div>
@@ -396,7 +441,10 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
         }}
       />
 
-      <AlertDialog open={!!confirmDeleteLink} onOpenChange={(o) => !o && setConfirmDeleteLink(null)}>
+      <AlertDialog
+        open={!!confirmDeleteLink}
+        onOpenChange={(o) => !o && setConfirmDeleteLink(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete uplink "{confirmDeleteLink?.providerName}"?</AlertDialogTitle>
@@ -422,7 +470,10 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!confirmDeleteRule} onOpenChange={(o) => !o && setConfirmDeleteRule(null)}>
+      <AlertDialog
+        open={!!confirmDeleteRule}
+        onOpenChange={(o) => !o && setConfirmDeleteRule(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete rule "{confirmDeleteRule?.name}"?</AlertDialogTitle>
@@ -520,7 +571,9 @@ function LinkDialog({
         priority: v.priority,
         interface: v.interface || null,
         gatewayIpAddress: v.gatewayIpAddress || null,
-        downloadBandwidthMbps: Number.isNaN(v.downloadBandwidthMbps) ? null : v.downloadBandwidthMbps,
+        downloadBandwidthMbps: Number.isNaN(v.downloadBandwidthMbps)
+          ? null
+          : v.downloadBandwidthMbps,
         uploadBandwidthMbps: Number.isNaN(v.uploadBandwidthMbps) ? null : v.uploadBandwidthMbps,
         autoFailback: v.autoFailback,
       };
@@ -549,7 +602,9 @@ function LinkDialog({
             <Label className="text-xs font-medium">Provider name</Label>
             <Input {...form.register("providerName")} placeholder="Airtel Business" />
             {form.formState.errors.providerName && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.providerName.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.providerName.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -563,10 +618,14 @@ function LinkDialog({
               name="role"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => (
-                      <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                      <SelectItem key={r} value={r} className="capitalize">
+                        {r}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -583,24 +642,34 @@ function LinkDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Gateway IP (optional)</Label>
-            <Input {...form.register("gatewayIpAddress")} placeholder="203.0.113.1" className="font-mono" />
+            <Input
+              {...form.register("gatewayIpAddress")}
+              placeholder="203.0.113.1"
+              className="font-mono"
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Download (Mbps, optional)</Label>
             <Input type="number" min={0} {...form.register("downloadBandwidthMbps")} />
-            <p className="text-[11px] text-muted-foreground">As advertised by your ISP — not independently measured.</p>
+            <p className="text-[11px] text-muted-foreground">
+              As advertised by your ISP — not independently measured.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Upload (Mbps, optional)</Label>
             <Input type="number" min={0} {...form.register("uploadBandwidthMbps")} />
-            <p className="text-[11px] text-muted-foreground">As advertised by your ISP — not independently measured.</p>
+            <p className="text-[11px] text-muted-foreground">
+              As advertised by your ISP — not independently measured.
+            </p>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
             <div className="text-sm font-medium">Auto failback</div>
             <Controller
               control={form.control}
               name="autoFailback"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           {link && (
@@ -609,7 +678,9 @@ function LinkDialog({
               <Controller
                 control={form.control}
                 name="isEnabled"
-                render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
               />
             </div>
           )}
@@ -640,17 +711,31 @@ type RuleFormValues = z.infer<typeof ruleSchema>;
 
 export function matchFieldLabel(t: IspRoutingRuleType): string {
   switch (t) {
-    case "vlan": return "VLAN ID";
-    case "user": return "Source MAC address";
-    case "ip": return "IP address";
-    case "source": return "Source CIDR";
-    case "interface": return "Interface name";
-    case "policy": return "Policy ID";
+    case "vlan":
+      return "VLAN ID";
+    case "user":
+      return "Source MAC address";
+    case "ip":
+      return "IP address";
+    case "source":
+      return "Source CIDR";
+    case "interface":
+      return "Interface name";
+    case "policy":
+      return "Policy ID";
   }
 }
 
 export function matchValueFromRule(r: IspRoutingRule): string {
-  return String(r.vlanId ?? r.sourceMacAddress ?? r.ipAddress ?? r.sourceCidr ?? r.interfaceName ?? r.policyId ?? "");
+  return String(
+    r.vlanId ??
+      r.sourceMacAddress ??
+      r.ipAddress ??
+      r.sourceCidr ??
+      r.interfaceName ??
+      r.policyId ??
+      "",
+  );
 }
 
 function RuleDialog({
@@ -749,17 +834,23 @@ function RuleDialog({
               name="ispLinkId"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue placeholder="Select uplink" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select uplink" />
+                  </SelectTrigger>
                   <SelectContent>
                     {links.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>{l.providerName}</SelectItem>
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.providerName}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
             {form.formState.errors.ispLinkId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.ispLinkId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.ispLinkId.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -769,10 +860,14 @@ function RuleDialog({
               name="ruleType"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {RULE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                      <SelectItem key={t} value={t} className="capitalize">
+                        {t}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -783,7 +878,9 @@ function RuleDialog({
             <Label className="text-xs font-medium">{matchFieldLabel(ruleType)}</Label>
             <Input {...form.register("matchValue")} className="font-mono" />
             {form.formState.errors.matchValue && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.matchValue.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.matchValue.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -796,7 +893,9 @@ function RuleDialog({
               <Controller
                 control={form.control}
                 name="isEnabled"
-                render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+                render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                )}
               />
             </div>
           )}

@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Cloud, Building2, MapPin, Router, Wifi, Users, GitCompareArrows,
-} from "lucide-react";
+import { Cloud, Building2, MapPin, Router, Wifi, Users, GitCompareArrows } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -21,34 +19,90 @@ const SWITCH = GitCompareArrows;
 
 const TOPOLOGY: TopologyNode[] = [
   {
-    id: "cloud", label: "CloudGuest Cloud", type: "cloud", icon: Cloud, status: "online",
+    id: "cloud",
+    label: "CloudGuest Cloud",
+    type: "cloud",
+    icon: Cloud,
+    status: "online",
     children: [
       {
-        id: "org", label: "Acme Corp", type: "org", icon: Building2, status: "online",
+        id: "org",
+        label: "Acme Corp",
+        type: "org",
+        icon: Building2,
+        status: "online",
         children: [
           {
-            id: "loc-1", label: "Mumbai HQ", type: "location", icon: MapPin, status: "online",
+            id: "loc-1",
+            label: "Mumbai HQ",
+            type: "location",
+            icon: MapPin,
+            status: "online",
             children: [
               {
-                id: "rtr-1", label: "GW-01 (Mumbai)", type: "router", icon: Router, status: "online",
+                id: "rtr-1",
+                label: "GW-01 (Mumbai)",
+                type: "router",
+                icon: Router,
+                status: "online",
                 children: [
-                  { id: "sw-1", label: "SW-Floor-1", type: "switch", icon: SWITCH, status: "online", children: [
-                    { id: "ap-1", label: "AP-Lobby", type: "ap", icon: Wifi, status: "online" },
-                    { id: "ap-2", label: "AP-Floor-2", type: "ap", icon: Wifi, status: "degraded" },
-                    { id: "ap-3", label: "AP-Floor-3", type: "ap", icon: Wifi, status: "online" },
-                  ]},
-                  { id: "sw-2", label: "SW-Floor-2", type: "switch", icon: SWITCH, status: "degraded" },
+                  {
+                    id: "sw-1",
+                    label: "SW-Floor-1",
+                    type: "switch",
+                    icon: SWITCH,
+                    status: "online",
+                    children: [
+                      { id: "ap-1", label: "AP-Lobby", type: "ap", icon: Wifi, status: "online" },
+                      {
+                        id: "ap-2",
+                        label: "AP-Floor-2",
+                        type: "ap",
+                        icon: Wifi,
+                        status: "degraded",
+                      },
+                      { id: "ap-3", label: "AP-Floor-3", type: "ap", icon: Wifi, status: "online" },
+                    ],
+                  },
+                  {
+                    id: "sw-2",
+                    label: "SW-Floor-2",
+                    type: "switch",
+                    icon: SWITCH,
+                    status: "degraded",
+                  },
                 ],
               },
-              { id: "rtr-2", label: "GW-02 (Mumbai)", type: "router", icon: Router, status: "offline" },
+              {
+                id: "rtr-2",
+                label: "GW-02 (Mumbai)",
+                type: "router",
+                icon: Router,
+                status: "offline",
+              },
             ],
           },
           {
-            id: "loc-2", label: "Delhi Office", type: "location", icon: MapPin, status: "online",
+            id: "loc-2",
+            label: "Delhi Office",
+            type: "location",
+            icon: MapPin,
+            status: "online",
             children: [
-              { id: "rtr-3", label: "GW-03 (Delhi)", type: "router", icon: Router, status: "online",
+              {
+                id: "rtr-3",
+                label: "GW-03 (Delhi)",
+                type: "router",
+                icon: Router,
+                status: "online",
                 children: [
-                  { id: "sw-3", label: "SW-Ground", type: "switch", icon: SWITCH, status: "online" },
+                  {
+                    id: "sw-3",
+                    label: "SW-Ground",
+                    type: "switch",
+                    icon: SWITCH,
+                    status: "online",
+                  },
                 ],
               },
             ],
@@ -60,13 +114,29 @@ const TOPOLOGY: TopologyNode[] = [
 ];
 
 const STATUS_COLORS = {
-  online: { dot: "bg-emerald-500", bg: "bg-emerald-500/10 text-emerald-600", border: "border-emerald-500/30" },
-  degraded: { dot: "bg-amber-500", bg: "bg-amber-500/10 text-amber-600", border: "border-amber-500/30" },
+  online: {
+    dot: "bg-emerald-500",
+    bg: "bg-emerald-500/10 text-emerald-600",
+    border: "border-emerald-500/30",
+  },
+  degraded: {
+    dot: "bg-amber-500",
+    bg: "bg-amber-500/10 text-amber-600",
+    border: "border-amber-500/30",
+  },
   offline: { dot: "bg-rose-500", bg: "bg-rose-500/10 text-rose-600", border: "border-rose-500/30" },
 };
 
 const LEVEL_ICONS = [Cloud, Building2, MapPin, Router, SWITCH, Wifi, Users] as const;
-const LEVEL_LABELS = ["Cloud", "Organization", "Location", "Router", "Switch", "Access Point", "Clients"] as const;
+const LEVEL_LABELS = [
+  "Cloud",
+  "Organization",
+  "Location",
+  "Router",
+  "Switch",
+  "Access Point",
+  "Clients",
+] as const;
 
 function NodeRow({ node, depth = 0 }: { node: TopologyNode; depth?: number }) {
   const [expanded, setExpanded] = useState(true);
@@ -88,10 +158,7 @@ function NodeRow({ node, depth = 0 }: { node: TopologyNode; depth?: number }) {
       >
         <button
           onClick={() => setExpanded(!expanded)}
-          className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-lg",
-            colors.bg,
-          )}
+          className={cn("flex h-9 w-9 items-center justify-center rounded-lg", colors.bg)}
         >
           <Icon className="h-4 w-4" />
         </button>
@@ -145,7 +212,10 @@ export function DeviceTopology() {
       {/* Hierarchy levels indicator */}
       <div className="flex flex-wrap gap-2">
         {LEVEL_LABELS.map((label, i) => (
-          <div key={label} className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
+          <div
+            key={label}
+            className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
+          >
             {i > 0 && <span className="text-muted-foreground/40">→</span>}
             {label}
           </div>

@@ -24,7 +24,9 @@ export function PortalVersionHistory({ portal }: { portal: Portal }) {
                 <span className="h-2 w-2 rounded-full bg-primary" />
               </span>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium">v{v.version} — {v.label}</div>
+                <div className="text-sm font-medium">
+                  v{v.version} — {v.label}
+                </div>
                 <PortalStatusBadge status={v.status} />
                 {portal.currentVersion === v.version && <Badge variant="secondary">Current</Badge>}
               </div>
@@ -33,7 +35,12 @@ export function PortalVersionHistory({ portal }: { portal: Portal }) {
               </div>
               {v.notes && <p className="mt-1 text-xs text-muted-foreground">{v.notes}</p>}
               {portal.currentVersion !== v.version && (
-                <Button size="sm" variant="outline" className="mt-2" onClick={() => restore.mutate(v.id)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => restore.mutate(v.id)}
+                >
                   <RotateCcw className="mr-2 h-3.5 w-3.5" /> Restore this version
                 </Button>
               )}

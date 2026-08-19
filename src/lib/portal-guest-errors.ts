@@ -30,7 +30,8 @@ const RAW_VALIDATION_MESSAGE = "Request validation failed";
 const RAW_IDENTIFIER_PATTERN = /is not a valid identifier for channel/i;
 
 const FRIENDLY_BY_CONTEXT: Record<GuestAuthErrorContext, string> = {
-  otp_request: "That doesn't look like a valid mobile number or email address -- please check it and try again.",
+  otp_request:
+    "That doesn't look like a valid mobile number or email address -- please check it and try again.",
   otp_verify: "That code didn't match -- check your messages and try again.",
   password: "Please double-check your phone number/email and password and try again.",
   voucher: "That voucher code doesn't look right -- please check it and try again.",
@@ -43,6 +44,7 @@ const FRIENDLY_BY_CONTEXT: Record<GuestAuthErrorContext, string> = {
 
 export function friendlyGuestAuthError(e: AppError, context: GuestAuthErrorContext): string {
   const isRawValidationError =
-    e.status === 422 && (e.message === RAW_VALIDATION_MESSAGE || RAW_IDENTIFIER_PATTERN.test(e.message));
+    e.status === 422 &&
+    (e.message === RAW_VALIDATION_MESSAGE || RAW_IDENTIFIER_PATTERN.test(e.message));
   return isRawValidationError ? FRIENDLY_BY_CONTEXT[context] : e.message;
 }

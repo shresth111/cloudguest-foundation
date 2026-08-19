@@ -114,10 +114,15 @@ function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: strin
   }
 
   const badgeTone =
-    item.badge?.tone === "primary" ? "default" :
-    item.badge?.tone === "success" ? "default" :
-    item.badge?.tone === "warning" ? "secondary" :
-    item.badge?.tone === "danger" ? "destructive" : "outline";
+    item.badge?.tone === "primary"
+      ? "default"
+      : item.badge?.tone === "success"
+        ? "default"
+        : item.badge?.tone === "warning"
+          ? "secondary"
+          : item.badge?.tone === "danger"
+            ? "destructive"
+            : "outline";
 
   return (
     <SidebarMenuItem>

@@ -1,11 +1,28 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Smartphone, Laptop, Calendar, Search, Pencil, Trash2, ChevronLeft, ChevronRight, ShieldCheck, User } from "lucide-react";
+import {
+  Smartphone,
+  Laptop,
+  Calendar,
+  Search,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
@@ -48,7 +65,7 @@ type Tab = "number" | "device";
 interface Entry {
   id: string;
   tab: Tab;
-  identifier: string;        // mobile number (number tab) or MAC (device tab)
+  identifier: string; // mobile number (number tab) or MAC (device tab)
   name: string;
   email: string;
   businessUnit: string;
@@ -73,9 +90,36 @@ type Errors = Partial<Record<keyof FormData, string>>;
 // moments (server module load vs. client bundle load) and hydration-
 // mismatches the instant those two moments land in different minutes.
 const SEED: Entry[] = [
-  { id: "s1", tab: "number", identifier: "9876543210", name: "Ravi Sharma", email: "ravi@example.com", businessUnit: "Mumbai HQ", startDate: "2026-07-22T10:00", endDate: "2026-07-26T10:00" },
-  { id: "s2", tab: "number", identifier: "8765432109", name: "Priya Kapoor", email: "priya@example.com", businessUnit: "Delhi Office", startDate: "2026-07-21T09:00", endDate: "2026-07-30T09:00" },
-  { id: "s3", tab: "device", identifier: "AA:BB:CC:DD:EE:FF", name: "Office Printer", email: "it@example.com", businessUnit: "Chennai Office", startDate: "2026-06-23T08:00", endDate: "2026-07-21T08:00" },
+  {
+    id: "s1",
+    tab: "number",
+    identifier: "9876543210",
+    name: "Ravi Sharma",
+    email: "ravi@example.com",
+    businessUnit: "Mumbai HQ",
+    startDate: "2026-07-22T10:00",
+    endDate: "2026-07-26T10:00",
+  },
+  {
+    id: "s2",
+    tab: "number",
+    identifier: "8765432109",
+    name: "Priya Kapoor",
+    email: "priya@example.com",
+    businessUnit: "Delhi Office",
+    startDate: "2026-07-21T09:00",
+    endDate: "2026-07-30T09:00",
+  },
+  {
+    id: "s3",
+    tab: "device",
+    identifier: "AA:BB:CC:DD:EE:FF",
+    name: "Office Printer",
+    email: "it@example.com",
+    businessUnit: "Chennai Office",
+    startDate: "2026-06-23T08:00",
+    endDate: "2026-07-21T08:00",
+  },
 ];
 
 /**
@@ -98,14 +142,46 @@ const SEED: Entry[] = [
 function TrustedAccessIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 84 56" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 84 56"
+      className="hidden h-14 w-auto shrink-0 sm:block"
+      fill="none"
+    >
       {/* turnstile / gate */}
-      <rect x="52" y="8" width="6" height="40" rx="2.5" fill="#241f4d" stroke="#a78bfa" strokeOpacity="0.4" strokeWidth="1.3" />
-      <rect x="74" y="8" width="6" height="40" rx="2.5" fill="#241f4d" stroke="#a78bfa" strokeOpacity="0.4" strokeWidth="1.3" />
+      <rect
+        x="52"
+        y="8"
+        width="6"
+        height="40"
+        rx="2.5"
+        fill="#241f4d"
+        stroke="#a78bfa"
+        strokeOpacity="0.4"
+        strokeWidth="1.3"
+      />
+      <rect
+        x="74"
+        y="8"
+        width="6"
+        height="40"
+        rx="2.5"
+        fill="#241f4d"
+        stroke="#a78bfa"
+        strokeOpacity="0.4"
+        strokeWidth="1.3"
+      />
       <motion.rect
-        x="52" y="14" width="28" height="4" rx="2" fill="#22d3ee"
+        x="52"
+        y="14"
+        width="28"
+        height="4"
+        rx="2"
+        fill="#22d3ee"
         animate={shouldReduceMotion ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
-        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        transition={
+          shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+        }
       />
 
       {/* trusted phone, drifting through the gate */}
@@ -114,12 +190,25 @@ function TrustedAccessIllustration() {
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
       >
-        <rect x="8" y="16" width="22" height="30" rx="4.5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.4" />
+        <rect
+          x="8"
+          y="16"
+          width="22"
+          height="30"
+          rx="4.5"
+          fill="#2e2a5c"
+          stroke="#a78bfa"
+          strokeWidth="1.4"
+        />
         <rect x="11.5" y="20.5" width="15" height="19" rx="1.5" fill="#1e1b4b" />
         <circle cx="19" cy="30" r="6" fill="#10b981" fillOpacity="0.2" />
         <motion.path
           d="M16.2 30l2 2 3.8-4"
-          stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
+          stroke="#10b981"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
           initial={shouldReduceMotion ? false : { pathLength: 0 }}
           animate={{ pathLength: 1 }}
           transition={{ duration: 0.5, delay: 0.3, ease: "easeOut" }}
@@ -131,10 +220,17 @@ function TrustedAccessIllustration() {
         <motion.path
           key={i}
           d={`M${36 + i * 7} 30a2.5 2.5 0 0 1 0-3`}
-          stroke="#f0abfc" strokeOpacity="0.7" strokeWidth="1.8" strokeLinecap="round"
+          stroke="#f0abfc"
+          strokeOpacity="0.7"
+          strokeWidth="1.8"
+          strokeLinecap="round"
           initial={shouldReduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: [0, 1, 0] }}
-          transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.6, repeat: Infinity, delay: i * 0.3, ease: "easeInOut" }}
+          transition={
+            shouldReduceMotion
+              ? { duration: 0 }
+              : { duration: 1.6, repeat: Infinity, delay: i * 0.3, ease: "easeInOut" }
+          }
         />
       ))}
     </svg>
@@ -145,7 +241,8 @@ const PAGE_SIZE = 5;
 // Only the table's own search box (below) still uses this hand-rolled
 // className -- the form fields above now use the platform Input/Select/
 // Label primitives (see the "Who's Allowed"/"Access Window" sections).
-const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
+const inputCls =
+  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 function toEntry(r: AnyAccessRule): Entry {
   return {
@@ -177,7 +274,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const [entries, setEntries] = useState<Entry[]>(demo ? SEED : []);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [f, setF] = useState<FormData>({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: demo ? UNITS[0] : "", startDate: "", endDate: "" });
+  const [f, setF] = useState<FormData>({
+    mobileCC: "+91",
+    mobile: "",
+    mac: "",
+    name: "",
+    email: "",
+    businessUnit: demo ? UNITS[0] : "",
+    startDate: "",
+    endDate: "",
+  });
   const [errs, setErrs] = useState<Errors>({});
   const [toast, setToast] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -233,7 +339,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // ── filtered + paginated ──────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return entries.filter(e => e.tab === tab && (!q || e.name.toLowerCase().includes(q) || e.identifier.toLowerCase().includes(q) || e.businessUnit.toLowerCase().includes(q)) );
+    return entries.filter(
+      (e) =>
+        e.tab === tab &&
+        (!q ||
+          e.name.toLowerCase().includes(q) ||
+          e.identifier.toLowerCase().includes(q) ||
+          e.businessUnit.toLowerCase().includes(q)),
+    );
   }, [entries, tab, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -244,7 +357,8 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const validate = (): Errors => {
     const e: Errors = {};
     if (tab === "number") {
-      if (!f.mobile || f.mobile.length !== 10 || !/^\d{10}$/.test(f.mobile)) e.mobile = "Mobile must be exactly 10 digits.";
+      if (!f.mobile || f.mobile.length !== 10 || !/^\d{10}$/.test(f.mobile))
+        e.mobile = "Mobile must be exactly 10 digits.";
     } else {
       if (!f.mac || !MAC_RE.test(f.mac)) e.mac = "MAC must match AA:BB:CC:DD:EE:FF";
     }
@@ -252,11 +366,19 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     if (!f.email || !EMAIL_RE.test(f.email)) e.email = "Enter a valid email address.";
     if (!f.startDate) e.startDate = "Start date is required.";
     if (!f.endDate) e.endDate = "End date is required.";
-    if (f.startDate && f.endDate && new Date(f.endDate) <= new Date(f.startDate)) e.endDate = "End date must be after the start date.";
+    if (f.startDate && f.endDate && new Date(f.endDate) <= new Date(f.startDate))
+      e.endDate = "End date must be after the start date.";
     return e;
   };
 
-  const setField = (k: keyof FormData, v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(p => { const n = { ...p }; delete n[k]; return n; }); };
+  const setField = (k: keyof FormData, v: string) => {
+    setF((p) => ({ ...p, [k]: v }));
+    setErrs((p) => {
+      const n = { ...p };
+      delete n[k];
+      return n;
+    });
+  };
 
   // ── submit ────────────────────────────────────────────────────
   const handleSubmit = async (ev: React.FormEvent) => {
@@ -266,14 +388,48 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     if (Object.keys(v).length) return;
 
     const identifier = tab === "number" ? f.mobile : f.mac.toUpperCase();
-    const resetForm = () => setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: demo ? UNITS[0] : (units[0] ?? ""), startDate: "", endDate: "" });
+    const resetForm = () =>
+      setF({
+        mobileCC: "+91",
+        mobile: "",
+        mac: "",
+        name: "",
+        email: "",
+        businessUnit: demo ? UNITS[0] : (units[0] ?? ""),
+        startDate: "",
+        endDate: "",
+      });
     if (demo) {
       if (editingId) {
-        setEntries(p => p.map(x => x.id === editingId ? { ...x, tab, identifier, name: f.name, email: f.email, businessUnit: f.businessUnit, startDate: f.startDate, endDate: f.endDate } : x));
+        setEntries((p) =>
+          p.map((x) =>
+            x.id === editingId
+              ? {
+                  ...x,
+                  tab,
+                  identifier,
+                  name: f.name,
+                  email: f.email,
+                  businessUnit: f.businessUnit,
+                  startDate: f.startDate,
+                  endDate: f.endDate,
+                }
+              : x,
+          ),
+        );
         setEditingId(null);
       } else {
-        const entry: Entry = { id: `e${Date.now()}`, tab, identifier, name: f.name, email: f.email, businessUnit: f.businessUnit, startDate: f.startDate, endDate: f.endDate };
-        setEntries(p => [entry, ...p]);
+        const entry: Entry = {
+          id: `e${Date.now()}`,
+          tab,
+          identifier,
+          name: f.name,
+          email: f.email,
+          businessUnit: f.businessUnit,
+          startDate: f.startDate,
+          endDate: f.endDate,
+        };
+        setEntries((p) => [entry, ...p]);
       }
       resetForm();
       setPage(0);
@@ -281,7 +437,11 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       setTimeout(() => setToast(null), 2500);
       return;
     }
-    if (!orgId) { setToast("No organization found for this session."); setTimeout(() => setToast(null), 2500); return; }
+    if (!orgId) {
+      setToast("No organization found for this session.");
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
     // The picker lets a customer with several locations allow-list against
     // a *different* one than whichever this page happens to be scoped to
     // -- resolve the name they picked back to its real id (same
@@ -293,10 +453,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     try {
       const rule = await guestService.createAccessRule({
         kind: tab === "number" ? "identifier" : "device",
-        organizationId: orgId, locationId: ruleLocationId,
+        organizationId: orgId,
+        locationId: ruleLocationId,
         identifier: tab === "number" ? identifier : undefined,
         macAddress: tab === "device" ? identifier : undefined,
-        ruleType: "whitelist", reason: f.name, email: f.email, expiresAt: toUtcIso(f.endDate),
+        ruleType: "whitelist",
+        reason: f.name,
+        email: f.email,
+        expiresAt: toUtcIso(f.endDate),
       });
       const newEntry = withBusinessUnit(toEntry(rule), ruleLocationId);
       if (editingId) {
@@ -306,13 +470,20 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         // (both now exist) rather than silently losing either row.
         const editingEntry = entries.find((e) => e.id === editingId);
         if (editingEntry) {
-          try { await guestService.deleteAccessRule(editingEntry.tab === "device" ? "device" : "identifier", editingEntry.id, orgId); }
-          catch { /* original left in place; not fatal to the edit itself */ }
+          try {
+            await guestService.deleteAccessRule(
+              editingEntry.tab === "device" ? "device" : "identifier",
+              editingEntry.id,
+              orgId,
+            );
+          } catch {
+            /* original left in place; not fatal to the edit itself */
+          }
         }
-        setEntries(p => [newEntry, ...p.filter(e => e.id !== editingId)]);
+        setEntries((p) => [newEntry, ...p.filter((e) => e.id !== editingId)]);
         setEditingId(null);
       } else {
-        setEntries(p => [newEntry, ...p]);
+        setEntries((p) => [newEntry, ...p]);
       }
       resetForm();
       setPage(0);
@@ -343,23 +514,40 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const cancelEdit = () => {
     setEditingId(null);
     setErrs({});
-    setF({ mobileCC: "+91", mobile: "", mac: "", name: "", email: "", businessUnit: demo ? UNITS[0] : (units[0] ?? ""), startDate: "", endDate: "" });
+    setF({
+      mobileCC: "+91",
+      mobile: "",
+      mac: "",
+      name: "",
+      email: "",
+      businessUnit: demo ? UNITS[0] : (units[0] ?? ""),
+      startDate: "",
+      endDate: "",
+    });
   };
 
   const handleDelete = async (id: string) => {
     const prev = entries;
     const removed = entries.find((e) => e.id === id);
-    setEntries(p => p.filter(e => e.id !== id));
+    setEntries((p) => p.filter((e) => e.id !== id));
     if (editingId === id) cancelEdit();
     if (!demo && removed) {
-      try { await guestService.deleteAccessRule(removed.tab === "device" ? "device" : "identifier", id, orgId ?? undefined); }
-      catch { setEntries(prev); }
+      try {
+        await guestService.deleteAccessRule(
+          removed.tab === "device" ? "device" : "identifier",
+          id,
+          orgId ?? undefined,
+        );
+      } catch {
+        setEntries(prev);
+      }
     }
   };
 
   // ── helpers ───────────────────────────────────────────────────
   const isActive = (end: string) => new Date(end) > new Date();
-  const Err = ({ k }: { k: keyof FormData }) => errs[k] ? <p className="mt-1 text-xs text-destructive">{errs[k]}</p> : null;
+  const Err = ({ k }: { k: keyof FormData }) =>
+    errs[k] ? <p className="mt-1 text-xs text-destructive">{errs[k]}</p> : null;
 
   // Purely-derived counts (no new fetch) scoped to the tab currently being
   // viewed -- same read-only KPI-strip pattern used this session on
@@ -381,7 +569,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Always Allowed</h1>
-            <p className="text-sm text-muted-foreground">Allow specific numbers or devices to bypass the captive portal.</p>
+            <p className="text-sm text-muted-foreground">
+              Allow specific numbers or devices to bypass the captive portal.
+            </p>
           </div>
         </div>
         <TrustedAccessIllustration />
@@ -413,10 +603,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </div>
         <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            {tab === "number" ? <Smartphone className="h-5 w-5 text-white" /> : <Laptop className="h-5 w-5 text-white" />}
+            {tab === "number" ? (
+              <Smartphone className="h-5 w-5 text-white" />
+            ) : (
+              <Laptop className="h-5 w-5 text-white" />
+            )}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Total {tab === "number" ? "numbers" : "devices"}</p>
+            <p className="text-xs font-medium uppercase text-muted-foreground">
+              Total {tab === "number" ? "numbers" : "devices"}
+            </p>
             <p className="truncate text-lg font-bold">{tabEntries.length}</p>
           </div>
         </div>
@@ -431,21 +627,55 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
       {/* tab switcher */}
       <div className="inline-flex rounded-xl border bg-muted/50 p-1 max-sm:flex">
-        <button onClick={() => { setTab("number"); setErrs({}); setPage(0); } } className={cn("inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center", tab === "number" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+        <button
+          onClick={() => {
+            setTab("number");
+            setErrs({});
+            setPage(0);
+          }}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center",
+            tab === "number"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
           <Smartphone className="h-4 w-4" /> Allow a Number
         </button>
-        <button onClick={() => { setTab("device"); setErrs({}); setPage(0); } } className={cn("inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center", tab === "device" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+        <button
+          onClick={() => {
+            setTab("device");
+            setErrs({});
+            setPage(0);
+          }}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center",
+            tab === "device"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
           <Laptop className="h-4 w-4" /> Allow a Device
         </button>
       </div>
 
       {/* form card */}
-      <form ref={formRef} onSubmit={handleSubmit} className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        className="rounded-xl border-0 bg-card text-card-foreground shadow-sm"
+      >
         <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            {tab === "number" ? <Smartphone className="h-3.5 w-3.5 text-white" /> : <Laptop className="h-3.5 w-3.5 text-white" />}
+            {tab === "number" ? (
+              <Smartphone className="h-3.5 w-3.5 text-white" />
+            ) : (
+              <Laptop className="h-3.5 w-3.5 text-white" />
+            )}
           </span>
-          <CardTitle className="text-sm">{tab === "number" ? "Allow a number" : "Allow a device"}</CardTitle>
+          <CardTitle className="text-sm">
+            {tab === "number" ? "Allow a number" : "Allow a device"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {/* Who's Allowed -- identity fields grouped together (was a flat
@@ -456,50 +686,111 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <User className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold text-foreground">Who's Allowed</h3>
             </div>
-            <p className="mb-4 text-xs text-muted-foreground">{tab === "number" ? "The number that skips the portal, and who it belongs to." : "The device that skips the portal, and who it belongs to."}</p>
+            <p className="mb-4 text-xs text-muted-foreground">
+              {tab === "number"
+                ? "The number that skips the portal, and who it belongs to."
+                : "The device that skips the portal, and who it belongs to."}
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
               {/* Mobile / MAC */}
               {tab === "number" ? (
                 <div className="space-y-1.5">
-                  <Label>Mobile Number <span className="text-destructive">*</span></Label>
+                  <Label>
+                    Mobile Number <span className="text-destructive">*</span>
+                  </Label>
                   <div className="flex gap-2">
                     <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
-                      <SelectTrigger className="w-28 shrink-0"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-28 shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
-                        {COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}
+                        {COUNTRIES.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <Input type="text" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={f.mobile} onChange={e => setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))} />
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
+                      value={f.mobile}
+                      onChange={(e) =>
+                        setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))
+                      }
+                    />
                   </div>
                   <Err k="mobile" />
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <Label>MAC Address <span className="text-destructive">*</span></Label>
-                  <Input type="text" placeholder="AA:BB:CC:DD:EE:FF" value={f.mac} onChange={e => setField("mac", e.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").replace(/(.{2})(?!$)/g, "$1:").slice(0, 17))} className="font-mono" />
+                  <Label>
+                    MAC Address <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    value={f.mac}
+                    onChange={(e) =>
+                      setField(
+                        "mac",
+                        e.target.value
+                          .toUpperCase()
+                          .replace(/[^0-9A-F]/g, "")
+                          .replace(/(.{2})(?!$)/g, "$1:")
+                          .slice(0, 17),
+                      )
+                    }
+                    className="font-mono"
+                  />
                   <Err k="mac" />
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <Label>Location <span className="text-destructive">*</span></Label>
+                <Label>
+                  Location <span className="text-destructive">*</span>
+                </Label>
                 <Select value={f.businessUnit} onValueChange={(v) => setField("businessUnit", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    {units.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label>{tab === "number" ? "Name" : "Device label"} <span className="text-destructive">*</span></Label>
-                <Input type="text" placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"} value={f.name} onChange={e => setField("name", e.target.value)} />
+                <Label>
+                  {tab === "number" ? "Name" : "Device label"}{" "}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="text"
+                  placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"}
+                  value={f.name}
+                  onChange={(e) => setField("name", e.target.value)}
+                />
                 <Err k="name" />
               </div>
 
               <div className="space-y-1.5">
-                <Label>Email <span className="text-destructive">*</span></Label>
-                <Input type="email" placeholder="name@company.com" value={f.email} onChange={e => setField("email", e.target.value)} />
+                <Label>
+                  Email <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="email"
+                  placeholder="name@company.com"
+                  value={f.email}
+                  onChange={(e) => setField("email", e.target.value)}
+                />
                 <Err k="email" />
               </div>
             </div>
@@ -514,33 +805,47 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <Calendar className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold text-foreground">Access Window</h3>
             </div>
-            <p className="mb-4 text-xs text-muted-foreground">When this bypass starts and automatically ends.</p>
+            <p className="mb-4 text-xs text-muted-foreground">
+              When this bypass starts and automatically ends.
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Start Date <span className="text-destructive">*</span></Label>
-                <Input type="datetime-local" value={f.startDate} onChange={e => setField("startDate", e.target.value)} />
+                <Label>
+                  Start Date <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="datetime-local"
+                  value={f.startDate}
+                  onChange={(e) => setField("startDate", e.target.value)}
+                />
                 <Err k="startDate" />
               </div>
 
               <div className="space-y-1.5">
-                <Label>End Date <span className="text-destructive">*</span></Label>
-                <Input type="datetime-local" value={f.endDate} onChange={e => setField("endDate", e.target.value)} />
+                <Label>
+                  End Date <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="datetime-local"
+                  value={f.endDate}
+                  onChange={(e) => setField("endDate", e.target.value)}
+                />
                 <Err k="endDate" />
               </div>
             </div>
           </div>
 
-        <hr className="my-6 border-border" />
-        <div className="flex justify-center gap-2">
-          {editingId && (
-            <Button type="button" variant="outline" size="lg" onClick={cancelEdit}>
-              Cancel
+          <hr className="my-6 border-border" />
+          <div className="flex justify-center gap-2">
+            {editingId && (
+              <Button type="button" variant="outline" size="lg" onClick={cancelEdit}>
+                Cancel
+              </Button>
+            )}
+            <Button type="submit" size="lg" className="px-8">
+              {editingId ? "Save Changes" : tab === "number" ? "Allow Number" : "Allow Device"}
             </Button>
-          )}
-          <Button type="submit" size="lg" className="px-8">
-            {editingId ? "Save Changes" : tab === "number" ? "Allow Number" : "Allow Device"}
-          </Button>
-        </div>
+          </div>
         </CardContent>
       </form>
 
@@ -548,82 +853,155 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       <div className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><ShieldCheck className="h-3.5 w-3.5 text-white" /></span>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+              <ShieldCheck className="h-3.5 w-3.5 text-white" />
+            </span>
             <div>
               <CardTitle className="text-sm">
                 Always Allowed {tab === "number" ? "Guests" : "Devices"}
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Everything currently allow-listed for this location.</p>
+              <p className="text-xs text-muted-foreground">
+                Everything currently allow-listed for this location.
+              </p>
             </div>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input type="text" placeholder="Search…" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className={cn(inputCls, "w-48 py-1.5 pl-8")} />
+            <input
+              type="text"
+              placeholder="Search…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              className={cn(inputCls, "w-48 py-1.5 pl-8")}
+            />
           </div>
         </CardHeader>
         <CardContent className={paged.length > 0 ? "px-4 pb-4 pt-0" : "p-0"}>
-        {paged.length === 0 ? (
-          <EmptyState
-            icon={ShieldCheck}
-            title="Nothing allowed yet"
-            description="Fill the form above to let a trusted number or device skip the portal."
-            action={{ label: "Allow a number or device", onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus() }}
-          />
-        ) : (
-        // Card grid instead of a data table -- a table-with-search-and-
-        // pagination is the single most generic-looking "admin allowlist"
-        // pattern there is (and reads closest to the competitor's own
-        // screen for this exact feature). Same per-entry data as before,
-        // just presented as a compact card (identity + masked MAC in the
-        // header row, a status pill, location + the access window, edit/
-        // delete actions) -- matches the card-list treatment this session
-        // already gave ManageTeamsPage's "Your Teams".
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {paged.map((e) => (
-            <div key={e.id} className="rounded-xl border-0 bg-muted/40 p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    {tab === "number" ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
-                    <p className="truncate font-mono text-xs text-muted-foreground">{e.tab === "device" ? maskMac(e.identifier) : e.identifier}</p>
+          {paged.length === 0 ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="Nothing allowed yet"
+              description="Fill the form above to let a trusted number or device skip the portal."
+              action={{
+                label: "Allow a number or device",
+                onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus(),
+              }}
+            />
+          ) : (
+            // Card grid instead of a data table -- a table-with-search-and-
+            // pagination is the single most generic-looking "admin allowlist"
+            // pattern there is (and reads closest to the competitor's own
+            // screen for this exact feature). Same per-entry data as before,
+            // just presented as a compact card (identity + masked MAC in the
+            // header row, a status pill, location + the access window, edit/
+            // delete actions) -- matches the card-list treatment this session
+            // already gave ManageTeamsPage's "Your Teams".
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {paged.map((e) => (
+                <div key={e.id} className="rounded-xl border-0 bg-muted/40 p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        {tab === "number" ? (
+                          <Smartphone className="h-4 w-4" />
+                        ) : (
+                          <Laptop className="h-4 w-4" />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          {e.tab === "device" ? maskMac(e.identifier) : e.identifier}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        isActive(e.endDate)
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400",
+                        )}
+                      />
+                      {isActive(e.endDate) ? "Active" : "Expired"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-end justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                        Location
+                      </p>
+                      <p className="truncate text-foreground">{e.businessUnit || "—"}</p>
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                        Access window
+                      </p>
+                      <p className="truncate text-foreground">
+                        {fmtDT(e.startDate)} → {fmtDT(e.endDate)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end gap-1 border-t border-border/60 pt-2">
+                    <button
+                      type="button"
+                      aria-label={`Edit ${e.name}`}
+                      onClick={() => startEdit(e)}
+                      className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      aria-label={`Delete ${e.name}`}
+                      onClick={() => handleDelete(e.id)}
+                      className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
-                <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", isActive(e.endDate) ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
-                  <span className={cn("h-1.5 w-1.5 rounded-full", isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400")} />
-                  {isActive(e.endDate) ? "Active" : "Expired"}
-                </span>
-              </div>
-              <div className="mt-3 flex items-end justify-between gap-3 text-xs">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">Location</p>
-                  <p className="truncate text-foreground">{e.businessUnit || "—"}</p>
-                </div>
-                <div className="min-w-0 text-right">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">Access window</p>
-                  <p className="truncate text-foreground">{fmtDT(e.startDate)} → {fmtDT(e.endDate)}</p>
-                </div>
-              </div>
-              <div className="mt-3 flex justify-end gap-1 border-t border-border/60 pt-2">
-                <button type="button" aria-label={`Edit ${e.name}`} onClick={() => startEdit(e)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" /></button>
-                <button aria-label={`Delete ${e.name}`} onClick={() => handleDelete(e.id)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-        )}
+          )}
 
-        {filtered.length > 0 && (
-          <div className={cn("flex items-center justify-between text-xs text-muted-foreground", paged.length > 0 ? "mt-4 border-t pt-3" : "border-t p-3")}>
-            <span>Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
-            <div className="flex items-center gap-1">
-              <button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-              <button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+          {filtered.length > 0 && (
+            <div
+              className={cn(
+                "flex items-center justify-between text-xs text-muted-foreground",
+                paged.length > 0 ? "mt-4 border-t pt-3" : "border-t p-3",
+              )}
+            >
+              <span>
+                Showing {safePage * PAGE_SIZE + 1}–
+                {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={safePage === 0}
+                  onClick={() => setPage(safePage - 1)}
+                  className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => setPage(safePage + 1)}
+                  className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </CardContent>
       </div>
     </div>

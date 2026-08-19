@@ -124,7 +124,12 @@ export function DnsManagement() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Records" value={data?.total ?? 0} icon={Server} tone="primary" />
         <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={rows.length - enabledCount} icon={ShieldOff} tone="warning" />
+        <StatCard
+          label="Disabled"
+          value={rows.length - enabledCount}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-border/60">
@@ -177,14 +182,20 @@ export function DnsManagement() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No DNS records match your filters.
                   </TableCell>
                 </TableRow>
@@ -234,10 +245,20 @@ export function DnsManagement() {
                 Page {page} of {data.totalPages} · {data.total} records
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!data.hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!data.hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>
@@ -262,8 +283,8 @@ export function DnsManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete record "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes it from {confirmDelete ? routerName(confirmDelete.routerId) : ""}.
-              This cannot be undone.
+              This permanently removes it from{" "}
+              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -387,7 +408,9 @@ function DnsDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -422,7 +445,9 @@ function DnsDialog({
             <Label className="text-xs font-medium">Address</Label>
             <Input {...form.register("address")} placeholder="10.0.0.5" className="font-mono" />
             {form.formState.errors.address && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.address.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.address.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -434,7 +459,9 @@ function DnsDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <div className="sm:col-span-2 space-y-1.5">

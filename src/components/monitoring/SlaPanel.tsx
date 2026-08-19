@@ -94,7 +94,11 @@ export function SlaPanel() {
       {isLoading ? (
         <LoadingSkeleton rows={3} />
       ) : rows.length === 0 ? (
-        <EmptyState icon={Gauge} title="No SLA targets" description="Add a target to start generating SLA reports." />
+        <EmptyState
+          icon={Gauge}
+          title="No SLA targets"
+          description="Add a target to start generating SLA reports."
+        />
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {rows.map(({ target, latestReport }) => (
@@ -103,7 +107,8 @@ export function SlaPanel() {
                 <CardTitle className="flex items-center justify-between text-sm font-medium">
                   <span>
                     {target.component
-                      ? (HEALTH_COMPONENT_LABEL[target.component as HealthComponent] ?? target.component)
+                      ? (HEALTH_COMPONENT_LABEL[target.component as HealthComponent] ??
+                        target.component)
                       : "Platform-wide"}
                   </span>
                   <span className="text-xs text-muted-foreground">
@@ -121,8 +126,8 @@ export function SlaPanel() {
                       <span className="text-xs text-muted-foreground">achieved</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {latestReport.healthyChecks}/{latestReport.totalChecks} checks healthy · generated{" "}
-                      {new Date(latestReport.generatedAt).toLocaleString()}
+                      {latestReport.healthyChecks}/{latestReport.totalChecks} checks healthy ·
+                      generated {new Date(latestReport.generatedAt).toLocaleString()}
                     </p>
                   </>
                 ) : (
@@ -158,8 +163,14 @@ export function SlaPanel() {
         </div>
       )}
 
-      <CreateSlaTargetDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={() => refetch()} />
-      {historyFor && <SlaReportHistoryDialog targetId={historyFor} onClose={() => setHistoryFor(null)} />}
+      <CreateSlaTargetDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => refetch()}
+      />
+      {historyFor && (
+        <SlaReportHistoryDialog targetId={historyFor} onClose={() => setHistoryFor(null)} />
+      )}
     </div>
   );
 }
@@ -329,7 +340,9 @@ function SlaReportHistoryDialog({ targetId, onClose }: { targetId: string; onClo
                       {new Date(r.periodStart).toLocaleDateString()} –{" "}
                       {new Date(r.periodEnd).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-sm font-medium">{r.achievedPercentage.toFixed(2)}%</TableCell>
+                    <TableCell className="text-sm font-medium">
+                      {r.achievedPercentage.toFixed(2)}%
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {r.healthyChecks}/{r.totalChecks}
                     </TableCell>

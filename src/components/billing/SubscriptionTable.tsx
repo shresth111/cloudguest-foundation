@@ -19,7 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -33,13 +40,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { PaymentStatusBadge, SubscriptionStatusBadge } from "./BillingBadges";
-import { useCancelSubscription, useDowngradeSubscription, useSetAutoRenew, useUpgradeSubscription } from "@/hooks/useBilling";
+import {
+  useCancelSubscription,
+  useDowngradeSubscription,
+  useSetAutoRenew,
+  useUpgradeSubscription,
+} from "@/hooks/useBilling";
 import type { Subscription, SubscriptionStatus } from "@/types/billing";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 function daysUntil(iso: string) {
@@ -57,7 +73,14 @@ interface Props {
 
 const PAGE_SIZE = 8;
 
-export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh, onCreate }: Props) {
+export function SubscriptionTable({
+  data,
+  isLoading,
+  isError,
+  onRetry,
+  onRefresh,
+  onCreate,
+}: Props) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<SubscriptionStatus | "all">("all");
   const [sortKey, setSortKey] = useState<keyof Subscription>("renewalDate");
@@ -74,7 +97,9 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
     let rows = data ?? [];
     if (q) {
       const s = q.toLowerCase();
-      rows = rows.filter((r) => r.organizationName.toLowerCase().includes(s) || r.planName.toLowerCase().includes(s));
+      rows = rows.filter(
+        (r) => r.organizationName.toLowerCase().includes(s) || r.planName.toLowerCase().includes(s),
+      );
     }
     if (status !== "all") rows = rows.filter((r) => r.status === status);
     rows = [...rows].sort((a, b) => {
@@ -100,7 +125,18 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
 
   const exportCsv = () => {
     const rows = [
-      ["Organization", "Plan", "Cycle", "Start", "Renewal", "Expiry", "Status", "Amount", "Auto renewal", "Payment"].join(","),
+      [
+        "Organization",
+        "Plan",
+        "Cycle",
+        "Start",
+        "Renewal",
+        "Expiry",
+        "Status",
+        "Amount",
+        "Auto renewal",
+        "Payment",
+      ].join(","),
       ...filtered.map((s) =>
         [
           s.organizationName,
@@ -154,10 +190,26 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search organization or plan…" className="pl-8" />
+              <Input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search organization or plan…"
+                className="pl-8"
+              />
             </div>
-            <Select value={status} onValueChange={(v) => { setStatus(v as SubscriptionStatus | "all"); setPage(1); }}>
-              <SelectTrigger className="w-[170px]"><SelectValue placeholder="Status" /></SelectTrigger>
+            <Select
+              value={status}
+              onValueChange={(v) => {
+                setStatus(v as SubscriptionStatus | "all");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
@@ -172,25 +224,44 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
 
           {isLoading ? (
             <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded" />)}
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded" />
+              ))}
             </div>
           ) : isError ? (
             <ErrorState onRetry={onRetry} />
           ) : filtered.length === 0 ? (
-            <EmptyState title="No subscriptions" description="Try adjusting your filters or create a new subscription." />
+            <EmptyState
+              title="No subscriptions"
+              description="Try adjusting your filters or create a new subscription."
+            />
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="cursor-pointer" onClick={() => toggleSort("organizationName")}>Organization</TableHead>
+                    <TableHead
+                      className="cursor-pointer"
+                      onClick={() => toggleSort("organizationName")}
+                    >
+                      Organization
+                    </TableHead>
                     <TableHead>Plan</TableHead>
                     <TableHead>Cycle</TableHead>
-                    <TableHead className="cursor-pointer" onClick={() => toggleSort("startDate")}>Start</TableHead>
-                    <TableHead className="cursor-pointer" onClick={() => toggleSort("renewalDate")}>Renewal</TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => toggleSort("startDate")}>
+                      Start
+                    </TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => toggleSort("renewalDate")}>
+                      Renewal
+                    </TableHead>
                     <TableHead>Expires in</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right cursor-pointer" onClick={() => toggleSort("amount")}>Amount</TableHead>
+                    <TableHead
+                      className="text-right cursor-pointer"
+                      onClick={() => toggleSort("amount")}
+                    >
+                      Amount
+                    </TableHead>
                     <TableHead className="text-center">Auto</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead className="w-10" />
@@ -201,57 +272,94 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
                     const days = daysUntil(s.expiryDate);
                     const expiringSoon = s.status === "active" && days <= 14;
                     return (
-                    <TableRow key={s.id} className={cn("hover:bg-muted/50", expiringSoon && "bg-amber-500/5")}>
-                      <TableCell className="font-medium">{s.organizationName}</TableCell>
-                      <TableCell>{s.planName}</TableCell>
-                      <TableCell className="capitalize">{s.billingCycle}</TableCell>
-                      <TableCell>{dateFmt.format(new Date(s.startDate))}</TableCell>
-                      <TableCell>{dateFmt.format(new Date(s.renewalDate))}</TableCell>
-                      <TableCell>
-                        {expiringSoon ? (
-                          <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-600">
-                            <AlertTriangle className="mr-1 h-3 w-3" /> {days <= 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">{dateFmt.format(new Date(s.expiryDate))}</span>
-                        )}
-                      </TableCell>
-                      <TableCell><SubscriptionStatusBadge status={s.status} /></TableCell>
-                      <TableCell className="text-right">{money.format(s.amount)}</TableCell>
-                      <TableCell className="text-center">
-                        <Switch
-                          checked={s.autoRenewal}
-                          disabled={setAutoRenew.isPending}
-                          onCheckedChange={(v) =>
-                            setAutoRenew.mutate(
-                              { id: s.id, autoRenew: v },
-                              { onSuccess: () => toast.success(v ? "Auto-renewal enabled" : "Auto-renewal disabled"), onError: () => toast.error("Could not update auto-renewal") },
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell><PaymentStatusBadge status={s.paymentStatus} /></TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => upgrade.mutate(s.id, { onSuccess: () => toast.success("Plan upgraded") })}>
-                              <ArrowUpCircle className="mr-2 h-4 w-4" /> Upgrade plan
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => downgrade.mutate(s.id, { onSuccess: () => toast.success("Plan downgraded") })}>
-                              <ArrowDownCircle className="mr-2 h-4 w-4" /> Downgrade plan
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onSelect={() => setPending({ action: "cancel", id: s.id })}>
-                              <XCircle className="mr-2 h-4 w-4" /> Cancel subscription
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );})}
+                      <TableRow
+                        key={s.id}
+                        className={cn("hover:bg-muted/50", expiringSoon && "bg-amber-500/5")}
+                      >
+                        <TableCell className="font-medium">{s.organizationName}</TableCell>
+                        <TableCell>{s.planName}</TableCell>
+                        <TableCell className="capitalize">{s.billingCycle}</TableCell>
+                        <TableCell>{dateFmt.format(new Date(s.startDate))}</TableCell>
+                        <TableCell>{dateFmt.format(new Date(s.renewalDate))}</TableCell>
+                        <TableCell>
+                          {expiringSoon ? (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500/20 bg-amber-500/10 text-amber-600"
+                            >
+                              <AlertTriangle className="mr-1 h-3 w-3" />{" "}
+                              {days <= 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              {dateFmt.format(new Date(s.expiryDate))}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <SubscriptionStatusBadge status={s.status} />
+                        </TableCell>
+                        <TableCell className="text-right">{money.format(s.amount)}</TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={s.autoRenewal}
+                            disabled={setAutoRenew.isPending}
+                            onCheckedChange={(v) =>
+                              setAutoRenew.mutate(
+                                { id: s.id, autoRenew: v },
+                                {
+                                  onSuccess: () =>
+                                    toast.success(
+                                      v ? "Auto-renewal enabled" : "Auto-renewal disabled",
+                                    ),
+                                  onError: () => toast.error("Could not update auto-renewal"),
+                                },
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <PaymentStatusBadge status={s.paymentStatus} />
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  upgrade.mutate(s.id, {
+                                    onSuccess: () => toast.success("Plan upgraded"),
+                                  })
+                                }
+                              >
+                                <ArrowUpCircle className="mr-2 h-4 w-4" /> Upgrade plan
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  downgrade.mutate(s.id, {
+                                    onSuccess: () => toast.success("Plan downgraded"),
+                                  })
+                                }
+                              >
+                                <ArrowDownCircle className="mr-2 h-4 w-4" /> Downgrade plan
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onSelect={() => setPending({ action: "cancel", id: s.id })}
+                              >
+                                <XCircle className="mr-2 h-4 w-4" /> Cancel subscription
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -259,10 +367,26 @@ export function SubscriptionTable({ data, isLoading, isError, onRetry, onRefresh
 
           {filtered.length > 0 && (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <div>Page {page} of {pageCount}</div>
+              <div>
+                Page {page} of {pageCount}
+              </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pageCount}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           )}

@@ -18,16 +18,33 @@ import { AgentsPage } from "@/components/features/AgentsPage";
 import TicketsPage from "@/components/features/TicketsPage";
 import BrandAssetPage from "@/components/features/BrandAssetPage";
 import {
-  AlertsView, OpenHoursView, NotificationView, IspDetailsView,
-  AdminLogsView, MacAuthView, PortForwardingView, DhcpView, VlansView, VoipView,
-  DebuggingView, HotspotView, GenericFeatureView,
+  AlertsView,
+  OpenHoursView,
+  NotificationView,
+  IspDetailsView,
+  AdminLogsView,
+  MacAuthView,
+  PortForwardingView,
+  DhcpView,
+  VlansView,
+  VoipView,
+  DebuggingView,
+  HotspotView,
+  GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import {
-  BasicDashboardView, BasicUsersView, BasicDevicesView, BasicAuditView, NetworkHardwareView,
+  BasicDashboardView,
+  BasicUsersView,
+  BasicDevicesView,
+  BasicAuditView,
+  NetworkHardwareView,
 } from "@/components/customer/BasicFeatureViews";
 
 export {
-  FEATURE_GROUPS, ALL_FEATURES, FEATURE_BY_ID, CORE_FEATURE_IDS,
+  FEATURE_GROUPS,
+  ALL_FEATURES,
+  FEATURE_BY_ID,
+  CORE_FEATURE_IDS,
 } from "@/config/customerFeatureCatalog";
 export type { FeatureDef } from "@/config/customerFeatureCatalog";
 
@@ -38,36 +55,81 @@ export type { FeatureDef } from "@/config/customerFeatureCatalog";
  * guest PII (email/phone) so the switch has a real, visible effect on the
  * `/agent` staff-preview dashboard that renders through here. Omitted
  * (`undefined`) callers get each view's own safer-by-default fallback. */
-export function renderFeature(id: string, ctx: { locationId?: string; masked?: boolean } = {}): ReactNode {
+export function renderFeature(
+  id: string,
+  ctx: { locationId?: string; masked?: boolean } = {},
+): ReactNode {
   switch (id) {
-    case "dashboard": return <BasicDashboardView locationId={ctx.locationId} masked={ctx.masked} />;
-    case "users": return <BasicUsersView masked={ctx.masked} />;
-    case "devices": return <div className="space-y-4"><NetworkHardwareView locationId={ctx.locationId} /><BasicDevicesView /></div>;
-    case "audit": return <BasicAuditView masked={ctx.masked} />;
-    case "tickets": return <TicketsPage locationId={ctx.locationId} />;
-    case "reports": return <UserReports masked={ctx.masked} />;
-    case "campaigns": return <CampaignsPage locationId={ctx.locationId} />;
-    case "portal": return <PortalPage locationId={ctx.locationId} />;
-    case "vouchers": return <VouchersPage locationId={ctx.locationId} />;
-    case "policies": return <PoliciesHub locationId={ctx.locationId} />;
-    case "whitelist": return <WhiteList locationId={ctx.locationId} />;
-    case "teams": return <ManageTeamsPage locationId={ctx.locationId} />;
-    case "agents": return <AgentsPage />;
-    case "advanced": return <AdvancedPage />;
-    case "alerts": return <AlertsView />;
-    case "business-hours": return <OpenHoursView locationId={ctx.locationId} />;
-    case "background-image": return <BrandAssetPage title="Background Image" description="Set a customized background image on the login screen for a complete branding experience." tableTitle="Current Background Images" tableSubtitle="This shows you a quick snapshot of all the Background Images setup." aspect="wide" />;
-    case "notification": return <NotificationView />;
-    case "isp-details": return <IspDetailsView />;
-    case "admin-logs": return <AdminLogsView />;
-    case "network-activity": return <NetworkActivityLog masked={ctx.masked} />;
-    case "mac-auth": return <MacAuthView locationId={ctx.locationId} />;
-    case "port-forwarding": return <PortForwardingView locationId={ctx.locationId} />;
-    case "dhcp": return <DhcpView locationId={ctx.locationId} />;
-    case "vlans": return <VlansView locationId={ctx.locationId} />;
-    case "voip": return <VoipView locationId={ctx.locationId} />;
-    case "debugging": return <DebuggingView />;
-    case "hotspot": return <HotspotView locationId={ctx.locationId} />;
-    default: return <GenericFeatureView feature={id} />;
+    case "dashboard":
+      return <BasicDashboardView locationId={ctx.locationId} masked={ctx.masked} />;
+    case "users":
+      return <BasicUsersView masked={ctx.masked} />;
+    case "devices":
+      return (
+        <div className="space-y-4">
+          <NetworkHardwareView locationId={ctx.locationId} />
+          <BasicDevicesView />
+        </div>
+      );
+    case "audit":
+      return <BasicAuditView masked={ctx.masked} />;
+    case "tickets":
+      return <TicketsPage locationId={ctx.locationId} />;
+    case "reports":
+      return <UserReports masked={ctx.masked} />;
+    case "campaigns":
+      return <CampaignsPage locationId={ctx.locationId} />;
+    case "portal":
+      return <PortalPage locationId={ctx.locationId} />;
+    case "vouchers":
+      return <VouchersPage locationId={ctx.locationId} />;
+    case "policies":
+      return <PoliciesHub locationId={ctx.locationId} />;
+    case "whitelist":
+      return <WhiteList locationId={ctx.locationId} />;
+    case "teams":
+      return <ManageTeamsPage locationId={ctx.locationId} />;
+    case "agents":
+      return <AgentsPage />;
+    case "advanced":
+      return <AdvancedPage />;
+    case "alerts":
+      return <AlertsView />;
+    case "business-hours":
+      return <OpenHoursView locationId={ctx.locationId} />;
+    case "background-image":
+      return (
+        <BrandAssetPage
+          title="Background Image"
+          description="Set a customized background image on the login screen for a complete branding experience."
+          tableTitle="Current Background Images"
+          tableSubtitle="This shows you a quick snapshot of all the Background Images setup."
+          aspect="wide"
+        />
+      );
+    case "notification":
+      return <NotificationView />;
+    case "isp-details":
+      return <IspDetailsView />;
+    case "admin-logs":
+      return <AdminLogsView />;
+    case "network-activity":
+      return <NetworkActivityLog masked={ctx.masked} />;
+    case "mac-auth":
+      return <MacAuthView locationId={ctx.locationId} />;
+    case "port-forwarding":
+      return <PortForwardingView locationId={ctx.locationId} />;
+    case "dhcp":
+      return <DhcpView locationId={ctx.locationId} />;
+    case "vlans":
+      return <VlansView locationId={ctx.locationId} />;
+    case "voip":
+      return <VoipView locationId={ctx.locationId} />;
+    case "debugging":
+      return <DebuggingView />;
+    case "hotspot":
+      return <HotspotView locationId={ctx.locationId} />;
+    default:
+      return <GenericFeatureView feature={id} />;
   }
 }

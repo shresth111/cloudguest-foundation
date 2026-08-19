@@ -1,16 +1,32 @@
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
-import { Loader2, Eye, EyeOff, ShieldCheck, Building2, Router, Activity, Mail, type LucideIcon } from "lucide-react";
+import {
+  Loader2,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Building2,
+  Router,
+  Activity,
+  Mail,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/auth.service";
 import type { AppError } from "@/services/api";
-
 
 // Moved out of `src/routes/master-login.tsx` -- same bug class already fixed once in
 // PR #91 (`CustomerDashboardPage`, see
@@ -70,7 +86,10 @@ function CountUp({ target, decimals = 0 }: { target: number; decimals?: number }
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setText(target.toFixed(decimals)); return; }
+    if (reduce) {
+      setText(target.toFixed(decimals));
+      return;
+    }
     mv.set(target);
     const unsub = display.on("change", (v) => setText(v));
     return unsub;
@@ -109,7 +128,12 @@ function ControlTowerIllustration() {
   ];
 
   return (
-    <svg aria-hidden="true" viewBox="0 0 480 210" className="h-auto w-full max-w-[300px]" fill="none">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 480 210"
+      className="h-auto w-full max-w-[300px]"
+      fill="none"
+    >
       <defs>
         <filter id="tower-glow" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur stdDeviation="14" />
@@ -117,7 +141,15 @@ function ControlTowerIllustration() {
       </defs>
 
       {/* ground line */}
-      <line x1="30" y1="192" x2="450" y2="192" stroke="white" strokeOpacity="0.12" strokeWidth="1" />
+      <line
+        x1="30"
+        y1="192"
+        x2="450"
+        y2="192"
+        stroke="white"
+        strokeOpacity="0.12"
+        strokeWidth="1"
+      />
 
       {/* sonar pings, expanding out from the mast head */}
       {[0, 1, 2].map((i) => (
@@ -143,7 +175,14 @@ function ControlTowerIllustration() {
           }
         />
       ))}
-      <circle cx={tower.x} cy={tower.y} r="30" fill="#6366f1" fillOpacity="0.18" filter="url(#tower-glow)" />
+      <circle
+        cx={tower.x}
+        cy={tower.y}
+        r="30"
+        fill="#6366f1"
+        fillOpacity="0.18"
+        filter="url(#tower-glow)"
+      />
 
       {/* tower mast */}
       <g stroke="white" strokeOpacity="0.55" strokeWidth="1.5" strokeLinecap="round">
@@ -154,7 +193,15 @@ function ControlTowerIllustration() {
       </g>
 
       {/* radar hub + sweeping beam atop the mast */}
-      <circle cx={tower.x} cy={tower.y} r="7" fill="oklch(0.19 0.03 260)" stroke="white" strokeOpacity="0.7" strokeWidth="1.5" />
+      <circle
+        cx={tower.x}
+        cy={tower.y}
+        r="7"
+        fill="oklch(0.19 0.03 260)"
+        stroke="white"
+        strokeOpacity="0.7"
+        strokeWidth="1.5"
+      />
       <motion.line
         x1={tower.x}
         y1={tower.y}
@@ -165,7 +212,9 @@ function ControlTowerIllustration() {
         strokeLinecap="round"
         style={{ transformOrigin: `${tower.x}px ${tower.y}px` }}
         animate={shouldReduceMotion ? { rotate: 45 } : { rotate: 360 }}
-        transition={shouldReduceMotion ? undefined : { duration: 5, repeat: Infinity, ease: "linear" }}
+        transition={
+          shouldReduceMotion ? undefined : { duration: 5, repeat: Infinity, ease: "linear" }
+        }
       />
 
       {/* telemetry links, drawing on from each router back to the mast */}
@@ -186,16 +235,48 @@ function ControlTowerIllustration() {
       {/* the fleet -- one detailed router up close, smaller ones further out */}
       {nodes.map((n, i) => (
         <g key={`node-${i}`} transform={`translate(${n.x}, ${n.y}) scale(${n.scale})`}>
-          <rect x="-20" y="-9" width="40" height="18" rx="5" fill="rgba(255,255,255,0.07)" stroke="white" strokeOpacity="0.7" strokeWidth="1.6" />
-          <line x1="-9" y1="-9" x2="-13" y2="-19" stroke="white" strokeOpacity="0.7" strokeWidth="1.6" strokeLinecap="round" />
-          <line x1="9" y1="-9" x2="13" y2="-19" stroke="white" strokeOpacity="0.7" strokeWidth="1.6" strokeLinecap="round" />
+          <rect
+            x="-20"
+            y="-9"
+            width="40"
+            height="18"
+            rx="5"
+            fill="rgba(255,255,255,0.07)"
+            stroke="white"
+            strokeOpacity="0.7"
+            strokeWidth="1.6"
+          />
+          <line
+            x1="-9"
+            y1="-9"
+            x2="-13"
+            y2="-19"
+            stroke="white"
+            strokeOpacity="0.7"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+          <line
+            x1="9"
+            y1="-9"
+            x2="13"
+            y2="-19"
+            stroke="white"
+            strokeOpacity="0.7"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
           <motion.circle
             cx="13"
             cy="0"
             r="2.4"
             fill="#a5b4fc"
             animate={shouldReduceMotion ? { opacity: 0.9 } : { opacity: [0.4, 1, 0.4] }}
-            transition={shouldReduceMotion ? undefined : { duration: 2, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }}
+            transition={
+              shouldReduceMotion
+                ? undefined
+                : { duration: 2, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }
+            }
           />
         </g>
       ))}
@@ -241,7 +322,10 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotEmail) { toast.error("Enter your operator email"); return; }
+    if (!forgotEmail) {
+      toast.error("Enter your operator email");
+      return;
+    }
     setForgotSubmitting(true);
     try {
       await authService.forgotPassword(forgotEmail);
@@ -252,12 +336,17 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       setForgotOpen(false);
     } catch (err) {
       toast.error((err as AppError).message || "Could not send the reset link. Please try again.");
-    } finally { setForgotSubmitting(false); }
+    } finally {
+      setForgotSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) { toast.error("Please enter email and password"); return; }
+    if (!email || !password) {
+      toast.error("Please enter email and password");
+      return;
+    }
     setLoading(true);
     try {
       const session = await login({ email, password });
@@ -282,7 +371,9 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       }, 50);
     } catch (err) {
       toast.error((err as AppError).message || "Login failed");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -331,7 +422,8 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               Every tenant, every router, one console.
             </h2>
             <p className="text-sm leading-relaxed text-white/65">
-              Provision customers, manage RADIUS/NAS infrastructure, and monitor the whole platform in real time — the control plane behind every location.
+              Provision customers, manage RADIUS/NAS infrastructure, and monitor the whole platform
+              in real time — the control plane behind every location.
             </p>
             <div className="flex gap-8 pt-1">
               {STATS.map((s, i) => (
@@ -342,7 +434,10 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                   transition={{ duration: 0.5, delay: 0.35 + i * 0.1, ease: "easeOut" }}
                 >
                   <s.icon className="mb-1.5 h-4 w-4 text-[#818cf8]" />
-                  <p className="text-xl font-semibold tabular-nums"><CountUp target={s.v} decimals={s.decimals} />{s.suffix}</p>
+                  <p className="text-xl font-semibold tabular-nums">
+                    <CountUp target={s.v} decimals={s.decimals} />
+                    {s.suffix}
+                  </p>
                   <p className="text-xs text-white/50">{s.l}</p>
                 </motion.div>
               ))}
@@ -376,8 +471,13 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary"><img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" /></div>
-              <div><p className="text-sm font-semibold">Wyfy Guest</p><p className="text-[11px] text-muted-foreground">Master Console</p></div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+                <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Wyfy Guest</p>
+                <p className="text-[11px] text-muted-foreground">Master Console</p>
+              </div>
             </div>
 
             <div className="mb-6 flex items-center gap-2.5">
@@ -385,7 +485,9 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <div>
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">Super Admin sign in</h1>
+                <h1 className="text-xl font-semibold tracking-tight text-foreground">
+                  Super Admin sign in
+                </h1>
                 <p className="text-xs text-muted-foreground">Platform operator access only.</p>
               </div>
             </div>
@@ -393,24 +495,54 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Operator email</Label>
-                <Input id="email" type="email" placeholder="operator@wyfyguest.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" autoFocus />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="operator@wyfyguest.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10"
+                  autoFocus
+                />
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <button type="button" onClick={openForgotPassword} className="text-xs font-medium text-primary hover:underline">
+                  <button
+                    type="button"
+                    onClick={openForgotPassword}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
                     Forgot password?
                   </button>
                 </div>
                 <div className="relative">
-                  <Input id="password" type={show ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10" />
-                  <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <Input
+                    id="password"
+                    type={show ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 pr-10 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShow(!show)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
                     {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
-              <motion.div whileHover={{ scale: loading ? 1 : 1.01 }} whileTap={{ scale: loading ? 1 : 0.98 }}>
-                <Button type="submit" className="h-11 w-full text-sm font-semibold shadow-md shadow-primary/20" disabled={loading}>
+              <motion.div
+                whileHover={{ scale: loading ? 1 : 1.01 }}
+                whileTap={{ scale: loading ? 1 : 0.98 }}
+              >
+                <Button
+                  type="submit"
+                  className="h-11 w-full text-sm font-semibold shadow-md shadow-primary/20"
+                  disabled={loading}
+                >
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {loading ? "Signing in…" : "Sign in to Master Console"}
                 </Button>
@@ -420,7 +552,10 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             <div className="mt-6 space-y-1 text-center">
               {/* No demo-credential hint here: unlike /login, this fake local-only bypass caused real login confusion on the admin console. */}
               <p className="text-xs text-muted-foreground">
-                Not an operator? <Link to="/login" className="font-medium text-primary hover:underline">Sign in to your workspace</Link>
+                Not an operator?{" "}
+                <Link to="/login" className="font-medium text-primary hover:underline">
+                  Sign in to your workspace
+                </Link>
               </p>
             </div>
 
@@ -448,7 +583,10 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             transition={{ duration: 0.6, delay: 0.7 }}
           >
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-[11px] font-medium text-foreground/70">
-              <span aria-hidden className="flex h-2.5 w-3.5 flex-col overflow-hidden rounded-[1px] ring-1 ring-black/5">
+              <span
+                aria-hidden
+                className="flex h-2.5 w-3.5 flex-col overflow-hidden rounded-[1px] ring-1 ring-black/5"
+              >
                 <span className="h-[1px] flex-1 bg-[#FF9933]" />
                 <span className="h-[1px] flex-1 bg-white" />
                 <span className="h-[1px] flex-1 bg-[#138808]" />
@@ -482,7 +620,12 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setForgotOpen(false)} disabled={forgotSubmitting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setForgotOpen(false)}
+                disabled={forgotSubmitting}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={forgotSubmitting}>

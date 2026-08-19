@@ -13,7 +13,6 @@ export const Route = createFileRoute("/_authenticated/locations/")({
   component: LocationMasterPage,
 });
 
-
 function LocationMasterPage() {
   const { can, isLocked, isVisible } = usePermissions();
   // The real POST /locations/provision endpoint is gated to
@@ -75,12 +74,15 @@ function LocationMasterPage() {
               size="sm"
               onClick={() => setWizardOpen(true)}
               disabled={!canProvision}
-              title={canProvision ? undefined : "Smart Location Provisioning requires platform-level access."}
+              title={
+                canProvision
+                  ? undefined
+                  : "Smart Location Provisioning requires platform-level access."
+              }
             >
               <Plus className="h-4 w-4" />
               <span className="ml-2">Create location</span>
             </Button>
-
           </Can>
         </div>
       </div>
@@ -101,4 +103,3 @@ function LocationMasterPage() {
     </div>
   );
 }
-

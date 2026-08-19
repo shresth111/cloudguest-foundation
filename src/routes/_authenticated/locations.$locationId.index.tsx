@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Lock,
-  MoreHorizontal,
-  PauseCircle,
-  PlayCircle,
-  Trash2,
-} from "lucide-react";
+import { ArrowLeft, Lock, MoreHorizontal, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -24,11 +17,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { LocationDetailTabs } from "@/components/locations/LocationDetailTabs";
 import { LocationStatusBadge } from "@/components/locations/LocationStatusBadge";
-import {
-  useDeleteLocations,
-  useLocation,
-  useUpdateLocationStatus,
-} from "@/hooks/useLocations";
+import { useDeleteLocations, useLocation, useUpdateLocationStatus } from "@/hooks/useLocations";
 import { usePermissions } from "@/hooks/usePermissions";
 
 const searchSchema = z.object({ tab: z.string().optional() });
@@ -56,7 +45,9 @@ function LocationDetailPage() {
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (!location)
-    return <ErrorState title="Location not found" description="This location may have been deleted." />;
+    return (
+      <ErrorState title="Location not found" description="This location may have been deleted." />
+    );
 
   const disabled = location.status === "inactive" || location.status === "suspended";
 
@@ -65,7 +56,6 @@ function LocationDetailPage() {
   const canRestart = can("location-master", "restart");
   const canExport = can("location-master", "export");
   const anyMenu = canRestart || canExport || canDelete;
-
 
   return (
     <div className="space-y-6">
@@ -110,7 +100,11 @@ function LocationDetailPage() {
               <span className="ml-2">{disabled ? "Activate" : "Suspend"}</span>
             </Button>
           ) : (
-            <Button variant="outline" disabled title="Access restricted. Contact your Administrator.">
+            <Button
+              variant="outline"
+              disabled
+              title="Access restricted. Contact your Administrator."
+            >
               <Lock className="h-4 w-4" />
               <span className="ml-2">{disabled ? "Activate" : "Suspend"}</span>
             </Button>
@@ -153,7 +147,6 @@ function LocationDetailPage() {
       <LocationDetailTabs location={location} initialTab={tab ?? "overview"} />
 
       <ConfirmDialog
-
         open={!!confirm}
         onOpenChange={(o) => !o && setConfirm(null)}
         title={confirm?.title ?? ""}

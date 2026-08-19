@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  BadgeCheck,
-  Clock,
-  Download,
-  FileDown,
-  Plus,
-  ShieldOff,
-  Ticket,
-} from "lucide-react";
+import { BadgeCheck, Clock, Download, FileDown, Plus, ShieldOff, Ticket } from "lucide-react";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -69,14 +61,15 @@ import { voucherService } from "@/services/voucher.service";
 import type { AppError } from "@/services/api";
 import type { VoucherBatch, VoucherBatchStatus } from "@/types/voucher";
 
-const STATUS_TONE: Record<VoucherBatchStatus, "default" | "secondary" | "destructive" | "outline"> = {
-  draft: "outline",
-  pending_approval: "secondary",
-  approved: "default",
-  active: "default",
-  expired: "outline",
-  revoked: "destructive",
-};
+const STATUS_TONE: Record<VoucherBatchStatus, "default" | "secondary" | "destructive" | "outline"> =
+  {
+    draft: "outline",
+    pending_approval: "secondary",
+    approved: "default",
+    active: "default",
+    expired: "outline",
+    revoked: "destructive",
+  };
 
 const batchSchema = z.object({
   organizationId: z.string().min(1, "Select an organization"),
@@ -134,15 +127,30 @@ export function VoucherManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-4">
-        <StatCard label="Total batches" value={kpis?.totalBatches ?? 0} icon={Ticket} tone="primary" />
+        <StatCard
+          label="Total batches"
+          value={kpis?.totalBatches ?? 0}
+          icon={Ticket}
+          tone="primary"
+        />
         <StatCard
           label="Pending approval"
           value={kpis?.pendingApproval ?? 0}
           icon={Clock}
           tone="warning"
         />
-        <StatCard label="Active batches" value={kpis?.activeBatches ?? 0} icon={BadgeCheck} tone="success" />
-        <StatCard label="Total vouchers" value={kpis?.totalVouchers ?? 0} icon={Ticket} tone="primary" />
+        <StatCard
+          label="Active batches"
+          value={kpis?.activeBatches ?? 0}
+          icon={BadgeCheck}
+          tone="success"
+        />
+        <StatCard
+          label="Total vouchers"
+          value={kpis?.totalVouchers ?? 0}
+          icon={Ticket}
+          tone="primary"
+        />
       </div>
 
       <Card className="border-border/60">
@@ -164,14 +172,20 @@ export function VoucherManagement() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No voucher batches yet.
                   </TableCell>
                 </TableRow>
@@ -201,7 +215,10 @@ export function VoucherManagement() {
                           disabled={approve.isPending}
                           onClick={async () => {
                             try {
-                              await approve.mutateAsync({ id: b.id, organizationId: b.organizationId });
+                              await approve.mutateAsync({
+                                id: b.id,
+                                organizationId: b.organizationId,
+                              });
                               toast.success("Batch approved");
                             } catch (err) {
                               toast.error((err as AppError).message || "Failed to approve batch");
@@ -252,7 +269,9 @@ export function VoucherManagement() {
           </Table>
           {data && data.totalPages > 1 && (
             <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
-              <span>Page {page} of {data.totalPages} · {data.total} batches</span>
+              <span>
+                Page {page} of {data.totalPages} · {data.total} batches
+              </span>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -343,8 +362,7 @@ function BatchDialog({
   const selectedOrgId = form.watch("organizationId");
   const { data: locations = { rows: [] } } = useQuery({
     queryKey: ["voucher", "location-options", selectedOrgId],
-    queryFn: () =>
-      locationService.list({ organizationId: selectedOrgId, page: 1, pageSize: 100 }),
+    queryFn: () => locationService.list({ organizationId: selectedOrgId, page: 1, pageSize: 100 }),
     enabled: !!selectedOrgId,
   });
   const { data: plans = [] } = useVoucherPlans(selectedOrgId || undefined);
@@ -415,7 +433,11 @@ function BatchDialog({
               control={form.control}
               name="locationId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={!selectedOrgId}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={!selectedOrgId}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Any location" />
                   </SelectTrigger>
@@ -443,7 +465,11 @@ function BatchDialog({
               control={form.control}
               name="planId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={!selectedOrgId}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={!selectedOrgId}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="No speed entitlement" />
                   </SelectTrigger>
@@ -462,7 +488,9 @@ function BatchDialog({
             <Label className="text-xs font-medium">Quantity</Label>
             <Input type="number" min={0} max={1000} {...form.register("quantity")} />
             {form.formState.errors.quantity && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.quantity.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.quantity.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">

@@ -2,7 +2,13 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,45 +57,74 @@ export function BrandSettingsPanel({ brand }: { brand: Brand }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Brand information</CardTitle></CardHeader>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Brand information</CardTitle>
+        </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <Label>Company name</Label>
               <Input className="mt-1" {...form.register("companyName")} />
-              {form.formState.errors.companyName && <p className="mt-1 text-xs text-destructive">{form.formState.errors.companyName.message}</p>}
+              {form.formState.errors.companyName && (
+                <p className="mt-1 text-xs text-destructive">
+                  {form.formState.errors.companyName.message}
+                </p>
+              )}
             </div>
             <div>
               <Label>Brand name</Label>
               <Input className="mt-1" {...form.register("name")} />
-              {form.formState.errors.name && <p className="mt-1 text-xs text-destructive">{form.formState.errors.name.message}</p>}
+              {form.formState.errors.name && (
+                <p className="mt-1 text-xs text-destructive">
+                  {form.formState.errors.name.message}
+                </p>
+              )}
             </div>
             <div>
               <Label>Default language</Label>
-              <Select value={form.watch("language")} onValueChange={(v) => form.setValue("language", v as Language)}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <Select
+                value={form.watch("language")}
+                onValueChange={(v) => form.setValue("language", v as Language)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {LANGS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+                  {LANGS.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save changes"}</Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save changes"}
+            </Button>
           </form>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Logos</CardTitle></CardHeader>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Logos</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           {LOGO_FIELDS.map((f) => (
             <div key={f.key} className="flex items-center gap-3">
-              <img src={brand.logos[f.key]} alt="" className="h-10 w-10 rounded-md border object-cover" />
+              <img
+                src={brand.logos[f.key]}
+                alt=""
+                className="h-10 w-10 rounded-md border object-cover"
+              />
               <div className="flex-1">
                 <Label className="text-xs">{f.label}</Label>
                 <Input
                   className="mt-1 h-8 text-xs"
                   defaultValue={brand.logos[f.key]}
-                  onBlur={(e) => e.target.value !== brand.logos[f.key] && updateLogo(f.key, e.target.value)}
+                  onBlur={(e) =>
+                    e.target.value !== brand.logos[f.key] && updateLogo(f.key, e.target.value)
+                  }
                   placeholder="https://…"
                 />
               </div>

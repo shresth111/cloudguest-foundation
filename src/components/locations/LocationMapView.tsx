@@ -48,31 +48,43 @@ export function LocationMapView({ rows }: { rows: Location[] }) {
             }}
           />
 
-          {rows.filter((r) => r.latitude != null && r.longitude != null).map((r) => {
-            const pos = project(r.latitude as number, r.longitude as number);
-            return (
-              <Link
-                key={r.id}
-                to="/locations/$locationId"
-                params={{ locationId: r.id }}
-                className="absolute -translate-x-1/2 -translate-y-1/2"
-                style={pos}
-                title={`${r.name} — ${r.city}`}
-              >
-                <div className="group relative">
-                  <div className={cn("h-3 w-3 rounded-full ring-2 ring-background", STATUS_DOT[r.status])}>
-                    <div className={cn("absolute inset-0 animate-ping rounded-full opacity-60", STATUS_DOT[r.status])} />
-                  </div>
-                  <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs shadow-md group-hover:block">
-                    <div className="font-medium">{r.name}</div>
-                    <div className="text-muted-foreground">
-                      {r.city}, {r.country}
+          {rows
+            .filter((r) => r.latitude != null && r.longitude != null)
+            .map((r) => {
+              const pos = project(r.latitude as number, r.longitude as number);
+              return (
+                <Link
+                  key={r.id}
+                  to="/locations/$locationId"
+                  params={{ locationId: r.id }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2"
+                  style={pos}
+                  title={`${r.name} — ${r.city}`}
+                >
+                  <div className="group relative">
+                    <div
+                      className={cn(
+                        "h-3 w-3 rounded-full ring-2 ring-background",
+                        STATUS_DOT[r.status],
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "absolute inset-0 animate-ping rounded-full opacity-60",
+                          STATUS_DOT[r.status],
+                        )}
+                      />
+                    </div>
+                    <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs shadow-md group-hover:block">
+                      <div className="font-medium">{r.name}</div>
+                      <div className="text-muted-foreground">
+                        {r.city}, {r.country}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
 
           <div className="absolute bottom-3 left-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-xs backdrop-blur">
             <div className="mb-1 flex items-center gap-1 font-medium">

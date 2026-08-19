@@ -56,29 +56,51 @@ function SettingsPage() {
 
   if (q.isLoading) return <PageSkeleton />;
   if (q.isError || !q.data)
-    return <ErrorState title="Unable to load settings" description="Retry to refresh the platform configuration." onRetry={() => q.refetch()} />;
+    return (
+      <ErrorState
+        title="Unable to load settings"
+        description="Retry to refresh the platform configuration."
+        onRetry={() => q.refetch()}
+      />
+    );
 
   const data = q.data;
   const activeItem = SETTINGS_NAV.find((i) => i.id === active) ?? SETTINGS_NAV[0];
 
   const renderPanel = () => {
     switch (active) {
-      case "general":       return <GeneralPanel data={data.general} />;
-      case "branding":      return <BrandingPanel />;
-      case "authentication":return <AuthenticationPanel data={data.auth} />;
-      case "security":      return <SecurityPanel data={data.security} />;
-      case "notifications": return <NotificationsPanel data={data.notifications} />;
-      case "email":         return <EmailPanel data={data.email} />;
-      case "sms":           return <SmsPanel data={data.sms} />;
-      case "storage":       return <StoragePanel data={data.storage} />;
-      case "integrations":  return <IntegrationsPanel data={data.integrations} />;
-      case "payment":       return <PaymentPanel data={data.payment} />;
-      case "api":           return <ApiPanel data={data.api} />;
-      case "system":        return <SystemPanel data={data.system} />;
-      case "backup":        return <BackupPanel data={data.backup} />;
-      case "feature_flags": return <FeatureFlagsPanel data={data.featureFlags} />;
-      case "license":       return <LicensePanel data={data.license} />;
-      case "about":         return <AboutPanel data={data.about} />;
+      case "general":
+        return <GeneralPanel data={data.general} />;
+      case "branding":
+        return <BrandingPanel />;
+      case "authentication":
+        return <AuthenticationPanel data={data.auth} />;
+      case "security":
+        return <SecurityPanel data={data.security} />;
+      case "notifications":
+        return <NotificationsPanel data={data.notifications} />;
+      case "email":
+        return <EmailPanel data={data.email} />;
+      case "sms":
+        return <SmsPanel data={data.sms} />;
+      case "storage":
+        return <StoragePanel data={data.storage} />;
+      case "integrations":
+        return <IntegrationsPanel data={data.integrations} />;
+      case "payment":
+        return <PaymentPanel data={data.payment} />;
+      case "api":
+        return <ApiPanel data={data.api} />;
+      case "system":
+        return <SystemPanel data={data.system} />;
+      case "backup":
+        return <BackupPanel data={data.backup} />;
+      case "feature_flags":
+        return <FeatureFlagsPanel data={data.featureFlags} />;
+      case "license":
+        return <LicensePanel data={data.license} />;
+      case "about":
+        return <AboutPanel data={data.about} />;
     }
   };
 
@@ -89,7 +111,9 @@ function SettingsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Platform settings</h1>
           <p className="text-sm text-muted-foreground">
             Configure identity, security, integrations and runtime behaviour.
-            <span className="ml-2 text-xs text-muted-foreground/80">Last updated {new Date(data.updatedAt).toLocaleString()}</span>
+            <span className="ml-2 text-xs text-muted-foreground/80">
+              Last updated {new Date(data.updatedAt).toLocaleString()}
+            </span>
           </p>
         </div>
         <SettingsQuickActions />
@@ -100,9 +124,19 @@ function SettingsPage() {
           <AlertCircle className="mt-0.5 h-4 w-4" />
           <div>
             <div className="font-medium">Maintenance mode is enabled</div>
-            <div className="text-xs opacity-80">Tenants are seeing the maintenance page. Disable it from System when ready.</div>
+            <div className="text-xs opacity-80">
+              Tenants are seeing the maintenance page. Disable it from System when ready.
+            </div>
           </div>
-          <Button size="sm" variant="outline" className="ml-auto" onClick={() => { setActive("system"); toast.info("Jumped to System settings"); }}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto"
+            onClick={() => {
+              setActive("system");
+              toast.info("Jumped to System settings");
+            }}
+          >
             Go to System
           </Button>
         </div>
@@ -116,14 +150,21 @@ function SettingsPage() {
               {filteredNav.length ? (
                 <SettingsSidebar active={active} onSelect={setActive} items={filteredNav} />
               ) : (
-                <EmptyState icon={Settings} title="No matches" description="Try a different search term." />
+                <EmptyState
+                  icon={Settings}
+                  title="No matches"
+                  description="Try a different search term."
+                />
               )}
             </CardContent>
           </Card>
         </aside>
 
         <section className="min-w-0 space-y-4">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+          >
             <span>Settings</span>
             <ChevronRight className="h-3 w-3" />
             <span className="text-foreground">{activeItem.label}</span>

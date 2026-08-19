@@ -7,10 +7,25 @@ export const Route = createFileRoute("/_authenticated/workspace/notifications")(
 });
 
 const items = [
-  { icon: AlertCircle, title: "Router RTR-LOC-90001-2 went offline", when: "3m ago", tone: "text-destructive" },
+  {
+    icon: AlertCircle,
+    title: "Router RTR-LOC-90001-2 went offline",
+    when: "3m ago",
+    tone: "text-destructive",
+  },
   { icon: CheckCircle2, title: "Invoice INV-2025003 paid", when: "1h ago", tone: "text-green-600" },
-  { icon: Info, title: "New firmware v7.15 available for hAP ax3", when: "5h ago", tone: "text-blue-600" },
-  { icon: Bell, title: "Peak concurrent guests reached 480", when: "yesterday", tone: "text-amber-600" },
+  {
+    icon: Info,
+    title: "New firmware v7.15 available for hAP ax3",
+    when: "5h ago",
+    tone: "text-blue-600",
+  },
+  {
+    icon: Bell,
+    title: "Peak concurrent guests reached 480",
+    when: "yesterday",
+    tone: "text-amber-600",
+  },
 ];
 
 function NotificationsPage() {

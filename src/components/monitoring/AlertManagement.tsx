@@ -104,7 +104,10 @@ export function AlertManagement() {
         </div>
       ) : alerts.length === 0 ? (
         <div className="p-6">
-          <EmptyState title="No alerts" description="All systems are operating within thresholds." />
+          <EmptyState
+            title="No alerts"
+            description="All systems are operating within thresholds."
+          />
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -133,10 +136,12 @@ export function AlertManagement() {
                       <SeverityBadge severity={a.severity} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {orgName(a.organizationId) ?? (a.organizationId ? a.organizationId.slice(0, 8) : "—")}
+                      {orgName(a.organizationId) ??
+                        (a.organizationId ? a.organizationId.slice(0, 8) : "—")}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {locationName(a.locationId) ?? (a.locationId ? a.locationId.slice(0, 8) : "—")}
+                      {locationName(a.locationId) ??
+                        (a.locationId ? a.locationId.slice(0, 8) : "—")}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {new Date(a.triggeredAt).toLocaleString()}
@@ -189,10 +194,20 @@ export function AlertManagement() {
                 Page {data.page} of {data.totalPages}
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!data.hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!data.hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>

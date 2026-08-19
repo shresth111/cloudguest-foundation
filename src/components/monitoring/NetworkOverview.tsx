@@ -31,11 +31,14 @@ export function NetworkOverview() {
           </CardHeader>
           <CardContent className="space-y-1">
             <p className="text-xs text-muted-foreground">
-              {c.lastCheckedAt ? `Checked ${new Date(c.lastCheckedAt).toLocaleString()}` : "Never checked"}
+              {c.lastCheckedAt
+                ? `Checked ${new Date(c.lastCheckedAt).toLocaleString()}`
+                : "Never checked"}
             </p>
             {c.consecutiveFailureCount > 0 && (
               <p className="text-xs text-red-500">
-                {c.consecutiveFailureCount} consecutive failure{c.consecutiveFailureCount === 1 ? "" : "s"}
+                {c.consecutiveFailureCount} consecutive failure
+                {c.consecutiveFailureCount === 1 ? "" : "s"}
               </p>
             )}
           </CardContent>

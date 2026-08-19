@@ -59,14 +59,39 @@ import type { AppError } from "@/services/api";
 const PAGE_SIZES = [10, 20, 50];
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
 }
 
 function toCsv(rows: Organization[]) {
-  const headers = ["ID", "Name", "Slug", "Type", "Email", "Phone", "Subscription tier", "Status", "Created"];
+  const headers = [
+    "ID",
+    "Name",
+    "Slug",
+    "Type",
+    "Email",
+    "Phone",
+    "Subscription tier",
+    "Status",
+    "Created",
+  ];
   const lines = rows.map((r) =>
-    [r.id, r.name, r.slug, r.orgType, r.contactEmail, r.contactPhone ?? "", r.subscriptionTier ?? "", r.status, r.createdAt]
-      .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","),
+    [
+      r.id,
+      r.name,
+      r.slug,
+      r.orgType,
+      r.contactEmail,
+      r.contactPhone ?? "",
+      r.subscriptionTier ?? "",
+      r.status,
+      r.createdAt,
+    ]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+      .join(","),
   );
   return [headers.join(","), ...lines].join("\n");
 }
@@ -78,7 +103,12 @@ export function OrganizationTable() {
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [confirm, setConfirm] = useState<null | { title: string; description: string; onConfirm: () => void; destructive?: boolean }>(null);
+  const [confirm, setConfirm] = useState<null | {
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    destructive?: boolean;
+  }>(null);
 
   const query: OrgListQuery = useMemo(
     () => ({ search, status, page, pageSize }),
@@ -161,13 +191,24 @@ export function OrganizationTable() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               placeholder="Search organizations, contact emails…"
               className="pl-9"
             />
           </div>
-          <Select value={status} onValueChange={(v) => { setStatus(v as OrgStatus | "all"); setPage(1); }}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              setStatus(v as OrgStatus | "all");
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="trial">Trial</SelectItem>
@@ -178,14 +219,20 @@ export function OrganizationTable() {
           </Select>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-              {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {isFetching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
               <span className="ml-2 hidden sm:inline">Refresh</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length}>
-              <Download className="h-4 w-4" /><span className="ml-2 hidden sm:inline">Export</span>
+              <Download className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Export</span>
             </Button>
             <Button size="sm" onClick={() => setWizardOpen(true)}>
-              <Plus className="h-4 w-4" /><span className="ml-2">New organization</span>
+              <Plus className="h-4 w-4" />
+              <span className="ml-2">New organization</span>
             </Button>
           </div>
         </div>
@@ -195,13 +242,16 @@ export function OrganizationTable() {
             <span className="font-medium">{selectedCount} selected</span>
             <div className="ml-auto flex gap-2">
               <Button variant="outline" size="sm" onClick={() => bulk("activate")}>
-                <CheckCircle2 className="h-4 w-4" /><span className="ml-2">Activate</span>
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="ml-2">Activate</span>
               </Button>
               <Button variant="outline" size="sm" onClick={() => bulk("suspend")}>
-                <PauseCircle className="h-4 w-4" /><span className="ml-2">Suspend</span>
+                <PauseCircle className="h-4 w-4" />
+                <span className="ml-2">Suspend</span>
               </Button>
               <Button variant="destructive" size="sm" onClick={() => bulk("delete")}>
-                <Trash2 className="h-4 w-4" /><span className="ml-2">Archive</span>
+                <Trash2 className="h-4 w-4" />
+                <span className="ml-2">Archive</span>
               </Button>
             </div>
           </div>
@@ -210,7 +260,9 @@ export function OrganizationTable() {
 
       <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
         {isLoading ? (
-          <div className="p-4"><LoadingSkeleton rows={8} /></div>
+          <div className="p-4">
+            <LoadingSkeleton rows={8} />
+          </div>
         ) : isError ? (
           <ErrorState title="Failed to load organizations" onRetry={() => refetch()} />
         ) : rows.length === 0 ? (
@@ -225,7 +277,13 @@ export function OrganizationTable() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" /></TableHead>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allChecked}
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
                   <TableHead>Organization</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Contact</TableHead>
@@ -238,10 +296,22 @@ export function OrganizationTable() {
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.id} className="hover:bg-muted/30">
-                    <TableCell><Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggleOne(r.id)} aria-label={`Select ${r.name}`} /></TableCell>
                     <TableCell>
-                      <Link to="/organizations/$orgId" params={{ orgId: r.id }} className="group flex flex-col">
-                        <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
+                      <Checkbox
+                        checked={selected.has(r.id)}
+                        onCheckedChange={() => toggleOne(r.id)}
+                        aria-label={`Select ${r.name}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        to="/organizations/$orgId"
+                        params={{ orgId: r.id }}
+                        className="group flex flex-col"
+                      >
+                        <span className="font-medium text-foreground group-hover:text-primary">
+                          {r.name}
+                        </span>
                         <span className="text-xs text-muted-foreground">{r.slug}</span>
                       </Link>
                     </TableCell>
@@ -249,26 +319,48 @@ export function OrganizationTable() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="text-sm">{r.contactEmail}</span>
-                        {r.contactPhone && <span className="text-xs text-muted-foreground">{r.contactPhone}</span>}
+                        {r.contactPhone && (
+                          <span className="text-xs text-muted-foreground">{r.contactPhone}</span>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.subscriptionTier ?? "—"}</TableCell>
-                    <TableCell><StatusBadge status={r.status} /></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(r.createdAt)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.subscriptionTier ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={r.status} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(r.createdAt)}
+                    </TableCell>
                     <TableCell className="text-right">
-                      <RowActions org={r} onAction={(a) => {
-                        if (a === "activate" || a === "suspend") {
-                          updateStatus.mutate({ ids: [r.id], status: a === "activate" ? "active" : "suspended" }, {
-                            onSuccess: () => toast.success(`${r.name} ${a}d`),
-                            onError: (err) => toast.error((err as unknown as AppError).message || `Failed to ${a}`),
-                          });
-                        } else if (a === "delete") {
-                          setConfirm({
-                            title: `Archive ${r.name}?`, description: "This archives the organization.", destructive: true,
-                            onConfirm: async () => { await remove.mutateAsync([r.id]); toast.success("Archived"); },
-                          });
-                        }
-                      }} />
+                      <RowActions
+                        org={r}
+                        onAction={(a) => {
+                          if (a === "activate" || a === "suspend") {
+                            updateStatus.mutate(
+                              { ids: [r.id], status: a === "activate" ? "active" : "suspended" },
+                              {
+                                onSuccess: () => toast.success(`${r.name} ${a}d`),
+                                onError: (err) =>
+                                  toast.error(
+                                    (err as unknown as AppError).message || `Failed to ${a}`,
+                                  ),
+                              },
+                            );
+                          } else if (a === "delete") {
+                            setConfirm({
+                              title: `Archive ${r.name}?`,
+                              description: "This archives the organization.",
+                              destructive: true,
+                              onConfirm: async () => {
+                                await remove.mutateAsync([r.id]);
+                                toast.success("Archived");
+                              },
+                            });
+                          }
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -285,15 +377,43 @@ export function OrganizationTable() {
               <span className="text-foreground">{total}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
-                <SelectTrigger className="h-8 w-[80px]"><SelectValue /></SelectTrigger>
-                <SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  setPageSize(Number(v));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZES.map((s) => (
+                    <SelectItem key={s} value={String(s)}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="tabular-nums">Page {page} / {totalPages}</span>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+              <span className="tabular-nums">
+                Page {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -309,25 +429,35 @@ export function OrganizationTable() {
         description={confirm?.description ?? ""}
         confirmLabel="Confirm"
         destructive={confirm?.destructive}
-        onConfirm={() => { confirm?.onConfirm(); setConfirm(null); }}
+        onConfirm={() => {
+          confirm?.onConfirm();
+          setConfirm(null);
+        }}
       />
     </div>
   );
 }
 
-function RowActions({ org, onAction }: {
+function RowActions({
+  org,
+  onAction,
+}: {
   org: Organization;
   onAction: (a: "activate" | "suspend" | "delete") => void;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuItem asChild>
-          <Link to="/organizations/$orgId" params={{ orgId: org.id }}>View details</Link>
+          <Link to="/organizations/$orgId" params={{ orgId: org.id }}>
+            View details
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {org.status === "suspended" ? (
@@ -335,7 +465,10 @@ function RowActions({ org, onAction }: {
         ) : (
           <DropdownMenuItem onClick={() => onAction("suspend")}>Suspend</DropdownMenuItem>
         )}
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onAction("delete")}>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={() => onAction("delete")}
+        >
           Archive
         </DropdownMenuItem>
       </DropdownMenuContent>

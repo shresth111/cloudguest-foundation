@@ -32,7 +32,8 @@ function FeatureManagementPage() {
   const filtered = useMemo(() => {
     return (data ?? []).filter((f) => {
       if (category !== "all" && f.category !== category) return false;
-      if (query && !`${f.name} ${f.description}`.toLowerCase().includes(query.toLowerCase())) return false;
+      if (query && !`${f.name} ${f.description}`.toLowerCase().includes(query.toLowerCase()))
+        return false;
       return true;
     });
   }, [data, category, query]);
@@ -60,9 +61,9 @@ function FeatureManagementPage() {
       <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
-          Illustrative only -- this list isn't backed by any customer&apos;s real plan
-          entitlements, and toggles here reset on reload. To actually grant a real feature to a
-          real plan, use Billing → Plans.
+          Illustrative only -- this list isn't backed by any customer&apos;s real plan entitlements,
+          and toggles here reset on reload. To actually grant a real feature to a real plan, use
+          Billing → Plans.
         </span>
       </div>
 
@@ -70,7 +71,11 @@ function FeatureManagementPage() {
         <StatCard label="Total features" value={data.length} />
         <StatCard label="Enabled" value={totalEnabled} tone="success" />
         <StatCard label="Categories" value={categories.length - 1} />
-        <StatCard label="Requires upgrade" value={data.filter((f) => f.status === "upgrade").length} tone="warning" />
+        <StatCard
+          label="Requires upgrade"
+          value={data.filter((f) => f.status === "upgrade").length}
+          tone="warning"
+        />
       </div>
 
       <Card>
@@ -113,9 +118,13 @@ function FeatureManagementPage() {
                     <div className="flex items-center gap-2">
                       <ToggleRight className="h-4 w-4 text-primary" />
                       <div className="truncate font-medium">{f.name}</div>
-                      <Badge variant="outline" className="capitalize">{f.plan}</Badge>
+                      <Badge variant="outline" className="capitalize">
+                        {f.plan}
+                      </Badge>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{f.description}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      {f.description}
+                    </p>
                     <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{f.category}</span>
                       <span>·</span>
@@ -134,7 +143,9 @@ function FeatureManagementPage() {
             })}
           </div>
           {filtered.length === 0 && (
-            <div className="py-10 text-center text-sm text-muted-foreground">No features match your filters.</div>
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No features match your filters.
+            </div>
           )}
         </CardContent>
       </Card>
@@ -142,7 +153,15 @@ function FeatureManagementPage() {
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: number | string; tone?: "success" | "warning" }) {
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  tone?: "success" | "warning";
+}) {
   return (
     <Card>
       <CardContent className="p-4">

@@ -32,7 +32,13 @@ export function RouterStatusBadge({ status }: { status: RouterStatus }) {
  * This renders next to `RouterStatusBadge` specifically for that gap --
  * never for `online`/`offline` routers that already proved they can
  * connect at some point, even if credentials were later cleared. */
-export function MissingCredentialsBadge({ hasApiCredentials, status }: { hasApiCredentials: boolean; status: RouterStatus }) {
+export function MissingCredentialsBadge({
+  hasApiCredentials,
+  status,
+}: {
+  hasApiCredentials: boolean;
+  status: RouterStatus;
+}) {
   if (hasApiCredentials || status === "decommissioned") return null;
   return (
     <Badge

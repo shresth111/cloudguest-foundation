@@ -10,10 +10,7 @@ export const contentFilterKeys = {
   list: (q: ContentFilterListQuery) => ["content-filter", "list", q] as const,
 };
 
-export const useContentFilterRules = (
-  q: ContentFilterListQuery,
-  options?: { enabled?: boolean },
-) =>
+export const useContentFilterRules = (q: ContentFilterListQuery, options?: { enabled?: boolean }) =>
   useQuery({
     queryKey: contentFilterKeys.list(q),
     queryFn: () => contentFilterService.list(q),

@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dnsService } from "@/services/dns.service";
-import type { CreateDnsRecordPayload, DnsRecordListQuery, UpdateDnsRecordPayload } from "@/types/dns";
+import type {
+  CreateDnsRecordPayload,
+  DnsRecordListQuery,
+  UpdateDnsRecordPayload,
+} from "@/types/dns";
 
 export const dnsKeys = {
   list: (q: DnsRecordListQuery) => ["dns", "list", q] as const,

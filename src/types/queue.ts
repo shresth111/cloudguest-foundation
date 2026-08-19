@@ -56,7 +56,13 @@ export type QueueTargetType =
   | "device"
   | "session";
 
-export type QueueAssignmentStatus = "pending" | "active" | "disabled" | "suspended" | "error" | "expired";
+export type QueueAssignmentStatus =
+  | "pending"
+  | "active"
+  | "disabled"
+  | "suspended"
+  | "error"
+  | "expired";
 
 export interface QueueAssignment {
   id: string;

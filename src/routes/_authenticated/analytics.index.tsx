@@ -87,12 +87,22 @@ function AnalyticsPage() {
             <RefreshCw className="mr-2 h-4 w-4" /> Refresh
           </Button>
           <Button size="sm" onClick={exportDashboard} disabled={generate.isPending}>
-            {generate.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Export
+            {generate.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}{" "}
+            Export
           </Button>
         </div>
       </div>
 
-      <AnalyticsKpiGrid data={snap.data?.kpis} isLoading={snap.isLoading} isError={snap.isError} onRetry={() => snap.refetch()} />
+      <AnalyticsKpiGrid
+        data={snap.data?.kpis}
+        isLoading={snap.isLoading}
+        isError={snap.isError}
+        onRetry={() => snap.refetch()}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">

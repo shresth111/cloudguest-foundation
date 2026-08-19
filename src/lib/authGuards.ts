@@ -42,15 +42,23 @@ export function requireCustomerSession(
     // target is never correct: login.tsx's own post-login handler would
     // just navigate straight back to /login instead of wherever the
     // visitor actually meant to go, or to the real home route.
-    const isAlreadyOnLogin = location.href === "/login" || location.href.startsWith("/login?") || location.href.startsWith("/login#");
-    throw redirect({ to: "/login", search: isAlreadyOnLogin ? undefined : { redirect: location.href } });
+    const isAlreadyOnLogin =
+      location.href === "/login" ||
+      location.href.startsWith("/login?") ||
+      location.href.startsWith("/login#");
+    throw redirect({
+      to: "/login",
+      search: isAlreadyOnLogin ? undefined : { redirect: location.href },
+    });
   }
   // The "admin@example.com" / "test" demo bypass (see login.tsx / AuthContext's
   // login()) hardcodes a global-scope "Super Admin" role on its fake session --
   // it was never meant to represent a real operator, and login.tsx sends it
   // straight to /customer on submit. Same check customer.service.ts's own
   // isDemo() uses, so this stays in lockstep with the rest of the demo path.
-  const isDemoSession = typeof window !== "undefined" && localStorage.getItem(TOKEN_STORAGE_KEY) === "demo-access-token";
+  const isDemoSession =
+    typeof window !== "undefined" &&
+    localStorage.getItem(TOKEN_STORAGE_KEY) === "demo-access-token";
 
   const hasCustomerRole = auth?.roles?.some((r) => r.scopeType !== "global") ?? true;
   if (auth?.status === "authenticated" && !hasCustomerRole && !isDemoSession) {

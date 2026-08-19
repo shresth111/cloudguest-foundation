@@ -13,7 +13,7 @@ function Page() {
         title="Contact Support"
         description="Open a ticket, chat with support or check platform status."
         icon={MessageSquare}
-        bullets={["Priority tickets","Live chat","Status page"]}
+        bullets={["Priority tickets", "Live chat", "Status page"]}
       />
     </PageShell>
   );

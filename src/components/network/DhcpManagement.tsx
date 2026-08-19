@@ -69,7 +69,10 @@ const dhcpSchema = z.object({
   // "Interface" field below for why a pool with no interface never
   // actually starts a dhcp-server on the real device (silently creates a
   // bare /ip pool that hands out nothing).
-  interface: z.string().trim().min(1, "Required — the DHCP server won't start on the router without it"),
+  interface: z
+    .string()
+    .trim()
+    .min(1, "Required — the DHCP server won't start on the router without it"),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   dnsPrimary: z.string().trim().optional().or(z.literal("")),
   dnsSecondary: z.string().trim().optional().or(z.literal("")),
@@ -81,23 +84,60 @@ type DhcpFormValues = z.infer<typeof dhcpSchema>;
 function DhcpIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
-      <rect x="6" y="16" width="24" height="20" rx="4" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.6" />
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 84 52"
+      className="hidden h-12 w-auto shrink-0 sm:block"
+      fill="none"
+    >
+      <rect
+        x="6"
+        y="16"
+        width="24"
+        height="20"
+        rx="4"
+        fill="#2e2a5c"
+        stroke="#a78bfa"
+        strokeWidth="1.6"
+      />
       <circle cx="18" cy="26" r="4.5" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.4" />
-      <path d="M18 23v3l2 2" stroke="#22d3ee" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M18 23v3l2 2"
+        stroke="#22d3ee"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <motion.path
         d="M30 26h12"
-        stroke="#4f46e5" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 4"
+        stroke="#4f46e5"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeDasharray="1 4"
         initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       />
-      <rect x="42" y="8" width="36" height="36" rx="6" fill="#1e1b4b" stroke="#f0abfc" strokeWidth="1.6" />
+      <rect
+        x="42"
+        y="8"
+        width="36"
+        height="36"
+        rx="6"
+        fill="#1e1b4b"
+        stroke="#f0abfc"
+        strokeWidth="1.6"
+      />
       {[0, 1, 2].map((i) => (
         <motion.rect
           key={i}
-          x={49} y={16 + i * 8} width={22 - i * 4} height="4" rx="2"
-          fill={["#a78bfa", "#22d3ee", "#f0abfc"][i]} fillOpacity="0.7"
+          x={49}
+          y={16 + i * 8}
+          width={22 - i * 4}
+          height="4"
+          rx="2"
+          fill={["#a78bfa", "#22d3ee", "#f0abfc"][i]}
+          fillOpacity="0.7"
           initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
           animate={{ scaleX: 1, opacity: 1 }}
           transition={{ duration: 0.45, delay: 0.12 * i, ease: "easeOut" }}
@@ -155,7 +195,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
+    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
   );
   const del = useDeleteDhcpPool();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -192,9 +232,13 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
     );
   });
 
-  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
-  const total = locationId ? filteredRows.length : data?.total ?? 0;
-  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const rows = locationId
+    ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : filteredRows;
+  const total = locationId ? filteredRows.length : (data?.total ?? 0);
+  const totalPages = locationId
+    ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+    : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   const enabledCount = rows.filter((p) => p.isEnabled).length;
@@ -210,9 +254,11 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
         icon={Server}
         eyebrow="Network"
         title={locationId ? "IP Addresses" : "DHCP Pool Management"}
-        description={locationId
-          ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
-          : "Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."}
+        description={
+          locationId
+            ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
+            : "Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."
+        }
         illustration={<DhcpIllustration />}
         actions={
           <Button onClick={() => setCreating(true)}>
@@ -224,7 +270,12 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Pools" value={total} icon={Share2} tone="primary" />
         <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={rows.length - enabledCount} icon={ShieldOff} tone="warning" />
+        <StatCard
+          label="Disabled"
+          value={rows.length - enabledCount}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -278,14 +329,20 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No DHCP pools match your filters.
                   </TableCell>
                 </TableRow>
@@ -336,10 +393,20 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
                 Page {page} of {totalPages} · {total} pools
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>
@@ -364,8 +431,8 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete pool "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes it from {confirmDelete ? routerName(confirmDelete.routerId) : ""}.
-              This cannot be undone.
+              This permanently removes it from{" "}
+              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -517,7 +584,9 @@ function DhcpDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -529,7 +598,11 @@ function DhcpDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Range start</Label>
-            <Input {...form.register("addressRangeStart")} placeholder="10.0.0.10" className="font-mono" />
+            <Input
+              {...form.register("addressRangeStart")}
+              placeholder="10.0.0.10"
+              className="font-mono"
+            />
             {form.formState.errors.addressRangeStart && (
               <p className="text-[11px] text-destructive">
                 {form.formState.errors.addressRangeStart.message}
@@ -538,7 +611,11 @@ function DhcpDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Range end</Label>
-            <Input {...form.register("addressRangeEnd")} placeholder="10.0.0.250" className="font-mono" />
+            <Input
+              {...form.register("addressRangeEnd")}
+              placeholder="10.0.0.250"
+              className="font-mono"
+            />
             {form.formState.errors.addressRangeEnd && (
               <p className="text-[11px] text-destructive">
                 {form.formState.errors.addressRangeEnd.message}
@@ -547,7 +624,11 @@ function DhcpDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Gateway IP (optional)</Label>
-            <Input {...form.register("gatewayIpAddress")} placeholder="10.0.0.1" className="font-mono" />
+            <Input
+              {...form.register("gatewayIpAddress")}
+              placeholder="10.0.0.1"
+              className="font-mono"
+            />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -639,7 +720,9 @@ function DhcpDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <DialogFooter className="sm:col-span-2">

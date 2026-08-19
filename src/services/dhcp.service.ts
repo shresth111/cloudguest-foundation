@@ -116,7 +116,11 @@ export const dhcpService = {
     return toDhcpPool(data);
   },
 
-  async update(id: string, payload: UpdateDhcpPoolPayload, organizationId?: string): Promise<DhcpPool> {
+  async update(
+    id: string,
+    payload: UpdateDhcpPoolPayload,
+    organizationId?: string,
+  ): Promise<DhcpPool> {
     const { data } = await api.put<BackendDhcpPool>(
       `/dhcp-pools/${id}`,
       {

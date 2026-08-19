@@ -98,7 +98,9 @@ export function BrandingPanel() {
       </FieldGrid>
 
       <div className="flex items-center gap-2 pt-1">
-        <Badge variant="outline" className="text-[10px]">Preview only</Badge>
+        <Badge variant="outline" className="text-[10px]">
+          Preview only
+        </Badge>
         <span className="text-xs text-muted-foreground">
           Color/name edits above apply instantly across the console but are not saved.
         </span>

@@ -13,7 +13,7 @@ function Page() {
         title="ISP Analytics"
         description="Uplink quality, jitter, packet loss and SLA reporting per ISP and location."
         icon={Cable}
-        bullets={["Jitter & loss","Uplink SLA","Cost per Mbps"]}
+        bullets={["Jitter & loss", "Uplink SLA", "Cost per Mbps"]}
       />
     </PageShell>
   );

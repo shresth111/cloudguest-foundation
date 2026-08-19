@@ -40,7 +40,12 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {(isLoading || !data ? Array.from({ length: 6 }) : methods).map((m, i) => {
-          if (isLoading || !data) return <Card key={i}><CardContent className="h-20" /></Card>;
+          if (isLoading || !data)
+            return (
+              <Card key={i}>
+                <CardContent className="h-20" />
+              </Card>
+            );
           const method = m as { label: string; value: number; icon: typeof KeyRound };
           const Icon = method.icon;
           return (
@@ -50,7 +55,9 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{method.label}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {method.label}
+                  </div>
                   <div className="text-lg font-semibold">{method.value}%</div>
                 </div>
               </CardContent>
@@ -60,13 +67,20 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="Authentication success vs failure" {...state} isEmpty={!data?.successFailTrend?.length}>
+        <ChartCard
+          title="Authentication success vs failure"
+          {...state}
+          isEmpty={!data?.successFailTrend?.length}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.successFailTrend ?? []}>
               <CartesianGrid strokeOpacity={0.15} vertical={false} />
               <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
               <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
+              <Tooltip
+                contentStyle={TOOLTIP_STYLE}
+                cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+              />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="success" stackId="a" fill={CHART_COLORS[1]} radius={[0, 0, 0, 0]} />
               <Bar dataKey="failure" stackId="a" fill={CHART_COLORS[4]} radius={[6, 6, 0, 0]} />
@@ -74,7 +88,12 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Login trends" description="Total logins per day" {...state} isEmpty={!data?.loginTrends?.length}>
+        <ChartCard
+          title="Login trends"
+          description="Total logins per day"
+          {...state}
+          isEmpty={!data?.loginTrends?.length}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data?.loginTrends ?? []}>
               <defs>
@@ -87,7 +106,13 @@ export function AuthAnalyticsPanel({ data, isLoading, isError, onRetry }: Props)
               <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
               <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} fill="url(#login)" strokeWidth={2} />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={CHART_COLORS[0]}
+                fill="url(#login)"
+                strokeWidth={2}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>

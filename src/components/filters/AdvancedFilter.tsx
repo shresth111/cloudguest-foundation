@@ -1,11 +1,28 @@
 import { useState } from "react";
-import { Filter, X, Download, RotateCcw, Search, Calendar, Building2, MapPin, Wifi, Router, Shield, Users } from "lucide-react";
+import {
+  Filter,
+  X,
+  Download,
+  RotateCcw,
+  Search,
+  Calendar,
+  Building2,
+  MapPin,
+  Wifi,
+  Router,
+  Shield,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -39,9 +56,17 @@ const FIELD_ICONS: Record<string, typeof Filter> = {
   role: Users,
 };
 
-export function AdvancedFilter({ fields, values, onChange, onExport, title = "Filters" }: AdvancedFilterProps) {
+export function AdvancedFilter({
+  fields,
+  values,
+  onChange,
+  onExport,
+  title = "Filters",
+}: AdvancedFilterProps) {
   const [open, setOpen] = useState(false);
-  const activeCount = Object.values(values).filter((v) => v !== undefined && v !== "" && (Array.isArray(v) ? v.length > 0 : true)).length;
+  const activeCount = Object.values(values).filter(
+    (v) => v !== undefined && v !== "" && (Array.isArray(v) ? v.length > 0 : true),
+  ).length;
 
   const updateField = (id: string, value: string | string[] | undefined) => {
     onChange({ ...values, [id]: value });
@@ -49,7 +74,9 @@ export function AdvancedFilter({ fields, values, onChange, onExport, title = "Fi
 
   const clearAll = () => {
     const cleared: FilterValues = {};
-    fields.forEach((f) => { cleared[f.id] = undefined; });
+    fields.forEach((f) => {
+      cleared[f.id] = undefined;
+    });
     onChange(cleared);
   };
 
@@ -63,9 +90,7 @@ export function AdvancedFilter({ fields, values, onChange, onExport, title = "Fi
         <Button variant="outline" size="sm" className="relative">
           <Filter className="mr-2 h-4 w-4" />
           {title}
-          {activeCount > 0 && (
-            <Badge className="ml-2 h-4 px-1 text-[9px]">{activeCount}</Badge>
-          )}
+          {activeCount > 0 && <Badge className="ml-2 h-4 px-1 text-[9px]">{activeCount}</Badge>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="start">
@@ -113,7 +138,9 @@ export function AdvancedFilter({ fields, values, onChange, onExport, title = "Fi
                       <SelectContent>
                         <SelectItem value="">All {field.label}</SelectItem>
                         {field.options.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -137,7 +164,10 @@ export function AdvancedFilter({ fields, values, onChange, onExport, title = "Fi
           {Object.entries(values).map(([key, v]) => {
             if (v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) return null;
             const field = fields.find((f) => f.id === key);
-            const label = typeof v === "string" ? field?.options?.find((o) => o.value === v)?.label ?? v : `${v.length} selected`;
+            const label =
+              typeof v === "string"
+                ? (field?.options?.find((o) => o.value === v)?.label ?? v)
+                : `${v.length} selected`;
             return (
               <Badge key={key} variant="secondary" className="gap-1 px-2 py-0.5 text-xs">
                 {field?.label}: {label}

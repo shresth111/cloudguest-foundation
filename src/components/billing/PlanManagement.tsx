@@ -5,11 +5,23 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useDeletePlan, useSavePlan } from "@/hooks/useBilling";
 import type { Plan, PlanTier, SupportLevel } from "@/types/billing";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -39,7 +51,17 @@ function limitLabel(value: number, thousands = false): string {
  * see limitLabel()/featureLimit() above); toggling off restores the last
  * typed number (remembered locally, not lost when flipping back and
  * forth) or a sane default. */
-function LimitField({ label, value, onChange, defaultValue = 1 }: { label: string; value: number; onChange: (v: number) => void; defaultValue?: number }) {
+function LimitField({
+  label,
+  value,
+  onChange,
+  defaultValue = 1,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  defaultValue?: number;
+}) {
   const [lastNumber, setLastNumber] = useState(value === -1 ? defaultValue : value);
   const unlimited = value === -1;
   return (
@@ -89,7 +111,9 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold">Plan catalog</h2>
-          <p className="text-sm text-muted-foreground">Configure prices, quotas and features across every tier.</p>
+          <p className="text-sm text-muted-foreground">
+            Configure prices, quotas and features across every tier.
+          </p>
         </div>
         <Button onClick={() => setEditing("new")}>New plan</Button>
       </div>
@@ -98,10 +122,17 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
         {plans.map((p, i) => {
           const Icon = TIER_ICON[p.tier];
           return (
-            <motion.div key={p.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <motion.div
+              key={p.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+            >
               <Card className="relative h-full">
                 {p.popular && (
-                  <Badge className="absolute -top-2 right-4 bg-primary text-primary-foreground">Popular</Badge>
+                  <Badge className="absolute -top-2 right-4 bg-primary text-primary-foreground">
+                    Popular
+                  </Badge>
                 )}
                 <CardHeader>
                   <div className="flex items-center gap-2">
@@ -132,7 +163,12 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
                   <Feature label="AI features" ok={p.aiFeatures} />
                   <Feature label={`Support: ${supportLabel(p.supportLevel)}`} />
                   <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditing(p)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setEditing(p)}
+                    >
                       <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => setDeleting(p)}>
@@ -184,7 +220,15 @@ function supportLabel(l: SupportLevel) {
   return { basic: "Basic (Email)", priority: "Priority", dedicated: "Dedicated (24×7)" }[l];
 }
 
-function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange: (v: boolean) => void; plan?: Plan }) {
+function PlanEditor({
+  open,
+  onOpenChange,
+  plan,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  plan?: Plan;
+}) {
   const save = useSavePlan();
   const form = useForm<PlanFormValues>({
     resolver: zodResolver(planSchema),
@@ -228,12 +272,15 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
     // annualPrice is display-only here -- always 12x the monthly price
     // (see toPlan()'s read-side computation, which this mirrors), never a
     // real, independently-priced annual tier.
-    save.mutate({ ...values, annualPrice: values.monthlyPrice * 12, id: plan?.id }, {
-      onSuccess: () => {
-        toast.success(plan ? "Plan updated" : "Plan created");
-        onOpenChange(false);
+    save.mutate(
+      { ...values, annualPrice: values.monthlyPrice * 12, id: plan?.id },
+      {
+        onSuccess: () => {
+          toast.success(plan ? "Plan updated" : "Plan created");
+          onOpenChange(false);
+        },
       },
-    });
+    );
   };
 
   return (
@@ -246,7 +293,9 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           <div className="col-span-2">
             <Label>Plan name</Label>
             <Input className="mt-1" {...form.register("name")} />
-            {form.formState.errors.name && <p className="mt-1 text-xs text-destructive">{form.formState.errors.name.message}</p>}
+            {form.formState.errors.name && (
+              <p className="mt-1 text-xs text-destructive">{form.formState.errors.name.message}</p>
+            )}
           </div>
           <div>
             <Label>Tier</Label>
@@ -260,7 +309,9 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
               onValueChange={(v) => form.setValue("tier", v as PlanTier)}
               disabled={!!plan}
             >
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="starter">Starter</SelectItem>
                 <SelectItem value="professional">Professional</SelectItem>
@@ -268,12 +319,21 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
-            {plan && <p className="mt-1 text-xs text-muted-foreground">Tier can't be changed after a plan is created.</p>}
+            {plan && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tier can't be changed after a plan is created.
+              </p>
+            )}
           </div>
           <div>
             <Label>Support level</Label>
-            <Select value={form.watch("supportLevel")} onValueChange={(v) => form.setValue("supportLevel", v as SupportLevel)}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <Select
+              value={form.watch("supportLevel")}
+              onValueChange={(v) => form.setValue("supportLevel", v as SupportLevel)}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="basic">Basic (Email)</SelectItem>
                 <SelectItem value="priority">Priority</SelectItem>
@@ -283,12 +343,18 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
           </div>
           <div>
             <Label>Currency</Label>
-            <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">₹ INR — GST applies</p>
+            <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">
+              ₹ INR — GST applies
+            </p>
           </div>
           <div />
           <div>
             <Label>Monthly price</Label>
-            <Input type="number" className="mt-1" {...form.register("monthlyPrice", { valueAsNumber: true })} />
+            <Input
+              type="number"
+              className="mt-1"
+              {...form.register("monthlyPrice", { valueAsNumber: true })}
+            />
           </div>
           <div>
             <Label>Annual price</Label>
@@ -298,21 +364,46 @@ function PlanEditor({ open, onOpenChange, plan }: { open: boolean; onOpenChange:
               {formatMoney((form.watch("monthlyPrice") || 0) * 12, form.watch("currency"))} / year
             </p>
           </div>
-          <LimitField label="Locations" value={form.watch("includedLocations")} onChange={(v) => form.setValue("includedLocations", v)} />
-          <LimitField label="Routers" value={form.watch("includedRouters")} onChange={(v) => form.setValue("includedRouters", v)} />
-          <LimitField label="Guests" value={form.watch("includedGuests")} onChange={(v) => form.setValue("includedGuests", v)} defaultValue={100} />
-          <LimitField label="Storage (GB)" value={form.watch("storageLimitGb")} onChange={(v) => form.setValue("storageLimitGb", v)} defaultValue={10} />
+          <LimitField
+            label="Locations"
+            value={form.watch("includedLocations")}
+            onChange={(v) => form.setValue("includedLocations", v)}
+          />
+          <LimitField
+            label="Routers"
+            value={form.watch("includedRouters")}
+            onChange={(v) => form.setValue("includedRouters", v)}
+          />
+          <LimitField
+            label="Guests"
+            value={form.watch("includedGuests")}
+            onChange={(v) => form.setValue("includedGuests", v)}
+            defaultValue={100}
+          />
+          <LimitField
+            label="Storage (GB)"
+            value={form.watch("storageLimitGb")}
+            onChange={(v) => form.setValue("storageLimitGb", v)}
+            defaultValue={10}
+          />
 
           {(["apiAccess", "whiteLabel", "pmsIntegration", "aiFeatures"] as const).map((k) => (
-            <div key={k} className="col-span-2 flex items-center justify-between rounded-lg border p-3">
+            <div
+              key={k}
+              className="col-span-2 flex items-center justify-between rounded-lg border p-3"
+            >
               <Label className="text-sm capitalize">{k.replace(/([A-Z])/g, " $1")}</Label>
               <Switch checked={form.watch(k)} onCheckedChange={(v) => form.setValue(k, v)} />
             </div>
           ))}
 
           <DialogFooter className="col-span-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save plan"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save plan"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

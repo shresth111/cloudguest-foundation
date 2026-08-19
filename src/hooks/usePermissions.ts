@@ -69,7 +69,9 @@ function usePermissionBusInvalidation() {
           break;
       }
     });
-    return () => { unsub(); };
+    return () => {
+      unsub();
+    };
   }, [queryClient]);
 }
 

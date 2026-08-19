@@ -28,13 +28,13 @@ const tooltipStyle = {
 
 /** Turn a snake_case/lowercase backend status key into a display label. */
 function formatLabel(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Convert a status/plan -> count dict into recharts-friendly rows. */
-function toChartData(record: Record<string, number> | undefined): { name: string; value: number }[] {
+function toChartData(
+  record: Record<string, number> | undefined,
+): { name: string; value: number }[] {
   if (!record) return [];
   return Object.entries(record).map(([key, value]) => ({ name: formatLabel(key), value }));
 }
@@ -61,8 +61,17 @@ export function RevenueChart() {
               stroke="var(--color-muted-foreground)"
               tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
             />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `$${v.toLocaleString()}`} />
-            <Line type="monotone" dataKey="netAmount" stroke={CHART_COLORS[1]} strokeWidth={2.5} dot={false} />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(v: number) => `$${v.toLocaleString()}`}
+            />
+            <Line
+              type="monotone"
+              dataKey="netAmount"
+              stroke={CHART_COLORS[1]}
+              strokeWidth={2.5}
+              dot={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -120,7 +129,13 @@ export function SubscriptionStatusChart() {
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={chartData} dataKey="value" nameKey="name" outerRadius={95} label={{ fontSize: 11 }}>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              outerRadius={95}
+              label={{ fontSize: 11 }}
+            >
               {chartData.map((_, i) => (
                 <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
               ))}

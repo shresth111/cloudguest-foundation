@@ -85,8 +85,24 @@ interface BackendListResponse<T> {
 // Console (location/organization/billing/router.service.ts) -- the demo
 // sign-in's token 401s against every real call this file makes.
 const DEMO_ORGANIZATION_ROWS: OrganizationAnalyticsRow[] = [
-  { id: "org-001", name: "Acme Corp", activeUsers: 340, activeRouters: 6, activeLocations: 5, revenue: 2999, monthlyGrowth: 8 },
-  { id: "org-002", name: "Blue Cedar Cafes", activeUsers: 90, activeRouters: 2, activeLocations: 1, revenue: 999, monthlyGrowth: 3 },
+  {
+    id: "org-001",
+    name: "Acme Corp",
+    activeUsers: 340,
+    activeRouters: 6,
+    activeLocations: 5,
+    revenue: 2999,
+    monthlyGrowth: 8,
+  },
+  {
+    id: "org-002",
+    name: "Blue Cedar Cafes",
+    activeUsers: 90,
+    activeRouters: 2,
+    activeLocations: 1,
+    revenue: 999,
+    monthlyGrowth: 3,
+  },
 ];
 
 async function fetchOrganizationRows(): Promise<OrganizationAnalyticsRow[]> {
@@ -224,7 +240,12 @@ interface BackendNetworkAnalyticsResponse {
 interface BackendAuthAnalyticsResponse {
   window_start: string;
   window_end: string;
-  otp: { total_requests: number; successful_count: number; failed_count: number; success_rate: number };
+  otp: {
+    total_requests: number;
+    successful_count: number;
+    failed_count: number;
+    success_rate: number;
+  };
   voucher: { redeemed_count: number; failed_attempts_recorded: number };
   authentication_success_total: number;
   authentication_failure_total: number;
@@ -428,16 +449,34 @@ export const analyticsService = {
     if (isDemo()) {
       return {
         kpis: {
-          totalOrganizations: 2, totalLocations: 6, totalRouters: 8, activeRouters: 8,
-          totalGuests: 2180, activeGuests: 2, totalSessions: 2, avgSessionDuration: 0,
-          dailyLogins: 24, monthlyLogins: 430, revenue: 129940, growthRate: 8,
+          totalOrganizations: 2,
+          totalLocations: 6,
+          totalRouters: 8,
+          activeRouters: 8,
+          totalGuests: 2180,
+          activeGuests: 2,
+          totalSessions: 2,
+          avgSessionDuration: 0,
+          dailyLogins: 24,
+          monthlyLogins: 430,
+          revenue: 129940,
+          growthRate: 8,
         },
         guests: emptyGuestAnalytics(),
         network: emptyNetworkAnalytics(),
         routers: {
-          online: 8, offline: 0, avgCpu: 0, avgMemory: 0, avgTemperature: 0,
-          wanAvailability: 0, wireguardHealth: 0, radiusHealth: 0,
-          performance: [], cpuTrend: [], memoryTrend: [], healthScoreTrend: [],
+          online: 8,
+          offline: 0,
+          avgCpu: 0,
+          avgMemory: 0,
+          avgTemperature: 0,
+          wanAvailability: 0,
+          wireguardHealth: 0,
+          radiusHealth: 0,
+          performance: [],
+          cpuTrend: [],
+          memoryTrend: [],
+          healthScoreTrend: [],
         },
         locations: [],
         organizations: DEMO_ORGANIZATION_ROWS,
@@ -576,9 +615,7 @@ export const analyticsService = {
       // Location report icons failing).
       const locationId = await resolveDefaultLocationId();
       if (!locationId) {
-        throw new Error(
-          "No location is available to generate a Location report for.",
-        );
+        throw new Error("No location is available to generate a Location report for.");
       }
       headers = { "X-Location-Id": locationId };
     } else {
@@ -696,7 +733,9 @@ function toScheduledReport(
   return {
     id: s.id,
     name: template?.name ?? "Untitled report",
-    type: template ? (BACKEND_TO_REPORT_TYPE[template.report_type] ?? "organization") : "organization",
+    type: template
+      ? (BACKEND_TO_REPORT_TYPE[template.report_type] ?? "organization")
+      : "organization",
     frequency: s.frequency as ScheduledReport["frequency"],
     recipients: s.recipient_emails,
     format: s.export_format as ReportFormat,

@@ -11,17 +11,34 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
 import {
-  useRoutingPolicies, useRoutingPolicyKpis, useSaveRoutingPolicy, useDeleteRoutingPolicy,
+  useRoutingPolicies,
+  useRoutingPolicyKpis,
+  useSaveRoutingPolicy,
+  useDeleteRoutingPolicy,
 } from "@/hooks/useRoutingPolicy";
 import type { RoutingPolicy } from "@/types/routing-policy";
 import type { PolicyStatus } from "@/types/policy";
@@ -31,10 +48,18 @@ const schema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(240).optional(),
   status: z.enum(["active", "draft", "archived"]),
-  rulesJson: z.string().trim().refine((s) => {
-    if (!s) return true;
-    try { JSON.parse(s); return true; } catch { return false; }
-  }, "Must be valid JSON"),
+  rulesJson: z
+    .string()
+    .trim()
+    .refine((s) => {
+      if (!s) return true;
+      try {
+        JSON.parse(s);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Must be valid JSON"),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -51,8 +76,8 @@ export function RoutingPolicyManagement() {
   const filtered = useMemo(() => {
     if (!q.trim()) return policies;
     const t = q.toLowerCase();
-    return policies.filter((p) =>
-      p.name.toLowerCase().includes(t) || (p.description ?? "").toLowerCase().includes(t),
+    return policies.filter(
+      (p) => p.name.toLowerCase().includes(t) || (p.description ?? "").toLowerCase().includes(t),
     );
   }, [policies, q]);
 
@@ -80,7 +105,12 @@ export function RoutingPolicyManagement() {
           <CardTitle className="text-base font-semibold">All network policies</CardTitle>
           <div className="relative w-72 max-w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="pl-8" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search…"
+              className="pl-8"
+            />
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
@@ -95,10 +125,24 @@ export function RoutingPolicyManagement() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow>
+                  <TableCell
+                    colSpan={4}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    Loading…
+                  </TableCell>
+                </TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">No network policies yet.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell
+                    colSpan={4}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    No network policies yet.
+                  </TableCell>
+                </TableRow>
               )}
               {filtered.map((p) => (
                 <TableRow key={p.id} className="group">
@@ -106,7 +150,9 @@ export function RoutingPolicyManagement() {
                     <div className="min-w-0">
                       <div className="truncate font-medium">{p.name}</div>
                       {p.description && (
-                        <div className="truncate text-xs text-muted-foreground">{p.description}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {p.description}
+                        </div>
                       )}
                     </div>
                   </TableCell>
@@ -114,7 +160,16 @@ export function RoutingPolicyManagement() {
                     {Object.keys(p.rules).length > 0 ? JSON.stringify(p.rules) : "{}"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={p.status === "active" ? "default" : p.status === "draft" ? "secondary" : "outline"} className="capitalize">
+                    <Badge
+                      variant={
+                        p.status === "active"
+                          ? "default"
+                          : p.status === "draft"
+                            ? "secondary"
+                            : "outline"
+                      }
+                      className="capitalize"
+                    >
                       {p.status}
                     </Badge>
                   </TableCell>
@@ -123,10 +178,14 @@ export function RoutingPolicyManagement() {
                       <Button size="icon" variant="ghost" onClick={() => setEditing(p)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={async () => {
-                        await del.mutateAsync(p.id);
-                        toast.success("Policy deleted");
-                      }}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={async () => {
+                          await del.mutateAsync(p.id);
+                          toast.success("Policy deleted");
+                        }}
+                      >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
@@ -141,18 +200,29 @@ export function RoutingPolicyManagement() {
       <RoutingPolicyDialog
         open={creating || !!editing}
         policy={editing}
-        onClose={() => { setCreating(false); setEditing(null); }}
+        onClose={() => {
+          setCreating(false);
+          setEditing(null);
+        }}
         onSave={async (v) => {
           let rules: Record<string, unknown> = {};
           if (v.rulesJson.trim()) {
-            try { rules = JSON.parse(v.rulesJson); } catch { /* validated by schema already */ }
+            try {
+              rules = JSON.parse(v.rulesJson);
+            } catch {
+              /* validated by schema already */
+            }
           }
           await save.mutateAsync({
             ...(editing ? { id: editing.id } : {}),
-            name: v.name, description: v.description, status: v.status, rules,
+            name: v.name,
+            description: v.description,
+            status: v.status,
+            rules,
           });
           toast.success(editing ? "Policy updated" : "Policy created");
-          setCreating(false); setEditing(null);
+          setCreating(false);
+          setEditing(null);
         }}
       />
     </div>
@@ -160,7 +230,10 @@ export function RoutingPolicyManagement() {
 }
 
 function RoutingPolicyDialog({
-  open, policy, onClose, onSave,
+  open,
+  policy,
+  onClose,
+  onSave,
 }: {
   open: boolean;
   policy: RoutingPolicy | null;
@@ -171,7 +244,9 @@ function RoutingPolicyDialog({
     resolver: zodResolver(schema),
     defaultValues: policy
       ? {
-          name: policy.name, description: policy.description ?? "", status: policy.status,
+          name: policy.name,
+          description: policy.description ?? "",
+          status: policy.status,
           rulesJson: JSON.stringify(policy.rules, null, 2),
         }
       : { name: "", description: "", status: "draft" as PolicyStatus, rulesJson: "{\n  \n}" },
@@ -179,7 +254,15 @@ function RoutingPolicyDialog({
   const values = form.watch();
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); form.reset(); } }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          onClose();
+          form.reset();
+        }
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{policy ? "Edit network policy" : "New network policy"}</DialogTitle>
@@ -188,9 +271,19 @@ function RoutingPolicyDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(async (v) => { await onSave(v); form.reset(); })} className="space-y-4">
+        <form
+          onSubmit={form.handleSubmit(async (v) => {
+            await onSave(v);
+            form.reset();
+          })}
+          className="space-y-4"
+        >
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Name" className="sm:col-span-2" error={form.formState.errors.name?.message}>
+            <Field
+              label="Name"
+              className="sm:col-span-2"
+              error={form.formState.errors.name?.message}
+            >
               <Input {...form.register("name")} disabled={!!policy} />
             </Field>
             <Field label="Description" className="sm:col-span-2">
@@ -203,8 +296,13 @@ function RoutingPolicyDialog({
               </p>
             )}
             <Field label="Status">
-              <Select value={values.status} onValueChange={(v) => form.setValue("status", v as PolicyStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={values.status}
+                onValueChange={(v) => form.setValue("status", v as PolicyStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
@@ -219,7 +317,9 @@ function RoutingPolicyDialog({
           </Field>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
             <Button type="submit">{policy ? "Save changes" : "Create policy"}</Button>
           </DialogFooter>
         </form>
@@ -228,7 +328,17 @@ function RoutingPolicyDialog({
   );
 }
 
-function Field({ label, error, children, className }: { label: string; error?: string; children: React.ReactNode; className?: string }) {
+function Field({
+  label,
+  error,
+  children,
+  className,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label className="text-xs font-medium">{label}</Label>

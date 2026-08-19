@@ -2,8 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft, Wifi, Router, Activity, Users, TrendingUp, Globe,
-  CheckCircle, XCircle, AlertTriangle, RefreshCw, Quote, HardDrive, Gauge,
+  ArrowLeft,
+  Wifi,
+  Router,
+  Activity,
+  Users,
+  TrendingUp,
+  Globe,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  RefreshCw,
+  Quote,
+  HardDrive,
+  Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
@@ -14,15 +26,42 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import { maskEmail, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerDashboard, useCustomerLocations, useCustomerUsers, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
+import {
+  useCustomerDashboard,
+  useCustomerLocations,
+  useCustomerUsers,
+  useIsDemo,
+  useDataMasking,
+} from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, ReferenceLine } from "recharts";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  ReferenceLine,
+} from "recharts";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { ispService } from "@/services/isp.service";
 import type { AppError } from "@/services/api";
@@ -94,7 +133,14 @@ function ChartEmptyState({ label }: { label: string }) {
         <ellipse cx="50" cy="60" rx="34" ry="4" fill="#6C4EFF" opacity="0.08" />
         <path d="M50 55V30" stroke="#8B5CF6" strokeWidth="3" strokeLinecap="round" />
         <circle cx="50" cy="55" r="4" fill="#7c3aed" />
-        <path d="M28 30a22 22 0 0 1 44 0" stroke="#6C4EFF" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.35" />
+        <path
+          d="M28 30a22 22 0 0 1 44 0"
+          stroke="#6C4EFF"
+          strokeWidth="3"
+          strokeLinecap="round"
+          fill="none"
+          opacity="0.35"
+        />
         <circle cx="50" cy="22" r="3" fill="#22d3ee" opacity="0.6" />
       </svg>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -113,13 +159,38 @@ function ChartEmptyState({ label }: { label: string }) {
  * plus its last dozen `IspHealthCheck` rows, so a founder can tell whether
  * THIS location's actual uplink is up without opening Internet Connection.
  */
-const WAN_HEALTH_STYLE: Record<string, { label: string; dot: string; text: string; bar: string }> = {
-  healthy: { label: "Online", dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" },
-  degraded: { label: "Degraded", dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
-  unhealthy: { label: "Offline", dot: "bg-rose-500", text: "text-rose-600 dark:text-rose-400", bar: "bg-rose-500" },
-  unknown: { label: "Unknown", dot: "bg-muted-foreground/40", text: "text-muted-foreground", bar: "bg-muted-foreground/30" },
+const WAN_HEALTH_STYLE: Record<string, { label: string; dot: string; text: string; bar: string }> =
+  {
+    healthy: {
+      label: "Online",
+      dot: "bg-emerald-500",
+      text: "text-emerald-600 dark:text-emerald-400",
+      bar: "bg-emerald-500",
+    },
+    degraded: {
+      label: "Degraded",
+      dot: "bg-amber-500",
+      text: "text-amber-600 dark:text-amber-400",
+      bar: "bg-amber-500",
+    },
+    unhealthy: {
+      label: "Offline",
+      dot: "bg-rose-500",
+      text: "text-rose-600 dark:text-rose-400",
+      bar: "bg-rose-500",
+    },
+    unknown: {
+      label: "Unknown",
+      dot: "bg-muted-foreground/40",
+      text: "text-muted-foreground",
+      bar: "bg-muted-foreground/30",
+    },
+  };
+const WAN_CONNECTION_MODE_LABEL: Record<string, string> = {
+  static: "Static IP",
+  dhcp: "DHCP",
+  pppoe: "PPPoE",
 };
-const WAN_CONNECTION_MODE_LABEL: Record<string, string> = { static: "Static IP", dhcp: "DHCP", pppoe: "PPPoE" };
 
 /** "Down since 3h 12m ago" -- built from `IspLink.unhealthySince`, which is
  * itself computed server-side from real health-check history (never
@@ -147,13 +218,34 @@ function formatDownDuration(sinceIso: string): string {
  * contradict each other on screen.
  */
 const DEMO_WAN_LINK: IspLink = {
-  id: "isp-demo-dashboard", routerId: "router-demo", organizationId: "org-demo", locationId: "demo-location",
-  providerName: "Airtel Business", linkType: "fiber", connectionMode: "static", role: "primary",
-  isActiveUplink: true, autoFailback: true, isEnabled: true, priority: 0, interface: "ether1",
-  gatewayIpAddress: "203.0.113.1", dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8",
-  downloadBandwidthMbps: 500, uploadBandwidthMbps: 200, healthStatus: "healthy", healthStatusSource: "automated",
-  unhealthySince: null, latencyMs: 14.2, packetLossPercentage: 0, currentDownloadMbps: 132.4, currentUploadMbps: 28.1,
-  lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+  id: "isp-demo-dashboard",
+  routerId: "router-demo",
+  organizationId: "org-demo",
+  locationId: "demo-location",
+  providerName: "Airtel Business",
+  linkType: "fiber",
+  connectionMode: "static",
+  role: "primary",
+  isActiveUplink: true,
+  autoFailback: true,
+  isEnabled: true,
+  priority: 0,
+  interface: "ether1",
+  gatewayIpAddress: "203.0.113.1",
+  dnsPrimary: "1.1.1.1",
+  dnsSecondary: "8.8.8.8",
+  downloadBandwidthMbps: 500,
+  uploadBandwidthMbps: 200,
+  healthStatus: "healthy",
+  healthStatusSource: "automated",
+  unhealthySince: null,
+  latencyMs: 14.2,
+  packetLossPercentage: 0,
+  currentDownloadMbps: 132.4,
+  currentUploadMbps: 28.1,
+  lastCheckedAt: new Date().toISOString(),
+  consecutiveUnhealthyCount: 0,
+  createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
 };
 /** The demo's backup uplink -- standby, never carrying live traffic, which
  * is exactly why it has no `currentDownloadMbps`/`currentUploadMbps` (that
@@ -166,20 +258,60 @@ const DEMO_WAN_LINK: IspLink = {
  * gated by any per-link flag.
  */
 const DEMO_WAN_BACKUP_LINK: IspLink = {
-  id: "isp-demo-dashboard-backup", routerId: "router-demo", organizationId: "org-demo", locationId: "demo-location",
-  providerName: "Jio Fiber", linkType: "fiber", connectionMode: "dhcp", role: "backup",
-  isActiveUplink: false, autoFailback: true, isEnabled: true, priority: 1, interface: "ether2",
-  gatewayIpAddress: null, dnsPrimary: "1.1.1.1", dnsSecondary: "8.8.8.8",
-  downloadBandwidthMbps: 300, uploadBandwidthMbps: 150, healthStatus: "healthy", healthStatusSource: "automated",
-  unhealthySince: null, latencyMs: 19.6, packetLossPercentage: 0, currentDownloadMbps: null, currentUploadMbps: null,
-  lastCheckedAt: new Date().toISOString(), consecutiveUnhealthyCount: 0, createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+  id: "isp-demo-dashboard-backup",
+  routerId: "router-demo",
+  organizationId: "org-demo",
+  locationId: "demo-location",
+  providerName: "Jio Fiber",
+  linkType: "fiber",
+  connectionMode: "dhcp",
+  role: "backup",
+  isActiveUplink: false,
+  autoFailback: true,
+  isEnabled: true,
+  priority: 1,
+  interface: "ether2",
+  gatewayIpAddress: null,
+  dnsPrimary: "1.1.1.1",
+  dnsSecondary: "8.8.8.8",
+  downloadBandwidthMbps: 300,
+  uploadBandwidthMbps: 150,
+  healthStatus: "healthy",
+  healthStatusSource: "automated",
+  unhealthySince: null,
+  latencyMs: 19.6,
+  packetLossPercentage: 0,
+  currentDownloadMbps: null,
+  currentUploadMbps: null,
+  lastCheckedAt: new Date().toISOString(),
+  consecutiveUnhealthyCount: 0,
+  createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
 };
-const DEMO_WAN_CHECKS: IspHealthCheck[] = ["healthy", "healthy", "healthy", "degraded", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy"]
-  .map((status, i) => ({
-    id: `demo-wan-check-${i}`, ispLinkId: DEMO_WAN_LINK.id, checkedAt: new Date(Date.now() - (11 - i) * 5 * 60000).toISOString(),
-    status, source: "automated", latencyMs: status === "degraded" ? 92 : 12 + i, packetLossPercentage: status === "degraded" ? 2.1 : 0,
-    errorMessage: null, downloadMbps: 100 + i * 2, uploadMbps: 20 + i,
-  }));
+const DEMO_WAN_CHECKS: IspHealthCheck[] = [
+  "healthy",
+  "healthy",
+  "healthy",
+  "degraded",
+  "healthy",
+  "healthy",
+  "healthy",
+  "healthy",
+  "healthy",
+  "healthy",
+  "healthy",
+  "healthy",
+].map((status, i) => ({
+  id: `demo-wan-check-${i}`,
+  ispLinkId: DEMO_WAN_LINK.id,
+  checkedAt: new Date(Date.now() - (11 - i) * 5 * 60000).toISOString(),
+  status,
+  source: "automated",
+  latencyMs: status === "degraded" ? 92 : 12 + i,
+  packetLossPercentage: status === "degraded" ? 2.1 : 0,
+  errorMessage: null,
+  downloadMbps: 100 + i * 2,
+  uploadMbps: 20 + i,
+}));
 
 /** Demo-session fixture for the "Bandwidth Utilization" live graph --
  * illustrative-only, never fetched from ispService while isDemo() is true
@@ -223,7 +355,11 @@ function useWanSummary(locationId: string): WanSummaryState {
     let alive = true;
     setState({ status: "loading" });
     if (isDemo()) {
-      setState({ status: "ready", links: [DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK], checks: DEMO_WAN_CHECKS });
+      setState({
+        status: "ready",
+        links: [DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK],
+        checks: DEMO_WAN_CHECKS,
+      });
       return;
     }
     (async () => {
@@ -238,8 +374,14 @@ function useWanSummary(locationId: string): WanSummaryState {
           })
           .slice(0, 2);
         if (!alive) return;
-        if (links.length === 0) { setState({ status: "empty" }); return; }
-        const checks = await ispService.listHealthChecks(links[0].id, { page: 1, pageSize: 12, locationId }).then((r) => r.rows).catch(() => []);
+        if (links.length === 0) {
+          setState({ status: "empty" });
+          return;
+        }
+        const checks = await ispService
+          .listHealthChecks(links[0].id, { page: 1, pageSize: 12, locationId })
+          .then((r) => r.rows)
+          .catch(() => []);
         if (!alive) return;
         setState({ status: "ready", links, checks });
       } catch {
@@ -251,7 +393,9 @@ function useWanSummary(locationId: string): WanSummaryState {
         if (alive) setState({ status: "empty" });
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [locationId]);
   return state;
 }
@@ -320,22 +464,33 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
         const links = rows.filter((l) => l.locationId === locationId);
         const active = links.find((l) => l.isActiveUplink) ?? links[0];
         if (!alive) return;
-        if (!active) { setPhase("empty"); return; }
+        if (!active) {
+          setPhase("empty");
+          return;
+        }
         setLink(active);
         setOtherLinks(links.filter((l) => l.id !== active.id));
       } catch {
         if (alive) setPhase("empty");
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [locationId]);
 
   useEffect(() => {
     if (isDemo() || !link) return;
     let alive = true;
     const load = () => {
-      ispService.listHealthChecks(link.id, { page: 1, pageSize: 60, locationId })
-        .then((r) => { if (alive) { setChecks(r.rows); setPhase("ready"); } })
+      ispService
+        .listHealthChecks(link.id, { page: 1, pageSize: 60, locationId })
+        .then((r) => {
+          if (alive) {
+            setChecks(r.rows);
+            setPhase("ready");
+          }
+        })
         .catch(() => {
           // A transient poll failure keeps showing the last known-good
           // series rather than flashing to an error/empty state -- same
@@ -343,10 +498,22 @@ function useBandwidthSeries(locationId: string): BandwidthSeriesState {
         });
     };
     let timer: ReturnType<typeof setInterval> | null = null;
-    const start = () => { if (timer == null) timer = setInterval(load, BANDWIDTH_POLL_INTERVAL_MS); };
-    const stop = () => { if (timer != null) { clearInterval(timer); timer = null; } };
+    const start = () => {
+      if (timer == null) timer = setInterval(load, BANDWIDTH_POLL_INTERVAL_MS);
+    };
+    const stop = () => {
+      if (timer != null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") { load(); start(); } else { stop(); }
+      if (document.visibilityState === "visible") {
+        load();
+        start();
+      } else {
+        stop();
+      }
     };
     load();
     if (document.visibilityState === "visible") start();
@@ -405,8 +572,21 @@ function WanSetupIllustration() {
     <svg aria-hidden="true" viewBox="0 0 200 130" className="h-24 w-auto" fill="none">
       <ellipse cx="100" cy="119" rx="66" ry="5" fill="#6C4EFF" opacity="0.07" />
 
-      <circle cx="136" cy="42" r="24" stroke="#8B5CF6" strokeWidth="2" strokeDasharray="4 5" opacity="0.55" />
-      <path d="M112 42h48M136 18a32 32 0 0 1 0 48 32 32 0 0 1 0-48z" stroke="#8B5CF6" strokeWidth="1.4" opacity="0.4" />
+      <circle
+        cx="136"
+        cy="42"
+        r="24"
+        stroke="#8B5CF6"
+        strokeWidth="2"
+        strokeDasharray="4 5"
+        opacity="0.55"
+      />
+      <path
+        d="M112 42h48M136 18a32 32 0 0 1 0 48 32 32 0 0 1 0-48z"
+        stroke="#8B5CF6"
+        strokeWidth="1.4"
+        opacity="0.4"
+      />
 
       <motion.path
         d="M92 100C100 78 114 58 126 48"
@@ -415,7 +595,9 @@ function WanSetupIllustration() {
         strokeLinecap="round"
         strokeDasharray="1 7"
         animate={shouldReduceMotion ? undefined : { strokeDashoffset: [0, -16] }}
-        transition={shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "linear" }}
+        transition={
+          shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "linear" }
+        }
       />
 
       <rect x="48" y="90" width="58" height="28" rx="7" fill="#4338ca" />
@@ -424,9 +606,14 @@ function WanSetupIllustration() {
       <rect x="94" y="84" width="4" height="8" rx="2" fill="#4338ca" />
       <circle cx="60" cy="104" r="2.6" fill="white" />
       <motion.circle
-        cx="70" cy="104" r="2.6" fill="#22d3ee"
+        cx="70"
+        cy="104"
+        r="2.6"
+        fill="#22d3ee"
         animate={shouldReduceMotion ? { opacity: 0.7 } : { opacity: [0.25, 1, 0.25] }}
-        transition={shouldReduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+        transition={
+          shouldReduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
+        }
       />
       <circle cx="80" cy="104" r="2.6" fill="white" opacity="0.5" />
     </svg>
@@ -476,10 +663,15 @@ function UplinkRow({ link }: { link: IspLink }) {
         <span className="flex min-w-0 items-center gap-1.5">
           <IspProviderIcon providerName={link.providerName} className="h-4 w-4" />
           <span className="truncate font-medium text-foreground">{link.providerName}</span>
-          <span className="shrink-0 text-muted-foreground">{link.role === "primary" ? "Primary" : "Backup"}</span>
+          <span className="shrink-0 text-muted-foreground">
+            {link.role === "primary" ? "Primary" : "Backup"}
+          </span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
-          <Badge variant={link.isActiveUplink ? "default" : "secondary"} className="h-5 shrink-0 px-1.5 text-[10px]">
+          <Badge
+            variant={link.isActiveUplink ? "default" : "secondary"}
+            className="h-5 shrink-0 px-1.5 text-[10px]"
+          >
             {link.isActiveUplink ? "Active" : "Standby"}
           </Badge>
           <Button
@@ -506,8 +698,15 @@ function UplinkRow({ link }: { link: IspLink }) {
       )}
       {state.status === "done" && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-[22px] text-[10px]">
-          <span className="font-semibold text-foreground">{state.result.downloadMbps.toFixed(1)} Mbps <span className="font-normal text-muted-foreground">↓</span></span>
-          {state.result.latencyMs != null && <span className="text-muted-foreground">{state.result.latencyMs.toFixed(0)}ms latency</span>}
+          <span className="font-semibold text-foreground">
+            {state.result.downloadMbps.toFixed(1)} Mbps{" "}
+            <span className="font-normal text-muted-foreground">↓</span>
+          </span>
+          {state.result.latencyMs != null && (
+            <span className="text-muted-foreground">
+              {state.result.latencyMs.toFixed(0)}ms latency
+            </span>
+          )}
           <span className="text-muted-foreground/70">upload not measurable on this hardware</span>
         </div>
       )}
@@ -529,16 +728,24 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
     <Card className="premium-card premium-card-hover">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Globe className="h-3.5 w-3.5 text-white" /></div>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
+            <Globe className="h-3.5 w-3.5 text-white" />
+          </div>
           <CardTitle className="text-sm">Internet Connection</CardTitle>
         </div>
-        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
+        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>
+          Manage →
+        </Button>
       </CardHeader>
       <CardContent>
         {wan.status === "loading" && (
           <div className="space-y-3">
             <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-            <div className="flex items-center gap-1">{Array.from({ length: 10 }).map((_, i) => <span key={i} className="h-5 w-1.5 animate-pulse rounded-sm bg-muted" />)}</div>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <span key={i} className="h-5 w-1.5 animate-pulse rounded-sm bg-muted" />
+              ))}
+            </div>
           </div>
         )}
         {wan.status === "empty" && (
@@ -546,83 +753,125 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
             <WanSetupIllustration />
             <div>
               <p className="text-sm font-semibold text-foreground">No WAN link configured</p>
-              <p className="mt-1 text-xs text-muted-foreground">Connect this location's internet uplink to see live up/down status here.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Connect this location's internet uplink to see live up/down status here.
+              </p>
             </div>
-            <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up Internet Connection</Button>
+            <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>
+              Set up Internet Connection
+            </Button>
           </div>
         )}
-        {wan.status === "ready" && (() => {
-          const active = wan.links.find((l) => l.isActiveUplink) ?? wan.links[0];
-          const backup = wan.links.find((l) => l.id !== active.id);
-          // Auto fail-BACK (returning to primary once it's healthy again)
-          // is gated by the *primary* link's own `autoFailback` flag, not
-          // whichever link happens to be active right now -- see backend
-          // `IspService._maybe_transition_uplink`'s own primary-role check.
-          const primary = wan.links.find((l) => l.role === "primary") ?? active;
-          const style = WAN_HEALTH_STYLE[active.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
-          const hasBandwidth = active.currentDownloadMbps != null || active.currentUploadMbps != null;
-          return (
-            <div className="space-y-4">
-              {/* Connection status -- the headline: is the guest network up
-               * right now, on what provider, and (if not) for how long. */}
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("h-2 w-2 rounded-full", style.dot)} />
-                    <span className={cn("text-base font-semibold leading-none", style.text)}>{style.label}</span>
-                    {active.healthStatusSource === "manual" && (
-                      <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal text-muted-foreground" title="Manually set by an admin, not the automated health-check sweep">Manual</Badge>
-                    )}
+        {wan.status === "ready" &&
+          (() => {
+            const active = wan.links.find((l) => l.isActiveUplink) ?? wan.links[0];
+            const backup = wan.links.find((l) => l.id !== active.id);
+            // Auto fail-BACK (returning to primary once it's healthy again)
+            // is gated by the *primary* link's own `autoFailback` flag, not
+            // whichever link happens to be active right now -- see backend
+            // `IspService._maybe_transition_uplink`'s own primary-role check.
+            const primary = wan.links.find((l) => l.role === "primary") ?? active;
+            const style = WAN_HEALTH_STYLE[active.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+            const hasBandwidth =
+              active.currentDownloadMbps != null || active.currentUploadMbps != null;
+            return (
+              <div className="space-y-4">
+                {/* Connection status -- the headline: is the guest network up
+                 * right now, on what provider, and (if not) for how long. */}
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("h-2 w-2 rounded-full", style.dot)} />
+                      <span className={cn("text-base font-semibold leading-none", style.text)}>
+                        {style.label}
+                      </span>
+                      {active.healthStatusSource === "manual" && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1 text-[9px] font-normal text-muted-foreground"
+                          title="Manually set by an admin, not the automated health-check sweep"
+                        >
+                          Manual
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <IspProviderIcon providerName={active.providerName} className="h-4 w-4" />
+                      <span className="truncate">
+                        {active.providerName} ·{" "}
+                        {WAN_CONNECTION_MODE_LABEL[active.connectionMode] ?? active.connectionMode}
+                      </span>
+                    </span>
                   </div>
-                  <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                    <IspProviderIcon providerName={active.providerName} className="h-4 w-4" />
-                    <span className="truncate">{active.providerName} · {WAN_CONNECTION_MODE_LABEL[active.connectionMode] ?? active.connectionMode}</span>
-                  </span>
+                  {active.healthStatus === "unhealthy" && active.unhealthySince && (
+                    <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">
+                      Down for {formatDownDuration(active.unhealthySince)}
+                    </p>
+                  )}
+                  <div className="mt-2">
+                    <WanRecentChecks checks={wan.checks} />
+                  </div>
                 </div>
-                {active.healthStatus === "unhealthy" && active.unhealthySince && (
-                  <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">Down for {formatDownDuration(active.unhealthySince)}</p>
+
+                {/* Bandwidth -- the one number worth calling out on its own,
+                 * separated from the denser uplink details below rather than
+                 * buried in the same inline stat row as latency/loss. */}
+                {hasBandwidth && (
+                  <div className="rounded-lg bg-muted/40 px-3 py-2">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Bandwidth · live
+                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
+                      {active.currentDownloadMbps != null && (
+                        <span className="text-lg font-semibold tabular-nums text-foreground">
+                          {active.currentDownloadMbps.toFixed(0)}{" "}
+                          <span className="text-xs font-normal text-muted-foreground">Mbps ↓</span>
+                        </span>
+                      )}
+                      {active.currentUploadMbps != null && (
+                        <span className="text-lg font-semibold tabular-nums text-foreground">
+                          {active.currentUploadMbps.toFixed(0)}{" "}
+                          <span className="text-xs font-normal text-muted-foreground">Mbps ↑</span>
+                        </span>
+                      )}
+                      {active.latencyMs != null && (
+                        <span className="text-xs text-muted-foreground">
+                          {active.latencyMs.toFixed(0)}ms latency
+                        </span>
+                      )}
+                      {active.packetLossPercentage != null && (
+                        <span className="text-xs text-muted-foreground">
+                          {active.packetLossPercentage.toFixed(1)}% loss
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
-                <div className="mt-2"><WanRecentChecks checks={wan.checks} /></div>
-              </div>
 
-              {/* Bandwidth -- the one number worth calling out on its own,
-               * separated from the denser uplink details below rather than
-               * buried in the same inline stat row as latency/loss. */}
-              {hasBandwidth && (
-                <div className="rounded-lg bg-muted/40 px-3 py-2">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bandwidth · live</p>
-                  <div className="mt-0.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                    {active.currentDownloadMbps != null && (
-                      <span className="text-lg font-semibold tabular-nums text-foreground">{active.currentDownloadMbps.toFixed(0)} <span className="text-xs font-normal text-muted-foreground">Mbps ↓</span></span>
-                    )}
-                    {active.currentUploadMbps != null && (
-                      <span className="text-lg font-semibold tabular-nums text-foreground">{active.currentUploadMbps.toFixed(0)} <span className="text-xs font-normal text-muted-foreground">Mbps ↑</span></span>
-                    )}
-                    {active.latencyMs != null && <span className="text-xs text-muted-foreground">{active.latencyMs.toFixed(0)}ms latency</span>}
-                    {active.packetLossPercentage != null && <span className="text-xs text-muted-foreground">{active.packetLossPercentage.toFixed(1)}% loss</span>}
-                  </div>
-                </div>
-              )}
-
-              {/* Uplinks -- primary + backup side by side, so the failover
-               * story (who's active, who's standing by, whether it fails
-               * back automatically) is visible at a glance instead of only
-               * ever showing the one currently-active link. */}
-              <div className="space-y-2.5 border-t border-border/60 pt-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Uplinks</p>
-                {wan.links.map((l) => (
-                  <UplinkRow key={l.id} link={l} />
-                ))}
-                {backup && (
-                  <p className="pt-0.5 text-[11px] text-muted-foreground">
-                    Automatic failover armed — switches to Backup if Primary fails repeated health checks
-                    {primary.autoFailback ? ", and returns automatically once Primary recovers." : "; a manual failback is required once Primary recovers."}
+                {/* Uplinks -- primary + backup side by side, so the failover
+                 * story (who's active, who's standing by, whether it fails
+                 * back automatically) is visible at a glance instead of only
+                 * ever showing the one currently-active link. */}
+                <div className="space-y-2.5 border-t border-border/60 pt-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Uplinks
                   </p>
-                )}
+                  {wan.links.map((l) => (
+                    <UplinkRow key={l.id} link={l} />
+                  ))}
+                  {backup && (
+                    <p className="pt-0.5 text-[11px] text-muted-foreground">
+                      Automatic failover armed — switches to Backup if Primary fails repeated health
+                      checks
+                      {primary.autoFailback
+                        ? ", and returns automatically once Primary recovers."
+                        : "; a manual failback is required once Primary recovers."}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
       </CardContent>
     </Card>
   );
@@ -659,7 +908,13 @@ function WanStatusCard({ locationId, onManage }: { locationId: string; onManage:
  * fabricates one: no reference line, no %, just the real Mbps numbers,
  * plus a small prompt pointing at where to set it.
  */
-function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string; onManage: () => void }) {
+function BandwidthUtilizationCard({
+  locationId,
+  onManage,
+}: {
+  locationId: string;
+  onManage: () => void;
+}) {
   const bw = useBandwidthSeries(locationId);
   // Oldest -> newest, left to right -- same convention as WanRecentChecks/
   // IspStatusTimeline above. `listHealthChecks` itself returns newest-first.
@@ -670,11 +925,17 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
   // through into the chart's own data, so Recharts (connectNulls={false})
   // draws a real gap instead of a false flatline to zero.
   const chartData = ordered.map((c) => ({
-    label: new Date(c.checkedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+    label: new Date(c.checkedAt).toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
     download: c.downloadMbps,
     upload: c.uploadMbps,
   }));
-  const latest = bw.status === "ready" ? bw.checks.find((c) => c.downloadMbps != null || c.uploadMbps != null) : undefined;
+  const latest =
+    bw.status === "ready"
+      ? bw.checks.find((c) => c.downloadMbps != null || c.uploadMbps != null)
+      : undefined;
   // Real, provisioned plan capacity for this link -- null for a link
   // where it was never entered (optional field), never a guessed value.
   const capacityDownload = bw.status === "ready" ? bw.link.downloadBandwidthMbps : null;
@@ -692,9 +953,10 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
   // (~10h at the sweep's own ~10min cadence), how many genuinely hit 90%+
   // of the provisioned plan. Never shown with fewer than 3 real samples --
   // not enough data yet to say anything honest about a pattern.
-  const capacitySamples = capacityDownload != null && capacityDownload > 0
-    ? ordered.filter((c) => c.downloadMbps != null)
-    : [];
+  const capacitySamples =
+    capacityDownload != null && capacityDownload > 0
+      ? ordered.filter((c) => c.downloadMbps != null)
+      : [];
   const nearCapacityCount = capacitySamples.filter(
     (c) => (c.downloadMbps as number) / (capacityDownload as number) >= 0.9,
   ).length;
@@ -711,11 +973,14 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
     <Card className="premium-card premium-card-hover">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Gauge className="h-3.5 w-3.5 text-white" /></div>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
+            <Gauge className="h-3.5 w-3.5 text-white" />
+          </div>
           <div>
             <CardTitle className="text-sm">Bandwidth Utilization</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, new reading roughly every 30 sec
+              Traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, new
+              reading roughly every 30 sec
             </p>
           </div>
         </div>
@@ -723,18 +988,32 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           {latest && (
             <span className="hidden items-baseline gap-3 text-xs sm:flex">
               {latest.downloadMbps != null && (
-                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-teal-500" /><span className="font-semibold tabular-nums text-foreground">{latest.downloadMbps.toFixed(0)}</span><span className="text-muted-foreground">Mbps ↓</span></span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {latest.downloadMbps.toFixed(0)}
+                  </span>
+                  <span className="text-muted-foreground">Mbps ↓</span>
+                </span>
               )}
               {latest.uploadMbps != null && (
-                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-violet-500" /><span className="font-semibold tabular-nums text-foreground">{latest.uploadMbps.toFixed(0)}</span><span className="text-muted-foreground">Mbps ↑</span></span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {latest.uploadMbps.toFixed(0)}
+                  </span>
+                  <span className="text-muted-foreground">Mbps ↑</span>
+                </span>
               )}
               {utilizationPct != null && (
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 font-semibold tabular-nums",
-                    utilizationPct >= 90 ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400"
-                      : utilizationPct >= 70 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
-                      : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+                    utilizationPct >= 90
+                      ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400"
+                      : utilizationPct >= 70
+                        ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
                   )}
                   title={`${latest?.downloadMbps?.toFixed(1)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
                 >
@@ -743,7 +1022,9 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
               )}
             </span>
           )}
-          <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
+          <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>
+            Manage →
+          </Button>
         </div>
       </CardHeader>
       {/* A location with a second (usually backup/failover) ISP link
@@ -755,7 +1036,9 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
        * card's existing single-chart layout rhythm. */}
       {bw.status === "ready" && bw.otherLinks.length > 0 && (
         <div className="mx-4 mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Also here</span>
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Also here
+          </span>
           {bw.otherLinks.map((l) => {
             const style = WAN_HEALTH_STYLE[l.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
             return (
@@ -765,12 +1048,18 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                 title={`${l.providerName} (${l.role === "primary" ? "Primary" : "Backup"}) — ${style.label}`}
               >
                 <IspProviderIcon providerName={l.providerName} className="h-3.5 w-3.5 shrink-0" />
-                <span className="max-w-[8rem] truncate font-medium text-foreground">{l.providerName}</span>
-                <span className="text-muted-foreground">{l.role === "primary" ? "Primary" : "Backup"}</span>
+                <span className="max-w-[8rem] truncate font-medium text-foreground">
+                  {l.providerName}
+                </span>
+                <span className="text-muted-foreground">
+                  {l.role === "primary" ? "Primary" : "Backup"}
+                </span>
                 <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", style.dot)} />
                 <span className={cn("font-medium", style.text)}>{style.label}</span>
                 {l.currentDownloadMbps != null && (
-                  <span className="text-muted-foreground tabular-nums">{l.currentDownloadMbps.toFixed(0)} Mbps↓</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {l.currentDownloadMbps.toFixed(0)} Mbps↓
+                  </span>
                 )}
               </span>
             );
@@ -790,18 +1079,26 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
             congestionSummary.pct >= 30
               ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
               : congestionSummary.count > 0
-              ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+                ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
           )}
         >
-          <AlertTriangle className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", congestionSummary.count === 0 && "hidden")} />
+          <AlertTriangle
+            className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", congestionSummary.count === 0 && "hidden")}
+          />
           <span>
             {congestionSummary.count === 0 ? (
-              <>Comfortably under {capacityDownload} Mbps across the last {congestionSummary.total} readings.</>
+              <>
+                Comfortably under {capacityDownload} Mbps across the last {congestionSummary.total}{" "}
+                readings.
+              </>
             ) : (
               <>
-                Hit 90%+ of your {capacityDownload} Mbps plan in {congestionSummary.count} of the last{" "}
-                {congestionSummary.total} readings ({congestionSummary.pct}%){congestionSummary.pct >= 30 ? " — your guests are likely feeling this. Consider upgrading your plan." : "."}
+                Hit 90%+ of your {capacityDownload} Mbps plan in {congestionSummary.count} of the
+                last {congestionSummary.total} readings ({congestionSummary.pct}%)
+                {congestionSummary.pct >= 30
+                  ? " — your guests are likely feeling this. Consider upgrading your plan."
+                  : "."}
               </>
             )}
           </span>
@@ -812,7 +1109,11 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
           {bw.status === "loading" ? (
             <div className="flex h-full items-end gap-1 px-2 pb-2" aria-hidden="true">
               {Array.from({ length: 24 }).map((_, i) => (
-                <span key={i} className="w-full animate-pulse rounded-t bg-muted" style={{ height: `${20 + (i % 5) * 12}%` }} />
+                <span
+                  key={i}
+                  className="w-full animate-pulse rounded-t bg-muted"
+                  style={{ height: `${20 + (i % 5) * 12}%` }}
+                />
               ))}
             </div>
           ) : bw.status === "empty" ? (
@@ -826,57 +1127,97 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
             // every subsequent poll tick (the chart itself keeps
             // `isAnimationActive={false}` on its own Areas, untouched).
             <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="bw-down" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="bw-up" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis
-                  tick={{ fontSize: 10 }}
-                  width={32}
-                  domain={capacityDownload != null ? [0, (dataMax: number) => Math.max(dataMax, capacityDownload) * 1.1] : [0, "auto"]}
-                />
-                <Tooltip
-                  contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", fontSize: 12 }}
-                  formatter={(value: number | string | Array<number | string> | undefined, name: string | number) => [
-                    typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
-                    name === "download" ? "Download" : "Upload",
-                  ]}
-                />
-                <Area type="monotone" dataKey="download" name="download" stroke="#14b8a6" fill="url(#bw-down)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
-                <Area type="monotone" dataKey="upload" name="upload" stroke="#8b5cf6" fill="url(#bw-up)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
-                {/* Real, provisioned plan capacity -- the actual founder ask
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="bw-down" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="bw-up" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    width={32}
+                    domain={
+                      capacityDownload != null
+                        ? [0, (dataMax: number) => Math.max(dataMax, capacityDownload) * 1.1]
+                        : [0, "auto"]
+                    }
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "12px",
+                      border: "1px solid var(--border)",
+                      fontSize: 12,
+                    }}
+                    formatter={(
+                      value: number | string | Array<number | string> | undefined,
+                      name: string | number,
+                    ) => [
+                      typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
+                      name === "download" ? "Download" : "Upload",
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="download"
+                    name="download"
+                    stroke="#14b8a6"
+                    fill="url(#bw-down)"
+                    strokeWidth={2}
+                    connectNulls={false}
+                    isAnimationActive={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="upload"
+                    name="upload"
+                    stroke="#8b5cf6"
+                    fill="url(#bw-up)"
+                    strokeWidth={2}
+                    connectNulls={false}
+                    isAnimationActive={false}
+                  />
+                  {/* Real, provisioned plan capacity -- the actual founder ask
                     behind this whole card ("all our guests together
                     choking a 100 Mbps line" should be visible, not just
                     inferred). Only drawn when a real value was entered on
                     the ISP Link itself; never a guessed threshold. */}
-                {capacityDownload != null && (
-                  <ReferenceLine
-                    y={capacityDownload}
-                    stroke="#14b8a6"
-                    strokeDasharray="5 4"
-                    strokeOpacity={0.7}
-                    label={{ value: `${capacityDownload} Mbps plan`, position: "insideTopRight", fontSize: 10, fill: "#14b8a6" }}
-                  />
-                )}
-              </AreaChart>
-            </ResponsiveContainer>
+                  {capacityDownload != null && (
+                    <ReferenceLine
+                      y={capacityDownload}
+                      stroke="#14b8a6"
+                      strokeDasharray="5 4"
+                      strokeOpacity={0.7}
+                      label={{
+                        value: `${capacityDownload} Mbps plan`,
+                        position: "insideTopRight",
+                        fontSize: 10,
+                        fill: "#14b8a6",
+                      }}
+                    />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
             </BlurFade>
           )}
         </div>
         {bw.status === "ready" && capacityDownload == null && (
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
             Set {bw.link.providerName}'s plan speed to see utilization as a %.{" "}
-            <button type="button" onClick={onManage} className="font-medium text-primary hover:underline">Set it →</button>
+            <button
+              type="button"
+              onClick={onManage}
+              className="font-medium text-primary hover:underline"
+            >
+              Set it →
+            </button>
           </p>
         )}
       </CardContent>
@@ -907,10 +1248,14 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
     <Card className="premium-card premium-card-hover">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]"><HardDrive className="h-3.5 w-3.5 text-white" /></div>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+            <HardDrive className="h-3.5 w-3.5 text-white" />
+          </div>
           <CardTitle className="text-sm">Network Hardware</CardTitle>
         </div>
-        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>Manage →</Button>
+        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>
+          Manage →
+        </Button>
       </CardHeader>
       <CardContent>
         {devices.length === 0 ? (
@@ -928,7 +1273,9 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
              * would paint *under* an `absolute` sibling per normal CSS
              * stacking rules. */}
             <div className="relative flex flex-col items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><HardDrive className="h-5 w-5 text-muted-foreground" /></div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
+                <HardDrive className="h-5 w-5 text-muted-foreground" />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
                 {/* Sitting right below the "routers online" KPI at the top of
@@ -938,9 +1285,14 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
                  * hardware you add yourself (APs, printers, etc.) -- your
                  * router is already monitored automatically and isn't meant
                  * to show up here, so that needs to be said explicitly. */}
-                <p className="mt-1 text-xs text-muted-foreground">Add a device by MAC address to start monitoring it. Your router is already tracked separately above.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Add a device by MAC address to start monitoring it. Your router is already tracked
+                  separately above.
+                </p>
               </div>
-              <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>Set up hardware</Button>
+              <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>
+                Set up hardware
+              </Button>
             </div>
           </div>
         ) : (
@@ -955,10 +1307,19 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
                 return (
                   <div key={type} className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-2 text-sm">
-                      <span title={type} className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white", meta.gradient)}>
+                      <span
+                        title={type}
+                        className={cn(
+                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
+                          meta.gradient,
+                        )}
+                      >
                         <Icon className="h-3.5 w-3.5" />
                       </span>
-                      <span className="truncate font-medium text-foreground">{type}{typeDevices.length !== 1 ? "s" : ""}</span>
+                      <span className="truncate font-medium text-foreground">
+                        {type}
+                        {typeDevices.length !== 1 ? "s" : ""}
+                      </span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       <span className="font-semibold text-foreground">{typeDevices.length}</span>
@@ -973,14 +1334,24 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
               })}
             </div>
             <div className="flex items-center justify-between border-t border-border/60 pt-2.5 text-xs">
-              <span className="text-muted-foreground">{devices.length} device{devices.length !== 1 ? "s" : ""} total</span>
+              <span className="text-muted-foreground">
+                {devices.length} device{devices.length !== 1 ? "s" : ""} total
+              </span>
               {downCount > 0 ? (
                 <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                  {downCount} down · longest {formatSince(
+                  {downCount} down · longest{" "}
+                  {formatSince(
                     devices
-                      .filter((d): d is typeof d & { statusChangedAt: string } => d.status === "down" && d.statusChangedAt != null)
-                      .sort((a, b) => new Date(a.statusChangedAt).getTime() - new Date(b.statusChangedAt).getTime())[0].statusChangedAt,
+                      .filter(
+                        (d): d is typeof d & { statusChangedAt: string } =>
+                          d.status === "down" && d.statusChangedAt != null,
+                      )
+                      .sort(
+                        (a, b) =>
+                          new Date(a.statusChangedAt).getTime() -
+                          new Date(b.statusChangedAt).getTime(),
+                      )[0].statusChangedAt,
                   )}
                 </span>
               ) : unknownCount > 0 ? (
@@ -989,11 +1360,13 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
                 // confirmed reachable, see useMonitoredHardware's own
                 // honesty note on "unknown" status.
                 <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />{unknownCount} not yet observed
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                  {unknownCount} not yet observed
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />All devices up
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  All devices up
                 </span>
               )}
             </div>
@@ -1038,16 +1411,48 @@ function DashboardWatchIllustration() {
           <stop offset="0%" stopColor="#22d3ee" />
           <stop offset="100%" stopColor="#f0abfc" />
         </linearGradient>
-        <linearGradient id="watch-shield-grad" x1="54" y1="114" x2="115" y2="190" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="watch-shield-grad"
+          x1="54"
+          y1="114"
+          x2="115"
+          y2="190"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%" stopColor="#6366f1" />
           <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
 
-      <circle cx="215" cy="70" r="46" fill="#7c3aed" opacity="0.16" filter="url(#watch-illo-glow)" />
+      <circle
+        cx="215"
+        cy="70"
+        r="46"
+        fill="#7c3aed"
+        opacity="0.16"
+        filter="url(#watch-illo-glow)"
+      />
 
-      <rect x="118" y="46" width="118" height="80" rx="10" fill="#241f4d" stroke="white" strokeOpacity="0.12" strokeWidth="1.5" />
-      <rect x="118" y="46" width="118" height="80" rx="10" fill="url(#watch-pulse-stroke)" fillOpacity="0.05" />
+      <rect
+        x="118"
+        y="46"
+        width="118"
+        height="80"
+        rx="10"
+        fill="#241f4d"
+        stroke="white"
+        strokeOpacity="0.12"
+        strokeWidth="1.5"
+      />
+      <rect
+        x="118"
+        y="46"
+        width="118"
+        height="80"
+        rx="10"
+        fill="url(#watch-pulse-stroke)"
+        fillOpacity="0.05"
+      />
       <motion.path
         d="M130 90h16l8-22 10 40 8-28 6 10h56"
         stroke="url(#watch-pulse-stroke)"
@@ -1063,16 +1468,43 @@ function DashboardWatchIllustration() {
       <rect x="150" y="136" width="54" height="5" rx="2.5" fill="white" fillOpacity="0.1" />
 
       <motion.g
-        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
-        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        animate={
+          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
+        }
+        transition={
+          shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+        }
       >
         <circle cx="228" cy="54" r="13" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="2" />
-        <path d="M222 54l4 4 8-8" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path
+          d="M222 54l4 4 8-8"
+          stroke="#22d3ee"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
       </motion.g>
 
-      <path d="M84.5 116 L112.68 127.07 V147.8 C112.68 165.69 101.25 179.6 84.5 185.5 C67.75 179.6 56.32 165.69 56.32 147.8 V127.07 Z" fill="url(#watch-shield-grad)" />
-      <path d="M65.26 138.76a27.54 27.54 0 0 1 38.48 0" stroke="#ffffff" strokeWidth="5.45" strokeLinecap="round" fill="none" opacity="0.75" />
-      <path d="M73.43 148.71a16.76 16.76 0 0 1 22.15 0" stroke="#ffffff" strokeWidth="5.45" strokeLinecap="round" fill="none" />
+      <path
+        d="M84.5 116 L112.68 127.07 V147.8 C112.68 165.69 101.25 179.6 84.5 185.5 C67.75 179.6 56.32 165.69 56.32 147.8 V127.07 Z"
+        fill="url(#watch-shield-grad)"
+      />
+      <path
+        d="M65.26 138.76a27.54 27.54 0 0 1 38.48 0"
+        stroke="#ffffff"
+        strokeWidth="5.45"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.75"
+      />
+      <path
+        d="M73.43 148.71a16.76 16.76 0 0 1 22.15 0"
+        stroke="#ffffff"
+        strokeWidth="5.45"
+        strokeLinecap="round"
+        fill="none"
+      />
       <circle cx="84.5" cy="157.58" r="4.3" fill="#ffffff" />
 
       <g>
@@ -1123,7 +1555,10 @@ export function CustomerDashboardPage() {
   // "Hydration failed" #418 -- see the sibling fix in
   // customer.$locationId.$feature.tsx for the concrete repro).
   const demoFlag = useIsDemo();
-  const billing = useMyBillingDashboard(demoFlag ? undefined : activeLocation?.organizationId, activeLocation?.organizationName);
+  const billing = useMyBillingDashboard(
+    demoFlag ? undefined : activeLocation?.organizationId,
+    activeLocation?.organizationName,
+  );
   // Raw ISO, not pre-formatted -- CustomerHeader's PlanRenewalTicket needs
   // the real date to compute a live countdown/urgency tier, not just a label.
   const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
@@ -1156,22 +1591,36 @@ export function CustomerDashboardPage() {
   }, []);
 
   if (activeLocationId !== locationId) {
-    if (locationsLoading) return <div className="flex min-h-screen items-center justify-center"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+    if (locationsLoading)
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      );
     const found = locationsList?.some((l) => l.id === locationId);
-    if (!found) return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-muted-foreground">
-        <p>Location not found or you don't have access to it.</p>
-        <Button variant="outline" onClick={() => navigate({ to: "/switch-location" })}><ArrowLeft className="mr-2 h-4 w-4" />Back to locations</Button>
-      </div>
-    );
+    if (!found)
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-muted-foreground">
+          <p>Location not found or you don't have access to it.</p>
+          <Button variant="outline" onClick={() => navigate({ to: "/switch-location" })}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to locations
+          </Button>
+        </div>
+      );
     // Found but the store hasn't caught up with the effect above yet --
     // render nothing for this one tick rather than a flash of "Back".
     return null;
   }
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
-  const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
-  const handleSwitchLocation = () => { navigate({ to: "/switch-location" }); };
+  const handleLogout = async () => {
+    await logout();
+    navigate({ to: "/login", replace: true });
+  };
+  const handleSwitchLocation = () => {
+    navigate({ to: "/switch-location" });
+  };
 
   return (
     <div
@@ -1185,7 +1634,12 @@ export function CustomerDashboardPage() {
       }
     >
       {/* Mobile overlay */}
-      {mobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />}
+      {mobile && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMobile(false)}
+        />
+      )}
 
       {/* Sidebar -- same shared component/grouped-nav data source every
           other customer page (Reports, Campaigns, Policies, Vouchers,
@@ -1208,9 +1662,22 @@ export function CustomerDashboardPage() {
           title={
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <Wifi className="h-5 w-5 shrink-0 text-white/70" />
-              <p className="truncate text-sm font-semibold">{activeLocation?.name ?? "Dashboard"}</p>
-              <span className={cn("h-2 w-2 rounded-full", activeLocation?.status === "online" ? "bg-emerald-400" : activeLocation?.status === "degraded" ? "bg-amber-400" : "bg-rose-400")} />
-              <span className="hidden text-xs capitalize text-white/60 sm:inline">{activeLocation?.status}</span>
+              <p className="truncate text-sm font-semibold">
+                {activeLocation?.name ?? "Dashboard"}
+              </p>
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  activeLocation?.status === "online"
+                    ? "bg-emerald-400"
+                    : activeLocation?.status === "degraded"
+                      ? "bg-amber-400"
+                      : "bg-rose-400",
+                )}
+              />
+              <span className="hidden text-xs capitalize text-white/60 sm:inline">
+                {activeLocation?.status}
+              </span>
             </div>
           }
           locationId={locationId}
@@ -1228,9 +1695,21 @@ export function CustomerDashboardPage() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {isLoading ? (
             <div className="space-y-6 animate-pulse">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-muted" />)}</div>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-28 rounded-2xl bg-muted" />)}</div>
-              <div className="grid gap-4 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-72 rounded-2xl bg-muted" />)}</div>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-24 rounded-2xl bg-muted" />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-28 rounded-2xl bg-muted" />
+                ))}
+              </div>
+              <div className="grid gap-4 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-72 rounded-2xl bg-muted" />
+                ))}
+              </div>
             </div>
           ) : d ? (
             <div>
@@ -1242,12 +1721,21 @@ export function CustomerDashboardPage() {
                * cancel <main>'s own padding), and the page transitions from
                * dark to light exactly once, right before the charts. */}
               <div className="-mx-4 -mt-4 relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white shadow-xl shadow-indigo-950/30 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
-                <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#6C4EFF]/30 blur-3xl" />
-                <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-[#8B5CF6]/20 blur-3xl" />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#6C4EFF]/30 blur-3xl"
+                />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-[#8B5CF6]/20 blur-3xl"
+                />
                 <div
                   aria-hidden
                   className="pointer-events-none absolute inset-0 opacity-[0.15]"
-                  style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+                  style={{
+                    backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
+                    backgroundSize: "22px 22px",
+                  }}
                 />
                 <div className="relative mx-auto max-w-7xl px-4 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-5 lg:px-8">
                   {/* Illustration scoped to its own relative sub-container
@@ -1262,7 +1750,9 @@ export function CustomerDashboardPage() {
                     <div className="pointer-events-none absolute -top-2 right-0 hidden w-[110px] sm:block lg:w-[160px]">
                       <DashboardWatchIllustration />
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">This location, right now</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
+                      This location, right now
+                    </p>
                     {/* Each metric gets a label above the number and, only
                      * where a real comparison value actually exists in
                      * `d.kpis` (never fabricated), a context line below it --
@@ -1275,17 +1765,44 @@ export function CustomerDashboardPage() {
                      * inventing a trend. */}
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
                       {[
-                        { label: "Online right now", value: d.kpis.onlineUsers.toLocaleString(), context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}` },
-                        { label: "Active sessions", value: d.kpis.activeSessions.toLocaleString(), context: null },
+                        {
+                          label: "Online right now",
+                          value: d.kpis.onlineUsers.toLocaleString(),
+                          context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}`,
+                        },
+                        {
+                          label: "Active sessions",
+                          value: d.kpis.activeSessions.toLocaleString(),
+                          context: null,
+                        },
                         // Omitted entirely (not a fake "--%") when there's no
                         // active uplink / no health-check data yet to compute
                         // a real figure from -- see getDashboard()'s comment.
-                        ...(d.kpis.slaUptime != null ? [{ label: "SLA uptime", value: `${d.kpis.slaUptime.toFixed(1)}%`, context: null }] : []),
+                        ...(d.kpis.slaUptime != null
+                          ? [
+                              {
+                                label: "SLA uptime",
+                                value: `${d.kpis.slaUptime.toFixed(1)}%`,
+                                context: null,
+                              },
+                            ]
+                          : []),
                       ].map((k, i) => (
-                        <motion.div key={k.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{k.label}</p>
-                          <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl sm:leading-none">{k.value}</p>
-                          {k.context && <p className="mt-1 text-xs font-medium text-white/60">{k.context}</p>}
+                        <motion.div
+                          key={k.label}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.06 }}
+                        >
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                            {k.label}
+                          </p>
+                          <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl sm:leading-none">
+                            {k.value}
+                          </p>
+                          {k.context && (
+                            <p className="mt-1 text-xs font-medium text-white/60">{k.context}</p>
+                          )}
                         </motion.div>
                       ))}
                     </div>
@@ -1304,7 +1821,10 @@ export function CustomerDashboardPage() {
                       { label: "guests today", value: d.kpis.todayGuests.toLocaleString() },
                       { label: "avg session", value: `${d.kpis.avgSession} min` },
                     ].map((s) => (
-                      <span key={s.label}><span className="font-semibold text-white">{s.value}</span> <span className="text-white/50">{s.label}</span></span>
+                      <span key={s.label}>
+                        <span className="font-semibold text-white">{s.value}</span>{" "}
+                        <span className="text-white/50">{s.label}</span>
+                      </span>
                     ))}
                     {/* Surfaced only when it matters -- a security-relevant
                      * number that was in the data but never shown anywhere.
@@ -1312,14 +1832,21 @@ export function CustomerDashboardPage() {
                     {d.kpis.failedLogins > 0 && (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-2.5 py-0.5 font-medium text-rose-200">
                         <AlertTriangle className="h-3 w-3" />
-                        {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"} today
+                        {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"}{" "}
+                        today
                       </span>
                     )}
                   </div>
                   <div className="mt-2.5 flex items-center gap-2 text-xs text-white/50">
                     <Quote className="h-3 w-3 shrink-0 text-white/30" />
                     <AnimatePresence mode="wait">
-                      <motion.span key={quoteIndex} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.4 }}>
+                      <motion.span
+                        key={quoteIndex}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.4 }}
+                      >
                         {DASHBOARD_QUOTES[quoteIndex]}
                       </motion.span>
                     </AnimatePresence>
@@ -1333,7 +1860,9 @@ export function CustomerDashboardPage() {
                  * so the hero itself stays short instead of the health
                  * checks adding another full row of dark-surface height. */}
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3 premium-card">
-                  <p className="shrink-0 text-xs font-medium text-muted-foreground">Core systems, checked continuously</p>
+                  <p className="shrink-0 text-xs font-medium text-muted-foreground">
+                    Core systems, checked continuously
+                  </p>
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                     {[
                       { icon: CheckCircle, label: "System", value: d.health.systemHealth },
@@ -1351,72 +1880,225 @@ export function CustomerDashboardPage() {
 
                 {/* Charts */}
                 <div>
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">Traffic and hardware, over the last 24 hours.</p>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">
+                    Traffic and hardware, over the last 24 hours.
+                  </p>
                   <div className="grid gap-6 lg:grid-cols-3">
                     <Card className="lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><TrendingUp className="h-3.5 w-3.5 text-white" /></div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
+                          <TrendingUp className="h-3.5 w-3.5 text-white" />
+                        </div>
                         <CardTitle className="text-sm">Guests online, last 24h</CardTitle>
                       </CardHeader>
-                      <CardContent><div className="h-56">
-                        {/* Real (non-demo) dashboards always hand back a
-                         * full 24-bucket array here -- one entry per hour,
-                         * `users: 0` for every hour nothing happened --
-                         * never a genuinely empty array, so checking every
-                         * bucket for `users === 0` (true for both a
-                         * genuinely empty array and an all-zero one) is
-                         * what actually catches "no guest activity today." */}
-                        {d.usersTrend.every((h) => h.users === 0) ? <ChartEmptyState label="No guest activity yet today." /> : (
-                          // Settles in rather than popping on mount -- Magic
-                          // UI's "Blur Fade" idea, wrapping the chart's
-                          // container only; Recharts' own render/animation
-                          // props are untouched (design v3 Part 4).
-                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-                          <ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} /><stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} interval={3} /><YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={38} /><Tooltip cursor={{ stroke: "var(--primary)", strokeOpacity: 0.35 }} contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)", fontSize: 12, boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)" }} /><Area type="monotone" dataKey="users" stroke="var(--primary)" fill="url(#ug)" strokeWidth={2.25} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--background)" }} /></AreaChart></ResponsiveContainer>
-                          </BlurFade>
-                        )}
-                      </div></CardContent>
+                      <CardContent>
+                        <div className="h-56">
+                          {/* Real (non-demo) dashboards always hand back a
+                           * full 24-bucket array here -- one entry per hour,
+                           * `users: 0` for every hour nothing happened --
+                           * never a genuinely empty array, so checking every
+                           * bucket for `users === 0` (true for both a
+                           * genuinely empty array and an all-zero one) is
+                           * what actually catches "no guest activity today." */}
+                          {d.usersTrend.every((h) => h.users === 0) ? (
+                            <ChartEmptyState label="No guest activity yet today." />
+                          ) : (
+                            // Settles in rather than popping on mount -- Magic
+                            // UI's "Blur Fade" idea, wrapping the chart's
+                            // container only; Recharts' own render/animation
+                            // props are untouched (design v3 Part 4).
+                            <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart
+                                  data={d.usersTrend}
+                                  margin={{ top: 8, right: 8, left: -6, bottom: 0 }}
+                                >
+                                  <defs>
+                                    <linearGradient id="ug" x1="0" y1="0" x2="0" y2="1">
+                                      <stop
+                                        offset="0%"
+                                        stopColor="var(--primary)"
+                                        stopOpacity={0.35}
+                                      />
+                                      <stop
+                                        offset="100%"
+                                        stopColor="var(--primary)"
+                                        stopOpacity={0.02}
+                                      />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    vertical={false}
+                                    stroke="var(--border)"
+                                    strokeOpacity={0.6}
+                                  />
+                                  <XAxis
+                                    dataKey="hour"
+                                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    interval={3}
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    width={38}
+                                  />
+                                  <Tooltip
+                                    cursor={{ stroke: "var(--primary)", strokeOpacity: 0.35 }}
+                                    contentStyle={{
+                                      borderRadius: "12px",
+                                      border: "1px solid var(--border)",
+                                      background: "var(--popover)",
+                                      color: "var(--popover-foreground)",
+                                      fontSize: 12,
+                                      boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)",
+                                    }}
+                                  />
+                                  <Area
+                                    type="monotone"
+                                    dataKey="users"
+                                    stroke="var(--primary)"
+                                    fill="url(#ug)"
+                                    strokeWidth={2.25}
+                                    activeDot={{
+                                      r: 4,
+                                      strokeWidth: 2,
+                                      stroke: "var(--background)",
+                                    }}
+                                  />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </BlurFade>
+                          )}
+                        </div>
+                      </CardContent>
                     </Card>
                     <Card className="lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Router className="h-3.5 w-3.5 text-white" /></div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
+                          <Router className="h-3.5 w-3.5 text-white" />
+                        </div>
                         <CardTitle className="text-sm">What's connected</CardTitle>
                       </CardHeader>
-                      <CardContent><div className="h-56">
-                        {d.deviceDistribution.length === 0 ? <ChartEmptyState label="No devices connected yet." /> : (
-                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-                          <div className="flex h-full flex-col justify-center gap-2.5">
-                            {(() => {
-                              const max = Math.max(...d.deviceDistribution.map((x) => x.value), 1);
-                              return d.deviceDistribution.map((item, i) => (
-                                <div key={item.name} className="flex items-center gap-3">
-                                  <span className="w-20 shrink-0 truncate text-xs text-muted-foreground">{item.name}</span>
-                                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${(item.value / max) * 100}%`, backgroundColor: DEVICE_COLORS[i % DEVICE_COLORS.length] }} /></div>
-                                  <span className="w-6 shrink-0 text-right text-xs font-semibold tabular-nums">{item.value}</span>
-                                </div>
-                              ));
-                            })()}
-                          </div>
-                          </BlurFade>
-                        )}
-                      </div></CardContent>
+                      <CardContent>
+                        <div className="h-56">
+                          {d.deviceDistribution.length === 0 ? (
+                            <ChartEmptyState label="No devices connected yet." />
+                          ) : (
+                            <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
+                              <div className="flex h-full flex-col justify-center gap-2.5">
+                                {(() => {
+                                  const max = Math.max(
+                                    ...d.deviceDistribution.map((x) => x.value),
+                                    1,
+                                  );
+                                  return d.deviceDistribution.map((item, i) => (
+                                    <div key={item.name} className="flex items-center gap-3">
+                                      <span className="w-20 shrink-0 truncate text-xs text-muted-foreground">
+                                        {item.name}
+                                      </span>
+                                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                        <div
+                                          className="h-full rounded-full"
+                                          style={{
+                                            width: `${(item.value / max) * 100}%`,
+                                            backgroundColor:
+                                              DEVICE_COLORS[i % DEVICE_COLORS.length],
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="w-6 shrink-0 text-right text-xs font-semibold tabular-nums">
+                                        {item.value}
+                                      </span>
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            </BlurFade>
+                          )}
+                        </div>
+                      </CardContent>
                     </Card>
                     <Card className="lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]"><Activity className="h-3.5 w-3.5 text-white" /></div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
+                          <Activity className="h-3.5 w-3.5 text-white" />
+                        </div>
                         <CardTitle className="text-sm">Sessions by hour</CardTitle>
                       </CardHeader>
-                      <CardContent><div className="h-56">
-                        {/* Same real-data shape as usersTrend above -- a
-                         * full 24-hour array of `sessions: 0` buckets, not
-                         * an empty one, so the "all zero" check (not just
-                         * "empty") is what actually catches a quiet day. */}
-                        {d.hourlySessions.every((h) => h.sessions === 0) ? <ChartEmptyState label="No session activity yet today." /> : (
-                          <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-                          <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity={0.95} /><stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.55} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={38} /><Tooltip cursor={{ fill: "var(--muted)", fillOpacity: 0.5 }} contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)", fontSize: 12, boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)" }} /><Bar dataKey="sessions" fill="url(#sg)" radius={[6, 6, 0, 0]} maxBarSize={26} /></BarChart></ResponsiveContainer>
-                          </BlurFade>
-                        )}
-                      </div></CardContent>
+                      <CardContent>
+                        <div className="h-56">
+                          {/* Same real-data shape as usersTrend above -- a
+                           * full 24-hour array of `sessions: 0` buckets, not
+                           * an empty one, so the "all zero" check (not just
+                           * "empty") is what actually catches a quiet day. */}
+                          {d.hourlySessions.every((h) => h.sessions === 0) ? (
+                            <ChartEmptyState label="No session activity yet today." />
+                          ) : (
+                            <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={d.hourlySessions}
+                                  margin={{ top: 8, right: 8, left: -6, bottom: 0 }}
+                                >
+                                  <defs>
+                                    <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+                                      <stop
+                                        offset="0%"
+                                        stopColor="var(--primary)"
+                                        stopOpacity={0.95}
+                                      />
+                                      <stop
+                                        offset="100%"
+                                        stopColor="var(--chart-1)"
+                                        stopOpacity={0.55}
+                                      />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    vertical={false}
+                                    stroke="var(--border)"
+                                    strokeOpacity={0.6}
+                                  />
+                                  <XAxis
+                                    dataKey="hour"
+                                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                                    tickLine={false}
+                                    axisLine={false}
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    width={38}
+                                  />
+                                  <Tooltip
+                                    cursor={{ fill: "var(--muted)", fillOpacity: 0.5 }}
+                                    contentStyle={{
+                                      borderRadius: "12px",
+                                      border: "1px solid var(--border)",
+                                      background: "var(--popover)",
+                                      color: "var(--popover-foreground)",
+                                      fontSize: 12,
+                                      boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)",
+                                    }}
+                                  />
+                                  <Bar
+                                    dataKey="sessions"
+                                    fill="url(#sg)"
+                                    radius={[6, 6, 0, 0]}
+                                    maxBarSize={26}
+                                  />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </BlurFade>
+                          )}
+                        </div>
+                      </CardContent>
                     </Card>
                   </div>
                 </div>
@@ -1431,8 +2113,13 @@ export function CustomerDashboardPage() {
                  * see BandwidthUtilizationCard's own comment for the full
                  * reasoning. */}
                 <div>
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">Bandwidth on your primary uplink, sampled roughly every 30 seconds.</p>
-                  <BandwidthUtilizationCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">
+                    Bandwidth on your primary uplink, sampled roughly every 30 seconds.
+                  </p>
+                  <BandwidthUtilizationCard
+                    locationId={locationId}
+                    onManage={() => handleNav("isp-details")}
+                  />
                 </div>
 
                 {/* Activity -- Recent Users stays a data table (it already
@@ -1456,7 +2143,9 @@ export function CustomerDashboardPage() {
                  * brings both columns to comparable real content height --
                  * a genuine rebalance, not another alignment tweak. */}
                 <div>
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">Who showed up, what needed a look, and whether the internet's up.</p>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">
+                    Who showed up, what needed a look, and whether the internet's up.
+                  </p>
                   {/* items-start still matters even with two balanced 2-card
                    * columns: their exact heights won't ever match to the
                    * pixel (a table's row count vs. prose content), so this
@@ -1465,13 +2154,80 @@ export function CustomerDashboardPage() {
                   <div className="grid items-start gap-6 lg:grid-cols-2">
                     <div className="flex flex-col gap-6">
                       <Card className="premium-card premium-card-hover">
-                        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Users</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("users")}>View all →</Button></CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                          <CardTitle className="text-sm">Recent Users</CardTitle>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-primary"
+                            onClick={() => handleNav("users")}
+                          >
+                            View all →
+                          </Button>
+                        </CardHeader>
                         <CardContent className="p-0">
                           {d.recentUsers.length === 0 ? (
-                            <p className="px-6 py-8 text-center text-xs text-muted-foreground">No guests have connected yet — check back once someone joins the network.</p>
+                            <p className="px-6 py-8 text-center text-xs text-muted-foreground">
+                              No guests have connected yet — check back once someone joins the
+                              network.
+                            </p>
                           ) : (
-                            <Table><TableHeader><TableRow><TableHead className="text-xs font-medium uppercase tracking-wide">User</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">Device</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Time</TableHead><TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead></TableRow></TableHeader>
-                            <TableBody>{d.recentUsers.map((u) => (<TableRow key={u.id} className="border-b"><TableCell><p className="text-sm font-medium">{u.name}</p><p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p></TableCell><TableCell className="text-sm hidden md:table-cell">{u.device}</TableCell><TableCell className="text-xs text-muted-foreground">{u.time}</TableCell><TableCell><span className={cn("inline-flex items-center gap-1 text-xs font-medium", u.status === "online" ? "text-emerald-500" : "text-muted-foreground")}><span className={cn("h-1.5 w-1.5 rounded-full", u.status === "online" ? "bg-emerald-500" : "bg-muted-foreground")} />{u.status}</span></TableCell></TableRow>))}</TableBody></Table>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs font-medium uppercase tracking-wide">
+                                    User
+                                  </TableHead>
+                                  <TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">
+                                    Device
+                                  </TableHead>
+                                  <TableHead className="text-xs font-medium uppercase tracking-wide">
+                                    Time
+                                  </TableHead>
+                                  <TableHead className="text-xs font-medium uppercase tracking-wide">
+                                    Status
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {d.recentUsers.map((u) => (
+                                  <TableRow key={u.id} className="border-b">
+                                    <TableCell>
+                                      <p className="text-sm font-medium">{u.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {masked ? maskEmail(u.email) : u.email}
+                                      </p>
+                                    </TableCell>
+                                    <TableCell className="text-sm hidden md:table-cell">
+                                      {u.device}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                      {u.time}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-1 text-xs font-medium",
+                                          u.status === "online"
+                                            ? "text-emerald-500"
+                                            : "text-muted-foreground",
+                                        )}
+                                      >
+                                        <span
+                                          className={cn(
+                                            "h-1.5 w-1.5 rounded-full",
+                                            u.status === "online"
+                                              ? "bg-emerald-500"
+                                              : "bg-muted-foreground",
+                                          )}
+                                        />
+                                        {u.status}
+                                      </span>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           )}
                         </CardContent>
                       </Card>
@@ -1488,29 +2244,73 @@ export function CustomerDashboardPage() {
                        * ones together (and the two full ones together)
                        * rebalances the columns without any CSS stretch
                        * trick, matching the comment above this grid. */}
-                      <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+                      <WanStatusCard
+                        locationId={locationId}
+                        onManage={() => handleNav("isp-details")}
+                      />
                     </div>
                     <div className="flex flex-col gap-6">
                       <Card className="premium-card premium-card-hover">
-                        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm">Recent Alerts</CardTitle><Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => handleNav("alerts")}>All →</Button></CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                          <CardTitle className="text-sm">Recent Alerts</CardTitle>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-primary"
+                            onClick={() => handleNav("alerts")}
+                          >
+                            All →
+                          </Button>
+                        </CardHeader>
                         <CardContent className="space-y-2 p-3">
                           {d.recentAlerts.length === 0 ? (
-                            <p className="py-8 text-center text-xs text-muted-foreground">All clear. Nothing needs your attention right now.</p>
-                          ) : d.recentAlerts.map((a, i) => {
-                            const border = a.type === "error" ? "border-rose-500" : a.type === "warning" ? "border-amber-500" : a.type === "success" ? "border-emerald-500" : "border-sky-500";
-                            return (
-                              <div key={i} className={cn("flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3", border)}>
-                                {a.type === "error" && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />}
-                                {a.type === "warning" && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />}
-                                {a.type === "success" && <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />}
-                                {a.type === "info" && <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />}
-                                <div className="min-w-0 flex-1"><p className="text-sm">{a.msg}</p><p className="text-xs text-muted-foreground">{a.time}</p></div>
-                              </div>
-                            );
-                          })}
+                            <p className="py-8 text-center text-xs text-muted-foreground">
+                              All clear. Nothing needs your attention right now.
+                            </p>
+                          ) : (
+                            d.recentAlerts.map((a, i) => {
+                              const border =
+                                a.type === "error"
+                                  ? "border-rose-500"
+                                  : a.type === "warning"
+                                    ? "border-amber-500"
+                                    : a.type === "success"
+                                      ? "border-emerald-500"
+                                      : "border-sky-500";
+                              return (
+                                <div
+                                  key={i}
+                                  className={cn(
+                                    "flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3",
+                                    border,
+                                  )}
+                                >
+                                  {a.type === "error" && (
+                                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                                  )}
+                                  {a.type === "warning" && (
+                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                                  )}
+                                  {a.type === "success" && (
+                                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                                  )}
+                                  {a.type === "info" && (
+                                    <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm">{a.msg}</p>
+                                    <p className="text-xs text-muted-foreground">{a.time}</p>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
                         </CardContent>
                       </Card>
-                      <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
+                      <DeviceStatusCard
+                        locationId={locationId}
+                        onManage={() => handleNav("devices")}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1520,7 +2320,9 @@ export function CustomerDashboardPage() {
             <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
               <p className="mb-1 font-medium text-foreground">Couldn't load this dashboard</p>
               <p className="mb-4 text-sm">Your connection or our servers hiccuped — try again.</p>
-              <Button variant="outline" onClick={() => refetch()}>Retry</Button>
+              <Button variant="outline" onClick={() => refetch()}>
+                Retry
+              </Button>
             </div>
           )}
         </main>

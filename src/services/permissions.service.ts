@@ -904,7 +904,12 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       { id: "ws-net-routers", label: "Routers", icon: "Router", to: "/workspace/routers" },
       // No dedicated provisioning workflow page yet -- routers list is the
       // real, closest entry point today.
-      { id: "ws-net-provisioning", label: "Provisioning", icon: "ServerCog", to: "/workspace/routers" },
+      {
+        id: "ws-net-provisioning",
+        label: "Provisioning",
+        icon: "ServerCog",
+        to: "/workspace/routers",
+      },
       { id: "ws-net-vlan", label: "VLAN", icon: "Network", to: "/network/vlan" },
       { id: "ws-net-dhcp", label: "DHCP", icon: "Share2", to: "/network/dhcp" },
       // RADIUS clients are managed via the NAS registry -- but /nas fans
@@ -920,7 +925,12 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       // (fetchAllConfigs) with no per-org filter -- same leak class as
       // NAS/Users. Every /portals-linked leaf below is neutralized until
       // that service gets real org scoping.
-      { id: "ws-ga-login-methods", label: "Login Methods", icon: "KeyRound", to: "/workspace/pending-scope" },
+      {
+        id: "ws-ga-login-methods",
+        label: "Login Methods",
+        icon: "KeyRound",
+        to: "/workspace/pending-scope",
+      },
       // voucher.service.ts's own comment: "Platform-wide 'Voucher Master'
       // view -- omits X-Organization-Id" -- deliberate for the platform
       // console, but a real leak if reachable from the customer workspace.
@@ -928,16 +938,41 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       // OTP attempt/rate policy -- there's no separate OTP admin page.
       { id: "ws-ga-otp", label: "OTP", icon: "Smartphone", to: "/policies/authentication" },
       { id: "ws-ga-social", label: "Social Login", icon: "Users2", to: "/workspace/pending-scope" },
-      { id: "ws-ga-whitelist", label: "Whitelist", icon: "Fingerprint", to: "/network/mac-authorization" },
-      { id: "ws-ga-session-policies", label: "Session Policies", icon: "Clock", to: "/policies/user" },
+      {
+        id: "ws-ga-whitelist",
+        label: "Whitelist",
+        icon: "Fingerprint",
+        to: "/network/mac-authorization",
+      },
+      {
+        id: "ws-ga-session-policies",
+        label: "Session Policies",
+        icon: "Clock",
+        to: "/policies/user",
+      },
     ]),
     g("ws-captive-portal", "Captive Portal", 40, [
       { id: "ws-cp-branding", label: "Branding", icon: "Palette", to: "/branding" },
-      { id: "ws-cp-templates", label: "Templates", icon: "LayoutTemplate", to: "/workspace/pending-scope" },
-      { id: "ws-cp-landing", label: "Landing Page", icon: "LayoutTemplate", to: "/workspace/pending-scope" },
+      {
+        id: "ws-cp-templates",
+        label: "Templates",
+        icon: "LayoutTemplate",
+        to: "/workspace/pending-scope",
+      },
+      {
+        id: "ws-cp-landing",
+        label: "Landing Page",
+        icon: "LayoutTemplate",
+        to: "/workspace/pending-scope",
+      },
       { id: "ws-cp-campaigns", label: "Campaigns", icon: "Megaphone", to: "/campaigns" },
       { id: "ws-cp-surveys", label: "Surveys", icon: "MessageSquare", to: "/campaigns" },
-      { id: "ws-cp-redirect", label: "Redirect URL", icon: "Globe", to: "/workspace/pending-scope" },
+      {
+        id: "ws-cp-redirect",
+        label: "Redirect URL",
+        icon: "Globe",
+        to: "/workspace/pending-scope",
+      },
     ]),
     g("ws-monitoring", "Monitoring", 50, [
       { id: "ws-mon-live-users", label: "Live Users", icon: "Users", to: "/guests" },
@@ -949,11 +984,21 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
     ]),
     g("ws-analytics", "Analytics", 60, [
       { id: "ws-an-user", label: "User Report", icon: "PieChart", to: "/analytics/guest" },
-      { id: "ws-an-voucher", label: "Voucher Report", icon: "Ticket", to: "/workspace/pending-scope" },
+      {
+        id: "ws-an-voucher",
+        label: "Voucher Report",
+        icon: "Ticket",
+        to: "/workspace/pending-scope",
+      },
       { id: "ws-an-otp", label: "OTP Report", icon: "BarChart3", to: "/analytics" },
       // billing.service.ts's getSnapshot() fans out across every
       // organization (fetchAllOrganizations) -- same leak class as NAS.
-      { id: "ws-an-revenue", label: "Revenue Report", icon: "Receipt", to: "/workspace/pending-scope" },
+      {
+        id: "ws-an-revenue",
+        label: "Revenue Report",
+        icon: "Receipt",
+        to: "/workspace/pending-scope",
+      },
       { id: "ws-an-campaign", label: "Campaign Report", icon: "Megaphone", to: "/campaigns" },
       { id: "ws-an-export", label: "Export", icon: "Download", to: "/exports" },
     ]),
@@ -961,7 +1006,12 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       { id: "ws-auto-reports", label: "Scheduled Reports", icon: "FileClock", to: "/analytics" },
       // No dedicated auto-provisioning workflow yet -- routers list is the
       // real, closest entry point today.
-      { id: "ws-auto-provisioning", label: "Auto Provisioning", icon: "ServerCog", to: "/workspace/routers" },
+      {
+        id: "ws-auto-provisioning",
+        label: "Auto Provisioning",
+        icon: "ServerCog",
+        to: "/workspace/routers",
+      },
       { id: "ws-auto-webhooks", label: "Webhooks", icon: "Plug", to: "/api-keys" },
       { id: "ws-auto-integrations", label: "Integrations", icon: "Plug", to: "/settings" },
     ]),
@@ -969,8 +1019,18 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
       // audit.service.ts's AuditListQuery has no organizationId field at
       // all -- structurally impossible to scope from the frontend today,
       // and the underlying /audit/entries list is platform-wide.
-      { id: "ws-sec-audit", label: "Audit Logs", icon: "ScrollText", to: "/workspace/pending-scope" },
-      { id: "ws-sec-admin-logs", label: "Admin Logs", icon: "ScrollText", to: "/workspace/pending-scope" },
+      {
+        id: "ws-sec-audit",
+        label: "Audit Logs",
+        icon: "ScrollText",
+        to: "/workspace/pending-scope",
+      },
+      {
+        id: "ws-sec-admin-logs",
+        label: "Admin Logs",
+        icon: "ScrollText",
+        to: "/workspace/pending-scope",
+      },
       { id: "ws-sec-api-keys", label: "API Keys", icon: "KeyRound", to: "/api-keys" },
       { id: "ws-sec-sso", label: "SSO", icon: "ShieldAlert", to: "/settings" },
       { id: "ws-sec-mfa", label: "MFA", icon: "ShieldCheck", to: "/account" },

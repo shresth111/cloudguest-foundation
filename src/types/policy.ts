@@ -1,6 +1,13 @@
 export type PolicyScope = "location" | "user" | "group";
 export type PolicyStatus = "active" | "draft" | "archived";
-export type AuthMethod = "otp_sms" | "otp_email" | "voucher" | "social" | "pms" | "click_through" | "radius";
+export type AuthMethod =
+  | "otp_sms"
+  | "otp_email"
+  | "voucher"
+  | "social"
+  | "pms"
+  | "click_through"
+  | "radius";
 
 export interface BandwidthCap {
   downloadKbps: number;
@@ -35,9 +42,9 @@ export interface Policy {
   device: DevicePolicy;
   authMethods: AuthMethod[];
   timeWindow?: { start: string; end: string; days: number[] };
-  locationIds: string[];   // when scope === "location"
-  userIds: string[];       // when scope === "user"
-  groupIds: string[];      // when scope === "group"
+  locationIds: string[]; // when scope === "location"
+  userIds: string[]; // when scope === "user"
+  groupIds: string[]; // when scope === "group"
   vlanIds: string[];
   createdAt: number;
   updatedAt: number;

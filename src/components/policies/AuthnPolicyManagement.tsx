@@ -10,17 +10,34 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
 import {
-  useAuthnPolicies, useAuthnPolicyKpis, useSaveAuthnPolicy, useDeleteAuthnPolicy,
+  useAuthnPolicies,
+  useAuthnPolicyKpis,
+  useSaveAuthnPolicy,
+  useDeleteAuthnPolicy,
 } from "@/hooks/useAuthnPolicy";
 import type { AuthnPolicy } from "@/types/authn-policy";
 import type { PolicyStatus } from "@/types/policy";
@@ -48,8 +65,8 @@ export function AuthnPolicyManagement() {
   const filtered = useMemo(() => {
     if (!q.trim()) return policies;
     const t = q.toLowerCase();
-    return policies.filter((p) =>
-      p.name.toLowerCase().includes(t) || (p.description ?? "").toLowerCase().includes(t),
+    return policies.filter(
+      (p) => p.name.toLowerCase().includes(t) || (p.description ?? "").toLowerCase().includes(t),
     );
   }, [policies, q]);
 
@@ -77,7 +94,12 @@ export function AuthnPolicyManagement() {
           <CardTitle className="text-base font-semibold">All authentication policies</CardTitle>
           <div className="relative w-72 max-w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="pl-8" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search…"
+              className="pl-8"
+            />
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
@@ -93,10 +115,24 @@ export function AuthnPolicyManagement() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    Loading…
+                  </TableCell>
+                </TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">No authentication policies yet.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    No authentication policies yet.
+                  </TableCell>
+                </TableRow>
               )}
               {filtered.map((p) => (
                 <TableRow key={p.id} className="group">
@@ -104,14 +140,27 @@ export function AuthnPolicyManagement() {
                     <div className="min-w-0">
                       <div className="truncate font-medium">{p.name}</div>
                       {p.description && (
-                        <div className="truncate text-xs text-muted-foreground">{p.description}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {p.description}
+                        </div>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{p.maxAttemptsPerWindow}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.maxAttemptsPerWindow}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{p.windowMinutes}m</TableCell>
                   <TableCell>
-                    <Badge variant={p.status === "active" ? "default" : p.status === "draft" ? "secondary" : "outline"} className="capitalize">
+                    <Badge
+                      variant={
+                        p.status === "active"
+                          ? "default"
+                          : p.status === "draft"
+                            ? "secondary"
+                            : "outline"
+                      }
+                      className="capitalize"
+                    >
                       {p.status}
                     </Badge>
                   </TableCell>
@@ -120,10 +169,14 @@ export function AuthnPolicyManagement() {
                       <Button size="icon" variant="ghost" onClick={() => setEditing(p)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={async () => {
-                        await del.mutateAsync(p.id);
-                        toast.success("Policy deleted");
-                      }}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={async () => {
+                          await del.mutateAsync(p.id);
+                          toast.success("Policy deleted");
+                        }}
+                      >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
@@ -138,11 +191,15 @@ export function AuthnPolicyManagement() {
       <AuthnPolicyDialog
         open={creating || !!editing}
         policy={editing}
-        onClose={() => { setCreating(false); setEditing(null); }}
+        onClose={() => {
+          setCreating(false);
+          setEditing(null);
+        }}
         onSave={async (v) => {
           await save.mutateAsync({ ...(editing ? { id: editing.id } : {}), ...v });
           toast.success(editing ? "Policy updated" : "Policy created");
-          setCreating(false); setEditing(null);
+          setCreating(false);
+          setEditing(null);
         }}
       />
     </div>
@@ -150,7 +207,10 @@ export function AuthnPolicyManagement() {
 }
 
 function AuthnPolicyDialog({
-  open, policy, onClose, onSave,
+  open,
+  policy,
+  onClose,
+  onSave,
 }: {
   open: boolean;
   policy: AuthnPolicy | null;
@@ -161,26 +221,55 @@ function AuthnPolicyDialog({
     resolver: zodResolver(schema),
     defaultValues: policy
       ? {
-          name: policy.name, description: policy.description ?? "", status: policy.status,
-          maxAttemptsPerWindow: policy.maxAttemptsPerWindow, windowMinutes: policy.windowMinutes,
+          name: policy.name,
+          description: policy.description ?? "",
+          status: policy.status,
+          maxAttemptsPerWindow: policy.maxAttemptsPerWindow,
+          windowMinutes: policy.windowMinutes,
         }
-      : { name: "", description: "", status: "draft" as PolicyStatus, maxAttemptsPerWindow: 30, windowMinutes: 1 },
+      : {
+          name: "",
+          description: "",
+          status: "draft" as PolicyStatus,
+          maxAttemptsPerWindow: 30,
+          windowMinutes: 1,
+        },
   });
   const values = form.watch();
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); form.reset(); } }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          onClose();
+          form.reset();
+        }
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{policy ? "Edit authentication policy" : "New authentication policy"}</DialogTitle>
+          <DialogTitle>
+            {policy ? "Edit authentication policy" : "New authentication policy"}
+          </DialogTitle>
           <DialogDescription>
             Caps how many authentication attempts a caller may make within the given time window.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(async (v) => { await onSave(v); form.reset(); })} className="space-y-4">
+        <form
+          onSubmit={form.handleSubmit(async (v) => {
+            await onSave(v);
+            form.reset();
+          })}
+          className="space-y-4"
+        >
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Name" className="sm:col-span-2" error={form.formState.errors.name?.message}>
+            <Field
+              label="Name"
+              className="sm:col-span-2"
+              error={form.formState.errors.name?.message}
+            >
               <Input {...form.register("name")} disabled={!!policy} />
             </Field>
             <Field label="Description" className="sm:col-span-2">
@@ -193,8 +282,13 @@ function AuthnPolicyDialog({
               </p>
             )}
             <Field label="Status">
-              <Select value={values.status} onValueChange={(v) => form.setValue("status", v as PolicyStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={values.status}
+                onValueChange={(v) => form.setValue("status", v as PolicyStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
@@ -205,15 +299,23 @@ function AuthnPolicyDialog({
           </div>
 
           <div className="rounded-lg border border-border/60 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rate limit</div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Rate limit
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Max attempts"><Input type="number" {...form.register("maxAttemptsPerWindow")} /></Field>
-              <Field label="Window (minutes)"><Input type="number" {...form.register("windowMinutes")} /></Field>
+              <Field label="Max attempts">
+                <Input type="number" {...form.register("maxAttemptsPerWindow")} />
+              </Field>
+              <Field label="Window (minutes)">
+                <Input type="number" {...form.register("windowMinutes")} />
+              </Field>
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
             <Button type="submit">{policy ? "Save changes" : "Create policy"}</Button>
           </DialogFooter>
         </form>
@@ -222,7 +324,17 @@ function AuthnPolicyDialog({
   );
 }
 
-function Field({ label, error, children, className }: { label: string; error?: string; children: React.ReactNode; className?: string }) {
+function Field({
+  label,
+  error,
+  children,
+  className,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label className="text-xs font-medium">{label}</Label>

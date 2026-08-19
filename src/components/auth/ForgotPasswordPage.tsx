@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { authService } from "@/services/auth.service";
 import type { AppError } from "@/services/api";
 
-
 // Moved out of `src/routes/forgot-password.tsx` -- same bug class already fixed once in
 // PR #91 (`CustomerDashboardPage`, see
 // `src/components/customer/CustomerDashboardPage.tsx`'s own note).
@@ -63,11 +62,7 @@ export function ForgotPasswordPage({ onBack }: { onBack?: () => void } = {}) {
   };
 
   const backToSignIn = onBack ? (
-    <button
-      type="button"
-      onClick={onBack}
-      className="font-medium text-primary hover:underline"
-    >
+    <button type="button" onClick={onBack} className="font-medium text-primary hover:underline">
       Back to sign in
     </button>
   ) : (
@@ -109,11 +104,7 @@ export function ForgotPasswordPage({ onBack }: { onBack?: () => void } = {}) {
     <AuthLayout
       title="Forgot your password?"
       subtitle="Enter your email and we'll send you a password reset link."
-      footer={
-        <>
-          Remembered it? {backToSignIn}
-        </>
-      }
+      footer={<>Remembered it? {backToSignIn}</>}
     >
       <AnimatePresence mode="wait">
         <motion.form
@@ -138,7 +129,10 @@ export function ForgotPasswordPage({ onBack }: { onBack?: () => void } = {}) {
               <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
             )}
           </div>
-          <motion.div whileHover={{ scale: submitting ? 1 : 1.01 }} whileTap={{ scale: submitting ? 1 : 0.98 }}>
+          <motion.div
+            whileHover={{ scale: submitting ? 1 : 1.01 }}
+            whileTap={{ scale: submitting ? 1 : 0.98 }}
+          >
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -18,9 +18,7 @@ interface PlatformBrandingContextValue {
   previewBranding: (patch: Partial<PlatformBrandingConfig>) => Promise<void>;
 }
 
-const PlatformBrandingContext = createContext<PlatformBrandingContextValue | undefined>(
-  undefined,
-);
+const PlatformBrandingContext = createContext<PlatformBrandingContextValue | undefined>(undefined);
 
 /**
  * Maps brand colors onto this theme's *existing* CSS custom properties

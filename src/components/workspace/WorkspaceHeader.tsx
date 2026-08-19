@@ -19,11 +19,13 @@ export function WorkspaceHeader() {
   if (!customer) return null;
 
   const activeLabel =
-    activeLocationId === "all" ? "All locations" : activeLocation?.name ?? "All locations";
+    activeLocationId === "all" ? "All locations" : (activeLocation?.name ?? "All locations");
   // With a single location focused, show that location's own business-type
   // icon; scoped to "All locations" there's no single type to represent, so
   // fall back to the generic building icon (businessTypeIcon(undefined)).
-  const HeaderIcon = businessTypeIcon(activeLocationId === "all" ? undefined : activeLocation?.siteType);
+  const HeaderIcon = businessTypeIcon(
+    activeLocationId === "all" ? undefined : activeLocation?.siteType,
+  );
 
   return (
     <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4 md:flex md:flex-wrap md:justify-between">
@@ -59,7 +61,11 @@ export function WorkspaceHeader() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="col-span-2 justify-between md:col-span-1 md:size-default md:w-72">
+          <Button
+            variant="outline"
+            size="sm"
+            className="col-span-2 justify-between md:col-span-1 md:size-default md:w-72"
+          >
             <span className="flex items-center gap-2 truncate">
               <MapPin className="h-4 w-4 shrink-0" />
               <span className="truncate">{activeLabel}</span>

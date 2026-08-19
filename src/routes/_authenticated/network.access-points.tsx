@@ -13,7 +13,7 @@ function Page() {
         title="Access Points"
         description="Manage wireless access points across every location — SSID, radios, power levels and firmware."
         icon={Wifi}
-        bullets={["Radio & channel planning","Per-AP client analytics","Bulk firmware rollouts"]}
+        bullets={["Radio & channel planning", "Per-AP client analytics", "Bulk firmware rollouts"]}
       />
     </PageShell>
   );

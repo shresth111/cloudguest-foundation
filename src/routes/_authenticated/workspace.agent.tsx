@@ -66,7 +66,11 @@ function AgentDashboardPage() {
           />
         </Can>
         <Can module="monitoring" mode="hidden">
-          <StatCard icon={Activity} label="Guest sessions" value={aggregated.analytics.totalSessions} />
+          <StatCard
+            icon={Activity}
+            label="Guest sessions"
+            value={aggregated.analytics.totalSessions}
+          />
         </Can>
       </div>
 

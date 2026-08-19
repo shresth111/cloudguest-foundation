@@ -23,7 +23,9 @@ export function PasswordInput({ value, onChange, placeholder, readOnly }: Passwo
         className="pr-10 font-mono text-xs"
       />
       <Button
-        type="button" size="icon" variant="ghost"
+        type="button"
+        size="icon"
+        variant="ghost"
         className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
         onClick={() => setShow((s) => !s)}
         aria-label={show ? "Hide value" : "Show value"}

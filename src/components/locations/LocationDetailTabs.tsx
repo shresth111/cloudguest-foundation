@@ -101,10 +101,30 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
 
       <TabsContent value="overview" className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Kpi icon={Router} tone="text-emerald-500 bg-emerald-500/10" label="Routers" value={overview.data?.router_count} />
-          <Kpi icon={Users} tone="text-indigo-500 bg-indigo-500/10" label="Connected devices" value={overview.data?.connected_device_count} />
-          <Kpi icon={Activity} tone="text-sky-500 bg-sky-500/10" label="VLANs" value={overview.data?.vlan_count} />
-          <Kpi icon={ScrollText} tone="text-amber-500 bg-amber-500/10" label="Audit entries" value={overview.data?.audit_log_count} />
+          <Kpi
+            icon={Router}
+            tone="text-emerald-500 bg-emerald-500/10"
+            label="Routers"
+            value={overview.data?.router_count}
+          />
+          <Kpi
+            icon={Users}
+            tone="text-indigo-500 bg-indigo-500/10"
+            label="Connected devices"
+            value={overview.data?.connected_device_count}
+          />
+          <Kpi
+            icon={Activity}
+            tone="text-sky-500 bg-sky-500/10"
+            label="VLANs"
+            value={overview.data?.vlan_count}
+          />
+          <Kpi
+            icon={ScrollText}
+            tone="text-amber-500 bg-amber-500/10"
+            label="Audit entries"
+            value={overview.data?.audit_log_count}
+          />
         </div>
 
         <Card className="rounded-2xl border-border/70 shadow-sm">
@@ -127,7 +147,11 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
             <Field label="Timezone" value={location.timezone} />
             <Field
               label="Coordinates"
-              value={location.latitude != null && location.longitude != null ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` : "—"}
+              value={
+                location.latitude != null && location.longitude != null
+                  ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+                  : "—"
+              }
             />
             <Field label="Created" value={new Date(location.createdAt).toLocaleDateString()} />
           </CardContent>
@@ -141,37 +165,83 @@ export function LocationDetailTabs({ location, initialTab = "overview" }: Props)
         <LocationRoutersPanel locationId={location.id} organizationId={location.organizationId} />
       </TabsContent>
       <TabsContent value="voucher">
-        <EmptyState icon={Wifi} title="Voucher batches" description="Prepaid access codes for this location will render here — scoped per NAS." />
+        <EmptyState
+          icon={Wifi}
+          title="Voucher batches"
+          description="Prepaid access codes for this location will render here — scoped per NAS."
+        />
       </TabsContent>
       <TabsContent value="wifi">
-        <EmptyState icon={Wifi} title="No WiFi networks configured" description="SSIDs, VLANs and bandwidth policies will show up here." />
+        <EmptyState
+          icon={Wifi}
+          title="No WiFi networks configured"
+          description="SSIDs, VLANs and bandwidth policies will show up here."
+        />
       </TabsContent>
       <TabsContent value="guests">
-        <EmptyState icon={Users} title="No connected guests" description="Active guest sessions will appear here in real time." />
+        <EmptyState
+          icon={Users}
+          title="No connected guests"
+          description="Active guest sessions will appear here in real time."
+        />
       </TabsContent>
       <TabsContent value="portal">
-        <EmptyState icon={Globe} title="Captive portal" description="Customize splash pages, auth methods and legal notices." />
+        <EmptyState
+          icon={Globe}
+          title="Captive portal"
+          description="Customize splash pages, auth methods and legal notices."
+        />
       </TabsContent>
       <TabsContent value="monitoring">
-        <EmptyState icon={ShieldCheck} title="Live monitoring" description="Real-time router and WAN health streams will render here." />
+        <EmptyState
+          icon={ShieldCheck}
+          title="Live monitoring"
+          description="Real-time router and WAN health streams will render here."
+        />
       </TabsContent>
       <TabsContent value="analytics">
-        <EmptyState icon={BarChart3} title="Analytics coming soon" description="Guest, session and revenue trends will render here." />
+        <EmptyState
+          icon={BarChart3}
+          title="Analytics coming soon"
+          description="Guest, session and revenue trends will render here."
+        />
       </TabsContent>
       <TabsContent value="bandwidth">
-        <EmptyState icon={Gauge} title="Bandwidth insights" description="Per-SSID and per-guest bandwidth breakdown coming soon." />
+        <EmptyState
+          icon={Gauge}
+          title="Bandwidth insights"
+          description="Per-SSID and per-guest bandwidth breakdown coming soon."
+        />
       </TabsContent>
       <TabsContent value="billing">
-        <ComingSoonPanel icon={Building2} title="Billing" description="Invoices and payment history roll out once this console is wired to the Billing domain." />
+        <ComingSoonPanel
+          icon={Building2}
+          title="Billing"
+          description="Invoices and payment history roll out once this console is wired to the Billing domain."
+        />
       </TabsContent>
       <TabsContent value="audit">
-        <ComingSoonPanel icon={ScrollText} title="Audit logs" description="A per-location audit trail rolls out once this console is wired to the Audit Log domain." />
+        <ComingSoonPanel
+          icon={ScrollText}
+          title="Audit logs"
+          description="A per-location audit trail rolls out once this console is wired to the Audit Log domain."
+        />
       </TabsContent>
     </Tabs>
   );
 }
 
-function Kpi({ icon: Icon, tone, label, value }: { icon: typeof Router; tone: string; label: string; value: number | undefined }) {
+function Kpi({
+  icon: Icon,
+  tone,
+  label,
+  value,
+}: {
+  icon: typeof Router;
+  tone: string;
+  label: string;
+  value: number | undefined;
+}) {
   return (
     <Card className="rounded-2xl border-border/70 shadow-sm">
       <CardContent className="flex flex-col gap-3 p-4">
@@ -220,8 +290,19 @@ function Field({
  * credentials (that page's "Remote access" card) are reachable starting
  * from either "I'm looking at a router" or "I'm looking at a location."
  */
-function LocationRoutersPanel({ locationId, organizationId }: { locationId: string; organizationId: string }) {
-  const { data: routers, isLoading, isError, refetch } = useQuery({
+function LocationRoutersPanel({
+  locationId,
+  organizationId,
+}: {
+  locationId: string;
+  organizationId: string;
+}) {
+  const {
+    data: routers,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["location-routers", locationId],
     queryFn: () => routerService.listForLocation(locationId, organizationId),
   });
@@ -229,7 +310,13 @@ function LocationRoutersPanel({ locationId, organizationId }: { locationId: stri
   if (isLoading) return <LoadingSkeleton rows={3} />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (!routers || routers.length === 0) {
-    return <EmptyState icon={Router} title="No routers registered" description="This location has no routers set up yet." />;
+    return (
+      <EmptyState
+        icon={Router}
+        title="No routers registered"
+        description="This location has no routers set up yet."
+      />
+    );
   }
 
   return (
@@ -248,12 +335,15 @@ function LocationRoutersPanel({ locationId, organizationId }: { locationId: stri
             <div>
               <p className="text-sm font-medium text-foreground">{r.name}</p>
               <p className="text-xs text-muted-foreground">
-                {r.model ?? "Unknown model"} · {r.managementIpAddress ?? r.publicIpAddress ?? "no reported IP"}
+                {r.model ?? "Unknown model"} ·{" "}
+                {r.managementIpAddress ?? r.publicIpAddress ?? "no reported IP"}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "online" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "online" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}
+            >
               {r.status}
             </span>
             <ArrowRight className="h-4 w-4 text-muted-foreground" />

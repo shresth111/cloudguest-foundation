@@ -1,9 +1,31 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboard, Users, FileText, Megaphone, Palette, Ticket, ShieldCheck, Shield,
-  Monitor, UsersRound, Bot, Network, Settings2, Bell, Sun, Globe, ScrollText,
-  Fingerprint, Server, Signal, Wifi, Ban,
-  LifeBuoy, Share2, HelpCircle, Radar,
+  LayoutDashboard,
+  Users,
+  FileText,
+  Megaphone,
+  Palette,
+  Ticket,
+  ShieldCheck,
+  Shield,
+  Monitor,
+  UsersRound,
+  Bot,
+  Network,
+  Settings2,
+  Bell,
+  Sun,
+  Globe,
+  ScrollText,
+  Fingerprint,
+  Server,
+  Signal,
+  Wifi,
+  Ban,
+  LifeBuoy,
+  Share2,
+  HelpCircle,
+  Radar,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -158,9 +180,10 @@ export function customerNavsForRole(role: CustomerLoginRole): CustomerNavItem[] 
  * groups (and dropping groups left empty by the filter) -- this is what the
  * shared `CustomerSidebar` component renders. */
 export function customerNavGroupsForRole(role: CustomerLoginRole): CustomerNavGroup[] {
-  return CUSTOMER_NAV_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((item) => item.roles.includes(role)) }))
-    .filter((g) => g.items.length > 0);
+  return CUSTOMER_NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => item.roles.includes(role)),
+  })).filter((g) => g.items.length > 0);
 }
 
 /** The only 4 customer feature ids whose bare name is already owned by

@@ -160,7 +160,11 @@ function BillingScreen() {
 
         {group === "subscriptions" && (
           <div className="space-y-4">
-            <MSeg value={subscriptionsTab} onChange={setSubscriptionsTab} options={SUBSCRIPTIONS_TABS} />
+            <MSeg
+              value={subscriptionsTab}
+              onChange={setSubscriptionsTab}
+              options={SUBSCRIPTIONS_TABS}
+            />
             {subscriptionsTab === "subscriptions" && (
               <SubscriptionTable
                 data={snap.data?.subscriptions}
@@ -170,19 +174,29 @@ function BillingScreen() {
               />
             )}
             {subscriptionsTab === "plans" && <PlanManagement plans={snap.data?.plans ?? []} />}
-            {subscriptionsTab === "usage" && <UsageBillingPanel data={snap.data?.usage} {...state} />}
+            {subscriptionsTab === "usage" && (
+              <UsageBillingPanel data={snap.data?.usage} {...state} />
+            )}
           </div>
         )}
 
         {group === "revenue" && (
           <div className="space-y-4">
             <MSeg value={revenueTab} onChange={setRevenueTab} options={REVENUE_TABS} />
-            {revenueTab === "analytics" && <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />}
+            {revenueTab === "analytics" && (
+              <RevenueAnalyticsPanel data={snap.data?.revenue} {...state} />
+            )}
             {revenueTab === "payments" && <PaymentTable data={snap.data?.payments} {...state} />}
             {revenueTab === "invoices" && (
-              <InvoiceManagement data={snap.data?.invoices} subscriptions={snap.data?.subscriptions} {...state} />
+              <InvoiceManagement
+                data={snap.data?.invoices}
+                subscriptions={snap.data?.subscriptions}
+                {...state}
+              />
             )}
-            {revenueTab === "reminders" && <RemindersPanel data={snap.data?.reminders} {...state} />}
+            {revenueTab === "reminders" && (
+              <RemindersPanel data={snap.data?.reminders} {...state} />
+            )}
           </div>
         )}
 

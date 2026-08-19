@@ -481,12 +481,7 @@ function OverviewTab({
                     border: "1px solid var(--border)",
                   }}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="guests"
-                  stroke="var(--primary)"
-                  fill="url(#gA)"
-                />
+                <Area type="monotone" dataKey="guests" stroke="var(--primary)" fill="url(#gA)" />
                 <Line type="monotone" dataKey="bandwidth" stroke="#f59e0b" dot={false} />
               </AreaChart>
             </ResponsiveContainer>

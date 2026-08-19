@@ -2,8 +2,24 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
-  Activity, BarChart3, Bell, Building2, Code2, LayoutTemplate, Network, Palette, QrCode,
-  Receipt, ShieldCheck, Sparkles, Star, Store, Ticket, Users, Wifi, FileBarChart,
+  Activity,
+  BarChart3,
+  Bell,
+  Building2,
+  Code2,
+  LayoutTemplate,
+  Network,
+  Palette,
+  QrCode,
+  Receipt,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Store,
+  Ticket,
+  Users,
+  Wifi,
+  FileBarChart,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,11 +38,35 @@ export const Route = createFileRoute("/_authenticated/marketplace/")({
 });
 
 const ICONS: Record<string, LucideIcon> = {
-  Wifi, LayoutTemplate, ShieldCheck, Network, BarChart3, Activity, Sparkles, Ticket,
-  QrCode, Users, Palette, Building2, Code2, Bell, FileBarChart, Receipt,
+  Wifi,
+  LayoutTemplate,
+  ShieldCheck,
+  Network,
+  BarChart3,
+  Activity,
+  Sparkles,
+  Ticket,
+  QrCode,
+  Users,
+  Palette,
+  Building2,
+  Code2,
+  Bell,
+  FileBarChart,
+  Receipt,
 };
 
-const CATEGORIES = ["All", "Networking", "Auth", "Analytics", "Automation", "Branding", "Integrations", "Developer", "Commerce"];
+const CATEGORIES = [
+  "All",
+  "Networking",
+  "Auth",
+  "Analytics",
+  "Automation",
+  "Branding",
+  "Integrations",
+  "Developer",
+  "Commerce",
+];
 
 function MarketplacePage() {
   const q = useMarketplace();
@@ -37,7 +77,8 @@ function MarketplacePage() {
   const filtered = useMemo(() => {
     return (q.data ?? []).filter((f) => {
       if (cat !== "All" && f.category !== cat) return false;
-      if (search && !`${f.name} ${f.description}`.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !`${f.name} ${f.description}`.toLowerCase().includes(search.toLowerCase()))
+        return false;
       return true;
     });
   }, [q.data, cat, search]);
@@ -54,7 +95,12 @@ function MarketplacePage() {
       <PageHeader
         title="Feature marketplace"
         description="Enable capabilities across your workspace, from portals to AI copilots."
-        actions={<Button variant="outline"><Store className="mr-2 h-4 w-4" />Browse plans</Button>}
+        actions={
+          <Button variant="outline">
+            <Store className="mr-2 h-4 w-4" />
+            Browse plans
+          </Button>
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -67,7 +113,9 @@ function MarketplacePage() {
         <Tabs value={cat} onValueChange={setCat} className="min-w-0 overflow-x-auto">
           <TabsList>
             {CATEGORIES.map((c) => (
-              <TabsTrigger key={c} value={c}>{c}</TabsTrigger>
+              <TabsTrigger key={c} value={c}>
+                {c}
+              </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
@@ -110,18 +158,49 @@ function MarketplacePage() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground">{f.description}</p>
                   <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="capitalize">{f.plan}</Badge>
+                    <Badge variant="outline" className="capitalize">
+                      {f.plan}
+                    </Badge>
                     <span>{f.users.toLocaleString()} users</span>
                   </div>
                 </CardContent>
                 <CardFooter className="flex items-center justify-between gap-2">
-                  <Button variant="ghost" size="sm">Learn more</Button>
+                  <Button variant="ghost" size="sm">
+                    Learn more
+                  </Button>
                   {f.status === "installed" ? (
-                    <Button variant="outline" size="sm" onClick={() => toggle.mutate({ id: f.id, enable: false }, { onSuccess: () => toast.success(`${f.name} disabled`) })}>Disable</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        toggle.mutate(
+                          { id: f.id, enable: false },
+                          { onSuccess: () => toast.success(`${f.name} disabled`) },
+                        )
+                      }
+                    >
+                      Disable
+                    </Button>
                   ) : f.status === "available" ? (
-                    <Button size="sm" onClick={() => toggle.mutate({ id: f.id, enable: true }, { onSuccess: () => toast.success(`${f.name} enabled`) })}>Enable</Button>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        toggle.mutate(
+                          { id: f.id, enable: true },
+                          { onSuccess: () => toast.success(`${f.name} enabled`) },
+                        )
+                      }
+                    >
+                      Enable
+                    </Button>
                   ) : (
-                    <Button size="sm" variant="secondary" onClick={() => toast.info("Contact sales to upgrade")}>Upgrade</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => toast.info("Contact sales to upgrade")}
+                    >
+                      Upgrade
+                    </Button>
                   )}
                 </CardFooter>
               </Card>
@@ -145,7 +224,13 @@ function MiniStat({ label, value, tone }: { label: string; value: number; tone: 
 }
 
 function StatusBadge({ status }: { status: "installed" | "available" | "upgrade" }) {
-  if (status === "installed") return <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20">Installed</Badge>;
-  if (status === "upgrade") return <Badge className="bg-amber-500/15 text-amber-600 hover:bg-amber-500/20">Upgrade</Badge>;
+  if (status === "installed")
+    return (
+      <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20">
+        Installed
+      </Badge>
+    );
+  if (status === "upgrade")
+    return <Badge className="bg-amber-500/15 text-amber-600 hover:bg-amber-500/20">Upgrade</Badge>;
   return <Badge variant="outline">Available</Badge>;
 }

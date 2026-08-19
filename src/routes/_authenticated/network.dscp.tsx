@@ -13,7 +13,7 @@ function Page() {
         title="DSCP & QoS"
         description="Quality-of-service marking, per-application prioritization and queue policies."
         icon={Gauge}
-        bullets={["DSCP mark & trust","Application QoS","Per-queue counters"]}
+        bullets={["DSCP mark & trust", "Application QoS", "Per-queue counters"]}
       />
     </PageShell>
   );

@@ -3,16 +3,31 @@ import { Download, FileSpreadsheet, FileText, Printer, Mail, Check, FileDown } f
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ExportFormat = "csv" | "excel" | "pdf" | "print" | "email";
 
-const FORMATS: { id: ExportFormat; label: string; icon: typeof FileSpreadsheet; description: string }[] = [
+const FORMATS: {
+  id: ExportFormat;
+  label: string;
+  icon: typeof FileSpreadsheet;
+  description: string;
+}[] = [
   { id: "csv", label: "CSV", icon: FileSpreadsheet, description: "Comma-separated values file" },
-  { id: "excel", label: "Excel", icon: FileSpreadsheet, description: "Microsoft Excel spreadsheet" },
+  {
+    id: "excel",
+    label: "Excel",
+    icon: FileSpreadsheet,
+    description: "Microsoft Excel spreadsheet",
+  },
   { id: "pdf", label: "PDF", icon: FileText, description: "Portable document format" },
   { id: "print", label: "Print", icon: Printer, description: "Send to printer" },
   { id: "email", label: "Email Report", icon: Mail, description: "Send report via email" },
@@ -71,10 +86,12 @@ export function ExportCenter({ open, onOpenChange, title = "Export data" }: Expo
                     : "border-border hover:border-primary/30 hover:bg-accent",
                 )}
               >
-                <div className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-lg",
-                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
-                )}>
+                <div
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-lg",
+                    isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+                  )}
+                >
                   {isSelected ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                 </div>
                 <div>
