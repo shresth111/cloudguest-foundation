@@ -51,6 +51,9 @@ import {
   type DeviceType,
 } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { HighlightedText } from "@/components/ui-ext/HighlightedText";
+
 import { isDemo } from "@/services/customer.service";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
