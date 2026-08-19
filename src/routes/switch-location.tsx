@@ -150,7 +150,7 @@ function HeroManagerIllustration() {
     <svg
       aria-hidden="true"
       viewBox="0 0 520 210"
-      className="h-auto w-full max-w-[300px]"
+      className="h-auto w-full max-w-[340px]"
       fill="none"
     >
       <defs>
@@ -394,7 +394,7 @@ function CustomerHomePage() {
 
   return (
     <div
-      className="relative min-h-screen overflow-x-hidden bg-[#181530] text-white"
+      className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#181530] text-white"
       style={
         {
           "--primary": "#6C4EFF",
@@ -565,7 +565,7 @@ function CustomerHomePage() {
         </div>
       </div>
 
-      <main className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <main className="relative mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
