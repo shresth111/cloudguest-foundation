@@ -51,7 +51,8 @@ function IntegrationTile({ item }: { item: IntegrationCard }) {
     const r = await settingsService.testIntegration(item.id);
     setTesting(false);
     inv();
-    r.ok ? toast.success(`${item.name} reachable`) : toast.error(`${item.name} test failed`);
+    if (r.ok) toast.success(`${item.name} reachable`);
+    else toast.error(`${item.name} test failed`);
   };
   const toggle = async () => {
     await settingsService.toggleIntegration(item.id);

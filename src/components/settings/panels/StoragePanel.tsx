@@ -35,7 +35,8 @@ export function StoragePanel({ data }: { data: StorageSettings }) {
     const r = await settingsService.testStorage();
     setTesting(false);
     inv();
-    r.ok ? toast.success(r.message) : toast.error(r.message);
+    if (r.ok) toast.success(r.message);
+    else toast.error(r.message);
   };
 
   const usagePct = Math.min(100, Math.round((local.usageGb / Math.max(1, local.quotaGb)) * 100));

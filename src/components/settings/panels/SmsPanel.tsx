@@ -40,7 +40,8 @@ export function SmsPanel({ data }: { data: SmsSettings }) {
     const r = await settingsService.testSms();
     setTesting(false);
     inv();
-    r.ok ? toast.success(r.message) : toast.error(r.message);
+    if (r.ok) toast.success(r.message);
+    else toast.error(r.message);
   };
 
   return (

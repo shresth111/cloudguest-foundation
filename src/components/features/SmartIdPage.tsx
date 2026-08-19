@@ -29,7 +29,7 @@ interface LoginMethod {
   enabled: boolean;
   required: boolean;
   order: number;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 // Only these five SmartIdPage methods have a real, persisted counterpart

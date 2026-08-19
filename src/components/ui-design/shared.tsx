@@ -244,8 +244,8 @@ export function DataTable({
   setSortDir,
 }: {
   cols: { key: string; label: string; sortType?: string }[];
-  rows: any[];
-  renderRow: (r: any, i: number) => React.ReactNode;
+  rows: unknown[];
+  renderRow: (r: never, i: number) => React.ReactNode;
   search?: string;
   onSearch?: (v: string) => void;
   page: number;

@@ -42,7 +42,8 @@ export function EmailPanel({ data }: { data: EmailSettings }) {
     const r = await settingsService.testEmail();
     setTesting(false);
     inv();
-    r.ok ? toast.success(r.message) : toast.error(r.message);
+    if (r.ok) toast.success(r.message);
+    else toast.error(r.message);
   };
 
   return (
