@@ -1281,6 +1281,9 @@ function CustomerHomePage() {
               </table>
             </div>
           </div>
+            </>
+          )}
+
         </SheetContent>
       </Sheet>
 
