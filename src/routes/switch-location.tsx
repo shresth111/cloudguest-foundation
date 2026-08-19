@@ -1052,60 +1052,60 @@ function CustomerHomePage() {
                 <button
                   key={f}
                   type="button"
-                  title={onFloor.length > 0 ? `Filter: floor ${f}` : undefined}
-                  disabled={onFloor.length === 0}
+                  title={`Filter: floor ${f}`}
+                  aria-pressed={floorActive}
                   onClick={() => setFloorFilter(floorActive ? null : f)}
                   className={cn(
-                    "rounded-xl border p-3 text-center backdrop-blur-sm transition-all",
-                    onFloor.length > 0
-                      ? "cursor-pointer hover:-translate-y-0.5"
-                      : "cursor-default opacity-50",
+                    "group cursor-pointer rounded-xl border p-3 text-left backdrop-blur-sm transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
                     floorActive
                       ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 ring-1 ring-[#6C4EFF]/40"
                       : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
                   )}
                 >
-                  <p className="text-sm font-bold text-white">{f}</p>
-                  {typesHere.length > 0 && (
-                    <div className="mt-1 flex items-center justify-center gap-1">
-                      {typesHere.map((t) => {
-                        const Icon = DEVICE_TYPE_ICON[t];
-                        const active = typeFilter === t;
-                        return (
-                          <span
-                            key={t}
-                            aria-hidden="true"
-                            title={`Filter: ${t}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTypeFilter(active ? null : t);
-                            }}
-                            className={cn(
-                              "rounded-full p-1 transition-all hover:scale-125 hover:bg-white/15 hover:text-white",
-                              active ? "bg-[#6C4EFF]/30 text-white" : "text-white/50",
-                            )}
-                          >
-                            <Icon className="h-3 w-3" />
-                          </span>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm font-bold text-white">{f}</p>
+                    <p className="text-[11px] tabular-nums text-white/40">
+                      {onFloor.length} {onFloor.length === 1 ? "device" : "devices"}
+                    </p>
+                  </div>
 
-                        );
-                      })}
-                    </div>
-                  )}
-                  <p
-                    className={cn(
-                      "mt-1 text-xs",
-                      down > 0 ? "text-rose-400 font-medium" : "text-white/40",
+                  {/* Health bar reads faster than a sentence: green = up, red = down. */}
+                  <div className="mt-2 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-white/10">
+                    {onFloor.map((d) => (
+                      <span
+                        key={d.id}
+                        className={cn(
+                          "h-full flex-1 rounded-full",
+                          d.status === "up"
+                            ? "bg-emerald-500"
+                            : d.status === "down"
+                              ? "bg-rose-500"
+                              : "bg-white/25",
+                        )}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p
+                      className={cn(
+                        "text-xs",
+                        down > 0 ? "font-medium text-rose-400" : "text-white/45",
+                      )}
+                    >
+                      {down > 0 ? `${down} down` : `${up} online`}
+                    </p>
+                    {typesHere.length > 0 && (
+                      <span className="flex items-center gap-1 text-white/40">
+                        {typesHere.map((t) => {
+                          const Icon = DEVICE_TYPE_ICON[t];
+                          return <Icon key={t} className="h-3 w-3" aria-hidden="true" />;
+                        })}
+                      </span>
                     )}
-                  >
-                    {down > 0
-                      ? `${down} of ${onFloor.length} down`
-                      : onFloor.length === 0
-                        ? "No devices"
-                        : up === onFloor.length
-                          ? `${onFloor.length} online`
-                          : `${up} of ${onFloor.length} online`}
-                  </p>
+                  </div>
+                </button>
+
                 </button>
               );
             })}
