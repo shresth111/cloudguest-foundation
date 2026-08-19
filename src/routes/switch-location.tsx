@@ -499,33 +499,43 @@ function CustomerHomePage() {
                 Which venue are we looking after today?
               </h1>
 
-              <div className="relative mt-5 max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
-                <Input
-                  placeholder="Search locations…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-11 border-white/15 bg-white/10 pl-10 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
-                />
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <div className="relative w-full max-w-md">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+                  <Input
+                    placeholder="Search locations…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-11 border-white/15 bg-white/10 pl-10 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
+                  />
+                </div>
+                <button
+                  onClick={() => setAddLocationOpen(true)}
+                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90"
+                >
+                  <Plus className="h-4 w-4" /> Add location
+                </button>
               </div>
 
               {!isLoading && (
-                <div className="mt-6 flex gap-6">
+                <div className="mt-6 grid max-w-md grid-cols-3 gap-2">
                   {heroStats.map((s, i) => (
                     <motion.div
                       key={s.label}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.3 + i * 0.1, ease: "easeOut" }}
+                      className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 backdrop-blur-sm"
                     >
                       <p className="font-display text-2xl font-bold tracking-tight tabular-nums">
                         <CountUp target={s.value} />
                       </p>
-                      <p className="text-xs text-white/60">{s.label}</p>
+                      <p className="mt-0.5 text-[11px] text-white/55">{s.label}</p>
                     </motion.div>
                   ))}
                 </div>
               )}
+
 
               <div className="mt-6 flex items-center gap-2 text-sm text-white/60">
                 <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
