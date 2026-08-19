@@ -663,10 +663,16 @@ function CustomerHomePage() {
               </p>
             </div>
             {!isLoading && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/60">
+              <span
+                className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/60 transition-opacity"
+                style={{ opacity: isSearchPending ? 0.5 : 1 }}
+                aria-live="polite"
+              >
                 {filtered.length}
+                {query ? " matching" : ""}
               </span>
             )}
+
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-xs text-white/50">
