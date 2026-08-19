@@ -110,7 +110,7 @@ export default function OtpDeliveryReport({ onNavigate }: Props) {
 
   const handleSearch = useCallback(async () => {
     const e: typeof errs = {};
-    const cleaned = mobile.replace(/[\s\-\+]/g, "");
+    const cleaned = mobile.replace(/[\s\-+]/g, "");
     if (!cleaned) e.mobile = "Enter the mobile number with country code.";
     else if (cleaned.length < 10 || cleaned.length > 15)
       e.mobile = "That doesn't look like a valid number.";

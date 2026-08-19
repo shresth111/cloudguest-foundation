@@ -327,7 +327,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     // Phone entry strips formatting punctuation before validating digits;
     // an email address carries meaningful punctuation ("@", ".") so it's
     // only ever trimmed, never stripped.
-    const cleaned = mode === "mobile" ? raw.map((s) => s.replace(/[\s\-\+\(\)]/g, "")) : raw;
+    const cleaned = mode === "mobile" ? raw.map((s) => s.replace(/[\s\-+()]/g, "")) : raw;
     const seen = new Set<string>();
     const valid: string[] = [];
     const invalid: string[] = [];
@@ -336,7 +336,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     const blockedIdentifiers = new Set(
       blocked
         .filter((b) => b.status === "Blocked")
-        .map((b) => (mode === "mobile" ? b.identifier.replace(/[\s\-\+]/g, "") : b.identifier)),
+        .map((b) => (mode === "mobile" ? b.identifier.replace(/[\s\-+]/g, "") : b.identifier)),
     );
 
     for (const c of cleaned) {
@@ -371,13 +371,13 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       .split(/[,;\n]/)
       .map((s) => s.trim())
       .filter(Boolean);
-    const cleaned = mode === "mobile" ? raw.map((s) => s.replace(/[\s\-\+\(\)]/g, "")) : raw;
+    const cleaned = mode === "mobile" ? raw.map((s) => s.replace(/[\s\-+()]/g, "")) : raw;
     const result: { num: string; status: "valid" | "invalid" | "blocked"; raw: string }[] = [];
     const seen = new Set<string>();
     const blockedIdentifiers = new Set(
       blocked
         .filter((b) => b.status === "Blocked")
-        .map((b) => (mode === "mobile" ? b.identifier.replace(/[\s\-\+]/g, "") : b.identifier)),
+        .map((b) => (mode === "mobile" ? b.identifier.replace(/[\s\-+]/g, "") : b.identifier)),
     );
 
     for (let i = 0; i < cleaned.length; i++) {
