@@ -129,8 +129,45 @@ function BrandPanel({
 // the heaviest, near-opaque part of the old scrim; this lightens that
 // without widening the scrim's own coverage, which is the opposite
 // direction from round 2's regression (see GuestBackdrop's own comment).
-const GUEST_BACKDROP_SCRIM =
-  "linear-gradient(to bottom, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.28) 14%, rgba(255,255,255,0) 24%, rgba(255,255,255,0) 78%, rgba(255,255,255,0.65) 100%)";
+//
+// captive-portal-v6-design-spec.md §4: that 0.55/0.28/0.65 was the third
+// sequential single-engineer guess at one hardcoded number, checked
+// against exactly one real photo -- PR #80 (a header illegible against a
+// bright photo) and PR #81 (the entire content column washed to a near-
+// invisible ghost) are both real, shipped instances of that same guess
+// being wrong for a *different* venue's photo. `buildGuestBackdropScrim`
+// below is the structural fix: peak opacity becomes a real per-venue admin
+// input (`RuntimePortalConfig.backgroundOverlayStrength`, §4.4's slider),
+// while the actual axis that broke both prior incidents -- *coverage
+// area*, not opacity value (see this function's own comment on the fixed
+// 24%/78% stops, and GuestBackdrop's doc comment above) -- stays
+// permanently non-configurable so an admin control can never reintroduce
+// PR #81's mistake under a different name.
+/**
+ * @param strengthPct Admin-chosen 0-100 (`RuntimePortalConfig.
+ * backgroundOverlayStrength`, default 55 -- the value that reproduces
+ * today's hardcoded 0.55/0.28/0.65 scrim exactly, see this function's own
+ * inline comments below). Clamped to [15, 85] here at render time, NOT at
+ * the stored-value/admin-slider-display side (backend/admin UI both keep
+ * the honest 0-100 range) -- see the clamp's own comment for why both
+ * ends of that range are real, historical guardrails, not arbitrary.
+ */
+function buildGuestBackdropScrim(strengthPct: number): string {
+  // Clamp to [15, 85] -- this is the actual guardrail against both real
+  // historical incidents: below 15, a bright photo can reproduce PR #80's
+  // illegible-header problem; above 85, the scrim approaches PR #81's
+  // near-total-wash regression. An admin can go most of the way in either
+  // direction, but never all the way back to either shipped incident.
+  const peakTop = Math.max(15, Math.min(85, strengthPct)) / 100;
+  const midTop = peakTop * 0.51; // same ratio as today's 0.28/0.55
+  const peakBottom = Math.min(0.85, peakTop + 0.1); // same +0.10 offset as today's 0.65/0.55
+
+  // The 24%/78% transparent-band stops are NOT parameters. This is the one
+  // line in this function that must never take strengthPct as an input --
+  // see GuestBackdrop's own doc comment (and v5 §2) for why "coverage
+  // area," not opacity, was the actual mistake both prior regressions made.
+  return `linear-gradient(to bottom, rgba(255,255,255,${peakTop}) 0%, rgba(255,255,255,${midTop}) 14%, rgba(255,255,255,0) 24%, rgba(255,255,255,0) 78%, rgba(255,255,255,${peakBottom}) 100%)`;
+}
 
 /**
  * Renders the venue's uploaded background photo at full clarity, plus the
@@ -162,9 +199,15 @@ const GUEST_BACKDROP_SCRIM =
  */
 function GuestBackdrop({
   backgroundImageUrl,
+  backgroundOverlayStrength,
   children,
 }: {
   backgroundImageUrl?: string | null;
+  /** `RuntimePortalConfig.backgroundOverlayStrength`, §4 -- defaults to 55
+   * (today's exact shipped value) when the config hasn't resolved yet or
+   * the field is absent, same fallback `buildGuestBackdropScrim`'s own
+   * caller below applies. */
+  backgroundOverlayStrength?: number;
   children: ReactNode;
 }) {
   if (!backgroundImageUrl) {
@@ -210,7 +253,7 @@ function GuestBackdrop({
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ background: GUEST_BACKDROP_SCRIM }}
+        style={{ background: buildGuestBackdropScrim(backgroundOverlayStrength ?? 55) }}
       />
       {children}
     </>
@@ -302,7 +345,10 @@ export function PortalShell({
         background: "var(--pg-canvas, #FAFAF8)",
       }}
     >
-      <GuestBackdrop backgroundImageUrl={config?.backgroundImageUrl}>
+      <GuestBackdrop
+        backgroundImageUrl={config?.backgroundImageUrl}
+        backgroundOverlayStrength={config?.backgroundOverlayStrength}
+      >
         {/* Below lg:, this fills the viewport edge-to-edge like every
          * phone/tablet captive-portal page should (single column, the
          * `lg:grid` below is a no-op until that breakpoint). At lg:

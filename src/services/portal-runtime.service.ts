@@ -1,10 +1,12 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
-import type {
-  RuntimeAuthMethod,
-  RuntimeLanguage,
-  RuntimePortalConfig,
-  RuntimeSession,
-  RuntimeSessionAuthMethod,
+import {
+  clampBackgroundOverlayStrength,
+  toGuestFontChoice,
+  type RuntimeAuthMethod,
+  type RuntimeLanguage,
+  type RuntimePortalConfig,
+  type RuntimeSession,
+  type RuntimeSessionAuthMethod,
 } from "@/types/portal-runtime";
 
 const SUPPORTED_LANGUAGES: RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
@@ -40,6 +42,12 @@ interface BackendCaptivePortalConfig {
   resolved_via_location_override: boolean;
   is_open_now: boolean;
   business_hours_closed_message: string | null;
+  /** captive-portal-v6-design-spec.md §6.1 -- optional until the backend
+   * PR (separate repo, `cloud-guest-repo/backend`) lands; `toRuntimeConfig`
+   * below falls back to `"system"`/`55` for either field when absent, so
+   * this frontend change is safe to ship ahead of that one (§7). */
+  guest_font_choice?: string;
+  background_overlay_strength?: number;
 }
 
 interface BackendOtpRequestResponse {
@@ -135,6 +143,8 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     resolvedViaLocationOverride: c.resolved_via_location_override,
     isOpenNow: c.is_open_now,
     businessHoursClosedMessage: c.business_hours_closed_message,
+    guestFontChoice: toGuestFontChoice(c.guest_font_choice),
+    backgroundOverlayStrength: clampBackgroundOverlayStrength(c.background_overlay_strength),
   };
 }
 

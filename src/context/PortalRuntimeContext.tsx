@@ -16,6 +16,11 @@ import type {
   RuntimeSession,
 } from "@/types/portal-runtime";
 import { RTL_LANGS, translate, loadPersistedLanguage, persistLanguage } from "@/lib/portal-i18n";
+import {
+  GUEST_FONT_FACES,
+  GUEST_FONT_UNICODE_RANGE,
+  PG_FALLBACK_FONT_STACK,
+} from "@/lib/portal-guest-fonts";
 
 /**
  * v4 §2's contrast-safe accent-foreground fix. `PG_PRIMARY_BTN` and the
@@ -369,6 +374,35 @@ export function PortalRuntimeProvider({
 
   useEffect(() => {
     if (!config) return;
+
+    // captive-portal-v6-design-spec.md §3.3.5 -- extends this same effect
+    // (not a new Context/Provider, not a second effect) to also load the
+    // curated heading font, conditionally: a `system`-choice venue (still
+    // the default, and every venue until an admin picks otherwise) hits
+    // neither branch below, so it downloads zero extra bytes and injects
+    // zero extra tags -- §3.4's "no venue pays for a font it didn't choose"
+    // stays literally true, not just true in the common case.
+    const face =
+      config.guestFontChoice !== "system" ? GUEST_FONT_FACES[config.guestFontChoice] : null;
+
+    let link: HTMLLinkElement | null = null;
+    if (face) {
+      // Same-origin only (§3.3.1) -- `face.woff2Path` is always this app's
+      // own `/fonts/portal/*.woff2` static asset, never a third-party CDN
+      // URL. `crossOrigin` is required for a font `<link rel=preload>`
+      // regardless of same-origin-ness (fonts are always fetched in CORS
+      // mode) -- omitting it silently makes the preload not match the
+      // actual @font-face fetch, defeating the whole point of preloading.
+      link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "font";
+      link.type = "font/woff2";
+      link.crossOrigin = "anonymous";
+      link.href = face.woff2Path;
+      link.setAttribute("data-portal-runtime-font", "1");
+      document.head.appendChild(link);
+    }
+
     const style = document.createElement("style");
     style.setAttribute("data-portal-runtime", "1");
     style.textContent = `
@@ -380,10 +414,46 @@ export function PortalRuntimeProvider({
         --pr-primary-foreground: ${accessibleForeground(config.primaryColor)};
         --pr-radius: 18px;
       }
+      ${
+        face
+          ? `
+      @font-face {
+        font-family: "${face.fontFamily}";
+        src: url("${face.woff2Path}") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+        /* §3.3.3 -- optional, not swap: on this surface's actual operating
+         * environment (a flaky pre-auth connection), a font that isn't
+         * ready within the browser's short block period simply never
+         * swaps in for that render. No FOIT, no jank, no dependency on the
+         * network cooperating -- the fallback (PG_FONT_STACK) is not a
+         * degraded state, it's today's already-shipped visual. */
+        font-display: optional;
+        /* §3.3.4 -- metric-matched overrides so the heading's box
+         * height/baseline are identical whether or not the swap happens;
+         * see src/lib/portal-guest-fonts.ts's own doc comment for how
+         * these were computed (real font metrics, not eyeballed). */
+        ascent-override: ${face.ascentOverride};
+        descent-override: ${face.descentOverride};
+        line-gap-override: ${face.lineGapOverride};
+        size-adjust: ${face.sizeAdjust};
+        /* §3.2 -- a Hindi/Arabic heading's codepoints aren't in this
+         * range, so the browser's own per-character fallback sends them
+         * straight to "Noto Sans Devanagari"/PG_FALLBACK_FONT_STACK below
+         * instead of this curated face, by design, not by accident. */
+        unicode-range: ${GUEST_FONT_UNICODE_RANGE};
+      }
+      .portal-runtime {
+        --pg-display-font-family: "${face.fontFamily}", ${PG_FALLBACK_FONT_STACK};
+      }
+      `
+          : ""
+      }
     `;
     document.head.appendChild(style);
     return () => {
       style.remove();
+      link?.remove();
     };
   }, [config]);
 

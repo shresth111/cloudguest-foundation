@@ -1,3 +1,5 @@
+import type { GuestFontChoice } from "@/types/portal-runtime";
+
 export type PortalStatus = "draft" | "published" | "archived" | "scheduled";
 export type PortalLoginMethod =
   | "mobile_otp"
@@ -62,7 +64,18 @@ export interface PortalBranding {
   gradientTo: string;
   primaryColor: string;
   secondaryColor: string;
+  /** Free-text, cosmetic-only theme-catalog label (THEMES in
+   * portal.service.ts) -- never round-tripped to any real backend field.
+   * Not to be confused with `fontChoice` below, which is. */
   fontFamily: string;
+  /** captive-portal-v6-design-spec.md §3 -- the real, backend-round-tripped
+   * heading-only font choice (`RuntimePortalConfig.guestFontChoice`'s admin-
+   * editable counterpart). Default `"system"`. See
+   * `src/lib/portal-guest-fonts.ts` for the curated allowlist's real specs. */
+  fontChoice: GuestFontChoice;
+  /** captive-portal-v6-design-spec.md §4 -- the real, backend-round-tripped
+   * background-overlay-strength admin control. 0-100, default 55. */
+  backgroundOverlayStrength: number;
   borderRadius: number;
   shadow: "none" | "sm" | "md" | "lg";
   buttonStyle: "solid" | "outline" | "ghost";

@@ -692,11 +692,20 @@
  * (26px, 2xl, 42px, 50px, 4xl, lg, sm, xs, 11px, each hand-picked per
  * file) with one shared set. All on `PG_FONT_STACK` (system fonts) --
  * never a webfont, see that stack's own doc comment in PortalShell.tsx. */
+/* captive-portal-v6-design-spec.md §3.1/§3.3.6: heading-layer-only font
+ * choice (never body/UI text -- see PG_FONT_STACK's own comment in
+ * PortalShell.tsx for why every non-heading utility stays on it
+ * permanently). `--pg-display-font-family` is unset for every `system`-
+ * choice venue (still the vast majority) and during SSR/first paint before
+ * PortalRuntimeContext's style-injection effect runs -- `inherit` then
+ * resolves through `.pg-shell`'s own inline `font-family: PG_FONT_STACK`,
+ * pixel-identical to today's output, not a new default to verify against. */
 @utility pg-display {
   font-size: 42px;
   line-height: 1.08;
   font-weight: 700;
   letter-spacing: -0.02em;
+  font-family: var(--pg-display-font-family, inherit);
 }
 /* xl: (1280px+) bump -- plain media query rather than Tailwind's `@variant`
  * nesting, which applies to a *consumer* of a utility, not the utility
@@ -709,12 +718,14 @@
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.015em;
+  font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-subtitle {
   font-size: 20px;
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.01em;
+  font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-body {
   font-size: 15px;

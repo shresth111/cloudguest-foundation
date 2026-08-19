@@ -266,6 +266,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     resolvedViaLocationOverride: true,
     isOpenNow: true,
     businessHoursClosedMessage: null,
+    // captive-portal-v6-design-spec.md §7 -- this in-progress-edit preview
+    // has no wizard field for either yet, so both stay at the same
+    // zero-visual-diff defaults the real backend uses for an unset venue.
+    guestFontChoice: "system",
+    backgroundOverlayStrength: 55,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [portalId, logo, primary, form.lang, form.terms, form.redirectUrl, headline, msg, authMethods]);
 
