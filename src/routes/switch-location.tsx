@@ -62,6 +62,7 @@ import { requireCustomerSession } from "@/lib/authGuards";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { IspProviderIcon } from "@/components/icons/isp";
 import { LocationWizard } from "@/components/locations/LocationWizard";
+import { AddDeviceDialog } from "@/components/customer/AddDeviceDialog";
 
 export const Route = createFileRoute("/switch-location")({
   beforeLoad: ({ context, location }) => requireCustomerSession(context.auth, location),
@@ -316,7 +317,7 @@ function CustomerHomePage() {
   const { user, logout, organizations } = useAuth();
   const { setActiveLocation } = useCustomerStore();
   const { data: locations, isLoading, refetch } = useCustomerLocations();
-  const { devices: allDevices } = useMonitoredHardware();
+  const { devices: allDevices, refetch: refetchDevices } = useMonitoredHardware();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [addLocationOpen, setAddLocationOpen] = useState(false);
@@ -332,6 +333,7 @@ function CustomerHomePage() {
   const [typeFilter, setTypeFilter] = useState<DeviceType | null>(null);
   const [floorFilter, setFloorFilter] = useState<string | null>(null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+  const [addDeviceOpen, setAddDeviceOpen] = useState(false);
 
   const [deviceLocationId, setDeviceLocationId] = useState("");
   const [secondsAgo, setSecondsAgo] = useState(0);
@@ -1056,6 +1058,15 @@ function CustomerHomePage() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => setAddDeviceOpen(true)}
+              disabled={!effectiveDeviceLocationId}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add device
+            </button>
           </div>
 
           {/* A location with zero devices used to render six greyed-out floor
@@ -1074,13 +1085,7 @@ function CustomerHomePage() {
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setDeviceSheetOpen(false);
-                  navigate({
-                    to: "/locations/$locationId",
-                    params: { locationId: effectiveDeviceLocationId },
-                  });
-                }}
+                onClick={() => setAddDeviceOpen(true)}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#1a1733] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1465,6 +1470,14 @@ function CustomerHomePage() {
 
         </SheetContent>
       </Sheet>
+
+      <AddDeviceDialog
+        open={addDeviceOpen}
+        onOpenChange={setAddDeviceOpen}
+        locationId={effectiveDeviceLocationId}
+        locationName={(locations ?? []).find((l) => l.id === effectiveDeviceLocationId)?.name}
+        onAdded={() => refetchDevices()}
+      />
 
       <LocationWizard
         open={addLocationOpen}
