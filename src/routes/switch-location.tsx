@@ -793,32 +793,43 @@ function CustomerHomePage() {
                     whileTap={{ scale: 0.98 }}
                     role="button"
                     tabIndex={0}
+                    aria-label={`Open ${loc.name}, ${loc.city}`}
                     onClick={() => handleSelect(loc)}
                     onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         handleSelect(loc);
                       }
                     }}
                     className={cn(
-                      "group relative flex h-full w-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2",
+                      "group relative flex h-full w-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
                       ringColor,
                     )}
                   >
                     <button
+                      type="button"
+                      aria-pressed={favorites.includes(loc.id)}
+                      aria-label={
+                        favorites.includes(loc.id)
+                          ? `Remove ${loc.name} from favourites`
+                          : `Add ${loc.name} to favourites`
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleFav(loc.id);
                       }}
-                      className="absolute right-4 top-4 text-white/40 hover:text-amber-400 transition-colors"
+                      className="absolute right-4 top-4 rounded-md p-1 text-white/40 hover:text-amber-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                     >
                       <Star
+                        aria-hidden="true"
                         className={cn(
                           "h-4 w-4",
                           favorites.includes(loc.id) && "fill-amber-400 text-amber-400",
                         )}
                       />
                     </button>
+
 
                     <div className="flex items-start gap-3">
                       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
