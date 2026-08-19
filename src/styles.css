@@ -101,9 +101,11 @@
 
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.984 0.005 220);
-  --foreground: oklch(0.22 0.03 235);
+  /* Slightly softer corner scale + a cleaner, near-neutral canvas: the old
+   * 0.75rem/blue-tinted paper read a little dated next to the indigo brand. */
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.003 265);
+  --foreground: oklch(0.2 0.02 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.03 235);
   --popover: oklch(1 0 0);
