@@ -330,6 +330,8 @@ function CustomerHomePage() {
   const [deviceSearch, setDeviceSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<DeviceType | null>(null);
   const [floorFilter, setFloorFilter] = useState<string | null>(null);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+
   const [deviceLocationId, setDeviceLocationId] = useState("");
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [deviceSheetOpen, setDeviceSheetOpen] = useState(false);
