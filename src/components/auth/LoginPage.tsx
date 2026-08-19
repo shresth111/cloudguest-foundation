@@ -202,7 +202,16 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) { toast.error("Please enter email and password"); return; }
+    // Inline, field-level validation instead of a toast: a toast disappears
+    // and never tells the visitor *which* field is wrong, and screen readers
+    // never get pointed back at the offending input.
+    const nextErrors: { email?: string; password?: string } = {};
+    if (!email.trim()) nextErrors.email = "Enter your email address.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = "Enter a valid email address.";
+    if (!password) nextErrors.password = "Enter your password.";
+    setErrors(nextErrors);
+    if (nextErrors.email) { emailInputRef.current?.focus(); return; }
+    if (nextErrors.password) { passwordInputRef.current?.focus(); return; }
     setLoading(true);
     try {
       // Store role before login so AuthContext can use it
