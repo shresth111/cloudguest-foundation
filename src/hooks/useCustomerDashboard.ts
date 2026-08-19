@@ -41,14 +41,6 @@ export const customerKeys = {
   adminLogsAccountActivity: (page: number, pageSize: number) => ["customer", "admin-logs", "account-activity", page, pageSize] as const,
 };
 
-export function useCustomerPermissions() {
-  return useQuery({ queryKey: customerKeys.permissions, queryFn: () => customerService.getPermissions(), staleTime: 60_000 });
-}
-
-export function useCustomerSidebar() {
-  return useQuery({ queryKey: customerKeys.sidebar, queryFn: () => customerService.getSidebar(), staleTime: 60_000 });
-}
-
 export function useCustomerLocations() {
   return useQuery({ queryKey: customerKeys.locations, queryFn: () => customerService.listLocations(), staleTime: 30_000, retry: 1 });
 }
