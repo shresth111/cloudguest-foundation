@@ -11,9 +11,26 @@ import hiAccount from "./locales/hi/account.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
+/** Runs at MODULE SCOPE (`i18n.init({ lng: readCachedLang() })` below), and
+ * this module is a side-effect import from `__root.tsx` -- so anything that
+ * throws in here throws while the client entry bundle is being *evaluated*,
+ * before React ever hydrates. On Apple's Captive Network Assistant (the
+ * websheet iOS opens for WiFi login) Web Storage behaves like private
+ * browsing and `localStorage` access raises a SecurityError, so the
+ * unguarded read this used to do took down hydration for the whole app.
+ * The visible symptom was not an error screen: `__root.tsx`'s
+ * `InitialLoader` is a `position:fixed; inset:0; z-index:9999` overlay
+ * whose only remover is a mount effect, so a guest got a permanent
+ * full-screen spinner on top of a perfectly good server-rendered portal.
+ * The `typeof window` check above is an SSR guard and does not help here --
+ * a window that exists can still have storage that throws. */
 function readCachedLang(): string {
   if (typeof window === "undefined") return "en";
-  return window.localStorage.getItem(LANG_CACHE_KEY) ?? "en";
+  try {
+    return window.localStorage.getItem(LANG_CACHE_KEY) ?? "en";
+  } catch {
+    return "en";
+  }
 }
 
 // Bounded first slice (see docs/hindi-language-rollout-spec.md): only `en`
@@ -40,7 +57,14 @@ i18n.use(initReactI18next).init({
  * `language` again. */
 export function setDashboardLanguage(lang: string) {
   void i18n.changeLanguage(lang);
-  if (typeof window !== "undefined") window.localStorage.setItem(LANG_CACHE_KEY, lang);
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LANG_CACHE_KEY, lang);
+  } catch {
+    // Same storage-can-throw case as `readCachedLang`. The language switch
+    // itself already happened above; only the cache-across-reloads part is
+    // lost, which is never worth throwing out of a click handler for.
+  }
 }
 
 export default i18n;

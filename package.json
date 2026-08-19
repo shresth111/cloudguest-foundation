@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test:a11y": "node scripts/check-a11y-invariants.mjs",
+    "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {

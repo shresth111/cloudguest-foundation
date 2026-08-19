@@ -2,8 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { LoginPage } from "./login";
-import { MasterLoginPage } from "./master-login";
+import { LoginPage } from "@/components/auth/LoginPage";
+import { MasterLoginPage } from "@/components/auth/MasterLoginPage";
 import { CustomerDashboardPage } from "@/components/customer/CustomerDashboardPage";
 
 export const Route = createFileRoute("/")({

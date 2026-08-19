@@ -7,6 +7,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { buildSessionUrl } from "@/lib/portal-session-url";
 
 export const Route = createFileRoute("/portal/")({
   component: PortalLoading,
@@ -144,14 +145,39 @@ function PortalLoading() {
     // client) -- routing through `/portal/success` first re-fires that
     // POST (a genuine no-op if the gate's already open) before landing on
     // this same `/portal/session` destination via its own `dst` handling.
-    // No `hotspotLoginUrl` at all means there's no fresh redirect to act
-    // on (e.g. a plain in-app reopen with no NAS involvement this time) --
-    // falls back to the original direct behavior, since there's nothing
-    // more this route can safely do in that case.
+    // No `hotspotLoginUrl` at all means there is no fresh NAS redirect to
+    // act on -- but that is emphatically NOT the same as "the gate is
+    // open", and the old code here treated it as if it were: it did a
+    // client-side `navigate({ to: "/portal/session" })`, which repaints
+    // "You're online" without a single byte crossing the network. On the
+    // strength of an app-level session alone, for exactly the reason
+    // incident #4 above documents. (Until now that path was masked on iOS
+    // by the storage throws this same change fixes -- the guest never got
+    // this far. Fixing the storage bugs unmasks it, so it has to be fixed
+    // in the same pass.)
+    //
+    // A *document load* to the same URL is the one thing that actually
+    // asks the network who is right. Gate open: it just loads
+    // `/portal/session`, no visible difference. Gate shut: the NAS
+    // intercepts the request and redirects to a fresh portal URL carrying
+    // a new `link-login-only`, which lands back here with `hotspotLoginUrl`
+    // present and routes through `/portal/success`, whose POST reopens the
+    // gate. Self-healing, and it never claims "connected" on evidence it
+    // does not have.
+    //
+    // Chosen over "route through /portal/success unconditionally" because
+    // that page's `attemptSubmit` is itself gated on `hotspotLoginUrl`:
+    // with none to submit it has nothing to do, and would strand this
+    // guest on the "Just a moment" spinner until the 15s escape hatch
+    // appeared -- a worse outcome than today for the genuinely-connected
+    // case, and it still would not have opened any gate.
+    if (hasSession && !hotspotLoginUrl) {
+      window.location.assign(buildSessionUrl(organizationId, locationId, routerId));
+      return;
+    }
+
     const target = hasSession
-      ? hotspotLoginUrl
-        ? "/portal/success"
-        : "/portal/session"
+      ? "/portal/success"
       : config.isOpenNow === false
         ? "/portal/closed"
         : "/portal/welcome";
@@ -165,6 +191,13 @@ function PortalLoading() {
     liveSessionChecked,
     hotspotLoginUrl,
     navigate,
+    // Read by `buildSessionUrl` on the document-load branch above. Stable
+    // for the life of this portal link (they come straight off the URL's
+    // search params), so listing them changes nothing at runtime -- it
+    // just keeps the dependency list honest.
+    organizationId,
+    locationId,
+    routerId,
   ]);
 
   if (!isLoading && error) {

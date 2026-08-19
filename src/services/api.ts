@@ -102,21 +102,61 @@ export function getAbsoluteApiBase(): string {
   return new URL(base, window.location.origin).toString().replace(/\/$/, "");
 }
 
+/**
+ * `window.localStorage` access can throw, not just come back empty --
+ * Apple's Captive Network Assistant (the websheet iOS opens for a WiFi
+ * login) treats Web Storage like private browsing and raises a
+ * SecurityError; so do storage-disabled Firefox, locked-down WebViews and
+ * a full quota. The `typeof window !== "undefined"` checks around these
+ * calls are SSR guards and prove nothing about the storage object itself.
+ *
+ * This mattered most in the request interceptor below, which runs on
+ * EVERY call this app makes -- including the three the guest captive
+ * portal cannot do without: the config resolve, the OTP send and the OTP
+ * verify. A throw inside an axios request interceptor rejects the request
+ * before it is ever sent, so on an iPhone the guest saw "Having trouble
+ * connecting" and no OTP ever arrived, with no request in any log to
+ * explain it. Unauthenticated guest traffic does not even need the token.
+ */
+function safeLocalGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalSet(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Nothing persists; the in-flight value already returned to the caller.
+  }
+}
+
+function safeLocalRemove(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Nothing was stored, so nothing needs clearing.
+  }
+}
+
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  if (typeof window !== "undefined") {
-    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (token) {
-      config.headers.set?.("Authorization", `Bearer ${token}`);
-    }
+  const token = safeLocalGet(TOKEN_STORAGE_KEY);
+  if (token) {
+    config.headers.set?.("Authorization", `Bearer ${token}`);
   }
   return config;
 });
 
 function clearSession() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-  window.localStorage.removeItem(USER_STORAGE_KEY);
+  safeLocalRemove(TOKEN_STORAGE_KEY);
+  safeLocalRemove(REFRESH_TOKEN_STORAGE_KEY);
+  safeLocalRemove(USER_STORAGE_KEY);
 }
 
 // Pages that already show (or lead straight to) a sign-in form with no
@@ -146,7 +186,7 @@ let refreshPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  const refreshToken = window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+  const refreshToken = safeLocalGet(REFRESH_TOKEN_STORAGE_KEY);
   if (!refreshToken) return null;
 
   if (!refreshPromise) {
@@ -157,8 +197,8 @@ async function refreshAccessToken(): Promise<string | null> {
       )
       .then((response) => {
         const tokens = response.data.data;
-        window.localStorage.setItem(TOKEN_STORAGE_KEY, tokens.access_token);
-        window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, tokens.refresh_token);
+        safeLocalSet(TOKEN_STORAGE_KEY, tokens.access_token);
+        safeLocalSet(REFRESH_TOKEN_STORAGE_KEY, tokens.refresh_token);
         return tokens.access_token;
       })
       .catch(() => null)
@@ -204,8 +244,7 @@ api.interceptors.response.use(
         return api.request(config);
       }
       // Demo mode: skip session expiry redirect for demo tokens
-      const currentToken =
-        typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+      const currentToken = safeLocalGet(TOKEN_STORAGE_KEY);
       if (currentToken === "demo-access-token") {
         return Promise.reject(toAppError(error));
       }

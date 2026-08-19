@@ -1,5 +1,6 @@
 import { Shield, Eye, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { customerNavGroupsForRole, getCustomerLoginRole } from "@/lib/customerNav";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
@@ -46,7 +47,7 @@ export function CustomerSidebar({
   subtitle,
   dataMasking,
 }: CustomerSidebarProps) {
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation("nav", { i18n });
   const role = getCustomerLoginRole();
   const navGroups = customerNavGroupsForRole(role);
   const expanded = !collapsed;

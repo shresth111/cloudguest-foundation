@@ -46,44 +46,14 @@ const MASK_TAG_BASE =
   "hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium sm:inline-flex";
 const MASK_TAG_CLIP = "polygon(7px 0, 100% 0, 100% 100%, 0 100%, 0 7px)";
 
-/** Redacts an email's local part, e.g. "john.doe@email.com" -> "jo••••••@email.com". */
-export function maskEmail(email: string): string {
-  const at = email.indexOf("@");
-  if (at <= 1) return email;
-  return `${email.slice(0, 2)}${"•".repeat(Math.max(3, at - 2))}${email.slice(at)}`;
-}
-
-/** Redacts a phone number's digits, keeping the leading country code/first
- * two digits and the trailing three visible (e.g. "+91 98765 43210" ->
- * "+91 9•••• ••210"), same "some structure survives, PII doesn't" shape as
- * `maskEmail` above. Operates on digit *positions* only so any existing
- * formatting (spaces, dashes, the leading "+") passes through untouched
- * rather than being collapsed into the mask. Numbers too short to usefully
- * redact (<=5 digits) are returned as-is. */
-export function maskPhone(phone: string): string {
-  const digitIndexes: number[] = [];
-  for (let i = 0; i < phone.length; i++) {
-    if (phone[i] >= "0" && phone[i] <= "9") digitIndexes.push(i);
-  }
-  if (digitIndexes.length <= 5) return phone;
-  const toMask = new Set(digitIndexes.slice(2, digitIndexes.length - 3));
-  return phone
-    .split("")
-    .map((ch, i) => (toMask.has(i) ? "•" : ch))
-    .join("");
-}
-
-/** No-op by explicit product decision -- MAC addresses are shown
- * unmasked everywhere (customers need the real address to identify a
- * device for support). Mirrors the backend's own ``mask_mac`` (see
- * ``app/common/masking.py``), which is the actual source of truth for
- * this: several endpoints (connected-devices, mac-authorization, guest
- * session/device schemas) already send the real, unmasked value, so this
- * function stays a real passthrough rather than being deleted, in case
- * any call site still relies on it existing. */
-export function maskMac(mac: string): string {
-  return mac;
-}
+// `maskEmail`/`maskPhone`/`maskMac` now live in `@/lib/masking` -- pure
+// string helpers with zero imports, moved out because importing one of them
+// used to drag this module's `framer-motion` import into the app's entry
+// chunk (see that file's own note for the full chain). Re-exported here so
+// every existing `from "@/components/features/HeaderControls"` call site
+// keeps working unchanged; anything reachable from a route `beforeLoad`
+// should import them from `@/lib/masking` directly instead.
+export { maskEmail, maskPhone, maskMac } from "@/lib/masking";
 
 /** Self-service PII-masking toggle. Click sends a real OTP (see
  * `useDataMasking` in `useCustomerDashboard.ts`) and opens
