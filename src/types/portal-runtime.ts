@@ -20,6 +20,48 @@ export type RuntimeSessionAuthMethod = RuntimeAuthMethod | "mac_whitelist";
  * get validated against this set with an "en" fallback. */
 export type RuntimeLanguage = "en" | "hi" | "ar" | "fr" | "es";
 
+/** captive-portal-v6-design-spec.md §3.2 -- the curated, backend-validated
+ * heading-font allowlist. Deliberately a closed enum, never free text (see
+ * §1.3's real bug: the old admin font `<Select>` let an admin "choose" any
+ * of 8 font names with zero backend field or asset behind any of them).
+ * `system` (default) is `PG_FONT_STACK`, unchanged -- zero bytes, zero
+ * requests, see `toGuestFontChoice` below and `src/lib/portal-guest-fonts.ts`
+ * for the other three's real asset/metric specs. */
+export const GUEST_FONT_CHOICES = [
+  "system",
+  "modern-sans",
+  "editorial-serif",
+  "bold-display",
+] as const;
+export type GuestFontChoice = (typeof GUEST_FONT_CHOICES)[number];
+
+/** Validates a raw (possibly absent, possibly stale/invalid) backend value
+ * against the real allowlist, falling back to `"system"` -- the same
+ * fail-safe-to-the-zero-cost-default shape `toRuntimeLanguage` already uses
+ * for `RuntimeLanguage`. Also the safety net for §7's "BE hasn't shipped
+ * yet" case: an absent field resolves here exactly the same as an invalid
+ * one, both to `"system"`, so this repo's change is safe to land ahead of
+ * the backend one with zero behavior change for any venue. */
+export function toGuestFontChoice(v: string | null | undefined): GuestFontChoice {
+  return v && (GUEST_FONT_CHOICES as readonly string[]).includes(v)
+    ? (v as GuestFontChoice)
+    : "system";
+}
+
+/** captive-portal-v6-design-spec.md §4.2 -- integer 0-100, default 55 (the
+ * value that reproduces today's hardcoded scrim exactly, see
+ * `buildGuestBackdropScrim` in PortalShell.tsx). Clamped here defensively
+ * (an absent/out-of-range/non-numeric backend value all resolve the same
+ * way a missing field does pre-BE-landing, §7) -- the `[15, 85]` *render*
+ * guardrail is separate and lives in `buildGuestBackdropScrim` itself
+ * (§4.3: the stored value stays the admin's literal choice, only the
+ * rendered opacity is guardrailed). */
+export function clampBackgroundOverlayStrength(v: number | null | undefined): number {
+  return typeof v === "number" && Number.isFinite(v)
+    ? Math.max(0, Math.min(100, Math.round(v)))
+    : 55;
+}
+
 export interface RuntimePortalConfig {
   id: string;
   name: string;
@@ -49,6 +91,14 @@ export interface RuntimePortalConfig {
    * .is_open_now. Always true when business hours enforcement is off. */
   isOpenNow: boolean;
   businessHoursClosedMessage: string | null;
+  /** captive-portal-v6-design-spec.md §3 -- heading-layer-only font choice
+   * (`pg-display`/`pg-title`/`pg-subtitle`, never body/UI text). Default
+   * `"system"` for every venue until an admin explicitly picks otherwise. */
+  guestFontChoice: GuestFontChoice;
+  /** captive-portal-v6-design-spec.md §4 -- 0-100, default 55. See
+   * `buildGuestBackdropScrim` (PortalShell.tsx) for how this maps to the
+   * actual rendered scrim gradient. */
+  backgroundOverlayStrength: number;
 }
 
 /** The real `GuestSessionResponse` (plus a couple of login-response-only

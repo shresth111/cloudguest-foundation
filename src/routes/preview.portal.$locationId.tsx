@@ -218,6 +218,12 @@ function PortalPreviewPage() {
           resolvedViaLocationOverride: false,
           isOpenNow: true,
           businessHoursClosedMessage: null,
+          // captive-portal-v6-design-spec.md §7 -- "branding-only" (no
+          // captive_portal_configs row at all yet) has no admin-set value
+          // for either; same zero-visual-diff defaults every unconfigured
+          // venue gets.
+          guestFontChoice: "system",
+          backgroundOverlayStrength: 55,
         }
       : null);
 

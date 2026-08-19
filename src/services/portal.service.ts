@@ -1,4 +1,8 @@
 import { api } from "@/services/api";
+import {
+  clampBackgroundOverlayStrength,
+  toGuestFontChoice,
+} from "@/types/portal-runtime";
 import type {
   Portal,
   PortalAd,
@@ -62,6 +66,12 @@ interface BackendCaptivePortalConfig {
   social_login_providers: string[];
   created_at: string;
   updated_at: string;
+  /** captive-portal-v6-design-spec.md §6.1 -- optional until the backend PR
+   * (separate repo) lands; every read site below falls back to
+   * `"system"`/`55` when absent (§7), and update()'s whitelist only sends
+   * these when a value is actually being set. */
+  guest_font_choice?: string;
+  background_overlay_strength?: number;
 }
 
 interface BackendListResponse<T> {
@@ -90,6 +100,8 @@ const baseBranding = (over: Partial<PortalBranding> = {}): PortalBranding => ({
   primaryColor: "#0EA5E9",
   secondaryColor: "#0F172A",
   fontFamily: "Inter",
+  fontChoice: "system",
+  backgroundOverlayStrength: 55,
   borderRadius: 14,
   backgroundType: "gradient",
   gradientFrom: "#0F172A",
@@ -336,6 +348,8 @@ function toPortal(
       backgroundUrl: c.background_image_url ?? undefined,
       primaryColor: c.primary_color,
       secondaryColor: c.secondary_color,
+      fontChoice: toGuestFontChoice(c.guest_font_choice),
+      backgroundOverlayStrength: clampBackgroundOverlayStrength(c.background_overlay_strength),
     }),
     login: {
       sessionTimeoutMinutes: 60,
@@ -495,6 +509,8 @@ export const portalService = {
         splash_headline: input.seo?.pageTitle ?? null,
         splash_welcome_message: input.seo?.metaDescription ?? null,
         redirect_url: input.login?.redirectUrl || null,
+        guest_font_choice: input.branding?.fontChoice ?? "system",
+        background_overlay_strength: input.branding?.backgroundOverlayStrength ?? 55,
         ...flags,
       },
       { headers: { "X-Organization-Id": input.organizationId } },
@@ -519,6 +535,15 @@ export const portalService = {
     if (patch.seo?.metaDescription !== undefined) body.splash_welcome_message = patch.seo.metaDescription || null;
     if (patch.login?.redirectUrl !== undefined) body.redirect_url = patch.login.redirectUrl || null;
     if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
+    // captive-portal-v6-design-spec.md §1.3/§3.5/§4.4 -- the real fix for
+    // this whitelist's exact gap: the old admin font picker silently lost
+    // its value here because `fontFamily` (and every other branding field
+    // with no real backend column) was never added to this body. These two
+    // *do* have real backend columns (§6.1) -- included for real, not
+    // dropped like the fake control's field was.
+    if (patch.branding?.fontChoice !== undefined) body.guest_font_choice = patch.branding.fontChoice;
+    if (patch.branding?.backgroundOverlayStrength !== undefined)
+      body.background_overlay_strength = patch.branding.backgroundOverlayStrength;
 
     if (Object.keys(body).length > 0) {
       // Same GLOBAL-scope-by-default 403 as create() above without this header.

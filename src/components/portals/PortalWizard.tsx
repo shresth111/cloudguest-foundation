@@ -119,6 +119,12 @@ export function PortalWizard({
         backgroundType: v.branding.backgroundUrl ? "image" : "gradient",
         gradientFrom: v.branding.secondaryColor,
         gradientTo: v.branding.primaryColor,
+        // captive-portal-v6-design-spec.md §7 -- the creation wizard has no
+        // step for either yet; both start at the same zero-visual-diff
+        // defaults every unconfigured venue gets, editable afterward from
+        // the real Design tab (PortalCustomization.tsx).
+        fontChoice: "system",
+        backgroundOverlayStrength: 55,
         shadow: "md",
         buttonStyle: "solid",
         cardStyle: "elevated",
