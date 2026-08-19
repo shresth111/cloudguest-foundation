@@ -88,7 +88,7 @@ function HeroWifiIllustration() {
     <svg
       aria-hidden="true"
       viewBox="0 0 480 210"
-      className="h-auto w-full max-w-[300px] text-white"
+      className="h-auto w-full max-w-[360px] text-white"
       fill="none"
     >
       <defs>
