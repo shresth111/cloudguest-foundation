@@ -69,13 +69,19 @@
    * carry white body text. */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
-  --shadow-soft: 0 1px 2px oklch(0.2 0.03 235 / 0.05), 0 4px 14px oklch(0.2 0.03 235 / 0.05);
-  --shadow-elevated: 0 1px 2px oklch(0.2 0.03 235 / 0.06), 0 10px 28px -6px oklch(0.2 0.03 235 / 0.1);
-  --shadow-glow: 0 0 0 1px oklch(0.62 0.14 200 / 0.1), 0 18px 40px -20px oklch(0.6 0.15 195 / 0.4);
-  --shadow-ring: 0 0 0 1px oklch(0.6 0.13 200 / 0.16), 0 12px 32px -18px oklch(0.6 0.15 195 / 0.4);
-  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.12 208), oklch(0.68 0.15 190));
-  --gradient-mesh: radial-gradient(1100px 520px at 8% -12%, oklch(0.66 0.14 192 / 0.14), transparent 62%),
-                   radial-gradient(880px 420px at 102% 4%, oklch(0.58 0.14 245 / 0.1), transparent 60%);
+  /* Modern elevation: a crisp hairline + a wide, very soft ambient pool,
+   * rather than one mid-strength blur. Reads closer to Linear/Vercel --
+   * surfaces feel like paper on a canvas instead of drop-shadowed boxes. */
+  --shadow-soft: 0 0 0 1px oklch(0.22 0.03 265 / 0.04), 0 1px 2px oklch(0.22 0.03 265 / 0.04), 0 8px 24px -12px oklch(0.22 0.03 265 / 0.12);
+  --shadow-elevated: 0 0 0 1px oklch(0.22 0.03 265 / 0.05), 0 2px 4px oklch(0.22 0.03 265 / 0.04), 0 18px 42px -16px oklch(0.22 0.03 265 / 0.18);
+  --shadow-glow: 0 0 0 1px oklch(0.55 0.19 265 / 0.14), 0 20px 46px -22px oklch(0.5 0.2 265 / 0.45);
+  --shadow-ring: 0 0 0 1px oklch(0.55 0.19 265 / 0.18), 0 14px 34px -20px oklch(0.5 0.2 265 / 0.45);
+  --gradient-primary: linear-gradient(135deg, oklch(0.5 0.2 268), oklch(0.62 0.16 232));
+  /* Ambient canvas wash, indigo-led to match --primary (it used to be teal,
+   * a leftover from the pre-indigo brand) and toned down so dense tables
+   * and charts sit on a near-neutral surface. */
+  --gradient-mesh: radial-gradient(1200px 560px at 6% -14%, oklch(0.58 0.18 268 / 0.1), transparent 64%),
+                   radial-gradient(900px 440px at 104% 2%, oklch(0.66 0.13 205 / 0.08), transparent 62%);
   --gradient-brand: linear-gradient(135deg, oklch(0.7 0.15 190), oklch(0.55 0.13 210) 55%, oklch(0.5 0.14 250));
   --gradient-accent: linear-gradient(135deg, oklch(0.72 0.15 188), oklch(0.56 0.13 240));
   --gradient-success: linear-gradient(135deg, oklch(0.72 0.15 155), oklch(0.7 0.14 175));
