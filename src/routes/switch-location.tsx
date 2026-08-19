@@ -354,13 +354,19 @@ function CustomerHomePage() {
     return () => clearInterval(t);
   }, []);
 
+  // Debounce the raw input so typing doesn't re-filter the grid on every
+  // keystroke; `query` is the term the list and highlights actually use.
+  const query = useDebouncedValue(search, 250).trim();
+  const isSearchPending = search.trim() !== query;
+
   const filtered = (locations ?? [])
     .filter(
       (l) =>
-        !search ||
-        l.name.toLowerCase().includes(search.toLowerCase()) ||
-        l.city.toLowerCase().includes(search.toLowerCase()),
+        !query ||
+        l.name.toLowerCase().includes(query.toLowerCase()) ||
+        l.city.toLowerCase().includes(query.toLowerCase()),
     )
+
     // Starred venues first -- the star was purely decorative before, it never
     // changed the order of the grid it was pinned to.
     .sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id)));
