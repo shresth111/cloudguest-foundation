@@ -28,7 +28,7 @@ const API_DATA = [
   { hour: "20", calls: 2100 },
 ];
 
-const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 export function UsageCharts() {
   return (
@@ -49,8 +49,8 @@ export function UsageCharts() {
                 <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} />
                 <YAxis className="text-xs" tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="delivered" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Delivered" />
-                <Bar dataKey="failed" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} name="Failed" />
+                <Bar dataKey="delivered" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="Delivered" />
+                <Bar dataKey="failed" fill="var(--chart-5)" radius={[4, 4, 0, 0]} name="Failed" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -110,7 +110,7 @@ export function UsageCharts() {
                 <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Area type="monotone" dataKey="calls" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.2} />
+                <Area type="monotone" dataKey="calls" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

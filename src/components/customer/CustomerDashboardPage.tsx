@@ -846,7 +846,7 @@ function BandwidthUtilizationCard({ locationId, onManage }: { locationId: string
                   domain={capacityDownload != null ? [0, (dataMax: number) => Math.max(dataMax, capacityDownload) * 1.1] : [0, "auto"]}
                 />
                 <Tooltip
-                  contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                  contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", fontSize: 12 }}
                   formatter={(value: number | string | Array<number | string> | undefined, name: string | number) => [
                     typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
                     name === "download" ? "Download" : "Upload",
@@ -1372,7 +1372,7 @@ export function CustomerDashboardPage() {
                           // container only; Recharts' own render/animation
                           // props are untouched (design v3 Part 4).
                           <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-                          <ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }} /><Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#ug)" strokeWidth={2} /></AreaChart></ResponsiveContainer>
+                          <ResponsiveContainer width="100%" height="100%"><AreaChart data={d.usersTrend} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} /><stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} interval={3} /><YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={38} /><Tooltip cursor={{ stroke: "var(--primary)", strokeOpacity: 0.35 }} contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)", fontSize: 12, boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)" }} /><Area type="monotone" dataKey="users" stroke="var(--primary)" fill="url(#ug)" strokeWidth={2.25} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--background)" }} /></AreaChart></ResponsiveContainer>
                           </BlurFade>
                         )}
                       </div></CardContent>
@@ -1413,7 +1413,7 @@ export function CustomerDashboardPage() {
                          * "empty") is what actually catches a quiet day. */}
                         {d.hourlySessions.every((h) => h.sessions === 0) ? <ChartEmptyState label="No session activity yet today." /> : (
                           <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-                          <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px" }} /><Bar dataKey="sessions" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer>
+                          <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity={0.95} /><stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.55} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} /><XAxis dataKey="hour" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={38} /><Tooltip cursor={{ fill: "var(--muted)", fillOpacity: 0.5 }} contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)", fontSize: 12, boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)" }} /><Bar dataKey="sessions" fill="url(#sg)" radius={[6, 6, 0, 0]} maxBarSize={26} /></BarChart></ResponsiveContainer>
                           </BlurFade>
                         )}
                       </div></CardContent>

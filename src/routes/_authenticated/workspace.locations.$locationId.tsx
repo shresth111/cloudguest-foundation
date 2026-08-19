@@ -405,7 +405,7 @@ function OverviewTab({
     { name: "Social", value: 18 },
     { name: "QR", value: 14 },
   ];
-  const COLORS = ["hsl(var(--primary))", "#22c55e", "#f59e0b", "#8b5cf6"];
+  const COLORS = ["var(--primary)", "#22c55e", "#f59e0b", "#8b5cf6"];
 
   return (
     <div className="space-y-4">
@@ -468,8 +468,8 @@ function OverviewTab({
               <AreaChart data={activity}>
                 <defs>
                   <linearGradient id="gA" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -477,14 +477,14 @@ function OverviewTab({
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{
-                    background: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "var(--popover)",
+                    border: "1px solid var(--border)",
                   }}
                 />
                 <Area
                   type="monotone"
                   dataKey="guests"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--primary)"
                   fill="url(#gA)"
                 />
                 <Line type="monotone" dataKey="bandwidth" stroke="#f59e0b" dot={false} />
@@ -1155,7 +1155,7 @@ function AnalyticsTab({ resources }: { resources: LocationResources }) {
     { name: "Windows", value: 9 },
     { name: "iPad", value: 3 },
   ];
-  const COLORS = ["hsl(var(--primary))", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444"];
+  const COLORS = ["var(--primary)", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444"];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
@@ -1185,7 +1185,7 @@ function AnalyticsTab({ resources }: { resources: LocationResources }) {
                 <XAxis dataKey="m" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="guests" stroke="hsl(var(--primary))" />
+                <Line type="monotone" dataKey="guests" stroke="var(--primary)" />
                 <Line type="monotone" dataKey="revenue" stroke="#22c55e" />
               </LineChart>
             </ResponsiveContainer>

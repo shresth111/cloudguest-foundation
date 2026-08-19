@@ -19,7 +19,7 @@ import { useRevenueDashboard, useUnifiedDashboard } from "@/hooks/useDashboardDa
 const CHART_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
 
 const tooltipStyle = {
-  background: "hsl(var(--popover, 0 0% 100%))",
+  background: "var(--popover)",
   border: "1px solid var(--color-border)",
   borderRadius: 8,
   fontSize: 12,
