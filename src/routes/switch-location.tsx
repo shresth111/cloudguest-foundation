@@ -150,7 +150,7 @@ function HeroManagerIllustration() {
     <svg
       aria-hidden="true"
       viewBox="0 0 520 210"
-      className="h-auto w-full max-w-[300px]"
+      className="h-auto w-full max-w-[340px]"
       fill="none"
     >
       <defs>
@@ -394,7 +394,7 @@ function CustomerHomePage() {
 
   return (
     <div
-      className="relative min-h-screen overflow-x-hidden bg-[#181530] text-white"
+      className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#181530] text-white"
       style={
         {
           "--primary": "#6C4EFF",
@@ -499,33 +499,43 @@ function CustomerHomePage() {
                 Which venue are we looking after today?
               </h1>
 
-              <div className="relative mt-5 max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
-                <Input
-                  placeholder="Search locations…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-11 border-white/15 bg-white/10 pl-10 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
-                />
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <div className="relative w-full max-w-md">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+                  <Input
+                    placeholder="Search locations…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-11 border-white/15 bg-white/10 pl-10 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
+                  />
+                </div>
+                <button
+                  onClick={() => setAddLocationOpen(true)}
+                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90"
+                >
+                  <Plus className="h-4 w-4" /> Add location
+                </button>
               </div>
 
               {!isLoading && (
-                <div className="mt-6 flex gap-6">
+                <div className="mt-6 grid max-w-md grid-cols-3 gap-2">
                   {heroStats.map((s, i) => (
                     <motion.div
                       key={s.label}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.3 + i * 0.1, ease: "easeOut" }}
+                      className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 backdrop-blur-sm"
                     >
                       <p className="font-display text-2xl font-bold tracking-tight tabular-nums">
                         <CountUp target={s.value} />
                       </p>
-                      <p className="text-xs text-white/60">{s.label}</p>
+                      <p className="mt-0.5 text-[11px] text-white/55">{s.label}</p>
                     </motion.div>
                   ))}
                 </div>
               )}
+
 
               <div className="mt-6 flex items-center gap-2 text-sm text-white/60">
                 <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
@@ -555,7 +565,7 @@ function CustomerHomePage() {
         </div>
       </div>
 
-      <main className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <main className="relative mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
@@ -812,9 +822,32 @@ function CustomerHomePage() {
                 );
               })
             )}
+            {!hasNoLocationsAtAll && filtered.length > 0 && (
+              <button
+                onClick={() => setAddLocationOpen(true)}
+                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors group-hover:border-[#8B5CF6]/40 group-hover:text-white">
+                  <Plus className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-medium text-white/80">Add a location</span>
+                <span className="max-w-[16rem] text-xs text-white/40">
+                  Provision a new venue and bring its network online.
+                </span>
+              </button>
+            )}
           </div>
         )}
       </main>
+
+      <footer className="relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-6 text-xs text-white/40 sm:px-6">
+        <span>© {new Date().getFullYear()} Wyfy Guest · Customer Portal</span>
+        <span className="flex items-center gap-1.5">
+          <Activity className="h-3.5 w-3.5 text-emerald-400" />
+          All systems monitored in real time
+        </span>
+      </footer>
+
 
       {/* Device Monitoring -- moved into a drawer instead of a permanently
        * open, full-width section: it's genuinely different data (per-device,
