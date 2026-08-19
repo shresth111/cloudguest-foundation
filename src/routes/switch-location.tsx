@@ -425,6 +425,10 @@ function CustomerHomePage() {
   const downCount = devices.filter((d) => d.status === "down").length;
   const totalDownAcrossLocations = allDevices.filter((d) => d.status === "down").length;
 
+  useEffect(() => {
+    setSelectedDeviceIds([]);
+  }, [effectiveDeviceLocationId]);
+
   // Bulk selection is scoped to what's currently visible: switching locations or
   // narrowing filters must never leave invisible rows silently selected.
   const visibleSelectedIds = filteredDevices
