@@ -1359,7 +1359,14 @@ export function CustomerDashboardPage() {
                         <CardTitle className="text-sm">Guests online, last 24h</CardTitle>
                       </CardHeader>
                       <CardContent><div className="h-56">
-                        {d.usersTrend.length === 0 ? <ChartEmptyState label="No trend data yet." /> : (
+                        {/* Real (non-demo) dashboards always hand back a
+                         * full 24-bucket array here -- one entry per hour,
+                         * `users: 0` for every hour nothing happened --
+                         * never a genuinely empty array, so checking every
+                         * bucket for `users === 0` (true for both a
+                         * genuinely empty array and an all-zero one) is
+                         * what actually catches "no guest activity today." */}
+                        {d.usersTrend.every((h) => h.users === 0) ? <ChartEmptyState label="No guest activity yet today." /> : (
                           // Settles in rather than popping on mount -- Magic
                           // UI's "Blur Fade" idea, wrapping the chart's
                           // container only; Recharts' own render/animation
@@ -1376,7 +1383,7 @@ export function CustomerDashboardPage() {
                         <CardTitle className="text-sm">What's connected</CardTitle>
                       </CardHeader>
                       <CardContent><div className="h-56">
-                        {d.deviceDistribution.length === 0 ? <ChartEmptyState label="No devices reporting yet." /> : (
+                        {d.deviceDistribution.length === 0 ? <ChartEmptyState label="No devices connected yet." /> : (
                           <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <div className="flex h-full flex-col justify-center gap-2.5">
                             {(() => {
@@ -1400,7 +1407,11 @@ export function CustomerDashboardPage() {
                         <CardTitle className="text-sm">Sessions by hour</CardTitle>
                       </CardHeader>
                       <CardContent><div className="h-56">
-                        {d.hourlySessions.length === 0 ? <ChartEmptyState label="No session activity yet today." /> : (
+                        {/* Same real-data shape as usersTrend above -- a
+                         * full 24-hour array of `sessions: 0` buckets, not
+                         * an empty one, so the "all zero" check (not just
+                         * "empty") is what actually catches a quiet day. */}
+                        {d.hourlySessions.every((h) => h.sessions === 0) ? <ChartEmptyState label="No session activity yet today." /> : (
                           <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                           <ResponsiveContainer width="100%" height="100%"><BarChart data={d.hourlySessions}><CartesianGrid strokeDasharray="3 3" className="stroke-border/50" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: "12px" }} /><Bar dataKey="sessions" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer>
                           </BlurFade>
