@@ -475,10 +475,22 @@ function CustomerHomePage() {
               <span className="[&_button]:text-white/80 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
                 <NotificationBell scope="org" />
               </span>
-              <div className="relative">
+              <div
+                className="relative"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && menu) {
+                    e.stopPropagation();
+                    setMenu(false);
+                  }
+                }}
+              >
                 <button
+                  type="button"
                   onClick={() => setMenu(!menu)}
-                  className="flex items-center gap-2 pl-2 border-l border-white/15 ml-1"
+                  aria-label="Account menu"
+                  aria-haspopup="menu"
+                  aria-expanded={menu}
+                  className="flex items-center gap-2 pl-2 border-l border-white/15 ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-white/15 text-white text-xs font-semibold">
@@ -488,15 +500,20 @@ function CustomerHomePage() {
                   </Avatar>
                 </button>
                 {menu && (
-                  <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl">
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl"
+                  >
                     <div className="px-3 py-2">
                       <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
                       <p className="text-xs text-white/50">{user?.email}</p>
                     </div>
                     <div className="border-t border-white/10 my-1" />
                     <button
+                      type="button"
+                      role="menuitem"
                       onClick={handleLogout}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                     >
                       <LogOut className="h-4 w-4" />
                       Sign out
@@ -504,6 +521,7 @@ function CustomerHomePage() {
                   </div>
                 )}
               </div>
+
             </div>
           </div>
         </header>
@@ -527,13 +545,25 @@ function CustomerHomePage() {
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
                   <Input
                     ref={searchRef}
+                    type="search"
                     placeholder="Search locations…"
                     aria-label="Search locations"
+                    aria-describedby="venue-search-hint"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => e.key === "Escape" && setSearch("")}
-                    className="h-11 border-white/15 bg-white/10 pl-10 pr-16 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
+                    onKeyDown={(e) => {
+                      // Escape clears first; a second Escape (already empty)
+                      // hands focus back to the page.
+                      if (e.key !== "Escape") return;
+                      e.preventDefault();
+                      if (search) setSearch("");
+                      else searchRef.current?.blur();
+                    }}
+                    className="h-11 border-white/15 bg-white/10 pl-10 pr-16 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30 [&::-webkit-search-cancel-button]:appearance-none"
                   />
+                  <span id="venue-search-hint" className="sr-only">
+                    Press slash to focus this field, Escape to clear it.
+                  </span>
                   {search ? (
                     <button
                       type="button"
@@ -542,20 +572,23 @@ function CustomerHomePage() {
                         searchRef.current?.focus();
                       }}
                       aria-label="Clear search"
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                   ) : (
+
                     <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45 sm:block">
                       /
                     </kbd>
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => setAddLocationOpen(true)}
-                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90"
+                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
+
                   <Plus className="h-4 w-4" /> Add location
                 </button>
               </div>
@@ -634,16 +667,20 @@ function CustomerHomePage() {
               </span>
               Live · updated {secondsAgo}s ago
               <button
+                type="button"
                 onClick={doRefetch}
-                className="ml-1 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white"
+                aria-label="Refresh location data"
+                className="ml-1 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className="h-3 w-3" aria-hidden="true" />
               </button>
             </span>
             <button
+              type="button"
               onClick={() => setDeviceSheetOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
+
               <Radio className="h-3.5 w-3.5" /> Device health
               {totalDownAcrossLocations > 0 && (
                 <span className="rounded-full bg-rose-500/20 px-1.5 text-[10px] font-semibold text-rose-300">
@@ -680,23 +717,33 @@ function CustomerHomePage() {
                   Add your first location to start managing guest WiFi.
                 </p>
                 <button
+                  type="button"
                   onClick={() => setAddLocationOpen(true)}
-                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-500/20 hover:opacity-90"
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-500/20 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
-                  <Plus className="h-4 w-4" /> Add location
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Add location
                 </button>
               </div>
             ) : filtered.length === 0 ? (
-              <div className="col-span-full flex flex-col items-center justify-center py-20 text-white/40">
-                <MapPin className="mb-4 h-12 w-12 opacity-30" />
+              <div
+                role="status"
+                aria-live="polite"
+                className="col-span-full flex flex-col items-center justify-center py-20 text-white/40"
+              >
+                <MapPin className="mb-4 h-12 w-12 opacity-30" aria-hidden="true" />
                 <p className="text-sm">No venues match “{search}”. Try a different name or city.</p>
                 <button
-                  onClick={() => setSearch("")}
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    searchRef.current?.focus();
+                  }}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
-                  <X className="h-3.5 w-3.5" /> Clear search
+                  <X className="h-3.5 w-3.5" aria-hidden="true" /> Clear search
                 </button>
               </div>
+
             ) : (
               filtered.map((loc, i) => {
                 const LocationIcon = businessTypeIcon(loc.propertyType);
@@ -746,32 +793,43 @@ function CustomerHomePage() {
                     whileTap={{ scale: 0.98 }}
                     role="button"
                     tabIndex={0}
+                    aria-label={`Open ${loc.name}, ${loc.city}`}
                     onClick={() => handleSelect(loc)}
                     onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         handleSelect(loc);
                       }
                     }}
                     className={cn(
-                      "group relative flex h-full w-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2",
+                      "group relative flex h-full w-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left shadow-lg shadow-black/20 backdrop-blur-sm transition-all hover:bg-white/[0.07] hover:shadow-xl hover:shadow-[#6C4EFF]/10 hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
                       ringColor,
                     )}
                   >
                     <button
+                      type="button"
+                      aria-pressed={favorites.includes(loc.id)}
+                      aria-label={
+                        favorites.includes(loc.id)
+                          ? `Remove ${loc.name} from favourites`
+                          : `Add ${loc.name} to favourites`
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleFav(loc.id);
                       }}
-                      className="absolute right-4 top-4 text-white/40 hover:text-amber-400 transition-colors"
+                      className="absolute right-4 top-4 rounded-md p-1 text-white/40 hover:text-amber-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                     >
                       <Star
+                        aria-hidden="true"
                         className={cn(
                           "h-4 w-4",
                           favorites.includes(loc.id) && "fill-amber-400 text-amber-400",
                         )}
                       />
                     </button>
+
 
                     <div className="flex items-start gap-3">
                       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
@@ -873,12 +931,14 @@ function CustomerHomePage() {
             )}
             {!hasNoLocationsAtAll && filtered.length > 0 && (
               <button
+                type="button"
                 onClick={() => setAddLocationOpen(true)}
-                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05]"
+                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors group-hover:border-[#8B5CF6]/40 group-hover:text-white">
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                 </span>
+
                 <span className="text-sm font-medium text-white/80">Add a location</span>
                 <span className="max-w-[16rem] text-xs text-white/40">
                   Provision a new venue and bring its network online.
@@ -964,18 +1024,11 @@ function CustomerHomePage() {
                         return (
                           <span
                             key={t}
-                            role="button"
-                            tabIndex={0}
+                            aria-hidden="true"
                             title={`Filter: ${t}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               setTypeFilter(active ? null : t);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.stopPropagation();
-                                setTypeFilter(active ? null : t);
-                              }
                             }}
                             className={cn(
                               "rounded-full p-1 transition-all hover:scale-125 hover:bg-white/15 hover:text-white",
@@ -984,6 +1037,7 @@ function CustomerHomePage() {
                           >
                             <Icon className="h-3 w-3" />
                           </span>
+
                         );
                       })}
                     </div>
@@ -1015,20 +1069,25 @@ function CustomerHomePage() {
                 </p>
                 {typeFilter && (
                   <button
+                    type="button"
+                    aria-label={`Clear device type filter: ${typeFilter}`}
                     onClick={() => setTypeFilter(null)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     {typeFilter} <span className="text-indigo-200/60">×</span>
                   </button>
                 )}
                 {floorFilter && (
                   <button
+                    type="button"
+                    aria-label={`Clear floor filter: floor ${floorFilter}`}
                     onClick={() => setFloorFilter(null)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     Floor {floorFilter} <span className="text-indigo-200/60">×</span>
                   </button>
                 )}
+
               </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
@@ -1155,13 +1214,17 @@ function CustomerHomePage() {
                           </td>
                           <td className="px-3 py-2 text-right">
                             <button
+                              type="button"
+                              aria-label={`View history for ${d.name}`}
                               onClick={() => toast.success(`History for ${d.name}`)}
-                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10"
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                             >
-                              <Eye className="h-3 w-3" />
+                              <Eye className="h-3 w-3" aria-hidden="true" />
                               View
                             </button>
                           </td>
+
+
                         </tr>
                       );
                     })
