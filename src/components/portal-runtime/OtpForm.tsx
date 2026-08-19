@@ -18,8 +18,14 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
 export function OtpForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
 
+  // captive-portal-v5-design-spec.md UX §4b: dropped the `rounded-xl
+  // bg-slate-50 p-3` wrapper -- a card-within-a-card inside the already-
+  // bounded PortalCard. The legal text is required; the dedicated
+  // background/padding/radius nested inside it wasn't, and reads as
+  // exactly the "boxes within boxes" bulk this section's brief calls out.
+  // Same legal text, same checkbox, materially less visual "boxiness."
   const TermsCheckbox = (
-    <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">
+    <label className="flex items-start gap-2.5 text-[13px] leading-snug text-slate-600">
       <Checkbox
         checked={sign.termsAccepted}
         onCheckedChange={(v) => sign.setTermsAccepted(!!v)}
@@ -44,7 +50,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
 
   if (sign.phase === "phone") {
     return (
-      <div className="space-y-3.5">
+      <div className="space-y-3">
         <label className="text-xs font-semibold text-slate-500">
           {sign.otpChannel === "email"
             ? t("emailAddress")
@@ -77,7 +83,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   }
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3">
       <p className="text-center text-sm text-slate-500">
         {t("sentCodeToPrefix")} <span className="font-semibold text-slate-800">{sign.target}</span>
       </p>

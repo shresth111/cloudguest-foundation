@@ -89,7 +89,15 @@ export function useGuestSignIn() {
   const heading =
     config?.splashHeadline?.trim() ||
     (venueName ? t("welcomeToVenueTemplate").replace("{venue}", venueName) : t("welcomeBare"));
-  const subtext = config?.splashWelcomeMessage?.trim() || t("signInSubtext");
+  // captive-portal-v5-design-spec.md §3.2: no fallback string here anymore
+  // -- `t("signInSubtext")` was a hardcoded filler line ("Sign in for
+  // complimentary WiFi access...") rendered whenever a venue hadn't
+  // configured `splashWelcomeMessage`, which is the common case. It added
+  // a full text row for zero real information; the heading already
+  // carries what a guest needs on its own. `undefined` (not `""`) so
+  // GuestSignInCard can render the row conditionally rather than an empty
+  // paragraph.
+  const subtext = config?.splashWelcomeMessage?.trim() || undefined;
 
   const requiresTermsLink = !!(
     config?.termsAndConditionsText ||

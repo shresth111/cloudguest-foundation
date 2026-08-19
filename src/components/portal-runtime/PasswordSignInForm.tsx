@@ -19,7 +19,7 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
 export function PasswordSignInForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3">
       <div>
         <label className="text-xs font-semibold text-slate-500">{t("mobileOrEmailLabel")}</label>
         <Input
@@ -39,7 +39,11 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
           className={`${PG_INPUT} mt-1`}
         />
       </div>
-      <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">
+      {/* captive-portal-v5-design-spec.md UX §4b: dropped the `rounded-xl
+       * bg-slate-50 p-3` wrapper -- see OtpForm's identical checkbox for
+       * the full reasoning; same fix, same legal text, applied here too
+       * since both tabs render this row. */}
+      <label className="flex items-start gap-2.5 text-[13px] leading-snug text-slate-600">
         <Checkbox
           checked={sign.termsAccepted}
           onCheckedChange={(v) => sign.setTermsAccepted(!!v)}
