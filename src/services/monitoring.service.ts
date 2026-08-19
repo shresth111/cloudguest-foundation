@@ -603,7 +603,11 @@ export const monitoringService = {
         is_active: payload.isActive,
         notification_channel_ids: payload.notificationChannelIds,
       },
-      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+      {
+        headers: payload.organizationId
+          ? { "X-Organization-Id": payload.organizationId }
+          : undefined,
+      },
     );
     return toAlertRule(data);
   },
@@ -744,7 +748,11 @@ export const monitoringService = {
         config: payload.config,
         is_active: payload.isActive,
       },
-      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+      {
+        headers: payload.organizationId
+          ? { "X-Organization-Id": payload.organizationId }
+          : undefined,
+      },
     );
     return toNotificationChannel(data);
   },
@@ -968,10 +976,10 @@ export const monitoringService = {
     const locations = await routerService.locations();
     const routerCounts = await Promise.allSettled(
       locations.map(async (loc) => {
-        const { data } = await api.get<{ total_items: number }>(
-          `/locations/${loc.id}/routers`,
-          { params: { page_size: 1 }, headers: { "X-Organization-Id": loc.organizationId } },
-        );
+        const { data } = await api.get<{ total_items: number }>(`/locations/${loc.id}/routers`, {
+          params: { page_size: 1 },
+          headers: { "X-Organization-Id": loc.organizationId },
+        });
         return data.total_items;
       }),
     );

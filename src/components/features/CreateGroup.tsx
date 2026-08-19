@@ -1,8 +1,23 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  HelpCircle, X, Plus, ChevronDown, Search, Pencil, Copy, Trash2,
-  ChevronLeft, ChevronRight, Loader2, User, Network, MapPin, MapPinOff, Users, UserPlus,
+  HelpCircle,
+  X,
+  Plus,
+  ChevronDown,
+  Search,
+  Pencil,
+  Copy,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  User,
+  Network,
+  MapPin,
+  MapPinOff,
+  Users,
+  UserPlus,
 } from "lucide-react";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
@@ -32,7 +47,14 @@ import {
 import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { Switch } from "@/components/ui/switch";
@@ -48,16 +70,52 @@ import { Checkbox } from "@/components/ui/checkbox";
 // validation on fields the user never touched. The *ToMinutes/labelFrom*
 // pairs below convert this form's fixed dropdown labels to/from the plain
 // minute counts (and device counts) the backend actually stores.
-const BANDWIDTH_KBPS: Record<string, number> = { "10 Mbps": 10240, "20 Mbps": 20480, "30 Mbps": 30720, "40 Mbps": 40960, "50 Mbps": 51200, "60 Mbps": 61440, "70 Mbps": 71680, "80 Mbps": 81920 };
+const BANDWIDTH_KBPS: Record<string, number> = {
+  "10 Mbps": 10240,
+  "20 Mbps": 20480,
+  "30 Mbps": 30720,
+  "40 Mbps": 40960,
+  "50 Mbps": 51200,
+  "60 Mbps": 61440,
+  "70 Mbps": 71680,
+  "80 Mbps": 81920,
+};
 function kbpsToLabel(kbps: number): string {
   const found = Object.entries(BANDWIDTH_KBPS).find(([, v]) => v === kbps);
   return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
 }
 
-const SESSION_TIMEOUT_MINUTES: Record<string, number> = { "30 min": 30, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480, "24 hr": 1440 };
-const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = { "No Limit": null, "5 min": 5, "10 min": 10, "15 min": 15, "30 min": 30, "1 hr": 60 };
-const DAILY_LIMIT_MINUTES: Record<string, number | null> = { "No Limit": null, "1 hr": 60, "2 hr": 120, "4 hr": 240, "8 hr": 480 };
-const DEVICES_COUNT: Record<string, number | null> = { "Unlimited": null, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 };
+const SESSION_TIMEOUT_MINUTES: Record<string, number> = {
+  "30 min": 30,
+  "1 hr": 60,
+  "2 hr": 120,
+  "4 hr": 240,
+  "8 hr": 480,
+  "24 hr": 1440,
+};
+const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = {
+  "No Limit": null,
+  "5 min": 5,
+  "10 min": 10,
+  "15 min": 15,
+  "30 min": 30,
+  "1 hr": 60,
+};
+const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
+  "No Limit": null,
+  "1 hr": 60,
+  "2 hr": 120,
+  "4 hr": 240,
+  "8 hr": 480,
+};
+const DEVICES_COUNT: Record<string, number | null> = {
+  Unlimited: null,
+  "1": 1,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+};
 
 // DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
 // -- there's no real "unlimited" value in that schema today, so "Unlimited"
@@ -65,7 +123,11 @@ const DEVICES_COUNT: Record<string, number | null> = { "Unlimited": null, "1": 1
 // unenforced (same sentinel/reasoning as LocationPolicies.tsx's own fix).
 const UNLIMITED_DEVICES_SENTINEL = 9999;
 
-function labelFromMinutes(minutes: number | null | undefined, table: Record<string, number | null>, fallback: string): string {
+function labelFromMinutes(
+  minutes: number | null | undefined,
+  table: Record<string, number | null>,
+  fallback: string,
+): string {
   const found = Object.entries(table).find(([, v]) => v === (minutes ?? null));
   return found?.[0] ?? fallback;
 }
@@ -81,24 +143,52 @@ function labelFromMinutes(minutes: number | null | undefined, table: Record<stri
 // predates this fix and has no paired DEVICE policy yet -- each helper
 // no-ops in that case rather than throwing, so a bandwidth-only mapping
 // action still succeeds even if its DEVICE mirror can't be attempted.
-async function mirrorDeviceLocationMap(deviceId: string | undefined, locationId: string, organizationId: string | undefined): Promise<void> {
+async function mirrorDeviceLocationMap(
+  deviceId: string | undefined,
+  locationId: string,
+  organizationId: string | undefined,
+): Promise<void> {
   if (!deviceId) return;
   await bandwidthPolicyService.mapToLocation(deviceId, locationId, organizationId);
 }
-async function mirrorDeviceLocationUnmap(deviceId: string | undefined, locationId: string, organizationId: string | undefined): Promise<void> {
+async function mirrorDeviceLocationUnmap(
+  deviceId: string | undefined,
+  locationId: string,
+  organizationId: string | undefined,
+): Promise<void> {
   if (!deviceId) return;
-  const assignmentId = await bandwidthPolicyService.locationMapping(deviceId, locationId, organizationId);
-  if (assignmentId) await bandwidthPolicyService.unmapFromLocation(deviceId, assignmentId, organizationId);
+  const assignmentId = await bandwidthPolicyService.locationMapping(
+    deviceId,
+    locationId,
+    organizationId,
+  );
+  if (assignmentId)
+    await bandwidthPolicyService.unmapFromLocation(deviceId, assignmentId, organizationId);
 }
-async function mirrorDeviceGuestMap(deviceId: string | undefined, locationId: string, guestId: string, organizationId: string | undefined): Promise<void> {
+async function mirrorDeviceGuestMap(
+  deviceId: string | undefined,
+  locationId: string,
+  guestId: string,
+  organizationId: string | undefined,
+): Promise<void> {
   if (!deviceId) return;
   await bandwidthPolicyService.mapGuestToLocation(deviceId, locationId, guestId, organizationId);
 }
-async function mirrorDeviceGuestUnmap(deviceId: string | undefined, locationId: string, guestId: string, organizationId: string | undefined): Promise<void> {
+async function mirrorDeviceGuestUnmap(
+  deviceId: string | undefined,
+  locationId: string,
+  guestId: string,
+  organizationId: string | undefined,
+): Promise<void> {
   if (!deviceId) return;
   const mappings = await bandwidthPolicyService.guestMappings(deviceId, locationId, organizationId);
   const match = mappings.find((m) => m.guestId === guestId);
-  if (match) await bandwidthPolicyService.unmapGuestFromLocation(deviceId, match.assignmentId, organizationId);
+  if (match)
+    await bandwidthPolicyService.unmapGuestFromLocation(
+      deviceId,
+      match.assignmentId,
+      organizationId,
+    );
 }
 
 /**
@@ -116,12 +206,24 @@ function GroupMappingIllustration() {
     { x: 68, y: 42, color: "#a78bfa" },
   ];
   return (
-    <svg aria-hidden="true" viewBox="0 0 84 52" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 84 52"
+      className="hidden h-14 w-auto shrink-0 sm:block"
+      fill="none"
+    >
       {users.map((u, i) => (
         <motion.line
           key={i}
-          x1="42" y1="26" x2={u.x} y2={u.y}
-          stroke={u.color} strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="1 4" strokeLinecap="round"
+          x1="42"
+          y1="26"
+          x2={u.x}
+          y2={u.y}
+          stroke={u.color}
+          strokeOpacity="0.5"
+          strokeWidth="1.5"
+          strokeDasharray="1 4"
+          strokeLinecap="round"
           initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.12 * i, ease: "easeOut" }}
@@ -131,13 +233,28 @@ function GroupMappingIllustration() {
         <g key={i} transform={`translate(${u.x}, ${u.y})`}>
           <circle r="7" fill="#2e2a5c" stroke={u.color} strokeWidth="1.5" />
           <circle cy="-1.5" r="2.2" fill={u.color} />
-          <path d="M-3.5 4c0-3 1.8-4.5 3.5-4.5S3.5 1 3.5 4" stroke={u.color} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+          <path
+            d="M-3.5 4c0-3 1.8-4.5 3.5-4.5S3.5 1 3.5 4"
+            stroke={u.color}
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            fill="none"
+          />
         </g>
       ))}
       <motion.circle
-        cx="42" cy="26" r="9" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2"
-        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
-        transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        cx="42"
+        cy="26"
+        r="9"
+        fill="#1e1b4b"
+        stroke="#4f46e5"
+        strokeWidth="2"
+        animate={
+          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }
+        }
+        transition={
+          shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+        }
       />
       <path d="M38 26h8M42 22v8" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
@@ -149,7 +266,17 @@ const STEPS = [
   { num: 2, label: "Map tier", icon: Network, caption: "Not started" },
   { num: 3, label: "Map guests", icon: User, caption: "Not started" },
 ];
-const BANDWIDTH = ["Unlimited", "10 Mbps", "20 Mbps", "30 Mbps", "40 Mbps", "50 Mbps", "60 Mbps", "70 Mbps", "80 Mbps"];
+const BANDWIDTH = [
+  "Unlimited",
+  "10 Mbps",
+  "20 Mbps",
+  "30 Mbps",
+  "40 Mbps",
+  "50 Mbps",
+  "60 Mbps",
+  "70 Mbps",
+  "80 Mbps",
+];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
 const IDLE_TIMEOUT = ["No Limit", "5 min", "10 min", "15 min", "30 min", "1 hr"];
 const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
@@ -195,39 +322,97 @@ function Tooltip({ text }: { text: string }) {
   const close = useCallback(() => setOpen(false), []);
   return (
     <span className="relative inline-flex">
-      <button type="button" aria-label="Help" onClick={() => setOpen((p) => !p)} onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget)) close(); }} className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <button
+        type="button"
+        aria-label="Help"
+        onClick={() => setOpen((p) => !p)}
+        onBlur={(e) => {
+          if (!ref.current?.contains(e.relatedTarget)) close();
+        }}
+        className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      >
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div ref={ref} role="tooltip" tabIndex={-1} onKeyDown={(e) => { if (e.key === "Escape") close(); }} className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg dark:bg-white dark:text-slate-800">
+        <div
+          ref={ref}
+          role="tooltip"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") close();
+          }}
+          className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg dark:bg-white dark:text-slate-800"
+        >
           <p>{text}</p>
-          <button onClick={close} aria-label="Close" className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-600 text-white"><X className="h-3 w-3" /></button>
+          <button
+            onClick={close}
+            aria-label="Close"
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-600 text-white"
+          >
+            <X className="h-3 w-3" />
+          </button>
         </div>
       )}
     </span>
   );
 }
 
-function Select({ id, label, value, onChange, options, placeholder, required, tooltip, caption, err }: {
-  id: string; label: string; value: string; onChange: (v: string) => void;
-  options: string[]; placeholder?: string; required?: boolean; tooltip?: string; caption?: string; err?: string;
+function Select({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  required,
+  tooltip,
+  caption,
+  err,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+  required?: boolean;
+  tooltip?: string;
+  caption?: string;
+  err?: string;
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-        {label}{required && <span className="text-indigo-500">*</span>}
+      <label
+        htmlFor={id}
+        className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300"
+      >
+        {label}
+        {required && <span className="text-indigo-500">*</span>}
         {tooltip && <Tooltip text={tooltip} />}
       </label>
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
       >
-        {placeholder && <option value="" disabled>{placeholder}</option>}
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {placeholder && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
       </select>
       {/* Persistent caption instead of a click-to-reveal tooltip -- same
           consistency fix applied across Guest WiFi Limits and Blocked
           Guests. */}
-      {caption && !err && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{caption}</p>}
+      {caption && !err && (
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{caption}</p>
+      )}
       {err && <p className="mt-1 text-xs text-indigo-500">{err}</p>}
     </div>
   );
@@ -238,9 +423,48 @@ function Select({ id, label, value, onChange, options, placeholder, required, to
 // table's "Mapped to N locations" count both read as a coherent demo
 // account instead of referencing locations that don't exist in the picker.
 const DEMO_GROUPS: Group[] = [
-  { id: "g1", name: "VIP Guests", bandwidth: "10 Mbps", sessionTimeout: "24 hr", idleTimeout: "30 min", devicesPerUser: "5", dailyLimit: "No Limit", loginHours: null, dataLimit: { quota: 10, unit: "GB", resets: "Monthly" }, members: 12, mappedAssignmentId: "demo-g1", mappedLocationIds: ["loc-1", "loc-2", "loc-4"] },
-  { id: "g2", name: "Staff Network", bandwidth: "5 Mbps", sessionTimeout: "8 hr", idleTimeout: "15 min", devicesPerUser: "3", dailyLimit: "No Limit", loginHours: { days: ["Mon","Tue","Wed","Thu","Fri"], from: "09:00", to: "18:00" }, dataLimit: null, members: 8, mappedAssignmentId: null, mappedLocationIds: ["loc-1"] },
-  { id: "g3", name: "Contractors", bandwidth: "2 Mbps", sessionTimeout: "4 hr", idleTimeout: "10 min", devicesPerUser: "2", dailyLimit: "2 hr", loginHours: null, dataLimit: null, members: 5, mappedAssignmentId: null, mappedLocationIds: [] },
+  {
+    id: "g1",
+    name: "VIP Guests",
+    bandwidth: "10 Mbps",
+    sessionTimeout: "24 hr",
+    idleTimeout: "30 min",
+    devicesPerUser: "5",
+    dailyLimit: "No Limit",
+    loginHours: null,
+    dataLimit: { quota: 10, unit: "GB", resets: "Monthly" },
+    members: 12,
+    mappedAssignmentId: "demo-g1",
+    mappedLocationIds: ["loc-1", "loc-2", "loc-4"],
+  },
+  {
+    id: "g2",
+    name: "Staff Network",
+    bandwidth: "5 Mbps",
+    sessionTimeout: "8 hr",
+    idleTimeout: "15 min",
+    devicesPerUser: "3",
+    dailyLimit: "No Limit",
+    loginHours: { days: ["Mon", "Tue", "Wed", "Thu", "Fri"], from: "09:00", to: "18:00" },
+    dataLimit: null,
+    members: 8,
+    mappedAssignmentId: null,
+    mappedLocationIds: ["loc-1"],
+  },
+  {
+    id: "g3",
+    name: "Contractors",
+    bandwidth: "2 Mbps",
+    sessionTimeout: "4 hr",
+    idleTimeout: "10 min",
+    devicesPerUser: "2",
+    dailyLimit: "2 hr",
+    loginHours: null,
+    dataLimit: null,
+    members: 5,
+    mappedAssignmentId: null,
+    mappedLocationIds: [],
+  },
 ];
 
 export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
@@ -287,7 +511,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // new version onto a policy resolve_effective_policy can never see.
         const deviceDetails = deviceDetailsAll.filter((d) => d.is_active);
         const deviceByName = new Map(
-          deviceDetails.map((d) => [d.name, latestVersion(d)?.rules?.max_devices_per_guest as number | undefined]),
+          deviceDetails.map((d) => [
+            d.name,
+            latestVersion(d)?.rules?.max_devices_per_guest as number | undefined,
+          ]),
         );
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         // One assignments lookup per group -- listLocationMappings returns
@@ -308,7 +535,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               const mappings = await bandwidthPolicyService.listLocationMappings(p.id, org);
               mappedLocationIds = mappings.map((m) => m.locationId);
               if (locationId) {
-                mappedAssignmentId = mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
+                mappedAssignmentId =
+                  mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
               }
             } catch {
               mappedAssignmentId = null;
@@ -321,14 +549,21 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             // back to the legacy bandwidth field only for a group that
             // predates this fix and has no paired DEVICE policy yet.
             const deviceMax = deviceByName.get(p.name);
-            const devicesPerUser = deviceMax != null
-              ? (deviceMax >= UNLIMITED_DEVICES_SENTINEL ? "Unlimited" : String(deviceMax))
-              : labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, "");
+            const devicesPerUser =
+              deviceMax != null
+                ? deviceMax >= UNLIMITED_DEVICES_SENTINEL
+                  ? "Unlimited"
+                  : String(deviceMax)
+                : labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, "");
             return {
               id: p.id,
               name: p.name,
               bandwidth: kbpsToLabel(p.downloadRateKbps),
-              sessionTimeout: labelFromMinutes(p.sessionTimeoutMinutes, SESSION_TIMEOUT_MINUTES, ""),
+              sessionTimeout: labelFromMinutes(
+                p.sessionTimeoutMinutes,
+                SESSION_TIMEOUT_MINUTES,
+                "",
+              ),
               idleTimeout: labelFromMinutes(p.idleTimeoutMinutes, IDLE_TIMEOUT_MINUTES, ""),
               devicesPerUser,
               dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
@@ -347,16 +582,30 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     })();
   }, [demo, locationId]);
 
-  const [name, setName] = useState(""); const [bw, setBw] = useState(""); const [st, setSt] = useState("");
-  const [it, setIt] = useState(""); const [dp, setDp] = useState(""); const [dl, setDl] = useState("No Limit");
+  const [name, setName] = useState("");
+  const [bw, setBw] = useState("");
+  const [st, setSt] = useState("");
+  const [it, setIt] = useState("");
+  const [dp, setDp] = useState("");
+  const [dl, setDl] = useState("No Limit");
   const [loginOn, setLoginOn] = useState(false);
-  const [loginDays, setLoginDays] = useState<string[]>(["Mon","Tue","Wed","Thu","Fri","Mon","Tue","Wed","Thu","Fri"].slice(0,5));
-  const [loginFrom, setLoginFrom] = useState("09:00"); const [loginTo, setLoginTo] = useState("18:00");
-  const [dlOpen, setDlOpen] = useState(false); const [dlQuota, setDlQuota] = useState(""); const [dlUnit, setDlUnit] = useState("GB"); const [dlResets, setDlResets] = useState("Daily");
+  const [loginDays, setLoginDays] = useState<string[]>(
+    ["Mon", "Tue", "Wed", "Thu", "Fri", "Mon", "Tue", "Wed", "Thu", "Fri"].slice(0, 5),
+  );
+  const [loginFrom, setLoginFrom] = useState("09:00");
+  const [loginTo, setLoginTo] = useState("18:00");
+  const [dlOpen, setDlOpen] = useState(false);
+  const [dlQuota, setDlQuota] = useState("");
+  const [dlUnit, setDlUnit] = useState("GB");
+  const [dlResets, setDlResets] = useState("Daily");
   const [errs, setErrs] = useState<Record<string, string>>({});
-  const [search, setSearch] = useState(""); const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState<number>(10);
-  const [toast, setToast] = useState<string | null>(null); const [saving, setSaving] = useState(false);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [toast, setToast] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [mappingBusy, setMappingBusy] = useState<Set<string>>(new Set());
   const [step3Done, setStep3Done] = useState(false);
   // The actual concurrency guard for handleToggleMap -- a ref, not the
@@ -397,42 +646,124 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // to track which group is being edited).
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const toggleDay = (d: string) => setLoginDays((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)));
-  const setField = (k: string, v: string) => { if (k === "name") setName(v); else if (k === "bw") setBw(v); else if (k === "st") setSt(v); else if (k === "it") setIt(v); else if (k === "dp") setDp(v); else if (k === "dl") setDl(v); setErrs((p) => { const n = { ...p }; delete n[k]; return n; }); };
+  const toggleDay = (d: string) =>
+    setLoginDays((p) =>
+      p.includes(d)
+        ? p.filter((x) => x !== d)
+        : [...p, d].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)),
+    );
+  const setField = (k: string, v: string) => {
+    if (k === "name") setName(v);
+    else if (k === "bw") setBw(v);
+    else if (k === "st") setSt(v);
+    else if (k === "it") setIt(v);
+    else if (k === "dp") setDp(v);
+    else if (k === "dl") setDl(v);
+    setErrs((p) => {
+      const n = { ...p };
+      delete n[k];
+      return n;
+    });
+  };
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!name) e.name = "Required.";
-    else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase())) e.name = "A tier with this name already exists.";
-    if (!bw) e.bw = "Required."; if (!st) e.st = "Required."; if (!it) e.it = "Required."; if (!dp) e.dp = "Required.";
+    else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase()))
+      e.name = "A tier with this name already exists.";
+    if (!bw) e.bw = "Required.";
+    if (!st) e.st = "Required.";
+    if (!it) e.it = "Required.";
+    if (!dp) e.dp = "Required.";
     if (st && it) {
-      const toMin = (v: string) => { const n = parseInt(v); return v.includes("hr") ? n * 60 : v.includes("min") ? n : Infinity; };
+      const toMin = (v: string) => {
+        const n = parseInt(v);
+        return v.includes("hr") ? n * 60 : v.includes("min") ? n : Infinity;
+      };
       if (toMin(it) > toMin(st)) e.it = "Idle timeout can't be longer than the session timeout.";
     }
-    if (loginOn) { if (loginDays.length === 0) e.loginDays = "Select at least one day."; if (loginFrom >= loginTo) e.loginTo = "End must be after start."; }
+    if (loginOn) {
+      if (loginDays.length === 0) e.loginDays = "Select at least one day.";
+      if (loginFrom >= loginTo) e.loginTo = "End must be after start.";
+    }
     if (dlOpen && (!dlQuota || parseFloat(dlQuota) <= 0)) e.dlQuota = "Must be greater than 0.";
-    setErrs(e); return !Object.keys(e).length;
+    setErrs(e);
+    return !Object.keys(e).length;
   };
 
   const resetForm = () => {
-    setName(""); setBw(""); setSt(""); setIt(""); setDp(""); setDl("No Limit"); setLoginOn(false); setLoginDays(["Mon","Tue","Wed","Thu","Fri"]); setLoginFrom("09:00"); setLoginTo("18:00"); setDlOpen(false); setDlQuota("");
+    setName("");
+    setBw("");
+    setSt("");
+    setIt("");
+    setDp("");
+    setDl("No Limit");
+    setLoginOn(false);
+    setLoginDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);
+    setLoginFrom("09:00");
+    setLoginTo("18:00");
+    setDlOpen(false);
+    setDlQuota("");
     setEditingId(null);
   };
 
   const handleCreate = async () => {
-    if (!validate()) return; setSaving(true);
-    const dataLimit = dlOpen ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets } : null;
-    const loginHours = loginOn ? { days: [...loginDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)), from: loginFrom, to: loginTo } : null;
+    if (!validate()) return;
+    setSaving(true);
+    const dataLimit = dlOpen
+      ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets }
+      : null;
+    const loginHours = loginOn
+      ? {
+          days: [...loginDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)),
+          from: loginFrom,
+          to: loginTo,
+        }
+      : null;
     const isEdit = editingId !== null;
 
     if (demo) {
       setTimeout(() => {
         if (isEdit) {
-          setGroups((prev) => prev.map((g) => (g.id === editingId ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
+          setGroups((prev) =>
+            prev.map((g) =>
+              g.id === editingId
+                ? {
+                    ...g,
+                    name,
+                    bandwidth: bw,
+                    sessionTimeout: st,
+                    idleTimeout: it,
+                    devicesPerUser: dp,
+                    dailyLimit: dl,
+                    loginHours,
+                    dataLimit,
+                  }
+                : g,
+            ),
+          );
         } else {
-          setGroups((prev) => [{ id: `g${Date.now()}`, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null, mappedLocationIds: [] }, ...prev]);
+          setGroups((prev) => [
+            {
+              id: `g${Date.now()}`,
+              name,
+              bandwidth: bw,
+              sessionTimeout: st,
+              idleTimeout: it,
+              devicesPerUser: dp,
+              dailyLimit: dl,
+              loginHours,
+              dataLimit,
+              members: 0,
+              mappedAssignmentId: null,
+              mappedLocationIds: [],
+            },
+            ...prev,
+          ]);
         }
-        setSaving(false); setStep1Done(true); setPage(0);
+        setSaving(false);
+        setStep1Done(true);
+        setPage(0);
         resetForm();
         setToast(isEdit ? "Access tier updated." : "Access tier created.");
         setTimeout(() => setToast(null), 3500);
@@ -472,23 +803,73 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       const deviceRules = { max_devices_per_guest: maxDevices };
       const existingDeviceId = deviceRealIds[name];
       if (existingDeviceId) {
-        await updatePolicyRules({ id: existingDeviceId, rules: deviceRules, publish: true, archive: false, organizationId: orgId ?? undefined });
+        await updatePolicyRules({
+          id: existingDeviceId,
+          rules: deviceRules,
+          publish: true,
+          archive: false,
+          organizationId: orgId ?? undefined,
+        });
       } else {
-        const createdDevice = await createPolicyWithRules({ policyType: "device", name, description: null, rules: deviceRules, publish: true, organizationId: orgId ?? undefined });
+        const createdDevice = await createPolicyWithRules({
+          policyType: "device",
+          name,
+          description: null,
+          rules: deviceRules,
+          publish: true,
+          organizationId: orgId ?? undefined,
+        });
         setDeviceRealIds((prev) => ({ ...prev, [name]: createdDevice.id }));
       }
 
       if (isEdit) {
-        setGroups((prev) => prev.map((g) => (g.id === saved.id ? { ...g, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit } : g)));
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === saved.id
+              ? {
+                  ...g,
+                  name,
+                  bandwidth: bw,
+                  sessionTimeout: st,
+                  idleTimeout: it,
+                  devicesPerUser: dp,
+                  dailyLimit: dl,
+                  loginHours,
+                  dataLimit,
+                }
+              : g,
+          ),
+        );
       } else {
-        setGroups((prev) => [{ id: saved.id, name, bandwidth: bw, sessionTimeout: st, idleTimeout: it, devicesPerUser: dp, dailyLimit: dl, loginHours, dataLimit, members: 0, mappedAssignmentId: null, mappedLocationIds: [] }, ...prev]);
+        setGroups((prev) => [
+          {
+            id: saved.id,
+            name,
+            bandwidth: bw,
+            sessionTimeout: st,
+            idleTimeout: it,
+            devicesPerUser: dp,
+            dailyLimit: dl,
+            loginHours,
+            dataLimit,
+            members: 0,
+            mappedAssignmentId: null,
+            mappedLocationIds: [],
+          },
+          ...prev,
+        ]);
       }
-      setStep1Done(true); setPage(0);
+      setStep1Done(true);
+      setPage(0);
       resetForm();
       setToast(isEdit ? "Access tier updated." : "Access tier created.");
       setTimeout(() => setToast(null), 3500);
     } catch {
-      setToast(isEdit ? "Could not update the access tier — check the connection and try again." : "Could not create the access tier — check the connection and try again.");
+      setToast(
+        isEdit
+          ? "Could not update the access tier — check the connection and try again."
+          : "Could not create the access tier — check the connection and try again.",
+      );
       setTimeout(() => setToast(null), 3500);
     } finally {
       setSaving(false);
@@ -499,10 +880,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     if (confirmingId === id) {
       const prev = groups;
       const groupName = groups.find((g) => g.id === id)?.name;
-      setGroups((p) => p.filter((g) => g.id !== id)); setConfirmingId(null);
+      setGroups((p) => p.filter((g) => g.id !== id));
+      setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (!demo) {
-        bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => { setGroups(prev); setToast("Could not delete on the server."); setTimeout(() => setToast(null), 2500); });
+        bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => {
+          setGroups(prev);
+          setToast("Could not delete on the server.");
+          setTimeout(() => setToast(null), 2500);
+        });
         // Removing a tier means all of its real effects go away, not just
         // bandwidth -- deactivate its paired DEVICE policy too, if one was
         // ever saved for this tier. Cleared from deviceRealIds up front
@@ -512,11 +898,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // handling via the id-in-`groups` state above.
         if (groupName) {
           const deviceId = deviceRealIds[groupName];
-          setDeviceRealIds((prevIds) => { const n = { ...prevIds }; delete n[groupName]; return n; });
+          setDeviceRealIds((prevIds) => {
+            const n = { ...prevIds };
+            delete n[groupName];
+            return n;
+          });
           if (deviceId) deactivatePolicy(deviceId, orgId ?? undefined).catch(() => {});
         }
       }
-    } else { setConfirmingId(id); if (confirmTimer.current) clearTimeout(confirmTimer.current); confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000); }
+    } else {
+      setConfirmingId(id);
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000);
+    }
   };
 
   // "Map group" -- toggles this group's real PolicyAssignment to the
@@ -537,28 +931,72 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     try {
       if (demo) {
         await new Promise((resolve) => setTimeout(resolve, 400));
-        setGroups((prev) => prev.map((x) => (x.id === g.id ? {
-          ...x,
-          mappedAssignmentId: wasMapped ? null : `demo-${g.id}`,
-          mappedLocationIds: wasMapped ? x.mappedLocationIds.filter((id) => id !== locationId) : [...new Set([...x.mappedLocationIds, locationId])],
-        } : x)));
+        setGroups((prev) =>
+          prev.map((x) =>
+            x.id === g.id
+              ? {
+                  ...x,
+                  mappedAssignmentId: wasMapped ? null : `demo-${g.id}`,
+                  mappedLocationIds: wasMapped
+                    ? x.mappedLocationIds.filter((id) => id !== locationId)
+                    : [...new Set([...x.mappedLocationIds, locationId])],
+                }
+              : x,
+          ),
+        );
       } else if (wasMapped) {
-        await bandwidthPolicyService.unmapFromLocation(g.id, g.mappedAssignmentId as string, orgId ?? undefined);
+        await bandwidthPolicyService.unmapFromLocation(
+          g.id,
+          g.mappedAssignmentId as string,
+          orgId ?? undefined,
+        );
         await mirrorDeviceLocationUnmap(deviceRealIds[g.name], locationId, orgId ?? undefined);
-        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: null, mappedLocationIds: x.mappedLocationIds.filter((id) => id !== locationId) } : x)));
+        setGroups((prev) =>
+          prev.map((x) =>
+            x.id === g.id
+              ? {
+                  ...x,
+                  mappedAssignmentId: null,
+                  mappedLocationIds: x.mappedLocationIds.filter((id) => id !== locationId),
+                }
+              : x,
+          ),
+        );
       } else {
-        const assignmentId = await bandwidthPolicyService.mapToLocation(g.id, locationId, orgId ?? undefined);
+        const assignmentId = await bandwidthPolicyService.mapToLocation(
+          g.id,
+          locationId,
+          orgId ?? undefined,
+        );
         await mirrorDeviceLocationMap(deviceRealIds[g.name], locationId, orgId ?? undefined);
-        setGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, mappedAssignmentId: assignmentId, mappedLocationIds: [...new Set([...x.mappedLocationIds, locationId])] } : x)));
+        setGroups((prev) =>
+          prev.map((x) =>
+            x.id === g.id
+              ? {
+                  ...x,
+                  mappedAssignmentId: assignmentId,
+                  mappedLocationIds: [...new Set([...x.mappedLocationIds, locationId])],
+                }
+              : x,
+          ),
+        );
       }
-      setToast(wasMapped ? `${g.name} unmapped from this location.` : `${g.name} mapped to this location.`);
+      setToast(
+        wasMapped ? `${g.name} unmapped from this location.` : `${g.name} mapped to this location.`,
+      );
       setTimeout(() => setToast(null), 2500);
     } catch {
-      setToast(`Could not ${wasMapped ? "unmap" : "map"} ${g.name} — check the connection and try again.`);
+      setToast(
+        `Could not ${wasMapped ? "unmap" : "map"} ${g.name} — check the connection and try again.`,
+      );
       setTimeout(() => setToast(null), 2500);
     } finally {
       mappingLock.current.delete(g.id);
-      setMappingBusy((p) => { const n = new Set(p); n.delete(g.id); return n; });
+      setMappingBusy((p) => {
+        const n = new Set(p);
+        n.delete(g.id);
+        return n;
+      });
     }
   };
 
@@ -574,13 +1012,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       if (demo) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         const initial: Record<string, string> = {};
-        g.mappedLocationIds.forEach((locId) => { initial[locId] = `demo-${g.id}-${locId}`; });
+        g.mappedLocationIds.forEach((locId) => {
+          initial[locId] = `demo-${g.id}-${locId}`;
+        });
         setMapModalInitial(initial);
         setMapModalSelected(new Set(g.mappedLocationIds));
       } else {
-        const mappings = await bandwidthPolicyService.listLocationMappings(g.id, orgId ?? undefined);
+        const mappings = await bandwidthPolicyService.listLocationMappings(
+          g.id,
+          orgId ?? undefined,
+        );
         const initial: Record<string, string> = {};
-        mappings.forEach((m) => { initial[m.locationId] = m.assignmentId; });
+        mappings.forEach((m) => {
+          initial[m.locationId] = m.assignmentId;
+        });
         setMapModalInitial(initial);
         setMapModalSelected(new Set(mappings.map((m) => m.locationId)));
       }
@@ -605,7 +1050,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const toggleMapModalLocation = (locId: string) => {
     setMapModalSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(locId)) next.delete(locId); else next.add(locId);
+      if (next.has(locId)) next.delete(locId);
+      else next.add(locId);
       return next;
     });
   };
@@ -622,7 +1068,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     const beforeIds = new Set(Object.keys(mapModalInitial));
     const toAdd = [...mapModalSelected].filter((id) => !beforeIds.has(id));
     const toRemove = [...beforeIds].filter((id) => !mapModalSelected.has(id));
-    if (toAdd.length === 0 && toRemove.length === 0) { closeMapModal(); return; }
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      closeMapModal();
+      return;
+    }
     mapModalLock.current = true;
     setMapModalSaving(true);
     try {
@@ -630,21 +1079,33 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       if (demo) {
         await new Promise((resolve) => setTimeout(resolve, 500));
         finalMap = {};
-        mapModalSelected.forEach((locId) => { finalMap[locId] = mapModalInitial[locId] ?? `demo-${g.id}-${locId}`; });
+        mapModalSelected.forEach((locId) => {
+          finalMap[locId] = mapModalInitial[locId] ?? `demo-${g.id}-${locId}`;
+        });
       } else {
         const deviceId = deviceRealIds[g.name];
         const [addResults] = await Promise.all([
-          Promise.all(toAdd.map(async (locId) => {
-            const [assignmentId] = await Promise.all([
-              bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined),
-              mirrorDeviceLocationMap(deviceId, locId, orgId ?? undefined),
-            ]);
-            return { locId, assignmentId };
-          })),
-          Promise.all(toRemove.map((locId) => Promise.all([
-            bandwidthPolicyService.unmapFromLocation(g.id, mapModalInitial[locId], orgId ?? undefined),
-            mirrorDeviceLocationUnmap(deviceId, locId, orgId ?? undefined),
-          ]))),
+          Promise.all(
+            toAdd.map(async (locId) => {
+              const [assignmentId] = await Promise.all([
+                bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined),
+                mirrorDeviceLocationMap(deviceId, locId, orgId ?? undefined),
+              ]);
+              return { locId, assignmentId };
+            }),
+          ),
+          Promise.all(
+            toRemove.map((locId) =>
+              Promise.all([
+                bandwidthPolicyService.unmapFromLocation(
+                  g.id,
+                  mapModalInitial[locId],
+                  orgId ?? undefined,
+                ),
+                mirrorDeviceLocationUnmap(deviceId, locId, orgId ?? undefined),
+              ]),
+            ),
+          ),
         ]);
         finalMap = {};
         mapModalSelected.forEach((locId) => {
@@ -653,11 +1114,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         });
       }
       const finalLocationIds = Object.keys(finalMap);
-      setGroups((prev) => prev.map((x) => x.id === g.id ? {
-        ...x,
-        mappedLocationIds: finalLocationIds,
-        mappedAssignmentId: locationId ? (finalMap[locationId] ?? null) : x.mappedAssignmentId,
-      } : x));
+      setGroups((prev) =>
+        prev.map((x) =>
+          x.id === g.id
+            ? {
+                ...x,
+                mappedLocationIds: finalLocationIds,
+                mappedAssignmentId: locationId
+                  ? (finalMap[locationId] ?? null)
+                  : x.mappedAssignmentId,
+              }
+            : x,
+        ),
+      );
       const n = finalLocationIds.length;
       setToast(`${g.name} is now mapped to ${n} location${n === 1 ? "" : "s"}.`);
       setTimeout(() => setToast(null), 2500);
@@ -670,18 +1139,31 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // shows a count that doesn't match reality.
       if (!demo) {
         try {
-          const mappings = await bandwidthPolicyService.listLocationMappings(g.id, orgId ?? undefined);
-          setGroups((prev) => prev.map((x) => x.id === g.id ? {
-            ...x,
-            mappedLocationIds: mappings.map((m) => m.locationId),
-            mappedAssignmentId: locationId ? (mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null) : x.mappedAssignmentId,
-          } : x));
+          const mappings = await bandwidthPolicyService.listLocationMappings(
+            g.id,
+            orgId ?? undefined,
+          );
+          setGroups((prev) =>
+            prev.map((x) =>
+              x.id === g.id
+                ? {
+                    ...x,
+                    mappedLocationIds: mappings.map((m) => m.locationId),
+                    mappedAssignmentId: locationId
+                      ? (mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null)
+                      : x.mappedAssignmentId,
+                  }
+                : x,
+            ),
+          );
         } catch {
           // Leave the table's existing (now possibly stale) state alone --
           // better than clobbering it with another guess.
         }
       }
-      setToast(`Could not fully update ${g.name}'s location mappings — check the connection and try again.`);
+      setToast(
+        `Could not fully update ${g.name}'s location mappings — check the connection and try again.`,
+      );
       setTimeout(() => setToast(null), 3000);
     } finally {
       mapModalLock.current = false;
@@ -696,7 +1178,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // above) -- mirrors the flow the bug report itself described: create the
   // group, map the group, then map users into it.
   const [usersModalGroup, setUsersModalGroup] = useState<Group | null>(null);
-  const [mappedGuests, setMappedGuests] = useState<{ assignmentId: string; guestId: string; label: string }[]>([]);
+  const [mappedGuests, setMappedGuests] = useState<
+    { assignmentId: string; guestId: string; label: string }[]
+  >([]);
   const [guestsLoading, setGuestsLoading] = useState(false);
   const [guestSearch, setGuestSearch] = useState("");
   const [guestResults, setGuestResults] = useState<Guest[]>([]);
@@ -713,26 +1197,71 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     Record<string, { policyId: string; policyName: string; assignmentId: string } | null>
   >({});
   const DEMO_GUESTS: Guest[] = [
-    { id: "dg1", organizationId: "demo", organizationName: "Demo Org", locationId: locationId ?? null, locationName: null, identifier: "+91 98765 43210", displayName: "Aarav Shah", firstSeenAt: "", lastSeenAt: "", totalVisitCount: 4, isBlocked: false, blockedReason: null, createdAt: "", updatedAt: "" },
-    { id: "dg2", organizationId: "demo", organizationName: "Demo Org", locationId: locationId ?? null, locationName: null, identifier: "priya@example.com", displayName: "Priya Nair", firstSeenAt: "", lastSeenAt: "", totalVisitCount: 1, isBlocked: false, blockedReason: null, createdAt: "", updatedAt: "" },
+    {
+      id: "dg1",
+      organizationId: "demo",
+      organizationName: "Demo Org",
+      locationId: locationId ?? null,
+      locationName: null,
+      identifier: "+91 98765 43210",
+      displayName: "Aarav Shah",
+      firstSeenAt: "",
+      lastSeenAt: "",
+      totalVisitCount: 4,
+      isBlocked: false,
+      blockedReason: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "dg2",
+      organizationId: "demo",
+      organizationName: "Demo Org",
+      locationId: locationId ?? null,
+      locationName: null,
+      identifier: "priya@example.com",
+      displayName: "Priya Nair",
+      firstSeenAt: "",
+      lastSeenAt: "",
+      totalVisitCount: 1,
+      isBlocked: false,
+      blockedReason: null,
+      createdAt: "",
+      updatedAt: "",
+    },
   ];
 
   const openUsersModal = async (g: Group) => {
     setUsersModalGroup(g);
-    setGuestSearch(""); setGuestResults([]);
+    setGuestSearch("");
+    setGuestResults([]);
     if (!locationId) return;
     setGuestsLoading(true);
     try {
       if (demo) {
-        setMappedGuests([{ assignmentId: `demo-map-${DEMO_GUESTS[0].id}`, guestId: DEMO_GUESTS[0].id, label: `${DEMO_GUESTS[0].displayName} · ${DEMO_GUESTS[0].identifier}` }]);
+        setMappedGuests([
+          {
+            assignmentId: `demo-map-${DEMO_GUESTS[0].id}`,
+            guestId: DEMO_GUESTS[0].id,
+            label: `${DEMO_GUESTS[0].displayName} · ${DEMO_GUESTS[0].identifier}`,
+          },
+        ]);
         setStep3Done(true);
       } else {
-        const mappings = await bandwidthPolicyService.guestMappings(g.id, locationId, orgId ?? undefined);
-        const resolved = await Promise.all(mappings.map(async (m) => {
-          const guest = await guestService.get(m.guestId, orgId ?? undefined).catch(() => null);
-          const label = guest ? `${guest.displayName ?? guest.identifier} · ${guest.identifier}` : m.guestId;
-          return { ...m, label };
-        }));
+        const mappings = await bandwidthPolicyService.guestMappings(
+          g.id,
+          locationId,
+          orgId ?? undefined,
+        );
+        const resolved = await Promise.all(
+          mappings.map(async (m) => {
+            const guest = await guestService.get(m.guestId, orgId ?? undefined).catch(() => null);
+            const label = guest
+              ? `${guest.displayName ?? guest.identifier} · ${guest.identifier}`
+              : m.guestId;
+            return { ...m, label };
+          }),
+        );
         setMappedGuests(resolved);
         if (resolved.length > 0) setStep3Done(true);
       }
@@ -744,12 +1273,21 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   };
 
   const searchGuests = async () => {
-    if (!guestSearch.trim()) { setGuestResults([]); return; }
+    if (!guestSearch.trim()) {
+      setGuestResults([]);
+      return;
+    }
     setGuestSearchBusy(true);
     try {
       if (demo) {
         const q = guestSearch.trim().toLowerCase();
-        setGuestResults(DEMO_GUESTS.filter((g) => g.identifier.toLowerCase().includes(q) || (g.displayName ?? "").toLowerCase().includes(q)));
+        setGuestResults(
+          DEMO_GUESTS.filter(
+            (g) =>
+              g.identifier.toLowerCase().includes(q) ||
+              (g.displayName ?? "").toLowerCase().includes(q),
+          ),
+        );
       } else {
         const { rows } = await guestService.list({
           search: guestSearch.trim(),
@@ -764,7 +1302,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // a small, bounded batch (this page size caps at 10), and the only
         // way to show "Already in <group>" before the user clicks Map.
         const entries = await Promise.all(
-          results.map(async (g) => [g.id, await bandwidthPolicyService.guestCurrentGroup(g.id, orgId ?? undefined).catch(() => null)] as const),
+          results.map(
+            async (g) =>
+              [
+                g.id,
+                await bandwidthPolicyService
+                  .guestCurrentGroup(g.id, orgId ?? undefined)
+                  .catch(() => null),
+              ] as const,
+          ),
         );
         setGuestCurrentGroups((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
       }
@@ -789,24 +1335,69 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     try {
       if (demo) {
         await new Promise((r) => setTimeout(r, 300));
-        setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId: `demo-map-${guest.id}`, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
+        setMappedGuests((p) =>
+          p.some((m) => m.guestId === guest.id)
+            ? p
+            : [
+                ...p,
+                {
+                  assignmentId: `demo-map-${guest.id}`,
+                  guestId: guest.id,
+                  label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}`,
+                },
+              ],
+        );
       } else {
         const [assignmentId] = await Promise.all([
-          bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined),
-          mirrorDeviceGuestMap(deviceRealIds[usersModalGroup.name], locationId, guest.id, orgId ?? undefined),
+          bandwidthPolicyService.mapGuestToLocation(
+            usersModalGroup.id,
+            locationId,
+            guest.id,
+            orgId ?? undefined,
+          ),
+          mirrorDeviceGuestMap(
+            deviceRealIds[usersModalGroup.name],
+            locationId,
+            guest.id,
+            orgId ?? undefined,
+          ),
         ]);
-        setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
-        setGuestCurrentGroups((p) => ({ ...p, [guest.id]: { policyId: usersModalGroup.id, policyName: usersModalGroup.name, assignmentId } }));
+        setMappedGuests((p) =>
+          p.some((m) => m.guestId === guest.id)
+            ? p
+            : [
+                ...p,
+                {
+                  assignmentId,
+                  guestId: guest.id,
+                  label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}`,
+                },
+              ],
+        );
+        setGuestCurrentGroups((p) => ({
+          ...p,
+          [guest.id]: {
+            policyId: usersModalGroup.id,
+            policyName: usersModalGroup.name,
+            assignmentId,
+          },
+        }));
       }
       setStep3Done(true);
       setToast(`${guest.displayName ?? guest.identifier} mapped into ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
-      setToast("Could not map this guest — they may already be in another tier, or check the connection and try again.");
+      setToast(
+        "Could not map this guest — they may already be in another tier, or check the connection and try again.",
+      );
       setTimeout(() => setToast(null), 2500);
     } finally {
       guestActionLock.current.delete(guest.id);
-      setGuestActionBusy((p) => { const n = new Set(p); n.delete(guest.id); return n; });
+      setGuestActionBusy((p) => {
+        const n = new Set(p);
+        n.delete(guest.id);
+        return n;
+      });
     }
   };
 
@@ -815,30 +1406,76 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // real backend calls, not a special endpoint, but presented as one
   // atomic-feeling action so the one-guest-one-group rule never reads as
   // a dead end.
-  const switchGuestGroup = async (guest: Guest, other: { policyId: string; policyName: string; assignmentId: string }) => {
+  const switchGuestGroup = async (
+    guest: Guest,
+    other: { policyId: string; policyName: string; assignmentId: string },
+  ) => {
     if (!usersModalGroup || !locationId || guestActionLock.current.has(guest.id)) return;
     guestActionLock.current.add(guest.id);
     setGuestActionBusy((p) => new Set(p).add(guest.id));
     try {
       await Promise.all([
-        bandwidthPolicyService.unmapGuestFromLocation(other.policyId, other.assignmentId, orgId ?? undefined),
-        mirrorDeviceGuestUnmap(deviceRealIds[other.policyName], locationId, guest.id, orgId ?? undefined),
+        bandwidthPolicyService.unmapGuestFromLocation(
+          other.policyId,
+          other.assignmentId,
+          orgId ?? undefined,
+        ),
+        mirrorDeviceGuestUnmap(
+          deviceRealIds[other.policyName],
+          locationId,
+          guest.id,
+          orgId ?? undefined,
+        ),
       ]);
       const [assignmentId] = await Promise.all([
-        bandwidthPolicyService.mapGuestToLocation(usersModalGroup.id, locationId, guest.id, orgId ?? undefined),
-        mirrorDeviceGuestMap(deviceRealIds[usersModalGroup.name], locationId, guest.id, orgId ?? undefined),
+        bandwidthPolicyService.mapGuestToLocation(
+          usersModalGroup.id,
+          locationId,
+          guest.id,
+          orgId ?? undefined,
+        ),
+        mirrorDeviceGuestMap(
+          deviceRealIds[usersModalGroup.name],
+          locationId,
+          guest.id,
+          orgId ?? undefined,
+        ),
       ]);
-      setMappedGuests((p) => p.some((m) => m.guestId === guest.id) ? p : [...p, { assignmentId, guestId: guest.id, label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}` }]);
-      setGuestCurrentGroups((p) => ({ ...p, [guest.id]: { policyId: usersModalGroup.id, policyName: usersModalGroup.name, assignmentId } }));
+      setMappedGuests((p) =>
+        p.some((m) => m.guestId === guest.id)
+          ? p
+          : [
+              ...p,
+              {
+                assignmentId,
+                guestId: guest.id,
+                label: `${guest.displayName ?? guest.identifier} · ${guest.identifier}`,
+              },
+            ],
+      );
+      setGuestCurrentGroups((p) => ({
+        ...p,
+        [guest.id]: {
+          policyId: usersModalGroup.id,
+          policyName: usersModalGroup.name,
+          assignmentId,
+        },
+      }));
       setStep3Done(true);
-      setToast(`${guest.displayName ?? guest.identifier} moved from ${other.policyName} to ${usersModalGroup.name}.`);
+      setToast(
+        `${guest.displayName ?? guest.identifier} moved from ${other.policyName} to ${usersModalGroup.name}.`,
+      );
       setTimeout(() => setToast(null), 2500);
     } catch {
       setToast("Could not switch this guest's tier — check the connection and try again.");
       setTimeout(() => setToast(null), 2500);
     } finally {
       guestActionLock.current.delete(guest.id);
-      setGuestActionBusy((p) => { const n = new Set(p); n.delete(guest.id); return n; });
+      setGuestActionBusy((p) => {
+        const n = new Set(p);
+        n.delete(guest.id);
+        return n;
+      });
     }
   };
 
@@ -849,11 +1486,24 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     try {
       if (!demo && locationId) {
         await Promise.all([
-          bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined),
-          mirrorDeviceGuestUnmap(deviceRealIds[usersModalGroup.name], locationId, mapping.guestId, orgId ?? undefined),
+          bandwidthPolicyService.unmapGuestFromLocation(
+            usersModalGroup.id,
+            mapping.assignmentId,
+            orgId ?? undefined,
+          ),
+          mirrorDeviceGuestUnmap(
+            deviceRealIds[usersModalGroup.name],
+            locationId,
+            mapping.guestId,
+            orgId ?? undefined,
+          ),
         ]);
       } else if (!demo) {
-        await bandwidthPolicyService.unmapGuestFromLocation(usersModalGroup.id, mapping.assignmentId, orgId ?? undefined);
+        await bandwidthPolicyService.unmapGuestFromLocation(
+          usersModalGroup.id,
+          mapping.assignmentId,
+          orgId ?? undefined,
+        );
       }
       setMappedGuests((p) => p.filter((m) => m.guestId !== mapping.guestId));
       setGuestCurrentGroups((p) => ({ ...p, [mapping.guestId]: null }));
@@ -864,30 +1514,73 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setTimeout(() => setToast(null), 2500);
     } finally {
       guestActionLock.current.delete(mapping.guestId);
-      setGuestActionBusy((p) => { const n = new Set(p); n.delete(mapping.guestId); return n; });
+      setGuestActionBusy((p) => {
+        const n = new Set(p);
+        n.delete(mapping.guestId);
+        return n;
+      });
     }
   };
 
   const handleClone = (g: Group) => {
     setEditingId(null);
-    setName(`${g.name} (copy)`); setBw(g.bandwidth); setSt(g.sessionTimeout); setIt(g.idleTimeout); setDp(g.devicesPerUser); setDl(g.dailyLimit);
-    if (g.loginHours) { setLoginOn(true); setLoginDays(g.loginHours.days); setLoginFrom(g.loginHours.from); setLoginTo(g.loginHours.to); } else { setLoginOn(false); }
-    if (g.dataLimit) { setDlOpen(true); setDlQuota(String(g.dataLimit.quota)); setDlUnit(g.dataLimit.unit); setDlResets(g.dataLimit.resets); } else { setDlOpen(false); }
+    setName(`${g.name} (copy)`);
+    setBw(g.bandwidth);
+    setSt(g.sessionTimeout);
+    setIt(g.idleTimeout);
+    setDp(g.devicesPerUser);
+    setDl(g.dailyLimit);
+    if (g.loginHours) {
+      setLoginOn(true);
+      setLoginDays(g.loginHours.days);
+      setLoginFrom(g.loginHours.from);
+      setLoginTo(g.loginHours.to);
+    } else {
+      setLoginOn(false);
+    }
+    if (g.dataLimit) {
+      setDlOpen(true);
+      setDlQuota(String(g.dataLimit.quota));
+      setDlUnit(g.dataLimit.unit);
+      setDlResets(g.dataLimit.resets);
+    } else {
+      setDlOpen(false);
+    }
     document.getElementById("create-group-form")?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleEdit = (g: Group) => {
     setEditingId(g.id);
-    setName(g.name); setBw(g.bandwidth); setSt(g.sessionTimeout); setIt(g.idleTimeout); setDp(g.devicesPerUser); setDl(g.dailyLimit);
-    if (g.loginHours) { setLoginOn(true); setLoginDays(g.loginHours.days); setLoginFrom(g.loginHours.from); setLoginTo(g.loginHours.to); } else { setLoginOn(false); }
-    if (g.dataLimit) { setDlOpen(true); setDlQuota(String(g.dataLimit.quota)); setDlUnit(g.dataLimit.unit); setDlResets(g.dataLimit.resets); } else { setDlOpen(false); }
+    setName(g.name);
+    setBw(g.bandwidth);
+    setSt(g.sessionTimeout);
+    setIt(g.idleTimeout);
+    setDp(g.devicesPerUser);
+    setDl(g.dailyLimit);
+    if (g.loginHours) {
+      setLoginOn(true);
+      setLoginDays(g.loginHours.days);
+      setLoginFrom(g.loginHours.from);
+      setLoginTo(g.loginHours.to);
+    } else {
+      setLoginOn(false);
+    }
+    if (g.dataLimit) {
+      setDlOpen(true);
+      setDlQuota(String(g.dataLimit.quota));
+      setDlUnit(g.dataLimit.unit);
+      setDlResets(g.dataLimit.resets);
+    } else {
+      setDlOpen(false);
+    }
     setErrs({});
     document.getElementById("create-group-form")?.scrollIntoView({ behavior: "smooth" });
   };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    const scoped = !showAllGroups && locationId ? groups.filter((g) => g.mappedAssignmentId) : groups;
+    const scoped =
+      !showAllGroups && locationId ? groups.filter((g) => g.mappedAssignmentId) : groups;
     return scoped.filter((g) => !q || g.name.toLowerCase().includes(q) || g.bandwidth.includes(q));
   }, [groups, search, showAllGroups, locationId]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -919,7 +1612,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Access Tiers</h1>
-            <p className="text-sm text-muted-foreground">Give a group of guests their own bandwidth and access limits, separate from the location default.</p>
+            <p className="text-sm text-muted-foreground">
+              Give a group of guests their own bandwidth and access limits, separate from the
+              location default.
+            </p>
           </div>
         </div>
         <GroupMappingIllustration />
@@ -939,247 +1635,633 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             // into some group's "Map users" panel -- see openUsersModal/
             // mapGuest below).
             const done = s.num === 1 ? step1Done : s.num === 2 ? step2Done : step3Done;
-            const caption = s.num === 1 ? s.caption : (done ? "Mapped" : "Not started");
+            const caption = s.num === 1 ? s.caption : done ? "Mapped" : "Not started";
             return (
-              <li key={s.num} className="flex items-center flex-1" aria-current={s.num === 1 && !step1Done ? "step" : undefined}>
+              <li
+                key={s.num}
+                className="flex items-center flex-1"
+                aria-current={s.num === 1 && !step1Done ? "step" : undefined}
+              >
                 <div className="flex flex-col items-center min-w-0">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]" : "bg-slate-100 dark:bg-slate-700"}`}>
-                    <s.icon className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]" : "bg-slate-100 dark:bg-slate-700"}`}
+                  >
+                    <s.icon
+                      className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`}
+                    />
                   </div>
-                  <p className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</p>
-                  {caption && <p className={`text-[10px] ${done ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}>{caption}</p>}
+                  <p
+                    className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}
+                  >
+                    {s.label}
+                  </p>
+                  {caption && (
+                    <p
+                      className={`text-[10px] ${done ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}
+                    >
+                      {caption}
+                    </p>
+                  )}
                 </div>
-                {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-600"}`} />}
+                {i < STEPS.length - 1 && (
+                  <div
+                    className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-600"}`}
+                  />
+                )}
               </li>
             );
           })}
         </ol>
         <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
-          Set a tier's limits, map it to the location(s) that should use it, then optionally assign specific guests to it.
+          Set a tier's limits, map it to the location(s) that should use it, then optionally assign
+          specific guests to it.
         </p>
       </div>
 
-      <Card id="create-group-form" className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{editingId ? "Edit Access Tier" : "Create Access Tier"}</h2>
-            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Members of this tier get its bandwidth, timeout, and access settings instead of the location default.</p>
+      <Card id="create-group-form" className="border-0 shadow-sm">
+        <CardContent className="p-6 md:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                {editingId ? "Edit Access Tier" : "Create Access Tier"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
+                Members of this tier get its bandwidth, timeout, and access settings instead of the
+                location default.
+              </p>
+            </div>
+            {editingId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700"
+              >
+                Cancel edit
+              </button>
+            )}
           </div>
-          {editingId && (
-            <button type="button" onClick={resetForm} className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700">
-              Cancel edit
-            </button>
-          )}
-        </div>
 
-        <div className="mt-5 max-w-md">
-          <label htmlFor="g-name" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Tier Name <span className="text-indigo-500">*</span></label>
-          <input id="g-name" type="text" placeholder="e.g. Staff, Long-stay guests" value={name} onChange={(e) => setField("name", e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500" />
-          {errs.name ? <p className="mt-1 text-xs text-indigo-500">{errs.name}</p> : <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">A short, recognizable name for this tier.</p>}
-        </div>
+          <div className="mt-5 max-w-md">
+            <label
+              htmlFor="g-name"
+              className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+            >
+              Tier Name <span className="text-indigo-500">*</span>
+            </label>
+            <input
+              id="g-name"
+              type="text"
+              placeholder="e.g. Staff, Long-stay guests"
+              value={name}
+              onChange={(e) => setField("name", e.target.value)}
+              className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+            />
+            {errs.name ? (
+              <p className="mt-1 text-xs text-indigo-500">{errs.name}</p>
+            ) : (
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                A short, recognizable name for this tier.
+              </p>
+            )}
+          </div>
 
-        <div className="mt-5 space-y-5">
-          {/* Speed & Devices -- bandwidth, device count, and the optional
+          <div className="mt-5 space-y-5">
+            {/* Speed & Devices -- bandwidth, device count, and the optional
               data limit are all "how much" settings, grouped together
               (same grouping used on Guest WiFi Limits) instead of being
               scattered across a flat field grid. */}
-          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Speed &amp; Devices</h3>
-            <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">How fast members connect, and how many devices each member can use.</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Select id="g-bw" label="Bandwidth" required value={bw} onChange={(v) => setField("bw", v)} options={BANDWIDTH} placeholder="Choose bandwidth" caption="Maximum speed per device in this tier." err={errs.bw} />
-              <Select id="g-dp" label="Devices Per User" required value={dp} onChange={(v) => setField("dp", v)} options={DEVICES} placeholder="Choose devices per user" caption="How many devices one person can connect at the same time." err={errs.dp} />
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Speed &amp; Devices
+              </h3>
+              <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                How fast members connect, and how many devices each member can use.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Select
+                  id="g-bw"
+                  label="Bandwidth"
+                  required
+                  value={bw}
+                  onChange={(v) => setField("bw", v)}
+                  options={BANDWIDTH}
+                  placeholder="Choose bandwidth"
+                  caption="Maximum speed per device in this tier."
+                  err={errs.bw}
+                />
+                <Select
+                  id="g-dp"
+                  label="Devices Per User"
+                  required
+                  value={dp}
+                  onChange={(v) => setField("dp", v)}
+                  options={DEVICES}
+                  placeholder="Choose devices per user"
+                  caption="How many devices one person can connect at the same time."
+                  err={errs.dp}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDlOpen((p) => !p)}
+                aria-expanded={dlOpen}
+                aria-controls="dl-panel"
+                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
+                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${dlOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {dlOpen && (
+                <div id="dl-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label
+                      htmlFor="g-dq"
+                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                    >
+                      Quota
+                    </label>
+                    <input
+                      id="g-dq"
+                      type="number"
+                      min={0}
+                      step="any"
+                      placeholder="0"
+                      value={dlQuota}
+                      onChange={(e) => setDlQuota(e.target.value)}
+                      className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                    />
+                    {errs.dlQuota && <p className="mt-1 text-xs text-indigo-500">{errs.dlQuota}</p>}
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="g-du"
+                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                    >
+                      Unit
+                    </label>
+                    <select
+                      id="g-du"
+                      value={dlUnit}
+                      onChange={(e) => setDlUnit(e.target.value)}
+                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                    >
+                      {DATA_UNITS.map((u) => (
+                        <option key={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="g-dr"
+                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                    >
+                      Resets
+                    </label>
+                    <select
+                      id="g-dr"
+                      value={dlResets}
+                      onChange={(e) => setDlResets(e.target.value)}
+                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                    >
+                      {RESETS.map((r) => (
+                        <option key={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <button type="button" onClick={() => setDlOpen((p) => !p)} aria-expanded={dlOpen} aria-controls="dl-panel" className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700">
-              <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"><Plus className="h-4 w-4 text-indigo-500" /> Add a data limit <span className="text-xs font-normal text-slate-400">(Optional)</span></span>
-              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dlOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {dlOpen && (
-              <div id="dl-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
-                <div><label htmlFor="g-dq" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Quota</label><input id="g-dq" type="number" min={0} step="any" placeholder="0" value={dlQuota} onChange={(e) => setDlQuota(e.target.value)} className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />{errs.dlQuota && <p className="mt-1 text-xs text-indigo-500">{errs.dlQuota}</p>}</div>
-                <div><label htmlFor="g-du" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Unit</label><select id="g-du" value={dlUnit} onChange={(e) => setDlUnit(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{DATA_UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>
-                <div><label htmlFor="g-dr" className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Resets</label><select id="g-dr" value={dlResets} onChange={(e) => setDlResets(e.target.value)} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">{RESETS.map((r) => <option key={r}>{r}</option>)}</select></div>
-              </div>
-            )}
-          </div>
-
-          {/* Time Limits -- session/idle timeout, the daily cap, and login
+            {/* Time Limits -- session/idle timeout, the daily cap, and login
               hours are all "when" settings, grouped together (parallel to
               Guest WiFi Limits' own Time Limits section). */}
-          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Time Limits</h3>
-            <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">When a member gets disconnected, has to sign in again, or can connect at all.</p>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Select id="g-st" label="Session Timeout" required value={st} onChange={(v) => setField("st", v)} options={SESSION_TIMEOUT} placeholder="Choose session timeout" caption="Re-authenticate after this much time." err={errs.st} />
-              <Select id="g-it" label="Idle Timeout" required value={it} onChange={(v) => setField("it", v)} options={IDLE_TIMEOUT} placeholder="Choose idle timeout" caption="Disconnect after this much inactivity." err={errs.it} />
-              <Select id="g-dl" label="Maximum Daily Session Limit" value={dl} onChange={(v) => setField("dl", v)} options={DAILY_LIMIT} placeholder="Choose daily limit" caption="Total session time allowed per day." />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600">
-              <div>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Restrict login hours</span>
-                <p className="text-xs text-slate-400 dark:text-slate-500">Limit when members can connect. Off means any time.</p>
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Time Limits
+              </h3>
+              <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                When a member gets disconnected, has to sign in again, or can connect at all.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Select
+                  id="g-st"
+                  label="Session Timeout"
+                  required
+                  value={st}
+                  onChange={(v) => setField("st", v)}
+                  options={SESSION_TIMEOUT}
+                  placeholder="Choose session timeout"
+                  caption="Re-authenticate after this much time."
+                  err={errs.st}
+                />
+                <Select
+                  id="g-it"
+                  label="Idle Timeout"
+                  required
+                  value={it}
+                  onChange={(v) => setField("it", v)}
+                  options={IDLE_TIMEOUT}
+                  placeholder="Choose idle timeout"
+                  caption="Disconnect after this much inactivity."
+                  err={errs.it}
+                />
+                <Select
+                  id="g-dl"
+                  label="Maximum Daily Session Limit"
+                  value={dl}
+                  onChange={(v) => setField("dl", v)}
+                  options={DAILY_LIMIT}
+                  placeholder="Choose daily limit"
+                  caption="Total session time allowed per day."
+                />
               </div>
-              <Switch checked={loginOn} onCheckedChange={() => setLoginOn((p) => !p)} aria-label="Restrict login hours" />
-            </div>
 
-            {loginOn && (
-              <div className="mt-3 space-y-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {DAYS.map((d) => (
-                    <button key={d} onClick={() => toggleDay(d)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginDays.includes(d) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}>{d}</button>
-                  ))}
+              <div className="mt-4 flex items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600">
+                <div>
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Restrict login hours
+                  </span>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    Limit when members can connect. Off means any time.
+                  </p>
                 </div>
-                {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
-                <div className="flex gap-3">
-                  <div><label htmlFor="g-lf" className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400">From</label><input id="g-lf" type="time" value={loginFrom} onChange={(e) => setLoginFrom(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
-                  <div><label htmlFor="g-lt" className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400">To</label><input id="g-lt" type="time" value={loginTo} onChange={(e) => setLoginTo(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
-                </div>
-                {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
-                <p className="text-xs text-slate-400 dark:text-slate-500">Members can only get online during these hours.</p>
+                <Switch
+                  checked={loginOn}
+                  onCheckedChange={() => setLoginOn((p) => !p)}
+                  aria-label="Restrict login hours"
+                />
               </div>
-            )}
-          </div>
-        </div>
 
-        <hr className="my-6 border-slate-100 dark:border-slate-600" />
-        <div className="flex justify-center">
-          <button onClick={handleCreate} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {saving ? (editingId ? "Saving…" : "Creating…") : editingId ? "Save changes" : "Create tier"}
-          </button>
-        </div>
-      </CardContent></Card>
-
-      <Card className="border-0 shadow-sm"><CardContent className="p-6 md:p-8">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Existing Access Tiers</h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              {!showAllGroups && locationId
-                ? `Mapped to ${activeLocationName ?? "this location"} -- other tiers in the account are hidden.`
-                : "Every tier in this account, across all locations."}
-              {" "}A tier only applies to guests once it's mapped to their location below.
-            </p>
+              {loginOn && (
+                <div className="mt-3 space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {DAYS.map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => toggleDay(d)}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginDays.includes(d) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                  {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
+                  <div className="flex gap-3">
+                    <div>
+                      <label
+                        htmlFor="g-lf"
+                        className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400"
+                      >
+                        From
+                      </label>
+                      <input
+                        id="g-lf"
+                        type="time"
+                        value={loginFrom}
+                        onChange={(e) => setLoginFrom(e.target.value)}
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="g-lt"
+                        className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400"
+                      >
+                        To
+                      </label>
+                      <input
+                        id="g-lt"
+                        type="time"
+                        value={loginTo}
+                        onChange={(e) => setLoginTo(e.target.value)}
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+                  {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    Members can only get online during these hours.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {locationId && (
+
+          <hr className="my-6 border-slate-100 dark:border-slate-600" />
+          <div className="flex justify-center">
+            <button
+              onClick={handleCreate}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {saving
+                ? editingId
+                  ? "Saving…"
+                  : "Creating…"
+                : editingId
+                  ? "Save changes"
+                  : "Create tier"}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-6 md:p-8">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                Existing Access Tiers
+              </h3>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {!showAllGroups && locationId
+                  ? `Mapped to ${activeLocationName ?? "this location"} -- other tiers in the account are hidden.`
+                  : "Every tier in this account, across all locations."}{" "}
+                A tier only applies to guests once it's mapped to their location below.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {locationId && (
+                <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
+                  <button
+                    onClick={() => {
+                      setShowAllGroups(false);
+                      setPage(0);
+                    }}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${!showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                  >
+                    This location
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAllGroups(true);
+                      setPage(0);
+                    }}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                  >
+                    All tiers
+                  </button>
+                </div>
+              )}
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search…"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                />
+              </div>
               <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
-                <button
-                  onClick={() => { setShowAllGroups(false); setPage(0); }}
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${!showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
-                >
-                  This location
-                </button>
-                <button
-                  onClick={() => { setShowAllGroups(true); setPage(0); }}
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
-                >
-                  All tiers
-                </button>
+                {PAGE_SIZE_OPTS.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => {
+                      setPageSize(n);
+                      setPage(0);
+                    }}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                  >
+                    {n}
+                  </button>
+                ))}
               </div>
-            )}
-            <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="Search…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" /></div>
-            <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">{PAGE_SIZE_OPTS.map((n) => (<button key={n} onClick={() => { setPageSize(n); setPage(0); }} className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}>{n}</button>))}</div>
+            </div>
           </div>
-        </div>
-        {paged.length === 0 ? (
-          <EmptyState
-            icon={Network}
-            title={!showAllGroups && locationId && groups.length > 0 ? "No tiers mapped to this location" : "No tiers yet"}
-            description={!showAllGroups && locationId && groups.length > 0 ? "Browse all tiers in the account to map one to this location." : "Create one above to give a set of users their own policy."}
-            action={!showAllGroups && locationId && groups.length > 0 ? { label: "Browse all tiers", onClick: () => setShowAllGroups(true) } : undefined}
-          />
-        ) : (
-        <div className="overflow-x-auto">
-          <Table className="min-w-[1000px]">
-            <TableHeader><TableRow>
-              <TableHead className="text-xs font-medium">Tier Name</TableHead><TableHead className="text-xs font-medium">Bandwidth</TableHead><TableHead className="text-xs font-medium">Timeout</TableHead><TableHead className="text-xs font-medium">Idle</TableHead><TableHead className="text-xs font-medium">Devices</TableHead><TableHead className="text-xs font-medium">Login Hours</TableHead><TableHead className="text-xs font-medium">Data Limit</TableHead><TableHead className="text-xs font-medium">Members</TableHead><TableHead className="text-xs font-medium">Mapped to Location(s)</TableHead><TableHead className="text-xs font-medium">Users</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>{paged.map((g) => (
-              <TableRow key={g.id} className="border-b">
-                <TableCell className="font-medium">{g.name}</TableCell>
-                <TableCell>{g.bandwidth}</TableCell>
-                <TableCell>{g.sessionTimeout}</TableCell>
-                <TableCell>{g.idleTimeout}</TableCell>
-                <TableCell>{g.devicesPerUser}</TableCell>
-                <TableCell className="text-xs">{g.loginHours ? `${g.loginHours.days.slice(0,3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}` : <span className="text-muted-foreground">Any time</span>}</TableCell>
-                <TableCell className="text-xs">{g.dataLimit ? `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}` : <span className="text-muted-foreground">—</span>}</TableCell>
-                <TableCell>{g.members}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col items-start gap-1">
-                    {/* Primary action -- the real many-to-many picture and
+          {paged.length === 0 ? (
+            <EmptyState
+              icon={Network}
+              title={
+                !showAllGroups && locationId && groups.length > 0
+                  ? "No tiers mapped to this location"
+                  : "No tiers yet"
+              }
+              description={
+                !showAllGroups && locationId && groups.length > 0
+                  ? "Browse all tiers in the account to map one to this location."
+                  : "Create one above to give a set of users their own policy."
+              }
+              action={
+                !showAllGroups && locationId && groups.length > 0
+                  ? { label: "Browse all tiers", onClick: () => setShowAllGroups(true) }
+                  : undefined
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <Table className="min-w-[1000px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs font-medium">Tier Name</TableHead>
+                    <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    <TableHead className="text-xs font-medium">Timeout</TableHead>
+                    <TableHead className="text-xs font-medium">Idle</TableHead>
+                    <TableHead className="text-xs font-medium">Devices</TableHead>
+                    <TableHead className="text-xs font-medium">Login Hours</TableHead>
+                    <TableHead className="text-xs font-medium">Data Limit</TableHead>
+                    <TableHead className="text-xs font-medium">Members</TableHead>
+                    <TableHead className="text-xs font-medium">Mapped to Location(s)</TableHead>
+                    <TableHead className="text-xs font-medium">Users</TableHead>
+                    <TableHead className="text-right text-xs font-medium">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.map((g) => (
+                    <TableRow key={g.id} className="border-b">
+                      <TableCell className="font-medium">{g.name}</TableCell>
+                      <TableCell>{g.bandwidth}</TableCell>
+                      <TableCell>{g.sessionTimeout}</TableCell>
+                      <TableCell>{g.idleTimeout}</TableCell>
+                      <TableCell>{g.devicesPerUser}</TableCell>
+                      <TableCell className="text-xs">
+                        {g.loginHours ? (
+                          `${g.loginHours.days.slice(0, 3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}`
+                        ) : (
+                          <span className="text-muted-foreground">Any time</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {g.dataLimit ? (
+                          `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}`
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{g.members}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col items-start gap-1">
+                          {/* Primary action -- the real many-to-many picture and
                         the entry point into the "Map to locations…" modal,
                         replacing the old one-location-at-a-time toggle as
                         the main way to manage this. */}
-                    <button
-                      aria-label={`Manage which locations ${g.name} is mapped to`}
-                      title={g.mappedLocationIds.length === 0 ? "This tier isn't mapped to any location yet." : `Mapped to: ${g.mappedLocationIds.map((id) => allLocations?.find((l) => l.id === id)?.name ?? id).join(", ")}`}
-                      onClick={() => openMapModal(g)}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                    >
-                      <MapPin className="h-3.5 w-3.5" />
-                      {g.mappedLocationIds.length === 0 ? "Map to locations…" : `Mapped to ${g.mappedLocationIds.length} location${g.mappedLocationIds.length === 1 ? "" : "s"}`}
-                    </button>
-                    {/* Quick shortcut kept for the common single-click case
+                          <button
+                            aria-label={`Manage which locations ${g.name} is mapped to`}
+                            title={
+                              g.mappedLocationIds.length === 0
+                                ? "This tier isn't mapped to any location yet."
+                                : `Mapped to: ${g.mappedLocationIds.map((id) => allLocations?.find((l) => l.id === id)?.name ?? id).join(", ")}`
+                            }
+                            onClick={() => openMapModal(g)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                            {g.mappedLocationIds.length === 0
+                              ? "Map to locations…"
+                              : `Mapped to ${g.mappedLocationIds.length} location${g.mappedLocationIds.length === 1 ? "" : "s"}`}
+                          </button>
+                          {/* Quick shortcut kept for the common single-click case
                         (map/unmap just the location you're currently
                         looking at) -- same handleToggleMap this button
                         always called. */}
-                    {locationId && (
-                      <button
-                        aria-label={g.mappedAssignmentId ? `Unmap ${g.name} from this location` : `Map ${g.name} to this location`}
-                        disabled={mappingBusy.has(g.id)}
-                        title={g.mappedAssignmentId ? `In use at ${activeLocationName ?? "this location"} -- click to stop using it here.` : `Use this tier's settings at ${activeLocationName ?? "this location"}.`}
-                        onClick={() => handleToggleMap(g)}
-                        className="inline-flex items-center gap-1 pl-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-indigo-400"
-                      >
-                        {mappingBusy.has(g.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : g.mappedAssignmentId ? <MapPin className="h-3 w-3" /> : <MapPinOff className="h-3 w-3" />}
-                        {g.mappedAssignmentId ? `Unmap from ${activeLocationName ?? "here"}` : `Quick-map to ${activeLocationName ?? "here"}`}
-                      </button>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <button
-                    aria-label={`Map users into ${g.name}`}
-                    disabled={!g.mappedAssignmentId}
-                    title={!g.mappedAssignmentId ? "Map this tier to the location first." : `Assign specific guests to ${g.name} instead of the location default.`}
-                    onClick={() => openUsersModal(g)}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                  >
-                    <Users className="h-3.5 w-3.5" />
-                    Map users
-                  </button>
-                </TableCell>
-                <TableCell className="text-right">
-                  <button aria-label={`Edit ${g.name}`} onClick={() => handleEdit(g)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Pencil className="h-4 w-4" /></button>
-                  <button aria-label={`Clone ${g.name}`} onClick={() => handleClone(g)} className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"><Copy className="h-4 w-4" /></button>
-                  <button aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`} onClick={() => handleDelete(g.id)} className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === g.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}>
-                    {confirmingId === g.id ? <span className="text-[11px] font-medium px-1">Confirm</span> : <Trash2 className="h-4 w-4" />}
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))}</TableBody></Table>
-        </div>
-        )}
-        {filtered.length > 0 && (
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500"><span>Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}</span>
-            <div className="flex gap-1"><button disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronLeft className="h-4 w-4" /></button><button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"><ChevronRight className="h-4 w-4" /></button></div>
-          </div>
-        )}
-      </CardContent></Card>
+                          {locationId && (
+                            <button
+                              aria-label={
+                                g.mappedAssignmentId
+                                  ? `Unmap ${g.name} from this location`
+                                  : `Map ${g.name} to this location`
+                              }
+                              disabled={mappingBusy.has(g.id)}
+                              title={
+                                g.mappedAssignmentId
+                                  ? `In use at ${activeLocationName ?? "this location"} -- click to stop using it here.`
+                                  : `Use this tier's settings at ${activeLocationName ?? "this location"}.`
+                              }
+                              onClick={() => handleToggleMap(g)}
+                              className="inline-flex items-center gap-1 pl-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-indigo-400"
+                            >
+                              {mappingBusy.has(g.id) ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : g.mappedAssignmentId ? (
+                                <MapPin className="h-3 w-3" />
+                              ) : (
+                                <MapPinOff className="h-3 w-3" />
+                              )}
+                              {g.mappedAssignmentId
+                                ? `Unmap from ${activeLocationName ?? "here"}`
+                                : `Quick-map to ${activeLocationName ?? "here"}`}
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <button
+                          aria-label={`Map users into ${g.name}`}
+                          disabled={!g.mappedAssignmentId}
+                          title={
+                            !g.mappedAssignmentId
+                              ? "Map this tier to the location first."
+                              : `Assign specific guests to ${g.name} instead of the location default.`
+                          }
+                          onClick={() => openUsersModal(g)}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          Map users
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          aria-label={`Edit ${g.name}`}
+                          onClick={() => handleEdit(g)}
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          aria-label={`Clone ${g.name}`}
+                          onClick={() => handleClone(g)}
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                        <button
+                          aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`}
+                          onClick={() => handleDelete(g.id)}
+                          className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === g.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}
+                        >
+                          {confirmingId === g.id ? (
+                            <span className="text-[11px] font-medium px-1">Confirm</span>
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {filtered.length > 0 && (
+            <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Showing {safePage * pageSize + 1}–
+                {Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  disabled={safePage === 0}
+                  onClick={() => setPage(safePage - 1)}
+                  className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => setPage(safePage + 1)}
+                  className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {usersModalGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setUsersModalGroup(null)}>
-          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="map-users-title">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onClick={() => setUsersModalGroup(null)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="map-users-title"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 id="map-users-title" className="text-lg font-semibold text-slate-800 dark:text-slate-100">Map guests — {usersModalGroup.name}</h3>
-                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Guests mapped here get this group's policy instead of the location default.</p>
+                <h3
+                  id="map-users-title"
+                  className="text-lg font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  Map guests — {usersModalGroup.name}
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                  Guests mapped here get this group's policy instead of the location default.
+                </p>
               </div>
-              <button aria-label="Close" onClick={() => setUsersModalGroup(null)} className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><X className="h-4 w-4" /></button>
+              <button
+                aria-label="Close"
+                onClick={() => setUsersModalGroup(null)}
+                className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             <div className="mt-4 flex gap-2">
@@ -1187,12 +2269,22 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 type="text"
                 value={guestSearch}
                 onChange={(e) => setGuestSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") searchGuests(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") searchGuests();
+                }}
                 placeholder="Search by mobile or email…"
                 className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
               />
-              <button onClick={searchGuests} disabled={guestSearchBusy || !guestSearch.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900">
-                {guestSearchBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+              <button
+                onClick={searchGuests}
+                disabled={guestSearchBusy || !guestSearch.trim()}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900"
+              >
+                {guestSearchBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Search className="h-3.5 w-3.5" />
+                )}
                 Find
               </button>
             </div>
@@ -1207,11 +2299,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   const other = guestCurrentGroups[guest.id];
                   const inOtherGroup = !already && !!other && other.policyId !== usersModalGroup.id;
                   return (
-                    <div key={guest.id} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 dark:border-slate-600">
+                    <div
+                      key={guest.id}
+                      className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 dark:border-slate-600"
+                    >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{guest.displayName ?? guest.identifier}</p>
+                        <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                          {guest.displayName ?? guest.identifier}
+                        </p>
                         <p className="truncate text-xs text-slate-400">{guest.identifier}</p>
-                        {inOtherGroup && <p className="truncate text-xs text-indigo-500">Already in {other.policyName}</p>}
+                        {inOtherGroup && (
+                          <p className="truncate text-xs text-indigo-500">
+                            Already in {other.policyName}
+                          </p>
+                        )}
                       </div>
                       {inOtherGroup ? (
                         <button
@@ -1220,7 +2321,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                           title={`Unmap from ${other.policyName} and map into ${usersModalGroup.name} instead.`}
                           className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
                         >
-                          {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                          {guestActionBusy.has(guest.id) ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <UserPlus className="h-3.5 w-3.5" />
+                          )}
                           Switch tier
                         </button>
                       ) : (
@@ -1229,7 +2334,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                           onClick={() => mapGuest(guest)}
                           className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
                         >
-                          {guestActionBusy.has(guest.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                          {guestActionBusy.has(guest.id) ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <UserPlus className="h-3.5 w-3.5" />
+                          )}
                           {already ? "Mapped" : "Map"}
                         </button>
                       )}
@@ -1239,11 +2348,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               </div>
             )}
             {guestSearch.trim() && !guestSearchBusy && guestResults.length === 0 && (
-              <p className="mt-3 text-xs text-slate-400">No guest found for "{guestSearch.trim()}" at this location.</p>
+              <p className="mt-3 text-xs text-slate-400">
+                No guest found for "{guestSearch.trim()}" at this location.
+              </p>
             )}
 
             <hr className="my-4 border-slate-100 dark:border-slate-600" />
-            <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Mapped users</h4>
+            <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Mapped users
+            </h4>
             {guestsLoading ? (
               <LoadingSkeleton rows={2} />
             ) : mappedGuests.length === 0 ? (
@@ -1251,7 +2364,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             ) : (
               <div className="space-y-1.5">
                 {mappedGuests.map((m) => (
-                  <div key={m.guestId} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/50">
+                  <div
+                    key={m.guestId}
+                    className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/50"
+                  >
                     <p className="truncate text-sm text-slate-600 dark:text-slate-300">{m.label}</p>
                     <button
                       disabled={guestActionBusy.has(m.guestId)}
@@ -1259,7 +2375,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       className="inline-flex shrink-0 items-center justify-center rounded p-1 text-slate-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                       aria-label={`Unmap ${m.label}`}
                     >
-                      {guestActionBusy.has(m.guestId) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                      {guestActionBusy.has(m.guestId) ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5" />
+                      )}
                     </button>
                   </div>
                 ))}
@@ -1278,14 +2398,37 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           used elsewhere in this codebase for this exact "list of things
           with a checkbox" shape. */}
       {mapModalGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={closeMapModal}>
-          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="map-locations-title">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onClick={closeMapModal}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="map-locations-title"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 id="map-locations-title" className="text-lg font-semibold text-slate-800 dark:text-slate-100">Map to locations — {mapModalGroup.name}</h3>
-                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Select every location that should use this tier's settings, then save.</p>
+                <h3
+                  id="map-locations-title"
+                  className="text-lg font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  Map to locations — {mapModalGroup.name}
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                  Select every location that should use this tier's settings, then save.
+                </p>
               </div>
-              <button aria-label="Close" disabled={mapModalSaving} onClick={closeMapModal} className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"><X className="h-4 w-4" /></button>
+              <button
+                aria-label="Close"
+                disabled={mapModalSaving}
+                onClick={closeMapModal}
+                className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             {(allLocations?.length ?? 0) > 5 && (
@@ -1309,7 +2452,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               ) : (
                 <div className="max-h-64 space-y-1 overflow-y-auto">
                   {allLocations
-                    .filter((loc) => !mapModalSearch.trim() || loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) || loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase()))
+                    .filter(
+                      (loc) =>
+                        !mapModalSearch.trim() ||
+                        loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) ||
+                        loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase()),
+                    )
                     .map((loc) => {
                       const checked = mapModalSelected.has(loc.id);
                       return (
@@ -1318,25 +2466,53 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                           htmlFor={`map-loc-${loc.id}`}
                           className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition-colors ${checked ? "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-500/10" : "border-slate-200 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700/50"}`}
                         >
-                          <Checkbox id={`map-loc-${loc.id}`} checked={checked} disabled={mapModalSaving} onCheckedChange={() => toggleMapModalLocation(loc.id)} />
+                          <Checkbox
+                            id={`map-loc-${loc.id}`}
+                            checked={checked}
+                            disabled={mapModalSaving}
+                            onCheckedChange={() => toggleMapModalLocation(loc.id)}
+                          />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{loc.name}{loc.id === locationId && <span className="ml-1.5 text-[10px] font-normal text-indigo-500">(current)</span>}</span>
-                            <span className="block truncate text-xs text-slate-400">{loc.city}</span>
+                            <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                              {loc.name}
+                              {loc.id === locationId && (
+                                <span className="ml-1.5 text-[10px] font-normal text-indigo-500">
+                                  (current)
+                                </span>
+                              )}
+                            </span>
+                            <span className="block truncate text-xs text-slate-400">
+                              {loc.city}
+                            </span>
                           </span>
                         </label>
                       );
                     })}
-                  {allLocations.filter((loc) => !mapModalSearch.trim() || loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) || loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase())).length === 0 && (
-                    <p className="text-xs text-slate-400">No location matches "{mapModalSearch.trim()}".</p>
+                  {allLocations.filter(
+                    (loc) =>
+                      !mapModalSearch.trim() ||
+                      loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) ||
+                      loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase()),
+                  ).length === 0 && (
+                    <p className="text-xs text-slate-400">
+                      No location matches "{mapModalSearch.trim()}".
+                    </p>
                   )}
                 </div>
               )}
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-600">
-              <p className="text-xs text-slate-400 dark:text-slate-500">{mapModalSelected.size} of {allLocations?.length ?? 0} selected</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {mapModalSelected.size} of {allLocations?.length ?? 0} selected
+              </p>
               <div className="flex gap-2">
-                <button type="button" disabled={mapModalSaving} onClick={closeMapModal} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700">
+                <button
+                  type="button"
+                  disabled={mapModalSaving}
+                  onClick={closeMapModal}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700"
+                >
                   Cancel
                 </button>
                 <button

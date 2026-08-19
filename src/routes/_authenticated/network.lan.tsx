@@ -13,7 +13,7 @@ function Page() {
         title="LAN Configuration"
         description="Manage LAN bridges, IP schemes, DHCP scopes and Layer-2 isolation policies."
         icon={EthernetPort}
-        bullets={["Bridge & interface plans","Static leases","Client isolation"]}
+        bullets={["Bridge & interface plans", "Static leases", "Client isolation"]}
       />
     </PageShell>
   );

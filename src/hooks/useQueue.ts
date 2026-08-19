@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queueService } from "@/services/queue.service";
-import type { CreateQueueAssignmentPayload, CreateQueueProfilePayload, UpdateQueueProfilePayload } from "@/types/queue";
+import type {
+  CreateQueueAssignmentPayload,
+  CreateQueueProfilePayload,
+  UpdateQueueProfilePayload,
+} from "@/types/queue";
 
 export const queueKeys = {
   profiles: ["queue", "profiles"] as const,
@@ -14,7 +18,8 @@ export const useQueueProfiles = () =>
 export const useQueueAssignments = () =>
   useQuery({ queryKey: queueKeys.assignments, queryFn: () => queueService.listAssignments() });
 
-export const useQueueKpis = () => useQuery({ queryKey: queueKeys.kpis, queryFn: queueService.getKpis });
+export const useQueueKpis = () =>
+  useQuery({ queryKey: queueKeys.kpis, queryFn: queueService.getKpis });
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: queueKeys.profiles });

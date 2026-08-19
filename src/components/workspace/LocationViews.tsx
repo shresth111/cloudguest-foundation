@@ -108,24 +108,24 @@ export function LocationTree() {
           {locations.map((l) => {
             const ItemIcon = businessTypeIcon(l.siteType);
             return (
-            <li key={l.id} className="pl-4">
-              <button
-                onClick={() => setActiveLocationId(l.id)}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-muted ${
-                  activeLocationId === l.id ? "bg-muted font-medium" : ""
-                }`}
-              >
-                <ItemIcon className="h-4 w-4 opacity-70" /> {l.name}
-              </button>
-              <ul className="ml-6 mt-1 space-y-0.5 text-xs text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <RouterIcon className="h-3 w-3" /> Routers
-                </li>
-                <li className="flex items-center gap-2">
-                  <Users className="h-3 w-3" /> Guests
-                </li>
-              </ul>
-            </li>
+              <li key={l.id} className="pl-4">
+                <button
+                  onClick={() => setActiveLocationId(l.id)}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-muted ${
+                    activeLocationId === l.id ? "bg-muted font-medium" : ""
+                  }`}
+                >
+                  <ItemIcon className="h-4 w-4 opacity-70" /> {l.name}
+                </button>
+                <ul className="ml-6 mt-1 space-y-0.5 text-xs text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <RouterIcon className="h-3 w-3" /> Routers
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Users className="h-3 w-3" /> Guests
+                  </li>
+                </ul>
+              </li>
             );
           })}
         </ul>

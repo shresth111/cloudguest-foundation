@@ -38,8 +38,22 @@ const DEMO_WELCOME =
 // after live QA found two collisions: a generic WiFi keyword ("connect") is
 // a substring of "disconnect", and a single "voucher" bucket conflated the
 // staff-facing creation flow with the guest-facing redemption flow.
-const DEMO_GUEST_MANAGEMENT_KEYWORDS = ["block", "unblock", "ban", "kick", "disconnect", "connected device"];
-const DEMO_ROUTER_STATUS_KEYWORDS = ["router offline", "router down", "router disconnected", "router unreachable", "no signal", "offline"];
+const DEMO_GUEST_MANAGEMENT_KEYWORDS = [
+  "block",
+  "unblock",
+  "ban",
+  "kick",
+  "disconnect",
+  "connected device",
+];
+const DEMO_ROUTER_STATUS_KEYWORDS = [
+  "router offline",
+  "router down",
+  "router disconnected",
+  "router unreachable",
+  "no signal",
+  "offline",
+];
 const DEMO_VOUCHER_CREATE_KEYWORDS = [
   "create a voucher",
   "create voucher",
@@ -52,7 +66,13 @@ const DEMO_VOUCHER_CREATE_KEYWORDS = [
 ];
 const DEMO_VOUCHER_KEYWORDS = ["voucher", "redeem", "redemption"];
 const DEMO_BILLING_KEYWORDS = ["bill", "invoice", "payment", "charge", "subscription", "refund"];
-const DEMO_LOCATION_KEYWORDS = ["location", "new property", "another property", "multiple properties", "branch"];
+const DEMO_LOCATION_KEYWORDS = [
+  "location",
+  "new property",
+  "another property",
+  "multiple properties",
+  "branch",
+];
 const DEMO_TEAM_KEYWORDS = ["team", "staff", "invite", "teammate", "role", "permission"];
 const DEMO_WIFI_KEYWORDS = ["wifi", "wi-fi", "password", "connect", "internet", "network", "login"];
 
@@ -77,9 +97,11 @@ const DEMO_DEFAULT_REPLY =
 
 function demoReply(message: string): string {
   const lowered = message.toLowerCase();
-  if (DEMO_GUEST_MANAGEMENT_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_GUEST_MANAGEMENT_REPLY;
+  if (DEMO_GUEST_MANAGEMENT_KEYWORDS.some((k) => lowered.includes(k)))
+    return DEMO_GUEST_MANAGEMENT_REPLY;
   if (DEMO_ROUTER_STATUS_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_ROUTER_STATUS_REPLY;
-  if (DEMO_VOUCHER_CREATE_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_VOUCHER_CREATE_REPLY;
+  if (DEMO_VOUCHER_CREATE_KEYWORDS.some((k) => lowered.includes(k)))
+    return DEMO_VOUCHER_CREATE_REPLY;
   if (DEMO_VOUCHER_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_VOUCHER_REPLY;
   if (DEMO_BILLING_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_BILLING_REPLY;
   if (DEMO_LOCATION_KEYWORDS.some((k) => lowered.includes(k))) return DEMO_LOCATION_REPLY;
@@ -203,15 +225,24 @@ export default function AssistantWidget() {
               {messages.map((m) => (
                 <div
                   key={m.id}
-                  className={cn("flex items-end gap-2", m.role === "user" ? "flex-row-reverse" : "flex-row")}
+                  className={cn(
+                    "flex items-end gap-2",
+                    m.role === "user" ? "flex-row-reverse" : "flex-row",
+                  )}
                 >
                   <div
                     className={cn(
                       "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                      m.role === "user" ? "bg-muted text-foreground" : "bg-primary text-primary-foreground",
+                      m.role === "user"
+                        ? "bg-muted text-foreground"
+                        : "bg-primary text-primary-foreground",
                     )}
                   >
-                    {m.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                    {m.role === "user" ? (
+                      <User className="h-3.5 w-3.5" />
+                    ) : (
+                      <Bot className="h-3.5 w-3.5" />
+                    )}
                   </div>
                   <div
                     className={cn(
@@ -253,7 +284,12 @@ export default function AssistantWidget() {
               disabled={sending}
               className="h-9 text-sm"
             />
-            <Button size="icon" className="h-9 w-9 shrink-0" onClick={() => void handleSend()} disabled={sending || !input.trim()}>
+            <Button
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => void handleSend()}
+              disabled={sending || !input.trim()}
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>

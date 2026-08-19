@@ -170,7 +170,11 @@ export const voucherService = {
   // session doesn't hold -- callers who already know their own org (e.g.
   // the customer Vouchers tab) should pass it so this resolves to
   // ORGANIZATION scope instead and returns just that org's batches.
-  async listBatches(page = 1, pageSize = 25, organizationId?: string): Promise<VoucherBatchListResult> {
+  async listBatches(
+    page = 1,
+    pageSize = 25,
+    organizationId?: string,
+  ): Promise<VoucherBatchListResult> {
     const { data } = await api.get<BackendVoucherBatchListResponse>("/voucher-batches", {
       params: { page, page_size: pageSize },
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
@@ -263,10 +267,9 @@ export const voucherService = {
   },
 
   async getStats(batchId: string, organizationId: string): Promise<VoucherBatchStats> {
-    const { data } = await api.get<BackendVoucherBatchStats>(
-      `/voucher-batches/${batchId}/stats`,
-      { headers: { "X-Organization-Id": organizationId } },
-    );
+    const { data } = await api.get<BackendVoucherBatchStats>(`/voucher-batches/${batchId}/stats`, {
+      headers: { "X-Organization-Id": organizationId },
+    });
     return toStats(data);
   },
 

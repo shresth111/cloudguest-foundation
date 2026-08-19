@@ -1,9 +1,23 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
 import { useCustomerStore } from "@/stores/customerStore";
 import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
-import type { AuthSession, LoginCredentials, OrganizationMembership, RoleAssignment, User } from "@/types/auth";
+import type {
+  AuthSession,
+  LoginCredentials,
+  OrganizationMembership,
+  RoleAssignment,
+  User,
+} from "@/types/auth";
 
 export const ROLES_STORAGE_KEY = "cloudguest_roles";
 export const ORGS_STORAGE_KEY = "cloudguest_organizations";
@@ -152,88 +166,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (creds: LoginCredentials) => {
-    // Switching identities mid-session (e.g. testing multiple accounts in
-    // one tab) must not leak the previous account's cached queries --
-    // customerKeys.permissions/sidebar/etc. aren't scoped by user/org id,
-    // so without this a new login can render stale data (wrong features,
-    // wrong locations) until each query's own staleTime happens to elapse.
-    queryClient.clear();
+  const login = useCallback(
+    async (creds: LoginCredentials) => {
+      // Switching identities mid-session (e.g. testing multiple accounts in
+      // one tab) must not leak the previous account's cached queries --
+      // customerKeys.permissions/sidebar/etc. aren't scoped by user/org id,
+      // so without this a new login can render stale data (wrong features,
+      // wrong locations) until each query's own staleTime happens to elapse.
+      queryClient.clear();
 
-    // Same identity-switch problem, but for useCustomerStore's own
-    // Zustand `persist` middleware (customerStore.ts) -- activeLocationId
-    // survives in localStorage independent of the auth token entirely, so
-    // a *previous* session's location silently carried into this new
-    // login. src/routes/index.tsx's IndexRedirect only sends an
-    // authenticated visitor to the /switch-location picker when
-    // activeLocationId is null -- with a stale non-null value left over
-    // from before, a fresh login skipped the picker outright and landed
-    // straight in whatever location happened to be selected last time,
-    // even when that location doesn't belong to (or isn't the intended
-    // one for) the account that just signed in. Bug report: "demo saari
-    // location wale pr pehle nahi ja raha... login hote hi direct
-    // location mai ja raha hai."
-    useCustomerStore.getState().clearLocation();
+      // Same identity-switch problem, but for useCustomerStore's own
+      // Zustand `persist` middleware (customerStore.ts) -- activeLocationId
+      // survives in localStorage independent of the auth token entirely, so
+      // a *previous* session's location silently carried into this new
+      // login. src/routes/index.tsx's IndexRedirect only sends an
+      // authenticated visitor to the /switch-location picker when
+      // activeLocationId is null -- with a stale non-null value left over
+      // from before, a fresh login skipped the picker outright and landed
+      // straight in whatever location happened to be selected last time,
+      // even when that location doesn't belong to (or isn't the intended
+      // one for) the account that just signed in. Bug report: "demo saari
+      // location wale pr pehle nahi ja raha... login hote hi direct
+      // location mai ja raha hai."
+      useCustomerStore.getState().clearLocation();
 
-    // Demo mode: bypass backend if using test credentials
-    if (creds.email === "admin@example.com" && creds.password === "test") {
-      const demoSession: AuthSession = {
-        user: {
-          id: "u-001",
-          firstName: "Admin",
-          lastName: "User",
-          name: "Admin User",
-          email: creds.email,
-          phone: "+919876543210",
-          username: "admin",
-          timezone: "Asia/Kolkata",
-          language: "en",
-          isActive: true,
-          isVerified: true,
-          status: "active",
-        },
-        tokens: {
-          accessToken: "demo-access-token",
-          refreshToken: "demo-refresh-token",
-          tokenType: "Bearer",
-          expiresIn: 3600,
-          refreshExpiresIn: 86400,
-        },
-        sessionId: "sess-demo-001",
-        roles: [
-          { roleId: "r-001", roleName: "Super Admin", roleSlug: "super-admin", scopeType: "global" },
-        ],
-        organizations: [
-          {
-            organizationId: "org-001",
-            organizationName: "Acme Corp",
-            organizationSlug: "acme-corp",
-            isPrimaryContact: true,
-            enabledFeatures: ["all"],
+      // Demo mode: bypass backend if using test credentials
+      if (creds.email === "admin@example.com" && creds.password === "test") {
+        const demoSession: AuthSession = {
+          user: {
+            id: "u-001",
+            firstName: "Admin",
+            lastName: "User",
+            name: "Admin User",
+            email: creds.email,
+            phone: "+919876543210",
+            username: "admin",
+            timezone: "Asia/Kolkata",
+            language: "en",
+            isActive: true,
+            isVerified: true,
+            status: "active",
           },
-        ],
-      };
-      persistSession(demoSession);
-      setUser(demoSession.user);
-      setRoles(demoSession.roles);
-      setOrganizations(demoSession.organizations);
-      setPermissions(new Set(["*"]));
+          tokens: {
+            accessToken: "demo-access-token",
+            refreshToken: "demo-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            refreshExpiresIn: 86400,
+          },
+          sessionId: "sess-demo-001",
+          roles: [
+            {
+              roleId: "r-001",
+              roleName: "Super Admin",
+              roleSlug: "super-admin",
+              scopeType: "global",
+            },
+          ],
+          organizations: [
+            {
+              organizationId: "org-001",
+              organizationName: "Acme Corp",
+              organizationSlug: "acme-corp",
+              isPrimaryContact: true,
+              enabledFeatures: ["all"],
+            },
+          ],
+        };
+        persistSession(demoSession);
+        setUser(demoSession.user);
+        setRoles(demoSession.roles);
+        setOrganizations(demoSession.organizations);
+        setPermissions(new Set(["*"]));
+        setStatus("authenticated");
+        return demoSession;
+      }
+
+      const session = await authService.login(creds);
+      persistSession(session);
+      setUser(session.user);
+      setRoles(session.roles);
+      setOrganizations(session.organizations);
       setStatus("authenticated");
-      return demoSession;
-    }
 
-    const session = await authService.login(creds);
-    persistSession(session);
-    setUser(session.user);
-    setRoles(session.roles);
-    setOrganizations(session.organizations);
-    setStatus("authenticated");
+      const myPermissions = await authService.myPermissions();
+      setPermissions(new Set(myPermissions));
 
-    const myPermissions = await authService.myPermissions();
-    setPermissions(new Set(myPermissions));
-
-    return session;
-  }, [queryClient]);
+      return session;
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
     const refreshToken = readStoredString(REFRESH_TOKEN_STORAGE_KEY);

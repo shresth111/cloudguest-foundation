@@ -7,7 +7,11 @@ export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
       { title: "Sign in | Wyfy Guest" },
-      { name: "description", content: "Sign in to Wyfy Guest to manage guest WiFi, networks, and analytics across every location from one dashboard." },
+      {
+        name: "description",
+        content:
+          "Sign in to Wyfy Guest to manage guest WiFi, networks, and analytics across every location from one dashboard.",
+      },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Sign in | Wyfy Guest" },
       { property: "og:description", content: "Access your Wyfy Guest network dashboard." },

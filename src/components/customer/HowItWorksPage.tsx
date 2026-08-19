@@ -1,7 +1,19 @@
 import type { ComponentType } from "react";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
-import { HelpCircle, LayoutDashboard, Megaphone, ShieldCheck, Monitor, Network } from "lucide-react";
+import {
+  HelpCircle,
+  LayoutDashboard,
+  Megaphone,
+  ShieldCheck,
+  Monitor,
+  Network,
+} from "lucide-react";
 
 interface HowItWorksItem {
   /** Matches the real sidebar label exactly (see customerNav.ts) so a
@@ -206,7 +218,9 @@ export function HowItWorksView() {
                   <group.Icon className="h-[18px] w-[18px] text-white" />
                 </div>
                 <div>
-                  <p className="text-base font-semibold tracking-tight text-foreground">{group.label}</p>
+                  <p className="text-base font-semibold tracking-tight text-foreground">
+                    {group.label}
+                  </p>
                   <p className="mt-0.5 text-sm font-normal text-muted-foreground">{group.line}</p>
                 </div>
               </div>
@@ -217,7 +231,9 @@ export function HowItWorksView() {
                   <Card key={item.heading} className="premium-card premium-card-hover rounded-2xl">
                     <CardContent className="p-4 sm:p-5">
                       <p className="text-sm font-semibold text-foreground">{item.heading}</p>
-                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{item.copy}</p>
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                        {item.copy}
+                      </p>
                     </CardContent>
                   </Card>
                 ))}

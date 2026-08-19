@@ -10,14 +10,30 @@ interface Props {
   onScheduleReport: () => void;
 }
 
-export function AnalyticsQuickActions({ onRefresh, onExportDashboard, onGenerateReport, onScheduleReport }: Props) {
+export function AnalyticsQuickActions({
+  onRefresh,
+  onExportDashboard,
+  onGenerateReport,
+  onScheduleReport,
+}: Props) {
   const actions = [
     { label: "Export dashboard", icon: Download, onClick: onExportDashboard },
     { label: "Generate report", icon: FileText, onClick: onGenerateReport },
     { label: "Schedule report", icon: CalendarClock, onClick: onScheduleReport },
     { label: "Refresh analytics", icon: RefreshCw, onClick: onRefresh },
-    { label: "Share report", icon: Share2, onClick: () => toast.success("Share link copied to clipboard") },
-    { label: "Print report", icon: Printer, onClick: () => { toast.success("Preparing print view"); window.print(); } },
+    {
+      label: "Share report",
+      icon: Share2,
+      onClick: () => toast.success("Share link copied to clipboard"),
+    },
+    {
+      label: "Print report",
+      icon: Printer,
+      onClick: () => {
+        toast.success("Preparing print view");
+        window.print();
+      },
+    },
   ];
 
   return (

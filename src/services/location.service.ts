@@ -29,20 +29,54 @@ const DEMO_ORG_OPTIONS: BackendOrgListItem[] = [
 
 const DEMO_LOCATIONS_ALL: Location[] = [
   {
-    id: "loc-demo-001", name: "Downtown Branch", slug: "downtown-branch",
-    organizationId: "org-001", organizationName: "Acme Corp", status: "active", propertyType: "hotel",
-    locationCode: "LOC-DEMO-001", addressLine1: "123 Main St", addressLine2: null, city: "Austin",
-    stateProvince: "TX", postalCode: "78701", country: "US", timezone: "America/Chicago",
-    latitude: null, longitude: null, contactName: null, contactPhone: null, contactEmail: null,
-    settings: {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    id: "loc-demo-001",
+    name: "Downtown Branch",
+    slug: "downtown-branch",
+    organizationId: "org-001",
+    organizationName: "Acme Corp",
+    status: "active",
+    propertyType: "hotel",
+    locationCode: "LOC-DEMO-001",
+    addressLine1: "123 Main St",
+    addressLine2: null,
+    city: "Austin",
+    stateProvince: "TX",
+    postalCode: "78701",
+    country: "US",
+    timezone: "America/Chicago",
+    latitude: null,
+    longitude: null,
+    contactName: null,
+    contactPhone: null,
+    contactEmail: null,
+    settings: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
-    id: "loc-demo-002", name: "Airport Kiosk", slug: "airport-kiosk",
-    organizationId: "org-002", organizationName: "Blue Cedar Cafes", status: "active", propertyType: "cafe",
-    locationCode: "LOC-DEMO-002", addressLine1: "1 Airport Way", addressLine2: null, city: "Austin",
-    stateProvince: "TX", postalCode: "78719", country: "US", timezone: "UTC",
-    latitude: null, longitude: null, contactName: null, contactPhone: null, contactEmail: null,
-    settings: {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    id: "loc-demo-002",
+    name: "Airport Kiosk",
+    slug: "airport-kiosk",
+    organizationId: "org-002",
+    organizationName: "Blue Cedar Cafes",
+    status: "active",
+    propertyType: "cafe",
+    locationCode: "LOC-DEMO-002",
+    addressLine1: "1 Airport Way",
+    addressLine2: null,
+    city: "Austin",
+    stateProvince: "TX",
+    postalCode: "78719",
+    country: "US",
+    timezone: "UTC",
+    latitude: null,
+    longitude: null,
+    contactName: null,
+    contactPhone: null,
+    contactEmail: null,
+    settings: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];
 
@@ -176,7 +210,8 @@ export const locationService = {
       );
     }
     if (q.status && q.status !== "all") rows = rows.filter((r) => r.status === q.status);
-    if (q.propertyType && q.propertyType !== "all") rows = rows.filter((r) => r.propertyType === q.propertyType);
+    if (q.propertyType && q.propertyType !== "all")
+      rows = rows.filter((r) => r.propertyType === q.propertyType);
     if (q.country && q.country !== "all") rows = rows.filter((r) => r.country === q.country);
 
     const total = rows.length;
@@ -246,7 +281,11 @@ export const locationService = {
   // found") even though the location genuinely exists, which is exactly
   // the real bug this was caught fixing: master's location delete/suspend
   // silently failing because the id-only call had no org context.
-  async updateStatus(ids: string[], status: LocationStatus, organizationId?: string): Promise<void> {
+  async updateStatus(
+    ids: string[],
+    status: LocationStatus,
+    organizationId?: string,
+  ): Promise<void> {
     const endpoint = status === "suspended" ? "suspend" : "activate";
     await Promise.all(
       ids.map((id) =>
@@ -274,7 +313,8 @@ export const locationService = {
     if (isDemo()) {
       const orgId = payload.existingOrganizationId ?? "org-demo-new";
       const orgName = payload.existingOrganizationId
-        ? (DEMO_ORG_OPTIONS.find((o) => o.id === payload.existingOrganizationId)?.name ?? "Demo Organization")
+        ? (DEMO_ORG_OPTIONS.find((o) => o.id === payload.existingOrganizationId)?.name ??
+          "Demo Organization")
         : (payload.newOrganization?.name ?? "New Organization");
       return {
         organizationId: orgId,

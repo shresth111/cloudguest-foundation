@@ -48,7 +48,12 @@ export function DashboardLanguageSwitcher({ className }: { className?: string })
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={className ?? "h-9 w-9"} aria-label="Language">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={className ?? "h-9 w-9"}
+          aria-label="Language"
+        >
           <Languages className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

@@ -10,7 +10,14 @@ import { Shield, Eye, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { demoRequestService } from "@/services/demo-request.service";
 import type { AppError } from "@/services/api";
@@ -67,19 +74,40 @@ export { maskEmail, maskPhone, maskMac } from "@/lib/masking";
  * actual endpoint though (see ``app.domains.user.router``'s ``/me/data-
  * masking`` docstring) -- there's no reason this can't be a real,
  * OTP-verified self-service control, so now it is one. */
-export function OtpMaskToggle({ masked = true, onClick, loading, className }: { masked?: boolean; onClick?: () => void; loading?: boolean; className?: string }) {
+export function OtpMaskToggle({
+  masked = true,
+  onClick,
+  loading,
+  className,
+}: {
+  masked?: boolean;
+  onClick?: () => void;
+  loading?: boolean;
+  className?: string;
+}) {
   return (
     <button
       type="button"
       disabled={loading}
       onClick={onClick}
-      title={masked
-        ? "Sensitive guest data is masked. Click to verify and show it unmasked."
-        : "Guest data is shown unmasked for this account. Click to mask it again."}
-      className={className ?? `${MASK_TAG_BASE} mr-1 transition-colors hover:bg-slate-500/20 disabled:opacity-60 ${masked ? "text-slate-300" : "text-sky-300"}`}
+      title={
+        masked
+          ? "Sensitive guest data is masked. Click to verify and show it unmasked."
+          : "Guest data is shown unmasked for this account. Click to mask it again."
+      }
+      className={
+        className ??
+        `${MASK_TAG_BASE} mr-1 transition-colors hover:bg-slate-500/20 disabled:opacity-60 ${masked ? "text-slate-300" : "text-sky-300"}`
+      }
       style={{ clipPath: MASK_TAG_CLIP }}
     >
-      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : masked ? <Shield className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+      {loading ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : masked ? (
+        <Shield className="h-3 w-3" />
+      ) : (
+        <Eye className="h-3 w-3" />
+      )}
       Guest Privacy
     </button>
   );
@@ -90,7 +118,12 @@ export function OtpMaskToggle({ masked = true, onClick, loading, className }: { 
  * vs-real branching) lives in `useDataMasking`; this just renders whatever
  * state that hook is in. */
 export function DataMaskingOtpDialog({
-  open, maskingOn, sentTo, verifying, onVerify, onCancel,
+  open,
+  maskingOn,
+  sentTo,
+  verifying,
+  onVerify,
+  onCancel,
 }: {
   open: boolean;
   /** The masking state being switched TO, for copy purposes only. */
@@ -106,24 +139,47 @@ export function DataMaskingOtpDialog({
   const [code, setCode] = useState("");
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) { setCode(""); onCancel(); } }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          setCode("");
+          onCancel();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Verify it's you</DialogTitle>
           <DialogDescription>
-            Enter the 6-digit code sent {sentTo ?? "to your registered mobile/email"} to {maskingOn ? "mask" : "unmask"} guest data on this dashboard.
+            Enter the 6-digit code sent {sentTo ?? "to your registered mobile/email"} to{" "}
+            {maskingOn ? "mask" : "unmask"} guest data on this dashboard.
           </DialogDescription>
         </DialogHeader>
         <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
           <InputOTPGroup className="mx-auto">
-            {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <InputOTPSlot key={i} index={i} />
+            ))}
           </InputOTPGroup>
         </InputOTP>
         <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={() => { setCode(""); onCancel(); }} disabled={verifying}>Cancel</Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setCode("");
+              onCancel();
+            }}
+            disabled={verifying}
+          >
+            Cancel
+          </Button>
           <Button
             disabled={code.length !== 6 || verifying}
-            onClick={async () => { const ok = await onVerify(code); if (!ok) setCode(""); }}
+            onClick={async () => {
+              const ok = await onVerify(code);
+              if (!ok) setCode("");
+            }}
           >
             {verifying ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
             Verify
@@ -233,7 +289,13 @@ const emptyDemoForm = { name: "", email: "", company: "", message: "" };
  * resolvable organization) the left stub is simply omitted rather than
  * showing a fabricated date, same honesty contract as before.
  */
-export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string | null; className?: string }) {
+export function PlanRenewalTicket({
+  expiryIso,
+  className,
+}: {
+  expiryIso?: string | null;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyDemoForm);
   const [submitting, setSubmitting] = useState(false);
@@ -247,14 +309,14 @@ export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string
   const statusLabel = !expiryLabel
     ? null
     : daysLeft === null
-    ? `Renews ${expiryLabel}`
-    : daysLeft < 0
-    ? "Plan expired"
-    : daysLeft === 0
-    ? "Expires today"
-    : daysLeft <= 30
-    ? `${daysLeft}d left`
-    : `Renews ${expiryLabel}`;
+      ? `Renews ${expiryLabel}`
+      : daysLeft < 0
+        ? "Plan expired"
+        : daysLeft === 0
+          ? "Expires today"
+          : daysLeft <= 30
+            ? `${daysLeft}d left`
+            : `Renews ${expiryLabel}`;
 
   const ctaLabel = tier === "calm" ? "Book a Demo" : "Talk to us";
 
@@ -284,13 +346,21 @@ export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string
 
   return (
     <>
-      <div className={className ?? "mr-1 hidden h-9 shrink-0 items-stretch sm:flex"} title={expiryLabel ? `Plan renewal: ${expiryLabel}` : undefined}>
-        <div className="flex items-stretch overflow-hidden" style={{ clipPath: "polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%)" }}>
+      <div
+        className={className ?? "mr-1 hidden h-9 shrink-0 items-stretch sm:flex"}
+        title={expiryLabel ? `Plan renewal: ${expiryLabel}` : undefined}
+      >
+        <div
+          className="flex items-stretch overflow-hidden"
+          style={{ clipPath: "polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%)" }}
+        >
           {statusLabel && (
             <>
               <div className="flex items-center gap-2 border-y border-l border-white/10 bg-white/[0.04] pl-4 pr-3">
                 <RunwayGauge tier={tier} filled={filled} />
-                <span className={`text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>{statusLabel}</span>
+                <span className={`text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>
+                  {statusLabel}
+                </span>
               </div>
               {/* Tear line: a dashed seam with two punched notches, so the
                   two stubs read as one perforated ticket, not two chips
@@ -305,7 +375,16 @@ export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string
           <motion.button
             type="button"
             onClick={() => setOpen(true)}
-            animate={urgent ? { boxShadow: [`0 0 0 0 rgba(${TIER_STYLE.urgent.ring},0.55)`, `0 0 0 6px rgba(${TIER_STYLE.urgent.ring},0)`] } : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }}
+            animate={
+              urgent
+                ? {
+                    boxShadow: [
+                      `0 0 0 0 rgba(${TIER_STYLE.urgent.ring},0.55)`,
+                      `0 0 0 6px rgba(${TIER_STYLE.urgent.ring},0)`,
+                    ],
+                  }
+                : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }
+            }
             transition={urgent ? { duration: 1.8, repeat: Infinity, ease: "easeOut" } : undefined}
             className={`flex items-center gap-1.5 border-y border-r ${statusLabel ? "" : "border-l"} border-white/10 bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] pl-3 pr-4 text-[11px] font-semibold text-white`}
           >
@@ -324,9 +403,34 @@ export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2"><Label htmlFor="hdr-demo-name">Full name</Label><Input id="hdr-demo-name" placeholder="Jane Doe" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2"><Label htmlFor="hdr-demo-email">Work email</Label><Input id="hdr-demo-email" type="email" placeholder="jane@company.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-            <div className="space-y-2"><Label htmlFor="hdr-demo-company">Company</Label><Input id="hdr-demo-company" placeholder="Acme Hotels" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label htmlFor="hdr-demo-name">Full name</Label>
+              <Input
+                id="hdr-demo-name"
+                placeholder="Jane Doe"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hdr-demo-email">Work email</Label>
+              <Input
+                id="hdr-demo-email"
+                type="email"
+                placeholder="jane@company.com"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hdr-demo-company">Company</Label>
+              <Input
+                id="hdr-demo-company"
+                placeholder="Acme Hotels"
+                value={form.company}
+                onChange={(e) => setForm({ ...form, company: e.target.value })}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="hdr-demo-message">What are you looking for? (optional)</Label>
               <textarea
@@ -339,7 +443,14 @@ export function PlanRenewalTicket({ expiryIso, className }: { expiryIso?: string
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
               <Button type="submit" disabled={submitting}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {submitting ? "Submitting…" : "Request Demo"}

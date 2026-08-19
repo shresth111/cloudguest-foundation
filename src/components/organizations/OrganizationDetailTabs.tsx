@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Building2,
-  Clock,
-  Globe,
-  LifeBuoy,
-  MapPin,
-  Router,
-  Users,
-  Wifi,
-} from "lucide-react";
+import { Building2, Clock, Globe, LifeBuoy, MapPin, Router, Users, Wifi } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
@@ -21,7 +19,10 @@ import { StatusBadge } from "./StatusBadge";
 import { api } from "@/services/api";
 import type { Organization } from "@/types/organization";
 
-interface Props { org: Organization; initialTab?: string }
+interface Props {
+  org: Organization;
+  initialTab?: string;
+}
 
 interface BackendLocation {
   id: string;
@@ -63,7 +64,11 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
             ["audit", "Audit Logs"],
             ["support", "Support Tickets"],
           ].map(([k, l]) => (
-            <TabsTrigger key={k} value={k} className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsTrigger
+              key={k}
+              value={k}
+              className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            >
               {l}
             </TabsTrigger>
           ))}
@@ -80,7 +85,7 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
               <div>
                 <div className="text-xs text-muted-foreground">Locations</div>
                 <div className="text-2xl font-semibold tabular-nums">
-                  {locations.isLoading ? "—" : locations.data?.total_items ?? 0}
+                  {locations.isLoading ? "—" : (locations.data?.total_items ?? 0)}
                 </div>
               </div>
             </CardContent>
@@ -92,7 +97,9 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Subscription</div>
-                <div className="text-2xl font-semibold capitalize">{org.subscriptionTier ?? "—"}</div>
+                <div className="text-2xl font-semibold capitalize">
+                  {org.subscriptionTier ?? "—"}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -100,17 +107,25 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="rounded-2xl border-border/70 shadow-sm lg:col-span-2">
-            <CardHeader><CardTitle className="text-base">Company profile</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Company profile</CardTitle>
+            </CardHeader>
             <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
               <Field label="Legal name" value={org.legalName ?? "—"} />
               <Field label="Organization type" value={org.orgType} />
               <Field label="Timezone" value={org.timezone} />
               <Field label="Default locale" value={org.defaultLocale} />
-              <Field label="Created" value={new Date(org.createdAt).toLocaleDateString()} icon={Clock} />
+              <Field
+                label="Created"
+                value={new Date(org.createdAt).toLocaleDateString()}
+                icon={Clock}
+              />
             </CardContent>
           </Card>
           <Card className="rounded-2xl border-border/70 shadow-sm">
-            <CardHeader><CardTitle className="text-base">Contact</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Contact</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Field label="Email" value={org.contactEmail} />
               <Field label="Phone" value={org.contactPhone ?? "—"} />
@@ -152,7 +167,9 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
                   <TableRow key={l.id}>
                     <TableCell>{l.name}</TableCell>
                     <TableCell>{l.city}</TableCell>
-                    <TableCell><span className="capitalize">{l.status}</span></TableCell>
+                    <TableCell>
+                      <span className="capitalize">{l.status}</span>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -168,16 +185,32 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
         />
       </TabsContent>
       <TabsContent value="users">
-        <EmptyState icon={Users} title="No user accounts yet" description="Users invited to this organization will appear here." />
+        <EmptyState
+          icon={Users}
+          title="No user accounts yet"
+          description="Users invited to this organization will appear here."
+        />
       </TabsContent>
       <TabsContent value="wifi">
-        <EmptyState icon={Wifi} title="Guest WiFi networks" description="Configure SSIDs, VLANs and bandwidth policies for this tenant." />
+        <EmptyState
+          icon={Wifi}
+          title="Guest WiFi networks"
+          description="Configure SSIDs, VLANs and bandwidth policies for this tenant."
+        />
       </TabsContent>
       <TabsContent value="portal">
-        <EmptyState icon={Globe} title="Captive portal" description="Customize splash pages, auth methods and legal notices." />
+        <EmptyState
+          icon={Globe}
+          title="Captive portal"
+          description="Customize splash pages, auth methods and legal notices."
+        />
       </TabsContent>
       <TabsContent value="analytics">
-        <EmptyState icon={Building2} title="Analytics coming soon" description="Guest, session and revenue trends will render here." />
+        <EmptyState
+          icon={Building2}
+          title="Analytics coming soon"
+          description="Guest, session and revenue trends will render here."
+        />
       </TabsContent>
       <TabsContent value="billing">
         <ComingSoonPanel
@@ -194,13 +227,25 @@ export function OrganizationDetailTabs({ org, initialTab = "overview" }: Props) 
         />
       </TabsContent>
       <TabsContent value="support">
-        <EmptyState icon={LifeBuoy} title="No support tickets" description="Tickets raised by this organization will show up here." />
+        <EmptyState
+          icon={LifeBuoy}
+          title="No support tickets"
+          description="Tickets raised by this organization will show up here."
+        />
       </TabsContent>
     </Tabs>
   );
 }
 
-function Field({ label, value, icon: Icon }: { label: string; value: string; icon?: typeof Globe }) {
+function Field({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon?: typeof Globe;
+}) {
   return (
     <div>
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>

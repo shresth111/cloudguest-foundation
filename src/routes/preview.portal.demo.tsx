@@ -57,8 +57,14 @@ export const Route = createFileRoute("/preview/portal/demo")({
   ssr: false,
   beforeLoad: ({ context, location }) => {
     if (context.auth?.status === "anonymous") {
-      const isAlreadyOnLogin = location.href === "/login" || location.href.startsWith("/login?") || location.href.startsWith("/login#");
-      throw redirect({ to: "/login", search: isAlreadyOnLogin ? undefined : { redirect: location.href } });
+      const isAlreadyOnLogin =
+        location.href === "/login" ||
+        location.href.startsWith("/login?") ||
+        location.href.startsWith("/login#");
+      throw redirect({
+        to: "/login",
+        search: isAlreadyOnLogin ? undefined : { redirect: location.href },
+      });
     }
   },
   component: DemoPortalPreviewPage,
@@ -88,10 +94,21 @@ function DemoPortalPreviewPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#f8f9fc]">
       <div className="relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white">
-        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl"
+        />
         <div className="relative mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 px-2 text-white/80 hover:bg-white/10 hover:text-white" asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1.5 px-2 text-white/80 hover:bg-white/10 hover:text-white"
+            asChild
+          >
             <Link to={customerFeatureHref("portal")}>
               <ArrowLeft className="h-4 w-4" />
               Back to Portal Settings
@@ -102,12 +119,15 @@ function DemoPortalPreviewPage() {
               <MonitorSmartphone className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Guest sign-in preview</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
+                Guest sign-in preview
+              </p>
               <p className="truncate text-base font-semibold">Demo portal preview</p>
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 px-3 py-2 text-xs text-amber-100 backdrop-blur-sm">
-            Demo session -- this reflects your unsaved edits on Portal Settings, not a real, hosted guest portal.
+            Demo session -- this reflects your unsaved edits on Portal Settings, not a real, hosted
+            guest portal.
           </div>
         </div>
       </div>
@@ -139,12 +159,15 @@ function DemoPortalPreviewPage() {
             <EmptyState
               icon={MonitorSmartphone}
               title="No preview open"
-              description={'Open this from the "Preview Portal" button on your Portal Settings page.'}
+              description={
+                'Open this from the "Preview Portal" button on your Portal Settings page.'
+              }
             />
           </div>
         )}
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          A live look at your in-progress guest sign-in screen -- what's shown here is the exact same component a real guest's device renders.
+          A live look at your in-progress guest sign-in screen -- what's shown here is the exact
+          same component a real guest's device renders.
         </p>
       </div>
     </div>

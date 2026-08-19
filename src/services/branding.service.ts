@@ -37,14 +37,118 @@ const CATEGORIES: TemplateCategory[] = [
 ];
 
 const PALETTES: Record<TemplateCategory, BrandColors> = {
-  hotel: { primary: "#8B5CF6", secondary: "#EC4899", accent: "#F59E0B", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#0F172A", navbar: "#111827", buttonBg: "#8B5CF6", buttonText: "#FFFFFF", cardBg: "#FFFFFF", cardBorder: "#E5E7EB" },
-  cafe: { primary: "#B45309", secondary: "#78350F", accent: "#F59E0B", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#292524", navbar: "#1C1917", buttonBg: "#B45309", buttonText: "#FFFFFF", cardBg: "#FFFAF0", cardBorder: "#FDE68A" },
-  restaurant: { primary: "#DC2626", secondary: "#7F1D1D", accent: "#F59E0B", success: "#059669", warning: "#F59E0B", error: "#B91C1C", sidebar: "#1F2937", navbar: "#111827", buttonBg: "#DC2626", buttonText: "#FFFFFF", cardBg: "#FFFFFF", cardBorder: "#FEE2E2" },
-  hospital: { primary: "#0EA5E9", secondary: "#0369A1", accent: "#22D3EE", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#0F172A", navbar: "#0C4A6E", buttonBg: "#0EA5E9", buttonText: "#FFFFFF", cardBg: "#F0F9FF", cardBorder: "#BAE6FD" },
-  university: { primary: "#1D4ED8", secondary: "#1E3A8A", accent: "#F59E0B", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#1E1B4B", navbar: "#1E3A8A", buttonBg: "#1D4ED8", buttonText: "#FFFFFF", cardBg: "#EFF6FF", cardBorder: "#DBEAFE" },
-  corporate: { primary: "#0F172A", secondary: "#334155", accent: "#3B82F6", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#0F172A", navbar: "#1E293B", buttonBg: "#0F172A", buttonText: "#FFFFFF", cardBg: "#FFFFFF", cardBorder: "#E5E7EB" },
-  airport: { primary: "#0369A1", secondary: "#075985", accent: "#22D3EE", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#0C4A6E", navbar: "#082F49", buttonBg: "#0369A1", buttonText: "#FFFFFF", cardBg: "#F0F9FF", cardBorder: "#BAE6FD" },
-  retail: { primary: "#DB2777", secondary: "#9D174D", accent: "#F59E0B", success: "#10B981", warning: "#F59E0B", error: "#EF4444", sidebar: "#1F2937", navbar: "#111827", buttonBg: "#DB2777", buttonText: "#FFFFFF", cardBg: "#FDF2F8", cardBorder: "#FBCFE8" },
+  hotel: {
+    primary: "#8B5CF6",
+    secondary: "#EC4899",
+    accent: "#F59E0B",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#0F172A",
+    navbar: "#111827",
+    buttonBg: "#8B5CF6",
+    buttonText: "#FFFFFF",
+    cardBg: "#FFFFFF",
+    cardBorder: "#E5E7EB",
+  },
+  cafe: {
+    primary: "#B45309",
+    secondary: "#78350F",
+    accent: "#F59E0B",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#292524",
+    navbar: "#1C1917",
+    buttonBg: "#B45309",
+    buttonText: "#FFFFFF",
+    cardBg: "#FFFAF0",
+    cardBorder: "#FDE68A",
+  },
+  restaurant: {
+    primary: "#DC2626",
+    secondary: "#7F1D1D",
+    accent: "#F59E0B",
+    success: "#059669",
+    warning: "#F59E0B",
+    error: "#B91C1C",
+    sidebar: "#1F2937",
+    navbar: "#111827",
+    buttonBg: "#DC2626",
+    buttonText: "#FFFFFF",
+    cardBg: "#FFFFFF",
+    cardBorder: "#FEE2E2",
+  },
+  hospital: {
+    primary: "#0EA5E9",
+    secondary: "#0369A1",
+    accent: "#22D3EE",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#0F172A",
+    navbar: "#0C4A6E",
+    buttonBg: "#0EA5E9",
+    buttonText: "#FFFFFF",
+    cardBg: "#F0F9FF",
+    cardBorder: "#BAE6FD",
+  },
+  university: {
+    primary: "#1D4ED8",
+    secondary: "#1E3A8A",
+    accent: "#F59E0B",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#1E1B4B",
+    navbar: "#1E3A8A",
+    buttonBg: "#1D4ED8",
+    buttonText: "#FFFFFF",
+    cardBg: "#EFF6FF",
+    cardBorder: "#DBEAFE",
+  },
+  corporate: {
+    primary: "#0F172A",
+    secondary: "#334155",
+    accent: "#3B82F6",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#0F172A",
+    navbar: "#1E293B",
+    buttonBg: "#0F172A",
+    buttonText: "#FFFFFF",
+    cardBg: "#FFFFFF",
+    cardBorder: "#E5E7EB",
+  },
+  airport: {
+    primary: "#0369A1",
+    secondary: "#075985",
+    accent: "#22D3EE",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#0C4A6E",
+    navbar: "#082F49",
+    buttonBg: "#0369A1",
+    buttonText: "#FFFFFF",
+    cardBg: "#F0F9FF",
+    cardBorder: "#BAE6FD",
+  },
+  retail: {
+    primary: "#DB2777",
+    secondary: "#9D174D",
+    accent: "#F59E0B",
+    success: "#10B981",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    sidebar: "#1F2937",
+    navbar: "#111827",
+    buttonBg: "#DB2777",
+    buttonText: "#FFFFFF",
+    cardBg: "#FDF2F8",
+    cardBorder: "#FBCFE8",
+  },
 };
 
 const DEFAULT_TYPO: Typography = {
@@ -66,12 +170,22 @@ function makeTemplates(): BrandingTemplate[] {
     category: cat,
     preview: `${LOGO_PLACEHOLDER}${cat}-${i}`,
     colors: PALETTES[cat],
-    typography: { ...DEFAULT_TYPO, fontFamily: cat === "cafe" ? "Merriweather" : cat === "university" ? "Playfair Display" : "Inter" },
+    typography: {
+      ...DEFAULT_TYPO,
+      fontFamily:
+        cat === "cafe" ? "Merriweather" : cat === "university" ? "Playfair Display" : "Inter",
+    },
   }));
 }
 
 function defaultEmailTemplates(brand: string): EmailTemplate[] {
-  const keys: EmailTemplate["key"][] = ["welcome", "otp", "password_reset", "invoice", "subscription_expiry"];
+  const keys: EmailTemplate["key"][] = [
+    "welcome",
+    "otp",
+    "password_reset",
+    "invoice",
+    "subscription_expiry",
+  ];
   const names: Record<EmailTemplate["key"], string> = {
     welcome: "Welcome",
     otp: "OTP verification",
@@ -91,9 +205,24 @@ function defaultEmailTemplates(brand: string): EmailTemplate[] {
 
 function defaultSmsTemplates(brand: string): SmsTemplate[] {
   return [
-    { id: `sm_${brand}_otp`, key: "otp", name: "OTP", body: `${brand}: Your OTP is {{code}}. Valid for 5 minutes.` },
-    { id: `sm_${brand}_welcome`, key: "welcome", name: "Welcome", body: `Welcome to ${brand} WiFi. Enjoy your stay!` },
-    { id: `sm_${brand}_promo`, key: "promotional", name: "Promotional", body: `${brand}: Members get 20% off — visit {{url}}` },
+    {
+      id: `sm_${brand}_otp`,
+      key: "otp",
+      name: "OTP",
+      body: `${brand}: Your OTP is {{code}}. Valid for 5 minutes.`,
+    },
+    {
+      id: `sm_${brand}_welcome`,
+      key: "welcome",
+      name: "Welcome",
+      body: `Welcome to ${brand} WiFi. Enjoy your stay!`,
+    },
+    {
+      id: `sm_${brand}_promo`,
+      key: "promotional",
+      name: "Promotional",
+      body: `${brand}: Members get 20% off — visit {{url}}`,
+    },
   ];
 }
 
@@ -137,7 +266,10 @@ function makeBrand(idx: number): Brand {
       socials: { twitter: "https://twitter.com", linkedin: "https://linkedin.com" },
     },
     emailTemplates: defaultEmailTemplates(name),
-    sms: { senderName: org.split(" ")[0].slice(0, 11).toUpperCase(), footer: `Msg&data rates may apply. Reply STOP to unsubscribe.` },
+    sms: {
+      senderName: org.split(" ")[0].slice(0, 11).toUpperCase(),
+      footer: `Msg&data rates may apply. Reply STOP to unsubscribe.`,
+    },
     smsTemplates: defaultSmsTemplates(name),
     portal: {
       logo: `${LOGO_PLACEHOLDER}portal-${name}`,
@@ -187,7 +319,12 @@ function computeKpis() {
 export const brandingService = {
   async getSnapshot(): Promise<WhiteLabelSnapshot> {
     await delay();
-    return { kpis: computeKpis(), brands: brandsStore, domains: domainsStore, templates: templatesStore };
+    return {
+      kpis: computeKpis(),
+      brands: brandsStore,
+      domains: domainsStore,
+      templates: templatesStore,
+    };
   },
   async getBrand(id: string) {
     await delay(150);
@@ -195,19 +332,29 @@ export const brandingService = {
   },
   async saveBrand(brand: Brand) {
     await delay(400);
-    brandsStore = brandsStore.map((b) => (b.id === brand.id ? { ...brand, updatedAt: new Date().toISOString() } : b));
+    brandsStore = brandsStore.map((b) =>
+      b.id === brand.id ? { ...brand, updatedAt: new Date().toISOString() } : b,
+    );
     return brandsStore.find((b) => b.id === brand.id)!;
   },
   async publishBrand(id: string) {
     await delay(300);
-    brandsStore = brandsStore.map((b) => (b.id === id ? { ...b, status: "published", updatedAt: new Date().toISOString() } : b));
+    brandsStore = brandsStore.map((b) =>
+      b.id === id ? { ...b, status: "published", updatedAt: new Date().toISOString() } : b,
+    );
     return true;
   },
   async duplicateBrand(id: string) {
     await delay(300);
     const src = brandsStore.find((b) => b.id === id);
     if (!src) return null;
-    const clone: Brand = { ...src, id: `brand_${Date.now()}`, name: `${src.name} (copy)`, status: "draft", updatedAt: new Date().toISOString() };
+    const clone: Brand = {
+      ...src,
+      id: `brand_${Date.now()}`,
+      name: `${src.name} (copy)`,
+      status: "draft",
+      updatedAt: new Date().toISOString(),
+    };
     brandsStore = [clone, ...brandsStore];
     return clone;
   },
@@ -219,14 +366,18 @@ export const brandingService = {
   async resetBrand(id: string) {
     await delay(200);
     const base = makeBrand(0);
-    brandsStore = brandsStore.map((b) => (b.id === id ? { ...b, colors: base.colors, typography: base.typography } : b));
+    brandsStore = brandsStore.map((b) =>
+      b.id === id ? { ...b, colors: base.colors, typography: base.typography } : b,
+    );
     return brandsStore.find((b) => b.id === id)!;
   },
   async applyTemplate(brandId: string, templateId: string) {
     await delay(250);
     const t = templatesStore.find((x) => x.id === templateId);
     if (!t) return null;
-    brandsStore = brandsStore.map((b) => (b.id === brandId ? { ...b, colors: t.colors, typography: t.typography } : b));
+    brandsStore = brandsStore.map((b) =>
+      b.id === brandId ? { ...b, colors: t.colors, typography: t.typography } : b,
+    );
     return brandsStore.find((b) => b.id === brandId)!;
   },
   async addDomain(brandId: string, domain: string) {
@@ -246,40 +397,61 @@ export const brandingService = {
   },
   async verifyDomain(id: string) {
     await delay(600);
-    domainsStore = domainsStore.map((d) => (d.id === id ? { ...d, ssl: "issued", dns: "verified", verification: "active" } : d));
+    domainsStore = domainsStore.map((d) =>
+      d.id === id ? { ...d, ssl: "issued", dns: "verified", verification: "active" } : d,
+    );
     return true;
   },
   async removeDomain(id: string) {
     await delay(200);
     const dom = domainsStore.find((d) => d.id === id);
     domainsStore = domainsStore.filter((d) => d.id !== id);
-    if (dom) brandsStore = brandsStore.map((b) => (b.id === dom.brandId ? { ...b, domainId: undefined } : b));
+    if (dom)
+      brandsStore = brandsStore.map((b) =>
+        b.id === dom.brandId ? { ...b, domainId: undefined } : b,
+      );
     return true;
   },
   async saveEmailTemplate(brandId: string, tpl: EmailTemplate) {
     await delay(200);
     brandsStore = brandsStore.map((b) =>
-      b.id === brandId ? { ...b, emailTemplates: b.emailTemplates.map((e) => (e.id === tpl.id ? { ...tpl, updatedAt: new Date().toISOString() } : e)) } : b,
+      b.id === brandId
+        ? {
+            ...b,
+            emailTemplates: b.emailTemplates.map((e) =>
+              e.id === tpl.id ? { ...tpl, updatedAt: new Date().toISOString() } : e,
+            ),
+          }
+        : b,
     );
     return tpl;
   },
   async saveSmsTemplate(brandId: string, tpl: SmsTemplate) {
     await delay(200);
     brandsStore = brandsStore.map((b) =>
-      b.id === brandId ? { ...b, smsTemplates: b.smsTemplates.map((e) => (e.id === tpl.id ? tpl : e)) } : b,
+      b.id === brandId
+        ? { ...b, smsTemplates: b.smsTemplates.map((e) => (e.id === tpl.id ? tpl : e)) }
+        : b,
     );
     return tpl;
   },
   async exportTheme(id: string) {
     await delay(150);
     const b = brandsStore.find((x) => x.id === id);
-    return b ? { fileName: `${b.name}-theme.json`, payload: JSON.stringify({ colors: b.colors, typography: b.typography }, null, 2) } : null;
+    return b
+      ? {
+          fileName: `${b.name}-theme.json`,
+          payload: JSON.stringify({ colors: b.colors, typography: b.typography }, null, 2),
+        }
+      : null;
   },
   async importTheme(id: string, payload: string) {
     await delay(200);
     try {
       const parsed = JSON.parse(payload) as { colors: BrandColors; typography: Typography };
-      brandsStore = brandsStore.map((b) => (b.id === id ? { ...b, colors: parsed.colors, typography: parsed.typography } : b));
+      brandsStore = brandsStore.map((b) =>
+        b.id === id ? { ...b, colors: parsed.colors, typography: parsed.typography } : b,
+      );
       return true;
     } catch {
       return false;

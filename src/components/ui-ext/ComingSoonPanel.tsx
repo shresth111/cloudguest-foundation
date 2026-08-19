@@ -39,8 +39,9 @@ export function ComingSoonPanel({
             </div>
             <h3 className="text-lg font-semibold tracking-tight">Preview of what's coming</h3>
             <p className="text-sm text-muted-foreground">
-              Data contracts and permission scopes are already wired. UI reveals as regional rollouts complete —
-              your role automatically unlocks controls when the module ships in your tenant.
+              Data contracts and permission scopes are already wired. UI reveals as regional
+              rollouts complete — your role automatically unlocks controls when the module ships in
+              your tenant.
             </p>
             {primaryAction && (
               <Button variant="default" onClick={primaryAction.onClick}>

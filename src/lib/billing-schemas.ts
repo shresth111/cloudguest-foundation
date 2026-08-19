@@ -31,10 +31,22 @@ export const planSchema = z.object({
   // backend's own null-means-unlimited PlanFeatureCreateRequest.limit_value
   // at the API boundary (billing.service.ts's n()/savePlan()). Any other
   // value must be a real positive count.
-  includedLocations: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
-  includedRouters: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
-  includedGuests: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
-  storageLimitGb: z.coerce.number().int().refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  includedLocations: z.coerce
+    .number()
+    .int()
+    .refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  includedRouters: z.coerce
+    .number()
+    .int()
+    .refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  includedGuests: z.coerce
+    .number()
+    .int()
+    .refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
+  storageLimitGb: z.coerce
+    .number()
+    .int()
+    .refine((v) => v === -1 || v >= 1, "Must be -1 (Unlimited) or at least 1"),
   apiAccess: z.boolean(),
   whiteLabel: z.boolean(),
   pmsIntegration: z.boolean(),

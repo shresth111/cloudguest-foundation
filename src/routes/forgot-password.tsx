@@ -5,10 +5,16 @@ export const Route = createFileRoute("/forgot-password")({
   head: () => ({
     meta: [
       { title: "Reset your password | Wyfy Guest" },
-      { name: "description", content: "Request a password reset link for your Wyfy Guest account." },
+      {
+        name: "description",
+        content: "Request a password reset link for your Wyfy Guest account.",
+      },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Reset your password | Wyfy Guest" },
-      { property: "og:description", content: "Request a password reset link for your Wyfy Guest account." },
+      {
+        property: "og:description",
+        content: "Request a password reset link for your Wyfy Guest account.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

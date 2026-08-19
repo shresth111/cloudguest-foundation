@@ -334,7 +334,10 @@ export function useZtpAnalytics(q: ZtpAnalyticsQuery) {
 
 // -- Platform Dashboard (Overview tab) ---------------------------------------
 
-export function usePlatformDashboard(q: PlatformDashboardQuery = {}, refetchMs: number | false = 30000) {
+export function usePlatformDashboard(
+  q: PlatformDashboardQuery = {},
+  refetchMs: number | false = 30000,
+) {
   return useQuery({
     queryKey: monitoringKeys.platformDashboard(q),
     queryFn: () => monitoringService.getPlatformDashboard(q),

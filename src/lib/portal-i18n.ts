@@ -245,7 +245,8 @@ const HI: Dict = {
 
   // Closes portal.closed.tsx's gap.
   closedTitleDefault: "फ़िलहाल बंद है",
-  closedSubtitle: "हम फ़िलहाल बंद हैं। कृपया कनेक्ट करने के लिए व्यावसायिक घंटों के दौरान फिर से देखें।",
+  closedSubtitle:
+    "हम फ़िलहाल बंद हैं। कृपया कनेक्ट करने के लिए व्यावसायिक घंटों के दौरान फिर से देखें।",
 
   // Closes portal.team.tsx's gap.
   teamAlreadyJoined: "आप पहले से ही इस टीम का हिस्सा हैं।",
@@ -253,7 +254,8 @@ const HI: Dict = {
   joinTeam: "टीम में शामिल हों",
   teamPageTitle: "टीम में जुड़ें",
   teamPageSubtitle: "वह टीम कोड डालें जो आपके ग्रुप ऑर्गनाइज़र ने आपके साथ शेयर किया है।",
-  teamJoinedHelper: "आपका कनेक्शन प्रभावित नहीं होगा -- यह सिर्फ़ आपको आपकी टीम के साथ ग्रुप करता है।",
+  teamJoinedHelper:
+    "आपका कनेक्शन प्रभावित नहीं होगा -- यह सिर्फ़ आपको आपकी टीम के साथ ग्रुप करता है।",
   backToConnection: "मेरे कनेक्शन पर वापस जाएं",
   teamCodeLabel: "टीम कोड",
   teamCodePlaceholder: "जैसे AB23CD45",
@@ -312,7 +314,8 @@ const HI: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "इसमें अपेक्षा से अधिक समय लग रहा है।",
-  successStuckNotice: "हम अभी भी कोशिश कर रहे हैं -- आप प्रतीक्षा कर सकते हैं, या फिर से साइन इन करने की कोशिश करें।",
+  successStuckNotice:
+    "हम अभी भी कोशिश कर रहे हैं -- आप प्रतीक्षा कर सकते हैं, या फिर से साइन इन करने की कोशिश करें।",
   signInAgainLink: "फिर से साइन इन करें",
 
   // Closes GuestSignInCard's tier-2 OTP-channel switcher.

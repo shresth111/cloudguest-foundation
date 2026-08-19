@@ -194,7 +194,11 @@ export interface DomainGuestAnalytics {
     byBrowser: DeviceBreakdownItem[];
     byDeviceType: DeviceBreakdownItem[];
   };
-  languages: { sessionsTotal: number; sessionsWithData: number; byLanguage: Record<string, unknown>[] };
+  languages: {
+    sessionsTotal: number;
+    sessionsWithData: number;
+    byLanguage: Record<string, unknown>[];
+  };
 }
 
 export interface DomainNetworkAnalytics {
@@ -205,7 +209,11 @@ export interface DomainNetworkAnalytics {
   totalBytes: number;
   peakBandwidth: { available: boolean; peakBytes: number | null; bucketStart: string | null };
   averageSpeedBytesPerSecond: number | null;
-  networkAvailability: { availableRouterCount: number; totalRouterCount: number; availabilityPercent: number | null };
+  networkAvailability: {
+    availableRouterCount: number;
+    totalRouterCount: number;
+    availabilityPercent: number | null;
+  };
   topConsumers: { guestId: string; identifier: string; totalBytes: number }[];
   topLocations: { locationId: string; locationName: string; totalBytes: number }[];
   topRouters: { routerId: string; routerName: string; totalBytes: number }[];

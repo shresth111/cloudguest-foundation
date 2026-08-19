@@ -27,10 +27,26 @@ import CreateGroup from "./CreateGroup";
 function PolicyShieldIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 84 56" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 84 56"
+      className="hidden h-14 w-auto shrink-0 sm:block"
+      fill="none"
+    >
       {/* center shield -- the same access-control glyph as the header icon */}
-      <path d="M42 6c6 2.6 10.5 2.6 10.5 2.6v11.5c0 8-4.5 13-10.5 15.9-6-2.9-10.5-7.9-10.5-15.9V8.6S36 8.6 42 6z" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
-      <path d="M37 19.5l3.5 3.5 7-7" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M42 6c6 2.6 10.5 2.6 10.5 2.6v11.5c0 8-4.5 13-10.5 15.9-6-2.9-10.5-7.9-10.5-15.9V8.6S36 8.6 42 6z"
+        fill="#2e2a5c"
+        stroke="#a78bfa"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M37 19.5l3.5 3.5 7-7"
+        stroke="#a78bfa"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
 
       {/* left: guest let through, path leading in */}
       <motion.g
@@ -39,13 +55,29 @@ function PolicyShieldIllustration() {
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
         <circle cx="12" cy="27" r="4.2" fill="#241f4d" stroke="#10b981" strokeWidth="1.3" />
-        <path d="M6 44c0-5 2.7-8.5 6-8.5s6 3.5 6 8.5" fill="#241f4d" stroke="#10b981" strokeWidth="1.3" strokeLinecap="round" />
+        <path
+          d="M6 44c0-5 2.7-8.5 6-8.5s6 3.5 6 8.5"
+          fill="#241f4d"
+          stroke="#10b981"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
         <circle cx="19.5" cy="38" r="5.5" fill="#10b981" fillOpacity="0.16" />
-        <path d="M16.8 38l1.8 1.8 3.4-3.6" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M16.8 38l1.8 1.8 3.4-3.6"
+          stroke="#10b981"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </motion.g>
       <motion.path
         d="M23 29h7"
-        stroke="#10b981" strokeOpacity="0.6" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 4"
+        stroke="#10b981"
+        strokeOpacity="0.6"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeDasharray="1 4"
         initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
@@ -58,16 +90,38 @@ function PolicyShieldIllustration() {
         transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
       >
         <circle cx="72" cy="27" r="4.2" fill="#241f4d" stroke="#fb7185" strokeWidth="1.3" />
-        <path d="M66 44c0-5 2.7-8.5 6-8.5s6 3.5 6 8.5" fill="#241f4d" stroke="#fb7185" strokeWidth="1.3" strokeLinecap="round" />
+        <path
+          d="M66 44c0-5 2.7-8.5 6-8.5s6 3.5 6 8.5"
+          fill="#241f4d"
+          stroke="#fb7185"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
         <motion.g
-          animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
-          transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }
+          }
+          transition={
+            shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+          }
         >
           <circle cx="62.5" cy="38" r="5.5" fill="#1e1b4b" stroke="#fb7185" strokeWidth="1.6" />
-          <path d="M60.1 35.6l4.8 4.8M64.9 35.6l-4.8 4.8" stroke="#fb7185" strokeWidth="1.8" strokeLinecap="round" />
+          <path
+            d="M60.1 35.6l4.8 4.8M64.9 35.6l-4.8 4.8"
+            stroke="#fb7185"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
         </motion.g>
       </motion.g>
-      <path d="M53 29h8" stroke="#fb7185" strokeOpacity="0.5" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1 3" />
+      <path
+        d="M53 29h8"
+        stroke="#fb7185"
+        strokeOpacity="0.5"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeDasharray="1 3"
+      />
     </svg>
   );
 }
@@ -128,7 +182,9 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Access Rules</h1>
-            <p className="text-sm text-muted-foreground">Set usage limits, guest access, and access tiers for this location.</p>
+            <p className="text-sm text-muted-foreground">
+              Set usage limits, guest access, and access tiers for this location.
+            </p>
           </div>
         </div>
         <PolicyShieldIllustration />
@@ -153,19 +209,30 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
               const active = tab === t.id;
               return (
                 <div key={t.id} className="flex flex-1 items-center">
-                  {DIVIDER_BEFORE.has(t.id) && <div aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />}
-                  <button onClick={() => setTab(t.id)} aria-current={active ? "page" : undefined}
+                  {DIVIDER_BEFORE.has(t.id) && (
+                    <div aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
+                  )}
+                  <button
+                    onClick={() => setTab(t.id)}
+                    aria-current={active ? "page" : undefined}
                     className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      active ? TAB_ACTIVE_CLASSES[t.tone] : "text-muted-foreground hover:text-foreground"
-                    }`}>
-                    <Icon className="h-4 w-4" />{t.label}
+                      active
+                        ? TAB_ACTIVE_CLASSES[t.tone]
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {t.label}
                   </button>
                 </div>
               );
             })}
           </div>
         </div>
-        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden"
+        />
       </div>
 
       {/* Content -- each of these already renders its own full header

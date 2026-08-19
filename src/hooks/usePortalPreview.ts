@@ -151,8 +151,7 @@ export function usePortalPreview(organizationId: string, locationId: string): Po
     // The org's uploaded logo needs the blob URL; a plain-text logoUrl
     // (no upload) is already a directly-usable <img src>.
     logoUrl:
-      config?.logoUrl ??
-      (branding?.logoIsUploaded ? orgLogoBlobUrl : (branding?.logoUrl ?? null)),
+      config?.logoUrl ?? (branding?.logoIsUploaded ? orgLogoBlobUrl : (branding?.logoUrl ?? null)),
     primaryColor: config?.primaryColor ?? branding?.primaryColor ?? FALLBACK_PRIMARY,
     secondaryColor: config?.secondaryColor ?? branding?.secondaryColor ?? FALLBACK_SECONDARY,
     name: config?.name ?? branding?.companyName ?? "Guest WiFi",

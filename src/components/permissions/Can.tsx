@@ -29,11 +29,7 @@ export function Can({
 }) {
   const { can, isLocked, hasFeature } = usePermissions();
 
-  const allowed = feature
-    ? hasFeature(feature)
-    : module
-      ? can(module, action)
-      : true;
+  const allowed = feature ? hasFeature(feature) : module ? can(module, action) : true;
 
   if (allowed) return <>{children}</>;
 
@@ -56,7 +52,11 @@ export function Can({
   return null;
 }
 
-export function LockedBadge({ label = "Access restricted. Contact your Administrator." }: { label?: string }) {
+export function LockedBadge({
+  label = "Access restricted. Contact your Administrator.",
+}: {
+  label?: string;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>

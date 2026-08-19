@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { billingService } from "@/services/billing.service";
-import type { BillingReportFormat, Coupon, PaymentGateway, Plan, ScheduledBillingReport, TaxRate } from "@/types/billing";
+import type {
+  BillingReportFormat,
+  Coupon,
+  PaymentGateway,
+  Plan,
+  ScheduledBillingReport,
+  TaxRate,
+} from "@/types/billing";
 
 const KEY = ["billing", "snapshot"] as const;
 
@@ -27,32 +34,43 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 export function useCreateSubscription() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Parameters<typeof billingService.createSubscription>[0]) => billingService.createSubscription(input),
+    mutationFn: (input: Parameters<typeof billingService.createSubscription>[0]) =>
+      billingService.createSubscription(input),
     onSuccess: () => invalidate(qc),
   });
 }
 
 export function useCancelSubscription() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => billingService.cancelSubscription(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: string) => billingService.cancelSubscription(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useUpgradeSubscription() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => billingService.upgradeSubscription(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: string) => billingService.upgradeSubscription(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useSetAutoRenew() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { id: string; autoRenew: boolean }) => billingService.setAutoRenew(input.id, input.autoRenew),
+    mutationFn: (input: { id: string; autoRenew: boolean }) =>
+      billingService.setAutoRenew(input.id, input.autoRenew),
     onSuccess: () => invalidate(qc),
   });
 }
 
 export function useDowngradeSubscription() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => billingService.downgradeSubscription(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: string) => billingService.downgradeSubscription(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useSavePlan() {
@@ -65,40 +83,57 @@ export function useSavePlan() {
 
 export function useDeletePlan() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => billingService.deletePlan(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: string) => billingService.deletePlan(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useSaveCoupon() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Omit<Coupon, "id" | "used"> & { id?: string }) => billingService.saveCoupon(input),
+    mutationFn: (input: Omit<Coupon, "id" | "used"> & { id?: string }) =>
+      billingService.saveCoupon(input),
     onSuccess: () => invalidate(qc),
   });
 }
 
 export function useDeleteCoupon() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => billingService.deleteCoupon(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: string) => billingService.deleteCoupon(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useToggleGateway() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: PaymentGateway) => billingService.toggleGateway(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: PaymentGateway) => billingService.toggleGateway(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useRefundPayment() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => billingService.refundPayment(id), onSuccess: () => invalidate(qc) });
+  return useMutation({
+    mutationFn: (id: string) => billingService.refundPayment(id),
+    onSuccess: () => invalidate(qc),
+  });
 }
 
 export function useScheduledBillingReports() {
-  return useQuery({ queryKey: ["billing", "scheduled"], queryFn: () => billingService.listScheduledReports() });
+  return useQuery({
+    queryKey: ["billing", "scheduled"],
+    queryFn: () => billingService.listScheduledReports(),
+  });
 }
 
 export function useCreateScheduledBillingReport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Omit<ScheduledBillingReport, "id" | "nextRunAt">) => billingService.createScheduledReport(input),
+    mutationFn: (input: Omit<ScheduledBillingReport, "id" | "nextRunAt">) =>
+      billingService.createScheduledReport(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["billing", "scheduled"] }),
   });
 }
@@ -106,7 +141,8 @@ export function useCreateScheduledBillingReport() {
 export function useToggleScheduledBillingReport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { id: string; enabled: boolean }) => billingService.toggleScheduledReport(input.id, input.enabled),
+    mutationFn: (input: { id: string; enabled: boolean }) =>
+      billingService.toggleScheduledReport(input.id, input.enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["billing", "scheduled"] }),
   });
 }
@@ -121,18 +157,23 @@ export function useDeleteScheduledBillingReport() {
 
 export function useGenerateBillingReport() {
   return useMutation({
-    mutationFn: (input: { type: string; format: BillingReportFormat }) => billingService.generateReport(input.type, input.format),
+    mutationFn: (input: { type: string; format: BillingReportFormat }) =>
+      billingService.generateReport(input.type, input.format),
   });
 }
 
 export function useTaxRates() {
-  return useQuery({ queryKey: ["billing", "tax-rates"], queryFn: () => billingService.listTaxRates() });
+  return useQuery({
+    queryKey: ["billing", "tax-rates"],
+    queryFn: () => billingService.listTaxRates(),
+  });
 }
 
 export function useSaveTaxRate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }) => billingService.saveTaxRate(input),
+    mutationFn: (input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }) =>
+      billingService.saveTaxRate(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["billing", "tax-rates"] }),
   });
 }
@@ -147,8 +188,13 @@ export function useDownloadInvoice() {
 export function useGenerateAndSendInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ organizationId, subscriptionId }: { organizationId: string; subscriptionId?: string }) =>
-      billingService.generateAndSendInvoice(organizationId, subscriptionId),
+    mutationFn: ({
+      organizationId,
+      subscriptionId,
+    }: {
+      organizationId: string;
+      subscriptionId?: string;
+    }) => billingService.generateAndSendInvoice(organizationId, subscriptionId),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -156,8 +202,13 @@ export function useGenerateAndSendInvoice() {
 export function useCreateManualInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ organizationId, lineItems }: { organizationId: string; lineItems: { description: string; quantity: number; unitPrice: number }[] }) =>
-      billingService.createManualInvoice(organizationId, lineItems),
+    mutationFn: ({
+      organizationId,
+      lineItems,
+    }: {
+      organizationId: string;
+      lineItems: { description: string; quantity: number; unitPrice: number }[];
+    }) => billingService.createManualInvoice(organizationId, lineItems),
     onSuccess: () => invalidate(qc),
   });
 }
@@ -165,7 +216,10 @@ export function useCreateManualInvoice() {
 // Tenant-facing "my billing" summary (real GET /billing/dashboard/me) --
 // used by the Subscription center and workspace Billing pages, which are a
 // different, org-scoped audience than useBillingSnapshot's Super Admin view.
-export function useMyBillingDashboard(organizationId: string | undefined, organizationName: string | undefined) {
+export function useMyBillingDashboard(
+  organizationId: string | undefined,
+  organizationName: string | undefined,
+) {
   return useQuery({
     queryKey: ["billing", "me", organizationId],
     queryFn: () => billingService.getMyBillingDashboard(organizationId!, organizationName ?? ""),

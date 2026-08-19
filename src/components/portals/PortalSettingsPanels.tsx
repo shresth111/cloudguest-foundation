@@ -24,23 +24,57 @@ export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
     defaultValues: portal.login,
   });
   const v = watch();
-  const submit = handleSubmit((values) => update.mutate({ login: { ...values, redirectUrl: values.redirectUrl ?? "", successPage: values.successPage ?? "", failurePage: values.failurePage ?? "" } }));
+  const submit = handleSubmit((values) =>
+    update.mutate({
+      login: {
+        ...values,
+        redirectUrl: values.redirectUrl ?? "",
+        successPage: values.successPage ?? "",
+        failurePage: values.failurePage ?? "",
+      },
+    }),
+  );
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">Login settings</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-sm">Login settings</CardTitle>
+      </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-          <NumberRow label="Session timeout (min)" reg={register("sessionTimeoutMinutes", { valueAsNumber: true })} error={formState.errors.sessionTimeoutMinutes?.message} />
-          <NumberRow label="Idle timeout (min)" reg={register("idleTimeoutMinutes", { valueAsNumber: true })} error={formState.errors.idleTimeoutMinutes?.message} />
-          <NumberRow label="Device limit" reg={register("deviceLimit", { valueAsNumber: true })} error={formState.errors.deviceLimit?.message} />
+          <NumberRow
+            label="Session timeout (min)"
+            reg={register("sessionTimeoutMinutes", { valueAsNumber: true })}
+            error={formState.errors.sessionTimeoutMinutes?.message}
+          />
+          <NumberRow
+            label="Idle timeout (min)"
+            reg={register("idleTimeoutMinutes", { valueAsNumber: true })}
+            error={formState.errors.idleTimeoutMinutes?.message}
+          />
+          <NumberRow
+            label="Device limit"
+            reg={register("deviceLimit", { valueAsNumber: true })}
+            error={formState.errors.deviceLimit?.message}
+          />
           <TextRow label="Redirect URL" reg={register("redirectUrl")} placeholder="https://…" />
           <TextRow label="Success page URL" reg={register("successPage")} placeholder="https://…" />
           <TextRow label="Failure page URL" reg={register("failurePage")} placeholder="https://…" />
-          <ToggleRow label="Auto login" value={v.autoLogin} onChange={(x) => setValue("autoLogin", x)} />
-          <ToggleRow label="Remember device" value={v.rememberDevice} onChange={(x) => setValue("rememberDevice", x)} />
+          <ToggleRow
+            label="Auto login"
+            value={v.autoLogin}
+            onChange={(x) => setValue("autoLogin", x)}
+          />
+          <ToggleRow
+            label="Remember device"
+            value={v.rememberDevice}
+            onChange={(x) => setValue("rememberDevice", x)}
+          />
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" size="sm"><Save className="mr-2 h-4 w-4" />Save settings</Button>
+            <Button type="submit" size="sm">
+              <Save className="mr-2 h-4 w-4" />
+              Save settings
+            </Button>
           </div>
         </form>
       </CardContent>
@@ -54,18 +88,44 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
     resolver: zodResolver(seoSchema),
     defaultValues: portal.seo,
   });
-  const submit = handleSubmit((v) => update.mutate({ seo: { ...v, faviconUrl: v.faviconUrl ?? "", socialImageUrl: v.socialImageUrl ?? "" } }));
+  const submit = handleSubmit((v) =>
+    update.mutate({
+      seo: { ...v, faviconUrl: v.faviconUrl ?? "", socialImageUrl: v.socialImageUrl ?? "" },
+    }),
+  );
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">SEO & metadata</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-sm">SEO & metadata</CardTitle>
+      </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
-          <TextRow label="Page title" reg={register("pageTitle")} placeholder="Sign in to WiFi" error={formState.errors.pageTitle?.message} />
-          <TextRow label="Meta description" reg={register("metaDescription")} placeholder="Description shown in search results" />
-          <TextRow label="Favicon URL" reg={register("faviconUrl")} placeholder="https://…/favicon.ico" />
-          <TextRow label="Social preview image" reg={register("socialImageUrl")} placeholder="https://…/og.jpg" />
+          <TextRow
+            label="Page title"
+            reg={register("pageTitle")}
+            placeholder="Sign in to WiFi"
+            error={formState.errors.pageTitle?.message}
+          />
+          <TextRow
+            label="Meta description"
+            reg={register("metaDescription")}
+            placeholder="Description shown in search results"
+          />
+          <TextRow
+            label="Favicon URL"
+            reg={register("faviconUrl")}
+            placeholder="https://…/favicon.ico"
+          />
+          <TextRow
+            label="Social preview image"
+            reg={register("socialImageUrl")}
+            placeholder="https://…/og.jpg"
+          />
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" size="sm"><Save className="mr-2 h-4 w-4" />Save SEO</Button>
+            <Button type="submit" size="sm">
+              <Save className="mr-2 h-4 w-4" />
+              Save SEO
+            </Button>
           </div>
         </form>
       </CardContent>
@@ -82,7 +142,9 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
   };
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">Multi-language</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-sm">Multi-language</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-2 md:grid-cols-2">
           {(Object.keys(LANGUAGES) as PortalLanguage[]).map((l) => {
@@ -95,7 +157,9 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
               >
                 <div>
                   <div className="text-sm font-medium">{LANGUAGES[l]}</div>
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{l}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {l}
+                  </div>
                 </div>
                 {on && <Badge variant="secondary">Enabled</Badge>}
               </button>
@@ -110,7 +174,9 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
             onChange={(e) => update.mutate({ defaultLanguage: e.target.value as PortalLanguage })}
           >
             {portal.languages.map((l) => (
-              <option key={l} value={l}>{LANGUAGES[l]}</option>
+              <option key={l} value={l}>
+                {LANGUAGES[l]}
+              </option>
             ))}
           </select>
         </div>
@@ -119,7 +185,17 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
   );
 }
 
-function NumberRow({ label, reg, error }: { label: string; reg: ReturnType<typeof useForm>["register"] extends never ? never : ReturnType<ReturnType<typeof useForm>["register"]>; error?: string }) {
+function NumberRow({
+  label,
+  reg,
+  error,
+}: {
+  label: string;
+  reg: ReturnType<typeof useForm>["register"] extends never
+    ? never
+    : ReturnType<ReturnType<typeof useForm>["register"]>;
+  error?: string;
+}) {
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
@@ -128,7 +204,17 @@ function NumberRow({ label, reg, error }: { label: string; reg: ReturnType<typeo
     </div>
   );
 }
-function TextRow({ label, reg, placeholder, error }: { label: string; reg: ReturnType<ReturnType<typeof useForm>["register"]>; placeholder?: string; error?: string }) {
+function TextRow({
+  label,
+  reg,
+  placeholder,
+  error,
+}: {
+  label: string;
+  reg: ReturnType<ReturnType<typeof useForm>["register"]>;
+  placeholder?: string;
+  error?: string;
+}) {
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
@@ -137,7 +223,15 @@ function TextRow({ label, reg, placeholder, error }: { label: string; reg: Retur
     </div>
   );
 }
-function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between rounded-md border p-3">
       <div className="text-sm font-medium">{label}</div>

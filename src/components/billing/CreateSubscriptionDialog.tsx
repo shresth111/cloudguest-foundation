@@ -4,7 +4,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,7 +113,13 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) reset();
+      }}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Create subscription</DialogTitle>
@@ -119,10 +132,19 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
             {orgs.isLoading ? (
               <Skeleton className="mt-1 h-9 w-full" />
             ) : (
-              <Select value={form.watch("organizationId")} onValueChange={(v) => form.setValue("organizationId", v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select organization" /></SelectTrigger>
+              <Select
+                value={form.watch("organizationId")}
+                onValueChange={(v) => form.setValue("organizationId", v)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
                 <SelectContent>
-                  {orgs.data?.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  {orgs.data?.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -132,20 +154,30 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
               </p>
             )}
             {form.formState.errors.organizationId && (
-              <p className="mt-1 text-xs text-destructive">{form.formState.errors.organizationId.message}</p>
+              <p className="mt-1 text-xs text-destructive">
+                {form.formState.errors.organizationId.message}
+              </p>
             )}
           </div>
 
           <div>
             <Label>Plan</Label>
             <Select value={form.watch("planId")} onValueChange={(v) => form.setValue("planId", v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Select plan" /></SelectTrigger>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select plan" />
+              </SelectTrigger>
               <SelectContent>
-                {plans.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {plans.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {form.formState.errors.planId && (
-              <p className="mt-1 text-xs text-destructive">{form.formState.errors.planId.message}</p>
+              <p className="mt-1 text-xs text-destructive">
+                {form.formState.errors.planId.message}
+              </p>
             )}
           </div>
 
@@ -154,21 +186,36 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
             <div className="mt-1 flex gap-2">
               <Input
                 value={couponInput}
-                onChange={(e) => { setCouponInput(e.target.value); if (applied) setApplied(null); }}
+                onChange={(e) => {
+                  setCouponInput(e.target.value);
+                  if (applied) setApplied(null);
+                }}
                 placeholder="e.g. WELCOME10"
                 className="font-mono uppercase"
                 disabled={!!(applied && "coupon" in applied)}
               />
               {applied && "coupon" in applied ? (
-                <Button type="button" variant="outline" onClick={clearCoupon}>Remove</Button>
+                <Button type="button" variant="outline" onClick={clearCoupon}>
+                  Remove
+                </Button>
               ) : (
-                <Button type="button" variant="outline" onClick={applyCoupon} disabled={!couponInput.trim()}>Apply</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={applyCoupon}
+                  disabled={!couponInput.trim()}
+                >
+                  Apply
+                </Button>
               )}
             </div>
             {applied && "coupon" in applied && (
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-600">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Applied -- {applied.coupon.discountType === "percentage" ? `${applied.coupon.discountValue}% off` : `${applied.coupon.discountValue} off`}
+                Applied --{" "}
+                {applied.coupon.discountType === "percentage"
+                  ? `${applied.coupon.discountValue}% off`
+                  : `${applied.coupon.discountValue} off`}
               </p>
             )}
             {applied && "error" in applied && (
@@ -180,8 +227,12 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={create.isPending}>{create.isPending ? "Creating…" : "Create subscription"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending ? "Creating…" : "Create subscription"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -1,6 +1,17 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Activity, MapPin, Router, Wifi, UserCheck, UserX, Ticket, Shield, Users, Globe } from "lucide-react";
+import {
+  Activity,
+  MapPin,
+  Router,
+  Wifi,
+  UserCheck,
+  UserX,
+  Ticket,
+  Shield,
+  Users,
+  Globe,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RightDrawer } from "@/components/ui-ext/RightDrawer";
@@ -18,16 +29,106 @@ interface ActivityEvent {
 }
 
 const EVENTS: ActivityEvent[] = [
-  { id: "a1", type: "location", icon: MapPin, title: "Location Created", description: "New Delhi Office added", time: new Date(Date.now() - 60000), user: "Admin", tone: "success" },
-  { id: "a2", type: "router", icon: Router, title: "Router Online", description: "GW-03 at Mumbai HQ is back online", time: new Date(Date.now() - 120000), user: "System", tone: "success" },
-  { id: "a3", type: "router", icon: Router, title: "Router Offline", description: "GW-07 at Bangalore DC went offline", time: new Date(Date.now() - 300000), user: "System", tone: "danger" },
-  { id: "a4", type: "guest", icon: Wifi, title: "Guest Connected", description: "John.Doe@email.com connected at Mumbai HQ", time: new Date(Date.now() - 600000), user: "System", tone: "success" },
-  { id: "a5", type: "guest", icon: UserX, title: "Guest Disconnected", description: "Jane.Smith@email.com disconnected from Delhi Office", time: new Date(Date.now() - 900000), user: "System", tone: "warning" },
-  { id: "a6", type: "voucher", icon: Ticket, title: "Voucher Generated", description: "500 vouchers created for Hyderabad location", time: new Date(Date.now() - 1800000), user: "Manager", tone: "default" },
-  { id: "a7", type: "policy", icon: Shield, title: "Policy Updated", description: "Bandwidth policy changed for Chennai Office", time: new Date(Date.now() - 3600000), user: "Admin", tone: "warning" },
-  { id: "a8", type: "campaign", icon: Globe, title: "Campaign Published", description: "Summer Promo campaign is now live", time: new Date(Date.now() - 7200000), user: "Marketing", tone: "success" },
-  { id: "a9", type: "auth", icon: Users, title: "Admin Login", description: "Admin user logged in from 203.0.113.42", time: new Date(Date.now() - 10800000), user: "System", tone: "default" },
-  { id: "a10", type: "guest", icon: UserCheck, title: "Guest Connected", description: "Alex.K@email.com connected at Bangalore DC", time: new Date(Date.now() - 14400000), user: "System", tone: "success" },
+  {
+    id: "a1",
+    type: "location",
+    icon: MapPin,
+    title: "Location Created",
+    description: "New Delhi Office added",
+    time: new Date(Date.now() - 60000),
+    user: "Admin",
+    tone: "success",
+  },
+  {
+    id: "a2",
+    type: "router",
+    icon: Router,
+    title: "Router Online",
+    description: "GW-03 at Mumbai HQ is back online",
+    time: new Date(Date.now() - 120000),
+    user: "System",
+    tone: "success",
+  },
+  {
+    id: "a3",
+    type: "router",
+    icon: Router,
+    title: "Router Offline",
+    description: "GW-07 at Bangalore DC went offline",
+    time: new Date(Date.now() - 300000),
+    user: "System",
+    tone: "danger",
+  },
+  {
+    id: "a4",
+    type: "guest",
+    icon: Wifi,
+    title: "Guest Connected",
+    description: "John.Doe@email.com connected at Mumbai HQ",
+    time: new Date(Date.now() - 600000),
+    user: "System",
+    tone: "success",
+  },
+  {
+    id: "a5",
+    type: "guest",
+    icon: UserX,
+    title: "Guest Disconnected",
+    description: "Jane.Smith@email.com disconnected from Delhi Office",
+    time: new Date(Date.now() - 900000),
+    user: "System",
+    tone: "warning",
+  },
+  {
+    id: "a6",
+    type: "voucher",
+    icon: Ticket,
+    title: "Voucher Generated",
+    description: "500 vouchers created for Hyderabad location",
+    time: new Date(Date.now() - 1800000),
+    user: "Manager",
+    tone: "default",
+  },
+  {
+    id: "a7",
+    type: "policy",
+    icon: Shield,
+    title: "Policy Updated",
+    description: "Bandwidth policy changed for Chennai Office",
+    time: new Date(Date.now() - 3600000),
+    user: "Admin",
+    tone: "warning",
+  },
+  {
+    id: "a8",
+    type: "campaign",
+    icon: Globe,
+    title: "Campaign Published",
+    description: "Summer Promo campaign is now live",
+    time: new Date(Date.now() - 7200000),
+    user: "Marketing",
+    tone: "success",
+  },
+  {
+    id: "a9",
+    type: "auth",
+    icon: Users,
+    title: "Admin Login",
+    description: "Admin user logged in from 203.0.113.42",
+    time: new Date(Date.now() - 10800000),
+    user: "System",
+    tone: "default",
+  },
+  {
+    id: "a10",
+    type: "guest",
+    icon: UserCheck,
+    title: "Guest Connected",
+    description: "Alex.K@email.com connected at Bangalore DC",
+    time: new Date(Date.now() - 14400000),
+    user: "System",
+    tone: "success",
+  },
 ];
 
 const TONE_COLORS = {
@@ -69,7 +170,12 @@ export function ActivityFeed({ open, onOpenChange }: ActivityFeedProps) {
                 <div className="absolute left-[13px] top-8 bottom-0 w-px bg-border" />
               )}
               {/* Icon */}
-              <div className={cn("relative z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full", TONE_COLORS[event.tone])}>
+              <div
+                className={cn(
+                  "relative z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full",
+                  TONE_COLORS[event.tone],
+                )}
+              >
                 <Icon className="h-3.5 w-3.5" />
               </div>
               {/* Content */}

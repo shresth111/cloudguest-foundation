@@ -80,6 +80,5 @@ export function useSupportTicketsSocket(
       socket?.close();
       socket = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, enabled]);
 }

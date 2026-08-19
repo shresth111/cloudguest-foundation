@@ -7,7 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/plans/")({
@@ -43,7 +50,16 @@ const PLANS: Plan[] = [
     tagline: "Explore the platform for 14 days",
     price: { monthly: 0, yearly: 0 },
     icon: Star,
-    limits: { locations: 1, routers: 2, guests: 100, staff: 3, apiKeys: 1, storageGb: 5, smsCredits: 100, emailCredits: 500 },
+    limits: {
+      locations: 1,
+      routers: 2,
+      guests: 100,
+      staff: 3,
+      apiKeys: 1,
+      storageGb: 5,
+      smsCredits: 100,
+      emailCredits: 500,
+    },
     features: ["Guest WiFi", "Captive portal", "Basic analytics", "Email support"],
   },
   {
@@ -52,7 +68,16 @@ const PLANS: Plan[] = [
     tagline: "For growing single-site properties",
     price: { monthly: 79, yearly: 790 },
     icon: Rocket,
-    limits: { locations: 3, routers: 5, guests: 500, staff: 10, apiKeys: 3, storageGb: 25, smsCredits: 1_000, emailCredits: 5_000 },
+    limits: {
+      locations: 3,
+      routers: 5,
+      guests: 500,
+      staff: 10,
+      apiKeys: 3,
+      storageGb: 25,
+      smsCredits: 1_000,
+      emailCredits: 5_000,
+    },
     features: ["Everything in Trial", "Voucher login", "QR login", "Priority email support"],
   },
   {
@@ -62,8 +87,23 @@ const PLANS: Plan[] = [
     price: { monthly: 499, yearly: 4990 },
     icon: Sparkles,
     featured: true,
-    limits: { locations: 25, routers: 100, guests: 25_000, staff: 100, apiKeys: 25, storageGb: 500, smsCredits: 10_000, emailCredits: 100_000 },
-    features: ["Everything in Starter", "FreeRADIUS", "WireGuard tunnels", "Advanced analytics", "24/7 chat support"],
+    limits: {
+      locations: 25,
+      routers: 100,
+      guests: 25_000,
+      staff: 100,
+      apiKeys: 25,
+      storageGb: 500,
+      smsCredits: 10_000,
+      emailCredits: 100_000,
+    },
+    features: [
+      "Everything in Starter",
+      "FreeRADIUS",
+      "WireGuard tunnels",
+      "Advanced analytics",
+      "24/7 chat support",
+    ],
   },
   {
     id: "enterprise",
@@ -71,8 +111,23 @@ const PLANS: Plan[] = [
     tagline: "Global, mission-critical deployments",
     price: { monthly: 1999, yearly: 19990 },
     icon: Crown,
-    limits: { locations: "unlimited", routers: "unlimited", guests: "unlimited", staff: "unlimited", apiKeys: "unlimited", storageGb: "unlimited", smsCredits: 100_000, emailCredits: 1_000_000 },
-    features: ["Everything in Professional", "White label", "PMS integrations", "SLA + dedicated CSM", "SSO / SAML"],
+    limits: {
+      locations: "unlimited",
+      routers: "unlimited",
+      guests: "unlimited",
+      staff: "unlimited",
+      apiKeys: "unlimited",
+      storageGb: "unlimited",
+      smsCredits: 100_000,
+      emailCredits: 1_000_000,
+    },
+    features: [
+      "Everything in Professional",
+      "White label",
+      "PMS integrations",
+      "SLA + dedicated CSM",
+      "SSO / SAML",
+    ],
   },
   {
     id: "custom",
@@ -80,7 +135,16 @@ const PLANS: Plan[] = [
     tagline: "Tailored contracts for global brands",
     price: { monthly: 0, yearly: 0 },
     icon: Building2,
-    limits: { locations: "unlimited", routers: "unlimited", guests: "unlimited", staff: "unlimited", apiKeys: "unlimited", storageGb: "unlimited", smsCredits: 500_000, emailCredits: 5_000_000 },
+    limits: {
+      locations: "unlimited",
+      routers: "unlimited",
+      guests: "unlimited",
+      staff: "unlimited",
+      apiKeys: "unlimited",
+      storageGb: "unlimited",
+      smsCredits: 500_000,
+      emailCredits: 5_000_000,
+    },
     features: ["Custom limits", "Custom pricing", "Custom integrations", "White glove onboarding"],
   },
 ];
@@ -102,7 +166,10 @@ function PlansPage() {
             <TabsList>
               <TabsTrigger value="monthly">Monthly</TabsTrigger>
               <TabsTrigger value="yearly">
-                Yearly <Badge variant="secondary" className="ml-2">-15%</Badge>
+                Yearly{" "}
+                <Badge variant="secondary" className="ml-2">
+                  -15%
+                </Badge>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -121,9 +188,7 @@ function PlansPage() {
                 plan.featured && "border-primary shadow-lg ring-1 ring-primary/40",
               )}
             >
-              {plan.featured && (
-                <Badge className="absolute -top-2 right-4">Most popular</Badge>
-              )}
+              {plan.featured && <Badge className="absolute -top-2 right-4">Most popular</Badge>}
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -136,7 +201,11 @@ function PlansPage() {
               <CardContent className="flex flex-1 flex-col gap-4">
                 <div>
                   <div className="text-3xl font-semibold tracking-tight">
-                    {plan.id === "custom" ? "Talk to us" : price === 0 ? "Free" : `$${price.toLocaleString()}`}
+                    {plan.id === "custom"
+                      ? "Talk to us"
+                      : price === 0
+                        ? "Free"
+                        : `$${price.toLocaleString()}`}
                   </div>
                   {plan.id !== "custom" && price > 0 && (
                     <div className="text-xs text-muted-foreground">
@@ -201,7 +270,9 @@ function PlansPage() {
                   <TableCell>{fmt(p.limits.guests)}</TableCell>
                   <TableCell>{fmt(p.limits.staff)}</TableCell>
                   <TableCell>{fmt(p.limits.apiKeys)}</TableCell>
-                  <TableCell>{p.limits.storageGb === "unlimited" ? "Unlimited" : `${p.limits.storageGb} GB`}</TableCell>
+                  <TableCell>
+                    {p.limits.storageGb === "unlimited" ? "Unlimited" : `${p.limits.storageGb} GB`}
+                  </TableCell>
                   <TableCell>{p.limits.smsCredits.toLocaleString()}</TableCell>
                   <TableCell>{p.limits.emailCredits.toLocaleString()}</TableCell>
                 </TableRow>

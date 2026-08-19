@@ -38,13 +38,24 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { ComingSoonPanel } from "@/components/ui-ext/ComingSoonPanel";
 import type { RouterDevice } from "@/types/router";
-import type { DiagnosticRun, PingRunResult, TracerouteRunResult } from "@/types/network-diagnostics";
+import type {
+  DiagnosticRun,
+  PingRunResult,
+  TracerouteRunResult,
+} from "@/types/network-diagnostics";
 import { PEER_STATUS_LABEL } from "@/types/router";
 import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
 import {
@@ -318,17 +329,38 @@ function MonitoringTab({ router }: { router: RouterDevice }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MonitoringStat label="CPU" value={stats.cpuUsagePercent != null ? `${stats.cpuUsagePercent.toFixed(0)}%` : "—"} />
-        <MonitoringStat label="Memory" value={stats.memoryUsagePercent != null ? `${stats.memoryUsagePercent.toFixed(0)}%` : "—"} />
+        <MonitoringStat
+          label="CPU"
+          value={stats.cpuUsagePercent != null ? `${stats.cpuUsagePercent.toFixed(0)}%` : "—"}
+        />
+        <MonitoringStat
+          label="Memory"
+          value={stats.memoryUsagePercent != null ? `${stats.memoryUsagePercent.toFixed(0)}%` : "—"}
+        />
         <MonitoringStat label="Uptime" value={formatUptime(stats.uptimeSeconds)} />
-        <MonitoringStat label="Connected clients" value={stats.connectedClients != null ? String(stats.connectedClients) : "—"} />
+        <MonitoringStat
+          label="Connected clients"
+          value={stats.connectedClients != null ? String(stats.connectedClients) : "—"}
+        />
         <MonitoringStat label="Bandwidth (window)" value={formatBytes(stats.bandwidthTotalBytes)} />
-        <MonitoringStat label="Internet" value={stats.internetAvailable ? "Reachable" : "Unreachable"} />
-        <MonitoringStat label="WireGuard" value={stats.wireguard.available ? (stats.wireguard.status ?? "configured") : "not configured"} />
-        <MonitoringStat label="RADIUS (success/fail)" value={`${stats.radiusSuccessCount}/${stats.radiusFailureCount}`} />
+        <MonitoringStat
+          label="Internet"
+          value={stats.internetAvailable ? "Reachable" : "Unreachable"}
+        />
+        <MonitoringStat
+          label="WireGuard"
+          value={
+            stats.wireguard.available ? (stats.wireguard.status ?? "configured") : "not configured"
+          }
+        />
+        <MonitoringStat
+          label="RADIUS (success/fail)"
+          value={`${stats.radiusSuccessCount}/${stats.radiusFailureCount}`}
+        />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Window: {new Date(data!.windowStart).toLocaleString()} – {new Date(data!.windowEnd).toLocaleString()}
+        Window: {new Date(data!.windowStart).toLocaleString()} –{" "}
+        {new Date(data!.windowEnd).toLocaleString()}
       </p>
     </div>
   );
@@ -431,7 +463,9 @@ function ConnectedDevicesTab({ routerId }: { routerId: string }) {
                           variant="ghost"
                           className="h-7 w-7"
                           title="Block"
-                          onClick={() => run(block.mutateAsync({ deviceId: d.id }), "Device blocked")}
+                          onClick={() =>
+                            run(block.mutateAsync({ deviceId: d.id }), "Device blocked")
+                          }
                         >
                           <Ban className="h-3.5 w-3.5" />
                         </Button>
@@ -519,7 +553,14 @@ function ConfigTab({ routerId }: { routerId: string }) {
 
   if (preview.isLoading || versions.isLoading) return <LoadingSkeleton rows={4} />;
   if (preview.isError || versions.isError) {
-    return <ErrorState onRetry={() => { preview.refetch(); versions.refetch(); }} />;
+    return (
+      <ErrorState
+        onRetry={() => {
+          preview.refetch();
+          versions.refetch();
+        }}
+      />
+    );
   }
 
   return (
@@ -567,7 +608,10 @@ function ConfigTab({ routerId }: { routerId: string }) {
               <TableBody>
                 {versions.data.rows.map((v) => (
                   <TableRow key={v.id}>
-                    <TableCell>v{v.versionNumber}{v.isBackup ? " (backup)" : ""}</TableCell>
+                    <TableCell>
+                      v{v.versionNumber}
+                      {v.isBackup ? " (backup)" : ""}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">{v.status}</Badge>
                     </TableCell>
@@ -658,7 +702,14 @@ function ProvisioningTab({ routerId }: { routerId: string }) {
 
   if (status.isLoading || versions.isLoading) return <LoadingSkeleton rows={4} />;
   if (status.isError || versions.isError) {
-    return <ErrorState onRetry={() => { status.refetch(); versions.refetch(); }} />;
+    return (
+      <ErrorState
+        onRetry={() => {
+          status.refetch();
+          versions.refetch();
+        }}
+      />
+    );
   }
 
   const backupVersions = versions.data?.rows.filter((v) => v.isBackup) ?? [];
@@ -691,14 +742,19 @@ function ProvisioningTab({ routerId }: { routerId: string }) {
             <Field label="Router status" value={status.data?.routerStatus ?? "—"} />
             <Field
               label="Current config version"
-              value={status.data?.latestVersion ? `v${status.data.latestVersion.versionNumber}` : "None"}
+              value={
+                status.data?.latestVersion ? `v${status.data.latestVersion.versionNumber}` : "None"
+              }
             />
           </dl>
           {status.data?.activeJobs.length ? (
             <div className="space-y-1.5">
               <div className="text-xs font-medium text-muted-foreground">Active jobs</div>
               {status.data.activeJobs.map((j) => (
-                <div key={j.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-xs">
+                <div
+                  key={j.id}
+                  className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-xs"
+                >
                   <span>{j.jobType.replace(/_/g, " ")}</span>
                   <Badge variant="outline">{j.status}</Badge>
                 </div>
@@ -753,7 +809,10 @@ function ProvisioningTab({ routerId }: { routerId: string }) {
               <TableBody>
                 {versions.data.rows.map((v) => (
                   <TableRow key={v.id}>
-                    <TableCell>v{v.versionNumber}{v.isBackup ? " (backup)" : ""}</TableCell>
+                    <TableCell>
+                      v{v.versionNumber}
+                      {v.isBackup ? " (backup)" : ""}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">{v.status}</Badge>
                     </TableCell>
@@ -834,9 +893,10 @@ function summarizeDiagnosticResult(run: DiagnosticRun): string | null {
 
 function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
   const [expanded, setExpanded] = useState(false);
-  const hops = run.diagnosticType === "traceroute"
-    ? (run.result as unknown as TracerouteRunResult)?.hops ?? []
-    : [];
+  const hops =
+    run.diagnosticType === "traceroute"
+      ? ((run.result as unknown as TracerouteRunResult)?.hops ?? [])
+      : [];
   const canExpand = run.diagnosticType === "traceroute" && hops.length > 0;
   const summary = summarizeDiagnosticResult(run);
 
@@ -849,19 +909,30 @@ function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
         <TableCell className="capitalize">
           <span className="flex items-center gap-1">
             {canExpand ? (
-              expanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              expanded ? (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              )
             ) : null}
             {run.diagnosticType}
           </span>
         </TableCell>
         <TableCell>{run.target}</TableCell>
         <TableCell>
-          <Badge variant={run.status === "completed" || run.status === "success" ? "default" : "outline"}>
+          <Badge
+            variant={run.status === "completed" || run.status === "success" ? "default" : "outline"}
+          >
             {run.status}
           </Badge>
         </TableCell>
         <TableCell className="text-xs">
-          {summary ?? (run.errorMessage ? <span className="text-destructive">{run.errorMessage}</span> : <span className="text-muted-foreground">—</span>)}
+          {summary ??
+            (run.errorMessage ? (
+              <span className="text-destructive">{run.errorMessage}</span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            ))}
         </TableCell>
         <TableCell className="text-xs text-muted-foreground">
           {new Date(run.createdAt).toLocaleString()}
@@ -883,9 +954,13 @@ function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
                 {hops.map((hop) => (
                   <TableRow key={hop.hop_number}>
                     <TableCell className="text-xs">{hop.hop_number}</TableCell>
-                    <TableCell className="text-xs">{hop.address ?? <span className="text-muted-foreground">* (no reply)</span>}</TableCell>
+                    <TableCell className="text-xs">
+                      {hop.address ?? <span className="text-muted-foreground">* (no reply)</span>}
+                    </TableCell>
                     <TableCell className="text-xs">{hop.packet_loss_percentage}%</TableCell>
-                    <TableCell className="text-xs">{hop.avg_rtt_ms != null ? `${hop.avg_rtt_ms.toFixed(1)} ms` : "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {hop.avg_rtt_ms != null ? `${hop.avg_rtt_ms.toFixed(1)} ms` : "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -897,7 +972,13 @@ function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
   );
 }
 
-function DiagnosticsTab({ routerId, organizationId }: { routerId: string; organizationId?: string }) {
+function DiagnosticsTab({
+  routerId,
+  organizationId,
+}: {
+  routerId: string;
+  organizationId?: string;
+}) {
   const [target, setTarget] = useState("");
   const runs = useDiagnosticRuns(routerId, organizationId);
   const ping = usePingRouter(routerId, organizationId);
@@ -1029,9 +1110,7 @@ function RouterAuditTab({ routerId }: { routerId: string }) {
                   {new Date(e.createdAt).toLocaleString()}
                 </span>
               </div>
-              {e.description && (
-                <p className="text-xs text-muted-foreground">{e.description}</p>
-              )}
+              {e.description && <p className="text-xs text-muted-foreground">{e.description}</p>}
             </li>
           ))}
         </ol>
@@ -1049,8 +1128,8 @@ function ProvisioningTokenCard({ routerId }: { routerId: string }) {
       <CardContent className="flex flex-col gap-2 p-4">
         <div className="text-xs text-muted-foreground">Provisioning token</div>
         <p className="text-[11px] text-muted-foreground">
-          For a manual/scripted check-in only -- not needed if you use Master Console's
-          Setup Script below, which mints and embeds its own token automatically.
+          For a manual/scripted check-in only -- not needed if you use Master Console's Setup Script
+          below, which mints and embeds its own token automatically.
         </p>
         {reveal ? (
           <div className="space-y-1">
@@ -1546,10 +1625,7 @@ export interface RouterSetupScriptChunk {
  * a "Copy" button with the same real secrets -- redacting only the
  * downloaded file while leaving the on-screen version and clipboard copy
  * unredacted would be a false sense of security, not real protection. */
-export function chunksToMarkdown(
-  chunks: RouterSetupScriptChunk[],
-  routerName?: string,
-): string {
+export function chunksToMarkdown(chunks: RouterSetupScriptChunk[], routerName?: string): string {
   const lines = [
     `# MikroTik CloudGuest Provisioning Script${routerName ? ` -- ${routerName}` : ""}`,
     "",
@@ -1972,7 +2048,26 @@ export function buildRouterSetupScriptChunks(opts: {
    * is for confirming this generator's own. */
   basicConfigOnly?: boolean;
 }): RouterSetupScriptChunk[] {
-  const { apiBase, agentCredential, wans, lanIfs, lanBridge: rawLanBridge, lanIp, lanCidr, dnsServers, hsUser, hsPass, enableFirewall, wireguard, radius, apiAccess, identity, portalUrl, wanRoutingMode = "load_balance", basicConfigOnly = false } = opts;
+  const {
+    apiBase,
+    agentCredential,
+    wans,
+    lanIfs,
+    lanBridge: rawLanBridge,
+    lanIp,
+    lanCidr,
+    dnsServers,
+    hsUser,
+    hsPass,
+    enableFirewall,
+    wireguard,
+    radius,
+    apiAccess,
+    identity,
+    portalUrl,
+    wanRoutingMode = "load_balance",
+    basicConfigOnly = false,
+  } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
   // field (see master.routers.tsx's own input for it) interpolated into
   // RouterOS double-quoted strings all over this function (bridge
@@ -2017,8 +2112,12 @@ export function buildRouterSetupScriptChunks(opts: {
   {
     const lines: string[] = [];
     lines.push(WAN_RENAME_WARNING_HEADER);
-    lines.push(`:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`);
-    lines.push(`:if ([:len [/interface bridge find where name="${lanBridge}"]] = 0) do={ /interface bridge add name="${lanBridge}" }`);
+    lines.push(
+      `:if ([:len [/interface list find where name="WAN"]] = 0) do={ /interface list add name="WAN" }`,
+    );
+    lines.push(
+      `:if ([:len [/interface bridge find where name="${lanBridge}"]] = 0) do={ /interface bridge add name="${lanBridge}" }`,
+    );
     lines.push(`/interface bridge set [find name="${lanBridge}"] disabled=no`);
     // See WAN_RENAME_WARNING_HEADER / wanExistenceCheckLines' own
     // docstring: must run before any bridge-port-removal/NAT below, which
@@ -2049,8 +2148,12 @@ export function buildRouterSetupScriptChunks(opts: {
         // chunk below creates it, and adds both the WAN list membership and
         // the NAT masquerade rule itself, right after doing so.
       } else {
-        lines.push(`:if ([:len [/interface list member find where interface="${wanIf}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${wanIf}" }`);
-        lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${wanIf}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${wanIf}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
+        lines.push(
+          `:if ([:len [/interface list member find where interface="${wanIf}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${wanIf}" }`,
+        );
+        lines.push(
+          `:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${wanIf}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${wanIf}" action=masquerade comment="cloudguest-nat-wan${n}" }`,
+        );
       }
     });
     chunks.push({ label: "WAN + Bridge", script: lines.join("\n") });
@@ -2114,9 +2217,15 @@ export function buildRouterSetupScriptChunks(opts: {
         // Only ever removes *dynamic* entries, so the static address this
         // WAN is already configured with is never touched -- a no-op on a
         // healthy re-run.
-        lines.push(`:foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
-        lines.push(`:if ([:len [/ip address find where interface="${iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`);
-        lines.push(`  /ip address add address="${wan.ip}/${wan.cidr}" interface="${iface}" comment="cloudguest-addr-wan${n}"`);
+        lines.push(
+          `:foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`,
+        );
+        lines.push(
+          `:if ([:len [/ip address find where interface="${iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`,
+        );
+        lines.push(
+          `  /ip address add address="${wan.ip}/${wan.cidr}" interface="${iface}" comment="cloudguest-addr-wan${n}"`,
+        );
         lines.push(`}`);
       } else if (wan.mode === "dhcp") {
         // Check for OUR OWN cloudguest-commented dhcp-client specifically
@@ -2130,12 +2239,20 @@ export function buildRouterSetupScriptChunks(opts: {
         // remove whatever foreign client (and any dynamic address it left
         // behind) is on this interface first, then add the correct one --
         // self-healing on every re-run, not just a first-run check.
-        lines.push(`:local wan${n}CloudguestClient [/ip dhcp-client find where interface="${iface}" comment="cloudguest-dhcp-wan${n}"]`);
+        lines.push(
+          `:local wan${n}CloudguestClient [/ip dhcp-client find where interface="${iface}" comment="cloudguest-dhcp-wan${n}"]`,
+        );
         lines.push(`:if ([:len $wan${n}CloudguestClient] = 0) do={`);
         lines.push(`  :local wan${n}OtherClient [/ip dhcp-client find where interface="${iface}"]`);
-        lines.push(`  :if ([:len $wan${n}OtherClient] > 0) do={ /ip dhcp-client remove $wan${n}OtherClient }`);
-        lines.push(`  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
-        lines.push(`  /ip dhcp-client add interface="${iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`);
+        lines.push(
+          `  :if ([:len $wan${n}OtherClient] > 0) do={ /ip dhcp-client remove $wan${n}OtherClient }`,
+        );
+        lines.push(
+          `  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`,
+        );
+        lines.push(
+          `  /ip dhcp-client add interface="${iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`,
+        );
         lines.push(`}`);
       } else {
         // pppoe -- like the dhcp branch above, `add-default-route=no`
@@ -2157,12 +2274,22 @@ export function buildRouterSetupScriptChunks(opts: {
         // port (a previous provisioning attempt, or a manual on-site
         // setup) is removed first if ours is missing, so this stays
         // self-healing on every re-run, not just a first-run check.
-        lines.push(`:local wan${n}CloudguestPppoeClient [/interface pppoe-client find where interface="${iface}" comment="cloudguest-pppoe-wan${n}"]`);
+        lines.push(
+          `:local wan${n}CloudguestPppoeClient [/interface pppoe-client find where interface="${iface}" comment="cloudguest-pppoe-wan${n}"]`,
+        );
         lines.push(`:if ([:len $wan${n}CloudguestPppoeClient] = 0) do={`);
-        lines.push(`  :local wan${n}OtherPppoeClient [/interface pppoe-client find where interface="${iface}"]`);
-        lines.push(`  :if ([:len $wan${n}OtherPppoeClient] > 0) do={ /interface pppoe-client remove $wan${n}OtherPppoeClient }`);
-        lines.push(`  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`);
-        lines.push(`  /interface pppoe-client add name="${pppoeIface}" interface="${iface}" user="${pppoeUser}" password="${pppoePass}" disabled=no add-default-route=no comment="cloudguest-pppoe-wan${n}"`);
+        lines.push(
+          `  :local wan${n}OtherPppoeClient [/interface pppoe-client find where interface="${iface}"]`,
+        );
+        lines.push(
+          `  :if ([:len $wan${n}OtherPppoeClient] > 0) do={ /interface pppoe-client remove $wan${n}OtherPppoeClient }`,
+        );
+        lines.push(
+          `  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`,
+        );
+        lines.push(
+          `  /interface pppoe-client add name="${pppoeIface}" interface="${iface}" user="${pppoeUser}" password="${pppoePass}" disabled=no add-default-route=no comment="cloudguest-pppoe-wan${n}"`,
+        );
         lines.push(`}`);
         // WAN interface-list membership and the NAT masquerade rule for
         // this WAN are added HERE, not in "WAN + Bridge" above, precisely
@@ -2171,11 +2298,18 @@ export function buildRouterSetupScriptChunks(opts: {
         // this same point). Both checks are idempotent the same way as
         // every other chunk in this generator, independent of the
         // self-heal block above -- a no-op on a healthy re-run.
-        lines.push(`:if ([:len [/interface list member find where interface="${pppoeIface}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${pppoeIface}" }`);
-        lines.push(`:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${pppoeIface}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${pppoeIface}" action=masquerade comment="cloudguest-nat-wan${n}" }`);
+        lines.push(
+          `:if ([:len [/interface list member find where interface="${pppoeIface}" list="WAN"]] = 0) do={ /interface list member add list="WAN" interface="${pppoeIface}" }`,
+        );
+        lines.push(
+          `:if ([:len [/ip firewall nat find where chain=srcnat out-interface="${pppoeIface}" action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat out-interface="${pppoeIface}" action=masquerade comment="cloudguest-nat-wan${n}" }`,
+        );
       }
     });
-    chunks.push({ label: "WAN Addressing (static IP, DHCP client, or PPPoE client per WAN)", script: lines.join("\n") });
+    chunks.push({
+      label: "WAN Addressing (static IP, DHCP client, or PPPoE client per WAN)",
+      script: lines.join("\n"),
+    });
   }
 
   // Real default routes -- both the routing-mark'd ones the PCC mangle
@@ -2254,10 +2388,14 @@ export function buildRouterSetupScriptChunks(opts: {
       } else if (wan.mode === "pppoe") {
         const pppoeIface = wanEffectiveIfs[idx];
         lines.push(`:local wan${n}Gw ""`);
-        lines.push(`:if ([:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0) do={ :do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :log warning "cloudguest: PPPoE WAN${n} gateway not resolved yet (still negotiating) -- re-paste this chunk once connected" } }`);
+        lines.push(
+          `:if ([:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0) do={ :do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :log warning "cloudguest: PPPoE WAN${n} gateway not resolved yet (still negotiating) -- re-paste this chunk once connected" } }`,
+        );
       } else {
         lines.push(`:local wan${n}Gw ""`);
-        lines.push(`:if ([:len [/ip dhcp-client find where interface="${iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${iface}"] gateway] }`);
+        lines.push(
+          `:if ([:len [/ip dhcp-client find where interface="${iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${iface}"] gateway] }`,
+        );
       }
     });
     wans.forEach((_, idx) => {
@@ -2283,16 +2421,24 @@ export function buildRouterSetupScriptChunks(opts: {
       // WAN mode a foreign default route could show up under, DHCP being
       // the realistic trigger since it's the only mode where RouterOS
       // itself can independently create one.
-      lines.push(`  :local plainRoute${n} [/ip route find where comment="cloudguest-plain-wan${n}"]`);
+      lines.push(
+        `  :local plainRoute${n} [/ip route find where comment="cloudguest-plain-wan${n}"]`,
+      );
       // `routing-mark=""` on the fallback find so this only ever adopts an
       // unmarked (plain/foreign) route -- never one of this same WAN's own
       // routing-mark'd load-balance/failover routes below, which share this
       // exact dst-address+gateway by design and would otherwise get
       // wrongly mistaken for the plain route on a re-run.
-      lines.push(`  :if ([:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw routing-mark=""] }`);
+      lines.push(
+        `  :if ([:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw routing-mark=""] }`,
+      );
       lines.push(`  :if ([:len $plainRoute${n}] = 0) do={`);
-      lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`);
-      lines.push(`  } else={ /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`);
+      lines.push(
+        `    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`,
+      );
+      lines.push(
+        `  } else={ /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`,
+      );
       // The routing-mark'd routes below are what the PCC mangle chunk
       // marks LAN-originated connections into -- meaningless (and never
       // generated) in failover-only mode, which relies purely on the
@@ -2303,9 +2449,15 @@ export function buildRouterSetupScriptChunks(opts: {
         // This WAN's own preferred (distance=1) routing-mark'd route --
         // what the PCC mangle rules below send this WAN's share of
         // LAN-originated connections into.
-        lines.push(`  :if ([:len [/ip route find where comment="cloudguest-route-wan${n}"]] = 0) do={`);
-        lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}"`);
-        lines.push(`  } else={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$wan${n}Gw }`);
+        lines.push(
+          `  :if ([:len [/ip route find where comment="cloudguest-route-wan${n}"]] = 0) do={`,
+        );
+        lines.push(
+          `    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}"`,
+        );
+        lines.push(
+          `  } else={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$wan${n}Gw }`,
+        );
         // Crossover backup: the *next* WAN's mark also gets a distance=2
         // route via this WAN's gateway -- a ring (wan1 backs up wan2, wan2
         // backs up wan3, ..., last WAN backs up wan1), not every pair
@@ -2314,9 +2466,15 @@ export function buildRouterSetupScriptChunks(opts: {
         // is the common case and degenerates to exactly mutual backup.
         const nextIdx = (idx + 1) % wans.length;
         const nextN = nextIdx + 1;
-        lines.push(`  :if ([:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]] = 0) do={`);
-        lines.push(`    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}"`);
-        lines.push(`  } else={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$wan${n}Gw }`);
+        lines.push(
+          `  :if ([:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]] = 0) do={`,
+        );
+        lines.push(
+          `    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}"`,
+        );
+        lines.push(
+          `  } else={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$wan${n}Gw }`,
+        );
       }
       lines.push(`}`);
     });
@@ -2328,8 +2486,12 @@ export function buildRouterSetupScriptChunks(opts: {
       // generated in this mode, silently reintroducing a load-balance-
       // shaped split under a "failover only" script. Safe to re-run: an
       // empty find is a no-op foreach.
-      lines.push(`:foreach r in=[/ip route find where comment~"^cloudguest-route-wan"] do={ /ip route remove $r }`);
-      lines.push(`:foreach r in=[/ip route find where comment~"^cloudguest-backup-wan"] do={ /ip route remove $r }`);
+      lines.push(
+        `:foreach r in=[/ip route find where comment~"^cloudguest-route-wan"] do={ /ip route remove $r }`,
+      );
+      lines.push(
+        `:foreach r in=[/ip route find where comment~"^cloudguest-backup-wan"] do={ /ip route remove $r }`,
+      );
     }
     // MANDATORY for the dashboard's Bandwidth Utilization widget and the
     // whole ISP-health/alerting system (app.domains.isp) to mean anything on
@@ -2345,7 +2507,10 @@ export function buildRouterSetupScriptChunks(opts: {
     // confirmed via direct RouterOS inspection that its only default route
     // had no check-gateway at all, months after provisioning.
     chunks.push({
-      label: wanRoutingMode === "failover_only" ? "WAN Routing (failover only)" : "WAN Routing (load balancing + failover)",
+      label:
+        wanRoutingMode === "failover_only"
+          ? "WAN Routing (failover only)"
+          : "WAN Routing (load balancing + failover)",
       script: lines.join("\n"),
     });
   }
@@ -2445,9 +2610,13 @@ export function buildRouterSetupScriptChunks(opts: {
   if (hasExplicitLan) {
     const lines: string[] = [];
     lines.push(...wanExistenceCheckLines((lanIfs as string[]).map((lanIf) => `"${lanIf}"`)));
-    lines.push(`:if ([:len [/interface list find where name="LAN"]] = 0) do={ /interface list add name="LAN" }`);
+    lines.push(
+      `:if ([:len [/interface list find where name="LAN"]] = 0) do={ /interface list add name="LAN" }`,
+    );
     (lanIfs as string[]).forEach((lanIf) => {
-      lines.push(`:if ([:len [/interface list member find where interface="${lanIf}" list="LAN"]] = 0) do={ /interface list member add list="LAN" interface="${lanIf}" }`);
+      lines.push(
+        `:if ([:len [/interface list member find where interface="${lanIf}" list="LAN"]] = 0) do={ /interface list member add list="LAN" interface="${lanIf}" }`,
+      );
     });
     chunks.push({ label: "LAN Interfaces (explicit allowlist)", script: lines.join("\n") });
   }
@@ -2726,7 +2895,10 @@ export function buildRouterSetupScriptChunks(opts: {
     // own docstring for the IP-literal-vs-hostname distinction.
     const walledGarden = buildWalledGardenLine(portalUrl);
     if (walledGarden) {
-      chunks.push({ label: "Walled Garden (let unauthenticated guests reach the portal)", script: walledGarden });
+      chunks.push({
+        label: "Walled Garden (let unauthenticated guests reach the portal)",
+        script: walledGarden,
+      });
     }
 
     // Separate chunk, deliberately not folded into the one above: the
@@ -2777,22 +2949,40 @@ export function buildRouterSetupScriptChunks(opts: {
   // scenario where a captive portal wants to skip this.
   {
     const dohIps = [
-      "1.1.1.1", "1.0.0.1", // Cloudflare
-      "8.8.8.8", "8.8.4.4", // Google
-      "9.9.9.9", "149.112.112.112", // Quad9
-      "208.67.222.222", "208.67.220.220", // OpenDNS
-      "94.140.14.14", "94.140.15.15", // AdGuard
+      "1.1.1.1",
+      "1.0.0.1", // Cloudflare
+      "8.8.8.8",
+      "8.8.4.4", // Google
+      "9.9.9.9",
+      "149.112.112.112", // Quad9
+      "208.67.222.222",
+      "208.67.220.220", // OpenDNS
+      "94.140.14.14",
+      "94.140.15.15", // AdGuard
     ];
     const lines: string[] = [];
-    lines.push(`:if ([:len [/ip firewall address-list find where list="cloudguest-doh-ips"]] = 0) do={`);
+    lines.push(
+      `:if ([:len [/ip firewall address-list find where list="cloudguest-doh-ips"]] = 0) do={`,
+    );
     dohIps.forEach((ip) => {
-      lines.push(`  /ip firewall address-list add list="cloudguest-doh-ips" address=${ip} comment="cloudguest-doh"`);
+      lines.push(
+        `  /ip firewall address-list add list="cloudguest-doh-ips" address=${ip} comment="cloudguest-doh"`,
+      );
     });
     lines.push(`}`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-udp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=udp dst-port=853 action=drop comment="cloudguest-block-dot-udp" }`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-tcp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=853 action=drop comment="cloudguest-block-dot-tcp" }`);
-    lines.push(`:if ([:len [/ip firewall filter find where comment="cloudguest-block-doh"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=443 dst-address-list=cloudguest-doh-ips action=drop comment="cloudguest-block-doh" }`);
-    chunks.push({ label: "Block DNS-over-HTTPS (forces captive portal to actually show)", script: lines.join("\n") });
+    lines.push(
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-udp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=udp dst-port=853 action=drop comment="cloudguest-block-dot-udp" }`,
+    );
+    lines.push(
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-tcp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=853 action=drop comment="cloudguest-block-dot-tcp" }`,
+    );
+    lines.push(
+      `:if ([:len [/ip firewall filter find where comment="cloudguest-block-doh"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=tcp dst-port=443 dst-address-list=cloudguest-doh-ips action=drop comment="cloudguest-block-doh" }`,
+    );
+    chunks.push({
+      label: "Block DNS-over-HTTPS (forces captive portal to actually show)",
+      script: lines.join("\n"),
+    });
   }
 
   if (enableFirewall) {
@@ -2833,7 +3023,9 @@ export function buildRouterSetupScriptChunks(opts: {
     // back to the existing even split rather than guessing which WANs the
     // missing weights were meant for.
     const allWeighted = wans.every((w) => typeof w.weight === "number" && w.weight > 0);
-    const weightedPlan = allWeighted ? buildWeightedPccPlan(wans.map((w) => w.weight as number)) : null;
+    const weightedPlan = allWeighted
+      ? buildWeightedPccPlan(wans.map((w) => w.weight as number))
+      : null;
 
     if (weightedPlan) {
       // Ratio changes need delete-then-recreate, not the usual add-if-
@@ -2844,13 +3036,19 @@ export function buildRouterSetupScriptChunks(opts: {
       // stale index rules pointing at the wrong WAN. Safe to re-run: an
       // empty find is a no-op foreach, so this is a no-op on a router
       // that has never had weighted PCC rules at all.
-      lines.push(`:foreach r in=[/ip firewall mangle find where comment~"^cloudguest-mangle-pcc-wan"] do={ /ip firewall mangle remove $r }`);
+      lines.push(
+        `:foreach r in=[/ip firewall mangle find where comment~"^cloudguest-mangle-pcc-wan"] do={ /ip firewall mangle remove $r }`,
+      );
     }
 
     wanEffectiveIfs.forEach((wanIf, idx) => {
       const n = idx + 1;
-      lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={`);
-      lines.push(`  /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}"`);
+      lines.push(
+        `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={`,
+      );
+      lines.push(
+        `  /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}"`,
+      );
       lines.push(`}`);
       if (weightedPlan) {
         // One rule PER INDEX in this WAN's own share of the GCD-reduced
@@ -2860,21 +3058,35 @@ export function buildRouterSetupScriptChunks(opts: {
         // (`...-idxK`) is unique, so the cleanup foreach above and this
         // add-if-missing check never collide across a ratio change.
         weightedPlan.indicesByWan[idx].forEach((i) => {
-          lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}-idx${i}"]] = 0) do={`);
-          lines.push(`  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${weightedPlan.total}/${i} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}-idx${i}"`);
+          lines.push(
+            `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}-idx${i}"]] = 0) do={`,
+          );
+          lines.push(
+            `  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${weightedPlan.total}/${i} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}-idx${i}"`,
+          );
           lines.push(`}`);
         });
       } else {
-        lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={`);
-        lines.push(`  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}"`);
+        lines.push(
+          `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={`,
+        );
+        lines.push(
+          `  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}"`,
+        );
         lines.push(`}`);
       }
-      lines.push(`:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-route-wan${n}"]] = 0) do={`);
-      lines.push(`  /ip firewall mangle add chain=prerouting connection-mark="wan${n}_conn" action=mark-routing new-routing-mark="to_wan${n}" passthrough=yes comment="cloudguest-mangle-route-wan${n}"`);
+      lines.push(
+        `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-route-wan${n}"]] = 0) do={`,
+      );
+      lines.push(
+        `  /ip firewall mangle add chain=prerouting connection-mark="wan${n}_conn" action=mark-routing new-routing-mark="to_wan${n}" passthrough=yes comment="cloudguest-mangle-route-wan${n}"`,
+      );
       lines.push(`}`);
     });
     chunks.push({
-      label: weightedPlan ? "Basic Mangle Rules (weighted multi-WAN load balancing)" : "Basic Mangle Rules (dual/multi-WAN load balancing)",
+      label: weightedPlan
+        ? "Basic Mangle Rules (weighted multi-WAN load balancing)"
+        : "Basic Mangle Rules (dual/multi-WAN load balancing)",
       script: lines.join("\n"),
     });
   }
@@ -2935,22 +3147,24 @@ export function buildRouterSetupScriptChunks(opts: {
       // self-healing if this chunk is ever re-pasted after the bug's
       // effects are already on the device (see `cloudguest-fw-drop-wan-input`
       // below in the Firewall chunk for the paired half of this fix).
-      ...(enableFirewall ? [
-        `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`,
-        `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
-        `  :if ([:len $wanDropRule] > 0) do={`,
-        `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule`,
-        `  } else={`,
-        `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
-        `  }`,
-        `} else={`,
-        `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
-        `  :local wgAllowRule [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
-        `  :if ([:len $wanDropRule] > 0 && [:len $wgAllowRule] > 0) do={`,
-        `    /ip firewall filter move $wgAllowRule destination=$wanDropRule`,
-        `  }`,
-        `}`,
-      ] : []),
+      ...(enableFirewall
+        ? [
+            `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`,
+            `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
+            `  :if ([:len $wanDropRule] > 0) do={`,
+            `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule`,
+            `  } else={`,
+            `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
+            `  }`,
+            `} else={`,
+            `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
+            `  :local wgAllowRule [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
+            `  :if ([:len $wanDropRule] > 0 && [:len $wgAllowRule] > 0) do={`,
+            `    /ip firewall filter move $wgAllowRule destination=$wanDropRule`,
+            `  }`,
+            `}`,
+          ]
+        : []),
     ];
     chunks.push({ label: "WireGuard Tunnel", script: lines.join("\n") });
   }
@@ -3262,7 +3476,11 @@ function WireGuardTab({ routerId }: { routerId: string }) {
  * the endpoint's own "who saw this and when" intent.
  */
 export function RemoteAccessCard({ routerId }: { routerId: string }) {
-  const [conn, setConn] = useState<{ host: string | null; username: string | null; password: string | null } | null>(null);
+  const [conn, setConn] = useState<{
+    host: string | null;
+    username: string | null;
+    password: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
@@ -3285,9 +3503,9 @@ export function RemoteAccessCard({ routerId }: { routerId: string }) {
         <div>
           <CardTitle className="text-base">WinBox / API login</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Login for connecting with an external tool (WinBox, RouterOS API), reachable only
-            over the tunnel above. To run commands right here instead, use Master Console's
-            Device Console.
+            Login for connecting with an external tool (WinBox, RouterOS API), reachable only over
+            the tunnel above. To run commands right here instead, use Master Console's Device
+            Console.
           </p>
         </div>
         <Button
@@ -3296,13 +3514,22 @@ export function RemoteAccessCard({ routerId }: { routerId: string }) {
           onClick={() => (revealed ? setRevealed(false) : reveal())}
           disabled={loading}
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : revealed ? (
+            <EyeOff className="h-4 w-4" />
+          ) : (
+            <Eye className="h-4 w-4" />
+          )}
           <span className="ml-2">{revealed ? "Hide" : "Reveal"}</span>
         </Button>
       </CardHeader>
       {revealed && conn && (
         <CardContent className="space-y-2">
-          <KeyRow label="Connect to (WinBox / API)" value={conn.host ?? "Not available -- no reported management IP yet"} />
+          <KeyRow
+            label="Connect to (WinBox / API)"
+            value={conn.host ?? "Not available -- no reported management IP yet"}
+          />
           <KeyRow label="Login" value={conn.username ?? "—"} />
           <KeyRow label="Password" value={conn.password ?? "—"} />
           <p className="text-xs text-muted-foreground">

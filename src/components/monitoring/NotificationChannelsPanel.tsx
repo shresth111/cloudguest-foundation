@@ -125,11 +125,16 @@ export function NotificationChannelsPanel() {
                       <ChannelTypeBadge type={c.channelType} />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {orgName(c.organizationId) ?? (c.organizationId ? c.organizationId.slice(0, 8) : "All")}
+                      {orgName(c.organizationId) ??
+                        (c.organizationId ? c.organizationId.slice(0, 8) : "All")}
                     </TableCell>
                     <TableCell className="text-xs">{c.isActive ? "Active" : "Inactive"}</TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setConfirmDelete({ id: c.id, name: c.name })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmDelete({ id: c.id, name: c.name })}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -143,10 +148,20 @@ export function NotificationChannelsPanel() {
                   Page {data.page} of {data.totalPages}
                 </span>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!data.hasPrevious}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
                     Previous
                   </Button>
-                  <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!data.hasNext}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
                     Next
                   </Button>
                 </div>
@@ -158,7 +173,11 @@ export function NotificationChannelsPanel() {
 
       <NotificationLogsTable />
 
-      <CreateChannelDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={() => refetch()} />
+      <CreateChannelDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => refetch()}
+      />
 
       <ConfirmDialog
         open={!!confirmDelete}
@@ -428,7 +447,10 @@ function NotificationLogsTable() {
         </div>
       ) : logs.length === 0 ? (
         <div className="p-6">
-          <EmptyState title="No deliveries yet" description="Notifications will appear here once an alert fires with a channel attached." />
+          <EmptyState
+            title="No deliveries yet"
+            description="Notifications will appear here once an alert fires with a channel attached."
+          />
         </div>
       ) : (
         <div className="overflow-x-auto">

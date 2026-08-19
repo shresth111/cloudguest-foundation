@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  Plus, MapPin, Router, UserPlus, Ticket, QrCode, FileBarChart, RefreshCw, HardDriveDownload, Store,
+  Plus,
+  MapPin,
+  Router,
+  UserPlus,
+  Ticket,
+  QrCode,
+  FileBarChart,
+  RefreshCw,
+  HardDriveDownload,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const ACTIONS = [
   { label: "Add location", icon: MapPin, href: "/locations" },
@@ -59,7 +64,9 @@ export function QuickActionsFab() {
                   key={a.label}
                   className="text-left"
                   onClick={() => {
-                    toast.success(`${a.label} queued`, { description: "This action is mocked in the demo environment." });
+                    toast.success(`${a.label} queued`, {
+                      description: "This action is mocked in the demo environment.",
+                    });
                     setOpen(false);
                   }}
                 >

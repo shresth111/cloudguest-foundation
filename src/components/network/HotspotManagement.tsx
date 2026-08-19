@@ -135,9 +135,13 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
     return p.name.toLowerCase().includes(t) || routerName(p.routerId).toLowerCase().includes(t);
   });
 
-  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
-  const total = locationId ? filteredRows.length : data?.total ?? 0;
-  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const rows = locationId
+    ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : filteredRows;
+  const total = locationId ? filteredRows.length : (data?.total ?? 0);
+  const totalPages = locationId
+    ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+    : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   // The dedicated KPI endpoint isn't location-scoped (same backend gap as
@@ -145,9 +149,9 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
   // from the already-narrowed filteredRows instead of the org-wide kpis
   // query -- same tradeoff PortForwardingManagement makes.
   const scopedEnabled = filteredRows.filter((p) => p.isEnabled).length;
-  const statTotal = locationId ? total : kpis?.total ?? 0;
-  const statEnabled = locationId ? scopedEnabled : kpis?.enabled ?? 0;
-  const statDisabled = locationId ? total - scopedEnabled : kpis?.disabled ?? 0;
+  const statTotal = locationId ? total : (kpis?.total ?? 0);
+  const statEnabled = locationId ? scopedEnabled : (kpis?.enabled ?? 0);
+  const statDisabled = locationId ? total - scopedEnabled : (kpis?.disabled ?? 0);
 
   return (
     <div className="space-y-6">
@@ -218,14 +222,20 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No hotspot profiles match your filters.
                   </TableCell>
                 </TableRow>
@@ -311,8 +321,8 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
           <AlertDialogHeader>
             <AlertDialogTitle>Delete profile "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes it from {confirmDelete ? routerName(confirmDelete.routerId) : ""}.
-              This cannot be undone.
+              This permanently removes it from{" "}
+              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -462,7 +472,9 @@ function HotspotDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -489,15 +501,22 @@ function HotspotDialog({
             <Input type="number" min={1} {...form.register("downloadLimitKbps")} />
           </div>
           <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Walled-garden hosts (comma-separated, optional)</Label>
-            <Input {...form.register("walledGardenHosts")} placeholder="example.com, cdn.example.com" />
+            <Label className="text-xs font-medium">
+              Walled-garden hosts (comma-separated, optional)
+            </Label>
+            <Input
+              {...form.register("walledGardenHosts")}
+              placeholder="example.com, cdn.example.com"
+            />
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
             <div className="text-sm font-medium">Enabled</div>
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <DialogFooter className="sm:col-span-2">

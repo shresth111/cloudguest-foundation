@@ -68,7 +68,8 @@ let cachedOrganizationId: string | null = null;
 // mac-authorization.service.ts's resolveOrganizationId.
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const { data } =
+    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
   if (!membership) throw new Error("No organization found for the current session");
   cachedOrganizationId = membership.organization_id;

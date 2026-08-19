@@ -42,14 +42,55 @@ export function PortalKpiGrid() {
   if (isError || !data) return <ErrorState onRetry={refetch} />;
 
   const cards: Kpi[] = [
-    { label: "Total portals", value: fmt(data.totalPortals), icon: LayoutTemplate, tone: "from-sky-500/15 to-transparent text-sky-600" },
-    { label: "Published", value: fmt(data.publishedPortals), icon: BookOpenCheck, tone: "from-emerald-500/15 to-transparent text-emerald-600" },
-    { label: "Drafts", value: fmt(data.draftPortals), icon: FileEdit, tone: "from-amber-500/15 to-transparent text-amber-600" },
-    { label: "Active locations", value: fmt(data.activeLocations), icon: MapPin, tone: "from-indigo-500/15 to-transparent text-indigo-600" },
-    { label: "Active themes", value: fmt(data.activeThemes), icon: Palette, tone: "from-pink-500/15 to-transparent text-pink-600" },
-    { label: "Today's logins", value: fmt(data.todaysLogins), icon: Activity, tone: "from-teal-500/15 to-transparent text-teal-600" },
-    { label: "Conversion rate", value: `${data.conversionRate}%`, hint: "logins / views", icon: TrendingUp, tone: "from-violet-500/15 to-transparent text-violet-600" },
-    { label: "Portal views", value: fmt(data.portalViews), icon: Eye, tone: "from-cyan-500/15 to-transparent text-cyan-600" },
+    {
+      label: "Total portals",
+      value: fmt(data.totalPortals),
+      icon: LayoutTemplate,
+      tone: "from-sky-500/15 to-transparent text-sky-600",
+    },
+    {
+      label: "Published",
+      value: fmt(data.publishedPortals),
+      icon: BookOpenCheck,
+      tone: "from-emerald-500/15 to-transparent text-emerald-600",
+    },
+    {
+      label: "Drafts",
+      value: fmt(data.draftPortals),
+      icon: FileEdit,
+      tone: "from-amber-500/15 to-transparent text-amber-600",
+    },
+    {
+      label: "Active locations",
+      value: fmt(data.activeLocations),
+      icon: MapPin,
+      tone: "from-indigo-500/15 to-transparent text-indigo-600",
+    },
+    {
+      label: "Active themes",
+      value: fmt(data.activeThemes),
+      icon: Palette,
+      tone: "from-pink-500/15 to-transparent text-pink-600",
+    },
+    {
+      label: "Today's logins",
+      value: fmt(data.todaysLogins),
+      icon: Activity,
+      tone: "from-teal-500/15 to-transparent text-teal-600",
+    },
+    {
+      label: "Conversion rate",
+      value: `${data.conversionRate}%`,
+      hint: "logins / views",
+      icon: TrendingUp,
+      tone: "from-violet-500/15 to-transparent text-violet-600",
+    },
+    {
+      label: "Portal views",
+      value: fmt(data.portalViews),
+      icon: Eye,
+      tone: "from-cyan-500/15 to-transparent text-cyan-600",
+    },
   ];
 
   return (
@@ -62,10 +103,14 @@ export function PortalKpiGrid() {
           transition={{ delay: i * 0.03, duration: 0.25 }}
         >
           <Card className="relative overflow-hidden">
-            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${c.tone} opacity-40`} />
+            <div
+              className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${c.tone} opacity-40`}
+            />
             <CardContent className="relative flex items-start justify-between p-4">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{c.label}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {c.label}
+                </p>
                 <p className="mt-1 text-2xl font-semibold tracking-tight">{c.value}</p>
                 {c.hint && <p className="mt-1 text-xs text-muted-foreground">{c.hint}</p>}
               </div>

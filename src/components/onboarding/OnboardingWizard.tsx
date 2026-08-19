@@ -1,5 +1,17 @@
 import { useState } from "react";
-import { Building2, Palette, MapPin, Router, Wifi, Globe, CheckCircle2, ArrowRight, ArrowLeft, X, Sparkles } from "lucide-react";
+import {
+  Building2,
+  Palette,
+  MapPin,
+  Router,
+  Wifi,
+  Globe,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  X,
+  Sparkles,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +27,18 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { id: "organization", title: "Organization", description: "Set up your company profile", icon: Building2 },
-  { id: "branding", title: "Branding", description: "Customize your portal appearance", icon: Palette },
+  {
+    id: "organization",
+    title: "Organization",
+    description: "Set up your company profile",
+    icon: Building2,
+  },
+  {
+    id: "branding",
+    title: "Branding",
+    description: "Customize your portal appearance",
+    icon: Palette,
+  },
   { id: "location", title: "Location", description: "Add your first site location", icon: MapPin },
   { id: "router", title: "Router", description: "Register your first router", icon: Router },
   { id: "ssid", title: "SSID", description: "Configure your guest network", icon: Wifi },
@@ -101,7 +123,12 @@ export function OnboardingWizard({ open, onOpenChange }: OnboardingWizardProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChange(false); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) onOpenChange(false);
+      }}
+    >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -113,7 +140,9 @@ export function OnboardingWizard({ open, onOpenChange }: OnboardingWizardProps) 
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Step {step + 1} of {STEPS.length}</span>
+            <span>
+              Step {step + 1} of {STEPS.length}
+            </span>
             <span>{Math.round(progress)}%</span>
           </div>
           <Progress value={progress} className="h-1.5" />
@@ -127,8 +156,11 @@ export function OnboardingWizard({ open, onOpenChange }: OnboardingWizardProps) 
               onClick={() => setStep(i)}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                i === step ? "bg-primary text-primary-foreground" :
-                i < step ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                i === step
+                  ? "bg-primary text-primary-foreground"
+                  : i < step
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground",
               )}
             >
               {i < step ? <CheckCircle2 className="h-3 w-3" /> : null}

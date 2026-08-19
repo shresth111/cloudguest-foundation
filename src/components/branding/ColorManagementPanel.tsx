@@ -39,18 +39,27 @@ export function ColorManagementPanel({ brand }: { brand: Brand }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle className="text-base">Color palette</CardTitle>
-        <Button variant="outline" size="sm" onClick={() => reset.mutate(brand.id, { onSuccess: () => toast.success("Theme reset") })}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => reset.mutate(brand.id, { onSuccess: () => toast.success("Theme reset") })}
+        >
           <RotateCcw className="mr-1.5 h-4 w-4" /> Reset theme
         </Button>
       </CardHeader>
       <CardContent className="space-y-5">
         {Object.entries(groups).map(([group, items]) => (
           <div key={group}>
-            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{group}</div>
+            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+              {group}
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((f) => (
                 <div key={f.key} className="flex items-center gap-3 rounded-lg border p-2.5">
-                  <label className="relative h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-md border" style={{ background: brand.colors[f.key] }}>
+                  <label
+                    className="relative h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-md border"
+                    style={{ background: brand.colors[f.key] }}
+                  >
                     <input
                       type="color"
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"

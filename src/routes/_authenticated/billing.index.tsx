@@ -172,7 +172,12 @@ function BillingPage() {
         </TabsContent>
       </Tabs>
 
-      <CreateSubscriptionDialog open={creating} onOpenChange={setCreating} plans={snap.data?.plans ?? []} coupons={snap.data?.coupons ?? []} />
+      <CreateSubscriptionDialog
+        open={creating}
+        onOpenChange={setCreating}
+        plans={snap.data?.plans ?? []}
+        coupons={snap.data?.coupons ?? []}
+      />
     </div>
   );
 }

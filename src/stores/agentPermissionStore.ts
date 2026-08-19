@@ -32,19 +32,69 @@ export interface AgentRecord {
 }
 
 export const READ_ONLY_ROLE_ID = "role-read-only";
-export const LOCATIONS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+export const LOCATIONS = [
+  "Marina Bay Hotel",
+  "Downtown CoWork",
+  "Eastside Cafe",
+  "Airport Lounge T3",
+];
 
 const SEED_ROLES: AgentRole[] = [
   { id: READ_ONLY_ROLE_ID, name: "Read-Only", features: ["policies", "whitelist"], locked: true },
-  { id: "role-front-desk", name: "Front Desk", features: ["users", "vouchers", "devices", "alerts", "reports"] },
-  { id: "role-net-eng", name: "Network Engineer", features: ["hotspot", "dhcp", "vlans", "port-forwarding", "voip", "isp-details", "devices", "alerts", "debugging"] },
+  {
+    id: "role-front-desk",
+    name: "Front Desk",
+    features: ["users", "vouchers", "devices", "alerts", "reports"],
+  },
+  {
+    id: "role-net-eng",
+    name: "Network Engineer",
+    features: [
+      "hotspot",
+      "dhcp",
+      "vlans",
+      "port-forwarding",
+      "voip",
+      "isp-details",
+      "devices",
+      "alerts",
+      "debugging",
+    ],
+  },
   { id: "role-marketing", name: "Marketing", features: ["campaigns", "portal", "reports"] },
 ];
 
 const SEED_AGENTS: AgentRecord[] = [
-  { id: "ag-1", name: "Front Desk", email: "frontdesk@stay.com", mobile: "+919876543210", status: "active", dataMasking: true, roleId: "role-front-desk", locations: ["Marina Bay Hotel"] },
-  { id: "ag-2", name: "Network Engineer", email: "neteng@stay.com", mobile: "+919812345678", status: "active", dataMasking: true, roleId: "role-net-eng", locations: LOCATIONS },
-  { id: "ag-3", name: "Marketing", email: "marketing@stay.com", mobile: "+919900001111", status: "active", dataMasking: true, roleId: "role-marketing", locations: ["Marina Bay Hotel", "Downtown CoWork"] },
+  {
+    id: "ag-1",
+    name: "Front Desk",
+    email: "frontdesk@stay.com",
+    mobile: "+919876543210",
+    status: "active",
+    dataMasking: true,
+    roleId: "role-front-desk",
+    locations: ["Marina Bay Hotel"],
+  },
+  {
+    id: "ag-2",
+    name: "Network Engineer",
+    email: "neteng@stay.com",
+    mobile: "+919812345678",
+    status: "active",
+    dataMasking: true,
+    roleId: "role-net-eng",
+    locations: LOCATIONS,
+  },
+  {
+    id: "ag-3",
+    name: "Marketing",
+    email: "marketing@stay.com",
+    mobile: "+919900001111",
+    status: "active",
+    dataMasking: true,
+    roleId: "role-marketing",
+    locations: ["Marina Bay Hotel", "Downtown CoWork"],
+  },
 ];
 
 interface AgentPermissionState {
@@ -89,9 +139,13 @@ export const useAgentPermissions = create<AgentPermissionState>()(
         return id;
       },
       updateRoleFeatures: (id, features) =>
-        set((s) => ({ roles: s.roles.map((r) => (r.id === id && !r.locked ? { ...r, features } : r)) })),
+        set((s) => ({
+          roles: s.roles.map((r) => (r.id === id && !r.locked ? { ...r, features } : r)),
+        })),
       renameRole: (id, name) =>
-        set((s) => ({ roles: s.roles.map((r) => (r.id === id && !r.locked ? { ...r, name } : r)) })),
+        set((s) => ({
+          roles: s.roles.map((r) => (r.id === id && !r.locked ? { ...r, name } : r)),
+        })),
       removeRole: (id) =>
         set((s) => ({
           roles: s.roles.filter((r) => r.id !== id || r.locked),

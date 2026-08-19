@@ -1,12 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { portalService } from "@/services/portal.service";
-import type {
-  Portal,
-  PortalAd,
-  PortalListQuery,
-  PortalStatus,
-} from "@/types/portal";
+import type { Portal, PortalAd, PortalListQuery, PortalStatus } from "@/types/portal";
 
 const K = {
   kpis: () => ["portal", "kpis"] as const,
@@ -29,7 +24,11 @@ export const usePortalThemes = () =>
   useQuery({ queryKey: K.themes(), queryFn: () => portalService.themes() });
 
 export const usePortalAnalytics = (id: string) =>
-  useQuery({ queryKey: K.analytics(id), queryFn: () => portalService.analytics(id), enabled: !!id });
+  useQuery({
+    queryKey: K.analytics(id),
+    queryFn: () => portalService.analytics(id),
+    enabled: !!id,
+  });
 
 export function useCreatePortal() {
   const qc = useQueryClient();

@@ -1,8 +1,20 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Activity, AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Globe, Megaphone,
-  MapPin, Router as RouterIcon, ShieldCheck, Ticket, Users, Wifi, XCircle,
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Globe,
+  Megaphone,
+  MapPin,
+  Router as RouterIcon,
+  ShieldCheck,
+  Ticket,
+  Users,
+  Wifi,
+  XCircle,
 } from "lucide-react";
 import {
   Area,
@@ -115,9 +127,7 @@ export function DashboardWidgets() {
   // plus open-alert count, the only two real health inputs this workspace
   // actually has (see the module docstring on RouterDetailTabs' own
   // monitoring-tab gap: no live CPU/RAM/bandwidth endpoint exists yet).
-  const routerRatio = aggregated.routers.length
-    ? onlineRouters / aggregated.routers.length
-    : 1;
+  const routerRatio = aggregated.routers.length ? onlineRouters / aggregated.routers.length : 1;
   const systemHealth: "healthy" | "degraded" | "critical" =
     routerRatio === 1 && (owner.openAlerts ?? 0) === 0
       ? "healthy"
@@ -260,8 +270,16 @@ export function DashboardWidgets() {
           />
           <HealthCard
             label="System health"
-            value={systemHealth === "healthy" ? "Healthy" : systemHealth === "degraded" ? "Degraded" : "Critical"}
-            tone={systemHealth === "healthy" ? "green" : systemHealth === "degraded" ? "yellow" : "red"}
+            value={
+              systemHealth === "healthy"
+                ? "Healthy"
+                : systemHealth === "degraded"
+                  ? "Degraded"
+                  : "Critical"
+            }
+            tone={
+              systemHealth === "healthy" ? "green" : systemHealth === "degraded" ? "yellow" : "red"
+            }
             icon={systemHealth === "healthy" ? ShieldCheck : AlertTriangle}
             hint={
               owner.openAlerts !== undefined
@@ -471,7 +489,9 @@ function HealthCard({
   return (
     <Card>
       <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", TONE_STYLES[tone])}>
+        <div
+          className={cn("flex h-9 w-9 items-center justify-center rounded-lg", TONE_STYLES[tone])}
+        >
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">

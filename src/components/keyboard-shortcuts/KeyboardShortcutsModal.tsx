@@ -7,7 +7,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface ShortcutGroup {
   label: string;
@@ -67,7 +74,10 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: KeyboardShortcuts
               <h4 className="mb-2 text-sm font-medium text-muted-foreground">{group.label}</h4>
               <div className="space-y-1">
                 {group.shortcuts.map((sc) => (
-                  <div key={sc.keys} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent">
+                  <div
+                    key={sc.keys}
+                    className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent"
+                  >
                     <span className="text-sm">{sc.description}</span>
                     <span className="text-xs text-muted-foreground">{sc.keys}</span>
                   </div>

@@ -27,7 +27,12 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
   const state = { isLoading, isError, onRetry };
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <ChartCard title="Bandwidth usage" description="Download vs upload (Mbps)" {...state} isEmpty={!data?.bandwidth?.length}>
+      <ChartCard
+        title="Bandwidth usage"
+        description="Download vs upload (Mbps)"
+        {...state}
+        isEmpty={!data?.bandwidth?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.bandwidth ?? []}>
             <defs>
@@ -45,17 +50,40 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Area type="monotone" dataKey="download" stroke={CHART_COLORS[0]} fill="url(#dl)" strokeWidth={2} />
-            <Area type="monotone" dataKey="upload" stroke={CHART_COLORS[1]} fill="url(#ul)" strokeWidth={2} />
+            <Area
+              type="monotone"
+              dataKey="download"
+              stroke={CHART_COLORS[0]}
+              fill="url(#dl)"
+              strokeWidth={2}
+            />
+            <Area
+              type="monotone"
+              dataKey="upload"
+              stroke={CHART_COLORS[1]}
+              fill="url(#ul)"
+              strokeWidth={2}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Peak bandwidth hours" description="Aggregate Mbps by hour" {...state} isEmpty={!data?.peakBandwidthHours?.length}>
+      <ChartCard
+        title="Peak bandwidth hours"
+        description="Aggregate Mbps by hour"
+        {...state}
+        isEmpty={!data?.peakBandwidthHours?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.peakBandwidthHours ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
-            <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} interval={2} />
+            <XAxis
+              dataKey="label"
+              tick={AXIS_STYLE}
+              tickLine={false}
+              axisLine={false}
+              interval={2}
+            />
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
             <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
             <Bar dataKey="value" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
@@ -63,19 +91,41 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Internet utilization" description="% of capacity" {...state} isEmpty={!data?.internetUtilization?.length}>
+      <ChartCard
+        title="Internet utilization"
+        description="% of capacity"
+        {...state}
+        isEmpty={!data?.internetUtilization?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data?.internetUtilization ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
-            <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} domain={[0, 100]} />
+            <YAxis
+              tick={AXIS_STYLE}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+              domain={[0, 100]}
+            />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Line type="monotone" dataKey="value" stroke={CHART_COLORS[3]} strokeWidth={2} dot={false} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={CHART_COLORS[3]}
+              strokeWidth={2}
+              dot={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Router health score" description="Fleet average" {...state} isEmpty={!data?.routerHealthScore?.length}>
+      <ChartCard
+        title="Router health score"
+        description="Fleet average"
+        {...state}
+        isEmpty={!data?.routerHealthScore?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.routerHealthScore ?? []}>
             <defs>
@@ -86,14 +136,31 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
             </defs>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
-            <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} domain={[70, 100]} />
+            <YAxis
+              tick={AXIS_STYLE}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+              domain={[70, 100]}
+            />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[4]} fill="url(#hs)" strokeWidth={2} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={CHART_COLORS[4]}
+              fill="url(#hs)"
+              strokeWidth={2}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Packet loss" description="Average % per day" {...state} isEmpty={!data?.packetLoss?.length}>
+      <ChartCard
+        title="Packet loss"
+        description="Average % per day"
+        {...state}
+        isEmpty={!data?.packetLoss?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data?.packetLoss ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
@@ -105,19 +172,36 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Latency" description="Average ms" {...state} isEmpty={!data?.latency?.length}>
+      <ChartCard
+        title="Latency"
+        description="Average ms"
+        {...state}
+        isEmpty={!data?.latency?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data?.latency ?? []}>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
             <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Line type="monotone" dataKey="value" stroke={CHART_COLORS[5]} strokeWidth={2} dot={false} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={CHART_COLORS[5]}
+              strokeWidth={2}
+              dot={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Uptime trend" description="% uptime" className="xl:col-span-2" {...state} isEmpty={!data?.uptime?.length}>
+      <ChartCard
+        title="Uptime trend"
+        description="% uptime"
+        className="xl:col-span-2"
+        {...state}
+        isEmpty={!data?.uptime?.length}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data?.uptime ?? []}>
             <defs>
@@ -128,9 +212,21 @@ export function NetworkAnalyticsPanel({ data, isLoading, isError, onRetry }: Pro
             </defs>
             <CartesianGrid strokeOpacity={0.15} vertical={false} />
             <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
-            <YAxis tick={AXIS_STYLE} tickLine={false} axisLine={false} width={40} domain={[95, 100]} />
+            <YAxis
+              tick={AXIS_STYLE}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+              domain={[95, 100]}
+            />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[1]} fill="url(#ut)" strokeWidth={2} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={CHART_COLORS[1]}
+              fill="url(#ut)"
+              strokeWidth={2}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>

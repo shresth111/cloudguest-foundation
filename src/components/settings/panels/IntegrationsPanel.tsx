@@ -27,10 +27,14 @@ export function IntegrationsPanel({ data }: { data: IntegrationCard[] }) {
           <section key={g.id} className="space-y-3">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold">{g.label}</h3>
-              <Badge variant="secondary" className="rounded-full">{items.length}</Badge>
+              <Badge variant="secondary" className="rounded-full">
+                {items.length}
+              </Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((item) => <IntegrationTile key={item.id} item={item} />)}
+              {items.map((item) => (
+                <IntegrationTile key={item.id} item={item} />
+              ))}
             </div>
           </section>
         );
@@ -47,7 +51,8 @@ function IntegrationTile({ item }: { item: IntegrationCard }) {
     const r = await settingsService.testIntegration(item.id);
     setTesting(false);
     inv();
-    r.ok ? toast.success(`${item.name} reachable`) : toast.error(`${item.name} test failed`);
+    if (r.ok) toast.success(`${item.name} reachable`);
+    else toast.error(`${item.name} test failed`);
   };
   const toggle = async () => {
     await settingsService.toggleIntegration(item.id);
@@ -55,7 +60,11 @@ function IntegrationTile({ item }: { item: IntegrationCard }) {
     toast.success(`${item.name} ${item.status === "connected" ? "disconnected" : "connected"}`);
   };
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+    >
       <Card className="h-full border-border/60 transition-colors hover:border-border">
         <CardContent className="flex h-full flex-col gap-3 p-4">
           <div className="flex items-start justify-between">
@@ -65,7 +74,9 @@ function IntegrationTile({ item }: { item: IntegrationCard }) {
               </div>
               <div>
                 <div className="text-sm font-semibold">{item.name}</div>
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.category}</div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {item.category}
+                </div>
               </div>
             </div>
             <StatusBadge status={item.status} />

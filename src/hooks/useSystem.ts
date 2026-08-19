@@ -1,9 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  systemService,
-  type NotifCategory,
-  type NotifPriority,
-} from "@/services/system.service";
+import { systemService, type NotifCategory, type NotifPriority } from "@/services/system.service";
 
 export const systemKeys = {
   marketplace: ["system", "marketplace"] as const,
@@ -13,8 +9,11 @@ export const systemKeys = {
   apiKeys: ["system", "apiKeys"] as const,
   webhooks: ["system", "webhooks"] as const,
   integrations: ["system", "integrations"] as const,
-  notifications: (f?: { category?: NotifCategory; priority?: NotifPriority; unreadOnly?: boolean }) =>
-    ["system", "notifications", f] as const,
+  notifications: (f?: {
+    category?: NotifCategory;
+    priority?: NotifPriority;
+    unreadOnly?: boolean;
+  }) => ["system", "notifications", f] as const,
   help: ["system", "help"] as const,
 };
 
@@ -24,22 +23,31 @@ export const useMarketplace = () =>
 export const useToggleFeature = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, enable }: { id: string; enable: boolean }) => systemService.toggleFeature(id, enable),
+    mutationFn: ({ id, enable }: { id: string; enable: boolean }) =>
+      systemService.toggleFeature(id, enable),
     onSuccess: () => qc.invalidateQueries({ queryKey: systemKeys.marketplace }),
   });
 };
 
-export const usePlan = () => useQuery({ queryKey: systemKeys.plan, queryFn: () => systemService.getPlan() });
-export const useInvoices = () => useQuery({ queryKey: systemKeys.invoices, queryFn: () => systemService.listInvoices() });
+export const usePlan = () =>
+  useQuery({ queryKey: systemKeys.plan, queryFn: () => systemService.getPlan() });
+export const useInvoices = () =>
+  useQuery({ queryKey: systemKeys.invoices, queryFn: () => systemService.listInvoices() });
 
 export const useSystemMetrics = () =>
-  useQuery({ queryKey: systemKeys.metrics, queryFn: () => systemService.systemMetrics(), refetchInterval: 30_000 });
+  useQuery({
+    queryKey: systemKeys.metrics,
+    queryFn: () => systemService.systemMetrics(),
+    refetchInterval: 30_000,
+  });
 
-export const useApiKeys = () => useQuery({ queryKey: systemKeys.apiKeys, queryFn: () => systemService.listApiKeys() });
+export const useApiKeys = () =>
+  useQuery({ queryKey: systemKeys.apiKeys, queryFn: () => systemService.listApiKeys() });
 export const useCreateApiKey = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, scopes }: { name: string; scopes: string[] }) => systemService.createApiKey(name, scopes),
+    mutationFn: ({ name, scopes }: { name: string; scopes: string[] }) =>
+      systemService.createApiKey(name, scopes),
     onSuccess: () => qc.invalidateQueries({ queryKey: systemKeys.apiKeys }),
   });
 };
@@ -58,11 +66,13 @@ export const useRotateApiKey = () => {
   });
 };
 
-export const useWebhooks = () => useQuery({ queryKey: systemKeys.webhooks, queryFn: () => systemService.listWebhooks() });
+export const useWebhooks = () =>
+  useQuery({ queryKey: systemKeys.webhooks, queryFn: () => systemService.listWebhooks() });
 export const useCreateWebhook = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ url, events }: { url: string; events: string[] }) => systemService.createWebhook(url, events),
+    mutationFn: ({ url, events }: { url: string; events: string[] }) =>
+      systemService.createWebhook(url, events),
     onSuccess: () => qc.invalidateQueries({ queryKey: systemKeys.webhooks }),
   });
 };
@@ -77,8 +87,15 @@ export const useDeleteWebhook = () => {
 export const useIntegrations = () =>
   useQuery({ queryKey: systemKeys.integrations, queryFn: () => systemService.listIntegrations() });
 
-export const useNotifCenter = (filters?: { category?: NotifCategory; priority?: NotifPriority; unreadOnly?: boolean }) =>
-  useQuery({ queryKey: systemKeys.notifications(filters), queryFn: () => systemService.listNotifications(filters) });
+export const useNotifCenter = (filters?: {
+  category?: NotifCategory;
+  priority?: NotifPriority;
+  unreadOnly?: boolean;
+}) =>
+  useQuery({
+    queryKey: systemKeys.notifications(filters),
+    queryFn: () => systemService.listNotifications(filters),
+  });
 
 export const useMarkAllRead = () => {
   const qc = useQueryClient();
@@ -88,4 +105,5 @@ export const useMarkAllRead = () => {
   });
 };
 
-export const useHelp = () => useQuery({ queryKey: systemKeys.help, queryFn: () => systemService.listHelp() });
+export const useHelp = () =>
+  useQuery({ queryKey: systemKeys.help, queryFn: () => systemService.listHelp() });

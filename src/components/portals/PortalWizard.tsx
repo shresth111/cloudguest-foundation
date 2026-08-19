@@ -130,7 +130,11 @@ export function PortalWizard({
         cardStyle: "elevated",
         animations: true,
       },
-      consent: { ...v.consent, termsUrl: v.consent.termsUrl ?? "", privacyUrl: v.consent.privacyUrl ?? "" },
+      consent: {
+        ...v.consent,
+        termsUrl: v.consent.termsUrl ?? "",
+        privacyUrl: v.consent.privacyUrl ?? "",
+      },
     });
     reset(DEFAULTS);
     setStep(0);
@@ -139,11 +143,22 @@ export function PortalWizard({
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { setStep(0); reset(DEFAULTS); } onOpenChange(o); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setStep(0);
+          reset(DEFAULTS);
+        }
+        onOpenChange(o);
+      }}
+    >
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Create captive portal</DialogTitle>
-          <DialogDescription>Configure the essentials — everything is editable in the builder afterward.</DialogDescription>
+          <DialogDescription>
+            Configure the essentials — everything is editable in the builder afterward.
+          </DialogDescription>
         </DialogHeader>
 
         <ol className="mb-2 flex items-center gap-2 text-xs">
@@ -154,14 +169,18 @@ export function PortalWizard({
                   i < step
                     ? "border-primary bg-primary text-primary-foreground"
                     : i === step
-                    ? "border-primary text-primary"
-                    : "border-border text-muted-foreground"
+                      ? "border-primary text-primary"
+                      : "border-border text-muted-foreground"
                 }`}
               >
                 {i < step ? <Check className="h-3 w-3" /> : i + 1}
               </span>
               <div className="hidden sm:block">
-                <div className={`font-medium ${i === step ? "text-foreground" : "text-muted-foreground"}`}>{s.title}</div>
+                <div
+                  className={`font-medium ${i === step ? "text-foreground" : "text-muted-foreground"}`}
+                >
+                  {s.title}
+                </div>
               </div>
               {i < STEPS.length - 1 && <div className="mx-1 h-px flex-1 bg-border" />}
             </li>
@@ -173,7 +192,11 @@ export function PortalWizard({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2 space-y-2">
                 <Label htmlFor="name">Portal name</Label>
-                <Input id="name" placeholder="Marina Bay Guest Portal" {...register("basics.name")} />
+                <Input
+                  id="name"
+                  placeholder="Marina Bay Guest Portal"
+                  {...register("basics.name")}
+                />
                 {formState.errors.basics?.name && (
                   <p className="text-xs text-destructive">{formState.errors.basics.name.message}</p>
                 )}
@@ -187,15 +210,21 @@ export function PortalWizard({
                     setValue("basics.locationId", "");
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select organization" />
+                  </SelectTrigger>
                   <SelectContent>
                     {orgs.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {formState.errors.basics?.organizationId && (
-                  <p className="text-xs text-destructive">{formState.errors.basics.organizationId.message}</p>
+                  <p className="text-xs text-destructive">
+                    {formState.errors.basics.organizationId.message}
+                  </p>
                 )}
               </div>
               <div className="space-y-2">
@@ -204,20 +233,31 @@ export function PortalWizard({
                   value={values.basics.locationId}
                   onValueChange={(v) => setValue("basics.locationId", v, { shouldValidate: true })}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
                   <SelectContent>
                     {locations.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {formState.errors.basics?.locationId && (
-                  <p className="text-xs text-destructive">{formState.errors.basics.locationId.message}</p>
+                  <p className="text-xs text-destructive">
+                    {formState.errors.basics.locationId.message}
+                  </p>
                 )}
               </div>
               <div className="md:col-span-2 space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" rows={3} placeholder="Short description shown in admin views" {...register("basics.description")} />
+                <Textarea
+                  id="description"
+                  rows={3}
+                  placeholder="Short description shown in admin views"
+                  {...register("basics.description")}
+                />
               </div>
             </div>
           )}
@@ -235,24 +275,54 @@ export function PortalWizard({
               <div className="space-y-2">
                 <Label>Primary color</Label>
                 <div className="flex items-center gap-2">
-                  <Input type="color" className="h-10 w-14 cursor-pointer p-1" value={values.branding.primaryColor} onChange={(e) => setValue("branding.primaryColor", e.target.value)} />
-                  <Input value={values.branding.primaryColor} onChange={(e) => setValue("branding.primaryColor", e.target.value)} />
+                  <Input
+                    type="color"
+                    className="h-10 w-14 cursor-pointer p-1"
+                    value={values.branding.primaryColor}
+                    onChange={(e) => setValue("branding.primaryColor", e.target.value)}
+                  />
+                  <Input
+                    value={values.branding.primaryColor}
+                    onChange={(e) => setValue("branding.primaryColor", e.target.value)}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Secondary color</Label>
                 <div className="flex items-center gap-2">
-                  <Input type="color" className="h-10 w-14 cursor-pointer p-1" value={values.branding.secondaryColor} onChange={(e) => setValue("branding.secondaryColor", e.target.value)} />
-                  <Input value={values.branding.secondaryColor} onChange={(e) => setValue("branding.secondaryColor", e.target.value)} />
+                  <Input
+                    type="color"
+                    className="h-10 w-14 cursor-pointer p-1"
+                    value={values.branding.secondaryColor}
+                    onChange={(e) => setValue("branding.secondaryColor", e.target.value)}
+                  />
+                  <Input
+                    value={values.branding.secondaryColor}
+                    onChange={(e) => setValue("branding.secondaryColor", e.target.value)}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Font family</Label>
-                <Select value={values.branding.fontFamily} onValueChange={(v) => setValue("branding.fontFamily", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={values.branding.fontFamily}
+                  onValueChange={(v) => setValue("branding.fontFamily", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {["Inter", "SF Pro Text", "Playfair Display", "Roboto", "Poppins", "IBM Plex Sans"].map((f) => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    {[
+                      "Inter",
+                      "SF Pro Text",
+                      "Playfair Display",
+                      "Roboto",
+                      "Poppins",
+                      "IBM Plex Sans",
+                    ].map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {f}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -277,9 +347,14 @@ export function PortalWizard({
                 <label key={k} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <div className="text-sm font-medium capitalize">{k.replace(/_/g, " ")}</div>
-                    <div className="text-xs text-muted-foreground">Enable this login method on the portal</div>
+                    <div className="text-xs text-muted-foreground">
+                      Enable this login method on the portal
+                    </div>
                   </div>
-                  <Switch checked={values.methods[k]} onCheckedChange={(v) => setValue(`methods.${k}` as const, v)} />
+                  <Switch
+                    checked={values.methods[k]}
+                    onCheckedChange={(v) => setValue(`methods.${k}` as const, v)}
+                  />
                 </label>
               ))}
             </div>
@@ -293,7 +368,10 @@ export function PortalWizard({
                 ["marketingConsent", "Marketing consent (opt-in)"],
                 ["gdprConsent", "GDPR consent notice"],
               ].map(([key, label]) => (
-                <label key={key} className="flex items-center justify-between rounded-lg border p-3">
+                <label
+                  key={key}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
                   <div className="text-sm font-medium">{label}</div>
                   <Switch
                     checked={values.consent[key as keyof typeof values.consent] as boolean}
@@ -325,7 +403,11 @@ export function PortalWizard({
             </Button>
           ) : (
             <Button onClick={submit} disabled={create.isPending}>
-              {create.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+              {create.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
               Create portal
             </Button>
           )}

@@ -91,7 +91,10 @@ export function KpiGrid() {
         <SkeletonGrid count={10} />
       ) : platformError || !platform ? (
         <div className="col-span-full">
-          <ErrorCard message="Failed to load platform KPIs." onRetry={() => platformQuery.refetch()} />
+          <ErrorCard
+            message="Failed to load platform KPIs."
+            onRetry={() => platformQuery.refetch()}
+          />
         </div>
       ) : (
         <>
@@ -139,7 +142,12 @@ export function KpiGrid() {
             icon={Users}
             tone="primary"
           />
-          <StatCard label="Today's guests" value={platform.todaysGuests} icon={UserCheck} tone="success" />
+          <StatCard
+            label="Today's guests"
+            value={platform.todaysGuests}
+            icon={UserCheck}
+            tone="success"
+          />
           <StatCard
             label="Active sessions"
             value={platform.activeSessions}
@@ -154,8 +162,18 @@ export function KpiGrid() {
             icon={Gauge}
             tone="warning"
           />
-          <StatCard label="Trial customers" value={platform.trialCustomers} icon={Users} tone="default" />
-          <StatCard label="Paid customers" value={platform.paidCustomers} icon={UserCheck} tone="success" />
+          <StatCard
+            label="Trial customers"
+            value={platform.trialCustomers}
+            icon={Users}
+            tone="default"
+          />
+          <StatCard
+            label="Paid customers"
+            value={platform.paidCustomers}
+            icon={UserCheck}
+            tone="success"
+          />
         </>
       )}
 
@@ -163,7 +181,10 @@ export function KpiGrid() {
         <SkeletonGrid count={3} />
       ) : revenueError || !revenueQuery.data ? (
         <div className="col-span-full">
-          <ErrorCard message="Failed to load revenue KPIs." onRetry={() => revenueQuery.refetch()} />
+          <ErrorCard
+            message="Failed to load revenue KPIs."
+            onRetry={() => revenueQuery.refetch()}
+          />
         </div>
       ) : (
         <>

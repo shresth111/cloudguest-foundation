@@ -13,7 +13,7 @@ function Page() {
         title="Documentation"
         description="Product docs, API references, runbooks and release notes."
         icon={BookOpen}
-        bullets={["Product docs","API reference","Runbooks"]}
+        bullets={["Product docs", "API reference", "Runbooks"]}
       />
     </PageShell>
   );

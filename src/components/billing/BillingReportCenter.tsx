@@ -23,7 +23,12 @@ const REPORTS = [
   { type: "guest", label: "Guest report", desc: "Sessions, devices, engagement", icon: Users },
   { type: "router", label: "Router report", desc: "Uptime, health, incidents", icon: RouterIcon },
   { type: "network", label: "Network report", desc: "Bandwidth and traffic", icon: Wifi },
-  { type: "organization", label: "Organization report", desc: "Per-org breakdown", icon: Building2 },
+  {
+    type: "organization",
+    label: "Organization report",
+    desc: "Per-org breakdown",
+    icon: Building2,
+  },
   { type: "location", label: "Location report", desc: "Locations and venues", icon: MapPin },
   { type: "revenue", label: "Revenue report", desc: "MRR, ARR, growth", icon: Landmark },
   { type: "audit", label: "Audit report", desc: "User & system events", icon: ShieldCheck },
@@ -41,23 +46,26 @@ export function BillingReportCenter() {
   const gen = useGenerateBillingReport();
 
   const handle = (type: string, format: BillingReportFormat) => {
-    gen.mutate({ type, format }, {
-      onSuccess: (res) => {
-        // Only the "revenue" card resolves a real, backend-rendered file
-        // (see billingService.generateReport) -- trigger its download;
-        // every other card is still the mocked stub (no matching
-        // real endpoint, see that method's own comment), so there is
-        // nothing to actually download for those.
-        if ("url" in res && res.url) {
-          const a = document.createElement("a");
-          a.href = res.url;
-          a.download = res.fileName;
-          a.click();
-        }
-        toast.success(`${res.fileName} (${res.size})`);
+    gen.mutate(
+      { type, format },
+      {
+        onSuccess: (res) => {
+          // Only the "revenue" card resolves a real, backend-rendered file
+          // (see billingService.generateReport) -- trigger its download;
+          // every other card is still the mocked stub (no matching
+          // real endpoint, see that method's own comment), so there is
+          // nothing to actually download for those.
+          if ("url" in res && res.url) {
+            const a = document.createElement("a");
+            a.href = res.url;
+            a.download = res.fileName;
+            a.click();
+          }
+          toast.success(`${res.fileName} (${res.size})`);
+        },
+        onError: () => toast.error("Failed to generate report"),
       },
-      onError: () => toast.error("Failed to generate report"),
-    });
+    );
   };
 
   return (
@@ -65,7 +73,9 @@ export function BillingReportCenter() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold">Report center</h2>
-          <p className="text-sm text-muted-foreground">Generate billing and operational reports on demand.</p>
+          <p className="text-sm text-muted-foreground">
+            Generate billing and operational reports on demand.
+          </p>
         </div>
         {/* No bulk/multi-report-type export endpoint exists -- POST /reports
             (see billingService.generateReport) renders exactly one report
@@ -81,7 +91,9 @@ export function BillingReportCenter() {
             <Card key={r.type}>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="h-4 w-4" /></div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </div>
                   <div>
                     <CardTitle className="text-sm">{r.label}</CardTitle>
                     <p className="text-xs text-muted-foreground">{r.desc}</p>
@@ -93,7 +105,12 @@ export function BillingReportCenter() {
                   {(["pdf", "excel", "csv"] as const).map((fmt) => {
                     const F = FORMAT_ICON[fmt];
                     return (
-                      <Button key={fmt} variant="outline" size="sm" onClick={() => handle(r.type, fmt)}>
+                      <Button
+                        key={fmt}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handle(r.type, fmt)}
+                      >
                         <F className="mr-1.5 h-3.5 w-3.5" /> {fmt.toUpperCase()}
                       </Button>
                     );

@@ -66,7 +66,8 @@ let cachedOrgId: string | null = null;
 // resolveOrganizationId.
 async function resolveOrgId(): Promise<string> {
   if (cachedOrgId) return cachedOrgId;
-  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const { data } =
+    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
   if (!membership) throw new Error("No organization found for the current session");
   cachedOrgId = membership.organization_id;

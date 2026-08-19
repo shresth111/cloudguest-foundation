@@ -1,8 +1,5 @@
 import { api } from "@/services/api";
-import {
-  clampBackgroundOverlayStrength,
-  toGuestFontChoice,
-} from "@/types/portal-runtime";
+import { clampBackgroundOverlayStrength, toGuestFontChoice } from "@/types/portal-runtime";
 import type {
   Portal,
   PortalAd,
@@ -116,7 +113,11 @@ const baseBranding = (over: Partial<PortalBranding> = {}): PortalBranding => ({
 const defaultComponents = (): PortalComponent[] => [
   { id: uid(), type: "logo", props: { align: "center", size: 96 } },
   { id: uid(), type: "heading", props: { text: "Welcome — connect to WiFi", size: 28 } },
-  { id: uid(), type: "text", props: { text: "Sign in below to access complimentary internet.", size: 14 } },
+  {
+    id: uid(),
+    type: "text",
+    props: { text: "Sign in below to access complimentary internet.", size: 14 },
+  },
   { id: uid(), type: "login_card", props: {} },
   { id: uid(), type: "footer", props: { text: "Powered by CloudGuest" } },
 ];
@@ -133,7 +134,11 @@ export const THEMES: PortalTheme[] = [
     category: "hotel",
     description: "Warm neutrals with airy typography, ideal for boutique hotels.",
     preview: { from: "#1E293B", to: "#0EA5E9", accent: "#F59E0B" },
-    branding: baseBranding({ primaryColor: "#F59E0B", gradientFrom: "#1E293B", gradientTo: "#0EA5E9" }),
+    branding: baseBranding({
+      primaryColor: "#F59E0B",
+      gradientFrom: "#1E293B",
+      gradientTo: "#0EA5E9",
+    }),
     components: defaultComponents(),
   },
   {
@@ -142,7 +147,13 @@ export const THEMES: PortalTheme[] = [
     category: "luxury_hotel",
     description: "Deep obsidian palette with brass accents for premium properties.",
     preview: { from: "#111827", to: "#000000", accent: "#D4AF37" },
-    branding: baseBranding({ primaryColor: "#D4AF37", gradientFrom: "#111827", gradientTo: "#000000", fontFamily: "Playfair Display", cardStyle: "glass" }),
+    branding: baseBranding({
+      primaryColor: "#D4AF37",
+      gradientFrom: "#111827",
+      gradientTo: "#000000",
+      fontFamily: "Playfair Display",
+      cardStyle: "glass",
+    }),
     components: defaultComponents(),
   },
   {
@@ -151,7 +162,11 @@ export const THEMES: PortalTheme[] = [
     category: "cafe",
     description: "Cozy cream and espresso for cafés and bakeries.",
     preview: { from: "#F5E9D7", to: "#B08968", accent: "#7F4F24" },
-    branding: baseBranding({ primaryColor: "#7F4F24", gradientFrom: "#F5E9D7", gradientTo: "#B08968" }),
+    branding: baseBranding({
+      primaryColor: "#7F4F24",
+      gradientFrom: "#F5E9D7",
+      gradientTo: "#B08968",
+    }),
     components: defaultComponents(),
   },
   {
@@ -160,7 +175,11 @@ export const THEMES: PortalTheme[] = [
     category: "restaurant",
     description: "Rich burgundy and gold for fine-dining establishments.",
     preview: { from: "#7F1D1D", to: "#450A0A", accent: "#EAB308" },
-    branding: baseBranding({ primaryColor: "#EAB308", gradientFrom: "#7F1D1D", gradientTo: "#450A0A" }),
+    branding: baseBranding({
+      primaryColor: "#EAB308",
+      gradientFrom: "#7F1D1D",
+      gradientTo: "#450A0A",
+    }),
     components: defaultComponents(),
   },
   {
@@ -169,7 +188,11 @@ export const THEMES: PortalTheme[] = [
     category: "hospital",
     description: "Calm blues and crisp whites for clinical environments.",
     preview: { from: "#E0F2FE", to: "#0284C7", accent: "#0EA5E9" },
-    branding: baseBranding({ primaryColor: "#0284C7", gradientFrom: "#E0F2FE", gradientTo: "#0284C7" }),
+    branding: baseBranding({
+      primaryColor: "#0284C7",
+      gradientFrom: "#E0F2FE",
+      gradientTo: "#0284C7",
+    }),
     components: defaultComponents(),
   },
   {
@@ -178,7 +201,11 @@ export const THEMES: PortalTheme[] = [
     category: "university",
     description: "Academic navy with scholarly typography.",
     preview: { from: "#1E3A8A", to: "#312E81", accent: "#FBBF24" },
-    branding: baseBranding({ primaryColor: "#FBBF24", gradientFrom: "#1E3A8A", gradientTo: "#312E81" }),
+    branding: baseBranding({
+      primaryColor: "#FBBF24",
+      gradientFrom: "#1E3A8A",
+      gradientTo: "#312E81",
+    }),
     components: defaultComponents(),
   },
   {
@@ -196,7 +223,11 @@ export const THEMES: PortalTheme[] = [
     category: "airport",
     description: "Fast, high-contrast design for high-throughput terminals.",
     preview: { from: "#0369A1", to: "#082F49", accent: "#38BDF8" },
-    branding: baseBranding({ primaryColor: "#38BDF8", gradientFrom: "#0369A1", gradientTo: "#082F49" }),
+    branding: baseBranding({
+      primaryColor: "#38BDF8",
+      gradientFrom: "#0369A1",
+      gradientTo: "#082F49",
+    }),
     components: defaultComponents(),
   },
   {
@@ -205,7 +236,11 @@ export const THEMES: PortalTheme[] = [
     category: "retail",
     description: "Vibrant, promotion-friendly for retail and malls.",
     preview: { from: "#DB2777", to: "#7C3AED", accent: "#FDE047" },
-    branding: baseBranding({ primaryColor: "#FDE047", gradientFrom: "#DB2777", gradientTo: "#7C3AED" }),
+    branding: baseBranding({
+      primaryColor: "#FDE047",
+      gradientFrom: "#DB2777",
+      gradientTo: "#7C3AED",
+    }),
     components: defaultComponents(),
   },
 ];
@@ -239,7 +274,10 @@ const LOCATIONS: Array<[string, string, string]> = [
 // Real <-> frontend mapping
 // ============================================================================
 
-const LOGIN_METHOD_FLAGS: Array<{ method: PortalLoginMethod; flag: keyof BackendCaptivePortalConfig }> = [
+const LOGIN_METHOD_FLAGS: Array<{
+  method: PortalLoginMethod;
+  flag: keyof BackendCaptivePortalConfig;
+}> = [
   { method: "mobile_otp", flag: "otp_sms_enabled" },
   { method: "email_otp", flag: "otp_email_enabled" },
   { method: "whatsapp_otp", flag: "otp_whatsapp_enabled" },
@@ -397,7 +435,10 @@ function toPortal(
 async function fetchAllConfigs(orgId?: string): Promise<BackendCaptivePortalConfig[]> {
   const { data } = await api.get<BackendListResponse<BackendCaptivePortalConfig>>(
     "/captive-portal-configs",
-    { params: { page: 1, page_size: 100 }, headers: orgId ? { "X-Organization-Id": orgId } : undefined },
+    {
+      params: { page: 1, page_size: 100 },
+      headers: orgId ? { "X-Organization-Id": orgId } : undefined,
+    },
   );
   return data.items;
 }
@@ -424,6 +465,17 @@ async function fetchOnePortal(id: string, orgId?: string): Promise<Portal> {
 // ============================================================================
 // Service
 // ============================================================================
+
+/** A partial portal patch: nested config groups (branding, login, seo, ...)
+ * may themselves be partial, since the UI only ever edits a few fields at a
+ * time and the backend merges the rest. */
+export type PortalPatch = {
+  [K in keyof Portal]?: Portal[K] extends readonly unknown[]
+    ? Portal[K]
+    : Portal[K] extends object
+      ? Partial<Portal[K]>
+      : Portal[K];
+};
 
 export const portalService = {
   async kpis(): Promise<PortalKpis> {
@@ -483,7 +535,9 @@ export const portalService = {
     return fetchOnePortal(id, organizationId);
   },
 
-  async create(input: Partial<Portal> & { name: string; organizationId: string; locationId: string }): Promise<Portal> {
+  async create(
+    input: PortalPatch & { name: string; organizationId: string; locationId: string },
+  ): Promise<Portal> {
     const flags = loginMethodFlags(input.loginMethods ?? ["mobile_otp"]);
     // Only the header drives RBAC scope resolution server-side (the
     // organization_id body field below is just the record's own column) --
@@ -518,21 +572,26 @@ export const portalService = {
     return fetchOnePortal(data.id, input.organizationId);
   },
 
-  async update(id: string, patch: Partial<Portal>, organizationId?: string): Promise<Portal> {
+  async update(id: string, patch: PortalPatch, organizationId?: string): Promise<Portal> {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
     if (patch.themeId !== undefined) body.theme = patch.themeId;
     if (patch.branding?.logoUrl !== undefined) body.logo_url = patch.branding.logoUrl || null;
     if (patch.branding?.backgroundUrl !== undefined)
       body.background_image_url = patch.branding.backgroundUrl || null;
-    if (patch.branding?.primaryColor !== undefined) body.primary_color = patch.branding.primaryColor;
-    if (patch.branding?.secondaryColor !== undefined) body.secondary_color = patch.branding.secondaryColor;
+    if (patch.branding?.primaryColor !== undefined)
+      body.primary_color = patch.branding.primaryColor;
+    if (patch.branding?.secondaryColor !== undefined)
+      body.secondary_color = patch.branding.secondaryColor;
     if (patch.defaultLanguage !== undefined) body.default_language = patch.defaultLanguage;
     if (patch.languages !== undefined) body.supported_languages = patch.languages;
-    if (patch.consent?.termsUrl !== undefined) body.terms_and_conditions_url = patch.consent.termsUrl || null;
-    if (patch.consent?.privacyUrl !== undefined) body.privacy_policy_url = patch.consent.privacyUrl || null;
+    if (patch.consent?.termsUrl !== undefined)
+      body.terms_and_conditions_url = patch.consent.termsUrl || null;
+    if (patch.consent?.privacyUrl !== undefined)
+      body.privacy_policy_url = patch.consent.privacyUrl || null;
     if (patch.seo?.pageTitle !== undefined) body.splash_headline = patch.seo.pageTitle || null;
-    if (patch.seo?.metaDescription !== undefined) body.splash_welcome_message = patch.seo.metaDescription || null;
+    if (patch.seo?.metaDescription !== undefined)
+      body.splash_welcome_message = patch.seo.metaDescription || null;
     if (patch.login?.redirectUrl !== undefined) body.redirect_url = patch.login.redirectUrl || null;
     if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
     // captive-portal-v6-design-spec.md §1.3/§3.5/§4.4 -- the real fix for
@@ -541,7 +600,8 @@ export const portalService = {
     // with no real backend column) was never added to this body. These two
     // *do* have real backend columns (§6.1) -- included for real, not
     // dropped like the fake control's field was.
-    if (patch.branding?.fontChoice !== undefined) body.guest_font_choice = patch.branding.fontChoice;
+    if (patch.branding?.fontChoice !== undefined)
+      body.guest_font_choice = patch.branding.fontChoice;
     if (patch.branding?.backgroundOverlayStrength !== undefined)
       body.background_overlay_strength = patch.branding.backgroundOverlayStrength;
 
@@ -618,7 +678,11 @@ export const portalService = {
       name,
       category: "corporate",
       description: "Custom theme saved from portal",
-      preview: { from: p.branding.gradientFrom, to: p.branding.gradientTo, accent: p.branding.primaryColor },
+      preview: {
+        from: p.branding.gradientFrom,
+        to: p.branding.gradientTo,
+        accent: p.branding.primaryColor,
+      },
       branding: { ...p.branding },
       components: defaultComponents(),
     };
@@ -664,6 +728,10 @@ export const portalService = {
     return ORGS.map(([id, name]) => ({ id, name }));
   },
   locations(orgId?: string) {
-    return LOCATIONS.filter(([, , o]) => (orgId ? o === orgId : true)).map(([id, name, org]) => ({ id, name, orgId: org }));
+    return LOCATIONS.filter(([, , o]) => (orgId ? o === orgId : true)).map(([id, name, org]) => ({
+      id,
+      name,
+      orgId: org,
+    }));
   },
 };

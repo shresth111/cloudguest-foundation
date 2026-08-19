@@ -17,18 +17,38 @@ import type {
 // consistent customer list everywhere in the Master Console.
 const DEMO_ORGANIZATIONS: Organization[] = [
   {
-    id: "org-001", name: "Acme Corp", slug: "acme-corp", legalName: "Acme Corporation Pvt Ltd",
-    orgType: "standard", status: "active", parentOrganizationId: null,
-    contactEmail: "ops@acme.example.com", contactPhone: null, timezone: "Asia/Kolkata", defaultLocale: "en",
-    settings: {}, subscriptionTier: "enterprise",
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(), updatedAt: new Date().toISOString(),
+    id: "org-001",
+    name: "Acme Corp",
+    slug: "acme-corp",
+    legalName: "Acme Corporation Pvt Ltd",
+    orgType: "standard",
+    status: "active",
+    parentOrganizationId: null,
+    contactEmail: "ops@acme.example.com",
+    contactPhone: null,
+    timezone: "Asia/Kolkata",
+    defaultLocale: "en",
+    settings: {},
+    subscriptionTier: "enterprise",
+    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
-    id: "org-002", name: "Blue Cedar Cafes", slug: "blue-cedar-cafes", legalName: null,
-    orgType: "standard", status: "active", parentOrganizationId: null,
-    contactEmail: "hello@bluecedar.example.com", contactPhone: null, timezone: "UTC", defaultLocale: "en",
-    settings: {}, subscriptionTier: "starter",
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(), updatedAt: new Date().toISOString(),
+    id: "org-002",
+    name: "Blue Cedar Cafes",
+    slug: "blue-cedar-cafes",
+    legalName: null,
+    orgType: "standard",
+    status: "active",
+    parentOrganizationId: null,
+    contactEmail: "hello@bluecedar.example.com",
+    contactPhone: null,
+    timezone: "UTC",
+    defaultLocale: "en",
+    settings: {},
+    subscriptionTier: "starter",
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];
 
@@ -87,7 +107,9 @@ export const organizationService = {
       if (q.status && q.status !== "all") rows = rows.filter((r) => r.status === q.status);
       if (q.search) {
         const s = q.search.toLowerCase();
-        rows = rows.filter((r) => r.name.toLowerCase().includes(s) || r.contactEmail.toLowerCase().includes(s));
+        rows = rows.filter(
+          (r) => r.name.toLowerCase().includes(s) || r.contactEmail.toLowerCase().includes(s),
+        );
       }
       return { rows, total: rows.length, totalPages: 1, hasNext: false, hasPrevious: false };
     }
@@ -141,10 +163,10 @@ export const organizationService = {
   },
 
   async locationCount(id: string): Promise<number> {
-    const { data } = await api.get<{ total_items: number }>(
-      `/organizations/${id}/locations`,
-      { params: { page_size: 1 }, headers: { "X-Organization-Id": id } },
-    );
+    const { data } = await api.get<{ total_items: number }>(`/organizations/${id}/locations`, {
+      params: { page_size: 1 },
+      headers: { "X-Organization-Id": id },
+    });
     return data.total_items;
   },
 };

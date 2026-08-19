@@ -12,12 +12,11 @@ export function Error403Page() {
       <h1 className="text-6xl font-bold text-foreground">403</h1>
       <h2 className="mt-4 text-xl font-semibold text-foreground">Access denied</h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
-        You don't have permission to access this resource. Contact your administrator if you think this is a mistake.
+        You don't have permission to access this resource. Contact your administrator if you think
+        this is a mistake.
       </p>
       <div className="mt-6 flex gap-3">
-        <Button onClick={() => navigate({ to: "/dashboard" })}>
-          Go to dashboard
-        </Button>
+        <Button onClick={() => navigate({ to: "/dashboard" })}>Go to dashboard</Button>
         <Button variant="outline" onClick={() => navigate({ to: "/help" })}>
           Contact support
         </Button>

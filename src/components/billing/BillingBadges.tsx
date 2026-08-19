@@ -29,15 +29,27 @@ const invoiceTypeMap: Record<InvoiceType, string> = {
 
 export function SubscriptionStatusBadge({ status }: { status: SubscriptionStatus }) {
   const s = subMap[status];
-  return <Badge variant="outline" className={cn("font-medium", s.cls)}>{s.label}</Badge>;
+  return (
+    <Badge variant="outline" className={cn("font-medium", s.cls)}>
+      {s.label}
+    </Badge>
+  );
 }
 export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
   const s = payMap[status];
-  return <Badge variant="outline" className={cn("font-medium", s.cls)}>{s.label}</Badge>;
+  return (
+    <Badge variant="outline" className={cn("font-medium", s.cls)}>
+      {s.label}
+    </Badge>
+  );
 }
 export function CouponStatusBadge({ status }: { status: CouponStatus }) {
   const s = couponMap[status];
-  return <Badge variant="outline" className={cn("font-medium", s.cls)}>{s.label}</Badge>;
+  return (
+    <Badge variant="outline" className={cn("font-medium", s.cls)}>
+      {s.label}
+    </Badge>
+  );
 }
 export function InvoiceTypeLabel({ type }: { type: InvoiceType }) {
   return <span className="text-xs text-muted-foreground">{invoiceTypeMap[type]}</span>;

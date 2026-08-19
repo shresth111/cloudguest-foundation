@@ -4,11 +4,24 @@ import { MoreHorizontal, RotateCcw, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +34,11 @@ import { useRefundPayment } from "@/hooks/useBilling";
 import type { Payment, PaymentGateway, PaymentStatus } from "@/types/billing";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 interface Props {
@@ -42,7 +59,12 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
     let r = data ?? [];
     if (q) {
       const s = q.toLowerCase();
-      r = r.filter((p) => p.organizationName.toLowerCase().includes(s) || p.invoiceNumber.toLowerCase().includes(s) || p.transactionId.toLowerCase().includes(s));
+      r = r.filter(
+        (p) =>
+          p.organizationName.toLowerCase().includes(s) ||
+          p.invoiceNumber.toLowerCase().includes(s) ||
+          p.transactionId.toLowerCase().includes(s),
+      );
     }
     if (gateway !== "all") r = r.filter((p) => p.gateway === gateway);
     if (status !== "all") r = r.filter((p) => p.status === status);
@@ -59,10 +81,17 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search invoice, org or txn id…" className="pl-8" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search invoice, org or txn id…"
+                className="pl-8"
+              />
             </div>
             <Select value={gateway} onValueChange={(v) => setGateway(v as PaymentGateway | "all")}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Gateway" /></SelectTrigger>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Gateway" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All gateways</SelectItem>
                 <SelectItem value="stripe">Stripe</SelectItem>
@@ -71,7 +100,9 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatus | "all")}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
@@ -83,11 +114,18 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
           </div>
 
           {isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
           ) : isError ? (
             <ErrorState onRetry={onRetry} />
           ) : rows.length === 0 ? (
-            <EmptyState title="No payments" description="No transactions match your current filters." />
+            <EmptyState
+              title="No payments"
+              description="No transactions match your current filters."
+            />
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <Table>
@@ -115,12 +153,16 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
                       <TableCell className="text-right">{money.format(p.discount)}</TableCell>
                       <TableCell className="capitalize">{p.gateway}</TableCell>
                       <TableCell className="font-mono text-xs">{p.transactionId}</TableCell>
-                      <TableCell><PaymentStatusBadge status={p.status} /></TableCell>
+                      <TableCell>
+                        <PaymentStatusBadge status={p.status} />
+                      </TableCell>
                       <TableCell>{dateFmt.format(new Date(p.paidAt))}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem

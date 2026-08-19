@@ -96,7 +96,9 @@ function SessionExpiredPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
         >
-          <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">Your session has expired</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">
+            Your session has expired
+          </h1>
           <p className="text-sm text-white/70 sm:text-base">
             For your security, please sign in again to continue.
           </p>
@@ -121,7 +123,9 @@ function SessionExpiredPage() {
         >
           <Button
             className="h-11 w-full bg-white text-sm font-semibold text-[#1e1b4b] shadow-lg shadow-black/20 hover:bg-white/90"
-            onClick={() => navigate({ to: signInTarget, search: { redirect: safeRedirect }, replace: true })}
+            onClick={() =>
+              navigate({ to: signInTarget, search: { redirect: safeRedirect }, replace: true })
+            }
           >
             Return to sign in
           </Button>

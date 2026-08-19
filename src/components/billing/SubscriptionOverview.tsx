@@ -31,10 +31,13 @@ export function SubscriptionOverview() {
             <div className="flex items-center gap-2">
               <CardTitle className="text-lg">{CURRENT_PLAN.name}</CardTitle>
               <Badge className="bg-emerald-500/15 text-emerald-600 capitalize">active</Badge>
-              <Badge variant="outline" className="capitalize">{CURRENT_PLAN.period}</Badge>
+              <Badge variant="outline" className="capitalize">
+                {CURRENT_PLAN.period}
+              </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Your subscription renews {CURRENT_PLAN.renews} on <strong>{CURRENT_PLAN.nextBilling}</strong>
+              Your subscription renews {CURRENT_PLAN.renews} on{" "}
+              <strong>{CURRENT_PLAN.nextBilling}</strong>
             </p>
           </div>
           <div className="text-right">
@@ -48,14 +51,21 @@ export function SubscriptionOverview() {
               <div className="mb-1 flex items-center justify-between text-sm">
                 <span>{f.name}</span>
                 <span className="text-muted-foreground">
-                  {f.used}/{f.limit}{f.unit ? ` ${f.unit}` : ""}
+                  {f.used}/{f.limit}
+                  {f.unit ? ` ${f.unit}` : ""}
                 </span>
               </div>
-              <Progress value={(f.used / f.limit) * 100} className={cn(
-                "h-2",
-                (f.used / f.limit) > 0.8 ? "[&>div]:bg-amber-500" :
-                (f.used / f.limit) > 0.95 ? "[&>div]:bg-rose-500" : ""
-              )} />
+              <Progress
+                value={(f.used / f.limit) * 100}
+                className={cn(
+                  "h-2",
+                  f.used / f.limit > 0.8
+                    ? "[&>div]:bg-amber-500"
+                    : f.used / f.limit > 0.95
+                      ? "[&>div]:bg-rose-500"
+                      : "",
+                )}
+              />
             </div>
           ))}
         </CardContent>

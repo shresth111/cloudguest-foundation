@@ -32,27 +32,71 @@ function invalidateAll(qc: ReturnType<typeof useQueryClient>, id: string) {
 }
 
 export const useTenantConfig = (id: string) =>
-  useQuery({ queryKey: tenantKeys.config(id), queryFn: () => tenantService.getConfig(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.config(id),
+    queryFn: () => tenantService.getConfig(id),
+    enabled: !!id,
+  });
 export const useTenantGroups = (id: string) =>
-  useQuery({ queryKey: tenantKeys.groups(id), queryFn: () => tenantService.listGroups(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.groups(id),
+    queryFn: () => tenantService.listGroups(id),
+    enabled: !!id,
+  });
 export const useTenantNas = (id: string) =>
-  useQuery({ queryKey: tenantKeys.nas(id), queryFn: () => tenantService.listNas(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.nas(id),
+    queryFn: () => tenantService.listNas(id),
+    enabled: !!id,
+  });
 export const useTenantPolicies = (id: string) =>
-  useQuery({ queryKey: tenantKeys.policies(id), queryFn: () => tenantService.listPolicies(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.policies(id),
+    queryFn: () => tenantService.listPolicies(id),
+    enabled: !!id,
+  });
 export const useTenantIntegrations = (id: string) =>
-  useQuery({ queryKey: tenantKeys.integrations(id), queryFn: () => tenantService.listIntegrations(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.integrations(id),
+    queryFn: () => tenantService.listIntegrations(id),
+    enabled: !!id,
+  });
 export const useTenantApiKeys = (id: string) =>
-  useQuery({ queryKey: tenantKeys.apiKeys(id), queryFn: () => tenantService.listApiKeys(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.apiKeys(id),
+    queryFn: () => tenantService.listApiKeys(id),
+    enabled: !!id,
+  });
 export const useTenantWebhooks = (id: string) =>
-  useQuery({ queryKey: tenantKeys.webhooks(id), queryFn: () => tenantService.listWebhooks(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.webhooks(id),
+    queryFn: () => tenantService.listWebhooks(id),
+    enabled: !!id,
+  });
 export const useTenantSecurity = (id: string) =>
-  useQuery({ queryKey: tenantKeys.security(id), queryFn: () => tenantService.getSecurity(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.security(id),
+    queryFn: () => tenantService.getSecurity(id),
+    enabled: !!id,
+  });
 export const useTenantNotifications = (id: string) =>
-  useQuery({ queryKey: tenantKeys.notifications(id), queryFn: () => tenantService.getNotifications(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.notifications(id),
+    queryFn: () => tenantService.getNotifications(id),
+    enabled: !!id,
+  });
 export const useTenantUsage = (id: string) =>
-  useQuery({ queryKey: tenantKeys.usage(id), queryFn: () => tenantService.getUsage(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.usage(id),
+    queryFn: () => tenantService.getUsage(id),
+    enabled: !!id,
+  });
 export const useTenantAudit = (id: string) =>
-  useQuery({ queryKey: tenantKeys.audit(id), queryFn: () => tenantService.listAudit(id), enabled: !!id });
+  useQuery({
+    queryKey: tenantKeys.audit(id),
+    queryFn: () => tenantService.listAudit(id),
+    enabled: !!id,
+  });
 
 export function useTenantMutations(id: string) {
   const qc = useQueryClient();

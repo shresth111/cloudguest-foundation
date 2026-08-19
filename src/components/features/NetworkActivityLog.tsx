@@ -63,7 +63,11 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
   return (
     <div className="space-y-6">
       <PageHeader />
-      <ReportPanel reportTypes={NETWORK_ACTIVITY_REPORT_TYPES} csvPrefix="network-activity" masked={masked} />
+      <ReportPanel
+        reportTypes={NETWORK_ACTIVITY_REPORT_TYPES}
+        csvPrefix="network-activity"
+        masked={masked}
+      />
     </div>
   );
 }
@@ -82,10 +86,13 @@ function PageHeader() {
             <Radar className="h-[18px] w-[18px] text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">Network Activity Log</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Network Activity Log
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Every guest's connection history: who connected, from which device, for how long, and how much data
-              they used. Useful for troubleshooting connectivity issues and as a record of guest network activity.
+              Every guest's connection history: who connected, from which device, for how long, and
+              how much data they used. Useful for troubleshooting connectivity issues and as a
+              record of guest network activity.
             </p>
           </div>
         </div>
@@ -99,8 +106,9 @@ function PageHeader() {
       <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
         <p>
-          This shows session-level connection and login records, not destination-level traffic (what site a guest
-          visited). The platform does not currently guarantee a specific data-retention period for these records.
+          This shows session-level connection and login records, not destination-level traffic (what
+          site a guest visited). The platform does not currently guarantee a specific data-retention
+          period for these records.
         </p>
       </div>
     </div>

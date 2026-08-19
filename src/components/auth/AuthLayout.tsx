@@ -80,7 +80,6 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         >
           © {new Date().getFullYear()} {branding.companyName}. All rights reserved.
         </motion.div>
-
       </div>
 
       {/* Same light-palette pin as login.tsx's form panel -- without this,
@@ -129,7 +128,9 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
               <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
             </div>
-            <span className="text-base font-semibold tracking-tight text-foreground">Wyfy Guest</span>
+            <span className="text-base font-semibold tracking-tight text-foreground">
+              Wyfy Guest
+            </span>
           </div>
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>

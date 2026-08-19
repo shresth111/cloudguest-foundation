@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Gauge, Signal, ShieldCheck, ShieldOff, UploadCloud, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Trash2,
+  Pencil,
+  Gauge,
+  Signal,
+  ShieldCheck,
+  ShieldOff,
+  UploadCloud,
+  Loader2,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -80,7 +91,9 @@ const ruleSchema = z
     isEnabled: z.boolean(),
   })
   .refine(
-    (v) => v.matchKind !== "port" || (v.portRangeStart != null && v.portRangeEnd != null && v.portRangeStart <= v.portRangeEnd),
+    (v) =>
+      v.matchKind !== "port" ||
+      (v.portRangeStart != null && v.portRangeEnd != null && v.portRangeStart <= v.portRangeEnd),
     { message: "Enter a valid port range (start ≤ end)", path: ["portRangeEnd"] },
   )
   .refine((v) => v.matchKind !== "dscp" || v.dscpValue != null, {
@@ -194,7 +207,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
+    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
   );
   const del = useDeleteQosRule();
   const push = usePushQosRule();
@@ -220,16 +233,26 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
     if (locationId && r.locationId !== locationId) return false;
     if (!search.trim()) return true;
     const t = search.trim().toLowerCase();
-    return r.name.toLowerCase().includes(t) || matchLabel(r).toLowerCase().includes(t) || routerName(r.routerId).toLowerCase().includes(t);
+    return (
+      r.name.toLowerCase().includes(t) ||
+      matchLabel(r).toLowerCase().includes(t) ||
+      routerName(r.routerId).toLowerCase().includes(t)
+    );
   });
 
-  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
-  const total = locationId ? filteredRows.length : data?.total ?? 0;
-  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const rows = locationId
+    ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : filteredRows;
+  const total = locationId ? filteredRows.length : (data?.total ?? 0);
+  const totalPages = locationId
+    ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+    : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   const enabledCount = filteredRows.filter((r) => r.isEnabled).length;
-  const voiceCount = filteredRows.filter((r) => r.protocol && [5060, 5061].includes(r.portRangeStart ?? -1)).length;
+  const voiceCount = filteredRows.filter(
+    (r) => r.protocol && [5060, 5061].includes(r.portRangeStart ?? -1),
+  ).length;
 
   async function handlePush(rule: QosTrafficRule) {
     try {
@@ -252,9 +275,11 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
         icon={Signal}
         eyebrow="Network"
         title={locationId ? "Call Priority" : "VOIP Priority"}
-        description={locationId
-          ? "Give voice and video calls priority over other guest traffic, so calls stay clear even on a busy network."
-          : "Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."}
+        description={
+          locationId
+            ? "Give voice and video calls priority over other guest traffic, so calls stay clear even on a busy network."
+            : "Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."
+        }
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Rule
@@ -318,14 +343,20 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No QoS rules match your filters.
                   </TableCell>
                 </TableRow>
@@ -384,10 +415,20 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
                 Page {page} of {totalPages} · {total} rules
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>
@@ -412,8 +453,8 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete rule "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes this QoS rule from {confirmDelete ? routerName(confirmDelete.routerId) : ""}.
-              This cannot be undone.
+              This permanently removes this QoS rule from{" "}
+              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -546,7 +587,9 @@ function RuleDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -606,16 +649,26 @@ function RuleDialog({
                 <Label className="text-xs font-medium">Port range end</Label>
                 <Input type="number" min={1} max={65535} {...form.register("portRangeEnd")} />
                 {form.formState.errors.portRangeEnd && (
-                  <p className="text-[11px] text-destructive">{form.formState.errors.portRangeEnd.message}</p>
+                  <p className="text-[11px] text-destructive">
+                    {form.formState.errors.portRangeEnd.message}
+                  </p>
                 )}
               </div>
             </>
           ) : (
             <div className="sm:col-span-2 space-y-1.5">
               <Label className="text-xs font-medium">DSCP value (0-63)</Label>
-              <Input type="number" min={0} max={63} {...form.register("dscpValue")} placeholder="46 (EF, voice)" />
+              <Input
+                type="number"
+                min={0}
+                max={63}
+                {...form.register("dscpValue")}
+                placeholder="46 (EF, voice)"
+              />
               {form.formState.errors.dscpValue && (
-                <p className="text-[11px] text-destructive">{form.formState.errors.dscpValue.message}</p>
+                <p className="text-[11px] text-destructive">
+                  {form.formState.errors.dscpValue.message}
+                </p>
               )}
             </div>
           )}
@@ -625,7 +678,10 @@ function RuleDialog({
               control={form.control}
               name="priority"
               render={({ field }) => (
-                <Select value={String(field.value)} onValueChange={(v) => field.onChange(Number(v))}>
+                <Select
+                  value={String(field.value)}
+                  onValueChange={(v) => field.onChange(Number(v))}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -645,7 +701,9 @@ function RuleDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <DialogFooter className="sm:col-span-2">

@@ -18,7 +18,14 @@ export function GenericIspIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset="100%" stopColor="#4B5768" />
         </linearGradient>
       </defs>
-      <circle cx="12" cy="12" r="11.25" fill={`url(#${id})`} stroke="rgba(255,255,255,0.35)" strokeWidth="0.75" />
+      <circle
+        cx="12"
+        cy="12"
+        r="11.25"
+        fill={`url(#${id})`}
+        stroke="rgba(255,255,255,0.35)"
+        strokeWidth="0.75"
+      />
       <g stroke="#ffffff" strokeWidth="1.1" fill="none" strokeLinecap="round">
         <circle cx="12" cy="12" r="6.25" />
         <ellipse cx="12" cy="12" rx="2.7" ry="6.25" />

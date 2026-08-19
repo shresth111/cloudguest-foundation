@@ -71,7 +71,9 @@ export function CustomerSidebar({
         {expanded && (
           <div>
             <p className="text-sm font-bold tracking-tight">Wyfy Guest</p>
-            <p className="text-[10px] font-normal tracking-wide text-white/45">{subtitle ?? "Portal"}</p>
+            <p className="text-[10px] font-normal tracking-wide text-white/45">
+              {subtitle ?? "Portal"}
+            </p>
           </div>
         )}
       </div>
@@ -128,9 +130,11 @@ export function CustomerSidebar({
           type="button"
           disabled={dataMasking.sending}
           onClick={dataMasking.requestToggle}
-          title={dataMasking.masked
-            ? "Sensitive guest data is masked. Click to verify and show it unmasked."
-            : "Guest data is shown unmasked for this account. Click to mask it again."}
+          title={
+            dataMasking.masked
+              ? "Sensitive guest data is masked. Click to verify and show it unmasked."
+              : "Guest data is shown unmasked for this account. Click to mask it again."
+          }
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm text-left transition-colors disabled:opacity-60",
             "text-white/60 hover:bg-white/[0.06] hover:text-white",
@@ -138,7 +142,13 @@ export function CustomerSidebar({
           )}
         >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/5">
-            {dataMasking.sending ? <Loader2 className="h-4 w-4 animate-spin" /> : dataMasking.masked ? <Shield className="h-4 w-4" /> : <Eye className="h-4 w-4 text-sky-300" />}
+            {dataMasking.sending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : dataMasking.masked ? (
+              <Shield className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4 text-sky-300" />
+            )}
           </span>
           {expanded && <span className="truncate">Guest Privacy</span>}
         </button>

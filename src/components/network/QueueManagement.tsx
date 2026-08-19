@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Plus, Trash2, Pencil, ListOrdered, Activity, Clock, PlayCircle, StopCircle } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  ListOrdered,
+  Activity,
+  Clock,
+  PlayCircle,
+  StopCircle,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,21 +20,52 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
 import {
-  useQueueProfiles, useQueueAssignments, useQueueKpis,
-  useCreateQueueProfile, useUpdateQueueProfile, useDeleteQueueProfile,
-  useCreateQueueAssignment, useExpireQueueAssignment, useApplyQueue, useRemoveQueue,
+  useQueueProfiles,
+  useQueueAssignments,
+  useQueueKpis,
+  useCreateQueueProfile,
+  useUpdateQueueProfile,
+  useDeleteQueueProfile,
+  useCreateQueueAssignment,
+  useExpireQueueAssignment,
+  useApplyQueue,
+  useRemoveQueue,
 } from "@/hooks/useQueue";
 import { routerService } from "@/services/router.service";
 import type { AppError } from "@/services/api";
@@ -78,9 +118,24 @@ export function QueueManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Profiles" value={kpis?.totalProfiles ?? 0} icon={ListOrdered} tone="primary" />
-        <StatCard label="Active assignments" value={kpis?.activeAssignments ?? 0} icon={Activity} tone="success" />
-        <StatCard label="Pending assignments" value={kpis?.pendingAssignments ?? 0} icon={Clock} tone="warning" />
+        <StatCard
+          label="Profiles"
+          value={kpis?.totalProfiles ?? 0}
+          icon={ListOrdered}
+          tone="primary"
+        />
+        <StatCard
+          label="Active assignments"
+          value={kpis?.activeAssignments ?? 0}
+          icon={Activity}
+          tone="success"
+        />
+        <StatCard
+          label="Pending assignments"
+          value={kpis?.pendingAssignments ?? 0}
+          icon={Clock}
+          tone="warning"
+        />
       </div>
 
       <Tabs defaultValue="profiles">
@@ -112,14 +167,20 @@ export function QueueManagement() {
                 <TableBody>
                   {profilesLoading && (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={6}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         Loading…
                       </TableCell>
                     </TableRow>
                   )}
                   {!profilesLoading && (profiles?.rows.length ?? 0) === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={6}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         No queue profiles yet.
                       </TableCell>
                     </TableRow>
@@ -130,12 +191,18 @@ export function QueueManagement() {
                         <div className="min-w-0">
                           <div className="truncate font-medium">{p.name}</div>
                           {p.description && (
-                            <div className="truncate text-xs text-muted-foreground">{p.description}</div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {p.description}
+                            </div>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{p.downloadRateKbps.toLocaleString()} kbps</TableCell>
-                      <TableCell className="text-sm">{p.uploadRateKbps.toLocaleString()} kbps</TableCell>
+                      <TableCell className="text-sm">
+                        {p.downloadRateKbps.toLocaleString()} kbps
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {p.uploadRateKbps.toLocaleString()} kbps
+                      </TableCell>
                       <TableCell className="text-sm">{p.priority}</TableCell>
                       <TableCell>
                         <Badge variant={p.isActive ? "default" : "secondary"}>
@@ -187,14 +254,20 @@ export function QueueManagement() {
                 <TableBody>
                   {assignmentsLoading && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         Loading…
                       </TableCell>
                     </TableRow>
                   )}
                   {!assignmentsLoading && (assignments?.rows.length ?? 0) === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         No queue assignments yet.
                       </TableCell>
                     </TableRow>
@@ -202,8 +275,14 @@ export function QueueManagement() {
                   {assignments?.rows.map((a) => (
                     <TableRow key={a.id}>
                       <TableCell className="text-sm">
-                        <span className="font-medium capitalize">{a.targetType.replace(/_/g, " ")}</span>
-                        {a.routerId && <span className="ml-1 text-xs text-muted-foreground">{a.routerId.slice(0, 8)}</span>}
+                        <span className="font-medium capitalize">
+                          {a.targetType.replace(/_/g, " ")}
+                        </span>
+                        {a.routerId && (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            {a.routerId.slice(0, 8)}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm">{profileName(a.queueProfileId)}</TableCell>
                       <TableCell>
@@ -257,7 +336,9 @@ export function QueueManagement() {
                                 await expireAssignment.mutateAsync(a.id);
                                 toast.success("Assignment expired");
                               } catch (err) {
-                                toast.error((err as AppError).message || "Failed to expire assignment");
+                                toast.error(
+                                  (err as AppError).message || "Failed to expire assignment",
+                                );
                               }
                             }}
                           >
@@ -283,7 +364,11 @@ export function QueueManagement() {
         }}
       />
 
-      <AssignmentDialog open={creatingAssignment} profiles={profiles?.rows ?? []} onClose={() => setCreatingAssignment(false)} />
+      <AssignmentDialog
+        open={creatingAssignment}
+        profiles={profiles?.rows ?? []}
+        onClose={() => setCreatingAssignment(false)}
+      />
 
       <AlertDialog open={!!deletingProfile} onOpenChange={(o) => !o && setDeletingProfile(null)}>
         <AlertDialogContent>
@@ -335,7 +420,14 @@ function ProfileDialog({
         priority: profile.priority,
         isActive: profile.isActive,
       }
-    : { name: "", description: "", downloadRateKbps: 10_000, uploadRateKbps: 5_000, priority: 8, isActive: true };
+    : {
+        name: "",
+        description: "",
+        downloadRateKbps: 10_000,
+        uploadRateKbps: 5_000,
+        priority: 8,
+        isActive: true,
+      };
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -380,7 +472,9 @@ function ProfileDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{profile ? "Edit profile" : "New profile"}</DialogTitle>
-          <DialogDescription>Rate limits apply in kbps. Priority 1 is highest, 8 is lowest.</DialogDescription>
+          <DialogDescription>
+            Rate limits apply in kbps. Priority 1 is highest, 8 is lowest.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2 space-y-1.5">
@@ -407,7 +501,9 @@ function ProfileDialog({
             <Controller
               control={form.control}
               name="isActive"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -469,7 +565,9 @@ function AssignmentDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>New assignment</DialogTitle>
-          <DialogDescription>Attach a bandwidth profile to an organization, location, or router.</DialogDescription>
+          <DialogDescription>
+            Attach a bandwidth profile to an organization, location, or router.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="space-y-1.5">
@@ -507,7 +605,11 @@ function AssignmentDialog({
           {targetType === "location" && (
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Location ID</Label>
-              <Input value={locationId} onChange={(e) => setLocationId(e.target.value)} placeholder="Location UUID" />
+              <Input
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                placeholder="Location UUID"
+              />
             </div>
           )}
           <div className="space-y-1.5">

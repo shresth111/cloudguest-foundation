@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { campaignService } from "@/services/campaign.service";
-import type { CampaignListQuery, CreateCampaignPayload, UpdateCampaignPayload } from "@/types/campaign";
+import type {
+  CampaignListQuery,
+  CreateCampaignPayload,
+  UpdateCampaignPayload,
+} from "@/types/campaign";
 
 export const campaignKeys = {
   list: (q: CampaignListQuery) => ["campaign", "list", q] as const,

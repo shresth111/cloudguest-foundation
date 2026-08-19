@@ -34,7 +34,7 @@ export const alertRuleSchema = z
     value: z.coerce.number().optional(),
     eventType: z.string().trim().optional().or(z.literal("")),
   })
-  .refine((v) => (v.triggerType !== "health_status_change" || !!v.expectedStatus), {
+  .refine((v) => v.triggerType !== "health_status_change" || !!v.expectedStatus, {
     message: "Required",
     path: ["expectedStatus"],
   })

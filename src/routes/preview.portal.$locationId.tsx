@@ -3,7 +3,15 @@ import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, Copy, AlertTriangle, Info, CheckCircle2, Loader2, MonitorSmartphone } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  Loader2,
+  MonitorSmartphone,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/services/api";
@@ -66,8 +74,14 @@ export const Route = createFileRoute("/preview/portal/$locationId")({
       // See authGuards.ts's requireCustomerSession's identical guard --
       // never carry a redirect target that's already /login itself
       // forward as the ?redirect= value.
-      const isAlreadyOnLogin = location.href === "/login" || location.href.startsWith("/login?") || location.href.startsWith("/login#");
-      throw redirect({ to: "/login", search: isAlreadyOnLogin ? undefined : { redirect: location.href } });
+      const isAlreadyOnLogin =
+        location.href === "/login" ||
+        location.href.startsWith("/login?") ||
+        location.href.startsWith("/login#");
+      throw redirect({
+        to: "/login",
+        search: isAlreadyOnLogin ? undefined : { redirect: location.href },
+      });
     }
   },
   component: PortalPreviewPage,
@@ -125,26 +139,62 @@ const BANNER_COPY: Record<
 function PreviewBroadcastIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 96 56" className="hidden h-14 w-auto shrink-0 sm:block" fill="none">
-      <rect x="8" y="8" width="46" height="30" rx="3" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 96 56"
+      className="hidden h-14 w-auto shrink-0 sm:block"
+      fill="none"
+    >
+      <rect
+        x="8"
+        y="8"
+        width="46"
+        height="30"
+        rx="3"
+        fill="#2e2a5c"
+        stroke="#a78bfa"
+        strokeWidth="1.5"
+      />
       <rect x="12" y="12" width="38" height="22" rx="1.5" fill="#1e1b4b" />
-      <path d="M4 40h58l-4 4H8z" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.2" strokeLinejoin="round" />
+      <path
+        d="M4 40h58l-4 4H8z"
+        fill="#2e2a5c"
+        stroke="#a78bfa"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
       {[0, 1, 2].map((i) => (
         <motion.path
           key={i}
           d={`M56 ${16 + i * 4} q${10 + i * 4} ${2 - i} ${18 + i * 6} ${8 + i * 3}`}
           stroke={["#22d3ee", "#f0abfc", "#a78bfa"][i]}
-          strokeOpacity="0.65" strokeWidth="1.6" strokeLinecap="round" fill="none"
+          strokeOpacity="0.65"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          fill="none"
           initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
         />
       ))}
       <motion.g
-        animate={shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
-        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        animate={
+          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
+        }
+        transition={
+          shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+        }
       >
-        <rect x="80" y="30" width="14" height="22" rx="3" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.5" />
+        <rect
+          x="80"
+          y="30"
+          width="14"
+          height="22"
+          rx="3"
+          fill="#1e1b4b"
+          stroke="#22d3ee"
+          strokeWidth="1.5"
+        />
         <rect x="83" y="34" width="8" height="12" rx="1" fill="#2e2a5c" />
       </motion.g>
     </svg>
@@ -267,15 +317,29 @@ function PortalPreviewPage() {
        * plain narrow white column with a small phone bezel, out of step
        * with everything else. */}
       <div className="relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white">
-        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl"
+        />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.12]"
-          style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+          style={{
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+          }}
         />
         <div className="relative mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 px-2 text-white/80 hover:bg-white/10 hover:text-white" asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1.5 px-2 text-white/80 hover:bg-white/10 hover:text-white"
+            asChild
+          >
             <Link to={backTo}>
               <ArrowLeft className="h-4 w-4" />
               Back to Portal Settings
@@ -288,16 +352,22 @@ function PortalPreviewPage() {
                 <MonitorSmartphone className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">Guest sign-in preview</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
+                  Guest sign-in preview
+                </p>
                 <p className="flex items-center gap-1.5 truncate text-base font-semibold">
                   {locationQuery.isLoading ? (
                     <Skeleton className="h-4 w-32 bg-white/10" />
                   ) : (
                     <>
                       <TypeIcon className="h-4 w-4 shrink-0 text-white/70" />
-                      <span className="truncate">{locationQuery.data?.name ?? "Portal preview"}</span>
+                      <span className="truncate">
+                        {locationQuery.data?.name ?? "Portal preview"}
+                      </span>
                       {locationQuery.data?.organizationName && (
-                        <span className="shrink-0 text-white/60">&middot; {locationQuery.data.organizationName}</span>
+                        <span className="shrink-0 text-white/60">
+                          &middot; {locationQuery.data.organizationName}
+                        </span>
                       )}
                     </>
                   )}
@@ -306,7 +376,12 @@ function PortalPreviewPage() {
             </div>
             <div className="flex items-center gap-3">
               <PreviewBroadcastIllustration />
-              <Button variant="outline" size="sm" onClick={copyLink} className="gap-1.5 border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyLink}
+                className="gap-1.5 border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              >
                 <Copy className="h-3.5 w-3.5" />
                 Copy link
               </Button>
@@ -373,7 +448,9 @@ function PortalPreviewPage() {
               {preview.isLoading ? (
                 <div
                   className="grid min-h-[600px] place-items-center"
-                  style={{ background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)" }}
+                  style={{
+                    background: "linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #e0e7ff 100%)",
+                  }}
                 >
                   <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                 </div>
@@ -398,7 +475,8 @@ function PortalPreviewPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          A live look at your real guest sign-in screen -- what's shown here is the exact same experience a guest's own device renders.
+          A live look at your real guest sign-in screen -- what's shown here is the exact same
+          experience a guest's own device renders.
         </p>
       </div>
     </div>
