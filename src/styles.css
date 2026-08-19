@@ -142,15 +142,17 @@
   --chart-3: oklch(0.55 0.15 250);
   --chart-4: oklch(0.72 0.15 145);
   --chart-5: oklch(0.75 0.15 70);
-  /* Signature dark teal-navy brand rail against the light content canvas. */
-  --sidebar: oklch(0.235 0.035 232);
-  --sidebar-foreground: oklch(0.85 0.018 218);
-  --sidebar-primary: oklch(0.7 0.14 194);
-  --sidebar-primary-foreground: oklch(0.16 0.03 232);
-  --sidebar-accent: oklch(0.31 0.04 226);
-  --sidebar-accent-foreground: oklch(0.98 0.012 200);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.7 0.14 194);
+  /* Modern ink rail: near-black graphite with a faint indigo cast (was a
+   * saturated teal-navy, which fought the indigo --primary everywhere the
+   * two met). Active items now read as indigo on ink, matching buttons. */
+  --sidebar: oklch(0.185 0.014 268);
+  --sidebar-foreground: oklch(0.83 0.012 265);
+  --sidebar-primary: oklch(0.66 0.18 268);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.26 0.018 268);
+  --sidebar-accent-foreground: oklch(0.98 0.006 265);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.66 0.18 268);
 }
 
 .dark {
