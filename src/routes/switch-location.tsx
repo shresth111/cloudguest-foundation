@@ -1110,41 +1110,110 @@ function CustomerHomePage() {
           </div>
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-white/50">
-                  {downCount} of {devices.length} devices down
-                </p>
-                {typeFilter && (
-                  <button
-                    type="button"
-                    aria-label={`Clear device type filter: ${typeFilter}`}
-                    onClick={() => setTypeFilter(null)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                  >
-                    {typeFilter} <span className="text-indigo-200/60">×</span>
-                  </button>
-                )}
-                {floorFilter && (
-                  <button
-                    type="button"
-                    aria-label={`Clear floor filter: floor ${floorFilter}`}
-                    onClick={() => setFloorFilter(null)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                  >
-                    Floor {floorFilter} <span className="text-indigo-200/60">×</span>
-                  </button>
-                )}
-
+            <div className="mb-3 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-white/50">
+                    {downCount} of {devices.length} devices down
+                  </p>
+                  {(typeFilter || floorFilter || deviceSearch) && (
+                    <span className="rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-200">
+                      {filteredDevices.length} shown
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {(typeFilter || floorFilter || deviceSearch) && (
+                    <button
+                      type="button"
+                      aria-label="Clear all device filters"
+                      onClick={() => {
+                        setTypeFilter(null);
+                        setFloorFilter(null);
+                        setDeviceSearch("");
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" /> Clear all
+                    </button>
+                  )}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
+                    <Input
+                      placeholder="Search device or MAC…"
+                      value={deviceSearch}
+                      onChange={(e) => setDeviceSearch(e.target.value)}
+                      className="h-8 w-full border-white/15 bg-white/5 pl-8 text-xs text-white placeholder:text-white/40 sm:w-56"
+                    />
+                    {deviceSearch && (
+                      <button
+                        type="button"
+                        aria-label="Clear device search"
+                        onClick={() => setDeviceSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/60"
+                      >
+                        <X className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
-                <Input
-                  placeholder="Search device or MAC…"
-                  value={deviceSearch}
-                  onChange={(e) => setDeviceSearch(e.target.value)}
-                  className="h-8 w-full border-white/15 bg-white/5 pl-8 text-xs text-white placeholder:text-white/40 sm:w-56"
-                />
+
+              {/* Device type filter chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium text-white/40">Type:</span>
+                {DEVICE_TYPES.map((type) => {
+                  const count = devices.filter((d) => d.type === type).length;
+                  const Icon = DEVICE_TYPE_ICON[type];
+                  const active = typeFilter === type;
+                  if (count === 0) return null;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={`Filter by ${type} (${count})`}
+                      onClick={() => setTypeFilter(active ? null : type)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                        active
+                          ? cn("bg-opacity-20 ring-1 ring-opacity-40", DEVICE_TYPE_TINT[type])
+                          : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
+                      )}
+                    >
+                      <Icon className="h-3 w-3" aria-hidden="true" />
+                      {type}
+                      <span className="ml-0.5 text-[10px] opacity-70">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Floor filter chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium text-white/40">Floor:</span>
+                {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
+                  const count = devices.filter((d) => d.floor === f).length;
+                  const active = floorFilter === f;
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={`Filter by floor ${f} (${count})`}
+                      onClick={() => setFloorFilter(active ? null : f)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                        active
+                          ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 text-indigo-200 ring-1 ring-[#6C4EFF]/40"
+                          : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
+                      )}
+                    >
+                      {f}
+                      <span className="text-[10px] opacity-70">{count}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="overflow-x-auto rounded-xl border border-white/10">
