@@ -68,31 +68,62 @@ export default defineConfig({
     //    -- into a chunk named to sort before "vendor-2-charts" resolves
     //    Rollup's tie-break in the direction that keeps shared interop
     //    plumbing out of the chart-only chunk.
-    // 2. A handful of admin-only route files (`c.index.tsx`,
-    //    `master.index.tsx`, `subscription.index.tsx`,
-    //    `workspace.locations.$locationId.tsx`) import recharts at module
-    //    top level. TanStack Router's automatic per-route code-splitting
-    //    only extracts each route's `component` into its own lazy chunk --
-    //    the file's own top-level import statements (recharts included)
-    //    stay attached to the route's "registration" module, which
-    //    `routeTree.gen.ts` still imports statically for every route.
-    //    Forcing *those specific four files* into `vendor-2-charts` too
-    //    was tried and reverted -- it re-triggered wrinkle #1 one layer up
-    //    (their own broadly-shared bindings, e.g. `useQuery`/`useNavigate`,
-    //    then got hosted in the chart chunk by the same tie-break), which
-    //    is a worse regression than the residual gap it closes.
+    // 2. Four admin-only route files (`c.index.tsx`, `master.index.tsx`,
+    //    `subscription.index.tsx`, `workspace.locations.$locationId.tsx`)
+    //    import recharts at module top level, and this was originally
+    //    (mis)diagnosed as one shared problem: TanStack Router's automatic
+    //    per-route code-splitting only extracts each route's own
+    //    `component`/`loader`/etc. into a lazy chunk, and the file's other
+    //    top-level code supposedly stayed attached to the route's
+    //    "registration" module that `routeTree.gen.ts` imports statically
+    //    for every route. That theory doesn't actually hold for three of
+    //    the four: `master.index.tsx`, `subscription.index.tsx`, and
+    //    `workspace.locations.$locationId.tsx` only ever export `Route`,
+    //    so their own `component` (recharts included) genuinely does get
+    //    split into its own lazy chunk -- confirmed directly against the
+    //    real `.output/` build (grepping the compiled entry chunk finds no
+    //    static `import ... from "./vendor-2-charts-*.js"`, only inert
+    //    `__vite__mapDeps` string entries used for other routes' own lazy
+    //    prefetch resolution).
     //
-    // Net, verified against the real build: `/portal/welcome` (the actual
-    // guest sign-in landing page) and its full component tree
-    // (GuestSignInCard/PortalShell/PortalGuestUi), plus
-    // /portal/{index,success,expired,session,closed,offline,redirect,
-    // failure,team,terms,verify,auth.$method}, are all confirmed clean of
-    // `vendor-2-charts` in the compiled output. One known residual:
-    // `/portal/set-password` still transitively touches one small shared
-    // binding hosted in the same chunk as those four admin route files'
-    // registration remainder -- a real but narrow gap (one secondary,
-    // less-trafficked screen, not the primary sign-in flow), left as a
-    // follow-up rather than chasing an unstable fix further.
+    //    `c.index.tsx` was the real, distinct bug: alongside its own
+    //    `Route` (a bare `beforeLoad` redirect to `/`, no `component` at
+    //    all), it used to *also* export `CustomerDashboardPage` -- a
+    //    ~1000-line, recharts-heavy component with no relationship to the
+    //    "/c/" route's own registration, imported cross-file by
+    //    `index.tsx` ("/", the app's real dashboard route) instead. Since
+    //    JS modules execute as a whole unit, `routeTree.gen.ts`'s static
+    //    import of `c.index.tsx` (just to register the "/c/" redirect)
+    //    pulled that entire unrelated component -- recharts import
+    //    included -- into the root/entry chunk every route loads, guest
+    //    captive portal included. The code-splitter has no visibility into
+    //    an export it was never asked to split; only `component`/`loader`/
+    //    `pendingComponent`/`errorComponent`/`notFoundComponent` on that
+    //    file's own `Route` are ever candidates. Fixed by moving
+    //    `CustomerDashboardPage` to its own file
+    //    (`src/components/customer/CustomerDashboardPage.tsx`, not a route
+    //    file, so nothing statically imports it except `index.tsx`'s own
+    //    already-correctly-split `component`) -- `c.index.tsx` is now
+    //    genuinely just the redirect, nothing else.
+    //
+    //    Forcing all four files' registration modules into
+    //    `vendor-2-charts` directly (as a blunter fix, before this was
+    //    root-caused) was tried and reverted -- it re-triggered wrinkle #1
+    //    one layer up (their own broadly-shared bindings, e.g.
+    //    `useQuery`/`useNavigate`, then got hosted in the chart chunk by
+    //    the same tie-break), which was a worse regression than the gap it
+    //    closed.
+    //
+    // Net, verified against the real build AND a real browser network
+    // trace (not static bundle analysis alone -- see this repo's own
+    // history for why that distinction matters here): `/portal/welcome`
+    // (the actual guest sign-in landing page) and its full component tree
+    // (GuestSignInCard/PortalShell/PortalGuestUi), plus every other
+    // /portal/* route, load zero requests for `vendor-2-charts-*.js`. The
+    // admin dashboard's own chart-bearing pages (customer dashboard at
+    // "/", Master Console analytics, Subscription, Workspace location
+    // detail) are unaffected -- same component code, same lazy chunk,
+    // just relocated off of a route-registered file.
     build: {
       rollupOptions: {
         output: {
