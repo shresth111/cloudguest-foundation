@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, XCircle, Eye, ChevronLeft, ChevronRight,
-  Users, X, Download, Smartphone, Wifi,
+  Users, X, Download, Smartphone, Wifi, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -18,10 +18,16 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerUsers, useCustomerOnlineNow, useDisconnectSession, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
+import { useCustomerUsers, useCustomerOnlineNow, useDisconnectSession, useExtendSession, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
@@ -76,6 +82,7 @@ function CustomerUsersPage() {
   // before the component ever mounts.
   const locationId = activeLocationId!;
   const disconnect = useDisconnectSession();
+  const extend = useExtendSession();
   // useIsDemo(), not isDemo() directly -- see the identical fix in
   // customer.$locationId.$feature.tsx/dashboard.tsx: calling isDemo()
   // straight in render flips between the SSR pass (no window -> false)
@@ -107,6 +114,22 @@ function CustomerUsersPage() {
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => { await logout(); navigate({ to: "/login", replace: true }); };
   const handleSwitchLocation = () => { navigate({ to: "/switch-location" }); };
+
+  // Extend session -- guestService.extendSession() (via useExtendSession())
+  // has no demo-mode guard of its own (see that hook's own docstring), so
+  // this checks demoFlag itself before ever calling `.mutate()`, same
+  // pattern as DebuggingView's resetSession() checking `demo` before its
+  // own terminateSession() call.
+  const handleExtend = (sessionId: string, minutes: number) => {
+    if (demoFlag) { toast.error(t("demoBlocked")); return; }
+    extend.mutate(
+      { sessionId, additionalMinutes: minutes },
+      {
+        onSuccess: () => toast.success(t("extendSuccess", { minutes })),
+        onError: (err) => toast.error((err as unknown as AppError).message || t("extendError")),
+      },
+    );
+  };
 
   return (
     <div
@@ -247,6 +270,26 @@ function CustomerUsersPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setDetailUser(u); }}><Eye className="h-3.5 w-3.5" /></Button>
+                          {u.status !== "offline" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled={extend.isPending}
+                                  title={t("extend")}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Clock className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenuItem onClick={() => handleExtend(u.id, 30)}>{t("extend30")}</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExtend(u.id, 60)}>{t("extend60")}</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -318,7 +361,29 @@ function CustomerUsersPage() {
                   <div className="rounded-xl border p-3"><p className="text-[11px] font-medium text-muted-foreground">{t("detailIp")}</p><p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p></div>
                 </div>
               </div>
-              <div className="border-t p-4">
+              <div className="space-y-2 border-t p-4">
+                {detailUser.status !== "offline" && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      disabled={extend.isPending}
+                      onClick={() => handleExtend(detailUser.id, 30)}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {t("extend30")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      disabled={extend.isPending}
+                      onClick={() => handleExtend(detailUser.id, 60)}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {t("extend60")}
+                    </Button>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   className="w-full text-destructive disabled:text-muted-foreground"
