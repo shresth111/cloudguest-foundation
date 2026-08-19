@@ -425,6 +425,42 @@ function CustomerHomePage() {
   const downCount = devices.filter((d) => d.status === "down").length;
   const totalDownAcrossLocations = allDevices.filter((d) => d.status === "down").length;
 
+  // Bulk selection is scoped to what's currently visible: switching locations or
+  // narrowing filters must never leave invisible rows silently selected.
+  const visibleSelectedIds = filteredDevices
+    .filter((d) => selectedDeviceIds.includes(d.id))
+    .map((d) => d.id);
+  const allVisibleSelected =
+    filteredDevices.length > 0 && visibleSelectedIds.length === filteredDevices.length;
+  const someVisibleSelected = visibleSelectedIds.length > 0 && !allVisibleSelected;
+  const selectedDevices = devices.filter((d) => visibleSelectedIds.includes(d.id));
+  const toggleDeviceSelected = (id: string) =>
+    setSelectedDeviceIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  const toggleSelectAllVisible = () =>
+    setSelectedDeviceIds(allVisibleSelected ? [] : filteredDevices.map((d) => d.id));
+  const clearDeviceSelection = () => setSelectedDeviceIds([]);
+  const runBulkAction = (label: string) => {
+    toast.success(`${label} — ${selectedDevices.length} device${selectedDevices.length === 1 ? "" : "s"}`);
+    clearDeviceSelection();
+  };
+  const exportSelectedDevices = () => {
+    const rows = [
+      ["Name", "MAC", "Type", "Floor", "Status"],
+      ...selectedDevices.map((d) => [d.name, d.mac, d.type, d.floor, d.status]),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "devices.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedDevices.length} devices`);
+  };
+
+
   const totalLocations = (locations ?? []).length;
   const onlineLocations = (locations ?? []).filter((l) => l.status === "online").length;
   const totalOnlineUsers = (locations ?? []).reduce((sum, l) => sum + (l.onlineUsers ?? 0), 0);
