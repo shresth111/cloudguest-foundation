@@ -740,7 +740,7 @@ function CustomerHomePage() {
                 className="col-span-full flex flex-col items-center justify-center py-20 text-white/40"
               >
                 <MapPin className="mb-4 h-12 w-12 opacity-30" aria-hidden="true" />
-                <p className="text-sm">No venues match “{search}”. Try a different name or city.</p>
+                <p className="text-sm">No venues match “{query}”. Try a different name or city.</p>
                 <button
                   type="button"
                   onClick={() => {
