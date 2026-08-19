@@ -52,6 +52,59 @@ const SESSION_STORAGE_KEY = "cloudguest_portal_session";
 const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
 const RUNTIME_IDS_STORAGE_KEY = "cloudguest_portal_runtime_ids";
 
+/**
+ * The only three ways this file is allowed to touch `sessionStorage`.
+ *
+ * Web Storage *access itself* can throw -- it is not just "returns null
+ * when empty". Apple's Captive Network Assistant (the websheet iOS opens
+ * for a WiFi login, i.e. the single most common environment this portal
+ * actually runs in) behaves like private browsing: reading or writing
+ * `window.sessionStorage` raises a SecurityError. Firefox with
+ * `dom.storage.enabled=false`, locked-down enterprise WebViews and a full
+ * quota all do the same.
+ *
+ * The `typeof window === "undefined"` checks that used to be the only
+ * protection here are SSR guards -- they answer "is there a `window`",
+ * which says nothing about whether the storage object on it works. Every
+ * unguarded access on the mandatory guest path was therefore a real
+ * sign-in blocker: a write throwing inside `setSession`/`setGuestIdentifier`
+ * aborts the caller mid-login, and (worst of all) an unguarded *read* in a
+ * `useState` initializer throws during render, which white-screens this
+ * entire provider and every screen under it.
+ *
+ * Same shape as `src/lib/portal-returning-guest.ts`: a storage failure
+ * degrades to "nothing was persisted" -- the guest may re-see a screen or
+ * lose a language preference -- never to an exception on the path between
+ * a verified OTP and the NAS gate opening.
+ */
+function safeGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable (CNA websheet / private browsing / quota).
+    // Persistence here is an optimization, never a precondition.
+  }
+}
+
+function safeRemove(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // As above -- nothing was stored, so nothing needs clearing.
+  }
+}
+
 /** The three IDs `src/routes/portal.tsx`'s search schema treats as required
  * (organizationId/locationId/routerId) -- see that file's own
  * `IncompletePortalLinkError` doc comment for the full "why". Unlike that
@@ -83,45 +136,41 @@ interface PersistedRuntimeIds {
 }
 
 function loadPersistedRuntimeIds(): PersistedRuntimeIds | undefined {
-  if (typeof window === "undefined") return undefined;
+  const raw = safeGet(RUNTIME_IDS_STORAGE_KEY);
+  if (!raw) return undefined;
   try {
-    const raw = window.sessionStorage.getItem(RUNTIME_IDS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedRuntimeIds) : undefined;
+    return JSON.parse(raw) as PersistedRuntimeIds;
   } catch {
     return undefined;
   }
 }
 
 function persistRuntimeIds(ids: PersistedRuntimeIds) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(RUNTIME_IDS_STORAGE_KEY, JSON.stringify(ids));
+  safeSet(RUNTIME_IDS_STORAGE_KEY, JSON.stringify(ids));
 }
 
 function loadPersistedSession(): RuntimeSession | undefined {
-  if (typeof window === "undefined") return undefined;
+  const raw = safeGet(SESSION_STORAGE_KEY);
+  if (!raw) return undefined;
   try {
-    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as RuntimeSession) : undefined;
+    return JSON.parse(raw) as RuntimeSession;
   } catch {
     return undefined;
   }
 }
 
 function persistSession(session: RuntimeSession | undefined) {
-  if (typeof window === "undefined") return;
-  if (session) window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-  else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  if (session) safeSet(SESSION_STORAGE_KEY, JSON.stringify(session));
+  else safeRemove(SESSION_STORAGE_KEY);
 }
 
 function loadPersistedIdentifier(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(IDENTIFIER_STORAGE_KEY) ?? undefined;
+  return safeGet(IDENTIFIER_STORAGE_KEY) ?? undefined;
 }
 
 function persistIdentifier(identifier: string | undefined) {
-  if (typeof window === "undefined") return;
-  if (identifier) window.sessionStorage.setItem(IDENTIFIER_STORAGE_KEY, identifier);
-  else window.sessionStorage.removeItem(IDENTIFIER_STORAGE_KEY);
+  if (identifier) safeSet(IDENTIFIER_STORAGE_KEY, identifier);
+  else safeRemove(IDENTIFIER_STORAGE_KEY);
 }
 
 const HOTSPOT_SUBMIT_STORAGE_KEY = "cloudguest_portal_hotspot_submit";
@@ -156,18 +205,22 @@ interface PersistedHotspotSubmit {
 }
 
 function loadPersistedHotspotSubmit(): PersistedHotspotSubmit | undefined {
-  if (typeof window === "undefined") return undefined;
+  const raw = safeGet(HOTSPOT_SUBMIT_STORAGE_KEY);
+  if (!raw) return undefined;
   try {
-    const raw = window.sessionStorage.getItem(HOTSPOT_SUBMIT_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedHotspotSubmit) : undefined;
+    return JSON.parse(raw) as PersistedHotspotSubmit;
   } catch {
     return undefined;
   }
 }
 
+/** Best-effort: when storage is unavailable (see `safeSet`) the cooldown
+ * simply never triggers, so an OS-triggered remount re-fires a harmless
+ * duplicate hotspot POST. That is strictly better than the alternative
+ * this function used to cause -- throwing on the line before
+ * `submitHotspotLogin`, so the gate-opening POST never fired at all. */
 function persistHotspotSubmit(v: PersistedHotspotSubmit) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
+  safeSet(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
 }
 
 interface PortalRuntimeState {

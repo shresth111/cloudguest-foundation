@@ -49,20 +49,54 @@ function readStoredJson<T>(key: string): T | null {
   }
 }
 
+/** The plain-string counterpart to `readStoredJson` above, and guarded for
+ * exactly the same reason: `localStorage` access can *throw* (Apple's
+ * Captive Network Assistant treats Web Storage like private browsing and
+ * raises a SecurityError; so does storage-disabled Firefox). The token
+ * read in `rehydrate()` used to be unguarded, and because `rehydrate` is
+ * `async`, a throw there became an unhandled rejection that silently
+ * skipped every `setStatus` call -- leaving auth pinned at "loading"
+ * forever, i.e. an app that never finishes booting rather than one that
+ * says "signed out". */
+function readStoredString(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable -- the session still lives in React state for
+    // this page's lifetime; it just won't survive a reload.
+  }
+}
+
+function removeStored(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Nothing was stored, so nothing needs clearing.
+  }
+}
+
 function persistSession(session: AuthSession) {
-  localStorage.setItem(TOKEN_STORAGE_KEY, session.tokens.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, session.tokens.refreshToken);
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(session.user));
-  localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(session.roles));
-  localStorage.setItem(ORGS_STORAGE_KEY, JSON.stringify(session.organizations));
+  writeStored(TOKEN_STORAGE_KEY, session.tokens.accessToken);
+  writeStored(REFRESH_TOKEN_STORAGE_KEY, session.tokens.refreshToken);
+  writeStored(USER_STORAGE_KEY, JSON.stringify(session.user));
+  writeStored(ROLES_STORAGE_KEY, JSON.stringify(session.roles));
+  writeStored(ORGS_STORAGE_KEY, JSON.stringify(session.organizations));
 }
 
 function clearStoredSession() {
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(USER_STORAGE_KEY);
-  localStorage.removeItem(ROLES_STORAGE_KEY);
-  localStorage.removeItem(ORGS_STORAGE_KEY);
+  removeStored(TOKEN_STORAGE_KEY);
+  removeStored(REFRESH_TOKEN_STORAGE_KEY);
+  removeStored(USER_STORAGE_KEY);
+  removeStored(ROLES_STORAGE_KEY);
+  removeStored(ORGS_STORAGE_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -77,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function rehydrate() {
-      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      const token = readStoredString(TOKEN_STORAGE_KEY);
       const storedUser = readStoredJson<User>(USER_STORAGE_KEY);
       if (!token || !storedUser) {
         if (!cancelled) setStatus("anonymous");
@@ -104,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
         if (cancelled) return;
         setUser(freshUser);
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(freshUser));
+        writeStored(USER_STORAGE_KEY, JSON.stringify(freshUser));
         setPermissions(new Set(freshPermissions));
       } catch {
         // A 401 here is handled globally by the api.ts response interceptor
@@ -202,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const logout = useCallback(async () => {
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+    const refreshToken = readStoredString(REFRESH_TOKEN_STORAGE_KEY);
     try {
       await authService.logout(refreshToken);
     } catch {
@@ -225,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUser = useCallback((next: User) => {
     setUser(next);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(next));
+    writeStored(USER_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
   const value = useMemo<AuthContextValue>(
