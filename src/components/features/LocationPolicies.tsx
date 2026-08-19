@@ -165,7 +165,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [pageSize, setPageSize] = useState<number>(10);
   const [toast, setToast] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [orgId, setOrgId] = useState<string | null>(null);
 
   useEffect(() => {

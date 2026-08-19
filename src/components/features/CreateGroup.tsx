@@ -356,7 +356,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [search, setSearch] = useState(""); const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState<number>(10);
   const [toast, setToast] = useState<string | null>(null); const [saving, setSaving] = useState(false);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null); const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [mappingBusy, setMappingBusy] = useState<Set<string>>(new Set());
   const [step3Done, setStep3Done] = useState(false);
   // The actual concurrency guard for handleToggleMap -- a ref, not the

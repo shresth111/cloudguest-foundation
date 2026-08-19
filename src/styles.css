@@ -69,13 +69,19 @@
    * carry white body text. */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
-  --shadow-soft: 0 1px 2px oklch(0.2 0.03 235 / 0.05), 0 4px 14px oklch(0.2 0.03 235 / 0.05);
-  --shadow-elevated: 0 1px 2px oklch(0.2 0.03 235 / 0.06), 0 10px 28px -6px oklch(0.2 0.03 235 / 0.1);
-  --shadow-glow: 0 0 0 1px oklch(0.62 0.14 200 / 0.1), 0 18px 40px -20px oklch(0.6 0.15 195 / 0.4);
-  --shadow-ring: 0 0 0 1px oklch(0.6 0.13 200 / 0.16), 0 12px 32px -18px oklch(0.6 0.15 195 / 0.4);
-  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.12 208), oklch(0.68 0.15 190));
-  --gradient-mesh: radial-gradient(1100px 520px at 8% -12%, oklch(0.66 0.14 192 / 0.14), transparent 62%),
-                   radial-gradient(880px 420px at 102% 4%, oklch(0.58 0.14 245 / 0.1), transparent 60%);
+  /* Modern elevation: a crisp hairline + a wide, very soft ambient pool,
+   * rather than one mid-strength blur. Reads closer to Linear/Vercel --
+   * surfaces feel like paper on a canvas instead of drop-shadowed boxes. */
+  --shadow-soft: 0 0 0 1px oklch(0.22 0.03 265 / 0.04), 0 1px 2px oklch(0.22 0.03 265 / 0.04), 0 8px 24px -12px oklch(0.22 0.03 265 / 0.12);
+  --shadow-elevated: 0 0 0 1px oklch(0.22 0.03 265 / 0.05), 0 2px 4px oklch(0.22 0.03 265 / 0.04), 0 18px 42px -16px oklch(0.22 0.03 265 / 0.18);
+  --shadow-glow: 0 0 0 1px oklch(0.55 0.19 265 / 0.14), 0 20px 46px -22px oklch(0.5 0.2 265 / 0.45);
+  --shadow-ring: 0 0 0 1px oklch(0.55 0.19 265 / 0.18), 0 14px 34px -20px oklch(0.5 0.2 265 / 0.45);
+  --gradient-primary: linear-gradient(135deg, oklch(0.5 0.2 268), oklch(0.62 0.16 232));
+  /* Ambient canvas wash, indigo-led to match --primary (it used to be teal,
+   * a leftover from the pre-indigo brand) and toned down so dense tables
+   * and charts sit on a near-neutral surface. */
+  --gradient-mesh: radial-gradient(1200px 560px at 6% -14%, oklch(0.58 0.18 268 / 0.1), transparent 64%),
+                   radial-gradient(900px 440px at 104% 2%, oklch(0.66 0.13 205 / 0.08), transparent 62%);
   --gradient-brand: linear-gradient(135deg, oklch(0.7 0.15 190), oklch(0.55 0.13 210) 55%, oklch(0.5 0.14 250));
   --gradient-accent: linear-gradient(135deg, oklch(0.72 0.15 188), oklch(0.56 0.13 240));
   --gradient-success: linear-gradient(135deg, oklch(0.72 0.15 155), oklch(0.7 0.14 175));
@@ -95,9 +101,11 @@
 
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.984 0.005 220);
-  --foreground: oklch(0.22 0.03 235);
+  /* Slightly softer corner scale + a cleaner, near-neutral canvas: the old
+   * 0.75rem/blue-tinted paper read a little dated next to the indigo brand. */
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.003 265);
+  --foreground: oklch(0.2 0.02 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.03 235);
   --popover: oklch(1 0 0);
@@ -112,16 +120,16 @@
    * here fixes every dialog everywhere in one place, not per-page patches. */
   --primary: oklch(0.47 0.2 265);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.955 0.012 216);
-  --secondary-foreground: oklch(0.26 0.03 232);
-  --muted: oklch(0.962 0.008 218);
-  --muted-foreground: oklch(0.5 0.025 230);
-  --accent: oklch(0.945 0.022 202);
-  --accent-foreground: oklch(0.3 0.06 210);
+  --secondary: oklch(0.965 0.005 265);
+  --secondary-foreground: oklch(0.26 0.02 265);
+  --muted: oklch(0.968 0.004 265);
+  --muted-foreground: oklch(0.52 0.018 265);
+  --accent: oklch(0.955 0.014 268);
+  --accent-foreground: oklch(0.3 0.06 268);
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0.005 250);
-  --border: oklch(0.905 0.012 220);
-  --input: oklch(0.925 0.012 220);
+  --border: oklch(0.918 0.006 265);
+  --input: oklch(0.932 0.006 265);
   --ring: oklch(0.6 0.19 265);
   /* Cyan/teal "Aurora" accent -- design v3 spec Part 0 Fix 1: this token's
      own comment above (line ~66) always said "electric cyan/teal", but its
@@ -136,32 +144,36 @@
   --chart-3: oklch(0.55 0.15 250);
   --chart-4: oklch(0.72 0.15 145);
   --chart-5: oklch(0.75 0.15 70);
-  /* Signature dark teal-navy brand rail against the light content canvas. */
-  --sidebar: oklch(0.235 0.035 232);
-  --sidebar-foreground: oklch(0.85 0.018 218);
-  --sidebar-primary: oklch(0.7 0.14 194);
-  --sidebar-primary-foreground: oklch(0.16 0.03 232);
-  --sidebar-accent: oklch(0.31 0.04 226);
-  --sidebar-accent-foreground: oklch(0.98 0.012 200);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.7 0.14 194);
+  /* Modern ink rail: near-black graphite with a faint indigo cast (was a
+   * saturated teal-navy, which fought the indigo --primary everywhere the
+   * two met). Active items now read as indigo on ink, matching buttons. */
+  --sidebar: oklch(0.185 0.014 268);
+  --sidebar-foreground: oklch(0.83 0.012 265);
+  --sidebar-primary: oklch(0.66 0.18 268);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.26 0.018 268);
+  --sidebar-accent-foreground: oklch(0.98 0.006 265);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.66 0.18 268);
 }
 
 .dark {
-  --background: oklch(0.17 0.02 236);
-  --foreground: oklch(0.96 0.008 220);
-  --card: oklch(0.212 0.025 236);
-  --card-foreground: oklch(0.96 0.008 220);
-  --popover: oklch(0.212 0.025 236);
-  --popover-foreground: oklch(0.96 0.008 220);
+  /* Dark mode moved off the blue-teal cast onto the same graphite/indigo
+   * axis as light mode, so switching themes no longer shifts hue. */
+  --background: oklch(0.155 0.012 268);
+  --foreground: oklch(0.96 0.005 265);
+  --card: oklch(0.2 0.014 268);
+  --card-foreground: oklch(0.96 0.005 265);
+  --popover: oklch(0.2 0.014 268);
+  --popover-foreground: oklch(0.96 0.005 265);
   --primary: oklch(0.68 0.19 265);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.27 0.03 234);
-  --secondary-foreground: oklch(0.96 0.008 220);
-  --muted: oklch(0.25 0.025 234);
-  --muted-foreground: oklch(0.7 0.022 222);
-  --accent: oklch(0.3 0.05 206);
-  --accent-foreground: oklch(0.96 0.01 200);
+  --secondary: oklch(0.26 0.016 268);
+  --secondary-foreground: oklch(0.96 0.005 265);
+  --muted: oklch(0.245 0.014 268);
+  --muted-foreground: oklch(0.71 0.014 265);
+  --accent: oklch(0.29 0.03 268);
+  --accent-foreground: oklch(0.96 0.008 265);
   --destructive: oklch(0.68 0.19 22);
   --destructive-foreground: oklch(0.99 0.005 250);
   --border: oklch(1 0 0 / 9%);
@@ -176,14 +188,14 @@
   --chart-3: oklch(0.66 0.15 250);
   --chart-4: oklch(0.76 0.15 145);
   --chart-5: oklch(0.78 0.15 70);
-  --sidebar: oklch(0.148 0.024 236);
-  --sidebar-foreground: oklch(0.88 0.012 220);
-  --sidebar-primary: oklch(0.74 0.14 194);
-  --sidebar-primary-foreground: oklch(0.15 0.02 236);
-  --sidebar-accent: oklch(0.26 0.032 232);
-  --sidebar-accent-foreground: oklch(0.98 0.012 200);
+  --sidebar: oklch(0.13 0.012 268);
+  --sidebar-foreground: oklch(0.87 0.008 265);
+  --sidebar-primary: oklch(0.68 0.19 265);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.235 0.016 268);
+  --sidebar-accent-foreground: oklch(0.97 0.006 265);
   --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.74 0.14 194);
+  --sidebar-ring: oklch(0.68 0.19 265);
 }
 
 /**

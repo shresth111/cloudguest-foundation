@@ -122,7 +122,7 @@ export default function NetworkCrudTable({ title, description, caution, tableTit
                 <tr><td colSpan={columns.length + 1} className="py-10 text-center text-sm text-muted-foreground">{emptyMessage ?? "No data available in table"}</td></tr>
               ) : paged.map((r) => (
                 <tr key={r.__id} className="border-b last:border-0 hover:bg-accent/50">
-                  {columns.map((c) => <td key={c.key} className="px-3 py-2.5 text-xs text-foreground">{typeof r[c.key] === "boolean" ? (r[c.key] ? "Yes" : "No") : (r[c.key] as string) || "—"}</td>)}
+                  {columns.map((c) => { const v = (r as Record<string, unknown>)[c.key]; return <td key={c.key} className="px-3 py-2.5 text-xs text-foreground">{typeof v === "boolean" ? (v ? "Yes" : "No") : (v as string) || "—"}</td>; })}
                   <td className="px-3 py-2.5 text-right">
                     <button className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Edit"><Pencil className="h-4 w-4" /></button>
                     <button onClick={() => remove(r.__id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Delete"><Trash2 className="h-4 w-4" /></button>

@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         sessionId: "sess-demo-001",
         roles: [
-          { roleId: "r-001", roleName: "Super Admin", roleSlug: "super-admin", scopeType: "global", isActive: true },
+          { roleId: "r-001", roleName: "Super Admin", roleSlug: "super-admin", scopeType: "global" },
         ],
         organizations: [
           {
