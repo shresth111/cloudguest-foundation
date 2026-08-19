@@ -475,10 +475,22 @@ function CustomerHomePage() {
               <span className="[&_button]:text-white/80 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
                 <NotificationBell scope="org" />
               </span>
-              <div className="relative">
+              <div
+                className="relative"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && menu) {
+                    e.stopPropagation();
+                    setMenu(false);
+                  }
+                }}
+              >
                 <button
+                  type="button"
                   onClick={() => setMenu(!menu)}
-                  className="flex items-center gap-2 pl-2 border-l border-white/15 ml-1"
+                  aria-label="Account menu"
+                  aria-haspopup="menu"
+                  aria-expanded={menu}
+                  className="flex items-center gap-2 pl-2 border-l border-white/15 ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-white/15 text-white text-xs font-semibold">
@@ -488,15 +500,20 @@ function CustomerHomePage() {
                   </Avatar>
                 </button>
                 {menu && (
-                  <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl">
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl"
+                  >
                     <div className="px-3 py-2">
                       <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
                       <p className="text-xs text-white/50">{user?.email}</p>
                     </div>
                     <div className="border-t border-white/10 my-1" />
                     <button
+                      type="button"
+                      role="menuitem"
                       onClick={handleLogout}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                     >
                       <LogOut className="h-4 w-4" />
                       Sign out
@@ -504,6 +521,7 @@ function CustomerHomePage() {
                   </div>
                 )}
               </div>
+
             </div>
           </div>
         </header>
