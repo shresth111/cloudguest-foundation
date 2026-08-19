@@ -271,6 +271,21 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     // zero-visual-diff defaults the real backend uses for an unset venue.
     guestFontChoice: "system",
     backgroundOverlayStrength: 55,
+    // captive-portal-v7-design-spec.md §1.4 C3/C4/C5 -- 50/25 reproduce the
+    // previous hardcoded `background-position: center 25%` exactly. The three
+    // measurements are `null` because nothing has measured this preview's
+    // image, and `null` is the correct value rather than a placeholder: it is
+    // the same "not measured" state every real venue is in today (production
+    // has zero backfilled branding rows), so the preview shows the
+    // unconditional §1.3 scrim floor -- which is exactly what that venue will
+    // see. See `toBackgroundMetric` for why 0 would have been wrong.
+    backgroundFocalX: 50,
+    backgroundFocalY: 25,
+    backgroundLuminance: null,
+    backgroundTopLuminance: null,
+    backgroundEntropy: null,
+    pinLoginEnabled: false,
+    locationCountry: null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [portalId, logo, primary, form.lang, form.terms, form.redirectUrl, headline, msg, authMethods]);
 

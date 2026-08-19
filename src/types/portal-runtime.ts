@@ -62,6 +62,42 @@ export function clampBackgroundOverlayStrength(v: number | null | undefined): nu
     : 55;
 }
 
+/** captive-portal-v7-design-spec.md §1.4 C4 -- integer percentages of the
+ * background image's own width/height, defaulting to 50/25. Those two
+ * numbers are not a taste judgement: together they are precisely the
+ * frontend's previous hardcoded `background-position: center 25%`, so a
+ * venue that has never touched the (not-yet-built) focal-point picker
+ * renders exactly as it did before. Same defensive clamp shape as
+ * `clampBackgroundOverlayStrength` above -- absent, out-of-range and
+ * non-numeric all resolve to the default. */
+export function clampBackgroundFocal(v: number | null | undefined, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v)
+    ? Math.max(0, Math.min(100, Math.round(v)))
+    : fallback;
+}
+
+/** captive-portal-v7-design-spec.md §1.4 C3/C5 -- one of the three 0-100
+ * `brandings` measurements the v7 upload pipeline computes once per image.
+ *
+ * **`null` is a first-class value here and means "never measured", not
+ * "measured 0".** Backend migration 0089 makes these three columns nullable
+ * for exactly this reason, and spells it out: 0 is a legitimate reading (a
+ * genuinely black photo), so a NOT NULL DEFAULT 0 would have made "we have
+ * not looked at this image" indistinguishable from "we looked, and it is
+ * black". The frontend needs to tell those apart -- with a measurement it
+ * may use *less* scrim than it otherwise would, and without one it falls
+ * back to the unconditional §1.3 floor, which is AA-compliant over any
+ * image whatsoever. So this deliberately does not coerce to a number.
+ *
+ * The value is also legitimately absent for a config that carries its own
+ * typed-in `background_image_url` (nothing measured it), and for any image
+ * uploaded before the v7 pipeline existed and not yet backfilled. */
+export function toBackgroundMetric(v: number | null | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v)
+    ? Math.max(0, Math.min(100, Math.round(v)))
+    : null;
+}
+
 export interface RuntimePortalConfig {
   id: string;
   name: string;
@@ -96,9 +132,56 @@ export interface RuntimePortalConfig {
    * `"system"` for every venue until an admin explicitly picks otherwise. */
   guestFontChoice: GuestFontChoice;
   /** captive-portal-v6-design-spec.md §4 -- 0-100, default 55. See
-   * `buildGuestBackdropScrim` (PortalShell.tsx) for how this maps to the
-   * actual rendered scrim gradient. */
+   * `buildGuestBackdropScrim` (src/lib/portal-backdrop.ts) for how this maps
+   * to the actual rendered scrim gradient, and for why 55 is not an
+   * arbitrary default: it is already above the §1.3 light-polarity floor of
+   * 0.501, which is why today's shipped render is compliant. */
   backgroundOverlayStrength: number;
+  /** captive-portal-v7-design-spec.md §1.4 C4 -- per-venue background focal
+   * point, 0-100 percentages, defaulting to 50/25. Per-venue on
+   * `captive_portal_configs` rather than org-level on `brandings` on
+   * purpose: the *same* shared organization photo should crop differently at
+   * different venues. Note that on phones only `backgroundFocalX` has any
+   * effect -- `cover` overflows horizontally for every plausible upload on a
+   * portrait viewport, so `backgroundFocalY` is real only on wide/short
+   * viewports and on desktop for portrait uploads. Measured matrix in
+   * `resolveFocalPosition`. */
+  backgroundFocalX: number;
+  backgroundFocalY: number;
+  /** captive-portal-v7-design-spec.md §1.4 C3 -- mean luma (0-100) of the
+   * resolved background image, or `null` when nothing has measured it.
+   * Sourced from the organization's `brandings` row, so it is present only
+   * when the background actually came from that upload. See
+   * `toBackgroundMetric` for why `null` and `0` must never be conflated. */
+  backgroundLuminance: number | null;
+  /** Mean luma (0-100) of the image's top band -- the zone a headline sits
+   * over, and therefore the measurement scrim polarity leads on. Same source
+   * and same `null` semantics as `backgroundLuminance`. */
+  backgroundTopLuminance: number | null;
+  /** Normalized histogram entropy (0-100): how *busy* the image is. Feeds
+   * §1.4 C5's refusal rule, because a mathematically compliant contrast
+   * ratio still reads badly when glyph edges compete with image edges --
+   * the one failure mode no amount of scrim alpha can fix. Same source and
+   * same `null` semantics as `backgroundLuminance`. */
+  backgroundEntropy: number | null;
+  /** Real, functional login method (backend `GuestService.login_via_pin`,
+   * `POST /guest/login/pin`), gated per location and defaulting **off**
+   * unlike `usernamePasswordEnabled` -- a PIN is a materially weaker secret,
+   * so an operator opts in deliberately. Returned by
+   * `GET /captive-portal/resolve` since backend 0085 and, until now, dropped
+   * on the floor by `toRuntimeConfig`: a venue could switch PIN login on in
+   * the admin UI and the guest portal would never offer it. Mapped here so
+   * the sign-in surface has a real field to gate a real method on rather
+   * than a fabricated control (§0.1 item 6). */
+  pinLoginEnabled: boolean;
+  /** The resolved location's own ISO 3166-1 alpha-2 country (e.g. `"IN"`),
+   * **not** a phone dialing code -- the frontend owns that mapping, see
+   * `src/lib/portal-locale.ts`. `null` when the config was resolved by
+   * `organizationId` alone, with no location context to source a country
+   * from. A real admin-entered physical-address field, and strictly more
+   * reliable than `defaultLanguage` for defaulting the OTP phone field's
+   * country code. */
+  locationCountry: string | null;
 }
 
 /** The real `GuestSessionResponse` (plus a couple of login-response-only

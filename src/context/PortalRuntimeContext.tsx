@@ -585,3 +585,23 @@ export function usePortalRuntime() {
   if (!ctx) throw new Error("usePortalRuntime must be used inside PortalRuntimeProvider");
   return ctx;
 }
+
+/** Same context, but `null` instead of a throw when there is no provider
+ * above -- for the shared guest-flow *presentation* components, which are
+ * deliberately reusable outside a mounted runtime.
+ *
+ * This is not hypothetical. `portal.tsx`'s `IncompletePortalLinkError`
+ * renders `<PortalCard>` from a route that has not resolved an organization
+ * or location yet, so it is genuinely outside `PortalRuntimeProvider`; the
+ * comment above that component even calls out that `PortalCard` "has no such
+ * dependency" as the reason it is safe to reuse there. When `PortalCard`
+ * gained its v7 adaptive card edge it needed to read the resolved config,
+ * and reading it through the throwing hook would have turned that error
+ * screen into a blank crash -- a strictly worse failure than the one it
+ * exists to report. A presentation component asking "is there a runtime, and
+ * if so what does it say?" is a real question with a real `null` answer;
+ * `usePortalRuntime` stays throwing for everything that genuinely requires
+ * the provider. */
+export function usePortalRuntimeOptional() {
+  return useContext(Ctx);
+}

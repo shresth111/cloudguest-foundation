@@ -1,5 +1,5 @@
 import { KeyRound } from "lucide-react";
-import { PortalCard } from "@/components/portal-runtime/PortalShell";
+import { PortalTextPlate, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -84,8 +84,16 @@ export function GuestSignInCard() {
           )}
         </div>
 
+        {/* Was `text-sm text-slate-500`. A literal slate utility cannot
+         * follow a token retune, and #64748B is exactly the *old*
+         * `--pg-ink-muted` that v7 §1.5 retired: it measures 4.76:1 on white,
+         * which per Part 9-4 passes only at >=16px, and this renders at 14px.
+         * `pg-meta` additionally makes the line respond to `--pg-type-scale`,
+         * which a raw Tailwind size does not. */}
         {sign.noMethods ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t("noMethodsAvailable")}</p>
+          <p className="py-6 text-center pg-meta text-[var(--pg-ink-muted)]">
+            {t("noMethodsAvailable")}
+          </p>
         ) : (
           <>
             <div className="mt-4">
@@ -100,10 +108,38 @@ export function GuestSignInCard() {
         )}
       </PortalCard>
 
+      {/* captive-portal-v7-design-spec.md §1.4 C3 -- the one line on this
+       * screen that no token value could ever have fixed.
+       *
+       * The accessibility workstream flagged it and correctly declined to
+       * try. It renders *outside* `PortalCard`, so it stands directly on the
+       * venue's photo, and it stands there in the scrim's deliberately
+       * transparent 24-78% middle band -- so there is nothing behind it but
+       * the photograph. That makes it unsolvable by colour: darkening the
+       * text helps over a light photo and hurts over a dark one, lightening
+       * it does the exact reverse, and the photo is chosen by the customer,
+       * so no single value is right. The only fix is to stop standing on the
+       * photo, which is what `PortalTextPlate` does -- a surface bounded
+       * to this one line's own content box.
+       *
+       * This is also the literal reading of "size the scrim from the content
+       * box": the sizing happens here, on the text, and not by growing the
+       * vignette to reach it. Growing the vignette is §0.1 item 1's
+       * forbidden move -- it is how you arrive at PR #81 a third time. The
+       * pill covers this line and not one pixel more.
+       *
+       * `pg-micro` replaces a literal `text-[11px]`, which was a leftover
+       * the relative-units pass missed: an absolute px size cannot respond
+       * to `--pg-type-scale`, so the portal's own "large text" control (and
+       * the platform's) did nothing to the smallest text on the screen --
+       * precisely the text that needed it most. `pg-micro` is the same 11px
+       * at the default scale, so this is not a visual change. */}
       {sign.tab === "password" && (
-        <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[var(--pg-ink-faint)]">
-          <KeyRound className="h-3 w-3" /> {t("savedPasswordsNote")}
-        </p>
+        <PortalTextPlate shape="pill">
+          <p className="flex items-center justify-center gap-1.5 text-center pg-micro text-[var(--pg-ink-faint)]">
+            <KeyRound className="h-3 w-3 shrink-0" /> {t("savedPasswordsNote")}
+          </p>
+        </PortalTextPlate>
       )}
     </div>
   );

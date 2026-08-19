@@ -64,7 +64,9 @@ function usePhoneOtpForm(
   { organizationId, locationId, onSent }: PhoneFormProps,
 ) {
   const { config } = usePortalRuntime();
-  const [countryCode, setCountryCode] = useState(() => defaultCountryCode(config?.defaultLanguage));
+  const [countryCode, setCountryCode] = useState(() =>
+    defaultCountryCode(config?.defaultLanguage, config?.locationCountry),
+  );
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
