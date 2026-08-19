@@ -163,13 +163,28 @@ function IncompletePortalLinkError() {
 
 export const Route = createFileRoute("/portal")({
   // Was `ssr: false` from this route's very first commit (7c09a9c) --
-  // there is no comment or blocker recorded for it, and an audit of every
-  // window/document/localStorage/sessionStorage access anywhere under
-  // /portal (this file, PortalRuntimeContext, GuestSignInCard, PortalShell,
-  // portal.success/redirect/team/etc.) shows every single one is already
-  // guarded (`typeof window === "undefined"`) or confined to an effect/
-  // event handler -- never at module scope or in a render body -- so there
-  // is nothing here that actually requires a browser to evaluate. With
+  // there is no comment or blocker recorded for it, and nothing under
+  // /portal needs a browser present merely to *evaluate*: the browser-only
+  // work is confined to effects and event handlers, not module scope or a
+  // render body.
+  //
+  // An earlier version of this comment went further and claimed every
+  // window/document/localStorage/sessionStorage access under /portal was
+  // "already guarded" on the strength of its `typeof window === "undefined"`
+  // check. That was wrong, and it is why a real production sign-in bug went
+  // unnoticed: `typeof window` is an SSR guard. It answers "is there a
+  // window", which says nothing at all about whether that window's
+  // `localStorage`/`sessionStorage` *works*. Apple's Captive Network
+  // Assistant -- the websheet iOS opens for a WiFi login, i.e. the single
+  // most common environment this portal actually runs in -- behaves like
+  // private browsing and makes Web Storage access *throw*. A pile of
+  // `typeof window` -guarded but un-try/catch'd storage calls on the
+  // mandatory guest path therefore broke sign-in on every iPhone while
+  // reading as audited-safe. The real guard is a try/catch around each
+  // access (see `PortalRuntimeContext`'s safeGet/safeSet/safeRemove and
+  // `src/lib/portal-returning-guest.ts`); if you are adding storage access
+  // anywhere under /portal, use one of those, and do not read a `typeof
+  // window` check as protection. With
   // `ssr: false`, a guest's very first response for this page was an empty
   // `<body>` (just the app-wide `InitialLoader` spinner) until the full JS
   // bundle downloaded, parsed, executed, and hydrated -- on the weak/
