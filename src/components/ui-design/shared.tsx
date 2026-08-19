@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import {
   HelpCircle, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  Search, Calendar, AlertTriangle, Loader2, Download, Upload, Eye,
+  Search, Calendar, AlertTriangle, Loader2, Download, Upload, Eye, Trash2,
 } from "lucide-react";
 
 /* ── PageHeader ──────────────────────────────────────────── */
@@ -145,7 +145,7 @@ export function DataTable({ cols, rows, renderRow, search, onSearch, page, setPa
 
   return (
     <div>
-      {(onSearch || setPageSize) && (
+      {(onSearch ? true : true) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           {onSearch && (
             <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -237,7 +237,7 @@ export function DateInput({ id, value, onChange, label, required, error, max }: 
 /* ── InlineConfirm ───────────────────────────────────────── */
 export function InlineConfirm({ onConfirm }: { onConfirm: () => void }) {
   const [arming, setArming] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const handleClick = () => {
     if (arming) { onConfirm(); setArming(false); if (timer.current) clearTimeout(timer.current); }
     else { setArming(true); timer.current = setTimeout(() => setArming(false), 3000); }
