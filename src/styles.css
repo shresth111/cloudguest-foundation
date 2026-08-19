@@ -158,20 +158,22 @@
 }
 
 .dark {
-  --background: oklch(0.17 0.02 236);
-  --foreground: oklch(0.96 0.008 220);
-  --card: oklch(0.212 0.025 236);
-  --card-foreground: oklch(0.96 0.008 220);
-  --popover: oklch(0.212 0.025 236);
-  --popover-foreground: oklch(0.96 0.008 220);
+  /* Dark mode moved off the blue-teal cast onto the same graphite/indigo
+   * axis as light mode, so switching themes no longer shifts hue. */
+  --background: oklch(0.155 0.012 268);
+  --foreground: oklch(0.96 0.005 265);
+  --card: oklch(0.2 0.014 268);
+  --card-foreground: oklch(0.96 0.005 265);
+  --popover: oklch(0.2 0.014 268);
+  --popover-foreground: oklch(0.96 0.005 265);
   --primary: oklch(0.68 0.19 265);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.27 0.03 234);
-  --secondary-foreground: oklch(0.96 0.008 220);
-  --muted: oklch(0.25 0.025 234);
-  --muted-foreground: oklch(0.7 0.022 222);
-  --accent: oklch(0.3 0.05 206);
-  --accent-foreground: oklch(0.96 0.01 200);
+  --secondary: oklch(0.26 0.016 268);
+  --secondary-foreground: oklch(0.96 0.005 265);
+  --muted: oklch(0.245 0.014 268);
+  --muted-foreground: oklch(0.71 0.014 265);
+  --accent: oklch(0.29 0.03 268);
+  --accent-foreground: oklch(0.96 0.008 265);
   --destructive: oklch(0.68 0.19 22);
   --destructive-foreground: oklch(0.99 0.005 250);
   --border: oklch(1 0 0 / 9%);
