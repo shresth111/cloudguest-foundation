@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sheet,
@@ -330,6 +331,8 @@ function CustomerHomePage() {
   const [deviceSearch, setDeviceSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<DeviceType | null>(null);
   const [floorFilter, setFloorFilter] = useState<string | null>(null);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+
   const [deviceLocationId, setDeviceLocationId] = useState("");
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [deviceSheetOpen, setDeviceSheetOpen] = useState(false);
@@ -422,6 +425,46 @@ function CustomerHomePage() {
     .filter((d) => !floorFilter || d.floor === floorFilter);
   const downCount = devices.filter((d) => d.status === "down").length;
   const totalDownAcrossLocations = allDevices.filter((d) => d.status === "down").length;
+
+  useEffect(() => {
+    setSelectedDeviceIds([]);
+  }, [effectiveDeviceLocationId]);
+
+  // Bulk selection is scoped to what's currently visible: switching locations or
+  // narrowing filters must never leave invisible rows silently selected.
+  const visibleSelectedIds = filteredDevices
+    .filter((d) => selectedDeviceIds.includes(d.id))
+    .map((d) => d.id);
+  const allVisibleSelected =
+    filteredDevices.length > 0 && visibleSelectedIds.length === filteredDevices.length;
+  const someVisibleSelected = visibleSelectedIds.length > 0 && !allVisibleSelected;
+  const selectedDevices = devices.filter((d) => visibleSelectedIds.includes(d.id));
+  const toggleDeviceSelected = (id: string) =>
+    setSelectedDeviceIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  const toggleSelectAllVisible = () =>
+    setSelectedDeviceIds(allVisibleSelected ? [] : filteredDevices.map((d) => d.id));
+  const clearDeviceSelection = () => setSelectedDeviceIds([]);
+  const runBulkAction = (label: string) => {
+    toast.success(`${label} — ${selectedDevices.length} device${selectedDevices.length === 1 ? "" : "s"}`);
+    clearDeviceSelection();
+  };
+  const exportSelectedDevices = () => {
+    const rows = [
+      ["Name", "MAC", "Type", "Floor", "Status"],
+      ...selectedDevices.map((d) => [d.name, d.mac, d.type, d.floor, d.status]),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "devices.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedDevices.length} devices`);
+  };
+
 
   const totalLocations = (locations ?? []).length;
   const onlineLocations = (locations ?? []).filter((l) => l.status === "online").length;
@@ -1224,10 +1267,56 @@ function CustomerHomePage() {
                 })}
               </div>
             </div>
+            {visibleSelectedIds.length > 0 && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#6C4EFF]/40 bg-[#6C4EFF]/10 px-3 py-2">
+                <span className="text-xs font-semibold text-indigo-100">
+                  {visibleSelectedIds.length} selected
+                </span>
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  {[
+                    { label: "Restart", icon: RefreshCw },
+                    { label: "Mark for maintenance", icon: HardDrive },
+                  ].map(({ label, icon: Icon }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => runBulkAction(label)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    >
+                      <Icon className="h-3 w-3" aria-hidden="true" />
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={exportSelectedDevices}
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearDeviceSelection}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-white/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" /> Clear
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="overflow-x-auto rounded-xl border border-white/10">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-white/10 bg-white/[0.03] text-left text-xs font-medium uppercase tracking-wide text-white/40">
+                    <th className="px-3 py-2">
+                      <Checkbox
+                        aria-label="Select all devices"
+                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleSelectAllVisible}
+                        disabled={filteredDevices.length === 0}
+                        className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
+                      />
+                    </th>
                     <th className="px-3 py-2">#</th>
                     <th className="px-3 py-2">Name</th>
                     <th className="px-3 py-2">MAC ID</th>
@@ -1242,7 +1331,8 @@ function CustomerHomePage() {
                 <tbody>
                   {filteredDevices.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-xs text-white/40">
+                      <td colSpan={10} className="py-8 text-center text-xs text-white/40">
+
                         {devices.length === 0
                           ? "No hardware set up here yet — add your first device from this location's Devices page."
                           : "Nothing matches that search. Check the spelling or clear your filters."}
@@ -1261,8 +1351,20 @@ function CustomerHomePage() {
                       return (
                         <tr
                           key={d.id}
-                          className="border-b border-white/5 last:border-0 hover:bg-white/[0.04]"
+                          data-state={visibleSelectedIds.includes(d.id) ? "selected" : undefined}
+                          className={cn(
+                            "border-b border-white/5 last:border-0 hover:bg-white/[0.04]",
+                            visibleSelectedIds.includes(d.id) && "bg-[#6C4EFF]/10",
+                          )}
                         >
+                          <td className="px-3 py-2">
+                            <Checkbox
+                              aria-label={`Select ${d.name}`}
+                              checked={visibleSelectedIds.includes(d.id)}
+                              onCheckedChange={() => toggleDeviceSelected(d.id)}
+                              className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
+                            />
+                          </td>
                           <td className="px-3 py-2 text-xs text-white/40">{i + 1}</td>
                           <td className="px-3 py-2 text-xs font-medium text-white">{d.name}</td>
                           <td className="px-3 py-2 font-mono text-xs text-white/50">{d.mac}</td>
