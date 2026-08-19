@@ -469,7 +469,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
     setSavingRedirect(true);
     try {
       const orgId = await campaignService.getOrganizationId();
-      await portalService.update(portalConfigId, { login: { redirectUrl } as any }, orgId);
+      await portalService.update(portalConfigId, { login: { redirectUrl } }, orgId);
       toast.success("Redirect URL saved");
     } catch {
       toast.error("Could not save the redirect URL — check the connection and try again.");

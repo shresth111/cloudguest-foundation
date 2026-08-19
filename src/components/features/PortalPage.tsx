@@ -463,10 +463,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // The logo is no longer part of this patch -- it's the real,
         // immediately-persisted org-level upload above, not a
         // captive_portal_configs.logo_url string field.
-        branding: { primaryColor: primary } as any,
-        login: { redirectUrl: form.redirectUrl } as any,
+        branding: { primaryColor: primary },
+        login: { redirectUrl: form.redirectUrl },
         loginMethods: authMethods as PortalLoginMethod[],
-        seo: { pageTitle: headline, metaDescription: msg } as any,
+        seo: { pageTitle: headline, metaDescription: msg },
         // Real bug: this field was missing from the patch entirely, so the
         // "Languages" input above -- which does round-trip on load (line
         // ~166) and does drive the Live Preview in real time (langList
