@@ -1069,20 +1069,25 @@ function CustomerHomePage() {
                 </p>
                 {typeFilter && (
                   <button
+                    type="button"
+                    aria-label={`Clear device type filter: ${typeFilter}`}
                     onClick={() => setTypeFilter(null)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     {typeFilter} <span className="text-indigo-200/60">×</span>
                   </button>
                 )}
                 {floorFilter && (
                   <button
+                    type="button"
+                    aria-label={`Clear floor filter: floor ${floorFilter}`}
                     onClick={() => setFloorFilter(null)}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[11px] font-medium text-indigo-200 hover:bg-[#6C4EFF]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     Floor {floorFilter} <span className="text-indigo-200/60">×</span>
                   </button>
                 )}
+
               </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
