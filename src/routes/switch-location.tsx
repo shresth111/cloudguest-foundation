@@ -822,9 +822,32 @@ function CustomerHomePage() {
                 );
               })
             )}
+            {!hasNoLocationsAtAll && filtered.length > 0 && (
+              <button
+                onClick={() => setAddLocationOpen(true)}
+                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors group-hover:border-[#8B5CF6]/40 group-hover:text-white">
+                  <Plus className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-medium text-white/80">Add a location</span>
+                <span className="max-w-[16rem] text-xs text-white/40">
+                  Provision a new venue and bring its network online.
+                </span>
+              </button>
+            )}
           </div>
         )}
       </main>
+
+      <footer className="relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-6 text-xs text-white/40 sm:px-6">
+        <span>© {new Date().getFullYear()} Wyfy Guest · Customer Portal</span>
+        <span className="flex items-center gap-1.5">
+          <Activity className="h-3.5 w-3.5 text-emerald-400" />
+          All systems monitored in real time
+        </span>
+      </footer>
+
 
       {/* Device Monitoring -- moved into a drawer instead of a permanently
        * open, full-width section: it's genuinely different data (per-device,
