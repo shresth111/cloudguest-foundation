@@ -1,7 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
+import {
+  PortalShell,
+  PortalCard,
+  GUEST_LEGIBILITY_CARD_CLASS,
+} from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/redirect")({
@@ -45,6 +50,7 @@ function RedirectPage() {
   const { config, t, destinationUrl } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/redirect" });
   const [remaining, setRemaining] = useState(5);
+  const hasPhoto = !!config?.backgroundImageUrl;
   const rawUrl = destinationUrl || config?.redirectUrl;
   const url = rawUrl && isSafeRedirectTarget(rawUrl) ? rawUrl : undefined;
 
@@ -71,7 +77,23 @@ function RedirectPage() {
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col justify-center gap-5">
-        <div className="text-center">
+        {/* captive-portal-v7-design-spec.md §1.1 (L1): this heading block
+         * used to render straight onto the venue's photo, inside the
+         * page scrim's deliberately fully-transparent 24-78% band, so
+         * `--pg-ink` had no guaranteed contrast ratio against it at all.
+         * It now carries the same bounded `GUEST_LEGIBILITY_CARD_CLASS`
+         * plate `BrandPanel` and the shell footer already use, sized to
+         * its own text (`w-fit` only reaches full column width when the
+         * text genuinely fills it) -- deliberately NOT a wash over the
+         * whole content column, which is §0.1 item 1's twice-shipped
+         * mistake. Photo-only: on the flat `--pg-canvas` there is no
+         * contrast problem to solve and no plate is drawn. */}
+        <div
+          className={cn(
+            "mx-auto w-fit max-w-full text-center",
+            hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS),
+          )}
+        >
           <div
             className="mx-auto grid h-16 w-16 place-items-center rounded-2xl text-white shadow-lg shadow-indigo-500/25"
             style={{
@@ -82,7 +104,14 @@ function RedirectPage() {
             <ExternalLink className="h-7 w-7" />
           </div>
           <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("redirecting")}</h1>
-          <p className="mt-1.5 break-all text-sm text-slate-500">
+          {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
+           * §1.5 retuned that token #64748B -> #475569, and a slate class does
+           * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
+           * composite (`--pg-surface` at 85% over a near-black photo region);
+           * full derivation in styles.css's own `--pg-ink-muted` note. Backing
+           * the block and leaving its subtitle at 3.36:1 would only have half-
+           * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
+          <p className="mt-1.5 break-all text-sm text-[var(--pg-ink-muted)]">
             You'll be sent to <span className="font-medium text-slate-700">{url}</span> shortly.
           </p>
         </div>
