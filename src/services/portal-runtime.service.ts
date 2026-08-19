@@ -1,6 +1,8 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
 import {
+  clampBackgroundFocal,
   clampBackgroundOverlayStrength,
+  toBackgroundMetric,
   toGuestFontChoice,
   type RuntimeAuthMethod,
   type RuntimeLanguage,
@@ -48,6 +50,32 @@ interface BackendCaptivePortalConfig {
    * this frontend change is safe to ship ahead of that one (§7). */
   guest_font_choice?: string;
   background_overlay_strength?: number;
+  /** captive-portal-v7-design-spec.md §1.4 C3/C4/C5 -- shipped by backend
+   * migration 0089 (`0089_add_background_image_metrics_and_focal_point`) and
+   * live on `GET /captive-portal/resolve`. Field names verified against
+   * `origin/main`'s `app/domains/captive_portal/schemas.py`
+   * (`ResolvedCaptivePortalConfigResponse`) and `router.py`, not assumed.
+   *
+   * The focal pair is `Integer NOT NULL` on `captive_portal_configs` with
+   * server defaults 50/25; the three measurements are `Integer NULL` on
+   * `brandings` and stay optional/nullable all the way through this
+   * frontend, because `null` there carries real meaning ("never measured")
+   * that a 0 would destroy. Kept optional on this interface as well so a
+   * stale/rolled-back backend degrades to the safe defaults rather than
+   * producing `undefined` reads. */
+  background_focal_x?: number;
+  background_focal_y?: number;
+  background_luminance?: number | null;
+  background_top_luminance?: number | null;
+  background_entropy?: number | null;
+  /** Returned since backend 0085 and, until v7, never mapped -- see
+   * `RuntimePortalConfig.pinLoginEnabled`. */
+  pin_login_enabled?: boolean;
+  /** Returned since backend PR #33 ("Expose resolved location's country on
+   * GET /captive-portal/resolve") and, until v7, never mapped -- see
+   * `RuntimePortalConfig.locationCountry`. ISO 3166-1 alpha-2, never a
+   * dialing code. */
+  location_country?: string | null;
 }
 
 interface BackendOtpRequestResponse {
@@ -145,6 +173,19 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     businessHoursClosedMessage: c.business_hours_closed_message,
     guestFontChoice: toGuestFontChoice(c.guest_font_choice),
     backgroundOverlayStrength: clampBackgroundOverlayStrength(c.background_overlay_strength),
+    // v7 §1.4 C4. 50/25 is not a frontend guess -- it is migration 0089's own
+    // server default, chosen so the render is identical to the previous
+    // hardcoded `center 25%` for every venue that already exists.
+    backgroundFocalX: clampBackgroundFocal(c.background_focal_x, 50),
+    backgroundFocalY: clampBackgroundFocal(c.background_focal_y, 25),
+    // v7 §1.4 C3/C5. `toBackgroundMetric` preserves `null` rather than
+    // coercing it to 0 -- the distinction is load-bearing, see its comment.
+    backgroundLuminance: toBackgroundMetric(c.background_luminance),
+    backgroundTopLuminance: toBackgroundMetric(c.background_top_luminance),
+    backgroundEntropy: toBackgroundMetric(c.background_entropy),
+    // Both already returned by the API before v7 and simply never read.
+    pinLoginEnabled: c.pin_login_enabled ?? false,
+    locationCountry: c.location_country ?? null,
   };
 }
 

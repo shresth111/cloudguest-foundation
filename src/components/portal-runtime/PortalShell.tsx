@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { usePortalRuntime, usePortalRuntimeOptional } from "@/context/PortalRuntimeContext";
+import { usePortalBackdropPlan } from "@/hooks/usePortalBackdropPlan";
+import type { BackdropPlan } from "@/lib/portal-backdrop";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
@@ -49,8 +51,20 @@ export const PG_FONT_STACK =
 // radii glued together -- part of why the composition read as
 // "assembled," not designed. One shared value, `rounded-[20px]`, now
 // applies everywhere this card family (and PortalCard below) appears.
+// `pg-surface-card` is not a styling hook -- it carries no properties of its
+// own. It is the structural marker styles.css uses to answer one question:
+// "is this text standing on an opaque-enough surface of our own, or is it
+// standing on the venue's photo?" Under the dark scrim polarity (v7 §1.4 C3)
+// the shell root re-declares the `--pg-ink*` tokens to pure #FFFFFF so that
+// text sitting directly on the photo follows the scrim's flip; this class is
+// what marks the regions where that flip must be undone again. Doing it with
+// tokens and a marker class, rather than by editing components, is what lets
+// the ten `portal.*.tsx` routes that render a bare <h1> on the photo pick up
+// the correct ink without any of them being touched -- they already render
+// inside `PortalCard`, or already render on the photo, and both cases now
+// resolve correctly on their own.
 export const GUEST_LEGIBILITY_CARD_CLASS =
-  "rounded-[20px] border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md";
+  "pg-surface-card rounded-[20px] border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md";
 
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
  * that used to be empty gradient next to a small floating card. Copy is
@@ -115,66 +129,93 @@ function BrandPanel({
   return <div className="max-w-lg">{content}</div>;
 }
 
-// The top/bottom vignette scrim protects any edge-of-page content (the
-// logo/heading zone, the footer) that sits directly on the photo with no
-// bounded card of its own behind it -- fully transparent through the
-// vertical middle, where the actual sign-in card already carries its own
-// opaque background. Defense-in-depth alongside the per-zone
-// GUEST_LEGIBILITY_CARD_CLASS cards below, not a replacement for them.
-// captive-portal-v5-design-spec.md §3.4: peak top opacity 0.8 -> 0.55 and
-// the fully-transparent middle band widened 34-72% -> 24-78% -- a direct,
-// proportionate response to the merged/shorter card from §3.1-3.3 needing
-// less protected space, not an independent aesthetic call. The strongest
-// part of a typical venue photo (its actual subject) sat directly under
-// the heaviest, near-opaque part of the old scrim; this lightens that
-// without widening the scrim's own coverage, which is the opposite
-// direction from round 2's regression (see GuestBackdrop's own comment).
-//
-// captive-portal-v6-design-spec.md §4: that 0.55/0.28/0.65 was the third
-// sequential single-engineer guess at one hardcoded number, checked
-// against exactly one real photo -- PR #80 (a header illegible against a
-// bright photo) and PR #81 (the entire content column washed to a near-
-// invisible ghost) are both real, shipped instances of that same guess
-// being wrong for a *different* venue's photo. `buildGuestBackdropScrim`
-// below is the structural fix: peak opacity becomes a real per-venue admin
-// input (`RuntimePortalConfig.backgroundOverlayStrength`, §4.4's slider),
-// while the actual axis that broke both prior incidents -- *coverage
-// area*, not opacity value (see this function's own comment on the fixed
-// 24%/78% stops, and GuestBackdrop's doc comment above) -- stays
-// permanently non-configurable so an admin control can never reintroduce
-// PR #81's mistake under a different name.
 /**
- * @param strengthPct Admin-chosen 0-100 (`RuntimePortalConfig.
- * backgroundOverlayStrength`, default 55 -- the value that reproduces
- * today's hardcoded 0.55/0.28/0.65 scrim exactly, see this function's own
- * inline comments below). Clamped to [15, 85] here at render time, NOT at
- * the stored-value/admin-slider-display side (backend/admin UI both keep
- * the honest 0-100 range) -- see the clamp's own comment for why both
- * ends of that range are real, historical guardrails, not arbitrary.
+ * A bounded, self-sizing surface for text that would otherwise stand
+ * directly on the venue's photo. **The single seam for "this text is not on
+ * a card"** -- `GuestSignInCard`'s trailing note here, and the ten
+ * `portal.*.tsx` routes that render a bare `<h1>` plus subtitle in a
+ * `text-center` div outside `PortalCard` (v7 §1.1 L1).
+ *
+ * This is the answer to the one instruction in v7 §1.4 C3 that cannot be
+ * taken literally -- "size the scrim from the content box, not a fixed
+ * vignette height". Growing the vignette until it reaches the text is §0.1
+ * item 1's forbidden move under a new name: it converges on PR #81's single
+ * translucent wash over the content column as soon as text scales up under
+ * the relative units the accessibility pass shipped. So the sizing happens
+ * on the *text*, not on the scrim -- and `w-fit` is what makes that literal.
+ * `fit-content` resolves to `min(max-content, available)`, so a short
+ * heading gets a plate that hugs it and a heading that genuinely fills the
+ * column gets a full-width one, with no breakpoint logic and no case where
+ * the plate covers photo that no glyph needed. Coverage is derived from the
+ * content box; it is never a constant.
+ *
+ * Renders its children bare when there is no photo -- on the flat
+ * `--pg-canvas` background there is no contrast problem to solve and a plate
+ * would be visual noise. That makes it inert for every venue that has not
+ * uploaded a background, which is why routes can adopt it unconditionally.
+ *
+ * C5 (§1.4, the refusal rule) lands here rather than at the call sites: when
+ * the resolved plan says the image is hostile, the plate stops being the
+ * translucent legibility card and becomes **opaque** -- which is precisely
+ * what "put the headline on the card too" means. Note what that escalation
+ * does *not* do: it does not cover one additional pixel. It deepens a
+ * surface already sized to its own text. Deepening bounded coverage is the
+ * move v5 §2 endorses; widening it is the move that shipped twice and got
+ * reverted twice.
  */
-function buildGuestBackdropScrim(strengthPct: number): string {
-  // Clamp to [15, 85] -- this is the actual guardrail against both real
-  // historical incidents: below 15, a bright photo can reproduce PR #80's
-  // illegible-header problem; above 85, the scrim approaches PR #81's
-  // near-total-wash regression. An admin can go most of the way in either
-  // direction, but never all the way back to either shipped incident.
-  const peakTop = Math.max(15, Math.min(85, strengthPct)) / 100;
-  const midTop = peakTop * 0.51; // same ratio as today's 0.28/0.55
-  const peakBottom = Math.min(0.85, peakTop + 0.1); // same +0.10 offset as today's 0.65/0.55
-
-  // The 24%/78% transparent-band stops are NOT parameters. This is the one
-  // line in this function that must never take strengthPct as an input --
-  // see GuestBackdrop's own doc comment (and v5 §2) for why "coverage
-  // area," not opacity, was the actual mistake both prior regressions made.
-  return `linear-gradient(to bottom, rgba(255,255,255,${peakTop}) 0%, rgba(255,255,255,${midTop}) 14%, rgba(255,255,255,0) 24%, rgba(255,255,255,0) 78%, rgba(255,255,255,${peakBottom}) 100%)`;
+export function PortalTextPlate({
+  children,
+  className,
+  /** `plate` (default) for a heading block; `pill` for a single short line.
+   * Only radius and padding differ -- both hug their own content. */
+  shape = "plate",
+}: {
+  children: ReactNode;
+  className?: string;
+  shape?: "plate" | "pill";
+}) {
+  // Optional context for the same reason `PortalCard` below uses it: these
+  // are shared presentation components and are legitimately rendered outside
+  // `PortalRuntimeProvider` (portal.tsx's `IncompletePortalLinkError`). With
+  // no runtime there is no photo, so the plate correctly draws nothing.
+  const config = usePortalRuntimeOptional()?.config;
+  const plan = usePortalBackdropPlan();
+  if (!config?.backgroundImageUrl) return <>{children}</>;
+  return (
+    <div
+      className={cn(
+        "mx-auto w-fit max-w-full text-center",
+        // NOTE THE ARGUMENT ORDER, and do not "tidy" it: the shared class
+        // must come FIRST. `cn` is tailwind-merge, which resolves a conflict
+        // group by keeping the LAST class in it, and
+        // `GUEST_LEGIBILITY_CARD_CLASS` contains `rounded-[20px]`. Written
+        // the natural way round -- local overrides after the shared base --
+        // `rounded-full` is silently discarded and you get a 20px-radius
+        // box while the source says "pill". Verified by running `twMerge` on
+        // these exact strings: as-written yields `rounded-[20px]`, swapped
+        // yields `rounded-full`. The footer below had this bug for its whole
+        // life; it is the kind of mistake that leaves no error behind, so it
+        // is called out at both sites rather than just fixed.
+        GUEST_LEGIBILITY_CARD_CLASS,
+        shape === "pill" ? "rounded-full px-4 py-2" : "p-5",
+        // C5. `bg-[var(--pg-surface)]` (no `/85`) wins the tailwind-merge
+        // background group over the shared class's translucent value, for
+        // the same last-one-wins reason documented above -- here relied on
+        // deliberately rather than tripped over.
+        plan?.headlineOnCard && "bg-[var(--pg-surface)] border-[var(--pg-border)]",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
- * Renders the venue's uploaded background photo at full clarity, plus the
- * top/bottom vignette scrim -- nothing more. Does NOT wrap `children` in
- * any opaque panel; legibility for the actual text/logo content is each
- * zone's own job (`GUEST_LEGIBILITY_CARD_CLASS`, applied by `BrandPanel`,
- * `GuestSignInCard`'s header, and this shell's footer).
+ * Renders the venue's uploaded background photo plus the top/bottom vignette
+ * scrim -- nothing more. Does NOT wrap `children` in any opaque panel;
+ * legibility for the actual text content is each zone's own job
+ * (`PortalCard`, `GUEST_LEGIBILITY_CARD_CLASS`, `PortalTextPlate`).
  *
  * v4 (#81) first shipped this as one continuous `--pg-surface/92` panel
  * wrapping the *entire* content column -- logo, heading, sign-in card,
@@ -185,32 +226,92 @@ function buildGuestBackdropScrim(strengthPct: number): string {
  * from "the photo doesn't render" -- confirmed live on production
  * (/portal/welcome), the venue's real background photo was reduced to a
  * barely-visible ghost. That traded genuine illegibility for genuine
- * invisibility; neither is acceptable, and the photo is the actual point
- * of this feature (a venue's own branding asset).
+ * invisibility; neither is acceptable, and the photo is the actual point of
+ * this feature (a venue's own branding asset). PR #82 reverted it. Every
+ * comment in this file that insists on *coverage area* being the fixed
+ * quantity is guarding against a third attempt.
  *
- * This reverts to bounded, per-zone cards -- same visual recipe
- * (white/80-90 + backdrop-blur-md) v4 already used, just scoped to the
- * text-bearing zones instead of the whole page -- while keeping the one
- * genuinely structural win v4 introduced: a single shared class
- * (`GUEST_LEGIBILITY_CARD_CLASS`) instead of three independently-typed
- * copies of the same Tailwind string. That's the part of "don't repeat
- * yourself three times" worth keeping; "cover the whole page" was never
- * the part that needed fixing.
+ * ---------------------------------------------------------------------------
+ * v7 §1.4 C1 -- the photo is cropped against the VIEWPORT, not the document.
+ * ---------------------------------------------------------------------------
+ * This layer used to be `absolute inset-0` inside a container that is
+ * `min-h-dvh` **and grows with its content**. That is the bug in §1.1 L6, and
+ * it is much larger than it sounds. On a 390x844 phone, the OTP flow makes
+ * the document roughly 1200px tall; `absolute inset-0` therefore sizes this
+ * layer 390x1200, and `background-size: cover` scales a 1920x1080 photo to
+ * fit *1200px of height*, i.e. ~2133px wide against a 390px box. About 82% of
+ * the venue's own photograph is cropped off-screen and the guest sees a
+ * random vertical sliver of the building.
+ *
+ * Measured in a real browser at 390x844 with a 1200px document: the layer
+ * was 390x1200, the photo cover-scaled to 2133x1200, and 81.7% of it was
+ * cropped away -- the spec's "~82%" is accurate. With the fix the layer is
+ * 390x844, the photo scales to 1500x844, and the crop drops to 74.0%; for a
+ * portrait upload it drops from 42.2% to 17.9%. The layer also stops
+ * scrolling away (its `top` stayed 0 after scrolling 350px, where the old
+ * one had moved to -350).
+ *
+ * §1.4 C1 additionally claims this "restores L7", i.e. makes the vertical
+ * focal point work on phones. **That claim is false and is not repeated
+ * here.** C1 changes the box's size, not which axis overflows -- and under
+ * `cover` the overflowing axis is decided purely by image aspect versus box
+ * aspect. A phone's box is portrait before and after, so the overflow stays
+ * horizontal for every plausible upload and `focalY` stays inert on mobile
+ * either way. See `resolveFocalPosition` for the measured matrix. The two
+ * changes still belong together; C4 is simply not *dependent* on C1.
+ *
+ * `position: fixed` (not `absolute`) is the fix, because on a fixed element
+ * `inset: 0` resolves against the viewport rather than the containing block,
+ * which gives exactly the 390x844 box `cover` needs -- and the crop then
+ * stays correct while the page scrolls, instead of being computed once
+ * against whatever height the document happened to reach. Two things make
+ * this safe here rather than fragile:
+ *
+ *  - The shell root's `overflow-hidden` does not clip it. `overflow` only
+ *    clips a fixed descendant when that ancestor is also its containing
+ *    block, which requires a `transform`/`filter`/`perspective`/
+ *    `backdrop-filter`/`contain: paint`/`will-change`. There is none on the
+ *    ancestor chain -- and notably the accessibility pass removed the one
+ *    that existed (`contrast-125 saturate-150` on this very root), citing
+ *    this exact containing-block behaviour as one of its reasons.
+ *  - It is a fixed *element*, not `background-attachment: fixed`, which is
+ *    the thing that is genuinely broken on iOS Safari.
+ *
+ * The admin Portal Preview (`constrained`) deliberately stays `absolute`:
+ * it renders this shell inside a fixed-size phone-bezel mockup, and a fixed
+ * layer would escape the bezel and paint over the whole admin page. That
+ * leaves the preview on the old document-box crop when previewed content
+ * overflows the bezel -- a known, documented fidelity gap in an internal
+ * tool, not a guest-facing defect, and the same behaviour it has today.
  */
 function GuestBackdrop({
   backgroundImageUrl,
-  backgroundOverlayStrength,
+  plan,
+  constrained,
   children,
 }: {
   backgroundImageUrl?: string | null;
-  /** `RuntimePortalConfig.backgroundOverlayStrength`, §4 -- defaults to 55
-   * (today's exact shipped value) when the config hasn't resolved yet or
-   * the field is absent, same fallback `buildGuestBackdropScrim`'s own
-   * caller below applies. */
-  backgroundOverlayStrength?: number;
+  /** `null` when there is no photo. See `usePortalBackdropPlan`. */
+  plan: BackdropPlan | null;
+  /** See `GuestBackdrop`'s own comment on why the admin preview cannot use
+   * a viewport-fixed layer. */
+  constrained: boolean;
   children: ReactNode;
 }) {
-  if (!backgroundImageUrl) {
+  // `data-pg-backdrop` is the attribute styles.css's `forced-colors` block
+  // asked for by name: it previously had to match these layers by their
+  // Tailwind classes (`.portal-runtime > .pointer-events-none.absolute.
+  // inset-0`) because this component belonged to a different workstream,
+  // with a comment saying to replace it with an attribute when that landed.
+  // This is that landing. The attribute also carries the
+  // `prefers-contrast: more` rule, which drops the photo and scrim entirely
+  // rather than trying to compute a "more contrasty scrim" -- a scrim cannot
+  // tell text from photo, so escalating it is not a contrast improvement.
+  const layerCls = constrained
+    ? "pointer-events-none absolute inset-0"
+    : "pointer-events-none fixed inset-0";
+
+  if (!backgroundImageUrl || !plan) {
     // captive-portal-v5-design-spec.md, Visual Assets §2b: the no-photo
     // case used to render nothing at all here (confirmed live -- a real
     // org with no background image configured shows a completely bare
@@ -220,9 +321,15 @@ function GuestBackdrop({
     // marketing site's own signal-arc motif, not a colored glow -- see
     // that component's own doc comment. `pointer-events-none`/absolute so
     // it never intercepts input or affects layout.
+    // Wrapped rather than given the attribute directly, so that
+    // `PortalNoPhotoPattern` (owned elsewhere) needs no prop-forwarding
+    // change to participate in the `forced-colors`/`prefers-contrast`
+    // drop-the-decoration rules.
     return (
       <>
-        <PortalNoPhotoPattern className="pointer-events-none absolute inset-0" />
+        <div aria-hidden data-pg-backdrop className={layerCls}>
+          <PortalNoPhotoPattern />
+        </div>
         {children}
       </>
     );
@@ -231,30 +338,30 @@ function GuestBackdrop({
     <>
       {/* Shown at full clarity, not faded -- a customer's own uploaded
        * photo/artwork should actually be visible, not washed out to
-       * near-invisibility. On viewports much wider than the uploaded
-       * image's own resolution this can look soft/stretched -- that's an
-       * "upload a higher-resolution image" problem for the customer to
-       * fix, not something to paper over with an artificial blur here.
-       * captive-portal-v5-design-spec.md §3.4: `background-position:
-       * center 25%` (was dead-center) -- on a typical portrait-oriented
-       * venue photo (a building, signage, an entrance), dead-center
-       * cropping tends to center empty sky/foreground and cut the actual
-       * subject at the frame edges; anchoring a quarter of the way down
-       * keeps a typical architectural subject's upper two-thirds in frame
-       * at wide/short viewport ratios. A default, not a fix for every
-       * possible photo -- a per-location focal-point picker is a real
-       * follow-up candidate, flagged as out of scope in the same spec
-       * section (no backing `RuntimePortalConfig` field exists today). */}
+       * near-invisibility. Any blur/base-tint belongs in the upload
+       * pipeline (v7 §1.4 C2, backend), never in `backdrop-filter` here:
+       * MDN is explicit that it forces the browser to render, filter and
+       * composite everything behind the element *every frame including
+       * every scroll frame*, with cost scaling by blur radius x element
+       * area -- precisely wrong for a full-bleed layer on a 1080p Android,
+       * and it has a silent failure mode where any ancestor with
+       * `opacity < 1`/`filter`/`mask`/`clip-path`/`mix-blend-mode` becomes
+       * a backdrop root and confines the blur to nothing. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-cover"
-        style={{ backgroundImage: `url(${backgroundImageUrl})`, backgroundPosition: "center 25%" }}
+        data-pg-backdrop
+        className={cn(layerCls, "bg-cover bg-no-repeat")}
+        style={{
+          backgroundImage: `url(${backgroundImageUrl})`,
+          // v7 §1.4 C4: the per-venue focal point. Defaults 50/25
+          // reproduce `center 25%` exactly, so no existing venue moves.
+          // On phones it is the *horizontal* half that does the work --
+          // see `resolveFocalPosition` for why, and for why the spec's
+          // claim that C1 makes the vertical half work is wrong.
+          backgroundPosition: plan.focalPosition,
+        }}
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: buildGuestBackdropScrim(backgroundOverlayStrength ?? 55) }}
-      />
+      <div aria-hidden data-pg-backdrop className={layerCls} style={{ background: plan.scrim }} />
       {children}
     </>
   );
@@ -316,6 +423,7 @@ export function PortalShell({
   // clipping or needing to scroll.
   const heightCls = constrained ? "min-h-full" : "min-h-dvh";
   const hasBackgroundImage = !!config?.backgroundImageUrl;
+  const backdropPlan = usePortalBackdropPlan();
 
   return (
     <div
@@ -368,6 +476,28 @@ export function PortalShell({
       // replacing it (v7 §7.5, "escalation only").
       data-pg-contrast={highContrast ? "more" : undefined}
       data-pg-text-size={largeText ? "large" : undefined}
+      // v7 §1.4 C3, the scrim's polarity, published to CSS as an attribute
+      // rather than applied as inline colours. That is what makes the flip
+      // work for text this component never sees: styles.css re-declares
+      // `--pg-ink`/`--pg-ink-muted`/`--pg-ink-faint` to pure #FFFFFF under
+      // `dark`, and re-declares them back inside `.pg-surface-card`. So the
+      // ten `portal.*.tsx` routes that render a bare <h1> straight onto the
+      // photo (§1.1 L1) follow the scrim automatically, with no edit to any
+      // of them -- and every word that is already on a card keeps the dark
+      // ink it should have. Absent entirely when there is no photo.
+      data-pg-scrim={backdropPlan?.polarity}
+      // v7 §1.1 L2 / §1.4 C3. The white card's only edge is `--pg-border`
+      // #E2E8F0, which is 1.23:1 against the card itself and ~1.14:1 against
+      // a bright photo -- the boundary dissolves and the headline reads as
+      // floating text on a photograph. This is most likely the thing the
+      // founder is actually looking at. Only set when the photo is measured
+      // bright: over a dark photo a white card already has enormous edge
+      // contrast and a heavy ring would be noise.
+      data-pg-card-edge={backdropPlan?.strongCardEdge ? "strong" : undefined}
+      // v7 §1.4 C5, the refusal rule, published for the same reason as the
+      // polarity above: a route that has adopted `PortalTextPlate` can
+      // let CSS decide, and QA can read the decision straight off the DOM.
+      data-pg-headline={backdropPlan?.headlineOnCard ? "card" : undefined}
       style={{
         fontFamily: PG_FONT_STACK,
         background: "var(--pg-canvas, #FAFAF8)",
@@ -375,7 +505,8 @@ export function PortalShell({
     >
       <GuestBackdrop
         backgroundImageUrl={config?.backgroundImageUrl}
-        backgroundOverlayStrength={config?.backgroundOverlayStrength}
+        plan={backdropPlan}
+        constrained={constrained}
       >
         {/* Below lg:, this fills the viewport edge-to-edge like every
          * phone/tablet captive-portal page should (single column, the
@@ -461,7 +592,21 @@ export function PortalShell({
                 // partial at this bottom edge), so without its own card
                 // this text is exactly the same "washed to ghost text"
                 // failure mode a busy photo can otherwise cause.
-                hasBackgroundImage && cn("rounded-full px-4 py-2", GUEST_LEGIBILITY_CARD_CLASS),
+                // Shared class FIRST -- this is a real bug fix, not a
+                // reformat. It was written the natural way round (local
+                // overrides after the shared base), and `cn` is
+                // tailwind-merge, which resolves a conflict group by keeping
+                // the LAST class in it. `GUEST_LEGIBILITY_CARD_CLASS`
+                // contains `rounded-[20px]`, so `rounded-full` was being
+                // silently discarded and this footer has been rendering as a
+                // 20px-radius bar, not the pill the source says, for as long
+                // as the line has existed. Verified by running `twMerge` on
+                // these exact strings: as-written yields `rounded-[20px]`,
+                // swapped yields `rounded-full`. Nothing errors, nothing
+                // warns -- the only signal is the pixels, which is why the
+                // ordering is called out here and in `PortalTextPlate`
+                // rather than quietly corrected.
+                hasBackgroundImage && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-4 py-2"),
               )}
             >
               {/* One link, not two -- /portal/terms already covers both
@@ -507,14 +652,41 @@ export function PortalCard({ children, className }: { children: ReactNode; class
   // value across this card family, not two independently-tuned ones) and
   // padding trimmed `p-6` (24px) -> `p-5` (20px), still comfortably above
   // Purple's 44px touch-target floor (fields, not padding, need the room).
+  //
+  // v7 §1.1 L2 / §1.4 C3 -- the adaptive edge. Text *on* this card was never
+  // the problem (17.85:1, fine); the card's own boundary was. Its only edge
+  // is `--pg-border` #E2E8F0 at 1.23:1 against the card plus a faint shadow,
+  // and against a bright photo -- a white lobby, an overcast sky -- white
+  // card on bright photo measures ~1.14:1. The boundary vanishes, the card
+  // stops reading as a surface, and the headline on it reads as text
+  // floating on a photograph. That is very likely the actual complaint that
+  // started v7.
+  //
+  // The fix is a real ring, but only when it is needed. `#64748B` measures
+  // **4.76:1 against the white card**, comfortably clearing SC 1.4.11's 3:1
+  // for a non-text boundary -- and note that ratio is between two colours we
+  // control, so it holds no matter what the photo does behind it, which is
+  // the property that makes it safe against an image we have never seen.
+  // The heavier, wider shadow underneath does the rest of the separation
+  // work perceptually. Nothing here covers one extra pixel of photo: this is
+  // an edge, not a panel (§0.1 item 1).
+  //
+  // Driven by the `data-pg-card-edge` attribute on the shell root rather
+  // than by a prop, because eleven `portal.*.tsx` routes call this component
+  // with nothing but children and none of them should have to know.
+  const plan = usePortalBackdropPlan();
+  const strongEdge = plan?.strongCardEdge ?? false;
   return (
     <div
       className={cn(
-        "rounded-[20px] border border-[var(--pg-border)] bg-[var(--pg-surface)] p-5",
+        "pg-surface-card rounded-[20px] border bg-[var(--pg-surface)] p-5",
+        strongEdge ? "border-[#64748B]" : "border-[var(--pg-border)]",
         className,
       )}
       style={{
-        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.12)",
+        boxShadow: strongEdge
+          ? "0 1px 2px rgba(15,23,42,0.10), 0 12px 32px -10px rgba(15,23,42,0.45)"
+          : "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.12)",
       }}
     >
       {children}

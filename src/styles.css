@@ -721,6 +721,56 @@
   --pg-type-scale: 1.25;
 }
 
+/* captive-portal-v7-design-spec.md §1.4 C3 -- the scrim's dark polarity.
+ *
+ * `GUEST_BACKDROP_SCRIM` was hardcoded `rgba(255,255,255, ...)`, so it could
+ * only ever *lighten* (§1.1 L3). That is a no-op over a bright photo, which
+ * is precisely the case that fails -- and it is the same photo whose
+ * brightness dissolves the card edge in L2. So over a measurably bright
+ * photo the scrim flips to black, and the text standing on it has to flip
+ * with it: a black scrim under dark ink is worse than no scrim at all.
+ * Polarity and ink colour are one decision, never two.
+ *
+ * Doing the flip on *tokens* is what lets it reach text this stylesheet's
+ * authors do not control. Ten `portal.*.tsx` routes render an `<h1>` and a
+ * subtitle in a bare `text-center` div directly on the photo (§1.1 L1);
+ * they read `--pg-ink`, so they follow this automatically, with no edit.
+ *
+ * Pure #FFFFFF, not an off-white, and that is a costed decision rather than
+ * a stylistic one: §1.3's alpha table shows `#F7F5F2` would need scrim alpha
+ * 0.558 and `#EDEAE4` 0.584, against 0.535 for pure white. Off-white text
+ * over imagery is paid for in scrim opacity, i.e. in how much of the venue's
+ * photo you give up. Warm off-whites belong on the card, where they are free.
+ *
+ * White ink here is safe by the §1.3 proof and not by inspection: at the
+ * floor alpha, the worst possible underlying pixel (pure white) composites
+ * to rgb(119,119,119), on which #FFFFFF measures 4.505:1 -- AA for body text
+ * over *any* image whatsoever. See src/lib/portal-backdrop.ts for the full
+ * derivation and the constants it produced. */
+.portal-runtime[data-pg-scrim="dark"] {
+  --pg-ink: #FFFFFF;
+  --pg-ink-muted: #FFFFFF;
+  --pg-ink-faint: #FFFFFF;
+}
+
+/* ...and flipped straight back wherever text is standing on a surface of
+ * ours rather than on the photo. `pg-surface-card` is the marker
+ * `PortalCard` and `GUEST_LEGIBILITY_CARD_CLASS` both carry (see
+ * PortalShell.tsx); form controls are listed alongside it because `PG_INPUT`
+ * paints its own `--pg-surface` background and so is an opaque surface too,
+ * whether or not it happens to sit inside a card. Without this rule a white
+ * card would inherit white ink and every word on it would disappear -- the
+ * exact inverse of the bug being fixed, which is why the restore is written
+ * as its own rule rather than left implicit. */
+.portal-runtime[data-pg-scrim="dark"] .pg-surface-card,
+.portal-runtime[data-pg-scrim="dark"] input,
+.portal-runtime[data-pg-scrim="dark"] textarea,
+.portal-runtime[data-pg-scrim="dark"] select {
+  --pg-ink: #0F172A;
+  --pg-ink-muted: #475569;
+  --pg-ink-faint: #505E73;
+}
+
 /* v7 §7.4-6 -- OS-honouring token blocks, same shape as the
  * `prefers-reduced-motion` handling already used at 11 sites in this file.
  * Deliberately re-declares *tokens*; never a CSS `filter` (v7 §7.5: a
@@ -740,6 +790,27 @@
     --pg-ink-faint: #334155;
     --pg-border: #64748B;
   }
+  /* v7 §1.4 / §7.5 composition rule: under an explicit request for more
+   * contrast, **drop the photo and the scrim entirely** and let the text
+   * stand on the flat `--pg-canvas` token, rather than computing a "more
+   * contrasty scrim". Escalating the scrim is not a contrast improvement:
+   * a scrim cannot tell text from photo, so every extra point of alpha
+   * buys legibility by destroying the venue's image, and at the limit it
+   * *is* PR #81. Removing the image is the only move that raises contrast
+   * without that trade -- the canvas/ink pair is a known 17.85:1. Same
+   * reasoning the `forced-colors` block below already applies; this makes
+   * the two consistent instead of only handling the Windows case.
+   *
+   * The polarity flip is undone with it, because with no scrim left there
+   * is nothing dark for white ink to stand on. */
+  .portal-runtime [data-pg-backdrop] {
+    display: none !important;
+  }
+  .portal-runtime[data-pg-scrim="dark"] {
+    --pg-ink: #0F172A;
+    --pg-ink-muted: #334155;
+    --pg-ink-faint: #334155;
+  }
 }
 
 /* Ordered after the media query on purpose (v7 §7.5, "escalation only"):
@@ -751,6 +822,18 @@
   --pg-ink-muted: #334155;
   --pg-ink-faint: #334155;
   --pg-border: #64748B;
+}
+
+/* The in-page control's half of the drop-the-photo rule above -- same
+ * argument, same outcome, so the guest gets the same page whether the
+ * request came from their OS or from this portal's own menu. */
+.portal-runtime[data-pg-contrast="more"] [data-pg-backdrop] {
+  display: none !important;
+}
+.portal-runtime[data-pg-contrast="more"][data-pg-scrim="dark"] {
+  --pg-ink: #0F172A;
+  --pg-ink-muted: #334155;
+  --pg-ink-faint: #334155;
 }
 
 /* Forced Colors Mode (Windows High Contrast and friends). The UA replaces
@@ -777,14 +860,27 @@
   /* The photo, its scrim and the no-photo pattern are all `aria-hidden`
    * decorative layers carrying no information; in forced colors they can
    * only wreck legibility, because the UA is about to repaint the text on
-   * top of them without knowing they exist. All three are direct children
-   * of this element (GuestBackdrop renders a fragment), which is what this
-   * structural selector leans on. It leans on their Tailwind classes only
-   * because `GuestBackdrop` is owned by the Part 1 legibility workstream
-   * and was deliberately not edited here -- when that lands, give those
-   * layers a `data-pg-backdrop` attribute and match on it instead. */
-  .portal-runtime > .pointer-events-none.absolute.inset-0 {
+   * top of them without knowing they exist.
+   *
+   * This used to match them structurally, by their Tailwind classes
+   * (`.portal-runtime > .pointer-events-none.absolute.inset-0`), with a
+   * note to replace that with a `data-pg-backdrop` attribute once the Part
+   * 1 legibility workstream landed and `GuestBackdrop` could be edited.
+   * That has landed, and this is the replacement. It was not cosmetic: C1
+   * changed those layers from `absolute` to `fixed`, which would have made
+   * the old `.absolute` selector silently stop matching and quietly
+   * reintroduce the photo underneath forced-colors text. */
+  .portal-runtime [data-pg-backdrop] {
     display: none !important;
+  }
+  /* Nothing dark is left to stand on once the scrim is gone, so the
+   * polarity flip has to come off with it -- and `CanvasText` above is the
+   * only correct answer here anyway. */
+  .portal-runtime[data-pg-scrim="dark"],
+  .portal-runtime[data-pg-scrim="dark"] .pg-surface-card {
+    --pg-ink: CanvasText;
+    --pg-ink-muted: CanvasText;
+    --pg-ink-faint: CanvasText;
   }
   .portal-runtime .backdrop-blur-md {
     backdrop-filter: none;

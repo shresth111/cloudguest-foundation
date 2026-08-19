@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { buildSessionUrl } from "@/lib/portal-session-url";
@@ -212,21 +212,42 @@ function PortalLoading() {
       <PortalShell>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           {isConfigMissing ? (
-            <>
-              <p className="text-lg font-semibold text-slate-900">
-                This venue's guest WiFi isn't set up yet
-              </p>
-              <p className="max-w-sm text-sm text-slate-500">
-                No active sign-in configuration was found for this location. Please ask venue staff
-                for assistance.
-              </p>
-            </>
+            // captive-portal-v7-design-spec.md §1.1 (L1). This route has
+            // no <h1> at all, so the spec's route list describes it only as
+            // "unbacked subtitle lines" -- accurate: both of this file's
+            // rendered states put plain <p> copy straight onto the venue
+            // photo, in the scrim's fully-transparent 24-78% band. Each of
+            // those text blocks -- and only the text blocks -- goes on a
+            // `PortalTextPlate`. The `space-y-3` box around it is this
+            // route's own layout and stays: with no photo the plate renders
+            // its children bare, and these two <p> would otherwise inherit
+            // the column's `gap-3` instead of their own rhythm.
+            <div className="space-y-3">
+              <PortalTextPlate className="space-y-3">
+                <p className="text-lg font-semibold text-slate-900">
+                  This venue's guest WiFi isn't set up yet
+                </p>
+                <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
+                  No active sign-in configuration was found for this location. Please ask venue
+                  staff for assistance.
+                </p>
+              </PortalTextPlate>
+            </div>
           ) : (
             <>
-              <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
-              <p className="max-w-sm text-sm text-slate-500">
-                This can happen right after joining the WiFi. Check your connection and try again.
-              </p>
+              {/* The retry button below keeps its own opaque `bg-indigo-50`
+               * fill and stays outside the plate -- it is already a bounded
+               * surface of its own, and pulling it inside would change this
+               * screen's `gap-3` rhythm for no legibility gain. */}
+              <div className="space-y-3">
+                <PortalTextPlate className="space-y-3">
+                  <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
+                  <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
+                    This can happen right after joining the WiFi. Check your connection and try
+                    again.
+                  </p>
+                </PortalTextPlate>
+              </div>
               <button
                 type="button"
                 onClick={retry}
@@ -311,13 +332,21 @@ function PortalLoading() {
             <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
           </div>
         )}
+        {/* The venue logo above stays on bare photo deliberately: it is a
+         * graphic asset with its own `drop-shadow-lg`, rendered at 96-144px,
+         * not text -- L1 is a text-contrast defect, and boxing a hero-scale
+         * logo would change this screen's character rather than fix a
+         * contrast failure. The two text lines are what L1 is about, and
+         * they are what gets the plate. */}
         <div>
-          <p className="pg-body font-semibold text-[var(--pg-ink)]">
-            {config?.name ?? "Wyfy Guest"}
-          </p>
-          <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
-            {showSlowNotice ? "Still connecting..." : t("loading")}
-          </p>
+          <PortalTextPlate>
+            <p className="pg-body font-semibold text-[var(--pg-ink)]">
+              {config?.name ?? "Wyfy Guest"}
+            </p>
+            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
+              {showSlowNotice ? "Still connecting..." : t("loading")}
+            </p>
+          </PortalTextPlate>
         </div>
         <div className="flex gap-1.5">
           {[0, 1, 2].map((i) => (

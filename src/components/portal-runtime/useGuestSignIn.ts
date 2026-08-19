@@ -112,7 +112,7 @@ export function useGuestSignIn() {
   // docstring for why this platform's real deployment base makes that a
   // wrong default for most actual venues.
   const [countryCode, setCountryCodeState] = useState(() =>
-    defaultCountryCode(config?.defaultLanguage),
+    defaultCountryCode(config?.defaultLanguage, config?.locationCountry),
   );
   // Once a guest edits this field themselves, their own value always
   // wins -- the effect below only ever re-derives the *default*, for the
@@ -126,8 +126,8 @@ export function useGuestSignIn() {
   };
   useEffect(() => {
     if (countryCodeTouched) return;
-    setCountryCodeState(defaultCountryCode(config?.defaultLanguage));
-  }, [config?.defaultLanguage, countryCodeTouched]);
+    setCountryCodeState(defaultCountryCode(config?.defaultLanguage, config?.locationCountry));
+  }, [config?.defaultLanguage, config?.locationCountry, countryCodeTouched]);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [target, setTarget] = useState("");
