@@ -276,6 +276,13 @@ function SuccessPage() {
       <PortalConnectingState />
       {showSlowNotice && (
         <div className="pg-enter mt-5 flex flex-col items-center gap-3 text-center">
+          {/* Hand-written, not `PortalTextPlate`: this plate is `px-4 py-3`
+           * and the component hardcodes `p-5`. tailwind-merge does not drop
+           * an earlier `p-5` for a later `px-*`/`py-*` (verified on these
+           * exact strings), so passing the padding through `className` would
+           * emit both and leave the winner to stylesheet order rather than
+           * intent -- exactly the silent failure mode PortalShell's own
+           * class-ordering notes exist to prevent. */}
           <p
             className={cn(
               "pg-meta max-w-full text-[var(--pg-ink-muted)]",
@@ -293,6 +300,10 @@ function SuccessPage() {
               <RefreshCw className="h-3.5 w-3.5" /> {t("retry")}
             </button>
             {showEscapeHatch && (
+              // Hand-written for the same reason as the routes' back links:
+              // the pill classes are on the anchor, so its padding is part
+              // of the tap target, and `PortalTextPlate` wraps rather than
+              // decorates. See portal.verify.tsx's own note.
               <Link
                 to="/portal/welcome"
                 search={portalSearch}

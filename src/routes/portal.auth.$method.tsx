@@ -6,6 +6,7 @@ import {
   PortalShell,
   PortalCard,
   GUEST_LEGIBILITY_CARD_CLASS,
+  PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { otherAuthMethods, AUTH_METHOD_FALLBACK_COPY } from "@/lib/portal-auth-methods";
@@ -136,7 +137,19 @@ function AuthMethodPage() {
          * set directly on the photo with nothing behind it. `w-fit` was
          * already on it, so the plate hugs the label with no layout
          * change; the colour moves to `--pg-ink-muted` for the same
-         * reason the subtitles below do. */}
+         * reason the subtitles below do.
+         *
+         * Deliberately NOT `PortalTextPlate shape="pill"`, which is
+         * otherwise exactly this shape. That component *wraps* its children
+         * in the plate `<div>`, and here the plate classes are on the
+         * anchor itself: wrapping would move the pill's padding off the
+         * link, shrinking the tap target from the padded pill to the bare
+         * ~20px text box, and its hardcoded `mx-auto` would re-centre a
+         * link that is deliberately start-aligned. Decorating the
+         * interactive element instead of wrapping it is a mode the
+         * component does not have, and adding one is out of scope here --
+         * so this stays hand-written rather than being fought into shape
+         * with `mx-0` overrides and a worse hit area. */}
         <Link
           to="/portal/auth"
           from="/portal/auth/$method"
@@ -149,48 +162,45 @@ function AuthMethodPage() {
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
         </Link>
 
-        {/* captive-portal-v7-design-spec.md §1.1 (L1): this heading block
-         * used to render straight onto the venue's photo, inside the
-         * page scrim's deliberately fully-transparent 24-78% band, so
-         * `--pg-ink` had no guaranteed contrast ratio against it at all.
-         * It now carries the same bounded `GUEST_LEGIBILITY_CARD_CLASS`
-         * plate `BrandPanel` and the shell footer already use, sized to
-         * its own text (`w-fit` only reaches full column width when the
-         * text genuinely fills it) -- deliberately NOT a wash over the
-         * whole content column, which is §0.1 item 1's twice-shipped
-         * mistake. Photo-only: on the flat `--pg-canvas` there is no
-         * contrast problem to solve and no plate is drawn. */}
-        <div
-          className={cn(
-            "mx-auto flex w-fit max-w-full flex-col items-center text-center",
-            hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS),
-          )}
-        >
-          {config?.logoUrl ? (
-            <img
-              src={config.logoUrl}
-              alt=""
-              className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
-            />
-          ) : (
-            <div
-              className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25 sm:h-16 sm:w-16 md:h-20 md:w-20"
-              style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-            >
-              <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
-            </div>
-          )}
-          <h1 className="pg-title mt-4 text-[var(--pg-ink)]">{t(titleKey)}</h1>
-          {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
-           * §1.5 retuned that token #64748B -> #475569, and a slate class does
-           * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
-           * composite (`--pg-surface` at 85% over a near-black photo region);
-           * full derivation in styles.css's own `--pg-ink-muted` note. Backing
-           * the block and leaving its subtitle at 3.36:1 would only have half-
-           * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-          <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
-            Complete the form below to get online.
-          </p>
+        {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
+         * `PortalTextPlate` -- the one seam that owns "is there a photo",
+         * the bounded `w-fit` sizing that is deliberately NOT a wash over
+         * the whole content column (§0.1 item 1's twice-shipped mistake),
+         * and §1.4 C5's refusal rule. Its own doc comment carries the
+         * reasoning this used to copy per route.
+         *
+         * The wrapper `<div>` is this route's layout box, not the plate,
+         * and has to stay: with no photo the plate renders its children
+         * bare, so without this box they would drop straight into the
+         * column's `gap-5` and lose `text-center`. */}
+        <div className="mx-auto flex w-fit max-w-full flex-col items-center text-center">
+          <PortalTextPlate className="flex flex-col items-center">
+            {config?.logoUrl ? (
+              <img
+                src={config.logoUrl}
+                alt=""
+                className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
+              />
+            ) : (
+              <div
+                className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25 sm:h-16 sm:w-16 md:h-20 md:w-20"
+                style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+              >
+                <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
+              </div>
+            )}
+            <h1 className="pg-title mt-4 text-[var(--pg-ink)]">{t(titleKey)}</h1>
+            {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
+             * §1.5 retuned that token #64748B -> #475569, and a slate class does
+             * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
+             * composite (`--pg-surface` at 85% over a near-black photo region);
+             * full derivation in styles.css's own `--pg-ink-muted` note. Backing
+             * the block and leaving its subtitle at 3.36:1 would only have half-
+             * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
+            <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
+              Complete the form below to get online.
+            </p>
+          </PortalTextPlate>
         </div>
 
         <PortalCard>

@@ -2,12 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Users2, Loader2, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  PortalShell,
-  PortalCard,
-  GUEST_LEGIBILITY_CARD_CLASS,
-} from "@/components/portal-runtime/PortalShell";
+import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { Input } from "@/components/ui/input";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -64,8 +59,7 @@ export const Route = createFileRoute("/portal/team")({
  * worth a backend migration for a card a guest with no code can just skip.
  */
 function TeamJoinPage() {
-  const { config, session, guestIdentifier, deviceMac, t } = usePortalRuntime();
-  const hasPhoto = !!config?.backgroundImageUrl;
+  const { session, guestIdentifier, deviceMac, t } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/team" });
 
   useEffect(() => {
@@ -101,35 +95,32 @@ function TeamJoinPage() {
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
-        {/* captive-portal-v7-design-spec.md §1.1 (L1): this heading block
-         * used to render straight onto the venue's photo, inside the
-         * page scrim's deliberately fully-transparent 24-78% band, so
-         * `--pg-ink` had no guaranteed contrast ratio against it at all.
-         * It now carries the same bounded `GUEST_LEGIBILITY_CARD_CLASS`
-         * plate `BrandPanel` and the shell footer already use, sized to
-         * its own text (`w-fit` only reaches full column width when the
-         * text genuinely fills it) -- deliberately NOT a wash over the
-         * whole content column, which is §0.1 item 1's twice-shipped
-         * mistake. Photo-only: on the flat `--pg-canvas` there is no
-         * contrast problem to solve and no plate is drawn. */}
-        <div
-          className={cn(
-            "mx-auto w-fit max-w-full text-center",
-            hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS),
-          )}
-        >
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
-            <Users2 className="h-6 w-6" />
-          </div>
-          <h1 className="pg-subtitle mt-4 text-[var(--pg-ink)]">{t("teamPageTitle")}</h1>
-          {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
-           * §1.5 retuned that token #64748B -> #475569, and a slate class does
-           * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
-           * composite (`--pg-surface` at 85% over a near-black photo region);
-           * full derivation in styles.css's own `--pg-ink-muted` note. Backing
-           * the block and leaving its subtitle at 3.36:1 would only have half-
-           * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-          <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">{t("teamPageSubtitle")}</p>
+        {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
+         * `PortalTextPlate` -- the one seam that owns "is there a photo",
+         * the bounded `w-fit` sizing that is deliberately NOT a wash over
+         * the whole content column (§0.1 item 1's twice-shipped mistake),
+         * and §1.4 C5's refusal rule. Its own doc comment carries the
+         * reasoning this used to copy per route.
+         *
+         * The wrapper `<div>` is this route's layout box, not the plate,
+         * and has to stay: with no photo the plate renders its children
+         * bare, so without this box they would drop straight into the
+         * column's `gap-5` and lose `text-center`. */}
+        <div className="mx-auto w-fit max-w-full text-center">
+          <PortalTextPlate>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
+              <Users2 className="h-6 w-6" />
+            </div>
+            <h1 className="pg-subtitle mt-4 text-[var(--pg-ink)]">{t("teamPageTitle")}</h1>
+            {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
+             * §1.5 retuned that token #64748B -> #475569, and a slate class does
+             * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
+             * composite (`--pg-surface` at 85% over a near-black photo region);
+             * full derivation in styles.css's own `--pg-ink-muted` note. Backing
+             * the block and leaving its subtitle at 3.36:1 would only have half-
+             * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
+            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">{t("teamPageSubtitle")}</p>
+          </PortalTextPlate>
         </div>
 
         <PortalCard>

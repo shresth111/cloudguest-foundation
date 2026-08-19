@@ -3,9 +3,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { RefreshCw, Wifi } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { PortalShell, GUEST_LEGIBILITY_CARD_CLASS } from "@/components/portal-runtime/PortalShell";
+import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { buildSessionUrl } from "@/lib/portal-session-url";
@@ -31,16 +30,6 @@ function PortalLoading() {
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
   const queryClient = useQueryClient();
-  // captive-portal-v7-design-spec.md §1.1 (L1). This route has no <h1> at
-  // all, so the spec's own route list describes it only as "unbacked
-  // subtitle lines" -- accurate: both of this file's two rendered states
-  // (the resolve-failed message, and the branded "Connecting..." state)
-  // put plain <p> copy straight onto the venue photo, in the scrim's
-  // fully-transparent 24-78% band. Each of those text blocks -- and only
-  // the text blocks -- gets the same bounded `GUEST_LEGIBILITY_CARD_CLASS`
-  // plate the rest of the portal.* routes now use. Photo-only, so the flat
-  // `--pg-canvas` rendering is byte-identical to today's.
-  const hasPhoto = !!config?.backgroundImageUrl;
 
   // A device that already has a locally-persisted session (rehydrated
   // from sessionStorage -- see PortalRuntimeContext) never needs a live
@@ -223,14 +212,26 @@ function PortalLoading() {
       <PortalShell>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           {isConfigMissing ? (
-            <div className={cn("space-y-3", hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS))}>
-              <p className="text-lg font-semibold text-slate-900">
-                This venue's guest WiFi isn't set up yet
-              </p>
-              <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
-                No active sign-in configuration was found for this location. Please ask venue staff
-                for assistance.
-              </p>
+            // captive-portal-v7-design-spec.md §1.1 (L1). This route has
+            // no <h1> at all, so the spec's route list describes it only as
+            // "unbacked subtitle lines" -- accurate: both of this file's
+            // rendered states put plain <p> copy straight onto the venue
+            // photo, in the scrim's fully-transparent 24-78% band. Each of
+            // those text blocks -- and only the text blocks -- goes on a
+            // `PortalTextPlate`. The `space-y-3` box around it is this
+            // route's own layout and stays: with no photo the plate renders
+            // its children bare, and these two <p> would otherwise inherit
+            // the column's `gap-3` instead of their own rhythm.
+            <div className="space-y-3">
+              <PortalTextPlate className="space-y-3">
+                <p className="text-lg font-semibold text-slate-900">
+                  This venue's guest WiFi isn't set up yet
+                </p>
+                <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
+                  No active sign-in configuration was found for this location. Please ask venue
+                  staff for assistance.
+                </p>
+              </PortalTextPlate>
             </div>
           ) : (
             <>
@@ -238,11 +239,14 @@ function PortalLoading() {
                * fill and stays outside the plate -- it is already a bounded
                * surface of its own, and pulling it inside would change this
                * screen's `gap-3` rhythm for no legibility gain. */}
-              <div className={cn("space-y-3", hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS))}>
-                <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
-                <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
-                  This can happen right after joining the WiFi. Check your connection and try again.
-                </p>
+              <div className="space-y-3">
+                <PortalTextPlate className="space-y-3">
+                  <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
+                  <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
+                    This can happen right after joining the WiFi. Check your connection and try
+                    again.
+                  </p>
+                </PortalTextPlate>
               </div>
               <button
                 type="button"
@@ -334,13 +338,15 @@ function PortalLoading() {
          * logo would change this screen's character rather than fix a
          * contrast failure. The two text lines are what L1 is about, and
          * they are what gets the plate. */}
-        <div className={cn(hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS))}>
-          <p className="pg-body font-semibold text-[var(--pg-ink)]">
-            {config?.name ?? "Wyfy Guest"}
-          </p>
-          <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
-            {showSlowNotice ? "Still connecting..." : t("loading")}
-          </p>
+        <div>
+          <PortalTextPlate>
+            <p className="pg-body font-semibold text-[var(--pg-ink)]">
+              {config?.name ?? "Wyfy Guest"}
+            </p>
+            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
+              {showSlowNotice ? "Still connecting..." : t("loading")}
+            </p>
+          </PortalTextPlate>
         </div>
         <div className="flex gap-1.5">
           {[0, 1, 2].map((i) => (

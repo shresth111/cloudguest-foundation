@@ -8,6 +8,7 @@ import {
   PortalShell,
   PortalCard,
   GUEST_LEGIBILITY_CARD_CLASS,
+  PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { OtpCodeInput } from "@/components/portal-runtime/AuthFields";
@@ -136,7 +137,19 @@ function VerifyPage() {
          * set directly on the photo with nothing behind it. `w-fit` was
          * already on it, so the plate hugs the label with no layout
          * change; the colour moves to `--pg-ink-muted` for the same
-         * reason the subtitles below do. */}
+         * reason the subtitles below do.
+         *
+         * Deliberately NOT `PortalTextPlate shape="pill"`, which is
+         * otherwise exactly this shape. That component *wraps* its children
+         * in the plate `<div>`, and here the plate classes are on the
+         * anchor itself: wrapping would move the pill's padding off the
+         * link, shrinking the tap target from the padded pill to the bare
+         * ~20px text box, and its hardcoded `mx-auto` would re-centre a
+         * link that is deliberately start-aligned. Decorating the
+         * interactive element instead of wrapping it is a mode the
+         * component does not have, and adding one is out of scope here --
+         * so this stays hand-written rather than being fought into shape
+         * with `mx-0` overrides and a worse hit area. */}
         <Link
           to="/portal/auth"
           from="/portal/verify"
@@ -148,35 +161,32 @@ function VerifyPage() {
         >
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t("changeNumber")}
         </Link>
-        {/* captive-portal-v7-design-spec.md §1.1 (L1): this heading block
-         * used to render straight onto the venue's photo, inside the
-         * page scrim's deliberately fully-transparent 24-78% band, so
-         * `--pg-ink` had no guaranteed contrast ratio against it at all.
-         * It now carries the same bounded `GUEST_LEGIBILITY_CARD_CLASS`
-         * plate `BrandPanel` and the shell footer already use, sized to
-         * its own text (`w-fit` only reaches full column width when the
-         * text genuinely fills it) -- deliberately NOT a wash over the
-         * whole content column, which is §0.1 item 1's twice-shipped
-         * mistake. Photo-only: on the flat `--pg-canvas` there is no
-         * contrast problem to solve and no plate is drawn. */}
-        <div
-          className={cn(
-            "mx-auto w-fit max-w-full text-center",
-            hasPhoto && cn("p-5", GUEST_LEGIBILITY_CARD_CLASS),
-          )}
-        >
-          <h1 className="pg-subtitle text-[var(--pg-ink)]">Enter your code</h1>
-          {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
-           * §1.5 retuned that token #64748B -> #475569, and a slate class does
-           * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
-           * composite (`--pg-surface` at 85% over a near-black photo region);
-           * full derivation in styles.css's own `--pg-ink-muted` note. Backing
-           * the block and leaving its subtitle at 3.36:1 would only have half-
-           * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-          <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
-            We sent a 6-digit code to{" "}
-            <span className="font-semibold text-slate-800">{otpTarget}</span>
-          </p>
+        {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
+         * `PortalTextPlate` -- the one seam that owns "is there a photo",
+         * the bounded `w-fit` sizing that is deliberately NOT a wash over
+         * the whole content column (§0.1 item 1's twice-shipped mistake),
+         * and §1.4 C5's refusal rule. Its own doc comment carries the
+         * reasoning this used to copy per route.
+         *
+         * The wrapper `<div>` is this route's layout box, not the plate,
+         * and has to stay: with no photo the plate renders its children
+         * bare, so without this box they would drop straight into the
+         * column's `gap-5` and lose `text-center`. */}
+        <div className="mx-auto w-fit max-w-full text-center">
+          <PortalTextPlate>
+            <h1 className="pg-subtitle text-[var(--pg-ink)]">Enter your code</h1>
+            {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
+             * §1.5 retuned that token #64748B -> #475569, and a slate class does
+             * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
+             * composite (`--pg-surface` at 85% over a near-black photo region);
+             * full derivation in styles.css's own `--pg-ink-muted` note. Backing
+             * the block and leaving its subtitle at 3.36:1 would only have half-
+             * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
+            <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
+              We sent a 6-digit code to{" "}
+              <span className="font-semibold text-slate-800">{otpTarget}</span>
+            </p>
+          </PortalTextPlate>
         </div>
         <PortalCard className="space-y-4">
           {/* v7 §7.2: `autoComplete` is a required, literal-typed prop --
