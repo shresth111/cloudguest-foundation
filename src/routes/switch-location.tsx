@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sheet,
@@ -1350,8 +1351,20 @@ function CustomerHomePage() {
                       return (
                         <tr
                           key={d.id}
-                          className="border-b border-white/5 last:border-0 hover:bg-white/[0.04]"
+                          data-state={visibleSelectedIds.includes(d.id) ? "selected" : undefined}
+                          className={cn(
+                            "border-b border-white/5 last:border-0 hover:bg-white/[0.04]",
+                            visibleSelectedIds.includes(d.id) && "bg-[#6C4EFF]/10",
+                          )}
                         >
+                          <td className="px-3 py-2">
+                            <Checkbox
+                              aria-label={`Select ${d.name}`}
+                              checked={visibleSelectedIds.includes(d.id)}
+                              onCheckedChange={() => toggleDeviceSelected(d.id)}
+                              className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
+                            />
+                          </td>
                           <td className="px-3 py-2 text-xs text-white/40">{i + 1}</td>
                           <td className="px-3 py-2 text-xs font-medium text-white">{d.name}</td>
                           <td className="px-3 py-2 font-mono text-xs text-white/50">{d.mac}</td>
