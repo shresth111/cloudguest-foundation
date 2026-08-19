@@ -141,7 +141,10 @@ function VerifyPage() {
           </p>
         </div>
         <PortalCard className="space-y-4">
-          <OtpCodeInput value={code} onChange={setCode} autoFocus />
+          {/* v7 §7.2: `autoComplete` is a required, literal-typed prop --
+           * SC 3.3.8 (AA) is not left resting on the `input-otp`
+           * dependency's internal default. */}
+          <OtpCodeInput value={code} onChange={setCode} autoFocus autoComplete="one-time-code" />
 
           {requiresTerms && (
             <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">

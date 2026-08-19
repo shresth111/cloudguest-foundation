@@ -163,6 +163,15 @@ const EN: Dict = {
   // nudges already on this page).
   profileNudgeTitle: "Tell us a bit about yourself",
   profileNudgeSubtitle: "Optional -- helps venue staff recognize you next time.",
+
+  // captive-portal-v7-design-spec.md §7.2 -- accessible names for the
+  // sign-in fields, which until v7 had none at all (see AuthFields.tsx).
+  // `countryCodeLabel` and `otpCodeLabel` name visually-hidden <label>s;
+  // they still have to be translated, because a screen-reader guest who
+  // switched the portal to Hindi hears these, not the English.
+  countryCodeLabel: "Country code",
+  otpCodeLabel: "6-digit code",
+  otpCodeHint: "Enter the 6-digit code we sent you.",
 };
 
 const HI: Dict = {
@@ -312,6 +321,11 @@ const HI: Dict = {
   // Closes portal.session.tsx's new profile nudge card.
   profileNudgeTitle: "हमें अपने बारे में थोड़ा बताएं",
   profileNudgeSubtitle: "वैकल्पिक -- अगली बार वेन्यू स्टाफ को आपको पहचानने में मदद करता है।",
+
+  // v7 §7.2 -- see the EN block.
+  countryCodeLabel: "देश कोड",
+  otpCodeLabel: "6 अंकों का कोड",
+  otpCodeHint: "हमने आपको जो 6 अंकों का कोड भेजा है वह दर्ज करें।",
 };
 const AR: Dict = {
   ...EN,

@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:a11y": "node scripts/check-a11y-invariants.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {

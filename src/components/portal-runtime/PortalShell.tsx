@@ -337,9 +337,37 @@ export function PortalShell({
         // window's width.
         !constrained && "lg:flex lg:items-center lg:justify-center",
         heightCls,
-        highContrast && "contrast-125 saturate-150",
-        largeText && "text-[17px]",
       )}
+      // captive-portal-v7-design-spec.md §7.1/§7.4-1. What used to be here:
+      //
+      //   highContrast && "contrast-125 saturate-150",
+      //   largeText && "text-[17px]",
+      //
+      // Both were removed because both were false. Running the Filter
+      // Effects transforms and the WCAG luminance formula over the real
+      // tokens, `contrast(1.25) saturate(1.5)` took `--pg-ink-faint`
+      // #94A3B8 on #FFFFFF from 2.56:1 down to **2.30:1** -- and that token
+      // was the placeholder colour in `PG_INPUT`, which until this branch
+      // was the *only* labelling the sign-in fields had. The "high
+      // contrast" control measurably reduced contrast on the only naming
+      // the only form that matters had. (Reproduced, not taken on trust:
+      // filter maths in the branch's scratch script, figures in the report.)
+      // `text-[17px]` on this root could not cascade into a single one of
+      // `pg-title`/`pg-body`/`pg-micro`/`text-sm`/`text-xs`/`h-[48px]` --
+      // every one of those is absolute -- so "large text" did nothing at
+      // all, to any element, ever.
+      //
+      // Neither option was deleted from the menu: removing the visible
+      // control is a product decision (spec "Open items", item 3), not an
+      // engineering one. Instead both are now honest. They set data
+      // attributes that styles.css answers by **re-declaring tokens and a
+      // type-scale multiplier** -- never a filter, which is blind to
+      // tokens, blind to `forced-colors`, cannot tell text from photo, and
+      // establishes a containing block for `position: fixed` descendants.
+      // Contrast escalates on top of `prefers-contrast: more` rather than
+      // replacing it (v7 §7.5, "escalation only").
+      data-pg-contrast={highContrast ? "more" : undefined}
+      data-pg-text-size={largeText ? "large" : undefined}
       style={{
         fontFamily: PG_FONT_STACK,
         background: "var(--pg-canvas, #FAFAF8)",
@@ -368,7 +396,22 @@ export function PortalShell({
             // uncovered band of photo up top before the merged, shorter
             // card (§3.1-3.3) begins -- closer to "hero photo, then one
             // anchored card" than "card starting at the very top edge."
-            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-[12vh] sm:max-w-[460px] md:max-w-[520px]",
+            // captive-portal-v7-design-spec.md §7.4-5: `viewport-fit=cover`
+            // is set on the portal route (portal.tsx) with zero
+            // `env(safe-area-inset-*)` anywhere in src/. On a notched
+            // iPhone that puts the footer's `Terms` link -- a legal-consent
+            // control -- under the home indicator, where the system's
+            // swipe-up gesture intercepts the tap (also a 2.4.11 risk); in
+            // landscape it puts the language/accessibility row in the notch
+            // exclusion zone. The insets go on this content column rather
+            // than the shell root on purpose: the backdrop photo and scrim
+            // are `absolute inset-0` against the root's *padding* box, so
+            // padding the root would letterbox the photo instead of
+            // insetting the content. `max()` keeps today's 16px gutter as
+            // the floor; `env()` is 0 everywhere that has no cutout, so
+            // this is a no-op on every non-notched device and in the admin
+            // Portal Preview.
+            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(12vh+env(safe-area-inset-top))] sm:max-w-[460px] md:max-w-[520px]",
             // See this component's own top-level comment on `constrained` --
             // these `lg:` classes assume this element's width tracks the
             // real browser viewport, which isn't true inside the Portal
@@ -436,10 +479,14 @@ export function PortalShell({
               >
                 {t("termsTitle")}
               </Link>
-              {/* `--pg-ink-faint` (slate-400), never lighter -- see this
-               * token's own doc comment in styles.css for the real,
-               * confirmed-live illegibility incident that set this
-               * floor. */}
+              {/* `--pg-ink-faint` -- retuned in v7 §1.5/§7.4-4 from #94A3B8
+               * to #505E73. The old value was 1.81:1 against this footer's
+               * own worst real backing (the legibility card at 85% alpha
+               * over a near-black photo region) and 2.45:1 on the plain
+               * canvas; a comment in styles.css called it an "empirically-
+               * confirmed legibility floor", which is how a 2.45:1 token
+               * carrying "Powered by Wyfy Guest" survived three specs. See
+               * that token's rewritten comment for every computed figure. */}
               <span className="text-[var(--pg-ink-faint)]">·</span>
               <span className="text-[var(--pg-ink-faint)]">{t("supportAskStaff")}</span>
               <span className="text-[var(--pg-ink-faint)]">·</span>
