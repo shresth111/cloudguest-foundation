@@ -120,16 +120,16 @@
    * here fixes every dialog everywhere in one place, not per-page patches. */
   --primary: oklch(0.47 0.2 265);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.955 0.012 216);
-  --secondary-foreground: oklch(0.26 0.03 232);
-  --muted: oklch(0.962 0.008 218);
-  --muted-foreground: oklch(0.5 0.025 230);
-  --accent: oklch(0.945 0.022 202);
-  --accent-foreground: oklch(0.3 0.06 210);
+  --secondary: oklch(0.965 0.005 265);
+  --secondary-foreground: oklch(0.26 0.02 265);
+  --muted: oklch(0.968 0.004 265);
+  --muted-foreground: oklch(0.52 0.018 265);
+  --accent: oklch(0.955 0.014 268);
+  --accent-foreground: oklch(0.3 0.06 268);
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0.005 250);
-  --border: oklch(0.905 0.012 220);
-  --input: oklch(0.925 0.012 220);
+  --border: oklch(0.918 0.006 265);
+  --input: oklch(0.932 0.006 265);
   --ring: oklch(0.6 0.19 265);
   /* Cyan/teal "Aurora" accent -- design v3 spec Part 0 Fix 1: this token's
      own comment above (line ~66) always said "electric cyan/teal", but its
