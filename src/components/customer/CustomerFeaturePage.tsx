@@ -1,10 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
@@ -41,6 +51,8 @@ import {
   DebuggingView, HotspotView, GenericFeatureView,
 } from "@/components/features/OperationsFeatures";
 import { toast } from "sonner";
+import { guestService } from "@/services/guest.service";
+import type { AppError } from "@/services/api";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
@@ -48,6 +60,7 @@ import {
 import {
   Wifi, Users, CheckCircle,
   AlertTriangle, Activity, XCircle, Download, Quote,
+  MoreHorizontal, PowerOff, Clock,
 } from "lucide-react";
 
 /**
@@ -687,6 +700,50 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
   const users = data?.users ?? [];
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
+  // Session actions (Disconnect/Extend) -- see this component's own file
+  // header comment for context. `demoFlag` gates real API calls the same
+  // way DebuggingView's resetSession() does (isDemo() fixtures have no
+  // real session behind guestId/id, so a real terminate/extend call would
+  // just 404 against a made-up id).
+  const demoFlag = useIsDemo();
+  const queryClient = useQueryClient();
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState<{ id: string } | null>(null);
+
+  function blockIfDemo(): boolean {
+    if (demoFlag) {
+      toast.error("Sign in to a real account to manage a real guest's session.");
+      return true;
+    }
+    return false;
+  }
+
+  async function runDisconnect(sessionId: string) {
+    setPendingId(sessionId);
+    try {
+      await guestService.terminateSession(sessionId, "Disconnected by admin from Users page");
+      toast.success("Guest disconnected.");
+      queryClient.invalidateQueries({ queryKey: ["customer", "users"] });
+    } catch (e) {
+      toast.error((e as AppError)?.message || "Could not disconnect this guest.");
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function runExtend(sessionId: string, minutes: number) {
+    setPendingId(sessionId);
+    try {
+      await guestService.extendSession(sessionId, minutes);
+      toast.success(`Session extended by ${minutes} minutes.`);
+      queryClient.invalidateQueries({ queryKey: ["customer", "users"] });
+    } catch (e) {
+      toast.error((e as AppError)?.message || "Could not extend this session.");
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -741,45 +798,95 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
                   <TableHead className="text-xs font-medium uppercase tracking-wide">Duration</TableHead>
                   <TableHead className="text-xs font-medium uppercase tracking-wide">Download</TableHead>
                   <TableHead className="text-xs font-medium uppercase tracking-wide">Status</TableHead>
+                  <TableHead className="w-10 text-right text-xs font-medium uppercase tracking-wide">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id} className="border-b">
-                    <TableCell>
-                      <p className="text-sm font-medium">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p>
-                    </TableCell>
-                    <TableCell className="hidden text-xs sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
-                    <TableCell className="hidden font-mono text-xs sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
-                    <TableCell className="text-xs">{u.duration}</TableCell>
-                    <TableCell className="text-xs">{u.download}</TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 text-xs font-medium",
-                          u.status === "online"
-                            ? "text-emerald-500"
-                            : u.status === "idle"
-                              ? "text-amber-500"
-                              : "text-muted-foreground",
-                        )}
-                      >
+                {users.map((u) => {
+                  // Only online/idle sessions can actually be acted on --
+                  // an already-offline row has no live session left to
+                  // disconnect or extend.
+                  const canAct = u.status === "online" || u.status === "idle";
+                  return (
+                    <TableRow key={u.id} className="border-b">
+                      <TableCell>
+                        <p className="text-sm font-medium">{u.name}</p>
+                        <p className="text-xs text-muted-foreground">{masked ? maskEmail(u.email) : u.email}</p>
+                      </TableCell>
+                      <TableCell className="hidden text-xs sm:table-cell">{masked ? maskPhone(u.phone) : u.phone}</TableCell>
+                      <TableCell className="hidden font-mono text-xs sm:table-cell">{masked ? maskMac(u.mac) : u.mac}</TableCell>
+                      <TableCell className="text-xs">{u.duration}</TableCell>
+                      <TableCell className="text-xs">{u.download}</TableCell>
+                      <TableCell>
                         <span
                           className={cn(
-                            "h-1.5 w-1.5 rounded-full",
+                            "inline-flex items-center gap-1 text-xs font-medium",
                             u.status === "online"
-                              ? "bg-emerald-500"
+                              ? "text-emerald-500"
                               : u.status === "idle"
-                                ? "bg-amber-500"
-                                : "bg-muted-foreground",
+                                ? "text-amber-500"
+                                : "text-muted-foreground",
                           )}
-                        />
-                        {u.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              u.status === "online"
+                                ? "bg-emerald-500"
+                                : u.status === "idle"
+                                  ? "bg-amber-500"
+                                  : "bg-muted-foreground",
+                            )}
+                          />
+                          {u.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canAct && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={pendingId === u.id}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuLabel>Session</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (blockIfDemo()) return;
+                                  runExtend(u.id, 30);
+                                }}
+                              >
+                                <Clock className="h-4 w-4" />
+                                <span className="ml-2">Extend (+30m)</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (blockIfDemo()) return;
+                                  runExtend(u.id, 60);
+                                }}
+                              >
+                                <Clock className="h-4 w-4" />
+                                <span className="ml-2">Extend (+60m)</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  if (blockIfDemo()) return;
+                                  setConfirmDisconnect({ id: u.id });
+                                }}
+                              >
+                                <PowerOff className="h-4 w-4" />
+                                <span className="ml-2">Disconnect</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -810,6 +917,18 @@ function UsersView({ locationId, masked }: { locationId: string; masked: boolean
           )}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={!!confirmDisconnect}
+        onOpenChange={(o) => !o && setConfirmDisconnect(null)}
+        title="Disconnect this guest?"
+        description="They'll be immediately disconnected from the network and will need to reconnect to get back online."
+        confirmLabel="Disconnect"
+        destructive
+        onConfirm={() => {
+          if (confirmDisconnect) runDisconnect(confirmDisconnect.id);
+          setConfirmDisconnect(null);
+        }}
+      />
     </div>
   );
 }

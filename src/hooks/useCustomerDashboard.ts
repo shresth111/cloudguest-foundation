@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService, isDemo, resolveOrgId } from "@/services/customer.service";
 import type { CustomerUsersData } from "@/services/customer.service";
+import { guestService } from "@/services/guest.service";
 import { rbacService } from "@/services/rbac.service";
 import { useAuth } from "@/context/AuthContext";
 import { useDataMaskingStore } from "@/stores/dataMaskingStore";
@@ -154,6 +155,29 @@ export function useDisconnectSession() {
         return { ...old, users: old.users.map((u) => (u.id === sessionId ? { ...u, status: "offline" as const } : u)) };
       });
       if (!isDemo()) qc.invalidateQueries({ queryKey: ["customer"] });
+    },
+  });
+}
+
+/**
+ * Real +N-minute session extension -- guestService.extendSession(), the
+ * same already-working, already-used-elsewhere method DebuggingView's
+ * "Reset a Guest Session" card's own sibling terminateSession() call
+ * uses (see that view's resetSession() docstring/comment). Unlike
+ * customerService.disconnectSession() above, guestService.extendSession()
+ * has no demo-mode guard of its own (it's a thin POST to
+ * /guest-sessions/{id}/extend against whatever id it's given) -- callers
+ * must check useIsDemo() themselves before calling `.mutate()`, same as
+ * DebuggingView's resetSession() checks `demo` before its own
+ * terminateSession() call.
+ */
+export function useExtendSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, additionalMinutes }: { sessionId: string; additionalMinutes: number }) =>
+      guestService.extendSession(sessionId, additionalMinutes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["customer", "users"] });
     },
   });
 }
