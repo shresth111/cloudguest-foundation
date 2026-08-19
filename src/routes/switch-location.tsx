@@ -51,6 +51,9 @@ import {
   type DeviceType,
 } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { HighlightedText } from "@/components/ui-ext/HighlightedText";
+
 import { isDemo } from "@/services/customer.service";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
@@ -351,13 +354,19 @@ function CustomerHomePage() {
     return () => clearInterval(t);
   }, []);
 
+  // Debounce the raw input so typing doesn't re-filter the grid on every
+  // keystroke; `query` is the term the list and highlights actually use.
+  const query = useDebouncedValue(search, 250).trim();
+  const isSearchPending = search.trim() !== query;
+
   const filtered = (locations ?? [])
     .filter(
       (l) =>
-        !search ||
-        l.name.toLowerCase().includes(search.toLowerCase()) ||
-        l.city.toLowerCase().includes(search.toLowerCase()),
+        !query ||
+        l.name.toLowerCase().includes(query.toLowerCase()) ||
+        l.city.toLowerCase().includes(query.toLowerCase()),
     )
+
     // Starred venues first -- the star was purely decorative before, it never
     // changed the order of the grid it was pinned to.
     .sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id)));
@@ -654,10 +663,16 @@ function CustomerHomePage() {
               </p>
             </div>
             {!isLoading && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/60">
+              <span
+                className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/60 transition-opacity"
+                style={{ opacity: isSearchPending ? 0.5 : 1 }}
+                aria-live="polite"
+              >
                 {filtered.length}
+                {query ? " matching" : ""}
               </span>
             )}
+
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-xs text-white/50">
@@ -731,7 +746,7 @@ function CustomerHomePage() {
                 className="col-span-full flex flex-col items-center justify-center py-20 text-white/40"
               >
                 <MapPin className="mb-4 h-12 w-12 opacity-30" aria-hidden="true" />
-                <p className="text-sm">No venues match “{search}”. Try a different name or city.</p>
+                <p className="text-sm">No venues match “{query}”. Try a different name or city.</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -837,11 +852,12 @@ function CustomerHomePage() {
                       </div>
                       <div className="min-w-0 flex-1 pt-0.5">
                         <p className="font-display truncate text-lg font-semibold tracking-tight text-white">
-                          {loc.name}
+                          <HighlightedText text={loc.name} query={query} />
                         </p>
                         <p className="text-xs text-white/50">
-                          {loc.city} · {loc.organizationName}
+                          <HighlightedText text={loc.city} query={query} /> · {loc.organizationName}
                         </p>
+
                       </div>
                     </div>
 
