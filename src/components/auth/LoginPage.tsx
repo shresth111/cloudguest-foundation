@@ -173,7 +173,10 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", message: "" });
   const [demoSubmitting, setDemoSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [capsLock, setCapsLock] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   // A freshly-provisioned owner's welcome-email temporary password can't be
   // used for an ordinary login -- the backend raises a distinct 403 asking
