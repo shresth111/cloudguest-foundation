@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,6 +26,7 @@ import {
   Eye,
   RefreshCw,
   Quote,
+  X,
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Input } from "@/components/ui/input";
@@ -322,6 +323,23 @@ function CustomerHomePage() {
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [deviceSheetOpen, setDeviceSheetOpen] = useState(false);
   const [quoteIndex, setQuoteIndex] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" jumps to the venue search from anywhere on the page (ignored while
+  // already typing in a field), matching the shortcut used across the admin app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
@@ -333,12 +351,17 @@ function CustomerHomePage() {
     return () => clearInterval(t);
   }, []);
 
-  const filtered = (locations ?? []).filter(
-    (l) =>
-      !search ||
-      l.name.toLowerCase().includes(search.toLowerCase()) ||
-      l.city.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = (locations ?? [])
+    .filter(
+      (l) =>
+        !search ||
+        l.name.toLowerCase().includes(search.toLowerCase()) ||
+        l.city.toLowerCase().includes(search.toLowerCase()),
+    )
+    // Starred venues first -- the star was purely decorative before, it never
+    // changed the order of the grid it was pinned to.
+    .sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id)));
+
   // Distinguish "this org genuinely has zero locations" from "the search
   // typed above matched nothing" -- these used to share one empty-state
   // branch keyed off `filtered.length === 0`, which showed "No venues match
@@ -503,11 +526,31 @@ function CustomerHomePage() {
                 <div className="relative w-full max-w-md">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
                   <Input
+                    ref={searchRef}
                     placeholder="Search locations…"
+                    aria-label="Search locations"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="h-11 border-white/15 bg-white/10 pl-10 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
+                    onKeyDown={(e) => e.key === "Escape" && setSearch("")}
+                    className="h-11 border-white/15 bg-white/10 pl-10 pr-16 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
                   />
+                  {search ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
+                        searchRef.current?.focus();
+                      }}
+                      aria-label="Clear search"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45 sm:block">
+                      /
+                    </kbd>
+                  )}
                 </div>
                 <button
                   onClick={() => setAddLocationOpen(true)}
@@ -646,7 +689,13 @@ function CustomerHomePage() {
             ) : filtered.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-white/40">
                 <MapPin className="mb-4 h-12 w-12 opacity-30" />
-                <p>No venues match that search. Try a different name or city.</p>
+                <p className="text-sm">No venues match “{search}”. Try a different name or city.</p>
+                <button
+                  onClick={() => setSearch("")}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear search
+                </button>
               </div>
             ) : (
               filtered.map((loc, i) => {
