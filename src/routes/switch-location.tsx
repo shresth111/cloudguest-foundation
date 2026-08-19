@@ -80,7 +80,13 @@ const DEVICE_TYPE_ICON: Record<DeviceType, typeof Wifi> = {
  * dark/glassy translucent-pill language already used for the status pill
  * on these cards (`border-x/20 bg-x/10 text-x`), just keyed by device type
  * instead of online/degraded/offline. */
-const DEVICE_TYPE_TINT: Record<DeviceType, string> = {
+const DEVICE_TYPE_ACTIVE_TINT: Record<DeviceType, string> = {
+  "Access Point": "border-sky-500/40 bg-sky-500/25 text-sky-200 ring-sky-500/40",
+  Printer: "border-amber-500/40 bg-amber-500/25 text-amber-200 ring-amber-500/40",
+  Router: "border-indigo-500/40 bg-indigo-500/25 text-indigo-200 ring-indigo-500/40",
+  Camera: "border-rose-500/40 bg-rose-500/25 text-rose-200 ring-rose-500/40",
+  Other: "border-slate-500/40 bg-slate-500/25 text-slate-200 ring-slate-500/40",
+};
   "Access Point": "border-sky-500/20 bg-sky-500/10 text-sky-300",
   Printer: "border-amber-500/20 bg-amber-500/10 text-amber-300",
   Router: "border-indigo-500/20 bg-indigo-500/10 text-indigo-300",
