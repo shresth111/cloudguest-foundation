@@ -1007,7 +1007,39 @@ function CustomerHomePage() {
             </select>
           </div>
 
+          {/* A location with zero devices used to render six greyed-out floor
+           * tiles plus a nine-column table whose only content was an apology
+           * row -- a wall of empty chrome. Show one honest empty state
+           * instead, and only build the floor/table UI once hardware exists. */}
+          {devices.length === 0 ? (
+            <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-lg shadow-indigo-500/20">
+                <Router className="h-7 w-7 text-white" aria-hidden="true" />
+              </div>
+              <p className="mt-4 text-base font-semibold text-white">No hardware here yet</p>
+              <p className="mt-1.5 max-w-sm text-sm text-white/50">
+                Once you add an access point or router to this venue, its floor map, live status
+                and CPU health will appear right here.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeviceSheetOpen(false);
+                  navigate({
+                    to: "/locations/$locationId",
+                    params: { locationId: effectiveDeviceLocationId },
+                  });
+                }}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#1a1733] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add your first device
+              </button>
+            </div>
+          ) : (
+            <>
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+
             {FLOORS.map((f) => {
               const onFloor = devices.filter((d) => d.floor === f);
               const down = onFloor.filter((d) => d.status === "down").length;
