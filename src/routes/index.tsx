@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { LoginPage } from "./login";
 import { MasterLoginPage } from "./master-login";
-import { CustomerDashboardPage } from "./c.index";
+import { CustomerDashboardPage } from "@/components/customer/CustomerDashboardPage";
 
 export const Route = createFileRoute("/")({
   component: IndexRedirect,
@@ -34,9 +34,11 @@ function useHostname() {
 //
 // An authenticated *customer* (any hostname other than the Master
 // Console's) gets the real dashboard rendered right here too, in the
-// exact same spirit -- CustomerDashboardPage (see c.index.tsx, which
-// itself is now just a compat redirect back to this route) instead of a
-// navigate() away to a sub-path, so the app's single most-visited page
+// exact same spirit -- CustomerDashboardPage (see
+// @/components/customer/CustomerDashboardPage.tsx; c.index.tsx itself is
+// now just a compat redirect back to this route, deliberately not where
+// CustomerDashboardPage lives -- see that file's own comment for why)
+// instead of a navigate() away to a sub-path, so the app's single most-visited page
 // gets to live at the plainest possible URL. Still needs its own
 // location-context guard (mirroring c.index.tsx's old beforeLoad
 // requireActiveLocationId(), which no longer runs for this render path):
