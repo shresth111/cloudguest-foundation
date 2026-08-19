@@ -1007,9 +1007,43 @@ function CustomerHomePage() {
             </select>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {FLOORS.map((f) => {
+          {/* A location with zero devices used to render six greyed-out floor
+           * tiles plus a nine-column table whose only content was an apology
+           * row -- a wall of empty chrome. Show one honest empty state
+           * instead, and only build the floor/table UI once hardware exists. */}
+          {devices.length === 0 ? (
+            <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-lg shadow-indigo-500/20">
+                <Router className="h-7 w-7 text-white" aria-hidden="true" />
+              </div>
+              <p className="mt-4 text-base font-semibold text-white">No hardware here yet</p>
+              <p className="mt-1.5 max-w-sm text-sm text-white/50">
+                Once you add an access point or router to this venue, its floor map, live status
+                and CPU health will appear right here.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeviceSheetOpen(false);
+                  navigate({
+                    to: "/locations/$locationId",
+                    params: { locationId: effectiveDeviceLocationId },
+                  });
+                }}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#1a1733] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add your first device
+              </button>
+            </div>
+          ) : (
+            <>
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {/* Only floors that actually hold hardware -- disabled "No devices"
+             * tiles were pure noise and unclickable by design. */}
+            {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
               const onFloor = devices.filter((d) => d.floor === f);
+
               const down = onFloor.filter((d) => d.status === "down").length;
               const up = onFloor.filter((d) => d.status === "up").length;
               const typesHere = Array.from(new Set(onFloor.map((d) => d.type)));
@@ -1018,60 +1052,58 @@ function CustomerHomePage() {
                 <button
                   key={f}
                   type="button"
-                  title={onFloor.length > 0 ? `Filter: floor ${f}` : undefined}
-                  disabled={onFloor.length === 0}
+                  title={`Filter: floor ${f}`}
+                  aria-pressed={floorActive}
                   onClick={() => setFloorFilter(floorActive ? null : f)}
                   className={cn(
-                    "rounded-xl border p-3 text-center backdrop-blur-sm transition-all",
-                    onFloor.length > 0
-                      ? "cursor-pointer hover:-translate-y-0.5"
-                      : "cursor-default opacity-50",
+                    "group cursor-pointer rounded-xl border p-3 text-left backdrop-blur-sm transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
                     floorActive
                       ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 ring-1 ring-[#6C4EFF]/40"
                       : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
                   )}
                 >
-                  <p className="text-sm font-bold text-white">{f}</p>
-                  {typesHere.length > 0 && (
-                    <div className="mt-1 flex items-center justify-center gap-1">
-                      {typesHere.map((t) => {
-                        const Icon = DEVICE_TYPE_ICON[t];
-                        const active = typeFilter === t;
-                        return (
-                          <span
-                            key={t}
-                            aria-hidden="true"
-                            title={`Filter: ${t}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTypeFilter(active ? null : t);
-                            }}
-                            className={cn(
-                              "rounded-full p-1 transition-all hover:scale-125 hover:bg-white/15 hover:text-white",
-                              active ? "bg-[#6C4EFF]/30 text-white" : "text-white/50",
-                            )}
-                          >
-                            <Icon className="h-3 w-3" />
-                          </span>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm font-bold text-white">{f}</p>
+                    <p className="text-[11px] tabular-nums text-white/40">
+                      {onFloor.length} {onFloor.length === 1 ? "device" : "devices"}
+                    </p>
+                  </div>
 
-                        );
-                      })}
-                    </div>
-                  )}
-                  <p
-                    className={cn(
-                      "mt-1 text-xs",
-                      down > 0 ? "text-rose-400 font-medium" : "text-white/40",
+                  {/* Health bar reads faster than a sentence: green = up, red = down. */}
+                  <div className="mt-2 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-white/10">
+                    {onFloor.map((d) => (
+                      <span
+                        key={d.id}
+                        className={cn(
+                          "h-full flex-1 rounded-full",
+                          d.status === "up"
+                            ? "bg-emerald-500"
+                            : d.status === "down"
+                              ? "bg-rose-500"
+                              : "bg-white/25",
+                        )}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p
+                      className={cn(
+                        "text-xs",
+                        down > 0 ? "font-medium text-rose-400" : "text-white/45",
+                      )}
+                    >
+                      {down > 0 ? `${down} down` : `${up} online`}
+                    </p>
+                    {typesHere.length > 0 && (
+                      <span className="flex items-center gap-1 text-white/40">
+                        {typesHere.map((t) => {
+                          const Icon = DEVICE_TYPE_ICON[t];
+                          return <Icon key={t} className="h-3 w-3" aria-hidden="true" />;
+                        })}
+                      </span>
                     )}
-                  >
-                    {down > 0
-                      ? `${down} of ${onFloor.length} down`
-                      : onFloor.length === 0
-                        ? "No devices"
-                        : up === onFloor.length
-                          ? `${onFloor.length} online`
-                          : `${up} of ${onFloor.length} online`}
-                  </p>
+                  </div>
                 </button>
               );
             })}
@@ -1249,6 +1281,9 @@ function CustomerHomePage() {
               </table>
             </div>
           </div>
+            </>
+          )}
+
         </SheetContent>
       </Sheet>
 
