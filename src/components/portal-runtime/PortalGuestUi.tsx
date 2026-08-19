@@ -185,8 +185,12 @@ export function PortalConnectingState() {
 // photos, just for a different element. `--pr-primary-foreground` is
 // computed once, alongside `--pr-primary` itself, by
 // `accessibleForeground()` (PortalRuntimeContext.tsx).
+// captive-portal-v5-design-spec.md §3.3/§5.4: 52px -> 48px -- still
+// comfortably above the 44x44px WCAG 2.1 / Purple splash-page-guidance
+// touch-target floor (§0), this is trimming the excess above that floor,
+// not undercutting accessibility.
 export const PG_PRIMARY_BTN =
-  "h-[52px] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-[48px] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
 export const PG_INPUT =
-  "h-[52px] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] text-[15px] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-faint,#94A3B8)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#94A3B8)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "h-[48px] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] text-[15px] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-faint,#94A3B8)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#94A3B8)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";

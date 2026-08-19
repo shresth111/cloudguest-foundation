@@ -6,6 +6,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
+import { PortalNoPhotoPattern } from "./PortalNoPhotoPattern";
 
 // System-font stack for the guest flow -- see captive-portal-v4-design-
 // spec.md §4: the guest path only ever used one of the app's four
@@ -43,8 +44,13 @@ export const PG_FONT_STACK =
 // without making the *coverage area* structural -- see GuestBackdrop's
 // own comment for why those are two different things and conflating them
 // was the actual v4 regression.
+// captive-portal-v5-design-spec.md §3.1/§3.3: `rounded-3xl` (this card)
+// and `rounded-2xl` (PortalCard, the form) used to be two different
+// radii glued together -- part of why the composition read as
+// "assembled," not designed. One shared value, `rounded-[20px]`, now
+// applies everywhere this card family (and PortalCard below) appears.
 export const GUEST_LEGIBILITY_CARD_CLASS =
-  "rounded-3xl border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md";
+  "rounded-[20px] border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md";
 
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
  * that used to be empty gradient next to a small floating card. Copy is
@@ -101,7 +107,10 @@ function BrandPanel({
   // guaranteed-legible backing rather than trusting whatever's directly
   // behind it.
   if (hasBackgroundImage) {
-    return <div className={cn("max-w-lg p-8", GUEST_LEGIBILITY_CARD_CLASS)}>{content}</div>;
+    // captive-portal-v5-design-spec.md §3.1: brought in line with the
+    // merged sign-in card's own `p-5` so the two read as one visual
+    // family instead of two independently-tuned components.
+    return <div className={cn("max-w-lg p-5", GUEST_LEGIBILITY_CARD_CLASS)}>{content}</div>;
   }
   return <div className="max-w-lg">{content}</div>;
 }
@@ -112,8 +121,16 @@ function BrandPanel({
 // vertical middle, where the actual sign-in card already carries its own
 // opaque background. Defense-in-depth alongside the per-zone
 // GUEST_LEGIBILITY_CARD_CLASS cards below, not a replacement for them.
+// captive-portal-v5-design-spec.md §3.4: peak top opacity 0.8 -> 0.55 and
+// the fully-transparent middle band widened 34-72% -> 24-78% -- a direct,
+// proportionate response to the merged/shorter card from §3.1-3.3 needing
+// less protected space, not an independent aesthetic call. The strongest
+// part of a typical venue photo (its actual subject) sat directly under
+// the heaviest, near-opaque part of the old scrim; this lightens that
+// without widening the scrim's own coverage, which is the opposite
+// direction from round 2's regression (see GuestBackdrop's own comment).
 const GUEST_BACKDROP_SCRIM =
-  "linear-gradient(to bottom, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 16%, rgba(255,255,255,0) 34%, rgba(255,255,255,0) 72%, rgba(255,255,255,0.65) 100%)";
+  "linear-gradient(to bottom, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.28) 14%, rgba(255,255,255,0) 24%, rgba(255,255,255,0) 78%, rgba(255,255,255,0.65) 100%)";
 
 /**
  * Renders the venue's uploaded background photo at full clarity, plus the
@@ -150,7 +167,23 @@ function GuestBackdrop({
   backgroundImageUrl?: string | null;
   children: ReactNode;
 }) {
-  if (!backgroundImageUrl) return <>{children}</>;
+  if (!backgroundImageUrl) {
+    // captive-portal-v5-design-spec.md, Visual Assets §2b: the no-photo
+    // case used to render nothing at all here (confirmed live -- a real
+    // org with no background image configured shows a completely bare
+    // `--pg-canvas` field). `PortalNoPhotoPattern` is deliberately not a
+    // reintroduction of the old blurred-glow "AmbientGlow" mistake --
+    // it's flat, hairline, ~4-10%-opacity geometry built from the
+    // marketing site's own signal-arc motif, not a colored glow -- see
+    // that component's own doc comment. `pointer-events-none`/absolute so
+    // it never intercepts input or affects layout.
+    return (
+      <>
+        <PortalNoPhotoPattern className="pointer-events-none absolute inset-0" />
+        {children}
+      </>
+    );
+  }
   return (
     <>
       {/* Shown at full clarity, not faded -- a customer's own uploaded
@@ -158,11 +191,21 @@ function GuestBackdrop({
        * near-invisibility. On viewports much wider than the uploaded
        * image's own resolution this can look soft/stretched -- that's an
        * "upload a higher-resolution image" problem for the customer to
-       * fix, not something to paper over with an artificial blur here. */}
+       * fix, not something to paper over with an artificial blur here.
+       * captive-portal-v5-design-spec.md §3.4: `background-position:
+       * center 25%` (was dead-center) -- on a typical portrait-oriented
+       * venue photo (a building, signage, an entrance), dead-center
+       * cropping tends to center empty sky/foreground and cut the actual
+       * subject at the frame edges; anchoring a quarter of the way down
+       * keeps a typical architectural subject's upper two-thirds in frame
+       * at wide/short viewport ratios. A default, not a fix for every
+       * possible photo -- a per-location focal-point picker is a real
+       * follow-up candidate, flagged as out of scope in the same spec
+       * section (no backing `RuntimePortalConfig` field exists today). */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${backgroundImageUrl})` }}
+        className="pointer-events-none absolute inset-0 bg-cover"
+        style={{ backgroundImage: `url(${backgroundImageUrl})`, backgroundPosition: "center 25%" }}
       />
       <div
         aria-hidden
@@ -270,7 +313,16 @@ export function PortalShell({
          * instead of a small card adrift in open gradient space. */}
         <div
           className={cn(
-            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-6 sm:max-w-[460px] md:max-w-[520px]",
+            // captive-portal-v5-design-spec.md §3.5: mobile gets the
+            // primary layout pass, not desktop -- 80%+ of guest-WiFi
+            // traffic is mobile (§0's external research). `pt-6` (24px)
+            // used to start the card almost immediately at the top of the
+            // viewport, leaving no room for the photo to read as a photo
+            // before content starts. `pt-[12vh]` gives a deliberate
+            // uncovered band of photo up top before the merged, shorter
+            // card (§3.1-3.3) begins -- closer to "hero photo, then one
+            // anchored card" than "card starting at the very top edge."
+            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col px-4 pb-8 pt-[12vh] sm:max-w-[460px] md:max-w-[520px]",
             // See this component's own top-level comment on `constrained` --
             // these `lg:` classes assume this element's width tracks the
             // real browser viewport, which isn't true inside the Portal
@@ -279,10 +331,13 @@ export function PortalShell({
             // callers) means there's nothing to grid against -- stays a
             // single centered column at every width instead of leaving a
             // blank first grid cell.
+            // §3.3: sign-in column max-width 480px -> 440px -- gives the
+            // photo back real width in the two-column composition without
+            // meaningfully cramping the form.
             !constrained &&
               (showBrandPanel
-                ? "lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_480px] lg:items-center lg:gap-16 lg:px-12 lg:py-10 xl:gap-24"
-                : "lg:max-w-[480px]"),
+                ? "lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center lg:gap-16 lg:px-12 lg:py-10 xl:gap-24"
+                : "lg:max-w-[440px]"),
             heightCls,
           )}
         >
@@ -294,7 +349,7 @@ export function PortalShell({
           <div
             className={cn(
               "flex w-full flex-col",
-              !constrained && "lg:mx-auto lg:w-full lg:max-w-[480px]",
+              !constrained && "lg:mx-auto lg:w-full lg:max-w-[440px]",
             )}
           >
             <div className="mb-2 flex items-center justify-end gap-1.5">
@@ -353,12 +408,16 @@ export function PortalShell({
 
 export function PortalCard({ children, className }: { children: ReactNode; className?: string }) {
   // Flattened: a thin 1px border + a small, tight shadow, not a heavy
-  // glass-card blur/spread -- see this component's own history. Radius
-  // `rounded-2xl` (16px) -- still soft, less "bubble."
+  // glass-card blur/spread -- see this component's own history.
+  // captive-portal-v5-design-spec.md §3.1/§3.3: radius unified to
+  // `rounded-[20px]` (matches GUEST_LEGIBILITY_CARD_CLASS -- one shared
+  // value across this card family, not two independently-tuned ones) and
+  // padding trimmed `p-6` (24px) -> `p-5` (20px), still comfortably above
+  // Purple's 44px touch-target floor (fields, not padding, need the room).
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[var(--pg-border)] bg-[var(--pg-surface)] p-6",
+        "rounded-[20px] border border-[var(--pg-border)] bg-[var(--pg-surface)] p-5",
         className,
       )}
       style={{

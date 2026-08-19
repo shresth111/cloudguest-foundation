@@ -689,6 +689,35 @@
   --pg-success: #10B981;
 }
 
+/* captive-portal-v5-design-spec.md §2.3 (UX/Perf): PortalShell's own
+ * `PG_FONT_STACK` comment says webfonts were dropped from every portal.*
+ * route -- true for the redesigned "light" flow's own inline
+ * `style={{ fontFamily: PG_FONT_STACK }}`, but 12 other portal.*.tsx files
+ * (portal.index's own "Connecting…" loading heading among them) still
+ * reach for Tailwind's `font-display` utility class, which resolves to
+ * the dashboard's Space Grotesk/Manrope webfont stack -- a guaranteed-to-
+ * fail `fonts.googleapis.com` fetch on a fresh guest device with no real
+ * internet yet (see __root.tsx's LOAD_FONTS_SCRIPT), and a visible FOUT
+ * swap on the rare pageview it does succeed. Cheapest real fix, not a
+ * 12-file rewrite: override the *utility* inside this same scope every
+ * portal.* route already renders under. Note this can't be a `--font-
+ * display` custom-property override on `.portal-runtime` instead --
+ * Tailwind's `@theme inline` here compiles `.font-display` to a literal
+ * `font-family: Space Grotesk, ...` value baked in at build time, not a
+ * `var(--font-display)` reference (confirmed by inspecting the real
+ * compiled CSS), so a scoped custom property alone is a silent no-op.
+ * This selector's `.portal-runtime .font-display` specificity (0,2,0)
+ * beats the plain `.font-display` utility (0,1,0) regardless of source
+ * order, so it doesn't depend on CSS layer/cascade ordering to win.
+ * Retroactively fixes all 12 files at once since they all render inside
+ * `.portal-runtime`. Keep this string literally in sync with
+ * `PG_FONT_STACK` (PortalGuestUi.tsx) -- CSS can't import a JS constant,
+ * so there's no single source of truth to enforce that automatically. */
+.portal-runtime .font-display {
+  font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif,
+    system-ui, sans-serif;
+}
+
 /* Numeric type scale (v4 §4) -- replaces today's scattered per-screen sizes
  * (26px, 2xl, 42px, 50px, 4xl, lg, sm, xs, 11px, each hand-picked per
  * file) with one shared set. All on `PG_FONT_STACK` (system fonts) --

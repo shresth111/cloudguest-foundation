@@ -41,7 +41,7 @@ export function AuthTabSwitcher(sign: UseGuestSignInReturn) {
           role="tablist"
           aria-label="Sign-in method"
           data-active-tab={sign.tab}
-          className="relative mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-indigo-50 p-1 ring-1 ring-inset ring-indigo-100"
+          className="relative mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-indigo-50 p-1 ring-1 ring-inset ring-indigo-100"
         >
           <span
             aria-hidden
@@ -59,7 +59,7 @@ export function AuthTabSwitcher(sign: UseGuestSignInReturn) {
                 role="tab"
                 aria-selected={active}
                 onClick={() => sign.setTab(item.id)}
-                className="relative z-10 min-h-[52px] rounded-[14px] px-2 py-2 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-50"
+                className="relative z-10 min-h-[46px] rounded-[14px] px-2 py-2 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-50"
               >
                 <span
                   className={cn(

@@ -109,9 +109,7 @@ export default defineConfig({
               return "vendor-1-react";
             }
             if (
-              /[\\/]node_modules[\\/](recharts|d3-[^/]+|react-smooth|victory-vendor)[\\/]/.test(
-                id,
-              )
+              /[\\/]node_modules[\\/](recharts|d3-[^/]+|react-smooth|victory-vendor)[\\/]/.test(id)
             ) {
               return "vendor-2-charts";
             }
