@@ -545,13 +545,25 @@ function CustomerHomePage() {
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
                   <Input
                     ref={searchRef}
+                    type="search"
                     placeholder="Search locations…"
                     aria-label="Search locations"
+                    aria-describedby="venue-search-hint"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => e.key === "Escape" && setSearch("")}
-                    className="h-11 border-white/15 bg-white/10 pl-10 pr-16 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30"
+                    onKeyDown={(e) => {
+                      // Escape clears first; a second Escape (already empty)
+                      // hands focus back to the page.
+                      if (e.key !== "Escape") return;
+                      e.preventDefault();
+                      if (search) setSearch("");
+                      else searchRef.current?.blur();
+                    }}
+                    className="h-11 border-white/15 bg-white/10 pl-10 pr-16 text-white placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/30 [&::-webkit-search-cancel-button]:appearance-none"
                   />
+                  <span id="venue-search-hint" className="sr-only">
+                    Press slash to focus this field, Escape to clear it.
+                  </span>
                   {search ? (
                     <button
                       type="button"
@@ -560,11 +572,12 @@ function CustomerHomePage() {
                         searchRef.current?.focus();
                       }}
                       aria-label="Clear search"
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                   ) : (
+
                     <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45 sm:block">
                       /
                     </kbd>
