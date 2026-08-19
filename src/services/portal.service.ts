@@ -470,7 +470,11 @@ async function fetchOnePortal(id: string, orgId?: string): Promise<Portal> {
  * may themselves be partial, since the UI only ever edits a few fields at a
  * time and the backend merges the rest. */
 export type PortalPatch = {
-  [K in keyof Portal]?: Portal[K] extends object ? Partial<Portal[K]> : Portal[K];
+  [K in keyof Portal]?: Portal[K] extends readonly unknown[]
+    ? Portal[K]
+    : Portal[K] extends object
+      ? Partial<Portal[K]>
+      : Portal[K];
 };
 
 export const portalService = {
