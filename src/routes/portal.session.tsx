@@ -1,9 +1,14 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Laptop, LogOut, KeyRound, Users2 } from "lucide-react";
+import { Laptop, LogOut, KeyRound, Users2, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
-import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
+import {
+  AlertBanner,
+  PG_PRIMARY_BTN,
+  PG_SECONDARY_BTN,
+} from "@/components/portal-runtime/PortalGuestUi";
 import {
   CampaignOverlay,
   campaignHasRenderableContent,
@@ -149,6 +154,22 @@ function ConnectedIllustration({ className }: { className?: string }) {
   );
 }
 
+/** One visual family for the session page's tappable nudge rows (device
+ * card stays a plain PortalCard; these are the two *links*). Hand-written
+ * PortalCard-equivalent surface (same 20px radius, border, resting shadow,
+ * and the `pg-surface-card` marker the scrim polarity flip keys off)
+ * rather than `<PortalCard className="p-0">` around the anchor, because
+ * hover border/tint and the focus-visible ring belong on the interactive
+ * element itself -- an anchor inside a styled box can be focused while the
+ * box shows nothing. */
+const NUDGE_ROW_CLASS =
+  "pg-surface-card flex items-center gap-3 rounded-[20px] border border-[var(--pg-border)] bg-[var(--pg-surface)] p-3.5 shadow-[0_1px_2px_rgba(30,27,75,0.06),0_8px_24px_-12px_rgba(30,27,75,0.18)] transition-[border-color,background-color] duration-200 hover:border-[var(--pr-primary,#6366f1)]/30 hover:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+
+/** Icon chip inside a nudge row -- venue-primary at an 8% tint, same
+ * recipe as the redesigned retry pills (spec §1.4 icon-disc family). */
+const NUDGE_CHIP_CLASS =
+  "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]";
+
 /**
  * "Already connected" status page -- reached from `/portal/` when a
  * device has (or is found to still have) an active session, from the
@@ -244,12 +265,12 @@ function SessionPage() {
     : 100;
 
   const remainingLabel = useMemo(() => {
-    if (!hasExpiry) return "No expiry set";
+    if (!hasExpiry) return t("noExpiryLabel");
     const h = Math.floor(remainingMs / 3_600_000);
     const m = Math.floor((remainingMs % 3_600_000) / 60_000);
     const s = Math.floor((remainingMs % 60_000) / 1000);
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }, [hasExpiry, remainingMs]);
+  }, [hasExpiry, remainingMs, t]);
 
   if (!session || now === 0) return null;
 
@@ -297,40 +318,62 @@ function SessionPage() {
           </PortalTextPlate>
         </div>
 
+        {/* Stats card. Label row: pg-micro/ink-faint (hierarchy below
+         * muted comes from size, not lightness -- the old slate-400
+         * uppercase label measured 2.56:1, the exact failure v7 retired).
+         * Value: 28px (nearest ramp-consistent size to the old off-ramp
+         * text-3xl), scale-aware. Progress: flat venue-primary fill on a
+         * 15% tint track -- the indigo gradient is retired for the same
+         * reason PG_PRIMARY_BTN went flat -- with real progressbar
+         * semantics (aria-*) instead of a mute div. */}
         <PortalCard className="space-y-4">
           <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="flex items-center justify-between gap-3">
+              <span className="pg-micro uppercase tracking-[0.08em] text-[var(--pg-ink-faint)]">
                 {t("sessionRemaining")}
               </span>
-              <span className="text-3xl font-bold tabular-nums text-slate-900">
+              <span className="text-[length:calc(1.75rem*var(--pg-type-scale,1))] font-bold tabular-nums text-[var(--pg-ink)]">
                 {remainingLabel}
               </span>
             </div>
             {hasExpiry && (
-              <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
+              <div
+                role="progressbar"
+                aria-label={t("sessionRemaining")}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(timePct)}
+                className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_15%,var(--pg-surface,#fff))]"
+              >
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5]"
+                  className="h-full rounded-full bg-[var(--pr-primary,#6366f1)]"
                   style={{ width: `${timePct}%` }}
                 />
               </div>
             )}
           </div>
 
-          <div className="h-px bg-slate-100" />
+          <div className="h-px bg-[var(--pg-border)]" />
 
           <div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">{t("dataUsage")}</span>
-              <span className="font-semibold text-slate-900">
+            <div className="flex items-center justify-between gap-3">
+              <span className="pg-meta text-[var(--pg-ink-muted)]">{t("dataUsage")}</span>
+              <span className="pg-meta font-semibold text-[var(--pg-ink)]">
                 {formatBytes(bytesUsed)}
                 {bytesLimit > 0 ? ` / ${formatBytes(bytesLimit)}` : ""}
               </span>
             </div>
             {bytesLimit > 0 && (
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
+              <div
+                role="progressbar"
+                aria-label={t("dataUsage")}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(Math.min(100, usagePct))}
+                className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_15%,var(--pg-surface,#fff))]"
+              >
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5]"
+                  className="h-full rounded-full bg-[var(--pr-primary,#6366f1)]"
                   style={{ width: `${Math.min(100, usagePct)}%` }}
                 />
               </div>
@@ -338,17 +381,17 @@ function SessionPage() {
           </div>
         </PortalCard>
 
-        <PortalCard>
+        <PortalCard className="p-3.5">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+            <div className={NUDGE_CHIP_CLASS}>
               <Laptop className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="pg-body font-semibold text-[var(--pg-ink)]">
                 {session.deviceName ?? t("device")}
               </p>
-              <p className="truncate text-xs text-slate-500">
-                {session.ipAddress ?? "IP unknown"}
+              <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
+                {session.ipAddress ?? t("ipUnknownLabel")}
                 {session.deviceMacAddress ? ` · ${session.deviceMacAddress}` : ""}
               </p>
             </div>
@@ -356,18 +399,19 @@ function SessionPage() {
         </PortalCard>
 
         {showPasswordNudge && (
-          <Link
-            to="/portal/set-password"
-            search={portalSearch}
-            className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
-          >
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+          <Link to="/portal/set-password" search={portalSearch} className={NUDGE_ROW_CLASS}>
+            <div className={NUDGE_CHIP_CLASS}>
               <KeyRound className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-800">Set a password for next time</p>
-              <p className="truncate text-xs text-slate-500">Skip the code on your next visit</p>
+              <p className="pg-body font-semibold text-[var(--pg-ink)]">
+                {t("nudgeSetPasswordTitle")}
+              </p>
+              <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
+                {t("nudgeSetPasswordSubtitle")}
+              </p>
             </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
           </Link>
         )}
 
@@ -387,27 +431,24 @@ function SessionPage() {
             captive-portal-config flag: a guest with no code just ignores
             this card, and one with a wrong/unrelated code gets a real,
             honest 404 from the join call itself. */}
-        <Link
-          to="/portal/team"
-          search={portalSearch}
-          className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
-        >
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+        <Link to="/portal/team" search={portalSearch} className={NUDGE_ROW_CLASS}>
+          <div className={NUDGE_CHIP_CLASS}>
             <Users2 className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-800">Have a team code?</p>
-            <p className="truncate text-xs text-slate-500">
-              Join your group's shared data and quota
+            <p className="pg-body font-semibold text-[var(--pg-ink)]">{t("nudgeTeamTitle")}</p>
+            <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
+              {t("nudgeTeamSubtitle")}
             </p>
           </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
         </Link>
 
         {continueUrl && (
           <button
             type="button"
             onClick={() => navigate({ to: "/portal/redirect", search: (prev) => prev })}
-            className="h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105"
+            className={PG_PRIMARY_BTN}
           >
             {t("continue")}
           </button>
@@ -415,13 +456,21 @@ function SessionPage() {
 
         <AlertBanner message={disconnectError} />
 
+        {/* PG_SECONDARY_BTN with a destructive hover -- cn() so
+         * tailwind-merge resolves the hover:border/bg/text overrides
+         * against the recipe's own instead of leaving stylesheet order to
+         * pick a winner. */}
         <button
           type="button"
           onClick={() => disconnect.mutate()}
           disabled={disconnect.isPending}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+          className={cn(
+            PG_SECONDARY_BTN,
+            "flex items-center justify-center gap-2 hover:border-[var(--pg-danger-border,#FECACA)] hover:bg-[var(--pg-danger-bg,#FEF2F2)] hover:text-[var(--pg-danger,#DC2626)]",
+          )}
         >
-          <LogOut className="h-4 w-4" /> {disconnect.isPending ? "Disconnecting…" : t("logout")}
+          <LogOut className="h-4 w-4" />{" "}
+          {disconnect.isPending ? t("disconnectingLabel") : t("logout")}
         </button>
       </div>
     </PortalShell>
