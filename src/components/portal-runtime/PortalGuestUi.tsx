@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 /**
  * Small shared visual primitives for the redesigned "light indigo" guest
@@ -81,7 +82,7 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
   return (
     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-[24px] bg-[var(--pg-surface,#fff)]/90 px-6 text-center backdrop-blur-sm">
       <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
-      <p className="pg-body font-medium text-[var(--pg-ink,#0F172A)]">{label}</p>
+      <p className="pg-body font-medium text-[var(--pg-ink,#1E1B4B)]">{label}</p>
       <div className="h-1.5 w-40 overflow-hidden rounded-full bg-[var(--pr-primary,#6366f1)]/15">
         <div
           className="h-full rounded-full bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] transition-[width] duration-200 ease-out"
@@ -148,10 +149,20 @@ export function ConnectingOverlay({ active, label }: { active: boolean; label: s
  * across `portal.index.tsx` and `portal.success.tsx` -- do not fork this
  * into a second component (see PR #50 / this file's own docstring above). */
 export function PortalConnectingState() {
+  // Shared across portal.index.tsx and portal.success.tsx (see the doc
+  // comment above -- do not fork), so both render sites pick up the same
+  // translated copy from the one provider they both mount under.
+  const { t } = usePortalRuntime();
   return (
     <div className="flex flex-1 flex-col items-center justify-center">
+      {/* `pg-surface-card` + `rounded-[20px]`: the one shared surface
+       * recipe (PortalCard / GUEST_LEGIBILITY_CARD_CLASS) -- this was the
+       * last 16px-radius card on the guest flow, and without the marker
+       * class its text tokens would not flip back to ink under
+       * `data-pg-scrim="dark"`. Hex fallbacks match the retuned v7 tokens
+       * (#1E1B4B / #475569), not the stale pre-#108 slate values. */}
       <div
-        className="flex w-full max-w-[360px] flex-col items-center gap-4 rounded-2xl border px-8 py-10 text-center"
+        className="pg-surface-card flex w-full max-w-[360px] flex-col items-center gap-4 rounded-[20px] border px-8 py-10 text-center"
         style={{
           borderColor: "var(--pg-border, #E2E8F0)",
           backgroundColor: "var(--pg-surface, #fff)",
@@ -160,10 +171,12 @@ export function PortalConnectingState() {
       >
         <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
         <div>
-          <p className="pg-body font-semibold text-[var(--pg-ink,#0F172A)]">
-            Connecting you to the internet…
+          <p className="pg-body font-semibold text-[var(--pg-ink,#1E1B4B)]">
+            {t("connectingTitle")}
           </p>
-          <p className="mt-1 text-sm text-[var(--pg-ink-muted,#64748B)]">Just a moment.</p>
+          <p className="mt-1 pg-meta font-normal text-[var(--pg-ink-muted,#475569)]">
+            {t("connectingSubtitle")}
+          </p>
         </div>
       </div>
     </div>
@@ -197,8 +210,25 @@ export function PortalConnectingState() {
 // 16px root and expands instead of clipping. `h-auto` is load-bearing:
 // `min-h-*` does not displace `h-9` from the shared `<Input>`/`<button>`
 // base classes under tailwind-merge, but `h-auto` does.
+// The focus-visible ring closes an asymmetry that sat below the shadcn
+// bar: PG_INPUT has carried a visible 4px focus ring since v7, while the
+// primary button -- the single most-focused element on the surface -- had
+// no visible keyboard-focus state at all. Same ring family as the input
+// (venue `--pr-primary` at low alpha), offset against the card surface.
 export const PG_PRIMARY_BTN =
-  "h-auto min-h-[3rem] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] px-4 py-2 font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-auto min-h-[3rem] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] px-4 py-2 font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--pg-surface,#fff)] active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+
+// The one secondary-button recipe (captive-portal redesign spec §1.4).
+// Before this constant existed every screen that needed a "not the
+// primary action" button hand-rolled its own -- `h-12 rounded-[14px]
+// border-slate-200 text-slate-700` on expired, `h-11 rounded-[14px]
+// text-slate-500` on team/set-password, a red-hover variant on session --
+// four different geometries and three different greys for one role.
+// Same control geometry as PG_PRIMARY_BTN (48px floor, 16px radius,
+// h-auto so Android font scale grows the box instead of clipping), quiet
+// surface fill, and the same focus-ring family as PG_INPUT.
+export const PG_SECONDARY_BTN =
+  "h-auto min-h-[3rem] w-full rounded-2xl border border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] px-4 py-2 font-semibold text-[var(--pg-ink-muted,#475569)] transition-[border-color,background-color,color] duration-200 hover:border-[var(--pg-ink-faint,#505E73)] hover:text-[var(--pg-ink,#1E1B4B)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15 active:translate-y-px disabled:opacity-60";
 
 // v7 §7.2/§7.4-4: `placeholder:text-[var(--pg-ink-faint)]` is gone.
 // `--pg-ink-faint` was 2.56:1 on this input's own white background, and
@@ -230,4 +260,4 @@ export const PG_PRIMARY_BTN =
 // the base class at all (a custom utility silently loses -- the exact bug
 // the first cut of the Part 7 branch shipped).
 export const PG_INPUT =
-  "h-auto min-h-[3rem] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] py-2 text-[length:calc(1rem*var(--pg-type-scale,1))] md:text-[length:calc(1rem*var(--pg-type-scale,1))] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-muted,#475569)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#505E73)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "h-auto min-h-[3rem] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] py-2 text-[length:calc(1rem*var(--pg-type-scale,1))] md:text-[length:calc(1rem*var(--pg-type-scale,1))] text-[var(--pg-ink,#1E1B4B)] placeholder:text-[var(--pg-ink-muted,#475569)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#505E73)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
