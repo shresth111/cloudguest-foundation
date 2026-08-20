@@ -14,6 +14,13 @@ export const fleetWizardKeys = {
     [...fleetWizardKeys.all, "plan", routerId, planId] as const,
 };
 
+export function usePreviewBootstrapScript() {
+  return useMutation({
+    mutationFn: (args: { routerId: string; organizationId?: string }) =>
+      routerFleetWizardService.previewBootstrap(args.routerId, args.organizationId),
+  });
+}
+
 export function useDiscoverRouter() {
   return useMutation({
     mutationFn: (args: { routerId: string; organizationId?: string }) =>
