@@ -790,6 +790,19 @@
     --pg-ink-faint: #334155;
     --pg-border: #64748B;
   }
+  /* v7 Part 3. `--pg-border` above reaches `PortalCard`, which asks for it
+   * by token -- but `GUEST_LEGIBILITY_CARD_CLASS` hard-codes
+   * `border-white/60`, so every `PortalTextPlate` (the footer's attribution
+   * plate included) kept a white hairline while everything around it
+   * darkened. Combined with the rule below, which drops the photo, that left
+   * a white box floating on a near-white canvas with no discernible edge --
+   * confirmed in a render at 390x844 under `prefers-contrast: more`.
+   * #64748B measures 4.76:1 against `--pg-surface`, comfortably clearing SC
+   * 1.4.11's 3:1 for a non-text boundary, and both colours are ours so the
+   * ratio holds whatever the photo does. */
+  .portal-runtime .pg-surface-card {
+    border-color: #64748B;
+  }
   /* v7 §1.4 / §7.5 composition rule: under an explicit request for more
    * contrast, **drop the photo and the scrim entirely** and let the text
    * stand on the flat `--pg-canvas` token, rather than computing a "more
@@ -1022,6 +1035,45 @@
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* captive-portal-v7-design-spec.md Part 2 -- extra leading for Brahmic
+ * scripts, applied per *string* rather than per UI language. See
+ * src/lib/portal-script.ts for why `:lang()` is the wrong key (a venue's
+ * Tamil name renders inside an English UI on `lang="en"`) and for the
+ * measurement this is sized against.
+ *
+ * The defect, measured in a real browser at 390x844, `--pg-type-scale: 1.25`
+ * (so `pg-title` = 32.5px), a 40-character Devanagari venue name on the
+ * shipped system stack: each line's client rect is **42px tall inside a
+ * 37.375px line box**, and successive line tops sit 37.3px apart -- so every
+ * pair of lines overlaps by 4.7px, and line 2's upper matras run into line
+ * 1's descenders. At the default scale it is 3.7px. Brahmic scripts hang
+ * from a head-stroke with matras stacking above *and* below it, so their
+ * inked envelope is far taller than Latin's at the same font-size; 1.15 was
+ * tuned for Latin and is simply too small to hold them.
+ *
+ * The published metrics for Noto Sans Devanagari -- the Android fallback
+ * named in `PG_FONT_STACK`, i.e. the majority case for this product -- put
+ * its ink box near 1.36em, worse than the face the measurement above was
+ * taken on. 1.45 clears that with margin; 1.38 does for `pg-display`, which
+ * only ever carries the desktop BrandPanel heading.
+ *
+ * Specificity note, since this has to beat the `@utility` definitions:
+ * `.portal-runtime [data-pg-script]` is (0,2,0) against a bare utility
+ * class's (0,1,0), so it wins on specificity and does not depend on source
+ * or layer order. Latin strings never carry the attribute at all, so the
+ * Latin type scale is byte-for-byte unchanged -- this is additive, not a
+ * retune of Part 6. */
+.portal-runtime [data-pg-script="tall"] {
+  line-height: 1.5;
+}
+.portal-runtime .pg-title[data-pg-script="tall"],
+.portal-runtime .pg-subtitle[data-pg-script="tall"] {
+  line-height: 1.45;
+}
+.portal-runtime .pg-display[data-pg-script="tall"] {
+  line-height: 1.38;
 }
 
 /* CSS-only replacement for ConnectedIllustration's (portal.session.tsx)

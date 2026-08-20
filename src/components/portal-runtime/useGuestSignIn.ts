@@ -85,10 +85,45 @@ export function useGuestSignIn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasOtp, hasPassword]);
 
-  const venueName = config?.name;
-  const heading =
-    config?.splashHeadline?.trim() ||
-    (venueName ? t("welcomeToVenueTemplate").replace("{venue}", venueName) : t("welcomeBare"));
+  const venueName = config?.name?.trim() || undefined;
+  const customHeadline = config?.splashHeadline?.trim() || undefined;
+
+  // captive-portal-v7-design-spec.md Part 2 / §8.3.
+  //
+  // This used to be one string -- `t("welcomeToVenueTemplate")` -> "Welcome
+  // to The Grand Ashoka Residency" -- rendered as a single `pg-title` line.
+  // Two things were wrong with that, and only the second is cosmetic.
+  //
+  // 1. IT ANSWERED THE WRONG QUESTION AT THE LOUDEST VOLUME. §8.3 is
+  //    explicit that the guest's real question on this screen is *whose
+  //    network is this*, that confirming the venue is "the strongest
+  //    anti-evil-twin signal available", and that "legibility here is a
+  //    security signal". Setting "Welcome to" at the same 26px/700 as the
+  //    venue's name spends half the largest type on the screen on a
+  //    greeting. Splitting them puts the whole title budget on the identity
+  //    -- which is also what a hotel's own signage does, and what Apple's
+  //    "deference" means applied literally: our courtesy copy becomes a
+  //    label, the venue's name becomes the content.
+  // 2. A long name wrapped to three and four lines, because it was carrying
+  //    "Welcome to " as a prefix. Measured at 320px with `--pg-type-scale`
+  //    at 1.25 and a 40-character Devanagari name: four lines before, three
+  //    after.
+  //
+  // `splashHeadline` also silently DELETED the venue's identity: a venue
+  // that typed "Enjoy your stay" into that optional field removed its own
+  // name from the portal entirely. That is now impossible -- when a custom
+  // headline exists the name moves into the eyebrow instead of vanishing.
+  // One slot, two variants, same styling:
+  //
+  //   custom headline + name  ->  eyebrow = the venue's name  (identity)
+  //   name only               ->  eyebrow = "Welcome to"      (greeting)
+  //   neither                 ->  no eyebrow row at all
+  //
+  // The last case is deliberate and matches v5 §3.2's rule about the
+  // welcome message: a row with nothing real in it is not rendered.
+  const heading = customHeadline || venueName || t("welcomeBare");
+  const eyebrow =
+    customHeadline && venueName ? venueName : venueName ? t("welcomeEyebrow") : undefined;
   // captive-portal-v5-design-spec.md §3.2: no fallback string here anymore
   // -- `t("signInSubtext")` was a hardcoded filler line ("Sign in for
   // complimentary WiFi access...") rendered whenever a venue hadn't
@@ -390,6 +425,7 @@ export function useGuestSignIn() {
     // config / copy
     config,
     portalSearch,
+    eyebrow,
     heading,
     subtext,
     previewMode,

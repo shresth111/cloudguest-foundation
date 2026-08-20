@@ -542,7 +542,35 @@ export function PortalShell({
             // the floor; `env()` is 0 everywhere that has no cutout, so
             // this is a no-op on every non-notched device and in the admin
             // Portal Preview.
-            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(12vh+env(safe-area-inset-top))] sm:max-w-[460px] md:max-w-[520px]",
+            // captive-portal-v7-design-spec.md §2 W2, and a correction to it.
+            //
+            // W2 claims a long welcome message "reliably buries the primary
+            // action on a 667px device" at three or four lines. Measured, at
+            // the default type scale that is **false**: a five-line message on
+            // 375x667 puts the CTA's bottom edge at 584px, comfortably above
+            // the fold, and 360x640 gives 598px. The claim only becomes true
+            // once Part 7's own text-size control is on:
+            //
+            //   375x667, scale 1.25, 5-line message -> CTA bottom 703px  (fold 667)
+            //   360x640, scale 1.25, 3-line message -> CTA bottom 661px  (fold 640)
+            //   360x640, scale 1.25, 5-line message -> CTA bottom 717px  (fold 640)
+            //
+            // So this is not really an authoring problem, it is an
+            // interaction between a long message and the accessibility
+            // control -- which means an admin character limit alone cannot
+            // fix it, and a guest who needs larger text is exactly the guest
+            // who should not have to hunt for the button.
+            //
+            // `12vh` of deliberately-uncovered photo above the card is Part
+            // 1's decision and stays untouched wherever there is room for it.
+            // But on a short viewport it is 77px of decoration bought with
+            // the primary action, which is not a trade Part 1 was choosing --
+            // it predates the type-scale control. The height query is the
+            // narrowest possible fix: it fires only where the fold is
+            // actually at risk, changes nothing on a 390x844 or a desktop,
+            // and keeps the safe-area inset intact. Recovers 38px at 640px
+            // tall and 40px at 667px.
+            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(12vh+env(safe-area-inset-top))] [@media(max-height:720px)]:pt-[calc(6vh+env(safe-area-inset-top))] sm:max-w-[460px] md:max-w-[520px]",
             // See this component's own top-level comment on `constrained` --
             // these `lg:` classes assume this element's width tracks the
             // real browser viewport, which isn't true inside the Portal

@@ -172,6 +172,28 @@ const EN: Dict = {
   countryCodeLabel: "Country code",
   otpCodeLabel: "6-digit code",
   otpCodeHint: "Enter the 6-digit code we sent you.",
+
+  // ===== v7 Parts 2 & 3 -- welcome surface & attribution mark.
+  // Kept as one additive block, EN and HI only, so a parallel workstream
+  // rewriting this file has exactly one place to merge.
+  //
+  // `welcomeEyebrow` is the courtesy line demoted out of the headline so the
+  // venue's own name gets the whole `pg-title` budget (v7 §8.3: confirming
+  // the venue is the strongest anti-evil-twin signal on this screen). It is
+  // NOT `welcomeToVenueTemplate` reworded -- that key is still live and
+  // still correct for any surface that wants the greeting and the name in
+  // one sentence.
+  welcomeEyebrow: "Welcome to",
+  // Supersedes `poweredByWyfy` above, which is now unreferenced and can be
+  // deleted by whoever next touches this file -- left in place here only so
+  // this change is purely additive. The template exists because the brand
+  // has to be typographically separable from the verb: the mark renders
+  // "Wyfy Guest" in `--pg-ink` while "Powered by" stays `--pg-ink-faint`,
+  // and because the word order flips between languages (Hindi puts the
+  // brand first) a plain prefix/suffix split would be wrong. Same reason
+  // `courtesyOfTemplate` above is a template rather than two keys.
+  poweredByTemplate: "Powered by {brand}",
+  // ===== end v7 Parts 2 & 3 block
 };
 
 const HI: Dict = {
@@ -329,6 +351,20 @@ const HI: Dict = {
   countryCodeLabel: "देश कोड",
   otpCodeLabel: "6 अंकों का कोड",
   otpCodeHint: "हमने आपको जो 6 अंकों का कोड भेजा है वह दर्ज करें।",
+
+  // ===== v7 Parts 2 & 3 -- welcome surface & attribution. See the EN block.
+  // NOT a translation of the English fragment. "Welcome to" cannot stand
+  // alone in Hindi -- the venue name comes first ("{venue} में आपका स्वागत
+  // है"). As an eyebrow ABOVE the name, the standalone greeting sentence is
+  // both grammatical and the natural signage reading, so the two languages
+  // arrive at the same layout by different routes. Same per-language
+  // authoring escape hatch `courtesyOfTemplate` above already documents.
+  welcomeEyebrow: "आपका स्वागत है",
+  // Word order flips: the brand leads in Hindi. "Wyfy Guest" is a proper
+  // noun and stays Latin, exactly as the superseded `poweredByWyfy` above
+  // already had it.
+  poweredByTemplate: "{brand} द्वारा संचालित",
+  // ===== end v7 Parts 2 & 3 block
 };
 const AR: Dict = {
   ...EN,

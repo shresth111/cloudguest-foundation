@@ -1,4 +1,6 @@
 import { KeyRound } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { scriptClassOf } from "@/lib/portal-script";
 import { PortalTextPlate, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
@@ -100,13 +102,70 @@ export function GuestSignInCard() {
               className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16"
             />
           )}
-          <h1 className="pg-title mt-3 text-[var(--pg-ink)]">{sign.heading}</h1>
+          {/* v7 Part 2. The courtesy line, demoted out of the headline --
+           * see `useGuestSignIn`'s own comment for the two variants this
+           * slot carries and why `splashHeadline` no longer deletes the
+           * venue's name.
+           *
+           * `pg-meta` (13px), not `pg-micro` (11px): this is a hierarchy
+           * step below the name, not a footnote. It also matters that
+           * `pg-meta` is one of the three utilities that deliberately do
+           * NOT bind `--pg-display-font-family` -- so when a venue picks
+           * one of the curated heading faces, that face is spent on the
+           * venue's own name and our chrome stays on the system stack.
+           *
+           * Sentence case, not `uppercase`. An all-caps kicker is the
+           * generic-SaaS costume this flow has twice moved away from; more
+           * concretely, the identity variant puts a real customer's brand
+           * name in this slot and shouting it ("TAJ PALACE") is a liberty
+           * we do not get to take -- and Devanagari is unicase, so an
+           * `uppercase` utility would silently produce two different
+           * designs in EN and HI. */}
+          {sign.eyebrow && (
+            <span
+              data-pg-measure="eyebrow"
+              data-pg-script={scriptClassOf(sign.eyebrow)}
+              className="mt-3 block pg-meta text-[var(--pg-ink-faint)]"
+            >
+              {sign.eyebrow}
+            </span>
+          )}
+          {/* `data-pg-script` carries the extra leading Brahmic scripts need
+           * -- see src/lib/portal-script.ts for the measured overlap this
+           * fixes, and for why it is keyed on the string rather than on
+           * `:lang()`. `text-balance` evens the ragged edge of a two-line
+           * venue name; `break-words` is the safety net for a single
+           * unbreakable 40-character token at 320px, and only engages when
+           * a word genuinely cannot fit, so ordinary names are untouched. */}
+          <h1
+            data-pg-measure="headline"
+            data-pg-script={scriptClassOf(sign.heading)}
+            className={cn(
+              "pg-title text-balance break-words text-[var(--pg-ink)]",
+              sign.eyebrow ? "mt-0.5" : "mt-3",
+            )}
+          >
+            {sign.heading}
+          </h1>
           {/* captive-portal-v5-design-spec.md §3.2: no fallback filler
            * line when a venue hasn't configured a real welcome message --
            * see useGuestSignIn's `subtext` for why this is `undefined`,
-           * not an empty string, when there's nothing real to show. */}
+           * not an empty string, when there's nothing real to show.
+           *
+           * `text-pretty` rather than `text-balance` here on purpose: the
+           * venue's message can run to four or five lines, and `balance` is
+           * both capped by the UA at a handful of lines and wrong for a
+           * paragraph (it equalises line lengths, which reads as a poster).
+           * `pretty` only suppresses orphans, which is what a body
+           * paragraph actually wants. */}
           {sign.subtext && (
-            <p className="mt-1.5 pg-body text-[var(--pg-ink-muted)]">{sign.subtext}</p>
+            <p
+              data-pg-measure="welcome"
+              data-pg-script={scriptClassOf(sign.subtext)}
+              className="mt-2.5 pg-body text-pretty text-[var(--pg-ink-muted)]"
+            >
+              {sign.subtext}
+            </p>
           )}
         </div>
 
