@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test:a11y": "node scripts/check-a11y-invariants.mjs",
     "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
