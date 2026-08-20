@@ -94,3 +94,67 @@ export function defaultCountryCode(
   }
   return FALLBACK_COUNTRY_CODE;
 }
+
+/**
+ * captive-portal-v7-design-spec.md §8.1: "`+91` as a fixed non-editable
+ * prefix (not a country dropdown -- this is one country), `maxlength="10"`,
+ * and strip spaces, dashes, a leading zero and a pasted `+91`."
+ *
+ * The `+91` in that sentence is the spec writing down the one market this
+ * platform actually deploys into. It is *not* hardcoded here, because the
+ * real signal already exists and is stronger: `defaultCountryCode()` above
+ * derives the dialling code from `location_country`, the venue's own
+ * admin-entered address country, which the backend has returned on every
+ * `GET /captive-portal/resolve` since PR #33. So an Indian venue gets a
+ * fixed `+91` and a UK venue gets a fixed `+44`, from real config, and the
+ * guest still never has to think about a country control. Only the length
+ * bound below has to know anything country-specific, and only for the two
+ * national plans this platform has real venues in.
+ */
+const NATIONAL_NUMBER_LENGTH: Record<string, number> = {
+  // India and NANP are both flat 10-digit national numbers.
+  "+91": 10,
+  "+1": 10,
+};
+
+/** How long the national part of a number may be, given the venue's own
+ * dialling code. Falls back to 15 -- E.164's own hard ceiling on the whole
+ * number including the country code, so it can never be too short for a
+ * real number -- rather than guessing a plan this codebase has no venues
+ * in. Used for `maxLength`, which is a typo guard, never validation. */
+export function nationalNumberMaxLength(dialCode: string): number {
+  return NATIONAL_NUMBER_LENGTH[dialCode] ?? 15;
+}
+
+/**
+ * Reduce whatever a guest typed or pasted into the phone box to the bare
+ * national digits that belong *after* the fixed dialling-code prefix.
+ *
+ * Handles, in order: separators (spaces including NBSP, dashes, dots,
+ * parens, the Unicode dashes an iOS keyboard and a copied contact card
+ * both produce), the `00` international prefix, an explicitly-written
+ * country code, and a trunk-prefix leading zero.
+ *
+ * **Deliberately does not strip a bare leading `91`** (no `+`, no `00`).
+ * Indian mobile numbers begin with 6-9, so `9198765432` is a perfectly
+ * ordinary real 10-digit number, and a "looks like it starts with the
+ * country code" heuristic would silently mangle it into an 8-digit number
+ * and send the OTP nowhere. Only an *explicit* international form (`+91…`
+ * or `0091…`) is unambiguous enough to strip, which is exactly the case
+ * §8.1 names -- a guest pasting a number they copied from somewhere else.
+ */
+export function normalizeNationalPhone(raw: string, dialCode: string): string {
+  let v = raw.replace(/[\s().\u2010-\u2015-]/g, "");
+  if (v.startsWith("00")) v = `+${v.slice(2)}`;
+  if (v.startsWith("+")) {
+    const digits = v.slice(1).replace(/\D/g, "");
+    const cc = dialCode.replace(/\D/g, "");
+    v = cc && digits.startsWith(cc) ? digits.slice(cc.length) : digits;
+  } else {
+    v = v.replace(/\D/g, "");
+  }
+  // The trunk prefix. Every national plan that uses one drops it in
+  // international format, which is the only format this number is ever
+  // sent in (the fixed prefix is concatenated on submit).
+  return v.replace(/^0+/, "");
+}
