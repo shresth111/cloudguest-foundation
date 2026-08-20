@@ -66,7 +66,33 @@ export function GuestSignInCard() {
             <img
               src={config.logoUrl}
               alt=""
-              className="h-12 w-12 object-contain drop-shadow sm:h-14 sm:w-14 md:h-16 md:w-16"
+              // v7 §2/§8.3. This was `h-12 w-12 object-contain`, and `w-12`
+              // is a hard 48px *width* box. `object-contain` preserves the
+              // aspect ratio inside that box, so it does not stretch a
+              // horizontal lockup -- it shrinks it. Measured in a real
+              // browser at 390x844 with a 480x96 (5:1) lockup, the kind most
+              // hotels and cafes actually upload: the rendered ink is
+              // **48 x 9.6 CSS px**. The venue's own brand, on the screen
+              // whose job is to confirm whose network this is, renders as a
+              // ~10px smear.
+              //
+              // That is not only a polish defect. §8.3's survey data has
+              // guests connecting to public WiFi while actively believing it
+              // is unsafe (41% have had information compromised; only 23%
+              // think it is safe), which primes them to read anything that
+              // looks off -- a squashed logo above all -- as an evil twin.
+              // The venue's mark is a security signal, and it has been
+              // illegible for every venue that did not happen to upload a
+              // square file.
+              //
+              // Constrain the HEIGHT and let the width follow. `max-w` is
+              // what keeps a pathological 20:1 banner from spanning the card
+              // and out-shouting the venue's name below it; at 176px it is
+              // still comfortably inside the 358px content column at 390px
+              // and inside the 248px one at 320px. `object-contain` stays,
+              // so a square logo is unchanged to the pixel -- this widens
+              // the box, it never crops.
+              className="h-12 w-auto max-w-[176px] object-contain drop-shadow sm:h-14 sm:max-w-[200px] md:h-16 md:max-w-[224px]"
             />
           ) : (
             <PortalDefaultBrandBadge

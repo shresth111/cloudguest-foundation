@@ -317,7 +317,12 @@ function PortalLoading() {
           <img
             src={config.logoUrl}
             alt={config.name}
-            className="h-24 w-24 object-contain drop-shadow-lg sm:h-32 sm:w-32 md:h-36 md:w-36"
+            // Height-constrained, width free -- see GuestSignInCard.tsx's
+            // full note. A fixed `w-24` box rendered a 5:1 venue lockup at
+            // 96 x 19 CSS px; this is the same one-class fix at the same
+            // defect, and it is here rather than only on the sign-in card
+            // because a guest sees this screen first.
+            className="h-24 w-auto max-w-[280px] object-contain drop-shadow-lg sm:h-32 sm:max-w-[320px] md:h-36 md:max-w-[360px]"
           />
         ) : (
           // Flat single-color fill in the venue's own --pr-primary, not a
