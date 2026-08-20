@@ -10,15 +10,27 @@ import type { GuestFontChoice } from "@/types/portal-runtime";
  * source of truth to enforce this automatically"). Keep literally
  * identical to `PG_FONT_STACK` if that stack ever changes. */
 export const PG_FALLBACK_FONT_STACK =
-  '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif';
+  '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", ui-sans-serif, system-ui, sans-serif';
 
 /** The exact Latin-plus-typographic-punctuation unicode-range every curated
  * face below was subsetted to (§3.3.2/3.4) -- declared on each injected
- * `@font-face` too so a Hindi/Arabic heading's Devanagari/Arabic codepoints
- * (absent from all three subsets, §3.2) never even attempt to resolve
- * against the curated face; the browser's own per-character fallback
- * matching sends them straight to "Noto Sans Devanagari"/the rest of
- * `PG_FALLBACK_FONT_STACK` instead, exactly as today. */
+ * `@font-face` too so an Indic heading's codepoints (absent from all three
+ * subsets, §3.2) never even attempt to resolve against the curated face;
+ * the browser's own per-character fallback matching sends them straight to
+ * the Noto Sans <script> / "Nirmala UI" entries of
+ * `PG_FALLBACK_FONT_STACK` instead, exactly as today.
+ *
+ * Re-confirmed when the portal went from two languages to ten. The range
+ * below tops out at U+FEFF but contains no block above U+2212 other than
+ * a handful of named punctuation codepoints, so every script this portal
+ * now renders falls through it by design, not by luck:
+ *   Devanagari U+0900-097F (hi, mr) -- Bengali U+0980-09FF (bn)
+ *   Gurmukhi   U+0A00-0A7F (pa)     -- Gujarati U+0A80-0AFF (gu)
+ *   Tamil      U+0B80-0BFF (ta)     -- Telugu   U+0C00-0C7F (te)
+ *   Kannada    U+0C80-0CFF (kn)     -- Malayalam U+0D00-0D7F (ml)
+ * The previous version of this comment named only Hindi and Arabic. Arabic
+ * is gone (the portal no longer offers it); the eight Indic scripts above
+ * are what this actually describes now. */
 export const GUEST_FONT_UNICODE_RANGE =
   "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF";
 
