@@ -1,5 +1,4 @@
 import { createFileRoute, Outlet, SearchParamError } from "@tanstack/react-router";
-import { QrCode } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
@@ -28,6 +27,7 @@ import {
   persistRuntimeIds,
 } from "@/context/PortalRuntimeContext";
 import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShell";
+import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
 import { ErrorComponent as RootErrorComponent } from "./__root";
 
 // A real captive-portal redirect from a NAS/router would encode equivalent
@@ -153,17 +153,27 @@ const searchSchema = z.object({
 // identical to every other light-flow screen instead of a visually
 // orphaned one-off.
 function IncompletePortalLinkError() {
+  // Renders with NO PortalRuntimeProvider and no `.portal-runtime`
+  // ancestor of its own, so the `--pg-*` tokens would be undefined here --
+  // `portal-runtime pg-shell` on this root brings styles.css's token block
+  // (plain CSS, not provider-injected -- verified) into scope with zero
+  // JS, letting the same ramp/token classes as every other screen work.
+  // Still SSR-safe and provider-free: no hooks, no storage, no window.
+  // Strings stay English by the same standing rationale (no config, no
+  // language context exists yet at this point).
   return (
     <div
-      className="flex min-h-dvh w-full items-center justify-center px-4"
-      style={{ fontFamily: PG_FONT_STACK, background: "#F8F8FC" }}
+      className="portal-runtime pg-shell flex min-h-dvh w-full items-center justify-center px-4"
+      style={{ fontFamily: PG_FONT_STACK, background: "var(--pg-canvas, #F8F8FC)" }}
     >
       <PortalCard className="pg-enter w-full max-w-[400px] text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#6366f1]">
-          <QrCode className="h-7 w-7 text-white" />
-        </div>
-        <h1 className="mt-4 text-xl font-bold text-slate-900">This WiFi link looks incomplete</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        {/* The product's own mark (pure inline SVG -- SSR/CNA-safe): this
+         * screen is the one moment there is no venue identity at all to
+         * show, which is exactly when Wyfy's own should appear -- not a
+         * generic lucide QrCode on a hardcoded indigo tile. */}
+        <PortalDefaultBrandBadge size={64} className="mx-auto h-14 w-14" />
+        <h1 className="mt-4 pg-subtitle text-[var(--pg-ink)]">This WiFi link looks incomplete</h1>
+        <p className="mt-2 pg-meta font-normal text-[var(--pg-ink-muted)]">
           Please scan the venue's QR code or connect through its guest WiFi network again to get a
           fresh sign-in link.
         </p>

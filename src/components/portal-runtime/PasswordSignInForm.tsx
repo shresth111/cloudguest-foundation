@@ -63,11 +63,11 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
        * bg-slate-50 p-3` wrapper -- see OtpForm's identical checkbox for
        * the full reasoning; same fix, same legal text, applied here too
        * since both tabs render this row. */}
-      <label className="flex items-start gap-2.5 text-[13px] leading-snug text-slate-600">
+      <label className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
         <Checkbox
           checked={sign.termsAccepted}
           onCheckedChange={(v) => sign.setTermsAccepted(!!v)}
-          className="mt-0.5 border-slate-300 data-[state=checked]:border-indigo-600 data-[state=checked]:bg-indigo-600"
+          className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
         />
         <span>
           {t("agreeToThe")}{" "}
@@ -75,12 +75,14 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
             <Link
               to="/portal/terms"
               search={sign.portalSearch}
-              className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+              className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
             >
               {t("termsAcceptableUsePolicy")}
             </Link>
           ) : (
-            <span className="font-medium text-slate-800">{t("termsAcceptableUsePolicy")}</span>
+            <span className="font-medium text-[var(--pg-ink)]">
+              {t("termsAcceptableUsePolicy")}
+            </span>
           )}
         </span>
       </label>
@@ -97,7 +99,7 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
         <button
           type="button"
           onClick={() => sign.setTab("otp")}
-          className="block w-full text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
+          className="block w-full text-center text-xs font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] hover:underline"
         >
           {t("forgotUseOtp")}
         </button>
