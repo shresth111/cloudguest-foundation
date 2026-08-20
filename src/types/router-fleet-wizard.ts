@@ -59,6 +59,15 @@ export interface FleetDiscoverResult {
   compatibility: FleetCompatibilityReport;
 }
 
+export interface FleetBootstrapScriptPreview {
+  routerId: string;
+  locationCode: string;
+  lines: string[];
+  script: string;
+  lineCount: number;
+  tokenExpiresAt: string;
+}
+
 export interface FleetVerificationCheck {
   name: string;
   status: string;

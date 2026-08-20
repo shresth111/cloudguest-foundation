@@ -15,6 +15,7 @@ import {
   GitBranch,
   FileCheck,
   Rocket,
+  TerminalSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -44,6 +45,7 @@ import {
   PlanApplyStep,
   PlanApprovalStep,
 } from "@/components/routers/fleet-wizard/FleetWizardPhase2Steps";
+import { FleetWizardBootstrapStep } from "@/components/routers/fleet-wizard/FleetWizardBootstrapStep";
 import {
   useApplyBasicWan,
   useApplyConfigurationPlan,
@@ -54,6 +56,7 @@ import {
   useGuestInterfaceAvailability,
   usePrepareConfigurationPlan,
   usePreviewBasicWan,
+  usePreviewBootstrapScript,
   useRenderConfigurationPlan,
   useVerifyPlanFinal,
   useVerifyRouterWan,
@@ -62,6 +65,7 @@ import { routerFleetWizardService } from "@/services/router-fleet-wizard.service
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type {
+  FleetBootstrapScriptPreview,
   FleetConfigurationPlan,
   FleetDiscoverResult,
   FleetFinalVerificationResult,
@@ -74,6 +78,12 @@ import type {
 } from "@/types/router-fleet-wizard";
 
 const STEPS = [
+  {
+    key: "bootstrap",
+    title: "Bootstrap",
+    description: "Paste Step 0 enrollment",
+    icon: TerminalSquare,
+  },
   { key: "discover", title: "Discover", description: "Read-only device sweep", icon: Radar },
   {
     key: "compatibility",
@@ -107,6 +117,26 @@ const STEPS = [
   },
   { key: "fleet-online", title: "Fleet online", description: "Checklist sign-off", icon: Rocket },
 ] as const;
+
+const STEP = {
+  bootstrap: 0,
+  discover: 1,
+  compatibility: 2,
+  wanInput: 3,
+  wanApply: 4,
+  wanVerify: 5,
+  topology: 6,
+  guestInput: 7,
+  conflicts: 8,
+  planApproval: 9,
+  apply: 10,
+  finalVerify: 11,
+  fleetOnline: 12,
+} as const;
+
+function needsBootstrapStep(router: RouterDevice): boolean {
+  return router.status === "pending_provisioning" || router.status === "provisioning";
+}
 
 const DEFAULT_WAN_DRAFTS: FleetWanInputDraft[] = [
   {
@@ -184,14 +214,21 @@ export function RouterFleetSetupWizard({
   router: RouterDevice;
   onBack: () => void;
 }) {
-  const [step, setStep] = useState(0);
+  const bootstrapRequired = needsBootstrapStep(router);
+  const [step, setStep] = useState(bootstrapRequired ? STEP.bootstrap : STEP.discover);
   const [discoverResult, setDiscoverResult] = useState<FleetDiscoverResult | null>(null);
+  const [bootstrapPreview, setBootstrapPreview] = useState<FleetBootstrapScriptPreview | null>(
+    null,
+  );
+  const [bootstrapConfirmed, setBootstrapConfirmed] = useState(!bootstrapRequired);
   const [wanDrafts, setWanDrafts] = useState<FleetWanInputDraft[]>(DEFAULT_WAN_DRAFTS);
   const [savedLinkIds, setSavedLinkIds] = useState<string[]>([]);
   const [wanPreview, setWanPreview] = useState<string | null>(null);
   const [applyJobId, setApplyJobId] = useState<string | null>(null);
   const [verification, setVerification] = useState<FleetWanVerificationResult | null>(null);
-  const [completedThrough, setCompletedThrough] = useState(-1);
+  const [completedThrough, setCompletedThrough] = useState(
+    bootstrapRequired ? -1 : STEP.bootstrap,
+  );
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
   const [lanBridge, setLanBridge] = useState("bridge1");
   const [guestRequest, setGuestRequest] = useState<FleetGuestNetworkRequest>(DEFAULT_GUEST_REQUEST);
@@ -204,6 +241,7 @@ export function RouterFleetSetupWizard({
   );
 
   const discover = useDiscoverRouter();
+  const previewBootstrap = usePreviewBootstrapScript();
   const previewWan = usePreviewBasicWan();
   const applyWan = useApplyBasicWan();
   const verifyWan = useVerifyRouterWan();
@@ -247,6 +285,29 @@ export function RouterFleetSetupWizard({
     status: stepStatusForIndex(index, step, completedThrough, blockedAt),
   }));
 
+  async function loadBootstrapPreview() {
+    try {
+      const result = await previewBootstrap.mutateAsync({
+        routerId: router.id,
+        organizationId: router.organizationId,
+      });
+      setBootstrapPreview(result);
+      setBootstrapConfirmed(false);
+      toast.success("Bootstrap script ready — copy and paste on the device");
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not generate bootstrap script");
+    }
+  }
+
+  function continueFromBootstrap() {
+    if (bootstrapRequired && !bootstrapConfirmed) {
+      toast.error("Confirm you pasted the bootstrap script on the device");
+      return;
+    }
+    setCompletedThrough(STEP.bootstrap);
+    setStep(STEP.discover);
+  }
+
   async function runDiscover() {
     try {
       const result = await discover.mutateAsync({
@@ -256,32 +317,32 @@ export function RouterFleetSetupWizard({
       setDiscoverResult(result);
       setBlockedAt(null);
       if (result.snapshot.status === "failed") {
-        setBlockedAt(0);
+        setBlockedAt(STEP.discover);
         toast.error(result.snapshot.errorDetail ?? "Discovery failed");
         return;
       }
-      setCompletedThrough(0);
+      setCompletedThrough(STEP.discover);
       if (result.compatibility.overall === "BLOCKED") {
-        setBlockedAt(1);
+        setBlockedAt(STEP.compatibility);
         toast.error("Compatibility blocked — resolve issues before continuing");
         return;
       }
-      setStep(1);
+      setStep(STEP.compatibility);
     } catch (err) {
       toast.error((err as AppError).message || "Discovery failed");
-      setBlockedAt(0);
+      setBlockedAt(STEP.discover);
     }
   }
 
   function continueFromCompatibility() {
     if (!compatibility) return;
     if (compatibility.overall === "BLOCKED") {
-      setBlockedAt(1);
+      setBlockedAt(STEP.compatibility);
       toast.error("Compatibility is blocked");
       return;
     }
-    setCompletedThrough(1);
-    setStep(2);
+    setCompletedThrough(STEP.compatibility);
+    setStep(STEP.wanInput);
   }
 
   async function saveWanInput() {
@@ -301,8 +362,8 @@ export function RouterFleetSetupWizard({
         wanDrafts,
       );
       setSavedLinkIds(links.map((l) => l.id));
-      setCompletedThrough(2);
-      setStep(3);
+      setCompletedThrough(STEP.wanInput);
+      setStep(STEP.wanApply);
       toast.success("WAN links saved");
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save WAN links");
@@ -351,10 +412,10 @@ export function RouterFleetSetupWizard({
     const status = applyJob.data?.status;
     if (!status) return;
     if (status === "succeeded") {
-      setCompletedThrough(3);
+      setCompletedThrough(STEP.wanApply);
     }
     if (status === "failed" || status === "cancelled") {
-      setBlockedAt(3);
+      setBlockedAt(STEP.wanApply);
       toast.error(applyJob.data?.errorMessage ?? "WAN apply job failed");
     }
   }, [applyJob.data]);
@@ -367,22 +428,22 @@ export function RouterFleetSetupWizard({
       });
       setVerification(result);
       if (!result.gatePasses) {
-        setBlockedAt(4);
+        setBlockedAt(STEP.wanVerify);
         toast.error("WAN verification gate did not pass");
         return;
       }
-      setCompletedThrough(4);
-      setStep(5);
+      setCompletedThrough(STEP.wanVerify);
+      setStep(STEP.topology);
       toast.success("WAN verification passed");
     } catch (err) {
       toast.error((err as AppError).message || "WAN verification failed");
-      setBlockedAt(4);
+      setBlockedAt(STEP.wanVerify);
     }
   }
 
   function continueFromTopology() {
-    setCompletedThrough(5);
-    setStep(6);
+    setCompletedThrough(STEP.topology);
+    setStep(STEP.guestInput);
   }
 
   function buildGuestRequestPayload(): FleetGuestNetworkRequest {
@@ -409,28 +470,28 @@ export function RouterFleetSetupWizard({
       });
       setPlan(built);
       if (built.status === "blocked" || built.conflicts.some((c) => c.status === "BLOCKED")) {
-        setBlockedAt(7);
-        setStep(7);
+        setBlockedAt(STEP.conflicts);
+        setStep(STEP.conflicts);
         toast.error("Plan has blocking conflicts");
         return;
       }
-      setCompletedThrough(6);
-      setStep(7);
+      setCompletedThrough(STEP.guestInput);
+      setStep(STEP.conflicts);
     } catch (err) {
       toast.error((err as AppError).message || "Failed to build configuration plan");
-      setBlockedAt(6);
+      setBlockedAt(STEP.guestInput);
     }
   }
 
   function continueFromConflicts() {
     if (!plan) return;
     if (plan.status === "blocked" || plan.conflicts.some((c) => c.status === "BLOCKED")) {
-      setBlockedAt(7);
+      setBlockedAt(STEP.conflicts);
       toast.error("Resolve blocking conflicts before continuing");
       return;
     }
-    setCompletedThrough(7);
-    setStep(8);
+    setCompletedThrough(STEP.conflicts);
+    setStep(STEP.planApproval);
   }
 
   async function approveAndRenderPlan() {
@@ -448,11 +509,11 @@ export function RouterFleetSetupWizard({
         organizationId: router.organizationId,
       });
       setRenderResult(rendered);
-      setCompletedThrough(8);
+      setCompletedThrough(STEP.planApproval);
       toast.success("Plan approved and rendered");
     } catch (err) {
       toast.error((err as AppError).message || "Failed to approve/render plan");
-      setBlockedAt(8);
+      setBlockedAt(STEP.planApproval);
     }
   }
 
@@ -473,16 +534,16 @@ export function RouterFleetSetupWizard({
       toast.success("Plan apply queued");
     } catch (err) {
       toast.error((err as AppError).message || "Plan apply failed");
-      setBlockedAt(9);
+      setBlockedAt(STEP.apply);
     }
   }
 
   useEffect(() => {
     const status = planApplyJob.data?.status;
     if (!status) return;
-    if (status === "succeeded") setCompletedThrough(9);
+    if (status === "succeeded") setCompletedThrough(STEP.apply);
     if (status === "failed" || status === "cancelled") {
-      setBlockedAt(9);
+      setBlockedAt(STEP.apply);
       toast.error(planApplyJob.data?.errorMessage ?? "Plan apply job failed");
     }
   }, [planApplyJob.data]);
@@ -497,68 +558,72 @@ export function RouterFleetSetupWizard({
       });
       setFinalVerification(result);
       if (result.overall === "FAILED") {
-        setBlockedAt(10);
+        setBlockedAt(STEP.finalVerify);
         toast.error("Final verification failed");
         return;
       }
-      setCompletedThrough(10);
-      setStep(11);
+      setCompletedThrough(STEP.finalVerify);
+      setStep(STEP.fleetOnline);
       toast.success("Final verification complete");
     } catch (err) {
       toast.error((err as AppError).message || "Final verification failed");
-      setBlockedAt(10);
+      setBlockedAt(STEP.finalVerify);
     }
   }
 
   function finishWizard() {
-    setCompletedThrough(11);
+    setCompletedThrough(STEP.fleetOnline);
     toast.success(`${router.name} provisioning wizard complete`);
     onBack();
   }
 
   function finishPhase1() {
-    setCompletedThrough(5);
-    setStep(6);
+    setCompletedThrough(STEP.topology);
+    setStep(STEP.guestInput);
   }
 
   function canGoNext(): boolean {
-    if (step === 0) return !!discoverResult && discoverResult.snapshot.status !== "failed";
-    if (step === 1) return !!compatibility && compatibility.overall !== "BLOCKED";
-    if (step === 2) return savedLinkIds.length > 0;
-    if (step === 3) {
+    if (step === STEP.bootstrap) {
+      return bootstrapConfirmed || !bootstrapRequired;
+    }
+    if (step === STEP.discover) return !!discoverResult && discoverResult.snapshot.status !== "failed";
+    if (step === STEP.compatibility) return !!compatibility && compatibility.overall !== "BLOCKED";
+    if (step === STEP.wanInput) return savedLinkIds.length > 0;
+    if (step === STEP.wanApply) {
       const status = applyJob.data?.status;
       return status === "succeeded";
     }
-    if (step === 4) return !!verification?.gatePasses;
-    if (step === 5) return true;
-    if (step === 6) {
+    if (step === STEP.wanVerify) return !!verification?.gatePasses;
+    if (step === STEP.topology) return true;
+    if (step === STEP.guestInput) {
       const payload = buildGuestRequestPayload();
       return payload.vlanMode || payload.guestInterfaces.length > 0;
     }
-    if (step === 7) {
+    if (step === STEP.conflicts) {
       return (
         !!plan && plan.status !== "blocked" && !plan.conflicts.some((c) => c.status === "BLOCKED")
       );
     }
-    if (step === 8) return !!renderResult;
-    if (step === 9) return planApplyJob.data?.status === "succeeded";
-    if (step === 10) {
+    if (step === STEP.planApproval) return !!renderResult;
+    if (step === STEP.apply) return planApplyJob.data?.status === "succeeded";
+    if (step === STEP.finalVerify) {
       return !!finalVerification && finalVerification.overall !== "FAILED";
     }
     return false;
   }
 
   function goNext() {
-    if (step === 1) continueFromCompatibility();
-    else if (step === 2) void saveWanInput();
-    else if (step === 4) runWanVerify();
-    else if (step === 5) finishPhase1();
-    else if (step === 6) void buildPlanFromGuestInput();
-    else if (step === 7) continueFromConflicts();
-    else if (step === 8) setStep(9);
-    else if (step === 9) setStep(10);
-    else if (step === 10) runFinalVerification();
-    else if (step === 11) finishWizard();
+    if (step === STEP.bootstrap) continueFromBootstrap();
+    else if (step === STEP.compatibility) continueFromCompatibility();
+    else if (step === STEP.wanInput) void saveWanInput();
+    else if (step === STEP.wanVerify) runWanVerify();
+    else if (step === STEP.topology) finishPhase1();
+    else if (step === STEP.guestInput) void buildPlanFromGuestInput();
+    else if (step === STEP.conflicts) continueFromConflicts();
+    else if (step === STEP.planApproval) setStep(STEP.apply);
+    else if (step === STEP.apply) setStep(STEP.finalVerify);
+    else if (step === STEP.finalVerify) runFinalVerification();
+    else if (step === STEP.fleetOnline) finishWizard();
     else setStep((s) => Math.min(STEPS.length - 1, s + 1));
   }
 
@@ -583,7 +648,18 @@ export function RouterFleetSetupWizard({
 
           <div className="flex min-h-[560px] flex-col">
             <div className="flex-1 space-y-5 p-6">
-              {step === 0 && (
+              {step === STEP.bootstrap && (
+                <FleetWizardBootstrapStep
+                  router={router}
+                  preview={bootstrapPreview}
+                  loading={previewBootstrap.isPending}
+                  skipped={!bootstrapRequired}
+                  confirmed={bootstrapConfirmed}
+                  onGenerate={() => void loadBootstrapPreview()}
+                  onConfirmedChange={setBootstrapConfirmed}
+                />
+              )}
+              {step === STEP.discover && (
                 <DiscoverStep
                   router={router}
                   snapshot={snapshot}
@@ -591,17 +667,17 @@ export function RouterFleetSetupWizard({
                   onDiscover={runDiscover}
                 />
               )}
-              {step === 1 && compatibility && (
+              {step === STEP.compatibility && compatibility && (
                 <CompatibilityStep compatibility={compatibility} snapshot={snapshot} />
               )}
-              {step === 2 && (
+              {step === STEP.wanInput && (
                 <WanInputStep
                   drafts={wanDrafts}
                   etherOptions={etherOptions}
                   onChange={setWanDrafts}
                 />
               )}
-              {step === 3 && (
+              {step === STEP.wanApply && (
                 <WanApplyStep
                   lanBridge={lanBridge}
                   onLanBridgeChange={setLanBridge}
@@ -614,11 +690,11 @@ export function RouterFleetSetupWizard({
                   onApply={runWanApply}
                 />
               )}
-              {step === 4 && (
+              {step === STEP.wanVerify && (
                 <WanVerifyStep verification={verification} loading={verifyWan.isPending} />
               )}
-              {step === 5 && snapshot && <TopologyStep snapshot={snapshot} />}
-              {step === 6 && (
+              {step === STEP.topology && snapshot && <TopologyStep snapshot={snapshot} />}
+              {step === STEP.guestInput && (
                 <GuestInputStep
                   availability={guestAvailability.data}
                   loading={guestAvailability.isLoading}
@@ -628,8 +704,8 @@ export function RouterFleetSetupWizard({
                   onVlanDraftChange={setVlanDraft}
                 />
               )}
-              {step === 7 && <ConflictReviewStep plan={plan} />}
-              {step === 8 && (
+              {step === STEP.conflicts && <ConflictReviewStep plan={plan} />}
+              {step === STEP.planApproval && (
                 <PlanApprovalStep
                   plan={plan}
                   renderResult={renderResult}
@@ -638,7 +714,7 @@ export function RouterFleetSetupWizard({
                   onApproveAndRender={approveAndRenderPlan}
                 />
               )}
-              {step === 9 && (
+              {step === STEP.apply && (
                 <PlanApplyStep
                   job={planApplyJob.data}
                   jobLoading={planApplyJob.isFetching}
@@ -647,14 +723,14 @@ export function RouterFleetSetupWizard({
                   onRunApply={runPlanApply}
                 />
               )}
-              {step === 10 && (
+              {step === STEP.finalVerify && (
                 <FinalVerifyStep
                   result={finalVerification}
                   loading={verifyFinal.isPending}
                   onVerify={runFinalVerification}
                 />
               )}
-              {step === 11 && (
+              {step === STEP.fleetOnline && (
                 <FleetOnlineStep result={finalVerification} routerName={router.name} />
               )}
             </div>
@@ -663,15 +739,23 @@ export function RouterFleetSetupWizard({
               <Button
                 type="button"
                 variant="outline"
-                disabled={step === 0}
-                onClick={() => setStep((s) => Math.max(0, s - 1))}
+                disabled={step === STEP.bootstrap}
+                onClick={() => setStep((s) => Math.max(STEP.bootstrap, s - 1))}
               >
                 <ChevronLeft className="h-4 w-4" /> Back
               </Button>
               <div className="text-xs text-muted-foreground">
                 Step {step + 1} of {STEPS.length}
               </div>
-              {step === 0 ? (
+              {step === STEP.bootstrap ? (
+                <Button
+                  type="button"
+                  onClick={continueFromBootstrap}
+                  disabled={bootstrapRequired && !bootstrapConfirmed}
+                >
+                  Continue to discovery <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : step === STEP.discover ? (
                 <Button type="button" onClick={runDiscover} disabled={discover.isPending}>
                   {discover.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -680,11 +764,11 @@ export function RouterFleetSetupWizard({
                   )}
                   {discoverResult ? "Re-run discovery" : "Run discovery"}
                 </Button>
-              ) : step === 3 ? (
+              ) : step === STEP.wanApply ? (
                 <Button type="button" variant="outline" onClick={goNext} disabled={!canGoNext()}>
                   Continue <ChevronRight className="h-4 w-4" />
                 </Button>
-              ) : step === 4 ? (
+              ) : step === STEP.wanVerify ? (
                 <Button type="button" onClick={runWanVerify} disabled={verifyWan.isPending}>
                   {verifyWan.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -693,11 +777,11 @@ export function RouterFleetSetupWizard({
                   )}
                   Run verification
                 </Button>
-              ) : step === 5 ? (
+              ) : step === STEP.topology ? (
                 <Button type="button" onClick={finishPhase1}>
                   Continue to guest setup <ChevronRight className="h-4 w-4" />
                 </Button>
-              ) : step === 6 ? (
+              ) : step === STEP.guestInput ? (
                 <Button
                   type="button"
                   onClick={goNext}
@@ -710,15 +794,15 @@ export function RouterFleetSetupWizard({
                   )}
                   Build plan
                 </Button>
-              ) : step === 8 ? (
+              ) : step === STEP.planApproval ? (
                 <Button type="button" variant="outline" onClick={goNext} disabled={!canGoNext()}>
                   Continue <ChevronRight className="h-4 w-4" />
                 </Button>
-              ) : step === 9 ? (
+              ) : step === STEP.apply ? (
                 <Button type="button" variant="outline" onClick={goNext} disabled={!canGoNext()}>
                   Continue <ChevronRight className="h-4 w-4" />
                 </Button>
-              ) : step === 10 ? (
+              ) : step === STEP.finalVerify ? (
                 <Button
                   type="button"
                   onClick={runFinalVerification}
@@ -731,7 +815,7 @@ export function RouterFleetSetupWizard({
                   )}
                   Run final verification
                 </Button>
-              ) : step === 11 ? (
+              ) : step === STEP.fleetOnline ? (
                 <Button type="button" onClick={finishWizard}>
                   <CheckCircle2 className="h-4 w-4" /> Finish
                 </Button>
