@@ -288,6 +288,10 @@ function PortalPreviewPage() {
           backgroundTopLuminance: null,
           backgroundEntropy: null,
           pinLoginEnabled: false,
+          // v7 Part 3 P4: same reasoning as the focal defaults above -- the
+          // preview shows what an unconfigured venue actually gets, and the
+          // backend default is `true`.
+          poweredByEnabled: true,
           locationCountry: null,
         }
       : null);

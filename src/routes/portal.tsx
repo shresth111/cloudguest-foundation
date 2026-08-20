@@ -156,7 +156,7 @@ function IncompletePortalLinkError() {
   return (
     <div
       className="flex min-h-dvh w-full items-center justify-center px-4"
-      style={{ fontFamily: PG_FONT_STACK, background: "#FAFAF8" }}
+      style={{ fontFamily: PG_FONT_STACK, background: "#F8F8FC" }}
     >
       <PortalCard className="pg-enter w-full max-w-[400px] text-center">
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#6366f1]">
@@ -209,7 +209,7 @@ export const Route = createFileRoute("/portal")({
       { title: "WyFy" },
       { name: "description", content: "Connect to complimentary guest WiFi." },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "theme-color", content: "#0F172A" },
+      { name: "theme-color", content: "#1E1B4B" },
     ],
   }),
   component: PortalRuntimeLayout,

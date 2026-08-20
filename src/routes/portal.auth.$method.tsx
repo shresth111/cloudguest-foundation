@@ -179,7 +179,10 @@ function AuthMethodPage() {
               <img
                 src={config.logoUrl}
                 alt=""
-                className="h-16 w-16 object-contain drop-shadow sm:h-20 sm:w-20 md:h-24 md:w-24"
+                // Height-constrained, width free -- see GuestSignInCard.tsx's
+                // full note on why a fixed-width box silently shrinks every
+                // horizontal venue lockup.
+                className="h-16 w-auto max-w-[200px] object-contain drop-shadow sm:h-20 sm:max-w-[240px] md:h-24 md:max-w-[280px]"
               />
             ) : (
               <div

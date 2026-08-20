@@ -321,7 +321,12 @@ function PortalLoading() {
           <img
             src={config.logoUrl}
             alt={config.name}
-            className="h-24 w-24 object-contain drop-shadow-lg sm:h-32 sm:w-32 md:h-36 md:w-36"
+            // Height-constrained, width free -- see GuestSignInCard.tsx's
+            // full note. A fixed `w-24` box rendered a 5:1 venue lockup at
+            // 96 x 19 CSS px; this is the same one-class fix at the same
+            // defect, and it is here rather than only on the sign-in card
+            // because a guest sees this screen first.
+            className="h-24 w-auto max-w-[280px] object-contain drop-shadow-lg sm:h-32 sm:max-w-[320px] md:h-36 md:max-w-[360px]"
           />
         ) : (
           // Flat single-color fill in the venue's own --pr-primary, not a
@@ -332,7 +337,7 @@ function PortalLoading() {
           // together as a gradient. Shadow pulled back from the previous
           // shadow-xl/25 glow to the same small, tight shadow the rest of
           // this flat card system already uses.
-          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
+          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
             <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
           </div>
         )}

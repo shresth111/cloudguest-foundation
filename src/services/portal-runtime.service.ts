@@ -65,6 +65,10 @@ interface BackendCaptivePortalConfig {
   /** Returned since backend 0085 and, until v7, never mapped -- see
    * `RuntimePortalConfig.pinLoginEnabled`. */
   pin_login_enabled?: boolean;
+  /** v7 Part 3 (P4) -- see `RuntimePortalConfig.poweredByEnabled`. Optional
+   * until `feat/v7-part23-backend` lands; absent means "no white-label
+   * machinery exists yet", which renders the mark, same as `true`. */
+  powered_by_enabled?: boolean;
   /** Returned since backend PR #33 ("Expose resolved location's country on
    * GET /captive-portal/resolve") and, until v7, never mapped -- see
    * `RuntimePortalConfig.locationCountry`. ISO 3166-1 alpha-2, never a
@@ -184,6 +188,12 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     backgroundEntropy: toBackgroundMetric(c.background_entropy),
     // Both already returned by the API before v7 and simply never read.
     pinLoginEnabled: c.pin_login_enabled ?? false,
+    // v7 Part 3 P4. `?? true`, the exact opposite default to pinLogin's
+    // `?? false`, and both are the conservative reading: an absent field
+    // must not switch a sign-in method on, and must not switch the
+    // attribution mark off -- turning it off is the entitlement-gated
+    // action, so it only ever happens on an explicit backend `false`.
+    poweredByEnabled: c.powered_by_enabled ?? true,
     locationCountry: c.location_country ?? null,
   };
 }

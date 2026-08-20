@@ -707,9 +707,68 @@
  * class on a portal route yet.
  */
 .portal-runtime {
-  --pg-canvas: #FAFAF8;
+  /* ---------------------------------------------------------------------
+   * v7 Parts 2 & 3 -- brand alignment with wyfyguest.com, at zero bytes.
+   * ---------------------------------------------------------------------
+   * The founder asked why the portal has never looked like the marketing
+   * site. The honest answer is that nobody ever wrote it down: v4 through v7
+   * are defect lists, not one of them names brand consistency as a goal, and
+   * the two surfaces live in different repos on different stacks with no
+   * shared design system. So they were never going to converge on their own.
+   *
+   * The values below are read off `~/wyfy-guest-website/src/styles/global.css`
+   * and confirmed against the live computed styles of the rendered hero at
+   * 390x844, not eyeballed from a screenshot:
+   *
+   *   --color-ink    #1E1B4B   body colour, every h1-h4
+   *   --color-paper  #F8F8FC   body background
+   *   --shadow-card  0 1px 2px rgba(30,27,75,.06), 0 8px 24px -12px rgba(30,27,75,.18)
+   *   .eyebrow       12px / 600 / +0.14em / uppercase
+   *   h1             Poppins 600, -0.02em
+   *   violet-700     #6D28D9   eyebrow + accent ink
+   *
+   * The typeface is deliberately NOT matched, and that decision is costed
+   * rather than assumed -- see the report and PortalShell's `PG_FONT_STACK`.
+   * Android's CaptivePortalLogin WebView calls `clearCache(true)` on every
+   * activity creation, so a webfont here is not amortised across visits, it
+   * is re-downloaded by every guest at every venue on every session; and a
+   * swap on this screen's centred 26px headline was measured at up to +25.5px
+   * of growth, which re-wraps the line and moves the form under the guest's
+   * thumb. Everything else about the brand is carried by colour, weight,
+   * tracking, rhythm and the lockup, all of which are free.
+   * --------------------------------------------------------------------- */
+  /* wyfyguest.com `--color-paper`. Was #FAFAF8, a warm neutral; the site's
+   * paper is a cool violet-white, and side by side the temperature was the
+   * first thing that read as "two different products". Visible on the
+   * no-photo canvas and behind the card. */
+  --pg-canvas: #F8F8FC;
   --pg-surface: #FFFFFF;
-  --pg-ink: #0F172A;
+  /* wyfyguest.com `--color-ink` (indigo-950), the site's body colour and the
+   * colour of every heading on it. Was #0F172A (slate-900) -- the same
+   * lightness, a different hue family, and the single largest carrier of
+   * "this is a different brand" on the screen.
+   *
+   * Re-derived rather than assumed, because this token is load-bearing:
+   *   #0F172A  17.85:1 on #FFFFFF   12.62:1 on the worst plate composite
+   *   #1E1B4B  15.99:1 on #FFFFFF   11.30:1 on the worst plate composite
+   * `pg-title` is 26px/700, i.e. WCAG large text needing 3:1, and body uses
+   * of this token need 4.5:1. Both clear by a factor of three or more, so
+   * this is a hue change with no contrast consequence -- confirmed
+   * end-to-end by `npm run measure:portal-contrast`, which measures the real
+   * composited pixels rather than the token in isolation. */
+  --pg-ink: #1E1B4B;
+  /* wyfyguest.com violet-700, the site's `.eyebrow` colour and the accent in
+   * its logo lockup. The one saturated brand colour the portal uses, and it
+   * is used in exactly two places: the greeting eyebrow above the venue's
+   * name, and the Wyfy mark in the footer lockup. Never on the venue's own
+   * name, never on body copy, never as a surface.
+   *   7.10:1 on #FFFFFF, 6.72:1 on --pg-canvas, 5.02:1 on the worst plate
+   *   composite (#D9D9D9). Clears 4.5:1 as text at any size and 3:1 as a
+   *   non-text graphic, everywhere it appears.
+   * Deliberately not `--pr-primary`: that is the *venue's* colour, it is
+   * unbounded, and its own default (#6366f1) measures 4.47:1 on white --
+   * it fails as small text before a venue has changed anything. */
+  --pg-brand-accent: #6D28D9;
   /* captive-portal-v7-design-spec.md §1.5/§7.4-4 -- was #64748B (slate-500).
    * Every ratio below is computed (sRGB relative luminance, WCAG 2.x
    * formula), not eyeballed; see this token block's `--pg-ink-faint` note
@@ -820,7 +879,7 @@
 .portal-runtime[data-pg-scrim="dark"] input,
 .portal-runtime[data-pg-scrim="dark"] textarea,
 .portal-runtime[data-pg-scrim="dark"] select {
-  --pg-ink: #0F172A;
+  --pg-ink: #1E1B4B;
   --pg-ink-muted: #475569;
   --pg-ink-faint: #505E73;
 }
@@ -844,6 +903,19 @@
     --pg-ink-faint: #334155;
     --pg-border: #64748B;
   }
+  /* v7 Part 3. `--pg-border` above reaches `PortalCard`, which asks for it
+   * by token -- but `GUEST_LEGIBILITY_CARD_CLASS` hard-codes
+   * `border-white/60`, so every `PortalTextPlate` (the footer's attribution
+   * plate included) kept a white hairline while everything around it
+   * darkened. Combined with the rule below, which drops the photo, that left
+   * a white box floating on a near-white canvas with no discernible edge --
+   * confirmed in a render at 390x844 under `prefers-contrast: more`.
+   * #64748B measures 4.76:1 against `--pg-surface`, comfortably clearing SC
+   * 1.4.11's 3:1 for a non-text boundary, and both colours are ours so the
+   * ratio holds whatever the photo does. */
+  .portal-runtime .pg-surface-card {
+    border-color: #64748B;
+  }
   /* v7 §1.4 / §7.5 composition rule: under an explicit request for more
    * contrast, **drop the photo and the scrim entirely** and let the text
    * stand on the flat `--pg-canvas` token, rather than computing a "more
@@ -861,7 +933,7 @@
     display: none !important;
   }
   .portal-runtime[data-pg-scrim="dark"] {
-    --pg-ink: #0F172A;
+    --pg-ink: #1E1B4B;
     --pg-ink-muted: #334155;
     --pg-ink-faint: #334155;
   }
@@ -885,7 +957,7 @@
   display: none !important;
 }
 .portal-runtime[data-pg-contrast="more"][data-pg-scrim="dark"] {
-  --pg-ink: #0F172A;
+  --pg-ink: #1E1B4B;
   --pg-ink-muted: #334155;
   --pg-ink-faint: #334155;
 }
@@ -1051,7 +1123,22 @@
   font-size: calc(1.625rem * var(--pg-type-scale, 1)); /* 26px @ 16px root */
   line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  /* v7 Parts 2 & 3, brand alignment: was -0.015em. wyfyguest.com's hero h1
+   * computes to -0.88px on 44px, i.e. **-0.02em**, and `pg-display` here was
+   * already at -0.02em -- so this token was the odd one out both against the
+   * site and against its own scale. Tracking is the affordable half of a
+   * typographic match: it is free, it is the part a reader perceives as
+   * "same voice", and unlike a weight change it does not weaken the venue's
+   * name, which Part 2 exists to strengthen.
+   *
+   * The site's headings are 600, not 700. That half is deliberately NOT
+   * matched: the site can afford 600 because Poppins is a geometric face
+   * with a tall x-height that reads heavy at 600, whereas on the system
+   * stack -- SF, Segoe, or an unknowable Android OEM face -- 600 reads
+   * markedly lighter, and dropping the venue's name to it would undo the
+   * hierarchy Part 2 is built on. See styles.css's `--pg-ink` note for why
+   * the typeface itself is not matched at all. */
+  letter-spacing: -0.02em;
   font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-subtitle {
@@ -1076,6 +1163,81 @@
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* v7 Parts 2 & 3 -- wyfyguest.com's `.eyebrow`, reproduced exactly.
+ *
+ * Values read off that site's `src/styles/global.css` and confirmed against
+ * the rendered hero's live computed styles at 390x844: `font-size: 12px`,
+ * `font-weight: 600`, `letter-spacing: 1.68px` (= 0.14em at 12px),
+ * `text-transform: uppercase`. It is the marketing site's most repeated
+ * typographic signature -- it opens every section there -- and it costs
+ * nothing to reproduce, which makes it the single best zero-byte statement
+ * that the portal and the site are one product.
+ *
+ * NOT reproduced: the site's `.eyebrow::after`, a 32x3px violet-to-indigo
+ * gradient tick. On a marketing page that is a section opener; on this
+ * screen it would sit directly above the venue's own name, and decorating a
+ * customer's identity with our brand furniture is the one thing §3 P5 says
+ * not to do.
+ *
+ * `--pg-type-scale` is folded in for the same reason every other utility
+ * here does it, and the size is authored in `rem` so the platform's own text
+ * scaling reaches it too. */
+@utility pg-eyebrow {
+  font-size: calc(0.75rem * var(--pg-type-scale, 1)); /* 12px @ 16px root */
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* captive-portal-v7-design-spec.md Part 2 -- extra leading for Brahmic
+ * scripts, applied per *string* rather than per UI language. See
+ * src/lib/portal-script.ts for why `:lang()` is the wrong key (a venue's
+ * Tamil name renders inside an English UI on `lang="en"`) and for the
+ * measurement this is sized against.
+ *
+ * The defect, measured in a real browser at 390x844, `--pg-type-scale: 1.25`
+ * (so `pg-title` = 32.5px), a 40-character Devanagari venue name on the
+ * shipped system stack: each line's client rect is **42px tall inside a
+ * 37.375px line box**, and successive line tops sit 37.3px apart -- so every
+ * pair of lines overlaps by 4.7px, and line 2's upper matras run into line
+ * 1's descenders. At the default scale it is 3.7px. Brahmic scripts hang
+ * from a head-stroke with matras stacking above *and* below it, so their
+ * inked envelope is far taller than Latin's at the same font-size; 1.15 was
+ * tuned for Latin and is simply too small to hold them.
+ *
+ * The published metrics for Noto Sans Devanagari -- the Android fallback
+ * named in `PG_FONT_STACK`, i.e. the majority case for this product -- put
+ * its ink box near 1.36em, worse than the face the measurement above was
+ * taken on. 1.45 clears that with margin; 1.38 does for `pg-display`, which
+ * only ever carries the desktop BrandPanel heading.
+ *
+ * Specificity note, since this has to beat the `@utility` definitions:
+ * `.portal-runtime [data-pg-script]` is (0,2,0) against a bare utility
+ * class's (0,1,0), so it wins on specificity and does not depend on source
+ * or layer order. Latin strings never carry the attribute at all, so the
+ * Latin type scale is byte-for-byte unchanged -- this is additive, not a
+ * retune of Part 6. */
+.portal-runtime [data-pg-script="tall"] {
+  line-height: 1.5;
+  /* Negative tracking is a Latin device. Brahmic scripts are assembled from
+   * a base glyph plus matras and conjunct ligatures, and pulling the
+   * letterfit tighter closes the gaps those marks need -- so `pg-title`'s
+   * -0.02em, and `pg-eyebrow`'s +0.14em, are both wrong here for opposite
+   * reasons. `normal` is the only correct value for either. This also
+   * corrects a pre-existing defect: `pg-title`'s negative tracking has been
+   * applied to Devanagari venue names for as long as the utility has
+   * existed. */
+  letter-spacing: normal;
+}
+.portal-runtime .pg-title[data-pg-script="tall"],
+.portal-runtime .pg-subtitle[data-pg-script="tall"] {
+  line-height: 1.45;
+}
+.portal-runtime .pg-display[data-pg-script="tall"] {
+  line-height: 1.38;
 }
 
 /* CSS-only replacement for ConnectedIllustration's (portal.session.tsx)
