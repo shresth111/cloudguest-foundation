@@ -185,6 +185,7 @@ import { Route as AuthenticatedAnalyticsExecutiveRouteImport } from './routes/_a
 import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_authenticated/analytics.device'
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
 import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './routes/_authenticated/locations.$locationId.index'
+import { Route as MasterRoutersSetupRouterIdRouteImport } from './routes/master.routers.setup.$routerId'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
 import { Route as AuthenticatedLocationsLocationIdNasNasIdRouteImport } from './routes/_authenticated/locations.$locationId.nas.$nasId'
 
@@ -1146,6 +1147,12 @@ const AuthenticatedLocationsLocationIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedLocationsLocationIdRoute,
   } as any)
+const MasterRoutersSetupRouterIdRoute =
+  MasterRoutersSetupRouterIdRouteImport.update({
+    id: '/setup/$routerId',
+    path: '/setup/$routerId',
+    getParentRoute: () => MasterRoutersRoute,
+  } as any)
 const AuthenticatedWorkspaceLocationsLocationIdRoute =
   AuthenticatedWorkspaceLocationsLocationIdRouteImport.update({
     id: '/$locationId',
@@ -1223,7 +1230,7 @@ export interface FileRoutesByFullPath {
   '/master/nas': typeof MasterNasRoute
   '/master/operators': typeof MasterOperatorsRoute
   '/master/quotations': typeof MasterQuotationsRoute
-  '/master/routers': typeof MasterRoutersRoute
+  '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -1335,6 +1342,7 @@ export interface FileRoutesByFullPath {
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
   '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -1398,7 +1406,7 @@ export interface FileRoutesByTo {
   '/master/nas': typeof MasterNasRoute
   '/master/operators': typeof MasterOperatorsRoute
   '/master/quotations': typeof MasterQuotationsRoute
-  '/master/routers': typeof MasterRoutersRoute
+  '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/closed': typeof PortalClosedRoute
@@ -1508,6 +1516,7 @@ export interface FileRoutesByTo {
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -1577,7 +1586,7 @@ export interface FileRoutesById {
   '/master/nas': typeof MasterNasRoute
   '/master/operators': typeof MasterOperatorsRoute
   '/master/quotations': typeof MasterQuotationsRoute
-  '/master/routers': typeof MasterRoutersRoute
+  '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -1689,6 +1698,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
+  '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
   '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -1870,6 +1880,7 @@ export interface FileRouteTypes {
     | '/workspace/'
     | '/portal/auth/'
     | '/workspace/locations/$locationId'
+    | '/master/routers/setup/$routerId'
     | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
   fileRoutesByTo: FileRoutesByTo
@@ -2043,6 +2054,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/portal/auth'
     | '/workspace/locations/$locationId'
+    | '/master/routers/setup/$routerId'
     | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
   id:
@@ -2223,6 +2235,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/'
     | '/portal/auth/'
     | '/_authenticated/workspace/locations/$locationId'
+    | '/master/routers/setup/$routerId'
     | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
   fileRoutesById: FileRoutesById
@@ -3515,6 +3528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsLocationIdIndexRouteImport
       parentRoute: typeof AuthenticatedLocationsLocationIdRoute
     }
+    '/master/routers/setup/$routerId': {
+      id: '/master/routers/setup/$routerId'
+      path: '/setup/$routerId'
+      fullPath: '/master/routers/setup/$routerId'
+      preLoaderRoute: typeof MasterRoutersSetupRouterIdRouteImport
+      parentRoute: typeof MasterRoutersRoute
+    }
     '/_authenticated/workspace/locations/$locationId': {
       id: '/_authenticated/workspace/locations/$locationId'
       path: '/$locationId'
@@ -3790,6 +3810,18 @@ const AgentRouteChildren: AgentRouteChildren = {
 
 const AgentRouteWithChildren = AgentRoute._addFileChildren(AgentRouteChildren)
 
+interface MasterRoutersRouteChildren {
+  MasterRoutersSetupRouterIdRoute: typeof MasterRoutersSetupRouterIdRoute
+}
+
+const MasterRoutersRouteChildren: MasterRoutersRouteChildren = {
+  MasterRoutersSetupRouterIdRoute: MasterRoutersSetupRouterIdRoute,
+}
+
+const MasterRoutersRouteWithChildren = MasterRoutersRoute._addFileChildren(
+  MasterRoutersRouteChildren,
+)
+
 interface MasterRouteChildren {
   MasterAnalyticsRoute: typeof MasterAnalyticsRoute
   MasterAuditRoute: typeof MasterAuditRoute
@@ -3803,7 +3835,7 @@ interface MasterRouteChildren {
   MasterNasRoute: typeof MasterNasRoute
   MasterOperatorsRoute: typeof MasterOperatorsRoute
   MasterQuotationsRoute: typeof MasterQuotationsRoute
-  MasterRoutersRoute: typeof MasterRoutersRoute
+  MasterRoutersRoute: typeof MasterRoutersRouteWithChildren
   MasterSettingsRoute: typeof MasterSettingsRoute
   MasterTicketsRoute: typeof MasterTicketsRoute
   MasterIndexRoute: typeof MasterIndexRoute
@@ -3822,7 +3854,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterNasRoute: MasterNasRoute,
   MasterOperatorsRoute: MasterOperatorsRoute,
   MasterQuotationsRoute: MasterQuotationsRoute,
-  MasterRoutersRoute: MasterRoutersRoute,
+  MasterRoutersRoute: MasterRoutersRouteWithChildren,
   MasterSettingsRoute: MasterSettingsRoute,
   MasterTicketsRoute: MasterTicketsRoute,
   MasterIndexRoute: MasterIndexRoute,

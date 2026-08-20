@@ -16,7 +16,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ArrowLeft,
-  WifiOff,
+  Workflow,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -1536,7 +1536,7 @@ function RouterFleetScreen() {
                   <MTh>RouterOS</MTh>
                   <MTh>Last seen</MTh>
                   <MTh>Status</MTh>
-                  {!demo && <MTh className="text-right">Setup</MTh>}
+                  {!demo && <MTh className="text-right">Actions</MTh>}
                 </>
               }
             >
@@ -1564,17 +1564,28 @@ function RouterFleetScreen() {
                     </MTd>
                     {!demo && (
                       <MTd className="text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            goToSetup(r.id);
-                          }}
-                          title="Generate this router's setup script"
-                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:border-primary hover:bg-accent"
-                        >
-                          <FileCode2 className="h-3 w-3" /> Setup script
-                        </button>
+                        <div className="flex justify-end gap-1">
+                          <Link
+                            to="/master/routers/setup/$routerId"
+                            params={{ routerId: r.id }}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Open server-driven provisioning wizard"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:border-primary hover:bg-accent"
+                          >
+                            <Workflow className="h-3 w-3" /> Wizard
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              goToSetup(r.id);
+                            }}
+                            title="Generate this router's setup script"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:border-primary hover:bg-accent"
+                          >
+                            <FileCode2 className="h-3 w-3" /> Setup script
+                          </button>
+                        </div>
                       </MTd>
                     )}
                   </MTr>
