@@ -215,6 +215,41 @@ const EN: Dict = {
   whyWeAskMobile: "We text your one-time sign-in code to this number.",
   whyWeAskWhatsapp: "We send your one-time sign-in code to this WhatsApp number.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal redesign (shadcn pass) -- ADDED BY THE REDESIGN WORKSTREAM
+  // Reconcile this block wholesale at merge; nothing above or below it is
+  // touched. State screens (expired/failure/offline/redirect), the
+  // deep-link verify/auth-method surfaces, PortalConnectingState, the
+  // session nudges and portal.terms were shipped hardcoded-English in 9 of
+  // 10 languages; these keys close that. `redirectNoticeTemplate` /
+  // `redirectCountdownTemplate` substitute {host}/{n} at the call site,
+  // matching `resendAvailableInTemplate`'s existing convention.
+  backLabel: "Back",
+  authMethodSubtitle: "Complete the form below to get online.",
+  verifyTitle: "Enter your code",
+  connectingTitle: "Connecting you to the internet…",
+  connectingSubtitle: "Just a moment.",
+  expiredSubtitle: "You've been disconnected from the network.",
+  expiredHelp: "Sign in again to continue using guest WiFi.",
+  useOtpInsteadLabel: "Use a one-time code instead",
+  failureSubtitle: "Please check your details and try again.",
+  failureHelp: "If the issue continues, please ask venue staff for assistance.",
+  offlineHelp: "Make sure you're connected to the venue's guest WiFi network, then try again.",
+  redirectNoticeTemplate: "You'll be sent to {host} shortly.",
+  redirectCountdownTemplate: "Continuing in {n}s",
+  continueNowLabel: "Continue now",
+  unknownMethodLabel: "Unknown sign-in method.",
+  usePasswordInstead: "Sign in with a saved password instead",
+  termsReadFullDocument: "Read the full document",
+  termsQuestionsAskStaff: "Questions about this network or your data? Ask venue staff.",
+  termsBackToSignIn: "Back to sign in",
+  nudgeSetPasswordTitle: "Set a password for next time",
+  nudgeSetPasswordSubtitle: "Skip the code on your next visit",
+  nudgeTeamTitle: "Have a team code?",
+  nudgeTeamSubtitle: "Join your group's shared data and quota",
+  noExpiryLabel: "No expiry set",
+  ipUnknownLabel: "IP unknown",
+  disconnectingLabel: "Disconnecting…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 const HI: Dict = {
@@ -392,6 +427,35 @@ const HI: Dict = {
   whyWeAskMobile: "हम आपका एक-बार का साइन-इन कोड इसी नंबर पर भेजते हैं।",
   whyWeAskWhatsapp: "हम आपका एक-बार का साइन-इन कोड इसी व्हाट्सऐप नंबर पर भेजते हैं।",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "वापस",
+  authMethodSubtitle: "ऑनलाइन होने के लिए नीचे दिया गया फ़ॉर्म भरें।",
+  verifyTitle: "अपना कोड दर्ज करें",
+  connectingTitle: "आपको इंटरनेट से कनेक्ट किया जा रहा है…",
+  connectingSubtitle: "बस एक क्षण।",
+  expiredSubtitle: "आपको नेटवर्क से डिस्कनेक्ट कर दिया गया है।",
+  expiredHelp: "गेस्ट वाई-फाई का उपयोग जारी रखने के लिए फिर से साइन इन करें।",
+  useOtpInsteadLabel: "इसके बजाय OTP का उपयोग करें",
+  failureSubtitle: "कृपया अपनी जानकारी जांचें और फिर कोशिश करें।",
+  failureHelp: "समस्या बनी रहे तो कृपया वेन्यू स्टाफ से सहायता लें।",
+  offlineHelp:
+    "सुनिश्चित करें कि आप वेन्यू के गेस्ट वाई-फाई नेटवर्क से जुड़े हैं, फिर से प्रयास करें।",
+  redirectNoticeTemplate: "आपको शीघ्र ही {host} पर भेजा जाएगा।",
+  redirectCountdownTemplate: "{n} सेकंड में आगे बढ़ रहे हैं",
+  continueNowLabel: "अभी जारी रखें",
+  unknownMethodLabel: "अज्ञात साइन-इन विधि।",
+  usePasswordInstead: "इसके बजाय सहेजे गए पासवर्ड से साइन इन करें",
+  termsReadFullDocument: "पूरा दस्तावेज़ पढ़ें",
+  termsQuestionsAskStaff: "इस नेटवर्क या अपने डेटा के बारे में प्रश्न? वेन्यू स्टाफ से पूछें।",
+  termsBackToSignIn: "साइन इन पर वापस जाएं",
+  nudgeSetPasswordTitle: "अगली बार के लिए पासवर्ड सेट करें",
+  nudgeSetPasswordSubtitle: "अगली बार कोड की ज़रूरत नहीं पड़ेगी",
+  nudgeTeamTitle: "टीम कोड है?",
+  nudgeTeamSubtitle: "अपने समूह के साझा डेटा और कोटा से जुड़ें",
+  noExpiryLabel: "कोई समय-सीमा नहीं",
+  ipUnknownLabel: "IP अज्ञात",
+  disconnectingLabel: "डिस्कनेक्ट किया जा रहा है…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 /* The eight Indian languages below match the marketing site's set exactly
  * (`wyfy-guest-website/src/i18n/ui/*.ts`), and each was transcreated from that
@@ -570,6 +634,34 @@ const BN: Dict = {
   countryCodeLabel: "দেশের কোড",
   otpCodeLabel: "6 অঙ্কের কোড",
   otpCodeHint: "আমরা যে 6 অঙ্কের কোড পাঠিয়েছি সেটা লিখুন।",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "পিছনে",
+  authMethodSubtitle: "অনলাইনে যেতে নিচের ফর্মটি পূরণ করুন।",
+  verifyTitle: "আপনার কোড লিখুন",
+  connectingTitle: "আপনাকে ইন্টারনেটে কানেক্ট করা হচ্ছে…",
+  connectingSubtitle: "একটু অপেক্ষা করুন।",
+  expiredSubtitle: "আপনাকে নেটওয়ার্ক থেকে disconnect করা হয়েছে।",
+  expiredHelp: "Guest WiFi ব্যবহার চালিয়ে যেতে আবার sign in করুন।",
+  useOtpInsteadLabel: "বদলে OTP ব্যবহার করুন",
+  failureSubtitle: "আপনার তথ্য দেখে আবার চেষ্টা করুন।",
+  failureHelp: "সমস্যা চলতে থাকলে এখানকার স্টাফকে জিজ্ঞেস করুন।",
+  offlineHelp: "আপনি এই জায়গার guest WiFi নেটওয়ার্কে যুক্ত আছেন কি না দেখে আবার চেষ্টা করুন।",
+  redirectNoticeTemplate: "একটু পরেই আপনাকে {host}-এ পাঠানো হবে।",
+  redirectCountdownTemplate: "{n} সেকেন্ডে এগোচ্ছি",
+  continueNowLabel: "এখনই যান",
+  unknownMethodLabel: "অজানা sign in পদ্ধতি।",
+  usePasswordInstead: "বদলে সেভ করা পাসওয়ার্ড দিয়ে sign in করুন",
+  termsReadFullDocument: "পুরো নথিটি পড়ুন",
+  termsQuestionsAskStaff: "এই নেটওয়ার্ক বা আপনার ডেটা নিয়ে প্রশ্ন? এখানকার স্টাফকে জিজ্ঞেস করুন।",
+  termsBackToSignIn: "Sign in-এ ফিরে যান",
+  nudgeSetPasswordTitle: "পরের বারের জন্য পাসওয়ার্ড সেট করুন",
+  nudgeSetPasswordSubtitle: "পরের বার আর কোড লাগবে না",
+  nudgeTeamTitle: "Team কোড আছে?",
+  nudgeTeamSubtitle: "আপনার দলের শেয়ার করা ডেটা ও কোটায় যোগ দিন",
+  noExpiryLabel: "কোনো মেয়াদ নেই",
+  ipUnknownLabel: "IP অজানা",
+  disconnectingLabel: "Disconnect করা হচ্ছে…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Marathi (mr).
@@ -726,6 +818,36 @@ const MR: Dict = {
   countryCodeLabel: "देशाचा code",
   otpCodeLabel: "6 अंकी code",
   otpCodeHint: "आम्ही पाठवलेला 6 अंकी code टाका.",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "मागे",
+  authMethodSubtitle: "Online होण्यासाठी खालचा फॉर्म भरा.",
+  verifyTitle: "तुमचा कोड टाका",
+  connectingTitle: "तुम्हाला इंटरनेटशी connect करत आहोत…",
+  connectingSubtitle: "फक्त एक क्षण.",
+  expiredSubtitle: "तुम्ही network वरून disconnect झाला आहात.",
+  expiredHelp: "Guest WiFi वापरत राहण्यासाठी पुन्हा sign in करा.",
+  useOtpInsteadLabel: "त्याऐवजी OTP वापरा",
+  failureSubtitle: "तुमची माहिती तपासा आणि पुन्हा प्रयत्न करा.",
+  failureHelp: "समस्या राहिली तर इथल्या staff ला विचारा.",
+  offlineHelp:
+    "तुम्ही इथल्या guest WiFi network शी जोडलेले आहात का ते पाहा, मग पुन्हा प्रयत्न करा.",
+  redirectNoticeTemplate: "लवकरच तुम्हाला {host} वर नेत आहोत.",
+  redirectCountdownTemplate: "{n} सेकंदात पुढे जात आहोत",
+  continueNowLabel: "आत्ताच पुढे जा",
+  unknownMethodLabel: "अनोळखी sign in पद्धत.",
+  usePasswordInstead: "त्याऐवजी सेव्ह केलेल्या पासवर्डने sign in करा",
+  termsReadFullDocument: "संपूर्ण दस्तऐवज वाचा",
+  termsQuestionsAskStaff:
+    "या network बद्दल किंवा तुमच्या डेटाबद्दल प्रश्न? इथल्या staff ला विचारा.",
+  termsBackToSignIn: "Sign in कडे परत",
+  nudgeSetPasswordTitle: "पुढच्या वेळेसाठी पासवर्ड सेट करा",
+  nudgeSetPasswordSubtitle: "पुढच्या भेटीत कोड लागणार नाही",
+  nudgeTeamTitle: "Team कोड आहे?",
+  nudgeTeamSubtitle: "तुमच्या गटाच्या शेअर केलेल्या डेटा व कोट्यात सामील व्हा",
+  noExpiryLabel: "मुदत नाही",
+  ipUnknownLabel: "IP माहीत नाही",
+  disconnectingLabel: "Disconnect करत आहोत…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Telugu (te).
@@ -882,6 +1004,35 @@ const TE: Dict = {
   countryCodeLabel: "దేశ కోడ్",
   otpCodeLabel: "6 అంకెల కోడ్",
   otpCodeHint: "మేం పంపిన 6 అంకెల కోడ్ ఇవ్వండి.",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "వెనుకకు",
+  authMethodSubtitle: "ఆన్‌లైన్ కావడానికి కింది ఫారం నింపండి.",
+  verifyTitle: "మీ కోడ్ ఇవ్వండి",
+  connectingTitle: "మిమ్మల్ని ఇంటర్నెట్‌కు కనెక్ట్ చేస్తున్నాం…",
+  connectingSubtitle: "ఒక్క క్షణం.",
+  expiredSubtitle: "మిమ్మల్ని నెట్‌వర్క్ నుంచి డిస్‌కనెక్ట్ చేశాం.",
+  expiredHelp: "గెస్ట్ WiFi వాడటం కొనసాగించడానికి మళ్లీ సైన్ ఇన్ అవ్వండి.",
+  useOtpInsteadLabel: "బదులుగా OTP వాడండి",
+  failureSubtitle: "మీ వివరాలు చూసుకుని మళ్లీ ప్రయత్నించండి.",
+  failureHelp: "సమస్య కొనసాగితే సిబ్బందిని అడగండి.",
+  offlineHelp:
+    "మీరు ఇక్కడి గెస్ట్ WiFi నెట్‌వర్క్‌కు కనెక్ట్ అయ్యారో లేదో చూసుకుని మళ్లీ ప్రయత్నించండి.",
+  redirectNoticeTemplate: "కాసేపట్లో మిమ్మల్ని {host}కు పంపుతాం.",
+  redirectCountdownTemplate: "{n} సెకన్లలో ముందుకు వెళ్తున్నాం",
+  continueNowLabel: "ఇప్పుడే కొనసాగించండి",
+  unknownMethodLabel: "తెలియని సైన్ ఇన్ పద్ధతి.",
+  usePasswordInstead: "బదులుగా సేవ్ చేసిన పాస్‌వర్డ్‌తో సైన్ ఇన్ అవ్వండి",
+  termsReadFullDocument: "పూర్తి పత్రాన్ని చదవండి",
+  termsQuestionsAskStaff: "ఈ నెట్‌వర్క్ లేదా మీ డేటా గురించి ప్రశ్నలా? సిబ్బందిని అడగండి.",
+  termsBackToSignIn: "సైన్ ఇన్‌కు తిరిగి వెళ్లండి",
+  nudgeSetPasswordTitle: "వచ్చేసారికి పాస్‌వర్డ్ సెట్ చేయండి",
+  nudgeSetPasswordSubtitle: "వచ్చేసారి కోడ్ అవసరం ఉండదు",
+  nudgeTeamTitle: "టీమ్ కోడ్ ఉందా?",
+  nudgeTeamSubtitle: "మీ బృందపు షేర్డ్ డేటా, కోటాలో చేరండి",
+  noExpiryLabel: "గడువు లేదు",
+  ipUnknownLabel: "IP తెలియదు",
+  disconnectingLabel: "డిస్‌కనెక్ట్ చేస్తున్నాం…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Tamil (ta).
@@ -1040,6 +1191,36 @@ const TA: Dict = {
   countryCodeLabel: "நாட்டுக் குறியீடு",
   otpCodeLabel: "6 இலக்கக் குறியீடு",
   otpCodeHint: "நாங்கள் அனுப்பிய 6 இலக்கக் குறியீட்டை உள்ளிடுங்கள்.",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "பின்செல்",
+  authMethodSubtitle: "இணையத்தில் இணைய கீழுள்ள படிவத்தை நிரப்புங்கள்.",
+  verifyTitle: "உங்கள் குறியீட்டை உள்ளிடுங்கள்",
+  connectingTitle: "உங்களை இணையத்துடன் இணைக்கிறோம்…",
+  connectingSubtitle: "சில நொடிகள்.",
+  expiredSubtitle: "நெட்வொர்க்கிலிருந்து துண்டிக்கப்பட்டீர்கள்.",
+  expiredHelp: "விருந்தினர் WiFi-ஐ தொடர்ந்து பயன்படுத்த மீண்டும் நுழையுங்கள்.",
+  useOtpInsteadLabel: "மாற்றாக OTP பயன்படுத்துங்கள்",
+  failureSubtitle: "உங்கள் விவரங்களைச் சரிபார்த்து மீண்டும் முயலுங்கள்.",
+  failureHelp: "சிக்கல் தொடர்ந்தால் இட ஊழியரிடம் கேளுங்கள்.",
+  offlineHelp:
+    "இங்குள்ள விருந்தினர் WiFi நெட்வொர்க்குடன் இணைந்துள்ளீர்களா என்று பார்த்து, மீண்டும் முயலுங்கள்.",
+  redirectNoticeTemplate: "விரைவில் {host}-க்கு அனுப்பப்படுவீர்கள்.",
+  redirectCountdownTemplate: "{n} நொடியில் தொடர்கிறோம்",
+  continueNowLabel: "இப்போதே தொடர்",
+  unknownMethodLabel: "அறியாத நுழைவு முறை.",
+  usePasswordInstead: "மாற்றாக சேமித்த கடவுச்சொல்லால் நுழையுங்கள்",
+  termsReadFullDocument: "முழு ஆவணத்தைப் படியுங்கள்",
+  termsQuestionsAskStaff:
+    "இந்த நெட்வொர்க் அல்லது உங்கள் தரவு பற்றி கேள்விகளா? இட ஊழியரிடம் கேளுங்கள்.",
+  termsBackToSignIn: "நுழைவுக்குத் திரும்ப",
+  nudgeSetPasswordTitle: "அடுத்த முறைக்கு கடவுச்சொல் அமையுங்கள்",
+  nudgeSetPasswordSubtitle: "அடுத்த வருகையில் குறியீடு தேவையில்லை",
+  nudgeTeamTitle: "குழு குறியீடு உள்ளதா?",
+  nudgeTeamSubtitle: "உங்கள் குழுவின் பகிர்ந்த தரவு மற்றும் ஒதுக்கீட்டில் சேருங்கள்",
+  noExpiryLabel: "காலக்கெடு இல்லை",
+  ipUnknownLabel: "IP தெரியவில்லை",
+  disconnectingLabel: "துண்டிக்கிறோம்…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Gujarati (gu).
@@ -1195,6 +1376,34 @@ const GU: Dict = {
   countryCodeLabel: "દેશનો કોડ",
   otpCodeLabel: "6 અંકનો કોડ",
   otpCodeHint: "અમે મોકલેલો 6 અંકનો કોડ નાખો.",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "પાછળ",
+  authMethodSubtitle: "Online થવા માટે નીચેનું ફોર્મ ભરો.",
+  verifyTitle: "તમારો કોડ નાખો",
+  connectingTitle: "તમને ઇન્ટરનેટ સાથે connect કરીએ છીએ…",
+  connectingSubtitle: "બસ એક ક્ષણ.",
+  expiredSubtitle: "તમે network પરથી disconnect થયા છો.",
+  expiredHelp: "Guest WiFi વાપરવાનું ચાલુ રાખવા ફરી sign in કરો.",
+  useOtpInsteadLabel: "એના બદલે OTP વાપરો",
+  failureSubtitle: "તમારી વિગતો તપાસીને ફરી પ્રયત્ન કરો.",
+  failureHelp: "સમસ્યા ચાલુ રહે તો અહીંના સ્ટાફને પૂછો.",
+  offlineHelp: "તમે અહીંના guest WiFi network સાથે જોડાયેલા છો કે નહીં તે તપાસીને ફરી પ્રયત્ન કરો.",
+  redirectNoticeTemplate: "તમને હમણાં {host} પર મોકલીશું.",
+  redirectCountdownTemplate: "{n} સેકંડમાં આગળ વધીએ છીએ",
+  continueNowLabel: "હમણાં જ આગળ વધો",
+  unknownMethodLabel: "અજાણી sign in રીત.",
+  usePasswordInstead: "એના બદલે સેવ કરેલા પાસવર્ડથી sign in કરો",
+  termsReadFullDocument: "આખો દસ્તાવેજ વાંચો",
+  termsQuestionsAskStaff: "આ network કે તમારા ડેટા વિશે પ્રશ્નો? અહીંના સ્ટાફને પૂછો.",
+  termsBackToSignIn: "Sign in પર પાછા જાઓ",
+  nudgeSetPasswordTitle: "આગલી વખત માટે પાસવર્ડ સેટ કરો",
+  nudgeSetPasswordSubtitle: "આગલી મુલાકાતે કોડની જરૂર નહીં પડે",
+  nudgeTeamTitle: "Team કોડ છે?",
+  nudgeTeamSubtitle: "તમારા ગ્રુપના શેર કરેલા ડેટા અને ક્વોટામાં જોડાઓ",
+  noExpiryLabel: "કોઈ મુદત નથી",
+  ipUnknownLabel: "IP અજાણ",
+  disconnectingLabel: "Disconnect કરીએ છીએ…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Kannada (kn).
@@ -1351,6 +1560,35 @@ const KN: Dict = {
   countryCodeLabel: "ದೇಶದ ಕೋಡ್",
   otpCodeLabel: "6 ಅಂಕಿಯ ಕೋಡ್",
   otpCodeHint: "ನಾವು ಕಳಿಸಿದ 6 ಅಂಕಿಯ ಕೋಡ್ ಬರೆಯಿರಿ.",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "ಹಿಂದೆ",
+  authMethodSubtitle: "Online ಆಗಲು ಕೆಳಗಿನ ಫಾರ್ಮ್ ಭರ್ತಿ ಮಾಡಿ.",
+  verifyTitle: "ನಿಮ್ಮ ಕೋಡ್ ನಮೂದಿಸಿ",
+  connectingTitle: "ನಿಮ್ಮನ್ನು ಇಂಟರ್ನೆಟ್‌ಗೆ connect ಮಾಡುತ್ತಿದ್ದೇವೆ…",
+  connectingSubtitle: "ಒಂದು ಕ್ಷಣ.",
+  expiredSubtitle: "ನಿಮ್ಮನ್ನು network ನಿಂದ disconnect ಮಾಡಲಾಗಿದೆ.",
+  expiredHelp: "Guest WiFi ಬಳಕೆ ಮುಂದುವರಿಸಲು ಮತ್ತೆ sign in ಮಾಡಿ.",
+  useOtpInsteadLabel: "ಬದಲಿಗೆ OTP ಬಳಸಿ",
+  failureSubtitle: "ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  failureHelp: "ಸಮಸ್ಯೆ ಮುಂದುವರಿದರೆ ಇಲ್ಲಿನ staff ಅನ್ನು ಕೇಳಿ.",
+  offlineHelp: "ನೀವು ಇಲ್ಲಿನ guest WiFi network ಗೆ ಸೇರಿದ್ದೀರಾ ಎಂದು ನೋಡಿ, ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  redirectNoticeTemplate: "ಸ್ವಲ್ಪದರಲ್ಲೇ ನಿಮ್ಮನ್ನು {host} ಗೆ ಕಳಿಸಲಾಗುತ್ತದೆ.",
+  redirectCountdownTemplate: "{n} ಸೆಕೆಂಡಿನಲ್ಲಿ ಮುಂದುವರಿಯುತ್ತೇವೆ",
+  continueNowLabel: "ಈಗಲೇ ಮುಂದುವರಿಸಿ",
+  unknownMethodLabel: "ಗೊತ್ತಿಲ್ಲದ sign in ವಿಧಾನ.",
+  usePasswordInstead: "ಬದಲಿಗೆ ಸೇವ್ ಮಾಡಿದ ಪಾಸ್‌ವರ್ಡ್‌ನಿಂದ sign in ಮಾಡಿ",
+  termsReadFullDocument: "ಪೂರ್ಣ ದಾಖಲೆ ಓದಿ",
+  termsQuestionsAskStaff:
+    "ಈ network ಅಥವಾ ನಿಮ್ಮ ಡೇಟಾ ಬಗ್ಗೆ ಪ್ರಶ್ನೆಗಳಿವೆಯೇ? ಇಲ್ಲಿನ staff ಅನ್ನು ಕೇಳಿ.",
+  termsBackToSignIn: "Sign in ಗೆ ಹಿಂತಿರುಗಿ",
+  nudgeSetPasswordTitle: "ಮುಂದಿನ ಬಾರಿಗೆ ಪಾಸ್‌ವರ್ಡ್ ಸೆಟ್ ಮಾಡಿ",
+  nudgeSetPasswordSubtitle: "ಮುಂದಿನ ಭೇಟಿಯಲ್ಲಿ ಕೋಡ್ ಬೇಕಿಲ್ಲ",
+  nudgeTeamTitle: "Team ಕೋಡ್ ಇದೆಯೇ?",
+  nudgeTeamSubtitle: "ನಿಮ್ಮ ಗುಂಪಿನ ಹಂಚಿದ ಡೇಟಾ ಮತ್ತು ಕೋಟಾಗೆ ಸೇರಿ",
+  noExpiryLabel: "ಅವಧಿ ಇಲ್ಲ",
+  ipUnknownLabel: "IP ಗೊತ್ತಿಲ್ಲ",
+  disconnectingLabel: "Disconnect ಮಾಡುತ್ತಿದ್ದೇವೆ…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Malayalam (ml).
@@ -1508,6 +1746,35 @@ const ML: Dict = {
   countryCodeLabel: "രാജ്യ കോഡ്",
   otpCodeLabel: "6 അക്ക കോഡ്",
   otpCodeHint: "ഞങ്ങൾ അയച്ച 6 അക്ക കോഡ് നൽകൂ.",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "പിന്നിലേക്ക്",
+  authMethodSubtitle: "ഓൺലൈൻ ആകാൻ താഴെയുള്ള ഫോം പൂരിപ്പിക്കൂ.",
+  verifyTitle: "നിങ്ങളുടെ കോഡ് നൽകൂ",
+  connectingTitle: "നിങ്ങളെ ഇന്റർനെറ്റിലേക്ക് കണക്ട് ചെയ്യുന്നു…",
+  connectingSubtitle: "ഒരു നിമിഷം.",
+  expiredSubtitle: "നിങ്ങളെ നെറ്റ്‌വർക്കിൽ നിന്ന് വിച്ഛേദിച്ചു.",
+  expiredHelp: "Guest WiFi തുടർന്ന് ഉപയോഗിക്കാൻ വീണ്ടും sign in ചെയ്യൂ.",
+  useOtpInsteadLabel: "പകരം OTP ഉപയോഗിക്കൂ",
+  failureSubtitle: "നിങ്ങളുടെ വിവരങ്ങൾ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.",
+  failureHelp: "പ്രശ്നം തുടർന്നാൽ സ്ഥാപനത്തിലെ ജീവനക്കാരോട് ചോദിക്കൂ.",
+  offlineHelp: "ഇവിടത്തെ guest WiFi നെറ്റ്‌വർക്കിലാണോ നിങ്ങൾ എന്ന് ഉറപ്പാക്കി വീണ്ടും ശ്രമിക്കൂ.",
+  redirectNoticeTemplate: "ഉടൻ നിങ്ങളെ {host}-ലേക്ക് അയയ്ക്കും.",
+  redirectCountdownTemplate: "{n} സെക്കൻഡിൽ തുടരുന്നു",
+  continueNowLabel: "ഇപ്പോൾ തന്നെ തുടരൂ",
+  unknownMethodLabel: "അറിയാത്ത sign in രീതി.",
+  usePasswordInstead: "പകരം സേവ് ചെയ്ത പാസ്‌വേഡ് ഉപയോഗിച്ച് sign in ചെയ്യൂ",
+  termsReadFullDocument: "മുഴുവൻ രേഖയും വായിക്കൂ",
+  termsQuestionsAskStaff:
+    "ഈ നെറ്റ്‌വർക്കിനെയോ നിങ്ങളുടെ ഡേറ്റയെയോ കുറിച്ച് ചോദ്യങ്ങളുണ്ടോ? സ്ഥാപനത്തിലെ ജീവനക്കാരോട് ചോദിക്കൂ.",
+  termsBackToSignIn: "Sign in-ലേക്ക് മടങ്ങൂ",
+  nudgeSetPasswordTitle: "അടുത്ത തവണത്തേക്ക് പാസ്‌വേഡ് സെറ്റ് ചെയ്യൂ",
+  nudgeSetPasswordSubtitle: "അടുത്ത തവണ കോഡ് വേണ്ടിവരില്ല",
+  nudgeTeamTitle: "Team കോഡ് ഉണ്ടോ?",
+  nudgeTeamSubtitle: "നിങ്ങളുടെ സംഘത്തിന്റെ പങ്കിട്ട ഡേറ്റയിലും ക്വോട്ടയിലും ചേരൂ",
+  noExpiryLabel: "കാലാവധി ഇല്ല",
+  ipUnknownLabel: "IP അറിയില്ല",
+  disconnectingLabel: "വിച്ഛേദിക്കുന്നു…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 // Punjabi (pa, Gurmukhi).
@@ -1665,6 +1932,34 @@ const PA: Dict = {
   countryCodeLabel: "ਦੇਸ਼ ਦਾ code",
   otpCodeLabel: "6 ਅੰਕਾਂ ਦਾ code",
   otpCodeHint: "ਅਸੀਂ ਜੋ 6 ਅੰਕਾਂ ਦਾ code ਭੇਜਿਆ ਹੈ, ਉਹ ਭਰੋ।",
+  // ---- portal redesign (shadcn pass) block -- see EN's copy for notes --
+  backLabel: "ਪਿੱਛੇ",
+  authMethodSubtitle: "Online ਹੋਣ ਲਈ ਹੇਠਾਂ ਦਿੱਤਾ ਫ਼ਾਰਮ ਭਰੋ।",
+  verifyTitle: "ਆਪਣਾ ਕੋਡ ਭਰੋ",
+  connectingTitle: "ਤੁਹਾਨੂੰ ਇੰਟਰਨੈੱਟ ਨਾਲ ਜੋੜਿਆ ਜਾ ਰਿਹਾ ਹੈ…",
+  connectingSubtitle: "ਬੱਸ ਇੱਕ ਪਲ।",
+  expiredSubtitle: "ਤੁਹਾਨੂੰ network ਤੋਂ disconnect ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ।",
+  expiredHelp: "Guest WiFi ਵਰਤਦੇ ਰਹਿਣ ਲਈ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
+  useOtpInsteadLabel: "ਇਸਦੀ ਥਾਂ OTP ਵਰਤੋ",
+  failureSubtitle: "ਆਪਣੀ ਜਾਣਕਾਰੀ ਵੇਖੋ ਤੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  failureHelp: "ਸਮੱਸਿਆ ਰਹੇ ਤਾਂ ਸਟਾਫ਼ ਨੂੰ ਪੁੱਛੋ।",
+  offlineHelp: "ਵੇਖੋ ਕਿ ਤੁਸੀਂ ਇੱਥੋਂ ਦੇ guest WiFi network ਨਾਲ ਜੁੜੇ ਹੋ, ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  redirectNoticeTemplate: "ਤੁਹਾਨੂੰ ਹੁਣੇ {host} ’ਤੇ ਭੇਜਿਆ ਜਾਵੇਗਾ।",
+  redirectCountdownTemplate: "{n} ਸਕਿੰਟ ਵਿੱਚ ਅੱਗੇ ਵਧ ਰਹੇ ਹਾਂ",
+  continueNowLabel: "ਹੁਣੇ ਅੱਗੇ ਵਧੋ",
+  unknownMethodLabel: "ਅਣਜਾਣ sign in ਤਰੀਕਾ।",
+  usePasswordInstead: "ਇਸਦੀ ਥਾਂ ਸੇਵ ਕੀਤੇ ਪਾਸਵਰਡ ਨਾਲ sign in ਕਰੋ",
+  termsReadFullDocument: "ਪੂਰਾ ਦਸਤਾਵੇਜ਼ ਪੜ੍ਹੋ",
+  termsQuestionsAskStaff: "ਇਸ network ਜਾਂ ਆਪਣੇ ਡਾਟੇ ਬਾਰੇ ਸਵਾਲ? ਸਟਾਫ਼ ਨੂੰ ਪੁੱਛੋ।",
+  termsBackToSignIn: "Sign in ’ਤੇ ਵਾਪਸ ਜਾਓ",
+  nudgeSetPasswordTitle: "ਅਗਲੀ ਵਾਰ ਲਈ ਪਾਸਵਰਡ ਸੈੱਟ ਕਰੋ",
+  nudgeSetPasswordSubtitle: "ਅਗਲੀ ਵਾਰ ਕੋਡ ਦੀ ਲੋੜ ਨਹੀਂ ਪਵੇਗੀ",
+  nudgeTeamTitle: "Team ਕੋਡ ਹੈ?",
+  nudgeTeamSubtitle: "ਆਪਣੇ ਗਰੁੱਪ ਦੇ ਸਾਂਝੇ ਡਾਟੇ ਤੇ ਕੋਟੇ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਵੋ",
+  noExpiryLabel: "ਕੋਈ ਮਿਆਦ ਨਹੀਂ",
+  ipUnknownLabel: "IP ਅਣਜਾਣ",
+  disconnectingLabel: "Disconnect ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ…",
+  // ---- end portal-redesign block ---------------------------------------
 };
 
 const DICTS: Record<RuntimeLanguage, Dict> = {
