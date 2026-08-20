@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Stepper } from "@/components/ui-ext/Stepper";
 import { cn } from "@/lib/utils";
 
 import { api } from "@/services/api";
@@ -372,52 +373,16 @@ export function PlatformLocationWizard({
 
         <div className="grid gap-0 md:grid-cols-[240px_1fr]">
           <aside className="hidden max-h-[70vh] overflow-y-auto border-r border-border/70 bg-muted/30 p-3 md:block">
-            <ol className="space-y-1">
-              {STEPS.map((s, i) => {
-                const done = i < step;
-                const active = i === step;
-                const Icon = s.icon;
-                return (
-                  <li key={s.key}>
-                    <button
-                      type="button"
-                      onClick={() => i < step && setStep(i)}
-                      className={cn(
-                        "flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors",
-                        active && "bg-background shadow-sm",
-                        !active && "hover:bg-background/60",
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border text-xs font-medium",
-                          done && "border-primary bg-primary text-primary-foreground",
-                          active && "border-primary text-primary",
-                          !done && !active && "border-border text-muted-foreground",
-                        )}
-                      >
-                        {done ? (
-                          <Check className="h-3.5 w-3.5" />
-                        ) : (
-                          <Icon className="h-3.5 w-3.5" />
-                        )}
-                      </div>
-                      <div>
-                        <div
-                          className={cn(
-                            "text-sm font-medium",
-                            !active && !done && "text-muted-foreground",
-                          )}
-                        >
-                          {i + 1}. {s.title}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{s.desc}</div>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
+            <Stepper
+              steps={STEPS.map((s) => ({
+                key: s.key,
+                title: s.title,
+                description: s.desc,
+                icon: s.icon,
+              }))}
+              currentStep={step}
+              onStepClick={setStep}
+            />
           </aside>
 
           <div className="flex min-h-[520px] flex-col">
