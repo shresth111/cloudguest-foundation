@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { routerService } from "@/services/router.service";
+import api from "@/services/api";
 import type { CreateRouterPayload, RouterListQuery, RouterStatus } from "@/types/router";
 
 export const routerKeys = {
@@ -87,5 +88,14 @@ export function useRevokeWireGuardPeer() {
     mutationFn: (routerId: string) => routerService.revokeWireGuardPeer(routerId),
     onSuccess: (_data, routerId) =>
       qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
+  });
+}
+
+export function useUpdateRouterVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, vendor }: { id: string; vendor: string }) =>
+      api.put(`/routers/${id}`, { vendor }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: routerKeys.all }),
   });
 }
