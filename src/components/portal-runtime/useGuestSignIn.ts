@@ -122,8 +122,8 @@ export function useGuestSignIn() {
   // The last case is deliberate and matches v5 §3.2's rule about the
   // welcome message: a row with nothing real in it is not rendered.
   const heading = customHeadline || venueName || t("welcomeBare");
-  const eyebrow =
-    customHeadline && venueName ? venueName : venueName ? t("welcomeEyebrow") : undefined;
+  const eyebrowIsVenueName = !!(customHeadline && venueName);
+  const eyebrow = eyebrowIsVenueName ? venueName : venueName ? t("welcomeEyebrow") : undefined;
   // captive-portal-v5-design-spec.md §3.2: no fallback string here anymore
   // -- `t("signInSubtext")` was a hardcoded filler line ("Sign in for
   // complimentary WiFi access...") rendered whenever a venue hadn't
@@ -426,6 +426,7 @@ export function useGuestSignIn() {
     config,
     portalSearch,
     eyebrow,
+    eyebrowIsVenueName,
     heading,
     subtext,
     previewMode,

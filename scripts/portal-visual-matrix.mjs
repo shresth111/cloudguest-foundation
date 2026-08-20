@@ -42,7 +42,9 @@ const OUT = arg("out", "/tmp/portal-shots");
 
 const PHOTO = (body, w = 24, h = 24) =>
   "data:image/svg+xml;utf8," +
-  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}</svg>`);
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}</svg>`,
+  );
 
 const PHOTOS = {
   bright: PHOTO(
@@ -71,7 +73,14 @@ const CASES = [
   { id: "06-typescale-125", photo: "busy", scale: "1.25" },
   { id: "07-320-typescale-125", photo: "busy", width: 320, scale: "1.25" },
   { id: "08-hindi-long-name", photo: "busy", lang: "hi", name: LONG_HI },
-  { id: "09-hindi-320-scale125", photo: "busy", lang: "hi", name: LONG_HI, width: 320, scale: "1.25" },
+  {
+    id: "09-hindi-320-scale125",
+    photo: "busy",
+    lang: "hi",
+    name: LONG_HI,
+    width: 320,
+    scale: "1.25",
+  },
   { id: "10-tamil-long-name", photo: "busy", name: LONG_TA },
   { id: "11-rtl-arabic", photo: "busy", lang: "ar" },
   { id: "12-no-welcome-message", photo: "busy", message: null },
@@ -107,8 +116,7 @@ const config = (c) => ({
   splash_welcome_message:
     c.message === null
       ? null
-      : (c.message ??
-        "Complimentary high-speed WiFi for our guests. Ask reception for help."),
+      : (c.message ?? "Complimentary high-speed WiFi for our guests. Ask reception for help."),
   redirect_url: null,
   otp_sms_enabled: true,
   otp_email_enabled: false,

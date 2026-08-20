@@ -257,7 +257,8 @@ console.log("portal captive-network-assistant storage safety");
   check("recent submit suppresses a duplicate POST", browser.submits.length === 0);
   check(
     "cooldown skip is a document load to /portal/session",
-    browser.assigns.length === 1 && browser.assigns[0].startsWith("https://portal.example.com/portal/session?"),
+    browser.assigns.length === 1 &&
+      browser.assigns[0].startsWith("https://portal.example.com/portal/session?"),
     JSON.stringify(browser.assigns),
   );
   check(

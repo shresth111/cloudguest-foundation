@@ -75,7 +75,7 @@ export const PG_FONT_STACK =
 // inside `PortalCard`, or already render on the photo, and both cases now
 // resolve correctly on their own.
 export const GUEST_LEGIBILITY_CARD_CLASS =
-  "pg-surface-card rounded-[20px] border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md";
+  "pg-surface-card rounded-[20px] border border-white/60 bg-[var(--pg-surface)]/85 shadow-[0_8px_32px_-12px_rgba(30,27,75,0.25)] backdrop-blur-md";
 
 /** The lg:+ (laptop-width) left-hand context panel -- fills the space
  * that used to be empty gradient next to a small floating card. Copy is
@@ -516,7 +516,7 @@ export function PortalShell({
       data-pg-headline={backdropPlan?.headlineOnCard ? "card" : undefined}
       style={{
         fontFamily: PG_FONT_STACK,
-        background: "var(--pg-canvas, #FAFAF8)",
+        background: "var(--pg-canvas, #F8F8FC)",
       }}
     >
       <GuestBackdrop
@@ -743,8 +743,20 @@ export function PortalShell({
                    * mark and the wordmark in fixed proportion at every
                    * setting -- and it inherits the platform's own text
                    * scaling for free, since `pg-micro` is authored in
-                   * `rem`. */}
-                  <PortalFootnoteMark className="h-[1.25em] w-[1.25em] text-[var(--pg-ink)]" />
+                   * `rem`.
+                   *
+                   * `--pg-brand-accent` (wyfyguest.com violet-700 #6D28D9) on
+                   * the mark, `--pg-ink` on the wordmark: that is the site's
+                   * own header lockup -- coloured shield, dark wordmark --
+                   * reproduced exactly, and it is the strongest brand match
+                   * available on this screen at zero bytes. It is applied as
+                   * a `color`, not as an SVG `fill`, so the glyph's
+                   * `currentColor` still resolves to `CanvasText` under
+                   * `forced-colors: active`; a hardcoded hex inside the SVG
+                   * would survive forced colours and should not.
+                   * 5.02:1 against the worst plate composite as a non-text
+                   * graphic, where SC 1.4.11 asks 3:1. */}
+                  <PortalFootnoteMark className="h-[1.25em] w-[1.25em] text-[var(--pg-brand-accent)]" />
                   {/* Split on `{brand}` rather than interpolated, because the
                    * two halves are styled differently and because the word
                    * order flips between languages -- Hindi puts the brand
@@ -821,8 +833,8 @@ export function PortalCard({ children, className }: { children: ReactNode; class
       )}
       style={{
         boxShadow: strongEdge
-          ? "0 1px 2px rgba(15,23,42,0.10), 0 12px 32px -10px rgba(15,23,42,0.45)"
-          : "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.12)",
+          ? "0 1px 2px rgba(30,27,75,0.10), 0 12px 32px -10px rgba(30,27,75,0.45)"
+          : "0 1px 2px rgba(30,27,75,0.06), 0 8px 24px -12px rgba(30,27,75,0.18)",
       }}
     >
       {children}

@@ -94,7 +94,9 @@ const ratioL = (l1, l2) => (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
 // high-frequency content, which is the property that matters.
 const svg = (body, w = 24, h = 24) =>
   "data:image/svg+xml;utf8," +
-  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}</svg>`);
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}</svg>`,
+  );
 
 const BACKGROUNDS = {
   "worst-case": svg(`<rect width="24" height="24" fill="#FFFFFF"/>`),
@@ -175,9 +177,11 @@ const backendConfig = (overrides = {}) => ({
  * predating the attribute, so the same tool can measure a before/after pair
  * across the branch point. It is a fallback, never the primary. */
 const ZONES = [
+  { key: "eyebrow", legacy: null },
   { key: "headline", legacy: "main h1" },
   { key: "welcome", legacy: "main h1 + p" },
   { key: "powered-by", legacy: "footer > span:last-child" },
+  { key: "powered-by-brand", legacy: null },
   { key: "footer-terms", legacy: "footer a" },
 ];
 
@@ -234,7 +238,10 @@ async function measureZone(page, key, legacy) {
       Math.abs(withText.data[i + 2] - withoutText.data[i + 2]);
     if (d < GLYPH_DELTA) continue;
     glyphPixels++;
-    const r = ratioL(textLum, lum(withoutText.data[i], withoutText.data[i + 1], withoutText.data[i + 2]));
+    const r = ratioL(
+      textLum,
+      lum(withoutText.data[i], withoutText.data[i + 1], withoutText.data[i + 2]),
+    );
     if (r < worst) {
       worst = r;
       worstPixel = [withoutText.data[i], withoutText.data[i + 1], withoutText.data[i + 2]];
@@ -300,7 +307,7 @@ async function run() {
         `${BASE}/portal/welcome?organizationId=11111111-1111-4111-8111-111111111111&locationId=22222222-2222-4222-8222-222222222222&routerId=33333333-3333-4333-8333-333333333333`,
         { waitUntil: "networkidle" },
       );
-      await page.waitForSelector("main h1, [data-pg-measure=\"headline\"]", { timeout: 20000 });
+      await page.waitForSelector('main h1, [data-pg-measure="headline"]', { timeout: 20000 });
       if (scale !== "1") {
         await page.evaluate((s) => {
           document.querySelector(".portal-runtime")?.style.setProperty("--pg-type-scale", s);
@@ -341,7 +348,9 @@ async function run() {
   }
   mkdirSync(OUT, { recursive: true });
   writeFileSync(`${OUT}/results.json`, JSON.stringify(results, null, 2));
-  console.log(`\n${results.length} measurements, ${failures} below threshold. JSON: ${OUT}/results.json`);
+  console.log(
+    `\n${results.length} measurements, ${failures} below threshold. JSON: ${OUT}/results.json`,
+  );
   if (WRITE_SHOTS) console.log(`Screenshots: ${OUT}/`);
   process.exit(failures ? 1 : 0);
 }

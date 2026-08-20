@@ -114,18 +114,42 @@ export function GuestSignInCard() {
            * one of the curated heading faces, that face is spent on the
            * venue's own name and our chrome stays on the system stack.
            *
-           * Sentence case, not `uppercase`. An all-caps kicker is the
-           * generic-SaaS costume this flow has twice moved away from; more
-           * concretely, the identity variant puts a real customer's brand
-           * name in this slot and shouting it ("TAJ PALACE") is a liberty
-           * we do not get to take -- and Devanagari is unicase, so an
-           * `uppercase` utility would silently produce two different
-           * designs in EN and HI. */}
+           * THE TWO VARIANTS ARE STYLED DIFFERENTLY, AND THAT IS THE POINT.
+           *
+           * The greeting variant ("Welcome to") is *our* label, so it takes
+           * wyfyguest.com's own `.eyebrow` treatment verbatim -- 12px, 600,
+           * +0.14em, uppercase, violet-700 -- read off that site's
+           * `global.css` and confirmed against its live computed styles.
+           * That kicker is the marketing site's most repeated typographic
+           * signature, it appears above every section heading there, and
+           * reproducing it here costs nothing and is the clearest
+           * zero-byte statement that these two surfaces are one product.
+           *
+           * The identity variant puts a real customer's brand name in this
+           * slot, and it gets none of that: no uppercase, because shouting
+           * a customer's name ("TAJ PALACE") is a liberty we do not get to
+           * take; no violet, because that is our colour and this is their
+           * name. Neutral `--pg-ink-faint`, sentence case, normal tracking.
+           * One slot, one rule: our chrome may wear our brand, the venue's
+           * identity never does.
+           *
+           * Note `uppercase` is a no-op in Devanagari and every other
+           * unicase script, which is correct rather than broken -- the
+           * structure (small tracked label above a large name) survives, and
+           * only the case change, which those scripts do not have, drops
+           * out. The tracking does not: `+0.14em` on Devanagari would break
+           * conjuncts apart, so `pg-eyebrow` deliberately does not set it
+           * for `data-pg-script="tall"`. See styles.css. */}
           {sign.eyebrow && (
             <span
               data-pg-measure="eyebrow"
               data-pg-script={scriptClassOf(sign.eyebrow)}
-              className="mt-3 block pg-meta text-[var(--pg-ink-faint)]"
+              className={cn(
+                "mt-3 block",
+                sign.eyebrowIsVenueName
+                  ? "pg-meta text-[var(--pg-ink-faint)]"
+                  : "pg-eyebrow text-[var(--pg-brand-accent)]",
+              )}
             >
               {sign.eyebrow}
             </span>

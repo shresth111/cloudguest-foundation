@@ -155,7 +155,7 @@ export function PortalConnectingState() {
         style={{
           borderColor: "var(--pg-border, #E2E8F0)",
           backgroundColor: "var(--pg-surface, #fff)",
-          boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.10)",
+          boxShadow: "0 1px 2px rgba(30,27,75,0.06), 0 8px 24px -12px rgba(30,27,75,0.18)",
         }}
       >
         <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
@@ -198,7 +198,7 @@ export function PortalConnectingState() {
 // `min-h-*` does not displace `h-9` from the shared `<Input>`/`<button>`
 // base classes under tailwind-merge, but `h-auto` does.
 export const PG_PRIMARY_BTN =
-  "h-auto min-h-[3rem] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] px-4 py-2 font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-auto min-h-[3rem] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] px-4 py-2 font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
 // v7 §7.2/§7.4-4: `placeholder:text-[var(--pg-ink-faint)]` is gone.
 // `--pg-ink-faint` was 2.56:1 on this input's own white background, and
