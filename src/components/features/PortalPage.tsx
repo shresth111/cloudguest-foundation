@@ -36,7 +36,7 @@ import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
-import type { RuntimeLanguage, RuntimePortalConfig } from "@/types/portal-runtime";
+import { resolveLanguageSelection, type RuntimePortalConfig } from "@/types/portal-runtime";
 
 const SWATCHES = [
   "#1B57F5",
@@ -55,15 +55,6 @@ const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["voucher", "Voucher"],
   ["social", "Social Login"],
 ];
-
-// Same allow-list src/services/portal-runtime.service.ts's resolveConfig
-// validates a real backend config's languages against -- this page's free-text
-// "Languages" field can contain anything, so the live preview below falls
-// back the exact same way a real guest device would for an unrecognized code.
-const RUNTIME_LANGUAGES: RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
-function toRuntimeLanguage(v: string): RuntimeLanguage {
-  return (RUNTIME_LANGUAGES as string[]).includes(v) ? (v as RuntimeLanguage) : "en";
-}
 
 function PortalDesignIllustration() {
   const shouldReduceMotion = useReducedMotion();
@@ -338,8 +329,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       backgroundImageUrl: null,
       primaryColor: primary,
       secondaryColor: primary,
-      defaultLanguage: toRuntimeLanguage(langList[0] ?? "en"),
-      supportedLanguages: langList.length ? langList.map(toRuntimeLanguage) : ["en"],
+      // This page's "Languages" field is free text and can contain anything,
+      // so the live preview resolves it through the exact same function a
+      // real guest device does (`resolveLanguageSelection`, shared from
+      // types/portal-runtime.ts) rather than a second local copy of the
+      // rule -- this file's copy had already drifted from the service's.
+      // Unrecognized codes are dropped, not coerced to "en", which is what
+      // stops "en, ar, fr" from previewing as three "English" entries.
+      ...resolveLanguageSelection(langList[0], langList),
       advertisementBannerUrl: null,
       advertisementBannerLink: null,
       termsAndConditionsText: form.terms || null,
@@ -476,9 +473,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // Configuration", get the success toast, and the real captive
         // portal a guest hits would still resolve `supported_languages:
         // ["en"]` forever. Same normalization already used for the live
-        // preview (unknown codes fall back to "en") so what's saved always
-        // matches what was just previewed.
-        languages: (langList.length ? langList.map(toRuntimeLanguage) : ["en"]) as PortalLanguage[],
+        // preview (unrecognized codes are dropped; an empty result degrades
+        // to ["en"]) so what's saved always matches what was just previewed.
+        languages: resolveLanguageSelection(langList[0], langList)
+          .supportedLanguages as PortalLanguage[],
       };
       if (portalId) {
         await portalService.update(portalId, patch, orgId);

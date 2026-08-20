@@ -135,11 +135,45 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
 
 export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
   const update = useUpdatePortal(portal.id, portal.organizationId);
+
+  /* Toggling a language off used to patch `languages` ALONE, which let an
+   * admin strand the default: de-select "English" on a portal whose
+   * `defaultLanguage` is still `"en"` and you get
+   * `{ languages: ["hi"], defaultLanguage: "en" }`. The guest portal then
+   * booted into a language the switcher below never lists -- so the guest
+   * could not switch out of it either, because the only control that sets
+   * the language offers the supported set and nothing else. Nothing in the
+   * old code prevented it and nothing surfaced it afterwards; the default
+   * `<select>` just rendered blank, which reads as a rendering glitch rather
+   * than as invalid state.
+   *
+   * Both fields now move in ONE mutation, so there is no intermediate save
+   * where the pair is inconsistent (two chained `update.mutate` calls would
+   * leave exactly that window, and would leave the portal broken for good if
+   * the second request failed). The guest runtime repairs this case too --
+   * see `resolveLanguageSelection` -- but repairing it there and preventing
+   * it here are different jobs: an admin should never be looking at a saved
+   * config the guest runtime has to quietly correct. */
   const toggle = (lang: PortalLanguage) => {
     const has = portal.languages.includes(lang);
     const next = has ? portal.languages.filter((l) => l !== lang) : [...portal.languages, lang];
-    update.mutate({ languages: next.length ? next : ["en"] });
+    // Never leave a portal with no language at all -- the pre-existing rule,
+    // kept: an empty selection means "English", not "nothing".
+    const languages = next.length ? next : (["en"] as PortalLanguage[]);
+    update.mutate({
+      languages,
+      ...(languages.includes(portal.defaultLanguage) ? {} : { defaultLanguage: languages[0] }),
+    });
   };
+
+  /* Existing configs can already be in the stranded state described above,
+   * so the default picker renders the stored value even when it is missing
+   * from `languages` -- otherwise the `<select>` shows an empty box and the
+   * admin has no way to tell what the portal is actually defaulting to.
+   * Choosing any real option repairs it. */
+  const defaultOptions = portal.languages.includes(portal.defaultLanguage)
+    ? portal.languages
+    : [portal.defaultLanguage, ...portal.languages];
   return (
     <Card>
       <CardHeader>
@@ -173,9 +207,10 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
             value={portal.defaultLanguage}
             onChange={(e) => update.mutate({ defaultLanguage: e.target.value as PortalLanguage })}
           >
-            {portal.languages.map((l) => (
+            {defaultOptions.map((l) => (
               <option key={l} value={l}>
                 {LANGUAGES[l]}
+                {portal.languages.includes(l) ? "" : " (not enabled)"}
               </option>
             ))}
           </select>

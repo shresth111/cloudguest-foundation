@@ -17,12 +17,18 @@ import { generalSchema } from "@/lib/settings-schemas";
 import type { GeneralSettings } from "@/types/settings";
 import { useUpdateSection } from "@/hooks/useSettings";
 
+// The PLATFORM (admin dashboard) default language, not the guest portal's --
+// those are separate settings and, deliberately, separate lists. Arabic,
+// French and Spanish were removed for the same reason they were removed from
+// the portal: nothing behind them. The dashboard ships exactly two UI
+// locales, and `DashboardLanguageSwitcher`'s own `DASHBOARD_LANGUAGES` has
+// only ever listed those two -- so picking "French" here selected a locale
+// the switcher could not switch to and no dashboard string existed for.
+// The portal's eight new Indian languages are NOT added here: they are guest
+// copy, and none of the admin dashboard's own chrome is translated into them.
 const LANGS = [
   { v: "en", l: "English" },
   { v: "hi", l: "Hindi" },
-  { v: "ar", l: "Arabic" },
-  { v: "fr", l: "French" },
-  { v: "es", l: "Spanish" },
 ];
 const TZS = [
   "UTC",

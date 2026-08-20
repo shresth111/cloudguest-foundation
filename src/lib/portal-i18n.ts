@@ -1,4 +1,8 @@
-import type { RuntimeLanguage } from "@/types/portal-runtime";
+import {
+  RUNTIME_LANGUAGE_LABEL,
+  toRuntimeLanguage,
+  type RuntimeLanguage,
+} from "@/types/portal-runtime";
 
 type Dict = Record<string, string>;
 
@@ -330,49 +334,72 @@ const HI: Dict = {
   otpCodeLabel: "6 अंकों का कोड",
   otpCodeHint: "हमने आपको जो 6 अंकों का कोड भेजा है वह दर्ज करें।",
 };
-const AR: Dict = {
-  ...EN,
-  loading: "جارٍ تجهيز الاتصال…",
-  connect: "اتصال",
-  learnMore: "معرفة المزيد",
-  chooseMethod: "اختر طريقة تسجيل الدخول",
-  connectedTitle: "تم الاتصال بنجاح",
-  logout: "قطع الاتصال",
-};
-const FR: Dict = {
-  ...EN,
-  loading: "Préparation de votre connexion…",
-  connect: "Se connecter",
-  learnMore: "En savoir plus",
-  chooseMethod: "Choisissez une méthode de connexion",
-  connectedTitle: "Vous êtes connecté",
-  logout: "Déconnexion",
-};
-const ES: Dict = {
-  ...EN,
-  loading: "Preparando su conexión…",
-  connect: "Conectar",
-  learnMore: "Más información",
-  chooseMethod: "Elige cómo iniciar sesión",
-  connectedTitle: "Estás conectado",
-  logout: "Desconectar",
+const BN: Dict = { ...EN };
+const MR: Dict = { ...EN };
+const TE: Dict = { ...EN };
+const TA: Dict = { ...EN };
+const GU: Dict = { ...EN };
+const KN: Dict = { ...EN };
+const ML: Dict = { ...EN };
+const PA: Dict = { ...EN };
+
+const DICTS: Record<RuntimeLanguage, Dict> = {
+  en: EN,
+  hi: HI,
+  bn: BN,
+  mr: MR,
+  te: TE,
+  ta: TA,
+  gu: GU,
+  kn: KN,
+  ml: ML,
+  pa: PA,
 };
 
-const DICTS: Record<RuntimeLanguage, Dict> = { en: EN, hi: HI, ar: AR, fr: FR, es: ES };
+/** Re-exported from `types/portal-runtime.ts`, where the single copy lives --
+ * see `RUNTIME_LANGUAGE_LABEL`'s own comment. Kept exported under this name
+ * so `LanguageSwitcher` and the other guest-flow callers don't all have to
+ * change import paths for a map that has not changed shape. */
+export const LANGUAGE_LABEL = RUNTIME_LANGUAGE_LABEL;
 
-export const LANGUAGE_LABEL: Record<RuntimeLanguage, string> = {
-  en: "English",
-  hi: "हिन्दी",
-  ar: "العربية",
-  fr: "Français",
-  es: "Español",
-};
-
+/** Falls back per KEY, not per language: a dictionary that somehow lacked a
+ * key still renders the English string for that one key rather than dropping
+ * to English wholesale. With `ar`/`fr`/`es` gone this is a genuine safety net
+ * again rather than the load-bearing mechanism it used to be -- those three
+ * "supported" languages resolved essentially every key through this line. */
 export function translate(lang: RuntimeLanguage, key: string): string {
   return DICTS[lang]?.[key] ?? DICTS.en[key] ?? key;
 }
 
-export const RTL_LANGS: RuntimeLanguage[] = ["ar"];
+/* RTL SUPPORT WAS REMOVED HERE, DELIBERATELY, ALONG WITH ARABIC.
+ *
+ * This module used to export `RTL_LANGS = ["ar"]`, which
+ * `PortalRuntimeContext` read to set `document.documentElement.dir`. Arabic
+ * was the only entry, and every one of the ten languages the portal now
+ * ships is left-to-right, so keeping it would have meant keeping a
+ * permanently-empty array and a branch that can never be taken.
+ *
+ * The case for keeping it was that Urdu is a plausible future addition and
+ * the machinery is two lines. That argument fails on inspection, because
+ * those two lines were never the actual cost of RTL here. Flipping `dir`
+ * mirrors the box model, and this portal's layout is built almost entirely
+ * from PHYSICAL properties, not logical ones: `ml-`/`mr-`/`pl-`/`pr-`,
+ * `left-`/`right-`, `text-left`, the absolutely-positioned shell chrome, and
+ * the v7 backdrop work (`portal-backdrop.ts`'s focal-point math and
+ * `PortalTextPlate`'s placement) all assume LTR. None of it has ever been
+ * rendered RTL by anyone, because no venue ever enabled Arabic.
+ *
+ * So the two lines did not deliver RTL support; they delivered a mirrored,
+ * unaudited layout on top of a dictionary that was 96% English -- the same
+ * class of "the checkbox exists, therefore the feature exists" failure this
+ * whole change is undoing. Deleting them makes the next person who adds Urdu
+ * do the real work (audit those physical properties, then reintroduce a
+ * `dir` toggle) instead of ticking a box and shipping something broken.
+ *
+ * To restore: add the language to `RUNTIME_LANGUAGES`, reintroduce an
+ * `RTL_LANGS` list here, and set `root.dir` from it in
+ * `PortalRuntimeContext`'s `resolvedLanguage` effect -- which is where the
+ * removed `dir` assignment used to live, and which still sets `root.lang`. */
 
 // Guest language-choice persistence -- see PortalRuntimeContext.tsx. The
 // portal has no authenticated guest identity to key a backend preference
@@ -382,13 +409,17 @@ export const RTL_LANGS: RuntimeLanguage[] = ["ar"];
 // own periodic captive-portal re-probe reopening the URL, etc.) -- a real,
 // pre-existing bug independent of Hindi.
 const LANG_STORAGE_KEY = "cg_portal_lang";
-const VALID_LANGS: readonly RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
 
 export function loadPersistedLanguage(): RuntimeLanguage | undefined {
   if (typeof window === "undefined") return undefined;
   try {
-    const v = window.localStorage.getItem(LANG_STORAGE_KEY);
-    return VALID_LANGS.includes(v as RuntimeLanguage) ? (v as RuntimeLanguage) : undefined;
+    // `toRuntimeLanguage` returns `undefined` for anything it doesn't
+    // recognize, which is exactly the contract this function already had --
+    // so a guest whose browser still holds `cg_portal_lang: "ar"` from
+    // before this change reads as "no stored preference" and falls through
+    // to the venue's own default, rather than to a language that no longer
+    // has a dictionary.
+    return toRuntimeLanguage(window.localStorage.getItem(LANG_STORAGE_KEY));
   } catch {
     return undefined;
   }

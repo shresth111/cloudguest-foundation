@@ -3,19 +3,13 @@ import {
   clampBackgroundFocal,
   clampBackgroundOverlayStrength,
   toBackgroundMetric,
+  resolveLanguageSelection,
   toGuestFontChoice,
   type RuntimeAuthMethod,
-  type RuntimeLanguage,
   type RuntimePortalConfig,
   type RuntimeSession,
   type RuntimeSessionAuthMethod,
 } from "@/types/portal-runtime";
-
-const SUPPORTED_LANGUAGES: RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
-
-function toRuntimeLanguage(v: string): RuntimeLanguage {
-  return (SUPPORTED_LANGUAGES as string[]).includes(v) ? (v as RuntimeLanguage) : "en";
-}
 
 interface BackendCaptivePortalConfig {
   id: string;
@@ -152,8 +146,13 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     backgroundImageUrl: c.background_image_url,
     primaryColor: c.primary_color,
     secondaryColor: c.secondary_color,
-    defaultLanguage: toRuntimeLanguage(c.default_language),
-    supportedLanguages: c.supported_languages.map(toRuntimeLanguage),
+    // Both fields are free text on the backend and are resolved together,
+    // once -- see `resolveLanguageSelection`. Mapping the array through a
+    // per-item coercion (what this used to do) turned every unrecognized
+    // code into another `"en"`, so a config still storing a since-removed
+    // language rendered duplicate, identically-labelled switcher entries
+    // sharing one React key.
+    ...resolveLanguageSelection(c.default_language, c.supported_languages),
     advertisementBannerUrl: c.advertisement_banner_url,
     advertisementBannerLink: c.advertisement_banner_link,
     termsAndConditionsText: c.terms_and_conditions_text,

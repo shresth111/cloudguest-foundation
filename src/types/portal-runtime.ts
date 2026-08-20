@@ -15,10 +15,133 @@ export type RuntimeAuthMethod =
  * guest through this card. */
 export type RuntimeSessionAuthMethod = RuntimeAuthMethod | "mac_whitelist";
 
-/** The frontend's own client-side i18n dictionary only has these 5 -- a
- * real config's `default_language`/`supported_languages` are free text and
- * get validated against this set with an "en" fallback. */
-export type RuntimeLanguage = "en" | "hi" | "ar" | "fr" | "es";
+/** The languages the guest portal genuinely ships, matched deliberately to
+ * the marketing site's own set (`wyfy-guest-website/src/i18n/ui/*.ts`), so a
+ * guest who read wyfyguest.com in Tamil and then meets the portal in a lobby
+ * hears one voice rather than two.
+ *
+ * WHAT CHANGED, AND WHY IT IS SAFE. This used to read
+ * `"en" | "hi" | "ar" | "fr" | "es"`, which was a promise the code did not
+ * keep: `portal-i18n.ts` gave `EN` and `HI` a full dictionary each while
+ * `AR`, `FR` and `ES` defined six keys apiece and spread `...EN` for the
+ * remaining 127. Ticking "العربية" for a venue therefore produced an English
+ * portal with an Arabic Connect button and the entire layout mirrored to
+ * RTL -- strictly worse for a guest than not offering the language at all.
+ * Verified against production before removal: across all 12
+ * `captive_portal_configs` rows, `supported_languages` is only `["en"]`
+ * (11 venues) or `["en","hi"]` (1). No venue had ever selected `ar`, `fr`
+ * or `es`, so nothing regressed for anyone.
+ *
+ * The eight added alongside `hi` are full 133-key dictionaries, not spreads.
+ *
+ * Order is deliberate and is the order the guest language switcher renders
+ * in: English, then Hindi, then the other eight by speaker count.
+ *
+ * `default_language`/`supported_languages` remain free text on the backend
+ * (no migration -- see `toRuntimeLanguage` and `resolveLanguageSelection`
+ * below for how a stale stored value from before this change is handled). */
+export const RUNTIME_LANGUAGES = [
+  "en",
+  "hi",
+  "bn",
+  "mr",
+  "te",
+  "ta",
+  "gu",
+  "kn",
+  "ml",
+  "pa",
+] as const;
+
+export type RuntimeLanguage = (typeof RUNTIME_LANGUAGES)[number];
+
+/** Each language's name IN THAT LANGUAGE -- never the English exonym. A guest
+ * scanning the switcher for their own language is looking for the word they
+ * would recognize, and by definition they may not read the one it is listed
+ * under otherwise. Same set and same spellings the marketing site's own
+ * picker uses, so the two never disagree in front of the same person.
+ *
+ * Single source of truth on purpose: `portal.ts`'s `LANGUAGES` (the admin
+ * multi-language picker) and `portal-i18n.ts`'s `LANGUAGE_LABEL` (the guest
+ * switcher) used to be two hand-maintained copies of the identical map, one
+ * of which had to be updated by hand every time the other was. Both now read
+ * this. It lives here rather than in `portal-i18n.ts` because this module has
+ * no imports at all -- the admin dashboard can render the picker without
+ * pulling ten guest dictionaries into its bundle. */
+export const RUNTIME_LANGUAGE_LABEL: Record<RuntimeLanguage, string> = {
+  en: "English",
+  hi: "हिन्दी",
+  bn: "বাংলা",
+  mr: "मराठी",
+  te: "తెలుగు",
+  ta: "தமிழ்",
+  gu: "ગુજરાતી",
+  kn: "ಕನ್ನಡ",
+  ml: "മലയാളം",
+  pa: "ਪੰਜਾਬੀ",
+};
+
+/** Validates one raw (possibly absent, possibly stale) backend language code
+ * against the real allowlist. Returns `undefined` -- NOT `"en"` -- for an
+ * unrecognized code, which is the whole point: the old version of this
+ * coerced every unknown value to `"en"`, and because it was mapped over the
+ * whole `supported_languages` array, a venue whose stored config still said
+ * `["en","ar","fr"]` rendered THREE switcher entries all labelled "English",
+ * all sharing the React key `"en"`. Callers that need a concrete language
+ * use `resolveLanguageSelection` below, which decides the fallback once, at
+ * the level where it is actually meaningful. */
+export function toRuntimeLanguage(v: string | null | undefined): RuntimeLanguage | undefined {
+  return v && (RUNTIME_LANGUAGES as readonly string[]).includes(v)
+    ? (v as RuntimeLanguage)
+    : undefined;
+}
+
+/** Turns a config's raw `default_language` + `supported_languages` into a
+ * pair this app can render without any further defensive checks.
+ *
+ * Guarantees, in order:
+ *   1. Unknown codes are DROPPED, never coerced. A venue still storing the
+ *      removed `"ar"`/`"fr"`/`"es"` (or a typo, or a future code this build
+ *      doesn't know yet) simply doesn't get that entry -- it does not become
+ *      a duplicate "English".
+ *   2. The result is de-duplicated, preserving first-seen order, so the
+ *      switcher can key on the language code safely.
+ *   3. The result is never empty. A config whose every stored language was
+ *      unrecognized degrades to `["en"]` -- the portal still renders, in
+ *      English, with a single correct switcher entry.
+ *   4. `defaultLanguage` is always a member of `supportedLanguages`. Both
+ *      the admin UI (see `PortalLanguagesPanel`) and stale stored data could
+ *      previously produce `defaultLanguage: "hi"` alongside
+ *      `languages: ["en"]`, at which point the portal booted into a language
+ *      the guest's switcher never offered and so could not switch out of.
+ *
+ * Deliberately lives here, next to the type, rather than in either consumer:
+ * `portal-runtime.service.ts` (the real backend response) and
+ * `PortalPage.tsx` (the admin's live preview of an unsaved config) each had
+ * their own copy of the coercion, and the two had already drifted. This
+ * module imports nothing, so both can share it with no bundle cost -- the
+ * same reason `toGuestFontChoice` lives here too. */
+export function resolveLanguageSelection(
+  rawDefault: string | null | undefined,
+  rawSupported: readonly string[] | null | undefined,
+): { defaultLanguage: RuntimeLanguage; supportedLanguages: RuntimeLanguage[] } {
+  const seen = new Set<RuntimeLanguage>();
+  for (const raw of rawSupported ?? []) {
+    const lang = toRuntimeLanguage(raw);
+    if (lang) seen.add(lang);
+  }
+  const fallbackDefault = toRuntimeLanguage(rawDefault);
+  if (!seen.size && fallbackDefault) seen.add(fallbackDefault);
+  if (!seen.size) seen.add("en");
+
+  const supportedLanguages = [...seen];
+  const defaultLanguage =
+    fallbackDefault && supportedLanguages.includes(fallbackDefault)
+      ? fallbackDefault
+      : supportedLanguages[0];
+
+  return { defaultLanguage, supportedLanguages };
+}
 
 /** captive-portal-v6-design-spec.md §3.2 -- the curated, backend-validated
  * heading-font allowlist. Deliberately a closed enum, never free text (see
