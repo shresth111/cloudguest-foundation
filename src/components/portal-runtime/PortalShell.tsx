@@ -363,7 +363,21 @@ function GuestBackdrop({
         data-pg-backdrop
         className={cn(layerCls, "bg-cover bg-no-repeat")}
         style={{
-          backgroundImage: `url(${backgroundImageUrl})`,
+          // `JSON.stringify`, not bare interpolation. CSS terminates an
+          // *unquoted* `url(` token at the first `)`, and URLs legitimately
+          // contain parentheses -- an SVG data URI with a gradient carries
+          // `fill="url(%23g)"` with its parens NOT percent-encoded, because
+          // `encodeURIComponent` leaves `(`/`)` alone. Interpolated bare,
+          // the whole declaration is invalid and silently drops to
+          // `background-image: none`: the venue's photo vanishes and every
+          // downstream contrast decision (scrim polarity, plate alpha) is
+          // made against a photo the guest cannot see. Found live: the
+          // visual-matrix's gradient "dark"/"bright" test photos rendered as
+          // bare canvas while the flat-rect "busy" one rendered fine.
+          // JSON.stringify wraps in `"` and escapes `"`/`\` -- the exact
+          // escapes a double-quoted CSS string needs, and a quoted CSS
+          // `url("...")` accepts parens verbatim.
+          backgroundImage: `url(${JSON.stringify(backgroundImageUrl)})`,
           // v7 §1.4 C4: the per-venue focal point. Defaults 50/25
           // reproduce `center 25%` exactly, so no existing venue moves.
           // On phones it is the *horizontal* half that does the work --
