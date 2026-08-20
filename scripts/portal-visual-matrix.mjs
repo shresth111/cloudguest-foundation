@@ -88,6 +88,11 @@ const CASES = [
   { id: "14-prefers-contrast-more", photo: "busy", contrast: "more" },
   { id: "15-reduced-motion", photo: "busy", motion: "reduce" },
   { id: "16-venue-logo", photo: "busy", logo: true },
+  // v7 Part 3 P4 -- the one backend-driven toggle Parts 2/3 add. `false` is
+  // only reachable through the backend's white-label entitlement check; the
+  // shot must show the footer plate WITHOUT the lockup row and with the
+  // terms/support row intact.
+  { id: "17-powered-by-off", photo: "busy", poweredBy: false },
 ];
 
 const VENUE_LOGO =
@@ -127,6 +132,10 @@ const config = (c) => ({
   is_open_now: true,
   business_hours_closed_message: null,
   guest_font_choice: "system",
+  // Omitted (-> undefined -> dropped by JSON.stringify) unless a case sets
+  // it: absence is the live-backend state until feat/v7-part23-backend
+  // lands, so most shots exercise exactly that.
+  powered_by_enabled: c.poweredBy,
   background_overlay_strength: 55,
   background_focal_x: 50,
   background_focal_y: 25,

@@ -376,6 +376,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       backgroundTopLuminance: null,
       backgroundEntropy: null,
       pinLoginEnabled: false,
+      // v7 Part 3 P4: the builder has no white-label toggle yet; `true` is
+      // the only value a non-entitled venue can have.
+      poweredByEnabled: true,
       locationCountry: null,
     }),
     [portalId, logo, primary, form.lang, form.terms, form.redirectUrl, headline, msg, authMethods],

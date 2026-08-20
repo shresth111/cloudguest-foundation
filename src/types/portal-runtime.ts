@@ -174,6 +174,20 @@ export interface RuntimePortalConfig {
    * the sign-in surface has a real field to gate a real method on rather
    * than a fabricated control (§0.1 item 6). */
   pinLoginEnabled: boolean;
+  /** v7 Part 3 (P4) -- whether the "Powered by Wyfy Guest" mark renders.
+   * `true` is the only value a venue can have without the white-label
+   * entitlement: the backend (`feat/v7-part23-backend`, same-named branch in
+   * `cloud-guest-repo/backend`) adds `powered_by_enabled Boolean NOT NULL
+   * DEFAULT true` and 402s any attempt to set it `false` without
+   * `white_label.*`. Consumed optimistically here (`?? true` in
+   * `toRuntimeConfig`) so this frontend is correct both before and after
+   * that PR lands -- absence and `true` render identically, which is
+   * today's behaviour byte-for-byte. The mark itself stays deliberately
+   * prominent for everyone else: the honest rationale is venue-acquisition
+   * brand recall plus anti-spoofing (a consistent operator mark is harder
+   * to fake convincingly than a bare venue page), NOT the inverted
+   * "guests distrust WiFi" claim -- §8.3's own survey has 67% feeling safe. */
+  poweredByEnabled: boolean;
   /** The resolved location's own ISO 3166-1 alpha-2 country (e.g. `"IN"`),
    * **not** a phone dialing code -- the frontend owns that mapping, see
    * `src/lib/portal-locale.ts`. `null` when the config was resolved by

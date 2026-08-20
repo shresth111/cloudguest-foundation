@@ -744,59 +744,85 @@ export function PortalShell({
                   </Link>
                   <span>{t("supportAskStaff")}</span>
                 </div>
-                <div
-                  data-pg-measure="powered-by"
-                  className="mt-1.5 flex min-w-0 items-center justify-center gap-1.5 pg-micro text-[var(--pg-ink-faint)]"
-                >
-                  {/* Sized in `em`, not `px`. A fixed `h-3.5` would stay 14px
-                   * while the words beside it grew to 13.75px and beyond
-                   * under Part 7's `--pg-type-scale`, so the lockup would
-                   * come apart for exactly the guest who turned the text
-                   * size up. `1.25em` against `pg-micro`'s 11px is 13.75px
-                   * at the default scale and 17.2px at 1.25, keeping the
-                   * mark and the wordmark in fixed proportion at every
-                   * setting -- and it inherits the platform's own text
-                   * scaling for free, since `pg-micro` is authored in
-                   * `rem`.
-                   *
-                   * `--pg-brand-accent` (wyfyguest.com violet-700 #6D28D9) on
-                   * the mark, `--pg-ink` on the wordmark: that is the site's
-                   * own header lockup -- coloured shield, dark wordmark --
-                   * reproduced exactly, and it is the strongest brand match
-                   * available on this screen at zero bytes. It is applied as
-                   * a `color`, not as an SVG `fill`, so the glyph's
-                   * `currentColor` still resolves to `CanvasText` under
-                   * `forced-colors: active`; a hardcoded hex inside the SVG
-                   * would survive forced colours and should not.
-                   * 5.02:1 against the worst plate composite as a non-text
-                   * graphic, where SC 1.4.11 asks 3:1. */}
-                  <PortalFootnoteMark className="h-[1.25em] w-[1.25em] text-[var(--pg-brand-accent)]" />
-                  {/* Split on `{brand}` rather than interpolated, because the
-                   * two halves are styled differently and because the word
-                   * order flips between languages -- Hindi puts the brand
-                   * first ("{brand} द्वारा संचालित"), so a fixed prefix/suffix
-                   * pair would be wrong. Same reason `courtesyOfTemplate`
-                   * exists. `split` with a limit of 2 is not used on purpose:
-                   * if a future translation ever contains the token twice,
-                   * losing the tail is a visible bug, whereas rendering it
-                   * twice is at least self-evident.
-                   *
-                   * `whitespace-nowrap` on the brand only. A brand name broken
-                   * across two lines is precisely the "something is wrong with
-                   * this page" cue §8.3 describes, and at 320px in Hindi this
-                   * row is genuinely tight. Wrapping is still permitted
-                   * *between* the mark and the text. */}
-                  <span>
-                    {poweredByBefore}
-                    <span
-                      data-pg-measure="powered-by-brand"
-                      className="whitespace-nowrap text-[var(--pg-ink)]"
-                    >
-                      {WYFY_GUEST_BRAND}
+                {/* v7 Part 3 P4 -- `!== false`, not `=== true` or a bare
+                 * truthy check: `config` is legitimately undefined on the
+                 * standalone error surfaces that render this shell without a
+                 * runtime, and the mark must default to PRESENT -- absence
+                 * of the white-label entitlement field can never mean
+                 * white-label. Only the backend's explicit `false` (which it
+                 * 402-gates behind `white_label.*`) removes the row. */}
+                {config?.poweredByEnabled !== false && (
+                  <a
+                    data-pg-measure="powered-by"
+                    // The research's "link it": the mark resolves to the real
+                    // operator, which is the anti-spoofing half of its job --
+                    // an evil twin can copy the pixels but not the domain.
+                    // `target="_blank"` is deliberate and load-bearing on the
+                    // walled-garden path: pre-auth, wyfyguest.com is
+                    // unreachable, and navigating THIS document to it would
+                    // dump the guest's half-finished sign-in on an error
+                    // page inside the CNA. A new tab/window fails harmlessly
+                    // (and in the iOS CNA, which suppresses window.open-ish
+                    // navigation, a no-op is the correct worst case).
+                    // No underline: this is the site's own footer-lockup
+                    // treatment, and the row it sits in already has exactly
+                    // one underlined element (the terms link) as the "this
+                    // is a link" affordance for the row above.
+                    href="https://wyfyguest.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1.5 flex min-w-0 items-center justify-center gap-1.5 pg-micro text-[var(--pg-ink-faint)]"
+                  >
+                    {/* Sized in `em`, not `px`. A fixed `h-3.5` would stay 14px
+                     * while the words beside it grew to 13.75px and beyond
+                     * under Part 7's `--pg-type-scale`, so the lockup would
+                     * come apart for exactly the guest who turned the text
+                     * size up. `1.25em` against `pg-micro`'s 11px is 13.75px
+                     * at the default scale and 17.2px at 1.25, keeping the
+                     * mark and the wordmark in fixed proportion at every
+                     * setting -- and it inherits the platform's own text
+                     * scaling for free, since `pg-micro` is authored in
+                     * `rem`.
+                     *
+                     * `--pg-brand-accent` (wyfyguest.com violet-700 #6D28D9) on
+                     * the mark, `--pg-ink` on the wordmark: that is the site's
+                     * own header lockup -- coloured shield, dark wordmark --
+                     * reproduced exactly, and it is the strongest brand match
+                     * available on this screen at zero bytes. It is applied as
+                     * a `color`, not as an SVG `fill`, so the glyph's
+                     * `currentColor` still resolves to `CanvasText` under
+                     * `forced-colors: active`; a hardcoded hex inside the SVG
+                     * would survive forced colours and should not.
+                     * 5.02:1 against the worst plate composite as a non-text
+                     * graphic, where SC 1.4.11 asks 3:1. */}
+                    <PortalFootnoteMark className="h-[1.25em] w-[1.25em] text-[var(--pg-brand-accent)]" />
+                    {/* Split on `{brand}` rather than interpolated, because the
+                     * two halves are styled differently and because the word
+                     * order flips between languages -- Hindi puts the brand
+                     * first ("{brand} द्वारा संचालित"), so a fixed prefix/suffix
+                     * pair would be wrong. Same reason `courtesyOfTemplate`
+                     * exists. `split` with a limit of 2 is not used on purpose:
+                     * if a future translation ever contains the token twice,
+                     * losing the tail is a visible bug, whereas rendering it
+                     * twice is at least self-evident.
+                     *
+                     * `whitespace-nowrap` on the brand only. A brand name broken
+                     * across two lines is precisely the "something is wrong with
+                     * this page" cue §8.3 describes, and at 320px in Hindi this
+                     * row is genuinely tight. Wrapping is still permitted
+                     * *between* the mark and the text. */}
+                    <span>
+                      {poweredByBefore}
+                      <span
+                        data-pg-measure="powered-by-brand"
+                        className="whitespace-nowrap text-[var(--pg-ink)]"
+                      >
+                        {WYFY_GUEST_BRAND}
+                      </span>
+                      {poweredByAfter}
                     </span>
-                    {poweredByAfter}
-                  </span>
-                </div>
+                  </a>
+                )}
               </PortalTextPlate>
             </footer>
           </div>
