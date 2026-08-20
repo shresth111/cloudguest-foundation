@@ -6,7 +6,14 @@ import type {
   FleetBasicWanApplyResult,
   FleetBasicWanPreview,
   FleetCompatibilityReport,
+  FleetConfigurationPlan,
   FleetDiscoverResult,
+  FleetFinalVerificationResult,
+  FleetGuestInterfaceAvailabilityResult,
+  FleetGuestNetworkRequest,
+  FleetPlanApplyResult,
+  FleetPlanPrepareResult,
+  FleetPlanRenderResult,
   FleetRouterSnapshot,
   FleetWanInputDraft,
   FleetWanVerificationGate,
@@ -144,6 +151,152 @@ function toIspLink(l: BackendIspLink): IspLink {
     lastCheckedAt: null,
     consecutiveUnhealthyCount: 0,
     createdAt: "",
+  };
+}
+
+function toGuestNetworkRequest(body: {
+  guest_interfaces: string[];
+  vlan_mode: boolean;
+  vlans: Array<{
+    vlan_id: number;
+    name: string;
+    subnet_cidr: string;
+    enable_hotspot: boolean;
+  }>;
+  parent_bridge: string | null;
+}): FleetGuestNetworkRequest {
+  return {
+    guestInterfaces: body.guest_interfaces,
+    vlanMode: body.vlan_mode,
+    vlans: body.vlans.map((v) => ({
+      vlanId: v.vlan_id,
+      name: v.name,
+      subnetCidr: v.subnet_cidr,
+      enableHotspot: v.enable_hotspot,
+    })),
+    parentBridge: body.parent_bridge,
+  };
+}
+
+function guestNetworkPayload(request: FleetGuestNetworkRequest) {
+  return {
+    guest_interfaces: request.guestInterfaces,
+    vlan_mode: request.vlanMode,
+    vlans: request.vlans.map((v) => ({
+      vlan_id: v.vlanId,
+      name: v.name,
+      subnet_cidr: v.subnetCidr,
+      enable_hotspot: v.enableHotspot,
+    })),
+    parent_bridge: request.parentBridge,
+  };
+}
+
+interface BackendGuestAvailabilityResponse {
+  router_id: string;
+  snapshot_id: string;
+  interfaces: Array<{
+    name: string;
+    status: string;
+    detail: string | null;
+    bridge: string | null;
+  }>;
+  recommendation: {
+    recommended_interfaces: string[];
+    parent_bridge_hint: string | null;
+    message: string | null;
+  };
+}
+
+interface BackendPlanConflict {
+  code: string;
+  status: string;
+  summary: string;
+  detail: string | null;
+  cidrs: string[];
+}
+
+interface BackendPlanAction {
+  seq: number;
+  rule_id: string;
+  action_type: string;
+  resource_kind: string;
+  routeros_path: string;
+  resource_ref: string;
+  summary: string;
+  risk: string;
+}
+
+interface BackendConfigurationPlan {
+  id: string;
+  router_id: string;
+  snapshot_id: string;
+  status: string;
+  engine_version: string;
+  requested_config: {
+    guest_interfaces: string[];
+    vlan_mode: boolean;
+    vlans: Array<{
+      vlan_id: number;
+      name: string;
+      subnet_cidr: string;
+      enable_hotspot: boolean;
+    }>;
+    parent_bridge: string | null;
+  };
+  actions: BackendPlanAction[];
+  conflicts: BackendPlanConflict[];
+  decisions: Array<{
+    code: string;
+    summary: string;
+    detail: string | null;
+    options: string[];
+  }>;
+  summary: {
+    action_count: number;
+    conflict_count: number;
+    decision_count: number;
+    highest_risk: string;
+  };
+}
+
+function toPlan(plan: BackendConfigurationPlan): FleetConfigurationPlan {
+  return {
+    id: plan.id,
+    routerId: plan.router_id,
+    snapshotId: plan.snapshot_id,
+    status: plan.status as FleetConfigurationPlan["status"],
+    engineVersion: plan.engine_version,
+    requestedConfig: toGuestNetworkRequest(plan.requested_config),
+    actions: plan.actions.map((a) => ({
+      seq: a.seq,
+      ruleId: a.rule_id,
+      actionType: a.action_type,
+      resourceKind: a.resource_kind,
+      routerosPath: a.routeros_path,
+      resourceRef: a.resource_ref,
+      summary: a.summary,
+      risk: a.risk as FleetConfigurationPlan["actions"][number]["risk"],
+    })),
+    conflicts: plan.conflicts.map((c) => ({
+      code: c.code,
+      status: c.status as FleetConfigurationPlan["conflicts"][number]["status"],
+      summary: c.summary,
+      detail: c.detail,
+      cidrs: c.cidrs,
+    })),
+    decisions: plan.decisions.map((d) => ({
+      code: d.code,
+      summary: d.summary,
+      detail: d.detail,
+      options: d.options,
+    })),
+    summary: {
+      actionCount: plan.summary.action_count,
+      conflictCount: plan.summary.conflict_count,
+      decisionCount: plan.summary.decision_count,
+      highestRisk: plan.summary.highest_risk as FleetConfigurationPlan["summary"]["highestRisk"],
+    },
   };
 }
 
@@ -371,5 +524,181 @@ export const routerFleetWizardService = {
     }
 
     return results;
+  },
+
+  async getGuestInterfaceAvailability(
+    routerId: string,
+    organizationId?: string,
+  ): Promise<FleetGuestInterfaceAvailabilityResult> {
+    const { data } = await api.get<BackendGuestAvailabilityResponse>(
+      `/routers/${routerId}/guest/interfaces/availability`,
+      orgHeaders(organizationId),
+    );
+    return {
+      routerId: data.router_id,
+      snapshotId: data.snapshot_id,
+      interfaces: data.interfaces.map((i) => ({
+        name: i.name,
+        status: i.status as FleetGuestInterfaceAvailabilityResult["interfaces"][number]["status"],
+        detail: i.detail,
+        bridge: i.bridge,
+      })),
+      recommendation: {
+        recommendedInterfaces: data.recommendation.recommended_interfaces,
+        parentBridgeHint: data.recommendation.parent_bridge_hint,
+        message: data.recommendation.message,
+      },
+    };
+  },
+
+  async buildConfigurationPlan(
+    routerId: string,
+    requestedConfig: FleetGuestNetworkRequest,
+    organizationId?: string,
+    snapshotId?: string,
+  ): Promise<FleetConfigurationPlan> {
+    const { data } = await api.post<BackendConfigurationPlan>(
+      `/routers/${routerId}/plans`,
+      { requested_config: guestNetworkPayload(requestedConfig) },
+      {
+        ...orgHeaders(organizationId),
+        params: snapshotId ? { snapshot_id: snapshotId } : undefined,
+      },
+    );
+    return toPlan(data);
+  },
+
+  async getConfigurationPlan(
+    routerId: string,
+    planId: string,
+    organizationId?: string,
+  ): Promise<FleetConfigurationPlan> {
+    const { data } = await api.get<BackendConfigurationPlan>(
+      `/routers/${routerId}/plans/${planId}`,
+      orgHeaders(organizationId),
+    );
+    return toPlan(data);
+  },
+
+  async approveConfigurationPlan(
+    routerId: string,
+    planId: string,
+    organizationId?: string,
+  ): Promise<FleetConfigurationPlan> {
+    const { data } = await api.post<BackendConfigurationPlan>(
+      `/routers/${routerId}/plans/${planId}/approve`,
+      undefined,
+      orgHeaders(organizationId),
+    );
+    return toPlan(data);
+  },
+
+  async renderConfigurationPlan(
+    routerId: string,
+    planId: string,
+    organizationId?: string,
+  ): Promise<FleetPlanRenderResult> {
+    const { data } = await api.post<{
+      plan_id: string;
+      config_version_id: string;
+      config_version_number: number;
+      status: string;
+      profiles_used: string[];
+      secret_refs: string[];
+      line_count: number;
+      requires_safety_net: boolean;
+    }>(`/routers/${routerId}/plans/${planId}/render`, undefined, orgHeaders(organizationId));
+    return {
+      planId: data.plan_id,
+      configVersionId: data.config_version_id,
+      configVersionNumber: data.config_version_number,
+      status: data.status as FleetPlanRenderResult["status"],
+      profilesUsed: data.profiles_used,
+      secretRefs: data.secret_refs,
+      lineCount: data.line_count,
+      requiresSafetyNet: data.requires_safety_net,
+    };
+  },
+
+  async prepareConfigurationPlan(
+    routerId: string,
+    planId: string,
+    organizationId?: string,
+  ): Promise<FleetPlanPrepareResult> {
+    const { data } = await api.post<{
+      plan_id: string;
+      pre_apply_backup_version_id: string;
+      pre_apply_backup_version_number: number;
+      status: string;
+      requires_safety_net: boolean;
+    }>(`/routers/${routerId}/plans/${planId}/prepare`, undefined, orgHeaders(organizationId));
+    return {
+      planId: data.plan_id,
+      preApplyBackupVersionId: data.pre_apply_backup_version_id,
+      preApplyBackupVersionNumber: data.pre_apply_backup_version_number,
+      status: data.status as FleetPlanPrepareResult["status"],
+      requiresSafetyNet: data.requires_safety_net,
+    };
+  },
+
+  async applyConfigurationPlan(
+    routerId: string,
+    planId: string,
+    organizationId?: string,
+  ): Promise<FleetPlanApplyResult> {
+    const { data } = await api.post<{
+      plan_id: string;
+      config_version_id: string;
+      provisioning_job_id: string;
+      status: string;
+      config_version_status: string;
+    }>(`/routers/${routerId}/plans/${planId}/apply`, undefined, orgHeaders(organizationId));
+    return {
+      planId: data.plan_id,
+      configVersionId: data.config_version_id,
+      provisioningJobId: data.provisioning_job_id,
+      status: data.status as FleetPlanApplyResult["status"],
+      configVersionStatus: data.config_version_status,
+    };
+  },
+
+  async verifyPlanFinal(
+    routerId: string,
+    planId: string,
+    organizationId?: string,
+  ): Promise<FleetFinalVerificationResult> {
+    const { data } = await api.post<{
+      plan_id: string;
+      verification_run_id: string;
+      overall: string;
+      checks: BackendWanVerificationCheck[];
+      checklist: {
+        total: number;
+        passing: number;
+        failing: number;
+        not_checked: number;
+      };
+      safety_net_removed: boolean;
+    }>(`/routers/${routerId}/plans/${planId}/verify/final`, undefined, orgHeaders(organizationId));
+    return {
+      planId: data.plan_id,
+      verificationRunId: data.verification_run_id,
+      overall: data.overall as FleetFinalVerificationResult["overall"],
+      checks: data.checks.map((c) => ({
+        name: c.name,
+        status: c.status,
+        observed: c.observed,
+        expected: c.expected,
+        detail: c.detail,
+        durationMs: c.duration_ms,
+      })),
+      checklist: {
+        total: data.checklist.total,
+        passing: data.checklist.passing,
+        failing: data.checklist.failing,
+        notChecked: data.checklist.not_checked,
+      },
+      safetyNetRemoved: data.safety_net_removed,
+    };
   },
 };

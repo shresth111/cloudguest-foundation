@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -8,8 +9,12 @@ import {
   Radar,
   Route,
   ShieldCheck,
+  Users,
   Wifi,
   Workflow,
+  GitBranch,
+  FileCheck,
+  Rocket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -32,17 +37,37 @@ import {
   toStepStatus,
 } from "@/components/routers/fleet-wizard/ValidationSummary";
 import {
+  ConflictReviewStep,
+  FinalVerifyStep,
+  FleetOnlineStep,
+  GuestInputStep,
+  PlanApplyStep,
+  PlanApprovalStep,
+} from "@/components/routers/fleet-wizard/FleetWizardPhase2Steps";
+import {
   useApplyBasicWan,
+  useApplyConfigurationPlan,
+  useApproveConfigurationPlan,
+  useBuildConfigurationPlan,
   useDiscoverRouter,
   useFleetProvisionJob,
+  useGuestInterfaceAvailability,
+  usePrepareConfigurationPlan,
   usePreviewBasicWan,
+  useRenderConfigurationPlan,
+  useVerifyPlanFinal,
   useVerifyRouterWan,
 } from "@/hooks/useRouterFleetWizard";
 import { routerFleetWizardService } from "@/services/router-fleet-wizard.service";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type {
+  FleetConfigurationPlan,
   FleetDiscoverResult,
+  FleetFinalVerificationResult,
+  FleetGuestNetworkRequest,
+  FleetGuestVlanDraft,
+  FleetPlanRenderResult,
   FleetRouterSnapshot,
   FleetWanInputDraft,
   FleetWanVerificationResult,
@@ -60,6 +85,27 @@ const STEPS = [
   { key: "wan-apply", title: "WAN apply", description: "Push basic WAN profile", icon: Workflow },
   { key: "wan-verify", title: "WAN verify", description: "Per-link health gate", icon: Network },
   { key: "topology", title: "Topology review", description: "Bridges & addressing", icon: Route },
+  { key: "guest-input", title: "Guest input", description: "Ports & VLAN intent", icon: Users },
+  {
+    key: "conflicts",
+    title: "Conflict review",
+    description: "Rule engine output",
+    icon: GitBranch,
+  },
+  {
+    key: "plan-approval",
+    title: "Plan approval",
+    description: "Preview & compile",
+    icon: FileCheck,
+  },
+  { key: "apply", title: "Apply", description: "Gateway push progress", icon: Workflow },
+  {
+    key: "final-verify",
+    title: "Final verify",
+    description: "Post-apply health",
+    icon: ShieldCheck,
+  },
+  { key: "fleet-online", title: "Fleet online", description: "Checklist sign-off", icon: Rocket },
 ] as const;
 
 const DEFAULT_WAN_DRAFTS: FleetWanInputDraft[] = [
@@ -88,6 +134,20 @@ const DEFAULT_WAN_DRAFTS: FleetWanInputDraft[] = [
     isEnabled: false,
   },
 ];
+
+const DEFAULT_GUEST_REQUEST: FleetGuestNetworkRequest = {
+  guestInterfaces: [],
+  vlanMode: false,
+  vlans: [],
+  parentBridge: null,
+};
+
+const DEFAULT_VLAN_DRAFT: FleetGuestVlanDraft = {
+  vlanId: 10,
+  name: "guest",
+  subnetCidr: "10.10.10.0/24",
+  enableHotspot: true,
+};
 
 function formatBytes(bytes: number | null): string {
   if (bytes == null) return "—";
@@ -134,12 +194,28 @@ export function RouterFleetSetupWizard({
   const [completedThrough, setCompletedThrough] = useState(-1);
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
   const [lanBridge, setLanBridge] = useState("bridge1");
+  const [guestRequest, setGuestRequest] = useState<FleetGuestNetworkRequest>(DEFAULT_GUEST_REQUEST);
+  const [vlanDraft, setVlanDraft] = useState<FleetGuestVlanDraft>(DEFAULT_VLAN_DRAFT);
+  const [plan, setPlan] = useState<FleetConfigurationPlan | null>(null);
+  const [renderResult, setRenderResult] = useState<FleetPlanRenderResult | null>(null);
+  const [planApplyJobId, setPlanApplyJobId] = useState<string | null>(null);
+  const [finalVerification, setFinalVerification] = useState<FleetFinalVerificationResult | null>(
+    null,
+  );
 
   const discover = useDiscoverRouter();
   const previewWan = usePreviewBasicWan();
   const applyWan = useApplyBasicWan();
   const verifyWan = useVerifyRouterWan();
   const applyJob = useFleetProvisionJob(applyJobId, true);
+  const guestAvailability = useGuestInterfaceAvailability(router.id, router.organizationId);
+  const buildPlan = useBuildConfigurationPlan();
+  const approvePlan = useApproveConfigurationPlan();
+  const renderPlan = useRenderConfigurationPlan();
+  const preparePlan = usePrepareConfigurationPlan();
+  const applyPlan = useApplyConfigurationPlan();
+  const verifyFinal = useVerifyPlanFinal();
+  const planApplyJob = useFleetProvisionJob(planApplyJobId, true);
 
   const snapshot = discoverResult?.snapshot ?? null;
   const compatibility = discoverResult?.compatibility ?? null;
@@ -150,6 +226,18 @@ export function RouterFleetSetupWizard({
     const primary = snapshot.bridges.find((b) => !b.isWyfyManaged) ?? snapshot.bridges[0];
     if (primary?.name) setLanBridge(primary.name);
   }, [snapshot]);
+
+  useEffect(() => {
+    const rec = guestAvailability.data?.recommendation;
+    if (!rec || guestRequest.guestInterfaces.length) return;
+    if (rec.recommendedInterfaces.length) {
+      setGuestRequest((prev) => ({
+        ...prev,
+        guestInterfaces: rec.recommendedInterfaces,
+        parentBridge: prev.parentBridge ?? rec.parentBridgeHint,
+      }));
+    }
+  }, [guestAvailability.data, guestRequest.guestInterfaces.length]);
 
   const stepperItems = STEPS.map((s, index) => ({
     key: s.key,
@@ -292,9 +380,145 @@ export function RouterFleetSetupWizard({
     }
   }
 
-  function finishWizard() {
+  function continueFromTopology() {
     setCompletedThrough(5);
-    toast.success("Steps 1–6 complete — continue with guest network planning in the next phase");
+    setStep(6);
+  }
+
+  function buildGuestRequestPayload(): FleetGuestNetworkRequest {
+    return {
+      ...guestRequest,
+      vlans: guestRequest.vlanMode
+        ? [{ ...vlanDraft, enableHotspot: vlanDraft.enableHotspot }]
+        : [],
+    };
+  }
+
+  async function buildPlanFromGuestInput() {
+    const payload = buildGuestRequestPayload();
+    if (!payload.vlanMode && payload.guestInterfaces.length === 0) {
+      toast.error("Select at least one guest interface");
+      return;
+    }
+    try {
+      const built = await buildPlan.mutateAsync({
+        routerId: router.id,
+        organizationId: router.organizationId,
+        snapshotId: snapshot?.id,
+        requestedConfig: payload,
+      });
+      setPlan(built);
+      if (built.status === "blocked" || built.conflicts.some((c) => c.status === "BLOCKED")) {
+        setBlockedAt(7);
+        setStep(7);
+        toast.error("Plan has blocking conflicts");
+        return;
+      }
+      setCompletedThrough(6);
+      setStep(7);
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to build configuration plan");
+      setBlockedAt(6);
+    }
+  }
+
+  function continueFromConflicts() {
+    if (!plan) return;
+    if (plan.status === "blocked" || plan.conflicts.some((c) => c.status === "BLOCKED")) {
+      setBlockedAt(7);
+      toast.error("Resolve blocking conflicts before continuing");
+      return;
+    }
+    setCompletedThrough(7);
+    setStep(8);
+  }
+
+  async function approveAndRenderPlan() {
+    if (!plan) return;
+    try {
+      const approved = await approvePlan.mutateAsync({
+        routerId: router.id,
+        planId: plan.id,
+        organizationId: router.organizationId,
+      });
+      setPlan(approved);
+      const rendered = await renderPlan.mutateAsync({
+        routerId: router.id,
+        planId: plan.id,
+        organizationId: router.organizationId,
+      });
+      setRenderResult(rendered);
+      setCompletedThrough(8);
+      toast.success("Plan approved and rendered");
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to approve/render plan");
+      setBlockedAt(8);
+    }
+  }
+
+  async function runPlanApply() {
+    if (!plan) return;
+    try {
+      await preparePlan.mutateAsync({
+        routerId: router.id,
+        planId: plan.id,
+        organizationId: router.organizationId,
+      });
+      const applied = await applyPlan.mutateAsync({
+        routerId: router.id,
+        planId: plan.id,
+        organizationId: router.organizationId,
+      });
+      setPlanApplyJobId(applied.provisioningJobId);
+      toast.success("Plan apply queued");
+    } catch (err) {
+      toast.error((err as AppError).message || "Plan apply failed");
+      setBlockedAt(9);
+    }
+  }
+
+  useEffect(() => {
+    const status = planApplyJob.data?.status;
+    if (!status) return;
+    if (status === "succeeded") setCompletedThrough(9);
+    if (status === "failed" || status === "cancelled") {
+      setBlockedAt(9);
+      toast.error(planApplyJob.data?.errorMessage ?? "Plan apply job failed");
+    }
+  }, [planApplyJob.data]);
+
+  async function runFinalVerification() {
+    if (!plan) return;
+    try {
+      const result = await verifyFinal.mutateAsync({
+        routerId: router.id,
+        planId: plan.id,
+        organizationId: router.organizationId,
+      });
+      setFinalVerification(result);
+      if (result.overall === "FAILED") {
+        setBlockedAt(10);
+        toast.error("Final verification failed");
+        return;
+      }
+      setCompletedThrough(10);
+      setStep(11);
+      toast.success("Final verification complete");
+    } catch (err) {
+      toast.error((err as AppError).message || "Final verification failed");
+      setBlockedAt(10);
+    }
+  }
+
+  function finishWizard() {
+    setCompletedThrough(11);
+    toast.success(`${router.name} provisioning wizard complete`);
+    onBack();
+  }
+
+  function finishPhase1() {
+    setCompletedThrough(5);
+    setStep(6);
   }
 
   function canGoNext(): boolean {
@@ -306,6 +530,21 @@ export function RouterFleetSetupWizard({
       return status === "succeeded";
     }
     if (step === 4) return !!verification?.gatePasses;
+    if (step === 5) return true;
+    if (step === 6) {
+      const payload = buildGuestRequestPayload();
+      return payload.vlanMode || payload.guestInterfaces.length > 0;
+    }
+    if (step === 7) {
+      return (
+        !!plan && plan.status !== "blocked" && !plan.conflicts.some((c) => c.status === "BLOCKED")
+      );
+    }
+    if (step === 8) return !!renderResult;
+    if (step === 9) return planApplyJob.data?.status === "succeeded";
+    if (step === 10) {
+      return !!finalVerification && finalVerification.overall !== "FAILED";
+    }
     return false;
   }
 
@@ -313,7 +552,13 @@ export function RouterFleetSetupWizard({
     if (step === 1) continueFromCompatibility();
     else if (step === 2) void saveWanInput();
     else if (step === 4) runWanVerify();
-    else if (step === 5) finishWizard();
+    else if (step === 5) finishPhase1();
+    else if (step === 6) void buildPlanFromGuestInput();
+    else if (step === 7) continueFromConflicts();
+    else if (step === 8) setStep(9);
+    else if (step === 9) setStep(10);
+    else if (step === 10) runFinalVerification();
+    else if (step === 11) finishWizard();
     else setStep((s) => Math.min(STEPS.length - 1, s + 1));
   }
 
@@ -373,6 +618,45 @@ export function RouterFleetSetupWizard({
                 <WanVerifyStep verification={verification} loading={verifyWan.isPending} />
               )}
               {step === 5 && snapshot && <TopologyStep snapshot={snapshot} />}
+              {step === 6 && (
+                <GuestInputStep
+                  availability={guestAvailability.data}
+                  loading={guestAvailability.isLoading}
+                  guestRequest={guestRequest}
+                  vlanDraft={vlanDraft}
+                  onGuestRequestChange={setGuestRequest}
+                  onVlanDraftChange={setVlanDraft}
+                />
+              )}
+              {step === 7 && <ConflictReviewStep plan={plan} />}
+              {step === 8 && (
+                <PlanApprovalStep
+                  plan={plan}
+                  renderResult={renderResult}
+                  approving={approvePlan.isPending}
+                  rendering={renderPlan.isPending}
+                  onApproveAndRender={approveAndRenderPlan}
+                />
+              )}
+              {step === 9 && (
+                <PlanApplyStep
+                  job={planApplyJob.data}
+                  jobLoading={planApplyJob.isFetching}
+                  preparing={preparePlan.isPending}
+                  applying={applyPlan.isPending}
+                  onRunApply={runPlanApply}
+                />
+              )}
+              {step === 10 && (
+                <FinalVerifyStep
+                  result={finalVerification}
+                  loading={verifyFinal.isPending}
+                  onVerify={runFinalVerification}
+                />
+              )}
+              {step === 11 && (
+                <FleetOnlineStep result={finalVerification} routerName={router.name} />
+              )}
             </div>
 
             <div className="flex items-center justify-between border-t border-border px-6 py-4">
@@ -410,8 +694,46 @@ export function RouterFleetSetupWizard({
                   Run verification
                 </Button>
               ) : step === 5 ? (
+                <Button type="button" onClick={finishPhase1}>
+                  Continue to guest setup <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : step === 6 ? (
+                <Button
+                  type="button"
+                  onClick={goNext}
+                  disabled={!canGoNext() || buildPlan.isPending}
+                >
+                  {buildPlan.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  Build plan
+                </Button>
+              ) : step === 8 ? (
+                <Button type="button" variant="outline" onClick={goNext} disabled={!canGoNext()}>
+                  Continue <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : step === 9 ? (
+                <Button type="button" variant="outline" onClick={goNext} disabled={!canGoNext()}>
+                  Continue <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : step === 10 ? (
+                <Button
+                  type="button"
+                  onClick={runFinalVerification}
+                  disabled={verifyFinal.isPending}
+                >
+                  {verifyFinal.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  Run final verification
+                </Button>
+              ) : step === 11 ? (
                 <Button type="button" onClick={finishWizard}>
-                  Complete phase 1
+                  <CheckCircle2 className="h-4 w-4" /> Finish
                 </Button>
               ) : (
                 <Button type="button" onClick={goNext} disabled={!canGoNext()}>

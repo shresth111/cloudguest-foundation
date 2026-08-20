@@ -109,3 +109,151 @@ export interface FleetWanInputDraft {
   gatewayIpAddress: string;
   isEnabled: boolean;
 }
+
+export type InterfaceAvailabilityStatus =
+  | "RECOMMENDED"
+  | "AVAILABLE"
+  | "IN_USE"
+  | "WAN"
+  | "BRIDGE_MEMBER"
+  | "DISABLED"
+  | "UNAVAILABLE";
+
+export interface FleetGuestInterfaceAvailability {
+  name: string;
+  status: InterfaceAvailabilityStatus;
+  detail: string | null;
+  bridge: string | null;
+}
+
+export interface FleetGuestInputRecommendation {
+  recommendedInterfaces: string[];
+  parentBridgeHint: string | null;
+  message: string | null;
+}
+
+export interface FleetGuestInterfaceAvailabilityResult {
+  routerId: string;
+  snapshotId: string;
+  interfaces: FleetGuestInterfaceAvailability[];
+  recommendation: FleetGuestInputRecommendation;
+}
+
+export interface FleetGuestVlanDraft {
+  vlanId: number;
+  name: string;
+  subnetCidr: string;
+  enableHotspot: boolean;
+}
+
+export interface FleetGuestNetworkRequest {
+  guestInterfaces: string[];
+  vlanMode: boolean;
+  vlans: FleetGuestVlanDraft[];
+  parentBridge: string | null;
+}
+
+export type PlanStatus =
+  | "draft"
+  | "blocked"
+  | "awaiting_approval"
+  | "approved"
+  | "rendering"
+  | "applying"
+  | "applied"
+  | "failed"
+  | "superseded"
+  | "rejected";
+
+export type PlanRisk = "none" | "low" | "management_connectivity";
+
+export interface FleetPlanConflict {
+  code: string;
+  status: FleetCheckStatus;
+  summary: string;
+  detail: string | null;
+  cidrs: string[];
+}
+
+export interface FleetPlanDecision {
+  code: string;
+  summary: string;
+  detail: string | null;
+  options: string[];
+}
+
+export interface FleetPlanAction {
+  seq: number;
+  ruleId: string;
+  actionType: string;
+  resourceKind: string;
+  routerosPath: string;
+  resourceRef: string;
+  summary: string;
+  risk: PlanRisk;
+}
+
+export interface FleetPlanSummary {
+  actionCount: number;
+  conflictCount: number;
+  decisionCount: number;
+  highestRisk: PlanRisk;
+}
+
+export interface FleetConfigurationPlan {
+  id: string;
+  routerId: string;
+  snapshotId: string;
+  status: PlanStatus;
+  engineVersion: string;
+  requestedConfig: FleetGuestNetworkRequest;
+  actions: FleetPlanAction[];
+  conflicts: FleetPlanConflict[];
+  decisions: FleetPlanDecision[];
+  summary: FleetPlanSummary;
+}
+
+export interface FleetPlanRenderResult {
+  planId: string;
+  configVersionId: string;
+  configVersionNumber: number;
+  status: PlanStatus;
+  profilesUsed: string[];
+  secretRefs: string[];
+  lineCount: number;
+  requiresSafetyNet: boolean;
+}
+
+export interface FleetPlanPrepareResult {
+  planId: string;
+  preApplyBackupVersionId: string;
+  preApplyBackupVersionNumber: number;
+  status: PlanStatus;
+  requiresSafetyNet: boolean;
+}
+
+export interface FleetPlanApplyResult {
+  planId: string;
+  configVersionId: string;
+  provisioningJobId: string;
+  status: PlanStatus;
+  configVersionStatus: string;
+}
+
+export type FinalVerificationOverall = "ROUTER_ONLINE" | "PARTIAL" | "FAILED";
+
+export interface FleetFinalVerificationChecklist {
+  total: number;
+  passing: number;
+  failing: number;
+  notChecked: number;
+}
+
+export interface FleetFinalVerificationResult {
+  planId: string;
+  verificationRunId: string;
+  overall: FinalVerificationOverall;
+  checks: FleetVerificationCheck[];
+  checklist: FleetFinalVerificationChecklist;
+  safetyNetRemoved: boolean;
+}

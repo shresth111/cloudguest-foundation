@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { routerFleetWizardService } from "@/services/router-fleet-wizard.service";
+import type { FleetGuestNetworkRequest } from "@/types/router-fleet-wizard";
 
 export const fleetWizardKeys = {
   all: ["router-fleet-wizard"] as const,
@@ -7,6 +8,10 @@ export const fleetWizardKeys = {
   snapshot: (routerId: string) => [...fleetWizardKeys.all, "snapshot", routerId] as const,
   wanGate: (routerId: string) => [...fleetWizardKeys.all, "wan-gate", routerId] as const,
   provisionJob: (jobId: string) => [...fleetWizardKeys.all, "job", jobId] as const,
+  guestAvailability: (routerId: string) =>
+    [...fleetWizardKeys.all, "guest-availability", routerId] as const,
+  plan: (routerId: string, planId: string) =>
+    [...fleetWizardKeys.all, "plan", routerId, planId] as const,
 };
 
 export function useDiscoverRouter() {
@@ -90,5 +95,81 @@ export function useFleetProvisionJob(jobId: string | null, pollWhileActive = fal
         ? 3000
         : false;
     },
+  });
+}
+
+export function useGuestInterfaceAvailability(routerId: string, organizationId?: string) {
+  return useQuery({
+    queryKey: fleetWizardKeys.guestAvailability(routerId),
+    queryFn: () => routerFleetWizardService.getGuestInterfaceAvailability(routerId, organizationId),
+    enabled: !!routerId,
+  });
+}
+
+export function useBuildConfigurationPlan() {
+  return useMutation({
+    mutationFn: (args: {
+      routerId: string;
+      organizationId?: string;
+      snapshotId?: string;
+      requestedConfig: FleetGuestNetworkRequest;
+    }) =>
+      routerFleetWizardService.buildConfigurationPlan(
+        args.routerId,
+        args.requestedConfig,
+        args.organizationId,
+        args.snapshotId,
+      ),
+  });
+}
+
+export function useApproveConfigurationPlan() {
+  return useMutation({
+    mutationFn: (args: { routerId: string; planId: string; organizationId?: string }) =>
+      routerFleetWizardService.approveConfigurationPlan(
+        args.routerId,
+        args.planId,
+        args.organizationId,
+      ),
+  });
+}
+
+export function useRenderConfigurationPlan() {
+  return useMutation({
+    mutationFn: (args: { routerId: string; planId: string; organizationId?: string }) =>
+      routerFleetWizardService.renderConfigurationPlan(
+        args.routerId,
+        args.planId,
+        args.organizationId,
+      ),
+  });
+}
+
+export function usePrepareConfigurationPlan() {
+  return useMutation({
+    mutationFn: (args: { routerId: string; planId: string; organizationId?: string }) =>
+      routerFleetWizardService.prepareConfigurationPlan(
+        args.routerId,
+        args.planId,
+        args.organizationId,
+      ),
+  });
+}
+
+export function useApplyConfigurationPlan() {
+  return useMutation({
+    mutationFn: (args: { routerId: string; planId: string; organizationId?: string }) =>
+      routerFleetWizardService.applyConfigurationPlan(
+        args.routerId,
+        args.planId,
+        args.organizationId,
+      ),
+  });
+}
+
+export function useVerifyPlanFinal() {
+  return useMutation({
+    mutationFn: (args: { routerId: string; planId: string; organizationId?: string }) =>
+      routerFleetWizardService.verifyPlanFinal(args.routerId, args.planId, args.organizationId),
   });
 }
