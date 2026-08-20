@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PG_FONT_STACK } from "@/lib/portal-font-stack";
 import { usePortalRuntime, usePortalRuntimeOptional } from "@/context/PortalRuntimeContext";
 import { usePortalBackdropPlan } from "@/hooks/usePortalBackdropPlan";
 import type { BackdropPlan } from "@/lib/portal-backdrop";
@@ -21,33 +22,22 @@ import { PortalNoPhotoPattern } from "./PortalNoPhotoPattern";
 const WYFY_GUEST_BRAND = "Wyfy Guest";
 const WYFY_GUEST_TOKEN = "{brand}";
 
-// System-font stack for the guest flow -- see captive-portal-v4-design-
-// spec.md §4: the guest path only ever used one of the app's four
-// Google-Fonts families (Manrope, hardcoded here), and dropping webfonts
-// from this path entirely both removes a network dependency a captive-
-// portal guest may not even be able to reach pre-auth and is itself part
-// of not repeating the previous "generic friendly SaaS" visual recipe
-// (Manrope is a very recognizable instance of that). Carried by
-// weight/tracking/size choices, not a custom face. "Noto Sans Devanagari"
-// covers Hindi -- none of the system-font stack below does, so Hindi text
-// used to fall through to whatever Devanagari font (if any) the guest's
-// OS happened to have, with visibly inconsistent weight/line-height
-// versus the rest of this UI. Loaded best-effort, non-blocking alongside
-// the rest of this app's fonts -- see __root.tsx's LOAD_FONTS_SCRIPT
-// comment for why a captive-portal page can never afford a render-
-// blocking font request.
-// Exported (not just module-local) so every other guest-flow surface --
-// e.g. portal.tsx's IncompletePortalLinkError, which renders standalone,
-// before/without a PortalRuntimeProvider mounting this shell at all --
-// stays on the exact same system-font stack instead of a second hardcoded
-// copy (or worse, a stray webfont) drifting in independently over time.
-// v4 §4/§8: this is now the ONLY font stack on every portal.* route --
-// `font-display` (Space Grotesk) has been removed from the 12 screens
-// that still reached for it; every heading is weight/size/tracking on
-// this same stack, the technique this card's own <h1> already proved
-// works.
-export const PG_FONT_STACK =
-  '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif';
+// The guest-portal font stack now has exactly one definition, in
+// `@/lib/portal-font-stack` -- a leaf module with no imports of its own,
+// which is the only shape that can be the single source of truth here
+// (this file imports PortalRuntimeContext, which imports
+// portal-guest-fonts, so hanging the constant off any of the three and
+// importing it from the others is a cycle). Its doc comment carries the
+// full per-entry rationale: why zero font bytes is a hard requirement on
+// this surface, why `ui-sans-serif` was dropped, why `"Segoe UI Variable
+// Text"` had to be named for Windows 11, and the measured proof that the
+// Indic families belong behind `system-ui` rather than ahead of it.
+//
+// Re-exported here (not just imported) so every existing
+// `import { PG_FONT_STACK } from ".../PortalShell"` call site -- e.g.
+// portal.tsx's IncompletePortalLinkError, which renders standalone,// before/without a PortalRuntimeProvider mounting this shell at all --
+// keeps resolving unchanged.
+export { PG_FONT_STACK } from "@/lib/portal-font-stack";
 
 // Bounded, opaque-enough legibility backing for a single text/logo zone
 // sitting directly on a venue's uploaded photo -- white/80-90 +

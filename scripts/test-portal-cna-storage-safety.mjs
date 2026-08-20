@@ -68,22 +68,27 @@ const QUERY_STUB = `
 export function useQuery() { return { data: undefined, isLoading: false, error: undefined }; }
 export function useQueryClient() { return { invalidateQueries() {} }; }
 `;
-// The `default` Proxy catches any *component* this stub has not been taught
-// by name. It cannot catch a named **value** import, because esbuild resolves
-// those statically against the module's real export list and fails the build
-// -- which is exactly what happened when `portal.success.tsx` started
-// importing `GUEST_LEGIBILITY_CARD_CLASS`: this gate stopped running at all
-// on `origin/main`, silently, with an esbuild "No matching export" stack
-// rather than a test failure. Named non-component exports of the two stubbed
-// modules therefore have to be listed here explicitly. The value is only ever
-// concatenated into a `className`, never inspected, so a marker string is
-// enough and deliberately does not duplicate the real class list.
+// Named exports have to be enumerated: esbuild resolves ESM named imports
+// statically, so a `default` Proxy alone does not satisfy them and the
+// whole build fails rather than degrading. This gate was silently
+// *erroring out* on `origin/main` -- `portal.success.tsx` grew an import of
+// `GUEST_LEGIBILITY_CARD_CLASS` (v7 Part 1's legibility plate) that no stub
+// exported, so `npm run test:portal-cna` had stopped testing anything at
+// all. It is the regression test for the confirmed-live "OTP verifies but
+// no real internet" incident; it must not be allowed to fail open. Add a
+// named export here whenever a stubbed module gains one.
 const NOOP_COMPONENT_STUB = `
 export const PortalShell = () => null;
+export const PortalCard = () => null;
+export const PortalTextPlate = () => null;
 export const PortalConnectingState = () => null;
 export const GUEST_LEGIBILITY_CARD_CLASS = "pg-legibility-card-stub";
 export const PG_FONT_STACK = "sans-serif";
 export const DEFAULT_PORTAL_LOGO_SRC = "/brand/mark-compact-blue.svg";
+export const AlertBanner = () => null;
+export const ConnectingOverlay = () => null;
+export const PG_INPUT = "";
+export const PG_PRIMARY_BTN = "";
 export default new Proxy({}, { get: () => () => null });
 `;
 const ICONS_STUB = `export default new Proxy({}, { get: () => () => null });

@@ -159,7 +159,7 @@ function AuthMethodPage() {
             hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
           )}
         >
-          <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
+          <ArrowLeft className="h-4 w-4" /> Back
         </Link>
 
         {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is

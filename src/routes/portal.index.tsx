@@ -27,6 +27,9 @@ function PortalLoading() {
     organizationId,
     locationId,
     hotspotLoginUrl,
+    // Same reason as portal.success.tsx: the branch below is a real document
+    // navigation, so the language has to travel in the URL.
+    language,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
   const queryClient = useQueryClient();
@@ -172,7 +175,7 @@ function PortalLoading() {
     // appeared -- a worse outcome than today for the genuinely-connected
     // case, and it still would not have opened any gate.
     if (hasSession && !hotspotLoginUrl) {
-      window.location.assign(buildSessionUrl(organizationId, locationId, routerId));
+      window.location.assign(buildSessionUrl(organizationId, locationId, routerId, language));
       return;
     }
 
@@ -198,6 +201,7 @@ function PortalLoading() {
     organizationId,
     locationId,
     routerId,
+    language,
   ]);
 
   if (!isLoading && error) {

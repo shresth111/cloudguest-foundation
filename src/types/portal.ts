@@ -1,4 +1,8 @@
-import type { GuestFontChoice } from "@/types/portal-runtime";
+import {
+  RUNTIME_LANGUAGE_LABEL,
+  type GuestFontChoice,
+  type RuntimeLanguage,
+} from "@/types/portal-runtime";
 
 export type PortalStatus = "draft" | "published" | "archived" | "scheduled";
 export type PortalLoginMethod =
@@ -9,15 +13,16 @@ export type PortalLoginMethod =
   | "pms"
   | "social"
   | "click_through";
-export type PortalLanguage = "en" | "hi" | "ar" | "fr" | "es";
+/** Aliased to `RuntimeLanguage` rather than restated. These were two
+ * independent unions listing the identical five codes, and the admin model
+ * (`Portal.languages`) feeds the guest runtime directly -- so a code that is
+ * selectable here but unknown there is always a bug, and an alias makes that
+ * impossible to introduce. */
+export type PortalLanguage = RuntimeLanguage;
 
-export const LANGUAGES: Record<PortalLanguage, string> = {
-  en: "English",
-  hi: "हिन्दी",
-  ar: "العربية",
-  fr: "Français",
-  es: "Español",
-};
+/** Re-exported, not re-declared -- see `RUNTIME_LANGUAGE_LABEL`'s own comment
+ * for why the guest switcher and this admin picker now share one map. */
+export const LANGUAGES: Record<PortalLanguage, string> = RUNTIME_LANGUAGE_LABEL;
 
 export const LOGIN_METHOD_LABEL: Record<PortalLoginMethod, string> = {
   mobile_otp: "Mobile OTP",

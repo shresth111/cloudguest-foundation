@@ -10,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
-import { defaultCountryCode } from "@/lib/portal-locale";
+import {
+  defaultCountryCode,
+  nationalNumberMaxLength,
+  normalizeNationalPhone,
+} from "@/lib/portal-locale";
 import { PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
 import { PhoneNumberFields, EmailField, PG_FIELD_LABEL } from "./AuthFields";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
@@ -64,9 +68,11 @@ function usePhoneOtpForm(
   { organizationId, locationId, onSent }: PhoneFormProps,
 ) {
   const { config } = usePortalRuntime();
-  const [countryCode, setCountryCode] = useState(() =>
-    defaultCountryCode(config?.defaultLanguage, config?.locationCountry),
-  );
+  // v7 §8.1, same change as the primary path (see useGuestSignIn.ts): the
+  // dialling code is a fixed prefix derived from the venue's own
+  // `location_country`, not a second editable box, so there is no state to
+  // hold for it.
+  const dialCode = defaultCountryCode(config?.defaultLanguage, config?.locationCountry);
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
@@ -80,15 +86,17 @@ function usePhoneOtpForm(
   });
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const identifier = countryCode + phone;
-    if (phone.trim().replace(/\D/g, "").length < 6) {
+    const national = normalizeNationalPhone(phone, dialCode);
+    const expected = nationalNumberMaxLength(dialCode);
+    const ok = expected === 15 ? national.length >= 6 : national.length === expected;
+    if (!ok) {
       setError("Enter a valid number");
       return;
     }
     setError(null);
-    send.mutate(identifier);
+    send.mutate(dialCode + national);
   };
-  return { countryCode, setCountryCode, phone, setPhone, error, send, onSubmit };
+  return { dialCode, phone, setPhone, error, send, onSubmit };
 }
 
 export function MobileForm(props: PhoneFormProps) {
@@ -101,8 +109,8 @@ export function MobileForm(props: PhoneFormProps) {
        * the `htmlFor`/`id` pairing. */}
       <PhoneNumberFields
         label={t("mobileNumber")}
-        countryCode={f.countryCode}
-        onCountryCodeChange={f.setCountryCode}
+        hint={t("whyWeAskMobile")}
+        dialCode={f.dialCode}
         phone={f.phone}
         onPhoneChange={f.setPhone}
       />
@@ -123,9 +131,9 @@ export function WhatsAppForm(props: PhoneFormProps) {
        * nothing. The name now goes *into* the field component, which owns
        * the `htmlFor`/`id` pairing. */}
       <PhoneNumberFields
-        label={t("mobileNumber")}
-        countryCode={f.countryCode}
-        onCountryCodeChange={f.setCountryCode}
+        label={t("whatsappNumberLabel")}
+        hint={t("whyWeAskWhatsapp")}
+        dialCode={f.dialCode}
         phone={f.phone}
         onPhoneChange={f.setPhone}
       />
