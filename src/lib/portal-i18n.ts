@@ -1690,6 +1690,32 @@ export function loadPersistedLanguage(): RuntimeLanguage | undefined {
   }
 }
 
+/** Reads the guest's language out of the CURRENT URL's `?lang=`.
+ *
+ * This is the half of language persistence that works where storage does
+ * not. `loadPersistedLanguage` above is best-effort by construction -- on
+ * iOS's Captive Network Assistant `localStorage` throws rather than fails
+ * (docs/captive-portal-v7-design-spec.md §0.2), so a guest's choice was
+ * simply lost across `portal.success.tsx`'s full-document form POST, and the
+ * connected/session screen came back in the venue's default language. See
+ * `buildSessionUrl` (src/lib/portal-session-url.ts) for the full write-up
+ * and for where the parameter is put on the URL in the first place.
+ *
+ * Reads `window.location.search` directly rather than the router's parsed
+ * search: this has to work on the very first render of a brand-new document
+ * that the NAS -- not our router -- navigated to, and it is called from
+ * context code that sits above any individual route. Unrecognized values
+ * (including a since-removed `"ar"`, or anything a guest hand-typed) return
+ * `undefined` and fall through to the normal defaulting path. */
+export function readLanguageFromUrl(): RuntimeLanguage | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return toRuntimeLanguage(new URLSearchParams(window.location.search).get("lang"));
+  } catch {
+    return undefined;
+  }
+}
+
 export function persistLanguage(lang: RuntimeLanguage) {
   if (typeof window === "undefined") return;
   try {

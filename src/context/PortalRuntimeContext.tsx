@@ -15,7 +15,12 @@ import type {
   RuntimePortalConfig,
   RuntimeSession,
 } from "@/types/portal-runtime";
-import { translate, loadPersistedLanguage, persistLanguage } from "@/lib/portal-i18n";
+import {
+  translate,
+  loadPersistedLanguage,
+  persistLanguage,
+  readLanguageFromUrl,
+} from "@/lib/portal-i18n";
 import {
   GUEST_FONT_FACES,
   GUEST_FONT_UNICODE_RANGE,
@@ -399,6 +404,20 @@ export function PortalRuntimeProvider({
   // reads. See the effect right below for how this stays race-free against
   // the config-default effect regardless of which one actually runs first.
   useEffect(() => {
+    // URL first, storage second. A `?lang=` is THIS session's own explicit
+    // choice, put there moments ago by `buildSessionUrl` and carried across
+    // the NAS redirect by the navigation itself; a stored value may be from
+    // a visit months back. It is also the only one of the two that exists at
+    // all on iOS's CNA, where `loadPersistedLanguage` can only ever return
+    // `undefined` because the write that would have populated it threw.
+    // Re-persisted best-effort so the choice survives later reloads on every
+    // browser where storage does work.
+    const fromUrl = readLanguageFromUrl();
+    if (fromUrl) {
+      setLanguageState(fromUrl);
+      persistLanguage(fromUrl);
+      return;
+    }
     const persisted = loadPersistedLanguage();
     if (persisted) setLanguageState(persisted);
   }, []);
@@ -411,7 +430,11 @@ export function PortalRuntimeProvider({
     // config synchronously on the very first render), and effects in one
     // commit see each other's *pre-update* closure values, not each
     // other's dispatched updates.
-    if (config && !language && !loadPersistedLanguage()) setLanguage(config.defaultLanguage);
+    // `readLanguageFromUrl()` is re-checked here for the same reason
+    // `loadPersistedLanguage()` is: both effects can fire in the same commit
+    // and would otherwise see each other's pre-update closure values.
+    if (config && !language && !readLanguageFromUrl() && !loadPersistedLanguage())
+      setLanguage(config.defaultLanguage);
   }, [config, language]);
 
   /* Clamps the resolved language to what this venue actually offers.
