@@ -211,14 +211,23 @@ export const PG_PRIMARY_BTN =
 // second, quieter failure: the old #94A3B8 hover state was 2.56:1 against
 // --pg-surface and so missed SC 1.4.11's 3:1 for a non-text UI indicator.
 // #505E73 is 6.58:1.
-// The font-size is written as a `text-[length:<value>]` arbitrary value
-// rather than a custom `@utility` on purpose: tailwind-merge has to
-// recognise it as a font-size in order to displace the shared `<Input>`
-// base class's own `text-base`, and only that form is recognised. Same
-// 15px at a 16px root and the default `--pg-type-scale`.
-// Known, unfixed here (both pre-existing, both visible-restyle decisions
-// rather than units ones, both called out in the report instead): the base
-// `<Input>`'s `md:text-sm` still wins at >=768px, and 15px is under the
-// 16px threshold at which iOS Safari auto-zooms a focused field (v7 §8.2).
+// captive-portal-v7-design-spec.md §8.2, and this was left explicitly
+// unfixed by the Part 7 pass: **every input must be >= 16px**, or iOS
+// zooms the page on focus. That zoom is not a cosmetic wobble -- it
+// rescales a layout that has already committed to `viewport-fit=cover`
+// and `dvh`, so the primary button can end up off-screen at the exact
+// moment the guest is typing into the field above it, on the one screen
+// the whole product exists to complete. 0.9375rem (15px) was under it.
+//
+// Two font-size utilities, not one: the shared `<Input>` base carries
+// `text-base md:text-sm`, and tailwind-merge resolves `md:` variants
+// independently of the bare class -- so a single unprefixed size here
+// leaves `md:text-sm` (14px) winning from 768px up, which is both under
+// the threshold and the width the admin Portal Preview renders the guest
+// card at. Both forms are `text-[length:...]` arbitrary values rather
+// than a custom `@utility`, because only that form is recognised as a
+// font-size by tailwind-merge and therefore only that form can displace
+// the base class at all (a custom utility silently loses -- the exact bug
+// the first cut of the Part 7 branch shipped).
 export const PG_INPUT =
-  "h-auto min-h-[3rem] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] py-2 text-[length:calc(0.9375rem*var(--pg-type-scale,1))] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-muted,#475569)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#505E73)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "h-auto min-h-[3rem] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] py-2 text-[length:calc(1rem*var(--pg-type-scale,1))] md:text-[length:calc(1rem*var(--pg-type-scale,1))] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-muted,#475569)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#505E73)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";

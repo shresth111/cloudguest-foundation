@@ -68,21 +68,23 @@ const QUERY_STUB = `
 export function useQuery() { return { data: undefined, isLoading: false, error: undefined }; }
 export function useQueryClient() { return { invalidateQueries() {} }; }
 `;
-// The `default` Proxy below catches any *component* the route reaches for,
-// but ESM has no catch-all for NAMED exports -- esbuild resolves those at
-// build time and hard-fails on a miss. So every named export a `portal.*`
-// route imports from PortalShell/PortalGuestUi has to be listed here, and
-// adding one to those modules without adding it here breaks this gate at
-// the bundle step (which is how it reads as an esbuild stack trace rather
-// than an assertion failure). Non-component exports are plain strings --
-// this test only ever renders the tree to exercise storage access, never
-// asserts on class names or font stacks.
+// Named exports have to be enumerated: esbuild resolves ESM named imports
+// statically, so a `default` Proxy alone does not satisfy them and the
+// whole build fails rather than degrading. This gate was silently
+// *erroring out* on `origin/main` -- `portal.success.tsx` grew an import of
+// `GUEST_LEGIBILITY_CARD_CLASS` (v7 Part 1's legibility plate) that no stub
+// exported, so `npm run test:portal-cna` had stopped testing anything at
+// all. It is the regression test for the confirmed-live "OTP verifies but
+// no real internet" incident; it must not be allowed to fail open. Add a
+// named export here whenever a stubbed module gains one.
 const NOOP_COMPONENT_STUB = `
 export const PortalShell = () => null;
-export const PortalConnectingState = () => null;
 export const PortalCard = () => null;
 export const PortalTextPlate = () => null;
+export const PortalConnectingState = () => null;
 export const AlertBanner = () => null;
+export const ConnectingOverlay = () => null;
+export const DEFAULT_PORTAL_LOGO_SRC = "";
 export const GUEST_LEGIBILITY_CARD_CLASS = "";
 export const PG_FONT_STACK = "";
 export const PG_INPUT = "";
@@ -260,7 +262,8 @@ console.log("portal captive-network-assistant storage safety");
   check("recent submit suppresses a duplicate POST", browser.submits.length === 0);
   check(
     "cooldown skip is a document load to /portal/session",
-    browser.assigns.length === 1 && browser.assigns[0].startsWith("https://portal.example.com/portal/session?"),
+    browser.assigns.length === 1 &&
+      browser.assigns[0].startsWith("https://portal.example.com/portal/session?"),
     JSON.stringify(browser.assigns),
   );
   check(

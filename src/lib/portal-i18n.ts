@@ -176,6 +176,24 @@ const EN: Dict = {
   countryCodeLabel: "Country code",
   otpCodeLabel: "6-digit code",
   otpCodeHint: "Enter the 6-digit code we sent you.",
+
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // Reconcile this block wholesale at merge; nothing above or below it is
+  // touched. Keys: stepProgressTemplate, whyWeAskMobile, whyWeAskWhatsapp.
+  //
+  // §8.2 "show progress honestly" -- a template rather than two fixed
+  // strings, matching `resendAvailableInTemplate`'s existing convention,
+  // because the word order around the numbers is not stable across
+  // languages.
+  stepProgressTemplate: "Step {n} of {total}",
+  // §8.3-2: "explain why the phone number is needed, in one plain
+  // sentence, next to the field." States what happens to the number, not
+  // what it is not used for -- the identifier is also the guest's RADIUS
+  // username and their stored identity here, so a "we only use it for X"
+  // promise would not be true.
+  whyWeAskMobile: "We text your one-time sign-in code to this number.",
+  whyWeAskWhatsapp: "We send your one-time sign-in code to this WhatsApp number.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 const HI: Dict = {
@@ -333,6 +351,13 @@ const HI: Dict = {
   countryCodeLabel: "देश कोड",
   otpCodeLabel: "6 अंकों का कोड",
   otpCodeHint: "हमने आपको जो 6 अंकों का कोड भेजा है वह दर्ज करें।",
+
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "चरण {n} / {total}",
+  whyWeAskMobile: "हम आपका एक-बार का साइन-इन कोड इसी नंबर पर भेजते हैं।",
+  whyWeAskWhatsapp: "हम आपका एक-बार का साइन-इन कोड इसी व्हाट्सऐप नंबर पर भेजते हैं।",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 /* The eight Indian languages below match the marketing site's set exactly
  * (`wyfy-guest-website/src/i18n/ui/*.ts`), and each was transcreated from that
