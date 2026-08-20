@@ -68,9 +68,27 @@ const QUERY_STUB = `
 export function useQuery() { return { data: undefined, isLoading: false, error: undefined }; }
 export function useQueryClient() { return { invalidateQueries() {} }; }
 `;
+// Named exports have to be enumerated: esbuild resolves ESM named imports
+// statically, so a `default` Proxy alone does not satisfy them and the
+// whole build fails rather than degrading. This gate was silently
+// *erroring out* on `origin/main` -- `portal.success.tsx` grew an import of
+// `GUEST_LEGIBILITY_CARD_CLASS` (v7 Part 1's legibility plate) that no stub
+// exported, so `npm run test:portal-cna` had stopped testing anything at
+// all. It is the regression test for the confirmed-live "OTP verifies but
+// no real internet" incident; it must not be allowed to fail open. Add a
+// named export here whenever a stubbed module gains one.
 const NOOP_COMPONENT_STUB = `
 export const PortalShell = () => null;
+export const PortalCard = () => null;
+export const PortalTextPlate = () => null;
 export const PortalConnectingState = () => null;
+export const AlertBanner = () => null;
+export const ConnectingOverlay = () => null;
+export const GUEST_LEGIBILITY_CARD_CLASS = "";
+export const PG_PRIMARY_BTN = "";
+export const PG_INPUT = "";
+export const PG_FONT_STACK = "";
+export const DEFAULT_PORTAL_LOGO_SRC = "";
 export default new Proxy({}, { get: () => () => null });
 `;
 const ICONS_STUB = `export default new Proxy({}, { get: () => () => null });
@@ -244,7 +262,8 @@ console.log("portal captive-network-assistant storage safety");
   check("recent submit suppresses a duplicate POST", browser.submits.length === 0);
   check(
     "cooldown skip is a document load to /portal/session",
-    browser.assigns.length === 1 && browser.assigns[0].startsWith("https://portal.example.com/portal/session?"),
+    browser.assigns.length === 1 &&
+      browser.assigns[0].startsWith("https://portal.example.com/portal/session?"),
     JSON.stringify(browser.assigns),
   );
   check(
