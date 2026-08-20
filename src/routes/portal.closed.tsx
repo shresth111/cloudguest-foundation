@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Moon } from "lucide-react";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { GlyphClosed } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { scriptClassOf } from "@/lib/portal-script";
 
 export const Route = createFileRoute("/portal/closed")({
   component: ClosedPage,
@@ -32,6 +33,10 @@ export const Route = createFileRoute("/portal/closed")({
  */
 function ClosedPage() {
   const { config, t } = usePortalRuntime();
+  const title = config?.name
+    ? `${config.name} ${t("closedTitleDefault")}`
+    : t("closedTitleDefault");
+  const message = config?.businessHoursClosedMessage?.trim() || t("closedSubtitle");
 
   return (
     <PortalShell>
@@ -49,16 +54,34 @@ function ClosedPage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-slate-100 text-slate-500">
-              <Moon className="h-10 w-10" />
+            {/* Icon disc: the shared state-screen recipe (redesign spec
+             * §1.3/§4.5) in its muted variant -- closed is a calm state,
+             * not a brand moment, so the tint is ink-on-surface rather
+             * than the venue color. GlyphClosed is the hand-drawn brand
+             * set's crescent (currentColor, so it follows the polarity
+             * flip and forced-colors for free). */}
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--pg-ink,#1E1B4B)_6%,var(--pg-surface,#fff))] text-[var(--pg-ink-muted)]">
+              <GlyphClosed className="h-8 w-8" />
             </div>
-            <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">
-              {config?.name ? `${config.name} ${t("closedTitleDefault")}` : t("closedTitleDefault")}
+            {/* `data-pg-script`: the h1 carries the venue's own (never
+             * translated) name -- a Devanagari/Tamil venue name needs the
+             * tall-script leading fix or its matras collide across lines
+             * (see portal-script.ts). */}
+            <h1
+              className="pg-subtitle mt-5 text-[var(--pg-ink)]"
+              data-pg-script={scriptClassOf(title)}
+            >
+              {title}
             </h1>
           </PortalTextPlate>
         </div>
-        <PortalCard className="text-center text-sm text-slate-500">
-          {config?.businessHoursClosedMessage?.trim() || t("closedSubtitle")}
+        {/* Admin free text can be long and in any script -- it keeps the
+         * opaque card (not a plate line), on the token ramp instead of the
+         * pre-#108 `text-sm text-slate-500` literals. */}
+        <PortalCard className="text-center">
+          <p className="pg-body text-[var(--pg-ink-muted)]" data-pg-script={scriptClassOf(message)}>
+            {message}
+          </p>
         </PortalCard>
       </div>
     </PortalShell>

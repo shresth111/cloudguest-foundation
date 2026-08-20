@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { XCircle, RotateCcw } from "lucide-react";
-import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { RotateCcw } from "lucide-react";
+import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { GlyphFailure } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/failure")({
@@ -34,8 +36,12 @@ function FailurePage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-red-500">
-              <XCircle className="h-10 w-10" />
+            {/* Danger disc on the shared state-screen recipe -- semantic
+             * hue via the danger tokens, not red-50/red-500 literals, so
+             * it follows the token system everywhere the tokens do.
+             * GlyphFailure is the brand set's rounded warning triangle. */}
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[var(--pg-danger-bg,#FEF2F2)] text-[var(--pg-danger,#DC2626)]">
+              <GlyphFailure className="h-8 w-8" />
             </div>
             <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("authFailed")}</h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
@@ -45,18 +51,16 @@ function FailurePage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
-              Please check your details and try again.
-            </p>
+            <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">{t("failureSubtitle")}</p>
+            {/* Folded out of a one-sentence filler PortalCard and into the
+             * plate -- see portal.expired.tsx for the reasoning. */}
+            <p className="mt-3 pg-meta text-[var(--pg-ink-faint)]">{t("failureHelp")}</p>
           </PortalTextPlate>
         </div>
-        <PortalCard className="text-center text-sm text-slate-500">
-          If the issue continues, please ask venue staff for assistance.
-        </PortalCard>
         <button
           type="button"
           onClick={() => navigate({ to: "/portal/auth", search: (prev) => prev })}
-          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px"
+          className={`${PG_PRIMARY_BTN} flex items-center justify-center gap-2`}
         >
           <RotateCcw className="h-4 w-4" /> {t("retry")}
         </button>
