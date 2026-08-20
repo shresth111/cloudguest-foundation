@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Smartphone, Mail, KeyRound, Ticket, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -38,25 +37,6 @@ import type { AppError } from "@/services/api";
  * the phone/email/code fields to stop being duplicated.
  */
 
-export const METHOD_META: Record<
-  RuntimeAuthMethod,
-  { icon: React.ComponentType<{ className?: string }>; labelKey: string; desc: string }
-> = {
-  otp_sms: { icon: Smartphone, labelKey: "mobileOtp", desc: "Receive a code by SMS" },
-  otp_email: { icon: Mail, labelKey: "emailOtp", desc: "Receive a code by email" },
-  otp_whatsapp: {
-    icon: MessageCircle,
-    labelKey: "whatsappOtp",
-    desc: "Receive a code via WhatsApp",
-  },
-  username_password: {
-    icon: KeyRound,
-    labelKey: "passwordLogin",
-    desc: "Sign in with your saved password",
-  },
-  voucher: { icon: Ticket, labelKey: "voucherCode", desc: "Redeem a voucher code" },
-};
-
 type PhoneFormProps = {
   organizationId: string;
   locationId: string;
@@ -67,7 +47,7 @@ function usePhoneOtpForm(
   channel: "sms" | "whatsapp",
   { organizationId, locationId, onSent }: PhoneFormProps,
 ) {
-  const { config } = usePortalRuntime();
+  const { config, t } = usePortalRuntime();
   // v7 §8.1, same change as the primary path (see useGuestSignIn.ts): the
   // dialling code is a fixed prefix derived from the venue's own
   // `location_country`, not a second editable box, so there is no state to
@@ -90,7 +70,9 @@ function usePhoneOtpForm(
     const expected = nationalNumberMaxLength(dialCode);
     const ok = expected === 15 ? national.length >= 6 : national.length === expected;
     if (!ok) {
-      setError("Enter a valid number");
+      // Keyed (errValidMobile/errValidWhatsapp existed unused): inline
+      // field errors were the last hardcoded-English strings here.
+      setError(t(channel === "whatsapp" ? "errValidWhatsapp" : "errValidMobile"));
       return;
     }
     setError(null);
@@ -114,9 +96,13 @@ export function MobileForm(props: PhoneFormProps) {
         phone={f.phone}
         onPhoneChange={f.setPhone}
       />
-      {f.error && <p className="text-xs text-red-600">{f.error}</p>}
+      {f.error && (
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {f.error}
+        </p>
+      )}
       <button type="submit" disabled={f.send.isPending} className={PG_PRIMARY_BTN}>
-        {f.send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+        {f.send.isPending ? t("sendingLabel") : t("sendOtp")}
       </button>
     </form>
   );
@@ -137,9 +123,13 @@ export function WhatsAppForm(props: PhoneFormProps) {
         phone={f.phone}
         onPhoneChange={f.setPhone}
       />
-      {f.error && <p className="text-xs text-red-600">{f.error}</p>}
+      {f.error && (
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {f.error}
+        </p>
+      )}
       <button type="submit" disabled={f.send.isPending} className={PG_PRIMARY_BTN}>
-        {f.send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+        {f.send.isPending ? t("sendingLabel") : t("sendOtp")}
       </button>
     </form>
   );
@@ -161,7 +151,7 @@ export function EmailForm({ organizationId, locationId, onSent }: PhoneFormProps
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!/.+@.+\..+/.test(email.trim())) {
-      setError("Enter a valid email");
+      setError(t("errValidEmail"));
       return;
     }
     setError(null);
@@ -170,9 +160,13 @@ export function EmailForm({ organizationId, locationId, onSent }: PhoneFormProps
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <EmailField label={t("emailAddress")} email={email} onEmailChange={setEmail} />
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {error}
+        </p>
+      )}
       <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
-        {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
+        {send.isPending ? t("sendingLabel") : t("sendOtp")}
       </button>
     </form>
   );
@@ -243,7 +237,9 @@ export function PasswordForm({
         className={PG_INPUT}
       />
       {form.formState.errors.identifier && (
-        <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {form.formState.errors.identifier.message}
+        </p>
       )}
       <Label htmlFor={passwordId} className={PG_FIELD_LABEL}>
         {t("password")}
@@ -257,10 +253,12 @@ export function PasswordForm({
         className={PG_INPUT}
       />
       {form.formState.errors.password && (
-        <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {form.formState.errors.password.message}
+        </p>
       )}
       <button type="submit" disabled={login.isPending} className={PG_PRIMARY_BTN}>
-        {login.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("signIn")}
+        {login.isPending ? t("signingInLabel") : t("signIn")}
       </button>
     </form>
   );
@@ -322,7 +320,9 @@ export function VoucherForm({
         className={PG_INPUT}
       />
       {form.formState.errors.identifier && (
-        <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {form.formState.errors.identifier.message}
+        </p>
       )}
       <Label htmlFor={codeId} className={PG_FIELD_LABEL}>
         {t("voucherCode")}
@@ -335,10 +335,12 @@ export function VoucherForm({
         className={`${PG_INPUT} uppercase`}
       />
       {form.formState.errors.code && (
-        <p className="text-xs text-red-600">{form.formState.errors.code.message}</p>
+        <p role="alert" className="pg-meta text-[var(--pg-danger,#DC2626)]">
+          {form.formState.errors.code.message}
+        </p>
       )}
       <button type="submit" disabled={login.isPending} className={PG_PRIMARY_BTN}>
-        {login.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("submit")}
+        {login.isPending ? t("submitting") : t("submit")}
       </button>
     </form>
   );

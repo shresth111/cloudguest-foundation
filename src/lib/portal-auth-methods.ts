@@ -34,11 +34,12 @@ export const AUTH_METHOD_LABEL_KEY: Record<RuntimeAuthMethod, string> = {
   voucher: "voucherCode",
 };
 
-/** What a landed-on method's own form offers as a fallback link to each
- * *other* enabled method -- shared verbatim by the real guest flow
- * (src/routes/portal.auth.$method.tsx) and its admin preview
- * (src/routes/preview.portal.$locationId.tsx) so the two
- * never show different fallback copy for the same config. */
+/** English source copy for the per-method fallback links. No longer
+ * rendered directly: portal.auth.$method.tsx now maps each method to its
+ * translated dictionary key (OTHER_METHOD_LABEL_KEY -- useMobileInstead /
+ * useEmailInstead / useWhatsappInstead / usePasswordInstead /
+ * haveVoucherUseInstead), whose EN entries mirror these strings. Kept as
+ * the documented EN source of truth for those keys. */
 export const AUTH_METHOD_FALLBACK_COPY: Record<RuntimeAuthMethod, string> = {
   otp_sms: "Use a mobile number instead",
   otp_email: "Use an email address instead",

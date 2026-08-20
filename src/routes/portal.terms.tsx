@@ -133,11 +133,11 @@ function TermsPage() {
           from="/portal/terms"
           search={(prev) => prev}
           className={cn(
-            "inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600",
+            "inline-flex w-fit items-center gap-1.5 pg-meta font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)]",
             hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
           )}
         >
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {t("backLabel")}
         </Link>
         {/* `w-fit` with no `mx-auto`: this heading is left-aligned today
          * and stays left-aligned -- the plate hugs the title, it does not
@@ -158,14 +158,19 @@ function TermsPage() {
           {sections.length === 0
             ? DEFAULT_SECTIONS.map((s) => (
                 <PortalCard key={s.title}>
-                  <p className="text-sm font-semibold text-slate-900">{s.title}</p>
+                  <p className="pg-body font-semibold text-[var(--pg-ink)]">{s.title}</p>
                   <div className="mt-2 space-y-3">
                     {s.groups.map((g) => (
                       <div key={g.heading}>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {/* pg-micro/ink-faint, not slate-400 (2.56:1 --
+                         * failed everywhere); hierarchy below muted comes
+                         * from size, not lightness. */}
+                        <p className="pg-micro uppercase tracking-[0.08em] text-[var(--pg-ink-faint)]">
                           {g.heading}
                         </p>
-                        <p className="mt-1 text-sm leading-relaxed text-slate-500">{g.body}</p>
+                        <p className="mt-1 pg-meta font-normal leading-relaxed text-[var(--pg-ink-muted)]">
+                          {g.body}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -173,18 +178,23 @@ function TermsPage() {
               ))
             : sections.map((s) => (
                 <PortalCard key={s.title}>
-                  <p className="text-sm font-semibold text-slate-900">{s.title}</p>
+                  <p className="pg-body font-semibold text-[var(--pg-ink)]">{s.title}</p>
                   {s.text && (
-                    <p className="mt-2 text-sm leading-relaxed text-slate-500">{s.text}</p>
+                    // `whitespace-pre-line`: org-supplied prose may carry
+                    // the admin's own paragraph breaks -- render them
+                    // instead of collapsing the document to one block.
+                    <p className="mt-2 whitespace-pre-line pg-meta font-normal leading-relaxed text-[var(--pg-ink-muted)]">
+                      {s.text}
+                    </p>
                   )}
                   {s.url && (
                     <a
                       href={s.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-block text-sm font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+                      className="mt-2 inline-flex min-h-6 items-center pg-meta font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
                     >
-                      Read the full document
+                      {t("termsReadFullDocument")}
                     </a>
                   )}
                 </PortalCard>
@@ -203,15 +213,15 @@ function TermsPage() {
              * this plate's own worst composite #94A3B8 is 1.81:1 -- the exact
              * figure v7 §1.1 L4 records for the footer -- and #505E73 is 4.65:1.
              * Both computed, both reproducing styles.css's own derivation. */}
-            <p className="text-xs text-[var(--pg-ink-faint)]">
-              Questions about this network or your data? Ask venue staff.
+            <p className="pg-micro font-normal text-[var(--pg-ink-faint)]">
+              {t("termsQuestionsAskStaff")}
             </p>
             <Link
               to="/portal/welcome"
               search={portalSearch}
-              className="mt-1 text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+              className="mt-1 inline-flex min-h-6 items-center justify-center pg-meta font-medium text-[var(--pg-ink-muted)] underline-offset-2 hover:text-[var(--pr-primary,#6366f1)] hover:underline"
             >
-              Back to sign in
+              {t("termsBackToSignIn")}
             </Link>
           </PortalTextPlate>
         </div>
