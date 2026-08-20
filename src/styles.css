@@ -45,7 +45,14 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  /* Indic fallbacks -- none of Inter/ui-sans-serif/system-ui cover any
+  /* The DASHBOARD's body stack -- deliberately not `--pg-font-stack`:
+   * Inter is a real, wanted dependency here (it is one of the five
+   * families __root.tsx loads from Google Fonts, on an authenticated
+   * surface with working internet), whereas the portal ships zero font
+   * bytes. Kept in step with the portal stack in coverage and in ORDERING
+   * PRINCIPLE, not literally.
+   *
+   * Indic fallbacks -- none of Inter/ui-sans-serif/system-ui cover any
    * Indic script, so text in one used to fall through to whatever face the
    * OS happened to have (or to tofu), at visibly inconsistent weight/line-
    * height versus the rest of the UI. "Noto Sans Devanagari" was added for
@@ -55,14 +62,29 @@
    * portal preview (`PortalPage.tsx`), which shows a venue's real guest
    * copy in whatever languages that venue enabled.
    *
-   * All system font names -- zero bytes, zero requests. "Nirmala UI"
-   * (Windows' single all-Indic UI family) is last of the fallbacks and
-   * after "Noto Sans Devanagari", so it only ever wins for a script no
-   * Noto family is installed for; it can never capture Latin, which Inter
-   * (or, before Inter loads, "Noto Sans Devanagari") already claims.
-   * Keep in step with `PG_FONT_STACK` (PortalShell.tsx) in coverage, not
-   * literally -- that stack deliberately has no Inter and no webfont. */
-  --font-sans: "Inter", "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+   * All system font names -- zero bytes, zero requests.
+   *
+   * THE INDIC BLOCK MOVED TO THE BACK, for the same reason it moved in
+   * `PG_FONT_STACK`: "Noto Sans Devanagari" carries a complete Latin set,
+   * and CSS font matching is per character, left to right. The old comment
+   * here claimed the block "can never capture Latin, which Inter (or,
+   * before Inter loads, 'Noto Sans Devanagari') already claims" -- note
+   * that the parenthetical concedes the bug. Inter arrives from
+   * fonts.googleapis.com via a script-injected, post-paint <link>, so
+   * there is a real window on every cold load (and a permanent state
+   * whenever that request fails) in which Inter has NOT claimed Latin --
+   * and in that window a machine with fonts-noto-devanagari installed
+   * rendered the whole dashboard, English included, in Noto Sans
+   * Devanagari's Latin. Behind the generics it cannot.
+   *
+   * `ui-sans-serif` is kept HERE, unlike in `PG_FONT_STACK` where it was
+   * dropped: it is Safari-only, but here it sits ahead of `-apple-system`
+   * rather than behind it, so on Safari it is the entry that actually
+   * resolves. Removing it would be a behaviour change, not a cleanup.
+   * `BlinkMacSystemFont` and "Segoe UI Variable Text" are added for the
+   * same free wins as in the portal stack (Chrome/Edge on macOS; Windows
+   * 11's actual system font, which HTML has to name explicitly). */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", sans-serif;
   /* Display face for page titles, section headings, and big metric
    * numbers -- Space Grotesk was already the de-facto display face
    * (hand-copied into 15+ inline `style={{ fontFamily: ... }}` props
@@ -111,6 +133,28 @@
 
 
 :root {
+  /* THE guest-portal font stack, defined once for CSS. Mirrors
+   * `PG_FONT_STACK` (src/lib/portal-font-stack.ts) character for
+   * character -- CSS cannot import a JS constant, so this is the one
+   * unavoidable duplicate, and `scripts/check-a11y-invariants.mjs`
+   * asserts the two are equal so it cannot drift silently. Read that
+   * module's doc comment for the per-entry rationale; the short version
+   * is that every name here is a font the device already has (zero
+   * bytes, zero requests, no @font-face -- non-negotiable on a surface
+   * whose Android WebView calls `clearCache(true)` before every single
+   * launch), and that the Indic families sit AFTER `system-ui` because
+   * "Noto Sans Devanagari" carries a full Latin set and, ahead of the
+   * generics, silently restyled the entire English portal on any machine
+   * where the family resolves.
+   *
+   * Used by `.portal-runtime .font-display` and the iOS Dynamic Type
+   * `font:` restore further down this file -- both of which previously
+   * carried their own hand-copied literal. */
+  --pg-font-stack:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, system-ui,
+    "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi",
+    "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu",
+    "Nirmala UI", sans-serif;
   /* Slightly softer corner scale + a cleaner, near-neutral canvas: the old
    * 0.75rem/blue-tinted paper read a little dated next to the indigo brand. */
   --radius: 0.875rem;
@@ -918,14 +962,13 @@
  * beats the plain `.font-display` utility (0,1,0) regardless of source
  * order, so it doesn't depend on CSS layer/cascade ordering to win.
  * Retroactively fixes all 12 files at once since they all render inside
- * `.portal-runtime`. Keep this string literally in sync with
- * `PG_FONT_STACK` (PortalGuestUi.tsx) -- CSS can't import a JS constant,
- * so there's no single source of truth to enforce that automatically. */
+ * `.portal-runtime`. This used to be a hand-copied literal of the stack
+ * with a comment noting there was "no single source of truth to enforce
+ * that automatically"; there is one now -- `--pg-font-stack` at the top of
+ * this file, mirroring `PG_FONT_STACK` (src/lib/portal-font-stack.ts),
+ * with `scripts/check-a11y-invariants.mjs` asserting the two match. */
 .portal-runtime .font-display {
-  font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari",
-    "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada",
-    "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", ui-sans-serif,
-    system-ui, sans-serif;
+  font-family: var(--pg-font-stack);
 }
 
 /* captive-portal-v7-design-spec.md §7.3 -- the iOS Dynamic Type opt-in.
@@ -954,8 +997,8 @@
  *    accessibility setting we are trying to honour.
  * 3. `font-family` is restored immediately after the shorthand, because
  *    `font:` is a shorthand and resets the family to the system UI face.
- *    Keep this string in sync with `PG_FONT_STACK` (PortalShell.tsx) --
- *    CSS cannot import a JS constant.
+ *    Restored from `--pg-font-stack` (top of this file) rather than a
+ *    third hand-copied literal of the stack.
  *
  * Consequence to know about: on iOS at *default* Dynamic Type the root
  * becomes 17px rather than 16px, so the portal renders ~6.25% larger than
@@ -965,10 +1008,7 @@
   @media (hover: none) and (pointer: coarse) {
     :root:has(.portal-runtime) {
       font: -apple-system-body;
-      font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari",
-        "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada",
-        "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI",
-        ui-sans-serif, system-ui, sans-serif;
+      font-family: var(--pg-font-stack);
     }
   }
 }

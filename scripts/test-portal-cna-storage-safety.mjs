@@ -68,9 +68,25 @@ const QUERY_STUB = `
 export function useQuery() { return { data: undefined, isLoading: false, error: undefined }; }
 export function useQueryClient() { return { invalidateQueries() {} }; }
 `;
+// The `default` Proxy below catches any *component* the route reaches for,
+// but ESM has no catch-all for NAMED exports -- esbuild resolves those at
+// build time and hard-fails on a miss. So every named export a `portal.*`
+// route imports from PortalShell/PortalGuestUi has to be listed here, and
+// adding one to those modules without adding it here breaks this gate at
+// the bundle step (which is how it reads as an esbuild stack trace rather
+// than an assertion failure). Non-component exports are plain strings --
+// this test only ever renders the tree to exercise storage access, never
+// asserts on class names or font stacks.
 const NOOP_COMPONENT_STUB = `
 export const PortalShell = () => null;
 export const PortalConnectingState = () => null;
+export const PortalCard = () => null;
+export const PortalTextPlate = () => null;
+export const AlertBanner = () => null;
+export const GUEST_LEGIBILITY_CARD_CLASS = "";
+export const PG_FONT_STACK = "";
+export const PG_INPUT = "";
+export const PG_PRIMARY_BTN = "";
 export default new Proxy({}, { get: () => () => null });
 `;
 const ICONS_STUB = `export default new Proxy({}, { get: () => () => null });

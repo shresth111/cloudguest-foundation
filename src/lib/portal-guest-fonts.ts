@@ -1,16 +1,17 @@
 import type { GuestFontChoice } from "@/types/portal-runtime";
 
-/** Mirrors `PG_FONT_STACK` (PortalShell.tsx) exactly. This module can't
- * import it directly -- PortalShell.tsx itself imports from
- * PortalRuntimeContext.tsx, the real consumer of this constant, so
- * importing back through PortalShell.tsx here would be a cycle. Same
- * manual-sync tradeoff `styles.css`'s own `.portal-runtime .font-display`
- * override already accepts, for the identical reason (see that rule's own
- * doc comment: "CSS can't import a JS constant, so there's no single
- * source of truth to enforce this automatically"). Keep literally
- * identical to `PG_FONT_STACK` if that stack ever changes. */
-export const PG_FALLBACK_FONT_STACK =
-  '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", ui-sans-serif, system-ui, sans-serif';
+/** The guest-portal font stack, under the name this module's consumers
+ * (PortalRuntimeContext's `@font-face` injection) already use for it.
+ *
+ * This used to be a hand-copied duplicate of `PG_FONT_STACK` with a
+ * comment asking the next person to keep the two literally identical --
+ * one of FOUR such copies (this one, PortalShell's, and two in
+ * `styles.css`). They are now one definition in `@/lib/portal-font-stack`,
+ * a leaf module with no imports, which is what makes it importable from
+ * everywhere without the cycle that blocked this before (PortalShell ->
+ * PortalRuntimeContext -> this file). Not a copy any more: the same
+ * string. */
+export { PG_FONT_STACK as PG_FALLBACK_FONT_STACK } from "./portal-font-stack";
 
 /** The exact Latin-plus-typographic-punctuation unicode-range every curated
  * face below was subsetted to (§3.3.2/3.4) -- declared on each injected

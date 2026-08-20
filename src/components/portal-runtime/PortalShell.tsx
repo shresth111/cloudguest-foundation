@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PG_FONT_STACK } from "@/lib/portal-font-stack";
 import { usePortalRuntime, usePortalRuntimeOptional } from "@/context/PortalRuntimeContext";
 import { usePortalBackdropPlan } from "@/hooks/usePortalBackdropPlan";
 import type { BackdropPlan } from "@/lib/portal-backdrop";
@@ -10,64 +11,23 @@ import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { PortalNoPhotoPattern } from "./PortalNoPhotoPattern";
 
-// System-font stack for the guest flow -- see captive-portal-v4-design-
-// spec.md §4: the guest path only ever used one of the app's four
-// Google-Fonts families (Manrope, hardcoded here), and dropping webfonts
-// from this path entirely both removes a network dependency a captive-
-// portal guest may not even be able to reach pre-auth and is itself part
-// of not repeating the previous "generic friendly SaaS" visual recipe
-// (Manrope is a very recognizable instance of that). Carried by
-// weight/tracking/size choices, not a custom face.
+// The guest-portal font stack now has exactly one definition, in
+// `@/lib/portal-font-stack` -- a leaf module with no imports of its own,
+// which is the only shape that can be the single source of truth here
+// (this file imports PortalRuntimeContext, which imports
+// portal-guest-fonts, so hanging the constant off any of the three and
+// importing it from the others is a cycle). Its doc comment carries the
+// full per-entry rationale: why zero font bytes is a hard requirement on
+// this surface, why `ui-sans-serif` was dropped, why `"Segoe UI Variable
+// Text"` had to be named for Windows 11, and the measured proof that the
+// Indic families belong behind `system-ui` rather than ahead of it.
 //
-// THE INDIC BLOCK IS LOAD-BEARING, AND IT COSTS NOTHING. Every name
-// between "Noto Sans Devanagari" and "Nirmala UI" is a *system* font
-// family name -- zero bytes, zero requests, no @font-face, no CDN. That
-// distinction is the whole reason it is safe to list nine of them here:
-// a guest on this page has NOT authenticated yet and therefore cannot
-// reach a font CDN at all, so a webfont for these scripts would be a
-// guaranteed-to-fail request, not a slow one. Naming families the OS
-// already has is the only mechanism available on this surface.
-//
-// The portal ships ten languages (see RuntimeLanguage), nine of them in
-// eight non-Latin scripts. None of -apple-system/Segoe UI/Roboto/
-// ui-sans-serif/system-ui carries glyphs for any of them, so without an
-// explicit name the browser falls through to whatever the OS happens to
-// have -- or, on a device with no face for that script installed, to
-// tofu boxes. "Noto Sans Devanagari" has covered hi/mr since the Hindi
-// rollout; the seven added alongside it (Bengali, Gujarati, Gurmukhi,
-// Kannada, Malayalam, Tamil, Telugu) close the identical gap for bn/gu/
-// pa/kn/ml/ta/te, which until now had no named fallback at all.
-//
-// Two deliberate omissions:
-//   * No Apple names ("Tamil Sangam MN", "Kohinoor Devanagari", ...).
-//     On iOS/macOS `-apple-system` is a *composite* font whose CoreText
-//     cascade already resolves Indic codepoints to the platform's own
-//     current, best face. Naming the older Sangam/MT faces explicitly
-//     would override that with a worse one, so Apple is deliberately
-//     left to its own cascade -- which is also why Hindi already looked
-//     right on iPhones before this stack named any Indic family.
-//   * `"Nirmala UI"` is one entry, not nine: it is Windows' single
-//     Indic UI family and covers all eight of these scripts at once.
-//     It sits AFTER the Noto names so it only ever wins where Noto is
-//     absent, and after "Segoe UI" so it can never capture Latin text
-//     (Nirmala UI does carry Latin glyphs -- that ordering is what
-//     keeps it from quietly restyling English on Windows).
-//
-// Loaded best-effort, non-blocking alongside the rest of this app's
-// fonts -- see __root.tsx's LOAD_FONTS_SCRIPT comment for why a
-// captive-portal page can never afford a render-blocking font request.
-// Exported (not just module-local) so every other guest-flow surface --
-// e.g. portal.tsx's IncompletePortalLinkError, which renders standalone,
+// Re-exported here (not just imported) so every existing
+// `import { PG_FONT_STACK } from ".../PortalShell"` call site -- e.g.
+// portal.tsx's IncompletePortalLinkError, which renders standalone,
 // before/without a PortalRuntimeProvider mounting this shell at all --
-// stays on the exact same system-font stack instead of a second hardcoded
-// copy (or worse, a stray webfont) drifting in independently over time.
-// v4 §4/§8: this is now the ONLY font stack on every portal.* route --
-// `font-display` (Space Grotesk) has been removed from the 12 screens
-// that still reached for it; every heading is weight/size/tracking on
-// this same stack, the technique this card's own <h1> already proved
-// works.
-export const PG_FONT_STACK =
-  '-apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", ui-sans-serif, system-ui, sans-serif';
+// keeps resolving unchanged.
+export { PG_FONT_STACK } from "@/lib/portal-font-stack";
 
 // Bounded, opaque-enough legibility backing for a single text/logo zone
 // sitting directly on a venue's uploaded photo -- white/80-90 +

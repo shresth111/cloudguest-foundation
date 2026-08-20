@@ -193,6 +193,98 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// 5. The guest-portal font stack: one source of truth, and zero font bytes.
+//
+//    The stack used to exist as FOUR hand-copied literals (PG_FONT_STACK,
+//    PG_FALLBACK_FONT_STACK, `.portal-runtime .font-display`, and the
+//    `-apple-system-body` Dynamic Type restore), each carrying a comment
+//    asking the next person to keep them identical. Three of those are now
+//    one import from `src/lib/portal-font-stack.ts`, which the type system
+//    enforces for free. The fourth -- CSS -- genuinely cannot import a JS
+//    constant, so that one duplicate is checked here instead of hoped for.
+//
+//    This is also where the "zero font bytes" decision is made mechanical.
+//    It is a hard requirement, not a preference: Android's
+//    `CaptivePortalLoginActivity` calls `webview.clearCache(true)` on every
+//    activity creation, so a webfont on this surface is re-downloaded on
+//    every visit forever and never amortises, and the standard mitigation
+//    (a metric-override fallback via `size-adjust`) is unavailable because
+//    ~68% of the Indian market runs an OEM UI font whose metrics are not
+//    published. A future edit that quietly adds a face to the body stack
+//    should fail a test, not a code review.
+// ---------------------------------------------------------------------------
+const normaliseStack = (v) => v.replace(/\s+/g, " ").trim();
+
+const jsStack = stripComments(read("src/lib/portal-font-stack.ts")).match(
+  /export const PG_FONT_STACK\s*=\s*'([^']+)'/,
+)?.[1];
+check("font-stack-js-found", !!jsStack, "PG_FONT_STACK not found in src/lib/portal-font-stack.ts");
+
+const cssStack = stripComments(css).match(/--pg-font-stack:\s*([^;]+);/)?.[1];
+check("font-stack-css-found", !!cssStack, "--pg-font-stack not found in src/styles.css");
+
+if (jsStack && cssStack) {
+  check(
+    "font-stack-in-sync",
+    normaliseStack(jsStack) === normaliseStack(cssStack),
+    `--pg-font-stack (src/styles.css) has drifted from PG_FONT_STACK (src/lib/portal-font-stack.ts).\n` +
+      `      js : ${normaliseStack(jsStack)}\n` +
+      `      css: ${normaliseStack(cssStack)}`,
+  );
+
+  // `ui-sans-serif` is Safari-only per MDN's browser-compat data (not
+  // Chrome, not Chrome Android, not WebView Android, not Firefox), and on
+  // Safari `-apple-system` has already won at position 1. It never did
+  // anything on this stack on any platform.
+  check(
+    "font-stack-no-ui-sans-serif",
+    !/\bui-sans-serif\b/.test(jsStack),
+    "PG_FONT_STACK must not contain ui-sans-serif -- Safari-only, and -apple-system already wins there",
+  );
+
+  // The Indic families carry complete Latin sets ("Noto Sans Devanagari"
+  // renders "Welcome to the Wi-Fi" perfectly well). CSS font matching is
+  // per character, left to right, so any of them placed ahead of the
+  // generics silently restyles the ENTIRE English portal on every machine
+  // where the family resolves -- a Linux/ChromeOS guest with
+  // fonts-noto-devanagari installed, today.
+  const generics = jsStack.indexOf("system-ui");
+  const firstIndic = Math.min(
+    ...['"Noto Sans', '"Nirmala UI"'].map((n) => {
+      const i = jsStack.indexOf(n);
+      return i === -1 ? Number.POSITIVE_INFINITY : i;
+    }),
+  );
+  check(
+    "font-stack-indic-after-system-ui",
+    generics !== -1 && firstIndic > generics,
+    "every Indic family in PG_FONT_STACK must come AFTER system-ui -- they carry Latin glyphs, " +
+      "so ahead of the generics they capture English too (see portal-font-stack.ts)",
+  );
+
+  // Zero font bytes: every entry has to be a name the device already has.
+  check(
+    "font-stack-no-webfont",
+    !/url\(|@font-face|https?:/.test(jsStack),
+    "PG_FONT_STACK must name only fonts the device already has -- no url(), no @font-face",
+  );
+}
+
+// Exactly two definitions of the stack are allowed to exist: the JS module
+// and the CSS custom property. Anything else is a fifth hand-copied literal
+// growing back.
+for (const file of [
+  "src/components/portal-runtime/PortalShell.tsx",
+  "src/lib/portal-guest-fonts.ts",
+]) {
+  check(
+    "font-stack-not-recopied",
+    !/-apple-system,/.test(readCode(file)),
+    `${file} re-declares the font stack inline; import PG_FONT_STACK from @/lib/portal-font-stack instead`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 if (failures.length) {
   console.error("Portal accessibility invariants FAILED:\n");
   for (const f of failures) console.error(`  x ${f}`);
