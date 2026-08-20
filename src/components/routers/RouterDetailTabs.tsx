@@ -1617,10 +1617,7 @@ export interface RouterSetupScriptChunk {
  * operator can download, diff against a previous router's script, or
  * hand to someone else for review instead of copy-pasting chunk by chunk.
  *
- * Deliberately NOT redacted -- unlike the standalone
- * `scripts/generate-mikrotik-md.mjs` doc generator (which exists to
- * produce a *shareable* reference copy with every secret replaced by a
- * placeholder), this runs inside the authenticated Master Console after
+ * Deliberately NOT redacted -- this runs inside the authenticated Master Console after
  * the real script has already been generated and shown on screen next to
  * a "Copy" button with the same real secrets -- redacting only the
  * downloaded file while leaving the on-screen version and clipboard copy
