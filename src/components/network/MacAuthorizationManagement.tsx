@@ -102,9 +102,7 @@ export function MacAuthorizationManagement() {
   const rows = (data?.rows ?? []).filter((e) => {
     if (!search.trim()) return true;
     const t = search.trim().toLowerCase();
-    return (
-      e.macAddress.toLowerCase().includes(t) || (e.comment ?? "").toLowerCase().includes(t)
-    );
+    return e.macAddress.toLowerCase().includes(t) || (e.comment ?? "").toLowerCase().includes(t);
   });
 
   return (
@@ -121,7 +119,12 @@ export function MacAuthorizationManagement() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total entries" value={kpis?.total ?? 0} icon={Fingerprint} tone="primary" />
+        <StatCard
+          label="Total entries"
+          value={kpis?.total ?? 0}
+          icon={Fingerprint}
+          tone="primary"
+        />
         <StatCard label="Enabled" value={kpis?.enabled ?? 0} icon={ShieldCheck} tone="success" />
         <StatCard label="Disabled" value={kpis?.disabled ?? 0} icon={ShieldOff} tone="warning" />
       </div>
@@ -175,14 +178,20 @@ export function MacAuthorizationManagement() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No entries match your filters.
                   </TableCell>
                 </TableRow>
@@ -376,7 +385,11 @@ function EntryDialog({
         <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2 space-y-1.5">
             <Label className="text-xs font-medium">MAC address</Label>
-            <Input {...form.register("macAddress")} placeholder="AA:BB:CC:DD:EE:FF" className="font-mono" />
+            <Input
+              {...form.register("macAddress")}
+              placeholder="AA:BB:CC:DD:EE:FF"
+              className="font-mono"
+            />
             {form.formState.errors.macAddress && (
               <p className="text-[11px] text-destructive">
                 {form.formState.errors.macAddress.message}
@@ -407,7 +420,10 @@ function EntryDialog({
               control={form.control}
               name="locationId"
               render={({ field }) => (
-                <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
+                <Select
+                  value={field.value || "none"}
+                  onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="No specific location" />
                   </SelectTrigger>
@@ -443,7 +459,9 @@ function EntryDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <DialogFooter className="sm:col-span-2">

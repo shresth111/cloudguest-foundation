@@ -21,26 +21,45 @@ export function LoginBrandingPanel({ brand }: { brand: Brand }) {
   useEffect(() => form.reset(brand.login), [brand.id, brand.login, form]);
 
   const onSubmit = (values: LoginBrandingFormValues) => {
-    save.mutate({ ...brand, login: values }, { onSuccess: () => toast.success("Login branding saved") });
+    save.mutate(
+      { ...brand, login: values },
+      { onSuccess: () => toast.success("Login branding saved") },
+    );
   };
 
   return (
     <Card>
-      <CardHeader className="pb-3"><CardTitle className="text-base">Login branding</CardTitle></CardHeader>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Login branding</CardTitle>
+      </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">
-          <Field label="Background URL"><Input {...form.register("background")} placeholder="https://…" /></Field>
-          <Field label="Banner URL"><Input {...form.register("banner")} placeholder="https://…" /></Field>
-          <Field label="Illustration URL"><Input {...form.register("illustration")} placeholder="https://…" /></Field>
-          <Field label="Heading"><Input {...form.register("heading")} /></Field>
+          <Field label="Background URL">
+            <Input {...form.register("background")} placeholder="https://…" />
+          </Field>
+          <Field label="Banner URL">
+            <Input {...form.register("banner")} placeholder="https://…" />
+          </Field>
+          <Field label="Illustration URL">
+            <Input {...form.register("illustration")} placeholder="https://…" />
+          </Field>
+          <Field label="Heading">
+            <Input {...form.register("heading")} />
+          </Field>
           <div className="md:col-span-2">
-            <Field label="Description"><Textarea rows={3} {...form.register("description")} /></Field>
+            <Field label="Description">
+              <Textarea rows={3} {...form.register("description")} />
+            </Field>
           </div>
           <div className="md:col-span-2">
-            <Field label="Footer text"><Input {...form.register("footer")} /></Field>
+            <Field label="Footer text">
+              <Input {...form.register("footer")} />
+            </Field>
           </div>
           <div className="md:col-span-2">
-            <Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save login branding"}</Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save login branding"}
+            </Button>
           </div>
         </form>
       </CardContent>
@@ -49,5 +68,10 @@ export function LoginBrandingPanel({ brand }: { brand: Brand }) {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div><Label className="text-xs">{label}</Label><div className="mt-1">{children}</div></div>;
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
 }

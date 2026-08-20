@@ -18,7 +18,8 @@ function bg(portal: Portal): string {
   const b = portal.branding;
   if (b.backgroundType === "image" && b.backgroundUrl)
     return `url(${b.backgroundUrl}) center/cover no-repeat`;
-  if (b.backgroundType === "video") return `linear-gradient(135deg, ${b.gradientFrom}, ${b.gradientTo})`;
+  if (b.backgroundType === "video")
+    return `linear-gradient(135deg, ${b.gradientFrom}, ${b.gradientTo})`;
   if (b.backgroundType === "color") return b.gradientFrom;
   return `linear-gradient(135deg, ${b.gradientFrom}, ${b.gradientTo})`;
 }
@@ -26,11 +27,12 @@ function bg(portal: Portal): string {
 function LoginCard({ portal }: { portal: Portal }) {
   const b = portal.branding;
   const method = portal.primaryLoginMethod;
-  const cardBg = b.cardStyle === "glass"
-    ? "rgba(255,255,255,.12)"
-    : b.cardStyle === "flat"
-    ? "rgba(255,255,255,.9)"
-    : "#ffffff";
+  const cardBg =
+    b.cardStyle === "glass"
+      ? "rgba(255,255,255,.12)"
+      : b.cardStyle === "flat"
+        ? "rgba(255,255,255,.9)"
+        : "#ffffff";
   const cardColor = b.cardStyle === "glass" ? "#ffffff" : "#0f172a";
   return (
     <div
@@ -51,24 +53,41 @@ function LoginCard({ portal }: { portal: Portal }) {
       </div>
       <div className="mt-4 space-y-2">
         {method === "mobile_otp" && (
-          <input placeholder="+1 (555) 123-4567" className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm" />
+          <input
+            placeholder="+1 (555) 123-4567"
+            className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm"
+          />
         )}
         {method === "email_otp" && (
-          <input placeholder="you@company.com" className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm" />
+          <input
+            placeholder="you@company.com"
+            className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm"
+          />
         )}
         {method === "voucher" && (
-          <input placeholder="Enter voucher code" className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm" />
+          <input
+            placeholder="Enter voucher code"
+            className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm"
+          />
         )}
         {method === "pms" && (
           <>
-            <input placeholder="Room number" className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm" />
-            <input placeholder="Last name" className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm" />
+            <input
+              placeholder="Room number"
+              className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Last name"
+              className="w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm"
+            />
           </>
         )}
         {method === "social" && (
           <div className="grid grid-cols-2 gap-2 text-xs">
             {["Google", "Facebook", "Apple", "LinkedIn"].map((s) => (
-              <button key={s} className="rounded-md border border-black/10 bg-white/70 px-2 py-2">{s}</button>
+              <button key={s} className="rounded-md border border-black/10 bg-white/70 px-2 py-2">
+                {s}
+              </button>
             ))}
           </div>
         )}
@@ -104,9 +123,16 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
           ) : (
             <div
               style={{
-                width: 56, height: 56, borderRadius: 12, background: b.primaryColor,
-                color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 700, fontSize: 20,
+                width: 56,
+                height: 56,
+                borderRadius: 12,
+                background: b.primaryColor,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 20,
               }}
             >
               CG
@@ -128,8 +154,13 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
       );
     case "image":
       return (
-        <img key={key} src={(c.props.src as string) || "https://picsum.photos/seed/portal/600/220"} alt="banner"
-          className="w-full rounded-lg object-cover" style={{ maxHeight: 160 }} />
+        <img
+          key={key}
+          src={(c.props.src as string) || "https://picsum.photos/seed/portal/600/220"}
+          alt="banner"
+          className="w-full rounded-lg object-cover"
+          style={{ maxHeight: 160 }}
+        />
       );
     case "video":
       return (
@@ -139,8 +170,11 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
       );
     case "button":
       return (
-        <button key={key} className="mx-auto block rounded-md px-4 py-2 text-sm font-semibold"
-          style={{ background: b.primaryColor, color: "#fff" }}>
+        <button
+          key={key}
+          className="mx-auto block rounded-md px-4 py-2 text-sm font-semibold"
+          style={{ background: b.primaryColor, color: "#fff" }}
+        >
           {(c.props.label as string) || "Learn more"}
         </button>
       );
@@ -148,7 +182,11 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
       return <div key={key} className="my-2 h-px bg-white/20" />;
     case "form":
     case "login_card":
-      return <div key={key} className="flex justify-center"><LoginCard portal={portal} /></div>;
+      return (
+        <div key={key} className="flex justify-center">
+          <LoginCard portal={portal} />
+        </div>
+      );
     case "otp_input":
       return (
         <div key={key} className="flex justify-center gap-1">
@@ -159,20 +197,32 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
       );
     case "voucher_input":
       return (
-        <input key={key} placeholder="Voucher code" className="mx-auto block w-64 rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60" />
+        <input
+          key={key}
+          placeholder="Voucher code"
+          className="mx-auto block w-64 rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60"
+        />
       );
     case "pms_login":
       return (
         <div key={key} className="mx-auto grid w-64 gap-2">
-          <input placeholder="Room number" className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60" />
-          <input placeholder="Last name" className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60" />
+          <input
+            placeholder="Room number"
+            className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60"
+          />
+          <input
+            placeholder="Last name"
+            className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60"
+          />
         </div>
       );
     case "social_login":
       return (
         <div key={key} className="mx-auto grid w-64 grid-cols-2 gap-2 text-xs text-white">
           {["Google", "Facebook", "Apple", "LinkedIn"].map((s) => (
-            <button key={s} className="rounded-md border border-white/30 bg-white/10 px-2 py-2">{s}</button>
+            <button key={s} className="rounded-md border border-white/30 bg-white/10 px-2 py-2">
+              {s}
+            </button>
           ))}
         </div>
       );
@@ -187,12 +237,20 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
     case "ad_banner":
       return (
         <div key={key} className="overflow-hidden rounded-lg">
-          <img src={portal.ads[0]?.mediaUrl ?? "https://picsum.photos/seed/ad/600/120"} alt="ad" className="h-24 w-full object-cover" />
+          <img
+            src={portal.ads[0]?.mediaUrl ?? "https://picsum.photos/seed/ad/600/120"}
+            alt="ad"
+            className="h-24 w-full object-cover"
+          />
         </div>
       );
     case "footer":
       return (
-        <div key={key} className="pt-4 text-center text-[11px] opacity-70" style={{ color: "#fff" }}>
+        <div
+          key={key}
+          className="pt-4 text-center text-[11px] opacity-70"
+          style={{ color: "#fff" }}
+        >
           {(c.props.text as string) || "Powered by CloudGuest"}
         </div>
       );
@@ -204,13 +262,19 @@ function renderComponent(c: PortalComponent, portal: Portal, key: string) {
       );
     case "map":
       return (
-        <div key={key} className="rounded-lg border border-white/20 bg-white/10 p-6 text-center text-xs text-white/70">
+        <div
+          key={key}
+          className="rounded-lg border border-white/20 bg-white/10 p-6 text-center text-xs text-white/70"
+        >
           Map placeholder — {portal.locationName}
         </div>
       );
     case "html_block":
       return (
-        <div key={key} className="rounded-md border border-dashed border-white/30 p-3 text-center text-[11px] text-white/70">
+        <div
+          key={key}
+          className="rounded-md border border-dashed border-white/30 p-3 text-center text-[11px] text-white/70"
+        >
           Custom HTML block (placeholder)
         </div>
       );

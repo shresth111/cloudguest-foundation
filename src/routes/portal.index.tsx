@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { buildSessionUrl } from "@/lib/portal-session-url";
 
 export const Route = createFileRoute("/portal/")({
   component: PortalLoading,
@@ -26,6 +27,9 @@ function PortalLoading() {
     organizationId,
     locationId,
     hotspotLoginUrl,
+    // Same reason as portal.success.tsx: the branch below is a real document
+    // navigation, so the language has to travel in the URL.
+    language,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
   const queryClient = useQueryClient();
@@ -144,14 +148,39 @@ function PortalLoading() {
     // client) -- routing through `/portal/success` first re-fires that
     // POST (a genuine no-op if the gate's already open) before landing on
     // this same `/portal/session` destination via its own `dst` handling.
-    // No `hotspotLoginUrl` at all means there's no fresh redirect to act
-    // on (e.g. a plain in-app reopen with no NAS involvement this time) --
-    // falls back to the original direct behavior, since there's nothing
-    // more this route can safely do in that case.
+    // No `hotspotLoginUrl` at all means there is no fresh NAS redirect to
+    // act on -- but that is emphatically NOT the same as "the gate is
+    // open", and the old code here treated it as if it were: it did a
+    // client-side `navigate({ to: "/portal/session" })`, which repaints
+    // "You're online" without a single byte crossing the network. On the
+    // strength of an app-level session alone, for exactly the reason
+    // incident #4 above documents. (Until now that path was masked on iOS
+    // by the storage throws this same change fixes -- the guest never got
+    // this far. Fixing the storage bugs unmasks it, so it has to be fixed
+    // in the same pass.)
+    //
+    // A *document load* to the same URL is the one thing that actually
+    // asks the network who is right. Gate open: it just loads
+    // `/portal/session`, no visible difference. Gate shut: the NAS
+    // intercepts the request and redirects to a fresh portal URL carrying
+    // a new `link-login-only`, which lands back here with `hotspotLoginUrl`
+    // present and routes through `/portal/success`, whose POST reopens the
+    // gate. Self-healing, and it never claims "connected" on evidence it
+    // does not have.
+    //
+    // Chosen over "route through /portal/success unconditionally" because
+    // that page's `attemptSubmit` is itself gated on `hotspotLoginUrl`:
+    // with none to submit it has nothing to do, and would strand this
+    // guest on the "Just a moment" spinner until the 15s escape hatch
+    // appeared -- a worse outcome than today for the genuinely-connected
+    // case, and it still would not have opened any gate.
+    if (hasSession && !hotspotLoginUrl) {
+      window.location.assign(buildSessionUrl(organizationId, locationId, routerId, language));
+      return;
+    }
+
     const target = hasSession
-      ? hotspotLoginUrl
-        ? "/portal/success"
-        : "/portal/session"
+      ? "/portal/success"
       : config.isOpenNow === false
         ? "/portal/closed"
         : "/portal/welcome";
@@ -165,6 +194,14 @@ function PortalLoading() {
     liveSessionChecked,
     hotspotLoginUrl,
     navigate,
+    // Read by `buildSessionUrl` on the document-load branch above. Stable
+    // for the life of this portal link (they come straight off the URL's
+    // search params), so listing them changes nothing at runtime -- it
+    // just keeps the dependency list honest.
+    organizationId,
+    locationId,
+    routerId,
+    language,
   ]);
 
   if (!isLoading && error) {
@@ -179,21 +216,42 @@ function PortalLoading() {
       <PortalShell>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           {isConfigMissing ? (
-            <>
-              <p className="text-lg font-semibold text-slate-900">
-                This venue's guest WiFi isn't set up yet
-              </p>
-              <p className="max-w-sm text-sm text-slate-500">
-                No active sign-in configuration was found for this location. Please ask venue staff
-                for assistance.
-              </p>
-            </>
+            // captive-portal-v7-design-spec.md §1.1 (L1). This route has
+            // no <h1> at all, so the spec's route list describes it only as
+            // "unbacked subtitle lines" -- accurate: both of this file's
+            // rendered states put plain <p> copy straight onto the venue
+            // photo, in the scrim's fully-transparent 24-78% band. Each of
+            // those text blocks -- and only the text blocks -- goes on a
+            // `PortalTextPlate`. The `space-y-3` box around it is this
+            // route's own layout and stays: with no photo the plate renders
+            // its children bare, and these two <p> would otherwise inherit
+            // the column's `gap-3` instead of their own rhythm.
+            <div className="space-y-3">
+              <PortalTextPlate className="space-y-3">
+                <p className="text-lg font-semibold text-slate-900">
+                  This venue's guest WiFi isn't set up yet
+                </p>
+                <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
+                  No active sign-in configuration was found for this location. Please ask venue
+                  staff for assistance.
+                </p>
+              </PortalTextPlate>
+            </div>
           ) : (
             <>
-              <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
-              <p className="max-w-sm text-sm text-slate-500">
-                This can happen right after joining the WiFi. Check your connection and try again.
-              </p>
+              {/* The retry button below keeps its own opaque `bg-indigo-50`
+               * fill and stays outside the plate -- it is already a bounded
+               * surface of its own, and pulling it inside would change this
+               * screen's `gap-3` rhythm for no legibility gain. */}
+              <div className="space-y-3">
+                <PortalTextPlate className="space-y-3">
+                  <p className="text-lg font-semibold text-slate-900">Having trouble connecting</p>
+                  <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
+                    This can happen right after joining the WiFi. Check your connection and try
+                    again.
+                  </p>
+                </PortalTextPlate>
+              </div>
               <button
                 type="button"
                 onClick={retry}
@@ -263,7 +321,12 @@ function PortalLoading() {
           <img
             src={config.logoUrl}
             alt={config.name}
-            className="h-24 w-24 object-contain drop-shadow-lg sm:h-32 sm:w-32 md:h-36 md:w-36"
+            // Height-constrained, width free -- see GuestSignInCard.tsx's
+            // full note. A fixed `w-24` box rendered a 5:1 venue lockup at
+            // 96 x 19 CSS px; this is the same one-class fix at the same
+            // defect, and it is here rather than only on the sign-in card
+            // because a guest sees this screen first.
+            className="h-24 w-auto max-w-[280px] object-contain drop-shadow-lg sm:h-32 sm:max-w-[320px] md:h-36 md:max-w-[360px]"
           />
         ) : (
           // Flat single-color fill in the venue's own --pr-primary, not a
@@ -274,17 +337,25 @@ function PortalLoading() {
           // together as a gradient. Shadow pulled back from the previous
           // shadow-xl/25 glow to the same small, tight shadow the rest of
           // this flat card system already uses.
-          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
+          <div className="grid h-20 w-20 place-items-center rounded-3xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)] sm:h-28 sm:w-28 md:h-32 md:w-32">
             <Wifi className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12" />
           </div>
         )}
+        {/* The venue logo above stays on bare photo deliberately: it is a
+         * graphic asset with its own `drop-shadow-lg`, rendered at 96-144px,
+         * not text -- L1 is a text-contrast defect, and boxing a hero-scale
+         * logo would change this screen's character rather than fix a
+         * contrast failure. The two text lines are what L1 is about, and
+         * they are what gets the plate. */}
         <div>
-          <p className="pg-body font-semibold text-[var(--pg-ink)]">
-            {config?.name ?? "Wyfy Guest"}
-          </p>
-          <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
-            {showSlowNotice ? "Still connecting..." : t("loading")}
-          </p>
+          <PortalTextPlate>
+            <p className="pg-body font-semibold text-[var(--pg-ink)]">
+              {config?.name ?? "Wyfy Guest"}
+            </p>
+            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
+              {showSlowNotice ? "Still connecting..." : t("loading")}
+            </p>
+          </PortalTextPlate>
         </div>
         <div className="flex gap-1.5">
           {[0, 1, 2].map((i) => (

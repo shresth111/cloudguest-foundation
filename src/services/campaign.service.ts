@@ -113,7 +113,8 @@ function toCampaign(c: BackendCampaign): Campaign {
 let cachedOrganizationId: string | null = null;
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const { data } =
+    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
   if (!membership) throw new Error("No organization found for the current session");
   cachedOrganizationId = membership.organization_id;
@@ -253,13 +254,19 @@ export const campaignService = {
   // configure its real questions.
   async listQuestions(campaignId: string): Promise<CampaignQuestion[]> {
     const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendCampaignQuestion[]>(`/campaigns/${campaignId}/questions`, {
-      headers: { "X-Organization-Id": orgId },
-    });
+    const { data } = await api.get<BackendCampaignQuestion[]>(
+      `/campaigns/${campaignId}/questions`,
+      {
+        headers: { "X-Organization-Id": orgId },
+      },
+    );
     return data.map(toQuestion);
   },
 
-  async addQuestion(campaignId: string, payload: CreateCampaignQuestionPayload): Promise<CampaignQuestion> {
+  async addQuestion(
+    campaignId: string,
+    payload: CreateCampaignQuestionPayload,
+  ): Promise<CampaignQuestion> {
     const orgId = await resolveOrganizationId();
     const { data } = await api.post<BackendCampaignQuestion>(
       `/campaigns/${campaignId}/questions`,
@@ -275,7 +282,10 @@ export const campaignService = {
     return toQuestion(data);
   },
 
-  async updateQuestion(questionId: string, payload: UpdateCampaignQuestionPayload): Promise<CampaignQuestion> {
+  async updateQuestion(
+    questionId: string,
+    payload: UpdateCampaignQuestionPayload,
+  ): Promise<CampaignQuestion> {
     const orgId = await resolveOrganizationId();
     const { data } = await api.put<BackendCampaignQuestion>(
       `/campaigns/questions/${questionId}`,
@@ -293,7 +303,9 @@ export const campaignService = {
 
   async deleteQuestion(questionId: string): Promise<void> {
     const orgId = await resolveOrganizationId();
-    await api.delete(`/campaigns/questions/${questionId}`, { headers: { "X-Organization-Id": orgId } });
+    await api.delete(`/campaigns/questions/${questionId}`, {
+      headers: { "X-Organization-Id": orgId },
+    });
   },
 
   // Assets -- BANNER/REDIRECT campaigns only (backend rejects these for

@@ -135,9 +135,11 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
         icon={Network}
         eyebrow="Network"
         title={locationId ? "Network Zones" : "VLAN Management"}
-        description={locationId
-          ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
-          : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."}
+        description={
+          locationId
+            ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
+            : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."
+        }
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New VLAN
@@ -557,10 +559,9 @@ function VlanDialog({
             </div>
           )}
           <div className="sm:col-span-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
-            This creates the network only — no addresses are handed out automatically. To assign
-            IPs to guests, create a{" "}
-            <span className="font-medium text-foreground">DHCP Pool</span> afterward with
-            Interface set to{" "}
+            This creates the network only — no addresses are handed out automatically. To assign IPs
+            to guests, create a <span className="font-medium text-foreground">DHCP Pool</span>{" "}
+            afterward with Interface set to{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
               {portMode === "access"
                 ? watchedInterface || "the port you enter above"

@@ -24,23 +24,57 @@ export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
     defaultValues: portal.login,
   });
   const v = watch();
-  const submit = handleSubmit((values) => update.mutate({ login: { ...values, redirectUrl: values.redirectUrl ?? "", successPage: values.successPage ?? "", failurePage: values.failurePage ?? "" } }));
+  const submit = handleSubmit((values) =>
+    update.mutate({
+      login: {
+        ...values,
+        redirectUrl: values.redirectUrl ?? "",
+        successPage: values.successPage ?? "",
+        failurePage: values.failurePage ?? "",
+      },
+    }),
+  );
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">Login settings</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-sm">Login settings</CardTitle>
+      </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-          <NumberRow label="Session timeout (min)" reg={register("sessionTimeoutMinutes", { valueAsNumber: true })} error={formState.errors.sessionTimeoutMinutes?.message} />
-          <NumberRow label="Idle timeout (min)" reg={register("idleTimeoutMinutes", { valueAsNumber: true })} error={formState.errors.idleTimeoutMinutes?.message} />
-          <NumberRow label="Device limit" reg={register("deviceLimit", { valueAsNumber: true })} error={formState.errors.deviceLimit?.message} />
+          <NumberRow
+            label="Session timeout (min)"
+            reg={register("sessionTimeoutMinutes", { valueAsNumber: true })}
+            error={formState.errors.sessionTimeoutMinutes?.message}
+          />
+          <NumberRow
+            label="Idle timeout (min)"
+            reg={register("idleTimeoutMinutes", { valueAsNumber: true })}
+            error={formState.errors.idleTimeoutMinutes?.message}
+          />
+          <NumberRow
+            label="Device limit"
+            reg={register("deviceLimit", { valueAsNumber: true })}
+            error={formState.errors.deviceLimit?.message}
+          />
           <TextRow label="Redirect URL" reg={register("redirectUrl")} placeholder="https://…" />
           <TextRow label="Success page URL" reg={register("successPage")} placeholder="https://…" />
           <TextRow label="Failure page URL" reg={register("failurePage")} placeholder="https://…" />
-          <ToggleRow label="Auto login" value={v.autoLogin} onChange={(x) => setValue("autoLogin", x)} />
-          <ToggleRow label="Remember device" value={v.rememberDevice} onChange={(x) => setValue("rememberDevice", x)} />
+          <ToggleRow
+            label="Auto login"
+            value={v.autoLogin}
+            onChange={(x) => setValue("autoLogin", x)}
+          />
+          <ToggleRow
+            label="Remember device"
+            value={v.rememberDevice}
+            onChange={(x) => setValue("rememberDevice", x)}
+          />
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" size="sm"><Save className="mr-2 h-4 w-4" />Save settings</Button>
+            <Button type="submit" size="sm">
+              <Save className="mr-2 h-4 w-4" />
+              Save settings
+            </Button>
           </div>
         </form>
       </CardContent>
@@ -54,18 +88,44 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
     resolver: zodResolver(seoSchema),
     defaultValues: portal.seo,
   });
-  const submit = handleSubmit((v) => update.mutate({ seo: { ...v, faviconUrl: v.faviconUrl ?? "", socialImageUrl: v.socialImageUrl ?? "" } }));
+  const submit = handleSubmit((v) =>
+    update.mutate({
+      seo: { ...v, faviconUrl: v.faviconUrl ?? "", socialImageUrl: v.socialImageUrl ?? "" },
+    }),
+  );
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">SEO & metadata</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-sm">SEO & metadata</CardTitle>
+      </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
-          <TextRow label="Page title" reg={register("pageTitle")} placeholder="Sign in to WiFi" error={formState.errors.pageTitle?.message} />
-          <TextRow label="Meta description" reg={register("metaDescription")} placeholder="Description shown in search results" />
-          <TextRow label="Favicon URL" reg={register("faviconUrl")} placeholder="https://…/favicon.ico" />
-          <TextRow label="Social preview image" reg={register("socialImageUrl")} placeholder="https://…/og.jpg" />
+          <TextRow
+            label="Page title"
+            reg={register("pageTitle")}
+            placeholder="Sign in to WiFi"
+            error={formState.errors.pageTitle?.message}
+          />
+          <TextRow
+            label="Meta description"
+            reg={register("metaDescription")}
+            placeholder="Description shown in search results"
+          />
+          <TextRow
+            label="Favicon URL"
+            reg={register("faviconUrl")}
+            placeholder="https://…/favicon.ico"
+          />
+          <TextRow
+            label="Social preview image"
+            reg={register("socialImageUrl")}
+            placeholder="https://…/og.jpg"
+          />
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" size="sm"><Save className="mr-2 h-4 w-4" />Save SEO</Button>
+            <Button type="submit" size="sm">
+              <Save className="mr-2 h-4 w-4" />
+              Save SEO
+            </Button>
           </div>
         </form>
       </CardContent>
@@ -75,14 +135,50 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
 
 export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
   const update = useUpdatePortal(portal.id, portal.organizationId);
+
+  /* Toggling a language off used to patch `languages` ALONE, which let an
+   * admin strand the default: de-select "English" on a portal whose
+   * `defaultLanguage` is still `"en"` and you get
+   * `{ languages: ["hi"], defaultLanguage: "en" }`. The guest portal then
+   * booted into a language the switcher below never lists -- so the guest
+   * could not switch out of it either, because the only control that sets
+   * the language offers the supported set and nothing else. Nothing in the
+   * old code prevented it and nothing surfaced it afterwards; the default
+   * `<select>` just rendered blank, which reads as a rendering glitch rather
+   * than as invalid state.
+   *
+   * Both fields now move in ONE mutation, so there is no intermediate save
+   * where the pair is inconsistent (two chained `update.mutate` calls would
+   * leave exactly that window, and would leave the portal broken for good if
+   * the second request failed). The guest runtime repairs this case too --
+   * see `resolveLanguageSelection` -- but repairing it there and preventing
+   * it here are different jobs: an admin should never be looking at a saved
+   * config the guest runtime has to quietly correct. */
   const toggle = (lang: PortalLanguage) => {
     const has = portal.languages.includes(lang);
     const next = has ? portal.languages.filter((l) => l !== lang) : [...portal.languages, lang];
-    update.mutate({ languages: next.length ? next : ["en"] });
+    // Never leave a portal with no language at all -- the pre-existing rule,
+    // kept: an empty selection means "English", not "nothing".
+    const languages = next.length ? next : (["en"] as PortalLanguage[]);
+    update.mutate({
+      languages,
+      ...(languages.includes(portal.defaultLanguage) ? {} : { defaultLanguage: languages[0] }),
+    });
   };
+
+  /* Existing configs can already be in the stranded state described above,
+   * so the default picker renders the stored value even when it is missing
+   * from `languages` -- otherwise the `<select>` shows an empty box and the
+   * admin has no way to tell what the portal is actually defaulting to.
+   * Choosing any real option repairs it. */
+  const defaultOptions = portal.languages.includes(portal.defaultLanguage)
+    ? portal.languages
+    : [portal.defaultLanguage, ...portal.languages];
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">Multi-language</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-sm">Multi-language</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-2 md:grid-cols-2">
           {(Object.keys(LANGUAGES) as PortalLanguage[]).map((l) => {
@@ -95,7 +191,9 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
               >
                 <div>
                   <div className="text-sm font-medium">{LANGUAGES[l]}</div>
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{l}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {l}
+                  </div>
                 </div>
                 {on && <Badge variant="secondary">Enabled</Badge>}
               </button>
@@ -109,8 +207,11 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
             value={portal.defaultLanguage}
             onChange={(e) => update.mutate({ defaultLanguage: e.target.value as PortalLanguage })}
           >
-            {portal.languages.map((l) => (
-              <option key={l} value={l}>{LANGUAGES[l]}</option>
+            {defaultOptions.map((l) => (
+              <option key={l} value={l}>
+                {LANGUAGES[l]}
+                {portal.languages.includes(l) ? "" : " (not enabled)"}
+              </option>
             ))}
           </select>
         </div>
@@ -119,7 +220,17 @@ export function PortalLanguagesPanel({ portal }: { portal: Portal }) {
   );
 }
 
-function NumberRow({ label, reg, error }: { label: string; reg: ReturnType<typeof useForm>["register"] extends never ? never : ReturnType<ReturnType<typeof useForm>["register"]>; error?: string }) {
+function NumberRow({
+  label,
+  reg,
+  error,
+}: {
+  label: string;
+  reg: ReturnType<typeof useForm>["register"] extends never
+    ? never
+    : ReturnType<ReturnType<typeof useForm>["register"]>;
+  error?: string;
+}) {
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
@@ -128,7 +239,17 @@ function NumberRow({ label, reg, error }: { label: string; reg: ReturnType<typeo
     </div>
   );
 }
-function TextRow({ label, reg, placeholder, error }: { label: string; reg: ReturnType<ReturnType<typeof useForm>["register"]>; placeholder?: string; error?: string }) {
+function TextRow({
+  label,
+  reg,
+  placeholder,
+  error,
+}: {
+  label: string;
+  reg: ReturnType<ReturnType<typeof useForm>["register"]>;
+  placeholder?: string;
+  error?: string;
+}) {
   return (
     <div className="space-y-1">
       <Label>{label}</Label>
@@ -137,7 +258,15 @@ function TextRow({ label, reg, placeholder, error }: { label: string; reg: Retur
     </div>
   );
 }
-function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between rounded-md border p-3">
       <div className="text-sm font-medium">{label}</div>

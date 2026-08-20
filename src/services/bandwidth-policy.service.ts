@@ -56,7 +56,11 @@ function toBandwidthPolicy(detail: BackendPolicyDetail): BandwidthPolicy {
     devicesPerUser: rules.devices_per_user ?? null,
     dailyLimitMinutes: rules.daily_limit_minutes ?? null,
     loginHours: rules.login_hours
-      ? { days: rules.login_hours.days, from: rules.login_hours.start_time, to: rules.login_hours.end_time }
+      ? {
+          days: rules.login_hours.days,
+          from: rules.login_hours.start_time,
+          to: rules.login_hours.end_time,
+        }
       : null,
     dataLimit: rules.data_limit ?? null,
     createdAt: new Date(detail.created_at).getTime(),
@@ -78,7 +82,11 @@ function toRules(input: SaveBandwidthPolicyInput): BandwidthRules {
     devices_per_user: input.devicesPerUser ?? null,
     daily_limit_minutes: input.dailyLimitMinutes ?? null,
     login_hours: input.loginHours
-      ? { days: input.loginHours.days, start_time: input.loginHours.from, end_time: input.loginHours.to }
+      ? {
+          days: input.loginHours.days,
+          start_time: input.loginHours.from,
+          end_time: input.loginHours.to,
+        }
       : null,
     data_limit: input.dataLimit ?? null,
   };
@@ -146,7 +154,9 @@ export const bandwidthPolicyService = {
   ): Promise<{ assignmentId: string; locationId: string }[]> {
     const assignments = await listPolicyAssignments(policyId, organizationId);
     return assignments
-      .filter((a) => a.is_active && a.scope_type === "location" && a.target_type === "none" && a.scope_id)
+      .filter(
+        (a) => a.is_active && a.scope_type === "location" && a.target_type === "none" && a.scope_id,
+      )
       .map((a) => ({ assignmentId: a.id, locationId: a.scope_id as string }));
   },
 
@@ -158,7 +168,11 @@ export const bandwidthPolicyService = {
   // statusOf's "draft" case) has never been assignable at all
   // (PolicyAssignmentRequiresPublishedVersionError), so callers should treat
   // a draft group as always unmapped rather than calling this.
-  async locationMapping(policyId: string, locationId: string, organizationId?: string): Promise<string | null> {
+  async locationMapping(
+    policyId: string,
+    locationId: string,
+    organizationId?: string,
+  ): Promise<string | null> {
     const mappings = await bandwidthPolicyService.listLocationMappings(policyId, organizationId);
     return mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
   },
@@ -168,8 +182,16 @@ export const bandwidthPolicyService = {
   // active PolicyAssignment row -- the backend itself allows more than one
   // active assignment at the same scope (priority just tie-breaks them), so
   // this guard has to live on the client.
-  async mapToLocation(policyId: string, locationId: string, organizationId?: string): Promise<string> {
-    const existing = await bandwidthPolicyService.locationMapping(policyId, locationId, organizationId);
+  async mapToLocation(
+    policyId: string,
+    locationId: string,
+    organizationId?: string,
+  ): Promise<string> {
+    const existing = await bandwidthPolicyService.locationMapping(
+      policyId,
+      locationId,
+      organizationId,
+    );
     if (existing) return existing;
     const assignment = await createPolicyAssignment({
       policyId,
@@ -181,7 +203,11 @@ export const bandwidthPolicyService = {
     return assignment.id;
   },
 
-  async unmapFromLocation(policyId: string, assignmentId: string, organizationId?: string): Promise<void> {
+  async unmapFromLocation(
+    policyId: string,
+    assignmentId: string,
+    organizationId?: string,
+  ): Promise<void> {
     await deactivatePolicyAssignment(policyId, assignmentId, organizationId);
   },
 
@@ -197,7 +223,12 @@ export const bandwidthPolicyService = {
     const assignments = await listPolicyAssignments(policyId, organizationId);
     return assignments
       .filter(
-        (a) => a.is_active && a.scope_type === "location" && a.scope_id === locationId && a.target_type === "guest" && a.target_id,
+        (a) =>
+          a.is_active &&
+          a.scope_type === "location" &&
+          a.scope_id === locationId &&
+          a.target_type === "guest" &&
+          a.target_id,
       )
       .map((a) => ({ assignmentId: a.id, guestId: a.target_id as string }));
   },
@@ -211,7 +242,11 @@ export const bandwidthPolicyService = {
     guestId: string,
     organizationId?: string,
   ): Promise<string> {
-    const existing = await bandwidthPolicyService.guestMappings(policyId, locationId, organizationId);
+    const existing = await bandwidthPolicyService.guestMappings(
+      policyId,
+      locationId,
+      organizationId,
+    );
     const already = existing.find((m) => m.guestId === guestId);
     if (already) return already.assignmentId;
     const assignment = await createPolicyAssignment({
@@ -225,7 +260,11 @@ export const bandwidthPolicyService = {
     return assignment.id;
   },
 
-  async unmapGuestFromLocation(policyId: string, assignmentId: string, organizationId?: string): Promise<void> {
+  async unmapGuestFromLocation(
+    policyId: string,
+    assignmentId: string,
+    organizationId?: string,
+  ): Promise<void> {
     await deactivatePolicyAssignment(policyId, assignmentId, organizationId);
   },
 

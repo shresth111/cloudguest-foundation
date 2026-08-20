@@ -75,8 +75,35 @@ export function PortalNoPhotoPattern({ className }: { className?: string }) {
         </pattern>
       </defs>
 
-      {/* Layer 1: quiet repeating texture across the whole shell. */}
-      <rect width="1200" height="1200" fill="url(#pgNoPhotoMesh)" opacity="0.55" />
+      {/* Layer 1: quiet repeating texture across the whole shell.
+       *
+       * captive-portal-v7-design-spec.md Part 3, and a measured AA failure
+       * rather than a taste change. This `opacity` was 0.55, which multiplies
+       * with the mesh dot's own 0.5 to an effective alpha of ~0.275 -- so
+       * over `--pg-canvas` #FAFAF8 a dot composites to about rgb(209,209,246),
+       * and a run of overlapping dot-plus-arc peaks darker still. This
+       * component's own doc comment above describes the texture as
+       * "4-10%-opacity geometry"; it was not.
+       *
+       * That matters because in the no-photo case the footer deliberately
+       * gets no plate -- there is no photo to protect it from -- so
+       * "Powered by Wyfy Guest" stands directly on this artwork.
+       * `scripts/measure-portal-contrast.mjs` catches it at 390x844 with
+       * `--pg-type-scale: 1.25`, where the scaled-up footer lands on a dot
+       * cluster at **rgb(190,191,245)** and `--pg-ink-faint` #505E73
+       * measures **3.75:1**. AA needs 4.5:1. Nothing in the v7 token pass
+       * could have found this: both colours involved are ours, both were
+       * individually signed off, and the failure is positional.
+       *
+       * Solving for the alpha at which #505E73 still clears 4.5:1 over this
+       * canvas gives a ceiling near 0.21 effective. 0.35 here takes the dot
+       * to 0.175 and the two arcs to 0.1225 and 0.07 -- inside the ceiling
+       * with margin, and finally inside the range this component's own
+       * comment claims. Dialing the artwork back is the right lever rather
+       * than darkening the type: the texture is decorative and `aria-hidden`,
+       * and decoration does not get to outrank the one line of text this
+       * whole part exists to make legible. */}
+      <rect width="1200" height="1200" fill="url(#pgNoPhotoMesh)" opacity="0.35" />
 
       {/* Layer 2: one large watermark-scale signal source, top-center,
           arcs opening downward -- same directional convention as

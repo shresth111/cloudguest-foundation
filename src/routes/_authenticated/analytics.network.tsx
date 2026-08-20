@@ -13,7 +13,7 @@ function Page() {
         title="Network Analytics"
         description="Throughput, retransmits and airtime utilization across every radio and uplink."
         icon={Activity}
-        bullets={["Airtime utilization","Retransmits","Per-uplink throughput"]}
+        bullets={["Airtime utilization", "Retransmits", "Per-uplink throughput"]}
       />
     </PageShell>
   );

@@ -26,7 +26,9 @@ export function PortalAnalytics({ portalId }: { portalId: string }) {
   if (isLoading) {
     return (
       <div className="grid gap-4 lg:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-xl" />)}
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-64 rounded-xl" />
+        ))}
       </div>
     );
   }
@@ -41,34 +43,56 @@ export function PortalAnalytics({ portalId }: { portalId: string }) {
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-sm">Views & logins (14d)</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-sm">Views & logins (14d)</CardTitle>
+          </CardHeader>
           <CardContent style={{ height: 260 }}>
             <ResponsiveContainer>
               <AreaChart data={data.trend}>
                 <defs>
-                  <linearGradient id="v" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0EA5E9" stopOpacity={0.5} /><stop offset="100%" stopColor="#0EA5E9" stopOpacity={0} /></linearGradient>
-                  <linearGradient id="l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10B981" stopOpacity={0.5} /><stop offset="100%" stopColor="#10B981" stopOpacity={0} /></linearGradient>
+                  <linearGradient id="v" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0EA5E9" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#0EA5E9" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="l" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="date" fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Area name="Views" dataKey="views" stroke="#0EA5E9" fill="url(#v)" strokeWidth={2} />
-                <Area name="Logins" dataKey="logins" stroke="#10B981" fill="url(#l)" strokeWidth={2} />
+                <Area
+                  name="Views"
+                  dataKey="views"
+                  stroke="#0EA5E9"
+                  fill="url(#v)"
+                  strokeWidth={2}
+                />
+                <Area
+                  name="Logins"
+                  dataKey="logins"
+                  stroke="#10B981"
+                  fill="url(#l)"
+                  strokeWidth={2}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-sm">Failed logins</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-sm">Failed logins</CardTitle>
+          </CardHeader>
           <CardContent style={{ height: 260 }}>
             <ResponsiveContainer>
               <BarChart data={data.trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="date" fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Bar dataKey="failed" fill="#EF4444" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -77,12 +101,17 @@ export function PortalAnalytics({ portalId }: { portalId: string }) {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="text-sm">Login method breakdown</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-sm">Login method breakdown</CardTitle>
+          </CardHeader>
           <CardContent style={{ height: 280 }}>
             <ResponsiveContainer>
               <PieChart>
                 <Pie
-                  data={data.methodBreakdown.map((m) => ({ name: LOGIN_METHOD_LABEL[m.method], value: m.value }))}
+                  data={data.methodBreakdown.map((m) => ({
+                    name: LOGIN_METHOD_LABEL[m.method],
+                    value: m.value,
+                  }))}
                   dataKey="value"
                   cx="50%"
                   cy="50%"

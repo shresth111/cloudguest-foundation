@@ -368,13 +368,31 @@ const TAG_STYLES: Record<string, string> = {
   due: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
   degraded: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
   high: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  // `warning` is the literal severity value on Reminder/alert payloads
+  // (see types/billing.ts's `Reminder.severity: "info" | "warning" |
+  // "critical"`) -- same amber tone as `degraded`/`pending`/`high` above,
+  // added explicitly rather than relying on a label match so any screen
+  // passing `tone="warning"` gets it, not just ones whose `label` text
+  // happens to be the word "warning".
+  warning: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
   normal: "bg-muted text-muted-foreground",
+  info: "bg-muted text-muted-foreground",
   brand: "bg-primary/10 text-primary",
   suspended: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
   offline: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
   overdue: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
   open: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
   urgent: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+  // Same gap as `warning` above: `Reminder.severity`'s "critical" value
+  // (the single most urgent tone the type allows) had no entry here, so it
+  // silently fell through to the plain-gray `normal` default -- on
+  // Platform Overview's own "Billing Reminders" widget
+  // (master.index.tsx's `<MTag label={r.severity} />`), a critical
+  // (about-to-suspend) reminder rendered visually identical to a routine
+  // one. `RemindersPanel` (components/billing/RemindersPanel.tsx), which
+  // reads the exact same `Reminder.severity` field, already colors
+  // "critical" rose -- this brings MTag's own fallback in line with that.
+  critical: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
 };
 
 /* Pill-shaped status/priority tag, soft tinted background. */

@@ -29,7 +29,7 @@ interface LoginMethod {
   enabled: boolean;
   required: boolean;
   order: number;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 // Only these five SmartIdPage methods have a real, persisted counterpart
@@ -42,7 +42,14 @@ interface LoginMethod {
 // faked as persisted" boundary portal.service.ts's own LOGIN_METHOD_FLAGS
 // already documents for this exact backend table.
 const BACKED_FLAGS: Partial<
-  Record<string, "otp_sms_enabled" | "otp_email_enabled" | "otp_whatsapp_enabled" | "voucher_enabled" | "pin_login_enabled">
+  Record<
+    string,
+    | "otp_sms_enabled"
+    | "otp_email_enabled"
+    | "otp_whatsapp_enabled"
+    | "voucher_enabled"
+    | "pin_login_enabled"
+  >
 > = {
   "sms-otp": "otp_sms_enabled",
   "email-otp": "otp_email_enabled",
@@ -84,20 +91,68 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     // defaults to true on every config. It had never been surfaced here
     // at all, so an admin had no way to see or turn off the method most
     // guests actually use to sign in.
-    { id: "sms-otp", label: "Mobile OTP", icon: Smartphone, enabled: true, required: false, order: 1, config: {} },
-    { id: "room-no", label: "Room No.", icon: DoorOpen, enabled: false, required: false, order: 2, config: { propertyMgt: "manual" } },
+    {
+      id: "sms-otp",
+      label: "Mobile OTP",
+      icon: Smartphone,
+      enabled: true,
+      required: false,
+      order: 1,
+      config: {},
+    },
+    {
+      id: "room-no",
+      label: "Room No.",
+      icon: DoorOpen,
+      enabled: false,
+      required: false,
+      order: 2,
+      config: { propertyMgt: "manual" },
+    },
     // Own icon (LogIn) rather than reusing Email OTP's Mail icon -- the two
     // previously shared an icon despite being unrelated sign-in concepts
     // (federated SSO vs. a one-time code emailed to the guest).
-    { id: "sso", label: "SSO / Email", icon: LogIn, enabled: false, required: false, order: 3, config: { domain: "" } },
-    { id: "email-otp", label: "Email OTP", icon: Mail, enabled: true, required: false, order: 4, config: {} },
+    {
+      id: "sso",
+      label: "SSO / Email",
+      icon: LogIn,
+      enabled: false,
+      required: false,
+      order: 3,
+      config: { domain: "" },
+    },
+    {
+      id: "email-otp",
+      label: "Email OTP",
+      icon: Mail,
+      enabled: true,
+      required: false,
+      order: 4,
+      config: {},
+    },
     // Defaults off (unlike Email OTP) -- a real send needs a Meta-approved
     // WhatsApp Business template configured on the backend
     // (Settings.whatsapp_twilio_content_sid), which most orgs won't have
     // set up yet. See backend/app/domains/captive_portal/models.py's
     // otp_whatsapp_enabled docstring.
-    { id: "whatsapp-otp", label: "WhatsApp OTP", icon: MessageCircle, enabled: false, required: false, order: 5, config: {} },
-    { id: "voucher", label: "Voucher Code", icon: Ticket, enabled: true, required: false, order: 6, config: {} },
+    {
+      id: "whatsapp-otp",
+      label: "WhatsApp OTP",
+      icon: MessageCircle,
+      enabled: false,
+      required: false,
+      order: 5,
+      config: {},
+    },
+    {
+      id: "voucher",
+      label: "Voucher Code",
+      icon: Ticket,
+      enabled: true,
+      required: false,
+      order: 6,
+      config: {},
+    },
     // Real, functional login method (GuestService.login_via_pin / POST
     // /guest/login/pin), gated by pin_login_enabled -- defaults off,
     // mirroring the backend column's own default (a PIN is a materially
@@ -105,7 +160,15 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     // deliberately). PIN_LENGTH is fixed at 6 digits backend-side
     // (app/domains/guest/constants.py), not an operator-configurable
     // setting, so there's no local config to carry here.
-    { id: "pin", label: "Portal PIN", icon: Key, enabled: false, required: false, order: 7, config: {} },
+    {
+      id: "pin",
+      label: "Portal PIN",
+      icon: Key,
+      enabled: false,
+      required: false,
+      order: 7,
+      config: {},
+    },
   ]);
 
   // orgId + the resolved captive-portal config id for this location (if
@@ -165,17 +228,19 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     const method = methods.find((m) => m.id === id);
     const next = !method?.enabled;
     const label = method?.label ?? "Login method";
-    setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: next } : m));
+    setMethods((prev) => prev.map((m) => (m.id === id ? { ...m, enabled: next } : m)));
 
     const flag = BACKED_FLAGS[id];
     if (demo || !flag) {
       // No backend field for this method (or a demo session) -- local-only,
       // same as before.
-      toast.success(next ? `${label} is now on — guests can use it to sign in.` : `${label} is now off.`);
+      toast.success(
+        next ? `${label} is now on — guests can use it to sign in.` : `${label} is now off.`,
+      );
       return;
     }
     if (!orgId) {
-      setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: !next } : m));
+      setMethods((prev) => prev.map((m) => (m.id === id ? { ...m, enabled: !next } : m)));
       toast.error("No organization found for this session.");
       return;
     }
@@ -211,10 +276,14 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
         pendingConfigCreation.current = creation;
         await creation;
       }
-      toast.success(next ? `${label} is now on — guests can use it to sign in.` : `${label} is now off.`);
+      toast.success(
+        next ? `${label} is now on — guests can use it to sign in.` : `${label} is now off.`,
+      );
     } catch (err) {
-      setMethods((prev) => prev.map(m => m.id === id ? { ...m, enabled: !next } : m));
-      toast.error((err as AppError).message || "Could not save — check the connection and try again.");
+      setMethods((prev) => prev.map((m) => (m.id === id ? { ...m, enabled: !next } : m)));
+      toast.error(
+        (err as AppError).message || "Could not save — check the connection and try again.",
+      );
     }
   };
 
@@ -233,7 +302,9 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
   // has -- this is purely a rendering split, not a reordering change.
   const indexedMethods = methods.map((m, idx) => ({ method: m, idx }));
   const liveMethods = indexedMethods.filter(({ method }) => !UNAVAILABLE_METHOD_IDS.has(method.id));
-  const comingSoonMethods = indexedMethods.filter(({ method }) => UNAVAILABLE_METHOD_IDS.has(method.id));
+  const comingSoonMethods = indexedMethods.filter(({ method }) =>
+    UNAVAILABLE_METHOD_IDS.has(method.id),
+  );
   const pinMethod = methods.find((m) => m.id === "pin");
 
   return (
@@ -241,20 +312,40 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Sign-in Methods</h1>
-          <p className="text-sm text-muted-foreground">Configure login methods for the captive portal — guests can use any enabled method, in the order you set below.</p>
+          <p className="text-sm text-muted-foreground">
+            Configure login methods for the captive portal — guests can use any enabled method, in
+            the order you set below.
+          </p>
         </div>
       </div>
 
       <Tabs defaultValue="methods">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
-          <TabsTrigger value="methods" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Login Methods</TabsTrigger>
-          <TabsTrigger value="pin" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Portal PIN</TabsTrigger>
-          <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2">Portal Preview</TabsTrigger>
+          <TabsTrigger
+            value="methods"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2"
+          >
+            Login Methods
+          </TabsTrigger>
+          <TabsTrigger
+            value="pin"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2"
+          >
+            Portal PIN
+          </TabsTrigger>
+          <TabsTrigger
+            value="preview"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-600 px-4 py-2"
+          >
+            Portal Preview
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="methods" className="mt-4">
           <Card className="shadow-sm border-0">
-            <CardHeader><CardTitle className="text-sm">Login Methods</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm">Login Methods</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="space-y-5">
                 {/* Live for Guests -- the methods guests can actually use
@@ -264,10 +355,13 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                 <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
                   <div className="mb-1 flex items-center gap-2">
                     <ListOrdered className="h-4 w-4 text-indigo-500" />
-                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Live for Guests</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Live for Guests
+                    </h3>
                   </div>
                   <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
-                    Guests can sign in with any of these today. The order below is the order the sign-in tabs appear in for guests — use the arrow to move a method up.
+                    Guests can sign in with any of these today. The order below is the order the
+                    sign-in tabs appear in for guests — use the arrow to move a method up.
                   </p>
                   <div className="space-y-2">
                     {/* enabledCount/enabledRank are the "to guests" numbers --
@@ -283,37 +377,54 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                     {(() => {
                       const enabledLiveMethods = liveMethods.filter(({ method }) => method.enabled);
                       return liveMethods.map(({ method, idx }, rank) => {
-                      const Icon = method.icon;
-                      const enabledRank = enabledLiveMethods.findIndex((m) => m.method.id === method.id);
-                      return (
-                        <div key={method.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => moveUp(idx)}
-                              aria-label={`Move ${method.label} up in the sign-in order`}
-                              title="Move up in the sign-in order"
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-indigo-400"
-                            >
-                              <ArrowUp className="h-4 w-4" />
-                            </button>
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                              {rank + 1}
-                            </span>
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
-                              <Icon className="h-4 w-4 text-indigo-500" />
+                        const Icon = method.icon;
+                        const enabledRank = enabledLiveMethods.findIndex(
+                          (m) => m.method.id === method.id,
+                        );
+                        return (
+                          <div
+                            key={method.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => moveUp(idx)}
+                                aria-label={`Move ${method.label} up in the sign-in order`}
+                                title="Move up in the sign-in order"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-indigo-400"
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                              </button>
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                                {rank + 1}
+                              </span>
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
+                                <Icon className="h-4 w-4 text-indigo-500" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                                  {method.label}
+                                </p>
+                                <p
+                                  className={cn(
+                                    "text-xs",
+                                    method.enabled
+                                      ? "text-slate-400 dark:text-slate-500"
+                                      : "text-amber-600 dark:text-amber-500",
+                                  )}
+                                >
+                                  {method.enabled
+                                    ? `Shown ${enabledRank + 1} of ${enabledLiveMethods.length} to guests${method.required ? " · Required" : ""}`
+                                    : "Hidden from guests — turn on to add it to the sign-in order"}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{method.label}</p>
-                              <p className={cn("text-xs", method.enabled ? "text-slate-400 dark:text-slate-500" : "text-amber-600 dark:text-amber-500")}>
-                                {method.enabled
-                                  ? `Shown ${enabledRank + 1} of ${enabledLiveMethods.length} to guests${method.required ? " · Required" : ""}`
-                                  : "Hidden from guests — turn on to add it to the sign-in order"}
-                              </p>
-                            </div>
+                            <Switch
+                              checked={method.enabled}
+                              onCheckedChange={() => toggleMethod(method.id)}
+                            />
                           </div>
-                          <Switch checked={method.enabled} onCheckedChange={() => toggleMethod(method.id)} />
-                        </div>
-                      );
+                        );
                       });
                     })()}
                   </div>
@@ -327,23 +438,33 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                 <div className="rounded-lg border border-dashed border-slate-300 p-4 dark:border-slate-600">
                   <div className="mb-1 flex items-center gap-2">
                     <Hourglass className="h-4 w-4 text-slate-400" />
-                    <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400">Coming Soon</h3>
+                    <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                      Coming Soon
+                    </h3>
                   </div>
                   <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
-                    Planned sign-in methods — not yet available to guests, nothing to configure here yet.
+                    Planned sign-in methods — not yet available to guests, nothing to configure here
+                    yet.
                   </p>
                   <div className="space-y-2">
                     {comingSoonMethods.map(({ method }) => {
                       const Icon = method.icon;
                       return (
-                        <div key={method.id} className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 p-3 opacity-70 dark:border-slate-700">
+                        <div
+                          key={method.id}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 p-3 opacity-70 dark:border-slate-700"
+                        >
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
                               <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{method.label}</p>
-                              <p className="text-xs text-amber-600 dark:text-amber-500">Coming soon — not yet available to guests</p>
+                              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                {method.label}
+                              </p>
+                              <p className="text-xs text-amber-600 dark:text-amber-500">
+                                Coming soon — not yet available to guests
+                              </p>
                             </div>
                           </div>
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
@@ -361,7 +482,9 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
 
         <TabsContent value="pin" className="mt-4">
           <Card className="shadow-sm border-0">
-            <CardHeader><CardTitle className="text-sm">Portal PIN</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm">Portal PIN</CardTitle>
+            </CardHeader>
             <CardContent className="max-w-md">
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
                 <div className="flex items-center gap-3">
@@ -369,13 +492,19 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                     <Key className="h-4 w-4 text-indigo-500" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Portal PIN</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Portal PIN
+                    </p>
                     <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Guests can set a 6-digit PIN after verifying via OTP, for faster sign-in on return visits.
+                      Guests can set a 6-digit PIN after verifying via OTP, for faster sign-in on
+                      return visits.
                     </p>
                   </div>
                 </div>
-                <Switch checked={pinMethod?.enabled ?? false} onCheckedChange={() => toggleMethod("pin")} />
+                <Switch
+                  checked={pinMethod?.enabled ?? false}
+                  onCheckedChange={() => toggleMethod("pin")}
+                />
               </div>
             </CardContent>
           </Card>
@@ -383,14 +512,30 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
 
         <TabsContent value="preview" className="mt-4">
           <Card className="shadow-sm border-0">
-            <CardHeader><CardTitle className="text-sm">Portal Login Preview</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-sm">Portal Login Preview</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-white p-6 max-w-sm mx-auto">
-                <div className="text-center mb-4"><div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary p-2"><img src="/brand/mark-compact-white.svg" alt="" className="h-full w-full" /></div><p className="text-sm font-semibold mt-2 text-slate-800">Connect to WiFi</p></div>
+                <div className="text-center mb-4">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary p-2">
+                    <img src="/brand/mark-compact-white.svg" alt="" className="h-full w-full" />
+                  </div>
+                  <p className="text-sm font-semibold mt-2 text-slate-800">Connect to WiFi</p>
+                </div>
                 <div className="space-y-2">
-                  {methods.filter(m => m.enabled).map(m => (
-                    <button key={m.id} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-left text-sm hover:bg-slate-50 transition-colors"><m.icon className="h-4 w-4 text-slate-500" /><span>{m.label}</span><span className="ml-auto text-xs text-slate-400">→</span></button>
-                  ))}
+                  {methods
+                    .filter((m) => m.enabled)
+                    .map((m) => (
+                      <button
+                        key={m.id}
+                        className="flex w-full items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-left text-sm hover:bg-slate-50 transition-colors"
+                      >
+                        <m.icon className="h-4 w-4 text-slate-500" />
+                        <span>{m.label}</span>
+                        <span className="ml-auto text-xs text-slate-400">→</span>
+                      </button>
+                    ))}
                 </div>
                 <p className="text-center text-[10px] text-slate-400 mt-4">Powered by Wyfy Guest</p>
               </div>

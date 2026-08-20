@@ -1,5 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -13,7 +20,11 @@ interface Props {
   onRetry?: () => void;
 }
 
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
 
 export function OrganizationAnalyticsPanel({ data, isLoading, isError, onRetry }: Props) {
   const sorted = data ? [...data].sort((a, b) => b.revenue - a.revenue) : [];
@@ -21,7 +32,9 @@ export function OrganizationAnalyticsPanel({ data, isLoading, isError, onRetry }
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold">Organization ranking</CardTitle>
-        <p className="text-xs text-muted-foreground">Revenue, users, routers, locations and month-over-month growth</p>
+        <p className="text-xs text-muted-foreground">
+          Revenue, users, routers, locations and month-over-month growth
+        </p>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -49,10 +62,14 @@ export function OrganizationAnalyticsPanel({ data, isLoading, isError, onRetry }
                   <TableRow key={row.id}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.activeUsers.toLocaleString()}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.activeUsers.toLocaleString()}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{row.activeRouters}</TableCell>
                     <TableCell className="text-right tabular-nums">{row.activeLocations}</TableCell>
-                    <TableCell className="text-right tabular-nums">{money.format(row.revenue)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {money.format(row.revenue)}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Badge variant={row.monthlyGrowth >= 10 ? "default" : "secondary"}>
                         {row.monthlyGrowth >= 0 ? "+" : ""}

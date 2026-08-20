@@ -3,7 +3,13 @@ import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
-import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
+import {
+  PortalShell,
+  PortalCard,
+  GUEST_LEGIBILITY_CARD_CLASS,
+  PortalTextPlate,
+} from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { OtpCodeInput } from "@/components/portal-runtime/AuthFields";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +50,7 @@ function VerifyPage() {
     setGuestIdentifier,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/verify" });
+  const hasPhoto = !!config?.backgroundImageUrl;
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   // v4 UX §6.4: was a fixed 60-second client-side countdown regardless of
@@ -125,23 +132,67 @@ function VerifyPage() {
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
+        {/* Same §1.1 L1 problem, same bounded fix, pill-shaped because this
+         * one is a single short line: this back link was `text-slate-500`
+         * set directly on the photo with nothing behind it. `w-fit` was
+         * already on it, so the plate hugs the label with no layout
+         * change; the colour moves to `--pg-ink-muted` for the same
+         * reason the subtitles below do.
+         *
+         * Deliberately NOT `PortalTextPlate shape="pill"`, which is
+         * otherwise exactly this shape. That component *wraps* its children
+         * in the plate `<div>`, and here the plate classes are on the
+         * anchor itself: wrapping would move the pill's padding off the
+         * link, shrinking the tap target from the padded pill to the bare
+         * ~20px text box, and its hardcoded `mx-auto` would re-centre a
+         * link that is deliberately start-aligned. Decorating the
+         * interactive element instead of wrapping it is a mode the
+         * component does not have, and adding one is out of scope here --
+         * so this stays hand-written rather than being fought into shape
+         * with `mx-0` overrides and a worse hit area. */}
         <Link
           to="/portal/auth"
           from="/portal/verify"
           search={(prev) => prev}
-          className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
+          className={cn(
+            "inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600",
+            hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
+          )}
         >
-          <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t("changeNumber")}
+          <ArrowLeft className="h-4 w-4" /> {t("changeNumber")}
         </Link>
-        <div className="text-center">
-          <h1 className="pg-subtitle text-[var(--pg-ink)]">Enter your code</h1>
-          <p className="mt-1.5 text-sm text-slate-500">
-            We sent a 6-digit code to{" "}
-            <span className="font-semibold text-slate-800">{otpTarget}</span>
-          </p>
+        {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
+         * `PortalTextPlate` -- the one seam that owns "is there a photo",
+         * the bounded `w-fit` sizing that is deliberately NOT a wash over
+         * the whole content column (§0.1 item 1's twice-shipped mistake),
+         * and §1.4 C5's refusal rule. Its own doc comment carries the
+         * reasoning this used to copy per route.
+         *
+         * The wrapper `<div>` is this route's layout box, not the plate,
+         * and has to stay: with no photo the plate renders its children
+         * bare, so without this box they would drop straight into the
+         * column's `gap-5` and lose `text-center`. */}
+        <div className="mx-auto w-fit max-w-full text-center">
+          <PortalTextPlate>
+            <h1 className="pg-subtitle text-[var(--pg-ink)]">Enter your code</h1>
+            {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
+             * §1.5 retuned that token #64748B -> #475569, and a slate class does
+             * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
+             * composite (`--pg-surface` at 85% over a near-black photo region);
+             * full derivation in styles.css's own `--pg-ink-muted` note. Backing
+             * the block and leaving its subtitle at 3.36:1 would only have half-
+             * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
+            <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
+              We sent a 6-digit code to{" "}
+              <span className="font-semibold text-slate-800">{otpTarget}</span>
+            </p>
+          </PortalTextPlate>
         </div>
         <PortalCard className="space-y-4">
-          <OtpCodeInput value={code} onChange={setCode} autoFocus />
+          {/* v7 §7.2: `autoComplete` is a required, literal-typed prop --
+           * SC 3.3.8 (AA) is not left resting on the `input-otp`
+           * dependency's internal default. */}
+          <OtpCodeInput value={code} onChange={setCode} autoFocus autoComplete="one-time-code" />
 
           {requiresTerms && (
             <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">

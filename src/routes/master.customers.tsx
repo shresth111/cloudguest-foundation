@@ -2,17 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
-import {
-  Search,
-  Plus,
-  MapPin,
-  CreditCard,
-  Ban,
-  CheckCircle,
-  Mail,
-  Phone,
-  Loader2,
-} from "lucide-react";
+import { Search, Plus, MapPin, CreditCard, Ban, CheckCircle, Mail, Phone } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
   MPageShell,
@@ -189,23 +179,20 @@ function CustomersScreen() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading customers…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Customer</MTh>
-                <MTh className="hidden md:table-cell">Contact</MTh>
-                <MTh>Plan</MTh>
-                <MTh className="hidden sm:table-cell">Loc.</MTh>
-                <MTh>Status</MTh>
-              </>
-            }
-          >
-            {filtered.map((c) => {
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>Customer</MTh>
+              <MTh className="hidden md:table-cell">Contact</MTh>
+              <MTh>Plan</MTh>
+              <MTh className="hidden sm:table-cell">Loc.</MTh>
+              <MTh>Status</MTh>
+            </>
+          }
+        >
+          {!loading &&
+            filtered.map((c) => {
               const TypeIcon = businessTypeIcon(c.businessType);
               return (
                 <MTr key={c.id} onClick={() => setSelected(c)}>
@@ -235,15 +222,14 @@ function CustomersScreen() {
                 </MTr>
               );
             })}
-            {filtered.length === 0 && (
-              <MTr>
-                <MTd className="py-10 text-center text-muted-foreground">
-                  <span className="block">No customers match your filter.</span>
-                </MTd>
-              </MTr>
-            )}
-          </MTable>
-        )}
+          {!loading && filtered.length === 0 && (
+            <MTr>
+              <MTd className="py-10 text-center text-muted-foreground">
+                <span className="block">No customers match your filter.</span>
+              </MTd>
+            </MTr>
+          )}
+        </MTable>
 
         {/* Detail drawer */}
         <MDrawer

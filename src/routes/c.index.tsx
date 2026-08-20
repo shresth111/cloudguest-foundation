@@ -26,4 +26,3 @@ export const Route = createFileRoute("/c/")({
     throw redirect({ to: "/" });
   },
 });
-

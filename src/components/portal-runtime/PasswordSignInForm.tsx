@@ -1,8 +1,11 @@
+import { useId } from "react";
 import { Link } from "@tanstack/react-router";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
+import { PG_FIELD_LABEL } from "./AuthFields";
 import type { UseGuestSignInReturn } from "./useGuestSignIn";
 
 /**
@@ -18,23 +21,40 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
  */
 export function PasswordSignInForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
+  // v7 §7.2: both of these were `<label>` elements with no `htmlFor` and
+  // inputs with no `id`, i.e. two more primary-path fields whose only
+  // accessible naming was a placeholder. `useId()` keeps the pairing
+  // correct even though this form renders inside a card that can appear
+  // more than once on a page (the admin Portal Preview mounts a second
+  // live copy of the whole shell).
+  const id = useId();
+  const identifierId = `${id}-identifier`;
+  const passwordId = `${id}-password`;
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-semibold text-slate-500">{t("mobileOrEmailLabel")}</label>
+        <Label htmlFor={identifierId} className={PG_FIELD_LABEL}>
+          {t("mobileOrEmailLabel")}
+        </Label>
         <Input
+          id={identifierId}
           value={sign.identifier}
           onChange={(e) => sign.setIdentifier(e.target.value)}
+          autoComplete="username"
           placeholder="you@example.com or +1 555 010 2200"
           className={`${PG_INPUT} mt-1`}
         />
       </div>
       <div>
-        <label className="text-xs font-semibold text-slate-500">{t("password")}</label>
+        <Label htmlFor={passwordId} className={PG_FIELD_LABEL}>
+          {t("password")}
+        </Label>
         <Input
+          id={passwordId}
           value={sign.password}
           onChange={(e) => sign.setPassword(e.target.value)}
           type="password"
+          autoComplete="current-password"
           placeholder="••••••••••••"
           className={`${PG_INPUT} mt-1`}
         />

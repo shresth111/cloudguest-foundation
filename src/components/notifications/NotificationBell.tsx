@@ -88,12 +88,17 @@ export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) 
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : alerts.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">No new notifications</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No new notifications
+            </div>
           ) : (
             alerts.slice(0, 8).map((a: AlertNotification) => (
               <DropdownMenuItem
                 key={a.id}
-                className={cn("flex items-start gap-3 px-4 py-3", a.status === "triggered" && "bg-muted/50")}
+                className={cn(
+                  "flex items-start gap-3 px-4 py-3",
+                  a.status === "triggered" && "bg-muted/50",
+                )}
                 onSelect={(e) => e.preventDefault()}
               >
                 <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
@@ -102,7 +107,9 @@ export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium">{a.message}</p>
-                    {a.status === "triggered" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                    {a.status === "triggered" && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    )}
                   </div>
                   <p className="text-xs capitalize text-muted-foreground">
                     {timeAgo(a.triggeredAt)} · {a.status}

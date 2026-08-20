@@ -13,7 +13,7 @@ function Page() {
         title="WAN Configuration"
         description="PPPoE, DHCP and static WAN configuration with health probes and MTU tuning."
         icon={Globe}
-        bullets={["Static / DHCP / PPPoE","MTU & MSS clamping","Uplink health probes"]}
+        bullets={["Static / DHCP / PPPoE", "MTU & MSS clamping", "Uplink health probes"]}
       />
     </PageShell>
   );

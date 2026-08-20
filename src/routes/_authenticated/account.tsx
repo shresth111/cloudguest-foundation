@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import i18n, { setDashboardLanguage } from "@/lib/i18n";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,6 @@ import { SectionHeader } from "@/components/ui-ext";
 import { authService } from "@/services/auth.service";
 import { rbacService } from "@/services/rbac.service";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/hooks/useSystem";
-import { setDashboardLanguage } from "@/lib/i18n";
 import type { AppError } from "@/services/api";
 import {
   changePasswordSchema,
@@ -261,7 +261,7 @@ function ProfileSection() {
 }
 
 function AccountSection() {
-  const { t } = useTranslation("account");
+  const { t } = useTranslation("account", { i18n });
   const { user, updateUser } = useAuth();
   const [lang, setLang] = useState(user?.language ?? "en");
   const [tz, setTz] = useState(user?.timezone ?? "Asia/Kolkata");
@@ -288,7 +288,12 @@ function AccountSection() {
     <SectionCard
       title={t("title")}
       description={t("description")}
-      footer={<Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("save")}</Button>}
+      footer={
+        <Button onClick={save} disabled={saving}>
+          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {t("save")}
+        </Button>
+      }
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

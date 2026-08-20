@@ -104,7 +104,11 @@ export function ZtpFleetPanel() {
         </div>
         {data.items.length === 0 ? (
           <div className="p-6">
-            <EmptyState icon={RouterIcon} title="No devices" description="No routers enrolled yet." />
+            <EmptyState
+              icon={RouterIcon}
+              title="No devices"
+              description="No routers enrolled yet."
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -131,10 +135,12 @@ export function ZtpFleetPanel() {
                       <LifecycleStageBadge stage={r.lifecycleStage} />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {orgName(r.organizationId) ?? (r.organizationId ? r.organizationId.slice(0, 8) : "—")}
+                      {orgName(r.organizationId) ??
+                        (r.organizationId ? r.organizationId.slice(0, 8) : "—")}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {locationName(r.locationId) ?? (r.locationId ? r.locationId.slice(0, 8) : "—")}
+                      {locationName(r.locationId) ??
+                        (r.locationId ? r.locationId.slice(0, 8) : "—")}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {r.lastSeenAt ? new Date(r.lastSeenAt).toLocaleString() : "Never"}
@@ -149,10 +155,20 @@ export function ZtpFleetPanel() {
                   Page {data.page} of {data.totalPages}
                 </span>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!data.hasPrevious}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
                     Previous
                   </Button>
-                  <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!data.hasNext}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
                     Next
                   </Button>
                 </div>

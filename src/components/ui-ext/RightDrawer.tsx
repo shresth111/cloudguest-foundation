@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 interface RightDrawerProps {
@@ -36,10 +42,7 @@ export function RightDrawer({
 }: RightDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className={cn("flex w-full flex-col gap-0 p-0", SIZE_CLASS[size])}
-      >
+      <SheetContent side="right" className={cn("flex w-full flex-col gap-0 p-0", SIZE_CLASS[size])}>
         <SheetHeader className="border-b border-border/70 px-6 py-4">
           <SheetTitle className="text-base font-semibold tracking-tight">{title}</SheetTitle>
           {description && (

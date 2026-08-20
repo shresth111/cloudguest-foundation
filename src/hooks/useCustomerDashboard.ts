@@ -2,10 +2,17 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService, isDemo, resolveOrgId } from "@/services/customer.service";
 import type { CustomerUsersData } from "@/services/customer.service";
+import { guestService } from "@/services/guest.service";
 import { rbacService } from "@/services/rbac.service";
 import { useAuth } from "@/context/AuthContext";
 import { useDataMaskingStore } from "@/stores/dataMaskingStore";
-import { maskPhone } from "@/components/features/HeaderControls";
+// From `@/lib/masking`, NOT `@/components/features/HeaderControls` (which
+// re-exports the same function): `customerLocationGuard.ts` imports
+// `customerKeys` from this module and is called from a dozen route
+// `beforeLoad`s, which never get code-split away from the entry chunk --
+// so importing this through the HeaderControls module would put the whole
+// of framer-motion in front of every guest. See `@/lib/masking`'s note.
+import { maskPhone } from "@/lib/masking";
 import { toast } from "sonner";
 
 /** SSR-safe demo-mode flag. isDemo() reads localStorage, which doesn't
@@ -17,7 +24,9 @@ import { toast } from "sonner";
  * mounted client-side. */
 export function useIsDemo(): boolean {
   const [demo, setDemo] = useState(true);
-  useEffect(() => { setDemo(isDemo()); }, []);
+  useEffect(() => {
+    setDemo(isDemo());
+  }, []);
   return demo;
 }
 
@@ -26,35 +35,55 @@ export const customerKeys = {
   sidebar: ["customer", "sidebar"] as const,
   locations: ["customer", "locations"] as const,
   dashboard: (locationId: string) => ["customer", "dashboard", locationId] as const,
-  users: (locationId: string, params?: Record<string, unknown>) => ["customer", "users", locationId, params] as const,
+  users: (locationId: string, params?: Record<string, unknown>) =>
+    ["customer", "users", locationId, params] as const,
   onlineNow: (locationId: string) => ["customer", "users", "online-now", locationId] as const,
-  features: (feature: string, locationId: string) => ["customer", "features", feature, locationId] as const,
-  adminLogsDashboardLogins: (page: number, pageSize: number) => ["customer", "admin-logs", "dashboard-logins", page, pageSize] as const,
-  adminLogsRouterEvents: (page: number, pageSize: number) => ["customer", "admin-logs", "router-events", page, pageSize] as const,
-  adminLogsAccountActivity: (page: number, pageSize: number) => ["customer", "admin-logs", "account-activity", page, pageSize] as const,
+  features: (feature: string, locationId: string) =>
+    ["customer", "features", feature, locationId] as const,
+  adminLogsDashboardLogins: (page: number, pageSize: number) =>
+    ["customer", "admin-logs", "dashboard-logins", page, pageSize] as const,
+  adminLogsRouterEvents: (page: number, pageSize: number) =>
+    ["customer", "admin-logs", "router-events", page, pageSize] as const,
+  adminLogsAccountActivity: (page: number, pageSize: number) =>
+    ["customer", "admin-logs", "account-activity", page, pageSize] as const,
 };
 
-export function useCustomerPermissions() {
-  return useQuery({ queryKey: customerKeys.permissions, queryFn: () => customerService.getPermissions(), staleTime: 60_000 });
-}
-
-export function useCustomerSidebar() {
-  return useQuery({ queryKey: customerKeys.sidebar, queryFn: () => customerService.getSidebar(), staleTime: 60_000 });
-}
-
 export function useCustomerLocations() {
-  return useQuery({ queryKey: customerKeys.locations, queryFn: () => customerService.listLocations(), staleTime: 30_000, retry: 1 });
+  return useQuery({
+    queryKey: customerKeys.locations,
+    queryFn: () => customerService.listLocations(),
+    staleTime: 30_000,
+    retry: 1,
+  });
 }
 
 export function useCustomerDashboard(locationId: string) {
-  return useQuery({ queryKey: customerKeys.dashboard(locationId), queryFn: () => customerService.getDashboard(locationId), enabled: !!locationId, staleTime: 15_000, retry: 1 });
+  return useQuery({
+    queryKey: customerKeys.dashboard(locationId),
+    queryFn: () => customerService.getDashboard(locationId),
+    enabled: !!locationId,
+    staleTime: 15_000,
+    retry: 1,
+  });
 }
 
-export function useCustomerUsers(locationId: string, params?: { search?: string; status?: string; page?: number; pageSize?: number }) {
+export function useCustomerUsers(
+  locationId: string,
+  params?: { search?: string; status?: string; page?: number; pageSize?: number },
+) {
   return useQuery({
     queryKey: customerKeys.users(locationId, params),
-    queryFn: () => customerService.getUsers(locationId, params?.search, params?.status, params?.page || 1, params?.pageSize || 20),
-    enabled: !!locationId, staleTime: 10_000, retry: 1,
+    queryFn: () =>
+      customerService.getUsers(
+        locationId,
+        params?.search,
+        params?.status,
+        params?.page || 1,
+        params?.pageSize || 20,
+      ),
+    enabled: !!locationId,
+    staleTime: 10_000,
+    retry: 1,
   });
 }
 
@@ -68,7 +97,10 @@ export function useCustomerOnlineNow(locationId: string) {
   return useQuery({
     queryKey: customerKeys.onlineNow(locationId),
     queryFn: () => customerService.getOnlineCount(locationId),
-    enabled: !!locationId, staleTime: 10_000, refetchInterval: 30_000, retry: 1,
+    enabled: !!locationId,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+    retry: 1,
   });
 }
 
@@ -76,7 +108,8 @@ export function useCustomerFeatureData(feature: string, locationId: string) {
   return useQuery({
     queryKey: customerKeys.features(feature, locationId),
     queryFn: () => customerService.getFeatureData(feature, locationId),
-    enabled: !!feature && !!locationId, staleTime: 15_000,
+    enabled: !!feature && !!locationId,
+    staleTime: 15_000,
   });
 }
 
@@ -125,8 +158,15 @@ export function useAdminLogsAccountActivity(page: number, pageSize = 25) {
 export function useDisconnectSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ sessionId, guestId, locationId }: { sessionId: string; guestId: string | null; locationId: string }) =>
-      customerService.disconnectSession(sessionId, guestId, locationId),
+    mutationFn: ({
+      sessionId,
+      guestId,
+      locationId,
+    }: {
+      sessionId: string;
+      guestId: string | null;
+      locationId: string;
+    }) => customerService.disconnectSession(sessionId, guestId, locationId),
     onSuccess: (_result, { sessionId }) => {
       // Patch every cached Users-list page in place so the row we just
       // disconnected visibly flips to offline right away. Demo mode's
@@ -143,11 +183,47 @@ export function useDisconnectSession() {
       // below is a prefix match, so it would otherwise also hit the
       // sibling ["customer","users","online-now",locationId] cache entry
       // (a bare number) and corrupt it via the spread below.
-      qc.setQueriesData({ queryKey: ["customer", "users"] }, (old: CustomerUsersData | number | undefined) => {
-        if (!old || typeof old !== "object" || !Array.isArray(old.users)) return old;
-        return { ...old, users: old.users.map((u) => (u.id === sessionId ? { ...u, status: "offline" as const } : u)) };
-      });
+      qc.setQueriesData(
+        { queryKey: ["customer", "users"] },
+        (old: CustomerUsersData | number | undefined) => {
+          if (!old || typeof old !== "object" || !Array.isArray(old.users)) return old;
+          return {
+            ...old,
+            users: old.users.map((u) =>
+              u.id === sessionId ? { ...u, status: "offline" as const } : u,
+            ),
+          };
+        },
+      );
       if (!isDemo()) qc.invalidateQueries({ queryKey: ["customer"] });
+    },
+  });
+}
+
+/**
+ * Real +N-minute session extension -- guestService.extendSession(), the
+ * same already-working, already-used-elsewhere method DebuggingView's
+ * "Reset a Guest Session" card's own sibling terminateSession() call
+ * uses (see that view's resetSession() docstring/comment). Unlike
+ * customerService.disconnectSession() above, guestService.extendSession()
+ * has no demo-mode guard of its own (it's a thin POST to
+ * /guest-sessions/{id}/extend against whatever id it's given) -- callers
+ * must check useIsDemo() themselves before calling `.mutate()`, same as
+ * DebuggingView's resetSession() checks `demo` before its own
+ * terminateSession() call.
+ */
+export function useExtendSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      sessionId,
+      additionalMinutes,
+    }: {
+      sessionId: string;
+      additionalMinutes: number;
+    }) => guestService.extendSession(sessionId, additionalMinutes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["customer", "users"] });
     },
   });
 }
@@ -191,10 +267,18 @@ export function useDataMasking() {
   useEffect(() => {
     if (demo || !user || hydrated) return;
     let cancelled = false;
-    resolveOrgId().then((orgId) => rbacService.getUserDetail(user.id, orgId)).then((detail) => {
-      if (!cancelled) { setMasked(detail.user.dataMaskingEnabled); setHydrated(true); }
-    }).catch(() => {});
-    return () => { cancelled = true; };
+    resolveOrgId()
+      .then((orgId) => rbacService.getUserDetail(user.id, orgId))
+      .then((detail) => {
+        if (!cancelled) {
+          setMasked(detail.user.dataMaskingEnabled);
+          setHydrated(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [demo, user, hydrated, setMasked, setHydrated]);
 
   const requestToggle = useCallback(async () => {
@@ -211,7 +295,9 @@ export function useDataMasking() {
         // real customer would actually get, not a hardcoded email.
         const dest = user?.phone ? maskPhone(user.phone) : user?.email;
         setSentTo(`via sms to ${dest}`);
-        toast.info(`Demo verification code: ${code} (a real account gets this by SMS/email)`, { duration: 15_000 });
+        toast.info(`Demo verification code: ${code} (a real account gets this by SMS/email)`, {
+          duration: 15_000,
+        });
       } else {
         const message = await rbacService.requestOwnDataMaskingOtp();
         setSentTo(message.replace(/^Verification code sent /, ""));
@@ -226,36 +312,41 @@ export function useDataMasking() {
     }
   }, [demo, masked, user]);
 
-  const verifyToggle = useCallback(async (code: string): Promise<boolean> => {
-    if (pendingTarget === null) return false;
-    setVerifying(true);
-    try {
-      if (demo) {
-        // Demo mode intentionally accepts any 6-digit code here (the
-        // dialog already enforces the length) rather than checking it
-        // against demoCodeRef -- this is a live-demo convenience call:
-        // there's no real data behind this fixture account, so requiring
-        // the presenter to re-read and re-type the exact toast code in
-        // front of a customer buys no real security, only friction. Real
-        // accounts are unaffected -- verifyOwnDataMaskingOtp() below still
-        // calls the actual backend, which still genuinely validates.
-      } else {
-        await rbacService.verifyOwnDataMaskingOtp(code, pendingTarget);
+  const verifyToggle = useCallback(
+    async (code: string): Promise<boolean> => {
+      if (pendingTarget === null) return false;
+      setVerifying(true);
+      try {
+        if (demo) {
+          // Demo mode intentionally accepts any 6-digit code here (the
+          // dialog already enforces the length) rather than checking it
+          // against demoCodeRef -- this is a live-demo convenience call:
+          // there's no real data behind this fixture account, so requiring
+          // the presenter to re-read and re-type the exact toast code in
+          // front of a customer buys no real security, only friction. Real
+          // accounts are unaffected -- verifyOwnDataMaskingOtp() below still
+          // calls the actual backend, which still genuinely validates.
+        } else {
+          await rbacService.verifyOwnDataMaskingOtp(code, pendingTarget);
+        }
+        setMasked(pendingTarget);
+        toast.success(
+          pendingTarget ? "Guest data is now masked." : "Guest data is now shown unmasked.",
+        );
+        setOtpOpen(false);
+        setPendingTarget(null);
+        setSentTo(null);
+        demoCodeRef.current = null;
+        return true;
+      } catch {
+        toast.error("Incorrect or expired code -- try again.");
+        return false;
+      } finally {
+        setVerifying(false);
       }
-      setMasked(pendingTarget);
-      toast.success(pendingTarget ? "Guest data is now masked." : "Guest data is now shown unmasked.");
-      setOtpOpen(false);
-      setPendingTarget(null);
-      setSentTo(null);
-      demoCodeRef.current = null;
-      return true;
-    } catch {
-      toast.error("Incorrect or expired code -- try again.");
-      return false;
-    } finally {
-      setVerifying(false);
-    }
-  }, [demo, pendingTarget]);
+    },
+    [demo, pendingTarget],
+  );
 
   const cancel = useCallback(() => {
     setOtpOpen(false);
@@ -264,5 +355,15 @@ export function useDataMasking() {
     demoCodeRef.current = null;
   }, []);
 
-  return { masked, otpOpen, pendingTarget, sending, verifying, requestToggle, verifyToggle, cancel, sentTo };
+  return {
+    masked,
+    otpOpen,
+    pendingTarget,
+    sending,
+    verifying,
+    requestToggle,
+    verifyToggle,
+    cancel,
+    sentTo,
+  };
 }

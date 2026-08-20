@@ -35,7 +35,10 @@ async function getServerEntry(): Promise<ServerEntry> {
 // Fix: any 5xx JSON response from a page route (not /api/*, which is our
 // own AppError envelope that real callers deserialize) is swallowed and
 // replaced with the friendly error page, regardless of its exact shape.
-async function normalizeCatastrophicSsrResponse(response: Response, request: Request): Promise<Response> {
+async function normalizeCatastrophicSsrResponse(
+  response: Response,
+  request: Request,
+): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;

@@ -28,8 +28,7 @@ export function SuperAdminDashboard() {
             <Sparkles className="h-3 w-3" /> Platform Console
           </div>
           <h1 className="mt-2 truncate text-3xl font-semibold tracking-tight sm:text-[2rem]">
-            Welcome back,{" "}
-            <span className="gradient-text">{user?.name.split(" ")[0]}</span>
+            Welcome back, <span className="gradient-text">{user?.name.split(" ")[0]}</span>
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Provisioning, licensing and infrastructure across every CloudGuest customer.

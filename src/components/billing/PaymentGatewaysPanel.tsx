@@ -29,7 +29,9 @@ export function PaymentGatewaysPanel({ data, isLoading, isError, onRetry }: Prop
   if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-40" />
+        ))}
       </div>
     );
   }
@@ -43,27 +45,46 @@ export function PaymentGatewaysPanel({ data, isLoading, isError, onRetry }: Prop
           <Card key={g.id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="h-4 w-4" /></div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" />
+                </div>
                 <CardTitle className="text-base">{g.name}</CardTitle>
               </div>
-              <Badge variant={g.connected ? "default" : "outline"}>{g.connected ? "Connected" : "Not connected"}</Badge>
+              <Badge variant={g.connected ? "default" : "outline"}>
+                {g.connected ? "Connected" : "Not connected"}
+              </Badge>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-xs text-muted-foreground">Mode: <span className="uppercase font-medium text-foreground">{g.mode}</span></div>
               <div className="text-xs text-muted-foreground">
-                Last transaction: {g.lastTransactionAt ? dateFmt.format(new Date(g.lastTransactionAt)) : "—"}
+                Mode: <span className="uppercase font-medium text-foreground">{g.mode}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Last transaction:{" "}
+                {g.lastTransactionAt ? dateFmt.format(new Date(g.lastTransactionAt)) : "—"}
               </div>
               <div className="flex items-center justify-between rounded-lg border p-2.5">
                 <span className="text-sm">Enabled</span>
                 <Switch
                   checked={g.connected}
-                  onCheckedChange={() => toggle.mutate(g.id, { onSuccess: () => toast.success(`${g.name} ${g.connected ? "disabled" : "enabled"}`) })}
+                  onCheckedChange={() =>
+                    toggle.mutate(g.id, {
+                      onSuccess: () =>
+                        toast.success(`${g.name} ${g.connected ? "disabled" : "enabled"}`),
+                    })
+                  }
                 />
               </div>
               {/* No per-gateway settings/config entity exists on the backend either
                   (PaymentProvider is just a per-payment string field, see
                   billingService.toggleGateway's own comment) -- kept mocked. */}
-              <Button variant="outline" size="sm" className="w-full" onClick={() => toast.info(`${g.name} settings opened`)}>Configure</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => toast.info(`${g.name} settings opened`)}
+              >
+                Configure
+              </Button>
             </CardContent>
           </Card>
         );

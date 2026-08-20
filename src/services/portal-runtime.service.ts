@@ -1,17 +1,15 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
-import type {
-  RuntimeAuthMethod,
-  RuntimeLanguage,
-  RuntimePortalConfig,
-  RuntimeSession,
-  RuntimeSessionAuthMethod,
+import {
+  clampBackgroundFocal,
+  clampBackgroundOverlayStrength,
+  toBackgroundMetric,
+  resolveLanguageSelection,
+  toGuestFontChoice,
+  type RuntimeAuthMethod,
+  type RuntimePortalConfig,
+  type RuntimeSession,
+  type RuntimeSessionAuthMethod,
 } from "@/types/portal-runtime";
-
-const SUPPORTED_LANGUAGES: RuntimeLanguage[] = ["en", "hi", "ar", "fr", "es"];
-
-function toRuntimeLanguage(v: string): RuntimeLanguage {
-  return (SUPPORTED_LANGUAGES as string[]).includes(v) ? (v as RuntimeLanguage) : "en";
-}
 
 interface BackendCaptivePortalConfig {
   id: string;
@@ -40,6 +38,42 @@ interface BackendCaptivePortalConfig {
   resolved_via_location_override: boolean;
   is_open_now: boolean;
   business_hours_closed_message: string | null;
+  /** captive-portal-v6-design-spec.md §6.1 -- optional until the backend
+   * PR (separate repo, `cloud-guest-repo/backend`) lands; `toRuntimeConfig`
+   * below falls back to `"system"`/`55` for either field when absent, so
+   * this frontend change is safe to ship ahead of that one (§7). */
+  guest_font_choice?: string;
+  background_overlay_strength?: number;
+  /** captive-portal-v7-design-spec.md §1.4 C3/C4/C5 -- shipped by backend
+   * migration 0089 (`0089_add_background_image_metrics_and_focal_point`) and
+   * live on `GET /captive-portal/resolve`. Field names verified against
+   * `origin/main`'s `app/domains/captive_portal/schemas.py`
+   * (`ResolvedCaptivePortalConfigResponse`) and `router.py`, not assumed.
+   *
+   * The focal pair is `Integer NOT NULL` on `captive_portal_configs` with
+   * server defaults 50/25; the three measurements are `Integer NULL` on
+   * `brandings` and stay optional/nullable all the way through this
+   * frontend, because `null` there carries real meaning ("never measured")
+   * that a 0 would destroy. Kept optional on this interface as well so a
+   * stale/rolled-back backend degrades to the safe defaults rather than
+   * producing `undefined` reads. */
+  background_focal_x?: number;
+  background_focal_y?: number;
+  background_luminance?: number | null;
+  background_top_luminance?: number | null;
+  background_entropy?: number | null;
+  /** Returned since backend 0085 and, until v7, never mapped -- see
+   * `RuntimePortalConfig.pinLoginEnabled`. */
+  pin_login_enabled?: boolean;
+  /** v7 Part 3 (P4) -- see `RuntimePortalConfig.poweredByEnabled`. Optional
+   * until `feat/v7-part23-backend` lands; absent means "no white-label
+   * machinery exists yet", which renders the mark, same as `true`. */
+  powered_by_enabled?: boolean;
+  /** Returned since backend PR #33 ("Expose resolved location's country on
+   * GET /captive-portal/resolve") and, until v7, never mapped -- see
+   * `RuntimePortalConfig.locationCountry`. ISO 3166-1 alpha-2, never a
+   * dialing code. */
+  location_country?: string | null;
 }
 
 interface BackendOtpRequestResponse {
@@ -116,8 +150,13 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     backgroundImageUrl: c.background_image_url,
     primaryColor: c.primary_color,
     secondaryColor: c.secondary_color,
-    defaultLanguage: toRuntimeLanguage(c.default_language),
-    supportedLanguages: c.supported_languages.map(toRuntimeLanguage),
+    // Both fields are free text on the backend and are resolved together,
+    // once -- see `resolveLanguageSelection`. Mapping the array through a
+    // per-item coercion (what this used to do) turned every unrecognized
+    // code into another `"en"`, so a config still storing a since-removed
+    // language rendered duplicate, identically-labelled switcher entries
+    // sharing one React key.
+    ...resolveLanguageSelection(c.default_language, c.supported_languages),
     advertisementBannerUrl: c.advertisement_banner_url,
     advertisementBannerLink: c.advertisement_banner_link,
     termsAndConditionsText: c.terms_and_conditions_text,
@@ -135,6 +174,27 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     resolvedViaLocationOverride: c.resolved_via_location_override,
     isOpenNow: c.is_open_now,
     businessHoursClosedMessage: c.business_hours_closed_message,
+    guestFontChoice: toGuestFontChoice(c.guest_font_choice),
+    backgroundOverlayStrength: clampBackgroundOverlayStrength(c.background_overlay_strength),
+    // v7 §1.4 C4. 50/25 is not a frontend guess -- it is migration 0089's own
+    // server default, chosen so the render is identical to the previous
+    // hardcoded `center 25%` for every venue that already exists.
+    backgroundFocalX: clampBackgroundFocal(c.background_focal_x, 50),
+    backgroundFocalY: clampBackgroundFocal(c.background_focal_y, 25),
+    // v7 §1.4 C3/C5. `toBackgroundMetric` preserves `null` rather than
+    // coercing it to 0 -- the distinction is load-bearing, see its comment.
+    backgroundLuminance: toBackgroundMetric(c.background_luminance),
+    backgroundTopLuminance: toBackgroundMetric(c.background_top_luminance),
+    backgroundEntropy: toBackgroundMetric(c.background_entropy),
+    // Both already returned by the API before v7 and simply never read.
+    pinLoginEnabled: c.pin_login_enabled ?? false,
+    // v7 Part 3 P4. `?? true`, the exact opposite default to pinLogin's
+    // `?? false`, and both are the conservative reading: an absent field
+    // must not switch a sign-in method on, and must not switch the
+    // attribution mark off -- turning it off is the entitlement-gated
+    // action, so it only ever happens on an explicit backend `false`.
+    poweredByEnabled: c.powered_by_enabled ?? true,
+    locationCountry: c.location_country ?? null,
   };
 }
 

@@ -14,7 +14,14 @@ function Donut({ items }: { items: DistributionSlice[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <PieChart>
-        <Pie data={items} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>
+        <Pie
+          data={items}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={50}
+          outerRadius={85}
+          paddingAngle={2}
+        >
           {items.map((_, i) => (
             <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
           ))}
@@ -30,7 +37,12 @@ export function DeviceAnalyticsPanel({ data, isLoading, isError, onRetry }: Prop
   const state = { isLoading, isError, onRetry };
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <ChartCard title="Device types" description="Mobile, laptop, tablet, desktop" {...state} isEmpty={!data?.deviceTypes?.length}>
+      <ChartCard
+        title="Device types"
+        description="Mobile, laptop, tablet, desktop"
+        {...state}
+        isEmpty={!data?.deviceTypes?.length}
+      >
         <Donut items={data?.deviceTypes ?? []} />
       </ChartCard>
       <ChartCard title="Operating systems" {...state} isEmpty={!data?.operatingSystems?.length}>

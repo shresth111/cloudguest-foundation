@@ -255,25 +255,22 @@ function NasScreen() {
           />
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading NAS clients…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>NAS</MTh>
-                <MTh>Client</MTh>
-                <MTh className="hidden md:table-cell">Identifier</MTh>
-                <MTh className="hidden lg:table-cell">Vendor / IP</MTh>
-                <MTh>Secret</MTh>
-                <MTh>Status</MTh>
-                <MTh />
-              </>
-            }
-          >
-            {rows.length === 0 ? (
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>NAS</MTh>
+              <MTh>Client</MTh>
+              <MTh className="hidden md:table-cell">Identifier</MTh>
+              <MTh className="hidden lg:table-cell">Vendor / IP</MTh>
+              <MTh>Secret</MTh>
+              <MTh>Status</MTh>
+              <MTh />
+            </>
+          }
+        >
+          {!loading &&
+            (rows.length === 0 ? (
               <MTr>
                 <MTd className="text-center text-muted-foreground" />
                 <MTd />
@@ -353,9 +350,8 @@ function NasScreen() {
                   </MTd>
                 </MTr>
               ))
-            )}
-          </MTable>
-        )}
+            ))}
+        </MTable>
         {!loading && rows.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">
             No NAS clients registered yet.

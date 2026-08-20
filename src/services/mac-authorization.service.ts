@@ -60,7 +60,8 @@ let cachedOrganizationId: string | null = null;
 // customer.service.ts's resolveOrgId / ticket.service.ts's resolveOrgId.
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } = await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
+  const { data } =
+    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
   const membership = data.find((m) => m.status === "active") ?? data[0];
   if (!membership) throw new Error("No organization found for the current session");
   cachedOrganizationId = membership.organization_id;
@@ -117,10 +118,7 @@ export const macAuthorizationService = {
     return toEntry(data);
   },
 
-  async update(
-    id: string,
-    payload: UpdateMacAuthorizationPayload,
-  ): Promise<MacAuthorizationEntry> {
+  async update(id: string, payload: UpdateMacAuthorizationPayload): Promise<MacAuthorizationEntry> {
     const orgId = await resolveOrganizationId();
     const { data } = await api.put<BackendMacAuthorizationEntry>(
       `/mac-authorization/entries/${id}`,

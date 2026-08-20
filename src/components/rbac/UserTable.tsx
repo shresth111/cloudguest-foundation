@@ -35,7 +35,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/common/ErrorState";
-import { useActivateUser, useDeactivateUser, useForceLogoutUser, useRbacUsers } from "@/hooks/useRbac";
+import {
+  useActivateUser,
+  useDeactivateUser,
+  useForceLogoutUser,
+  useRbacUsers,
+} from "@/hooks/useRbac";
 import { authService } from "@/services/auth.service";
 import type { AppError } from "@/services/api";
 import type { RbacUser } from "@/types/rbac";
@@ -227,7 +232,8 @@ export function UserTable({ onEdit, onCreate }: Props) {
                             <DropdownMenuItem
                               onSelect={() =>
                                 forceLogout.mutate(u.id, {
-                                  onSuccess: () => toast.success(`${u.fullName} logged out everywhere`),
+                                  onSuccess: () =>
+                                    toast.success(`${u.fullName} logged out everywhere`),
                                   onError: (e) => toast.error((e as unknown as AppError).message),
                                 })
                               }

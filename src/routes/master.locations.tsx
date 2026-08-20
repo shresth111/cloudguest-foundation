@@ -259,24 +259,21 @@ function LocationsScreen() {
           />
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading locations…
-          </div>
-        ) : (
-          <MTable
-            head={
-              <>
-                <MTh>Site Code</MTh>
-                <MTh>Client</MTh>
-                <MTh>Type</MTh>
-                <MTh className="hidden sm:table-cell">City</MTh>
-                <MTh>Status</MTh>
-                <MTh />
-              </>
-            }
-          >
-            {rows.length === 0 ? (
+        <MTable
+          loading={loading}
+          head={
+            <>
+              <MTh>Site Code</MTh>
+              <MTh>Client</MTh>
+              <MTh>Type</MTh>
+              <MTh className="hidden sm:table-cell">City</MTh>
+              <MTh>Status</MTh>
+              <MTh />
+            </>
+          }
+        >
+          {!loading &&
+            (rows.length === 0 ? (
               <MTr>
                 <MTd className="text-center text-muted-foreground" />
                 <MTd />
@@ -336,9 +333,8 @@ function LocationsScreen() {
                   </MTr>
                 );
               })
-            )}
-          </MTable>
-        )}
+            ))}
+        </MTable>
         {!loading && rows.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">No locations yet.</p>
         )}

@@ -1,3 +1,9 @@
+import {
+  RUNTIME_LANGUAGE_LABEL,
+  type GuestFontChoice,
+  type RuntimeLanguage,
+} from "@/types/portal-runtime";
+
 export type PortalStatus = "draft" | "published" | "archived" | "scheduled";
 export type PortalLoginMethod =
   | "mobile_otp"
@@ -7,15 +13,16 @@ export type PortalLoginMethod =
   | "pms"
   | "social"
   | "click_through";
-export type PortalLanguage = "en" | "hi" | "ar" | "fr" | "es";
+/** Aliased to `RuntimeLanguage` rather than restated. These were two
+ * independent unions listing the identical five codes, and the admin model
+ * (`Portal.languages`) feeds the guest runtime directly -- so a code that is
+ * selectable here but unknown there is always a bug, and an alias makes that
+ * impossible to introduce. */
+export type PortalLanguage = RuntimeLanguage;
 
-export const LANGUAGES: Record<PortalLanguage, string> = {
-  en: "English",
-  hi: "हिन्दी",
-  ar: "العربية",
-  fr: "Français",
-  es: "Español",
-};
+/** Re-exported, not re-declared -- see `RUNTIME_LANGUAGE_LABEL`'s own comment
+ * for why the guest switcher and this admin picker now share one map. */
+export const LANGUAGES: Record<PortalLanguage, string> = RUNTIME_LANGUAGE_LABEL;
 
 export const LOGIN_METHOD_LABEL: Record<PortalLoginMethod, string> = {
   mobile_otp: "Mobile OTP",
@@ -62,7 +69,18 @@ export interface PortalBranding {
   gradientTo: string;
   primaryColor: string;
   secondaryColor: string;
+  /** Free-text, cosmetic-only theme-catalog label (THEMES in
+   * portal.service.ts) -- never round-tripped to any real backend field.
+   * Not to be confused with `fontChoice` below, which is. */
   fontFamily: string;
+  /** captive-portal-v6-design-spec.md §3 -- the real, backend-round-tripped
+   * heading-only font choice (`RuntimePortalConfig.guestFontChoice`'s admin-
+   * editable counterpart). Default `"system"`. See
+   * `src/lib/portal-guest-fonts.ts` for the curated allowlist's real specs. */
+  fontChoice: GuestFontChoice;
+  /** captive-portal-v6-design-spec.md §4 -- the real, backend-round-tripped
+   * background-overlay-strength admin control. 0-100, default 55. */
+  backgroundOverlayStrength: number;
   borderRadius: number;
   shadow: "none" | "sm" | "md" | "lg";
   buttonStyle: "solid" | "outline" | "ghost";

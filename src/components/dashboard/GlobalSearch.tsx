@@ -91,20 +91,34 @@ export function GlobalSearch() {
           ⌘K
         </kbd>
       </Button>
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(true)} aria-label="Search">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
+        onClick={() => setOpen(true)}
+        aria-label="Search"
+      >
         <Search className="h-4 w-4" />
       </Button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search organizations, locations, routers…" value={query} onValueChange={setQuery} />
+        <CommandInput
+          placeholder="Search organizations, locations, routers…"
+          value={query}
+          onValueChange={setQuery}
+        />
         <CommandList>
           {!debouncedQuery && (
-            <div className="py-6 text-center text-sm text-muted-foreground">Start typing to search…</div>
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              Start typing to search…
+            </div>
           )}
           {debouncedQuery && loading && (
             <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
           )}
-          {debouncedQuery && !loading && !hasResults && <CommandEmpty>No results found.</CommandEmpty>}
+          {debouncedQuery && !loading && !hasResults && (
+            <CommandEmpty>No results found.</CommandEmpty>
+          )}
           {debouncedQuery && !loading && orgs.length > 0 && (
             <CommandGroup heading="Organizations">
               {orgs.map((o) => (
@@ -131,19 +145,19 @@ export function GlobalSearch() {
                 {locations.map((l) => {
                   const LocIcon = businessTypeIcon(l.propertyType);
                   return (
-                  <CommandItem
-                    key={l.id}
-                    value={`loc-${l.id} ${l.name} ${l.organizationName} ${l.city}`}
-                    onSelect={() => setOpen(false)}
-                  >
-                    <LocIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{l.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {l.organizationName} · {l.city}
-                      </span>
-                    </div>
-                  </CommandItem>
+                    <CommandItem
+                      key={l.id}
+                      value={`loc-${l.id} ${l.name} ${l.organizationName} ${l.city}`}
+                      onSelect={() => setOpen(false)}
+                    >
+                      <LocIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{l.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {l.organizationName} · {l.city}
+                        </span>
+                      </div>
+                    </CommandItem>
                   );
                 })}
               </CommandGroup>

@@ -6,7 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { authService } from "@/services/auth.service";
 import type { AppError } from "@/services/api";
 
@@ -17,9 +24,17 @@ import type { AppError } from "@/services/api";
 // real self-service MFA endpoints (auth.service.ts's enrollMfa/verifyMfa/
 // disableMfa, backed by /auth/mfa/*), matching the pattern already used in
 // the operator-facing _authenticated/account.tsx TwoFactorSection.
-export function TwoFactorDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function TwoFactorDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [step, setStep] = useState<"idle" | "verify" | "enabled" | "disable">("idle");
-  const [enrollment, setEnrollment] = useState<{ secret: string; provisioningUri: string } | null>(null);
+  const [enrollment, setEnrollment] = useState<{ secret: string; provisioningUri: string } | null>(
+    null,
+  );
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [disablePassword, setDisablePassword] = useState("");
@@ -48,7 +63,10 @@ export function TwoFactorDialog({ open, onOpenChange }: { open: boolean; onOpenC
   };
 
   const verify = async () => {
-    if (code.length !== 6) { toast.error("Enter the 6-digit code from your authenticator app."); return; }
+    if (code.length !== 6) {
+      toast.error("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
     setSubmitting(true);
     try {
       const codes = await authService.verifyMfa(code);
@@ -65,7 +83,10 @@ export function TwoFactorDialog({ open, onOpenChange }: { open: boolean; onOpenC
   };
 
   const disable = async () => {
-    if (!disablePassword || disableCode.length < 6) { toast.error("Enter your password and a current code or recovery code."); return; }
+    if (!disablePassword || disableCode.length < 6) {
+      toast.error("Enter your password and a current code or recovery code.");
+      return;
+    }
     setSubmitting(true);
     try {
       await authService.disableMfa(disablePassword, disableCode);
@@ -84,10 +105,19 @@ export function TwoFactorDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const enabled = step === "enabled" || step === "disable";
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetTransient(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) resetTransient();
+      }}
+    >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" />2FA Settings</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            2FA Settings
+          </DialogTitle>
           <DialogDescription>Add an extra layer of security to your account.</DialogDescription>
         </DialogHeader>
 
@@ -96,17 +126,40 @@ export function TwoFactorDialog({ open, onOpenChange }: { open: boolean; onOpenC
             <div className="flex items-center justify-between rounded-xl border p-3">
               <div>
                 <p className="text-sm font-medium">Authenticator app</p>
-                <p className="text-xs text-muted-foreground">{enabled ? "Enabled — codes required at sign-in." : "Not enabled."}</p>
+                <p className="text-xs text-muted-foreground">
+                  {enabled ? "Enabled — codes required at sign-in." : "Not enabled."}
+                </p>
               </div>
-              <Switch checked={enabled} disabled={submitting} onCheckedChange={(v) => (v ? startEnable() : setStep("disable"))} />
+              <Switch
+                checked={enabled}
+                disabled={submitting}
+                onCheckedChange={(v) => (v ? startEnable() : setStep("disable"))}
+              />
             </div>
             {step === "enabled" && recoveryCodes && (
               <div className="rounded-xl bg-muted/40 p-3">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">Recovery codes — shown once, save these somewhere safe.</p>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  Recovery codes — shown once, save these somewhere safe.
+                </p>
                 <div className="grid grid-cols-2 gap-1.5 font-mono text-xs">
-                  {recoveryCodes.map((c) => <span key={c} className="rounded-md bg-background px-2 py-1 text-center">{c}</span>)}
+                  {recoveryCodes.map((c) => (
+                    <span key={c} className="rounded-md bg-background px-2 py-1 text-center">
+                      {c}
+                    </span>
+                  ))}
                 </div>
-                <Button variant="ghost" size="sm" className="mt-2 h-7 text-xs" onClick={() => { navigator.clipboard.writeText(recoveryCodes.join(" ")); toast.success("Recovery codes copied"); }}><Copy className="mr-1.5 h-3 w-3" />Copy codes</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 h-7 text-xs"
+                  onClick={() => {
+                    navigator.clipboard.writeText(recoveryCodes.join(" "));
+                    toast.success("Recovery codes copied");
+                  }}
+                >
+                  <Copy className="mr-1.5 h-3 w-3" />
+                  Copy codes
+                </Button>
               </div>
             )}
           </div>
@@ -118,34 +171,70 @@ export function TwoFactorDialog({ open, onOpenChange }: { open: boolean; onOpenC
               <div className="rounded-lg bg-white p-2">
                 <QRCodeSVG value={enrollment.provisioningUri} size={140} />
               </div>
-              <p className="text-center text-xs text-muted-foreground">Scan this QR with Google Authenticator, Authy, or any TOTP app, or enter the secret manually:</p>
-              <code className="block break-all rounded bg-muted px-2 py-1 text-xs">{enrollment.secret}</code>
+              <p className="text-center text-xs text-muted-foreground">
+                Scan this QR with Google Authenticator, Authy, or any TOTP app, or enter the secret
+                manually:
+              </p>
+              <code className="block break-all rounded bg-muted px-2 py-1 text-xs">
+                {enrollment.secret}
+              </code>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tfa-code">6-digit code</Label>
-              <Input id="tfa-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className="text-center font-mono tracking-widest" autoFocus />
+              <Input
+                id="tfa-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456"
+                className="text-center font-mono tracking-widest"
+                autoFocus
+              />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("idle")}>Cancel</Button>
-              <Button onClick={verify} disabled={submitting}>{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Verify &amp; Enable</Button>
+              <Button variant="outline" onClick={() => setStep("idle")}>
+                Cancel
+              </Button>
+              <Button onClick={verify} disabled={submitting}>
+                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Verify &amp;
+                Enable
+              </Button>
             </DialogFooter>
           </div>
         )}
 
         {step === "disable" && (
           <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">Confirm your password and a current authenticator (or recovery) code to disable two-factor authentication.</p>
+            <p className="text-xs text-muted-foreground">
+              Confirm your password and a current authenticator (or recovery) code to disable
+              two-factor authentication.
+            </p>
             <div className="space-y-1.5">
               <Label htmlFor="tfa-disable-password">Password</Label>
-              <Input id="tfa-disable-password" type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} autoFocus />
+              <Input
+                id="tfa-disable-password"
+                type="password"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+                autoFocus
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tfa-disable-code">Code</Label>
-              <Input id="tfa-disable-code" value={disableCode} onChange={(e) => setDisableCode(e.target.value.slice(0, 10))} placeholder="123456" className="font-mono tracking-widest" />
+              <Input
+                id="tfa-disable-code"
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value.slice(0, 10))}
+                placeholder="123456"
+                className="font-mono tracking-widest"
+              />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("enabled")}>Cancel</Button>
-              <Button variant="destructive" onClick={disable} disabled={submitting}>{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Disable 2FA</Button>
+              <Button variant="outline" onClick={() => setStep("enabled")}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={disable} disabled={submitting}>
+                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Disable 2FA
+              </Button>
             </DialogFooter>
           </div>
         )}

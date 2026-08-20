@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { policyService } from "@/services/policy.service";
 import type { Policy, PolicyScope } from "@/types/policy";
 
-
-
 const K = {
   list: (s?: PolicyScope) => ["policy", "list", s ?? "all"] as const,
   kpis: (s?: PolicyScope) => ["policy", "kpis", s ?? "all"] as const,

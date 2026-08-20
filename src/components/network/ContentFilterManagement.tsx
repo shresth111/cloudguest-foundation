@@ -134,7 +134,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
+    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
   );
   const del = useDeleteContentFilterRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -162,9 +162,13 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
     );
   });
 
-  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
-  const total = locationId ? filteredRows.length : data?.total ?? 0;
-  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const rows = locationId
+    ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : filteredRows;
+  const total = locationId ? filteredRows.length : (data?.total ?? 0);
+  const totalPages = locationId
+    ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+    : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   const enabledCount = filteredRows.filter((r) => r.isEnabled).length;
@@ -239,14 +243,20 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No blocking rules match your filters.
                   </TableCell>
                 </TableRow>
@@ -256,7 +266,8 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
                   <TableCell className="min-w-0 truncate font-medium">{r.name}</TableCell>
                   <TableCell className="text-sm">{routerName(r.routerId)}</TableCell>
                   <TableCell className="font-mono text-xs">
-                    <span className="text-muted-foreground">{valueTypeLabel(r.valueType)}:</span> {r.value}
+                    <span className="text-muted-foreground">{valueTypeLabel(r.valueType)}:</span>{" "}
+                    {r.value}
                   </TableCell>
                   <TableCell className="text-sm">
                     {r.category ? (
@@ -290,10 +301,20 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
                 Page {page} of {totalPages} · {total} rules
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>
@@ -318,8 +339,9 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
           <AlertDialogHeader>
             <AlertDialogTitle>Remove block on "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes this rule from {confirmDelete ? routerName(confirmDelete.routerId) : ""}.
-              The site/IP will resolve normally again once this router's configuration is next pushed. This cannot be undone.
+              This permanently removes this rule from{" "}
+              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. The site/IP will resolve
+              normally again once this router's configuration is next pushed. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -447,7 +469,9 @@ function RuleDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -481,7 +505,10 @@ function RuleDialog({
               control={form.control}
               name="category"
               render={({ field }) => (
-                <Select value={field.value ?? "__none"} onValueChange={(v) => field.onChange(v === "__none" ? undefined : v)}>
+                <Select
+                  value={field.value ?? "__none"}
+                  onValueChange={(v) => field.onChange(v === "__none" ? undefined : v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
@@ -498,7 +525,9 @@ function RuleDialog({
             />
           </div>
           <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">{valueType === "domain" ? "Domain" : "IP address or CIDR"}</Label>
+            <Label className="text-xs font-medium">
+              {valueType === "domain" ? "Domain" : "IP address or CIDR"}
+            </Label>
             <Input
               {...form.register("value")}
               placeholder={valueType === "domain" ? "facebook.com" : "203.0.113.0/24"}
@@ -512,7 +541,9 @@ function RuleDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <DialogFooter className="sm:col-span-2">

@@ -80,9 +80,33 @@ function formatDate(iso: string) {
 }
 
 function toCsv(rows: Location[]) {
-  const headers = ["ID", "Name", "Organization", "Property Type", "Country", "State", "City", "Address", "Timezone", "Status", "Created"];
+  const headers = [
+    "ID",
+    "Name",
+    "Organization",
+    "Property Type",
+    "Country",
+    "State",
+    "City",
+    "Address",
+    "Timezone",
+    "Status",
+    "Created",
+  ];
   const lines = rows.map((r) =>
-    [r.id, r.name, r.organizationName, r.propertyType ?? "", r.country, r.stateProvince, r.city, r.addressLine1, r.timezone, r.status, r.createdAt]
+    [
+      r.id,
+      r.name,
+      r.organizationName,
+      r.propertyType ?? "",
+      r.country,
+      r.stateProvince,
+      r.city,
+      r.addressLine1,
+      r.timezone,
+      r.status,
+      r.createdAt,
+    ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(","),
   );
@@ -99,9 +123,18 @@ export function LocationTable() {
   const canCreate = can("location-master", "create");
   const [view, setView] = usePersistentState<ViewMode>("loc-master:view", "table");
   const [search, setSearch] = usePersistentState<string>("loc-master:search", "");
-  const [status, setStatus] = usePersistentState<LocationStatus | "all">("loc-master:status", "all");
-  const [propertyType, setPropertyType] = usePersistentState<PropertyType | "all">("loc-master:propertyType", "all");
-  const [organizationId, setOrganizationId] = usePersistentState<string | "all">("loc-master:org", "all");
+  const [status, setStatus] = usePersistentState<LocationStatus | "all">(
+    "loc-master:status",
+    "all",
+  );
+  const [propertyType, setPropertyType] = usePersistentState<PropertyType | "all">(
+    "loc-master:propertyType",
+    "all",
+  );
+  const [organizationId, setOrganizationId] = usePersistentState<string | "all">(
+    "loc-master:org",
+    "all",
+  );
   const [country, setCountry] = usePersistentState<string | "all">("loc-master:country", "all");
   const [page, setPage] = usePersistentState<number>("loc-master:page", 1);
   const [pageSize, setPageSize] = usePersistentState<number>("loc-master:pageSize", 10);
@@ -301,7 +334,11 @@ export function LocationTable() {
               <ViewToggle current={view} value="map" onClick={setView} icon={MapIcon} />
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-              {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {isFetching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
               <span className="ml-2 hidden sm:inline">Refresh</span>
             </Button>
             <Button
@@ -335,7 +372,11 @@ export function LocationTable() {
                 size="sm"
                 onClick={exportCsv}
                 disabled={!canExport}
-                title={canExport ? "Export selected rows" : "Export restricted. Contact your Administrator."}
+                title={
+                  canExport
+                    ? "Export selected rows"
+                    : "Export restricted. Contact your Administrator."
+                }
               >
                 {canExport ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                 <span className="ml-2">Export</span>
@@ -439,7 +480,11 @@ export function LocationTable() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="w-10">
-                      <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" />
+                      <Checkbox
+                        checked={allChecked}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all"
+                      />
                     </TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Organization</TableHead>
@@ -467,7 +512,9 @@ export function LocationTable() {
                           params={{ locationId: r.id }}
                           className="group flex flex-col"
                         >
-                          <span className="font-medium text-foreground group-hover:text-primary">{r.name}</span>
+                          <span className="font-medium text-foreground group-hover:text-primary">
+                            {r.name}
+                          </span>
                           <span className="text-xs text-muted-foreground">{r.slug}</span>
                         </Link>
                       </TableCell>
@@ -487,7 +534,9 @@ export function LocationTable() {
                       <TableCell>
                         <LocationStatusBadge status={r.status} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{formatDate(r.createdAt)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(r.createdAt)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <RowActions
                           location={r}
@@ -496,8 +545,14 @@ export function LocationTable() {
                               updateStatus.mutate(
                                 { ids: [r.id], status: a === "enable" ? "active" : "suspended" },
                                 {
-                                  onSuccess: () => toast.success(`${r.name} ${a === "enable" ? "activated" : "suspended"}`),
-                                  onError: (err) => toast.error((err as unknown as AppError).message || `Failed to ${a}`),
+                                  onSuccess: () =>
+                                    toast.success(
+                                      `${r.name} ${a === "enable" ? "activated" : "suspended"}`,
+                                    ),
+                                  onError: (err) =>
+                                    toast.error(
+                                      (err as unknown as AppError).message || `Failed to ${a}`,
+                                    ),
                                 },
                               );
                             } else if (a === "delete") {
@@ -603,7 +658,9 @@ function Pagination({
     <div
       className={cn(
         "flex flex-wrap items-center justify-between gap-3 text-sm",
-        inline ? "border-t border-border/70 px-4 py-3" : "rounded-2xl border border-border/70 bg-card px-4 py-3",
+        inline
+          ? "border-t border-border/70 px-4 py-3"
+          : "rounded-2xl border border-border/70 bg-card px-4 py-3",
       )}
     >
       <div className="text-muted-foreground">
@@ -668,7 +725,9 @@ function RowActions({
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuItem asChild>
-          <Link to="/locations/$locationId" params={{ locationId: location.id }}>View details</Link>
+          <Link to="/locations/$locationId" params={{ locationId: location.id }}>
+            View details
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {disabled ? (
@@ -682,7 +741,10 @@ function RowActions({
             <span className="ml-2">Suspend</span>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onAction("delete")}>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={() => onAction("delete")}
+        >
           <Trash2 className="h-4 w-4" />
           <span className="ml-2">Archive</span>
         </DropdownMenuItem>

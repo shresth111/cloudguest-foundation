@@ -25,7 +25,14 @@ export function BsnlIcon(props: SVGProps<SVGSVGElement>) {
           <circle cx="12" cy="12" r="11.25" />
         </clipPath>
       </defs>
-      <circle cx="12" cy="12" r="11.25" fill={`url(#${id})`} stroke="rgba(255,255,255,0.35)" strokeWidth="0.75" />
+      <circle
+        cx="12"
+        cy="12"
+        r="11.25"
+        fill={`url(#${id})`}
+        stroke="rgba(255,255,255,0.35)"
+        strokeWidth="0.75"
+      />
       <path d="M24 0 L24 8 L16 0 Z" fill="#E4002B" opacity="0.9" clipPath={`url(#${clip})`} />
       <text
         x="11.5"

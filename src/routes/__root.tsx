@@ -8,7 +8,6 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -17,9 +16,90 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { PlatformBrandingProvider } from "@/context/PlatformBrandingContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-// Side-effect import -- runs i18next's init() before first render. See
-// docs/hindi-language-rollout-spec.md, "Introduce react-i18next".
-import i18n from "@/lib/i18n";
+
+// NOTE (deliberately not imported here): `@/lib/i18n` used to be pulled in
+// at this module's top level, and its instance handed to an
+// `<I18nextProvider>` wrapping the whole tree. `__root.tsx` is the one
+// route module that is never code-split -- it IS the entry chunk -- so
+// that single import statically dragged i18next, react-i18next and all
+// eight eagerly-`import`ed locale JSON bundles (~20-25KB gzip, including
+// ~420 Devanagari tokens) into the bytes every route downloads, and ran
+// `i18n.init()` on every boot. The guest captive portal is the majority of
+// this app's real traffic, uses none of it, and has its own dictionary in
+// `src/lib/portal-i18n.ts`.
+//
+// The provider was also redundant: `@/lib/i18n` calls
+// `i18n.use(initReactI18next).init(...)`, and `initReactI18next` registers
+// that instance as react-i18next's global default. Every `useTranslation`
+// call site now imports the instance itself and passes it explicitly
+// (`useTranslation(ns, { i18n })`) -- see `AppSidebar`, `CustomerSidebar`,
+// `users.tsx` and `_authenticated/account.tsx`. Those are all dashboard
+// modules that live in their own lazily-loaded route chunks, so i18next
+// and its locales now load with the dashboard, when and only when a
+// dashboard screen that actually renders a translated string does.
+// (Explicit instance rather than a bare `import "@/lib/i18n"` on purpose:
+// this package.json declares `"sideEffects": false`, so a side-effect-only
+// import would be a legal tree-shake target. A used binding is not.)
+
+/**
+ * The origin the app's API actually lives on, or `null` when it is
+ * same-origin. In production the dashboard/portal and the API are served
+ * from *different* hosts (`VITE_API_BASE_URL` is baked in at build time,
+ * see `src/services/api.ts` and `src/services/guest-portal-api.ts`), so
+ * the very first API call a page makes -- `/captive-portal/resolve`, on
+ * the guest sign-in path -- has to pay a cold DNS lookup + TCP handshake
+ * + TLS handshake before a single byte moves. On the captive-portal path
+ * that cost lands at the worst possible moment: a guest on a fresh, often
+ * congested first-hop WiFi/mobile link, staring at a spinner.
+ *
+ * Derived from the configured base URL rather than hardcoded so it stays
+ * correct across environments, and deliberately degrading to `null` (no
+ * link tags at all, rather than a wrong or wasted one) when:
+ *   - the env var is unset -- `api.ts` then falls back to the relative
+ *     `/api/v1`, i.e. same-origin, where a preconnect buys nothing
+ *     because the document's own connection is already open;
+ *   - the value is relative for the same reason;
+ *   - the value isn't a parseable URL.
+ *
+ * Computed at module scope from `import.meta.env` only -- never from
+ * `window` -- so the server and the client render byte-identical <head>
+ * markup and this can't introduce a hydration mismatch.
+ */
+const API_PRECONNECT_ORIGIN: string | null = (() => {
+  const raw = import.meta.env.VITE_API_BASE_URL;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  // Relative bases ("/api/v1", "") are same-origin -- nothing to preconnect to.
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
+})();
+
+/**
+ * `preconnect` is the one that actually warms DNS + TCP + TLS; `crossorigin`
+ * is required for the opened socket to be reusable by the API calls
+ * themselves, since a cross-origin XHR/fetch is always a CORS-mode request
+ * and the connection pool keys anonymous and credentialed sockets
+ * separately (`api` sends its bearer token in an `Authorization` header and
+ * never sets `withCredentials`, so `anonymous` is the matching mode).
+ *
+ * `dns-prefetch` is the fallback for browsers that ignore or drop the
+ * preconnect -- it resolves DNS only, but it is the more widely honored
+ * hint and browsers cap how many preconnects they will act on. Emitting
+ * both is the standard belt-and-braces pairing; a browser that honors the
+ * preconnect simply finds the DNS entry already in hand.
+ */
+const API_PRECONNECT_LINKS = API_PRECONNECT_ORIGIN
+  ? [
+      // `as const` matters: without it TS widens this to `string`, which
+      // doesn't satisfy React's `CrossOrigin` union on <link>.
+      { rel: "preconnect", href: API_PRECONNECT_ORIGIN, crossOrigin: "anonymous" as const },
+      { rel: "dns-prefetch", href: API_PRECONNECT_ORIGIN },
+    ]
+  : [];
 
 function NotFoundComponent() {
   return (
@@ -106,6 +186,10 @@ export const Route = createRootRouteWithContext<{
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      // Cross-origin API warm-up first -- these are hints the browser can
+      // act on the moment it parses them, so they belong ahead of the
+      // stylesheet rather than after it.
+      ...API_PRECONNECT_LINKS,
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
@@ -164,7 +248,40 @@ function InitialLoader() {
 // worst case (guest portal, fonts unreachable) the request just fails
 // quietly in the background and the page already rendered with its
 // system-font fallback.
+//
+// ...and NOT AT ALL on `portal.*`. Non-blocking is not the same as free.
+// `fonts.googleapis.com` is not a walled-garden host -- the backend models
+// the garden as `HotspotProfile.walled_garden_hosts` and renders it to
+// `/ip hotspot walled-garden add dst-host=...`, and Google's font CDN is
+// not and should not be in it -- so pre-authentication this request is a
+// GUARANTEED-FAILING DNS lookup plus connection attempt, on the worst
+// connection in the product, for five families the guest flow deliberately
+// does not use (see `PG_FONT_STACK`: the portal ships zero font bytes).
+// It burns a connection slot at the exact moment the page is trying to
+// reach the API for `/captive-portal/resolve`.
+//
+// THE ROUTE CHECK IS `location.pathname`, ON PURPOSE, AND IT IS NOT
+// LAZINESS. The obvious-looking alternatives do not work from here:
+// this script is emitted by `RootShell`, which is the document shell --
+// it renders before route matching has produced anything to read, has no
+// router context of its own, and runs its output as a plain inline
+// <script> during HTML parse, before the client bundle has loaded, let
+// alone hydrated. `useMatches()`/`useRouterState()` are unavailable at
+// that point, and moving the injection into `RootComponent`'s effect
+// would delay it until after hydration for every dashboard page, which is
+// a real regression on the surface that actually wants these fonts.
+// `location.pathname` is available to the inline script immediately, is
+// the same value the router will go on to match, and is correct on a cold
+// load of any URL -- which is the only way a guest ever reaches the
+// portal. (Client-side navigation into a portal route is not a case: the
+// script has already run, and a dashboard user who navigates to a preview
+// keeps the fonts they already have. `/preview/portal/...` -- the
+// dashboard's own portal preview -- is deliberately NOT matched here; it
+// is an authenticated dashboard surface with real internet, and its
+// chrome is the dashboard's, Inter and all.)
 const LOAD_FONTS_SCRIPT = `(function(){
+  var p = location.pathname;
+  if (p === "/portal" || p.slice(0, 8) === "/portal/") return;
   var l = document.createElement("link");
   l.rel = "stylesheet";
   l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap";
@@ -199,21 +316,19 @@ function RootComponent() {
   }, []);
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <PlatformBrandingProvider>
-            <AuthProvider>
-              <AuthRouterContextSync />
-              <TooltipProvider delayDuration={200}>
-                <Outlet />
-                <Toaster position="top-right" richColors closeButton />
-              </TooltipProvider>
-            </AuthProvider>
-          </PlatformBrandingProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </I18nextProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <PlatformBrandingProvider>
+          <AuthProvider>
+            <AuthRouterContextSync />
+            <TooltipProvider delayDuration={200}>
+              <Outlet />
+              <Toaster position="top-right" richColors closeButton />
+            </TooltipProvider>
+          </AuthProvider>
+        </PlatformBrandingProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

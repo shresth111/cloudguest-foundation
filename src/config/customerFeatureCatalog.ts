@@ -5,10 +5,31 @@
  */
 import type { ComponentType } from "react";
 import {
-  LayoutDashboard, Users, FileText, Bell, Megaphone, Palette, Ticket,
-  ShieldCheck, Shield, Fingerprint, Sun, Monitor, UsersRound, Bot, Network, Wifi,
-  Server, Share2, Signal, Globe, Settings2, Ban,
-  ScrollText, LifeBuoy, Radar,
+  LayoutDashboard,
+  Users,
+  FileText,
+  Bell,
+  Megaphone,
+  Palette,
+  Ticket,
+  ShieldCheck,
+  Shield,
+  Fingerprint,
+  Sun,
+  Monitor,
+  UsersRound,
+  Bot,
+  Network,
+  Wifi,
+  Server,
+  Share2,
+  Signal,
+  Globe,
+  Settings2,
+  Ban,
+  ScrollText,
+  LifeBuoy,
+  Radar,
 } from "lucide-react";
 
 export interface FeatureDef {

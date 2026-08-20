@@ -53,7 +53,12 @@ import {
 } from "@/hooks/useFirewall";
 import { routerService } from "@/services/router.service";
 import type { AppError } from "@/services/api";
-import type { FirewallAction, FirewallChain, FirewallProtocol, FirewallRule } from "@/types/firewall";
+import type {
+  FirewallAction,
+  FirewallChain,
+  FirewallProtocol,
+  FirewallRule,
+} from "@/types/firewall";
 
 const PAGE_SIZE = 25;
 const CHAINS: FirewallChain[] = ["input", "forward", "output"];
@@ -132,7 +137,12 @@ export function FirewallManagement() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Rules" value={data?.total ?? 0} icon={Shield} tone="primary" />
         <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={rows.length - enabledCount} icon={ShieldOff} tone="warning" />
+        <StatCard
+          label="Disabled"
+          value={rows.length - enabledCount}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-border/60">
@@ -186,14 +196,20 @@ export function FirewallManagement() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No firewall rules match your filters.
                   </TableCell>
                 </TableRow>
@@ -203,16 +219,22 @@ export function FirewallManagement() {
                   <TableCell>
                     <div className="min-w-0">
                       <div className="truncate font-medium">{r.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">{routerName(r.routerId)}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {routerName(r.routerId)}
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs uppercase text-muted-foreground">{r.chain}</TableCell>
+                  <TableCell className="text-xs uppercase text-muted-foreground">
+                    {r.chain}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={actionTone(r.action)} className="uppercase">
                       {r.action}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-xs uppercase text-muted-foreground">{r.protocol}</TableCell>
+                  <TableCell className="text-xs uppercase text-muted-foreground">
+                    {r.protocol}
+                  </TableCell>
                   <TableCell className="font-mono text-xs">
                     {r.sourceAddress ?? "any"}
                     {r.sourcePort ? `:${r.sourcePort}` : ""} → {r.destinationAddress ?? "any"}
@@ -244,10 +266,20 @@ export function FirewallManagement() {
                 Page {page} of {data.totalPages} · {data.total} rules
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!data.hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!data.hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>
@@ -271,8 +303,8 @@ export function FirewallManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete rule "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes it from {confirmDelete ? routerName(confirmDelete.routerId) : ""}.
-              This cannot be undone.
+              This permanently removes it from{" "}
+              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -412,7 +444,9 @@ function FirewallDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -429,10 +463,14 @@ function FirewallDialog({
               name="chain"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {CHAINS.map((c) => (
-                      <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                      <SelectItem key={c} value={c} className="capitalize">
+                        {c}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -446,10 +484,14 @@ function FirewallDialog({
               name="action"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {ACTIONS.map((a) => (
-                      <SelectItem key={a} value={a} className="capitalize">{a}</SelectItem>
+                      <SelectItem key={a} value={a} className="capitalize">
+                        {a}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -463,10 +505,14 @@ function FirewallDialog({
               name="protocol"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {PROTOCOLS.map((p) => (
-                      <SelectItem key={p} value={p} className="uppercase">{p}</SelectItem>
+                      <SelectItem key={p} value={p} className="uppercase">
+                        {p}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -479,11 +525,19 @@ function FirewallDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Source address (optional)</Label>
-            <Input {...form.register("sourceAddress")} placeholder="10.0.10.0/24" className="font-mono" />
+            <Input
+              {...form.register("sourceAddress")}
+              placeholder="10.0.10.0/24"
+              className="font-mono"
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Destination address (optional)</Label>
-            <Input {...form.register("destinationAddress")} placeholder="10.0.0.0/24" className="font-mono" />
+            <Input
+              {...form.register("destinationAddress")}
+              placeholder="10.0.0.0/24"
+              className="font-mono"
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Source port (optional)</Label>
@@ -502,7 +556,9 @@ function FirewallDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <div className="sm:col-span-2 space-y-1.5">

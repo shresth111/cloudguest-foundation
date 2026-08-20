@@ -11,7 +11,10 @@ export const voucherKeys = {
 };
 
 export const useVoucherBatches = (page = 1) =>
-  useQuery({ queryKey: voucherKeys.batches(page), queryFn: () => voucherService.listBatches(page) });
+  useQuery({
+    queryKey: voucherKeys.batches(page),
+    queryFn: () => voucherService.listBatches(page),
+  });
 
 export const useVoucherKpis = () =>
   useQuery({ queryKey: voucherKeys.kpis, queryFn: voucherService.kpis });

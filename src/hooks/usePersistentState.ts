@@ -5,7 +5,10 @@ import { useEffect, useState } from "react";
  * (e.g. leaving a list page to view a detail and coming back) preserves
  * filters, pagination and sort without adding search-param plumbing.
  */
-export function usePersistentState<T>(key: string, initial: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+export function usePersistentState<T>(
+  key: string,
+  initial: T,
+): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [state, setState] = useState<T>(() => {
     if (typeof window === "undefined") return initial;
     try {

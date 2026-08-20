@@ -13,7 +13,7 @@ function Page() {
         title="Device Analytics"
         description="Device mix, OS versions and vendor breakdown for capacity planning."
         icon={Smartphone}
-        bullets={["OS & vendor mix","5 GHz adoption","BYOD trend"]}
+        bullets={["OS & vendor mix", "5 GHz adoption", "BYOD trend"]}
       />
     </PageShell>
   );

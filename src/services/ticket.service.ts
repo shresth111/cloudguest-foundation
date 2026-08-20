@@ -115,7 +115,11 @@ export async function resolveOrgId(): Promise<string> {
 
 export const ticketService = {
   /** Org-scoped -- the customer dashboard's own tickets. */
-  async list(params?: { status?: TicketStatus; priority?: TicketPriority; search?: string }): Promise<SupportTicket[]> {
+  async list(params?: {
+    status?: TicketStatus;
+    priority?: TicketPriority;
+    search?: string;
+  }): Promise<SupportTicket[]> {
     const orgId = await resolveOrgId();
     const { data } = await api.get<BackendTicketListResponse>("/support-tickets", {
       params: { page_size: 100, ...params },
@@ -127,7 +131,11 @@ export const ticketService = {
   /** No X-Organization-Id header -- the backend resolves this to "every
    * organization the caller's permissions allow," which is exactly the
    * Master (super-admin) dashboard's cross-tenant view. */
-  async listAllOrgs(params?: { status?: TicketStatus; priority?: TicketPriority; search?: string }): Promise<SupportTicket[]> {
+  async listAllOrgs(params?: {
+    status?: TicketStatus;
+    priority?: TicketPriority;
+    search?: string;
+  }): Promise<SupportTicket[]> {
     const { data } = await api.get<BackendTicketListResponse>("/support-tickets", {
       params: { page_size: 100, ...params },
     });
@@ -207,7 +215,8 @@ export function buildTicketsWebSocketUrl(organizationId?: string): string {
     ? `${typeof window !== "undefined" ? window.location.origin : ""}${httpBase}`
     : httpBase;
   const wsBase = resolvedBase.replace(/^http/, "ws");
-  const token = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+  const token =
+    typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
   const params = new URLSearchParams();
   if (token) params.set("token", token);
   if (organizationId) params.set("organization_id", organizationId);

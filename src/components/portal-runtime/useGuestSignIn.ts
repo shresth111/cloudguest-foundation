@@ -8,7 +8,11 @@ import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 import { deviceHasPassword, markDeviceHasPassword } from "@/lib/portal-returning-guest";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
-import { defaultCountryCode } from "@/lib/portal-locale";
+import {
+  defaultCountryCode,
+  nationalNumberMaxLength,
+  normalizeNationalPhone,
+} from "@/lib/portal-locale";
 import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
@@ -85,10 +89,45 @@ export function useGuestSignIn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasOtp, hasPassword]);
 
-  const venueName = config?.name;
-  const heading =
-    config?.splashHeadline?.trim() ||
-    (venueName ? t("welcomeToVenueTemplate").replace("{venue}", venueName) : t("welcomeBare"));
+  const venueName = config?.name?.trim() || undefined;
+  const customHeadline = config?.splashHeadline?.trim() || undefined;
+
+  // captive-portal-v7-design-spec.md Part 2 / §8.3.
+  //
+  // This used to be one string -- `t("welcomeToVenueTemplate")` -> "Welcome
+  // to The Grand Ashoka Residency" -- rendered as a single `pg-title` line.
+  // Two things were wrong with that, and only the second is cosmetic.
+  //
+  // 1. IT ANSWERED THE WRONG QUESTION AT THE LOUDEST VOLUME. §8.3 is
+  //    explicit that the guest's real question on this screen is *whose
+  //    network is this*, that confirming the venue is "the strongest
+  //    anti-evil-twin signal available", and that "legibility here is a
+  //    security signal". Setting "Welcome to" at the same 26px/700 as the
+  //    venue's name spends half the largest type on the screen on a
+  //    greeting. Splitting them puts the whole title budget on the identity
+  //    -- which is also what a hotel's own signage does, and what Apple's
+  //    "deference" means applied literally: our courtesy copy becomes a
+  //    label, the venue's name becomes the content.
+  // 2. A long name wrapped to three and four lines, because it was carrying
+  //    "Welcome to " as a prefix. Measured at 320px with `--pg-type-scale`
+  //    at 1.25 and a 40-character Devanagari name: four lines before, three
+  //    after.
+  //
+  // `splashHeadline` also silently DELETED the venue's identity: a venue
+  // that typed "Enjoy your stay" into that optional field removed its own
+  // name from the portal entirely. That is now impossible -- when a custom
+  // headline exists the name moves into the eyebrow instead of vanishing.
+  // One slot, two variants, same styling:
+  //
+  //   custom headline + name  ->  eyebrow = the venue's name  (identity)
+  //   name only               ->  eyebrow = "Welcome to"      (greeting)
+  //   neither                 ->  no eyebrow row at all
+  //
+  // The last case is deliberate and matches v5 §3.2's rule about the
+  // welcome message: a row with nothing real in it is not rendered.
+  const heading = customHeadline || venueName || t("welcomeBare");
+  const eyebrowIsVenueName = !!(customHeadline && venueName);
+  const eyebrow = eyebrowIsVenueName ? venueName : venueName ? t("welcomeEyebrow") : undefined;
   // captive-portal-v5-design-spec.md §3.2: no fallback string here anymore
   // -- `t("signInSubtext")` was a hardcoded filler line ("Sign in for
   // complimentary WiFi access...") rendered whenever a venue hadn't
@@ -108,26 +147,20 @@ export function useGuestSignIn() {
 
   // ---- OTP tab state -------------------------------------------------
   const [phase, setPhase] = useState<"phone" | "code">("phone");
-  // v4 UX §6.3: was a hardcoded "+1" -- see defaultCountryCode's own
-  // docstring for why this platform's real deployment base makes that a
-  // wrong default for most actual venues.
-  const [countryCode, setCountryCodeState] = useState(() =>
-    defaultCountryCode(config?.defaultLanguage),
+  // captive-portal-v7-design-spec.md §8.1: the dialling code is now a
+  // fixed, non-editable prefix rather than a second editable text box, so
+  // there is no "the guest has edited this themselves" case left to track
+  // -- the `countryCodeTouched` flag and its re-derive effect are gone
+  // with it. It is still derived from the strongest real signal available
+  // (`location_country`, the venue's own admin-entered address country),
+  // never hardcoded to `+91`; see `defaultCountryCode`'s own docstring.
+  // Recomputed rather than held in state precisely so that a `config`
+  // arriving after first render simply produces the right prefix, with no
+  // state to get out of sync.
+  const dialCode = useMemo(
+    () => defaultCountryCode(config?.defaultLanguage, config?.locationCountry),
+    [config?.defaultLanguage, config?.locationCountry],
   );
-  // Once a guest edits this field themselves, their own value always
-  // wins -- the effect below only ever re-derives the *default*, for the
-  // case `config` resolves async (unknown at this hook's very first
-  // render) after the lazy initializer above already guessed with no
-  // config to go on yet.
-  const [countryCodeTouched, setCountryCodeTouched] = useState(false);
-  const setCountryCode = (v: string) => {
-    setCountryCodeTouched(true);
-    setCountryCodeState(v);
-  };
-  useEffect(() => {
-    if (countryCodeTouched) return;
-    setCountryCodeState(defaultCountryCode(config?.defaultLanguage));
-  }, [config?.defaultLanguage, countryCodeTouched]);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [target, setTarget] = useState("");
@@ -137,7 +170,13 @@ export function useGuestSignIn() {
   // /portal/verify page -- see this hook's own docstring for the "why".
   const { cooldown: resendCooldown, applyServerCooldown, resetCooldown } = useOtpResendCooldown();
 
-  const identifierForChannel = otpChannel === "email" ? email : countryCode + phone;
+  // Normalised again here, not only in the field's own `onChange`: this is
+  // the value that is actually sent, and it is the one place both the
+  // typed path and any future programmatic path converge (v7 §8.1 --
+  // spaces, dashes, a leading zero and an explicitly-pasted dialling code
+  // all come off before submit).
+  const nationalPhone = normalizeNationalPhone(phone, dialCode);
+  const identifierForChannel = otpChannel === "email" ? email : dialCode + nationalPhone;
 
   const sendOtp = useMutation({
     mutationFn: (identifier: string) =>
@@ -253,7 +292,18 @@ export function useGuestSignIn() {
   const onSendOtp = () => {
     const id = identifierForChannel.trim();
     const isPhoneChannel = otpChannel !== "email";
-    if (isPhoneChannel ? id.replace(countryCode, "").trim().length < 6 : !/.+@.+\..+/.test(id)) {
+    // Was `id.replace(countryCode, "")` -- a substring replace against the
+    // whole identifier, so a number that happened to contain its own
+    // dialling code again anywhere in it was measured short. The national
+    // part is now a value in its own right, so the check is just its
+    // length. Where the venue's plan has a known fixed national length
+    // (India and NANP are both flat 10 digits) that exact length is
+    // required, because "sent an OTP to a 9-digit number" is a dead end a
+    // guest cannot diagnose; everywhere else the original >= 6 floor
+    // stands rather than inventing a plan this codebase has no venues in.
+    const expected = nationalNumberMaxLength(dialCode);
+    const phoneOk = expected === 15 ? nationalPhone.length >= 6 : nationalPhone.length === expected;
+    if (isPhoneChannel ? !phoneOk : !/.+@.+\..+/.test(id)) {
       setOtpError(
         isPhoneChannel
           ? otpChannel === "whatsapp"
@@ -390,6 +440,8 @@ export function useGuestSignIn() {
     // config / copy
     config,
     portalSearch,
+    eyebrow,
+    eyebrowIsVenueName,
     heading,
     subtext,
     previewMode,
@@ -420,8 +472,7 @@ export function useGuestSignIn() {
     hasMoreSignInOptions,
     // OTP tab state
     phase,
-    countryCode,
-    setCountryCode,
+    dialCode,
     phone,
     setPhone,
     email,

@@ -46,7 +46,11 @@ const fmt = new Intl.NumberFormat();
 // on this platform is priced in INR (see Plan.currency; there is no
 // multi-currency data in production yet), so a hardcoded USD "$" here was
 // simply wrong, not just inconsistent with Billing's "₹".
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
 
 export function AnalyticsKpiGrid({ data, isLoading, isError, onRetry }: Props) {
   if (isLoading) {
@@ -61,23 +65,74 @@ export function AnalyticsKpiGrid({ data, isLoading, isError, onRetry }: Props) {
   if (isError || !data) return <ErrorState onRetry={onRetry} />;
 
   const tiles: Tile[] = [
-    { label: "Total organizations", value: fmt.format(data.totalOrganizations), icon: Building2, tone: "default" },
-    { label: "Total locations", value: fmt.format(data.totalLocations), icon: MapPin, tone: "default" },
-    { label: "Total routers", value: fmt.format(data.totalRouters), icon: RouterIcon, tone: "info" },
-    { label: "Active routers", value: fmt.format(data.activeRouters), icon: Activity, tone: "success" },
+    {
+      label: "Total organizations",
+      value: fmt.format(data.totalOrganizations),
+      icon: Building2,
+      tone: "default",
+    },
+    {
+      label: "Total locations",
+      value: fmt.format(data.totalLocations),
+      icon: MapPin,
+      tone: "default",
+    },
+    {
+      label: "Total routers",
+      value: fmt.format(data.totalRouters),
+      icon: RouterIcon,
+      tone: "info",
+    },
+    {
+      label: "Active routers",
+      value: fmt.format(data.activeRouters),
+      icon: Activity,
+      tone: "success",
+    },
     { label: "Total guests", value: fmt.format(data.totalGuests), icon: Users, tone: "default" },
-    { label: "Active guests", value: fmt.format(data.activeGuests), icon: UserCheck, tone: "success" },
+    {
+      label: "Active guests",
+      value: fmt.format(data.activeGuests),
+      icon: UserCheck,
+      tone: "success",
+    },
     { label: "Total sessions", value: fmt.format(data.totalSessions), icon: LogIn, tone: "info" },
-    { label: "Avg. session duration", value: `${data.avgSessionDuration}m`, icon: Timer, tone: "default" },
-    { label: "Daily logins", value: fmt.format(data.dailyLogins), icon: CalendarDays, tone: "info" },
-    { label: "Monthly logins", value: fmt.format(data.monthlyLogins), icon: TrendingUp, tone: "default" },
+    {
+      label: "Avg. session duration",
+      value: `${data.avgSessionDuration}m`,
+      icon: Timer,
+      tone: "default",
+    },
+    {
+      label: "Daily logins",
+      value: fmt.format(data.dailyLogins),
+      icon: CalendarDays,
+      tone: "info",
+    },
+    {
+      label: "Monthly logins",
+      value: fmt.format(data.monthlyLogins),
+      icon: TrendingUp,
+      tone: "default",
+    },
     // Same real figure, and the same name, as Billing's own "Total revenue"
     // tile (both come from GET /dashboard/super-admin/unified's
     // total_revenue -- actual captured payments, not MRR/ARR) -- genuinely
     // $0/₹0 right now because no Payment has ever actually been captured on
     // this platform, not a wiring bug.
-    { label: "Total revenue", value: money.format(data.revenue), icon: DollarSign, tone: "success", hint: "Actually collected via captured payments" },
-    { label: "Growth rate", value: `${data.growthRate.toFixed(1)}%`, icon: Sparkles, tone: data.growthRate >= 0 ? "success" : "warning" },
+    {
+      label: "Total revenue",
+      value: money.format(data.revenue),
+      icon: DollarSign,
+      tone: "success",
+      hint: "Actually collected via captured payments",
+    },
+    {
+      label: "Growth rate",
+      value: `${data.growthRate.toFixed(1)}%`,
+      icon: Sparkles,
+      tone: data.growthRate >= 0 ? "success" : "warning",
+    },
   ];
 
   return (
@@ -94,11 +149,18 @@ export function AnalyticsKpiGrid({ data, isLoading, isError, onRetry }: Props) {
             <Card className="hover:shadow-md transition-shadow">
               <CardContent className="flex items-start justify-between gap-4 p-4">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.label}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {t.label}
+                  </div>
                   <div className="mt-1 text-2xl font-semibold tracking-tight">{t.value}</div>
                   {t.hint && <div className="text-[11px] text-muted-foreground">{t.hint}</div>}
                 </div>
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneClass[t.tone])}>
+                <div
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-lg",
+                    toneClass[t.tone],
+                  )}
+                >
                   <Icon className="h-5 w-5" />
                 </div>
               </CardContent>

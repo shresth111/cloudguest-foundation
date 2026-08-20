@@ -3,7 +3,14 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2, Trash2, Wifi } from "lucide-react";
 import { toast } from "sonner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
@@ -14,18 +21,36 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 const DEMO_UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
-const inputCls = "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
+const inputCls =
+  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
 
-interface DemoAsset { businessUnit: string; url: string; }
+interface DemoAsset {
+  businessUnit: string;
+  url: string;
+}
 
 const BRANDING_QUERY_KEY = ["branding", "current-organization"] as const;
 
 function BrandImageIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 80 48" className="hidden h-12 w-auto shrink-0 sm:block" fill="none">
-      <rect x="6" y="4" width="46" height="36" rx="5" fill="#2e2a5c" stroke="#a78bfa" strokeWidth="1.5" />
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 80 48"
+      className="hidden h-12 w-auto shrink-0 sm:block"
+      fill="none"
+    >
+      <rect
+        x="6"
+        y="4"
+        width="46"
+        height="36"
+        rx="5"
+        fill="#2e2a5c"
+        stroke="#a78bfa"
+        strokeWidth="1.5"
+      />
       <circle cx="17" cy="15" r="4" fill="#22d3ee" fillOpacity="0.8" />
       <motion.path
         d="M10 33l11-11 8 8 7-7 9 9"
@@ -39,22 +64,59 @@ function BrandImageIllustration() {
         transition={{ duration: 0.7, ease: "easeOut" }}
       />
       <motion.g
-        animate={shouldReduceMotion ? { opacity: 0.9 } : { y: [0, -3, 0], opacity: [0.85, 1, 0.85] }}
-        transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        animate={
+          shouldReduceMotion ? { opacity: 0.9 } : { y: [0, -3, 0], opacity: [0.85, 1, 0.85] }
+        }
+        transition={
+          shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+        }
         style={{ transformOrigin: "64px 24px" }}
       >
         <circle cx="64" cy="24" r="11" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2" />
-        <path d="M64 30v-12M59 23l5-5 5 5" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path
+          d="M64 30v-12M59 23l5-5 5 5"
+          stroke="#4f46e5"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
       </motion.g>
     </svg>
   );
 }
 
-export default function BrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
+export default function BrandAssetPage({
+  title,
+  description,
+  tableTitle,
+  tableSubtitle,
+  aspect,
+}: {
+  title: string;
+  description: string;
+  tableTitle: string;
+  tableSubtitle: string;
+  aspect: "wide" | "square";
+}) {
   const demo = useIsDemo();
-  return demo
-    ? <DemoBrandAssetPage title={title} description={description} tableTitle={tableTitle} tableSubtitle={tableSubtitle} aspect={aspect} />
-    : <RealBrandAssetPage title={title} description={description} tableTitle={tableTitle} tableSubtitle={tableSubtitle} aspect={aspect} />;
+  return demo ? (
+    <DemoBrandAssetPage
+      title={title}
+      description={description}
+      tableTitle={tableTitle}
+      tableSubtitle={tableSubtitle}
+      aspect={aspect}
+    />
+  ) : (
+    <RealBrandAssetPage
+      title={title}
+      description={description}
+      tableTitle={tableTitle}
+      tableSubtitle={tableSubtitle}
+      aspect={aspect}
+    />
+  );
 }
 
 /**
@@ -77,13 +139,29 @@ export default function BrandAssetPage({ title, description, tableTitle, tableSu
  *    pre-upload blob URL. A full page reload re-fetches this from the
  *    server, not from stale local state.
  */
-function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
+function RealBrandAssetPage({
+  title,
+  description,
+  tableTitle,
+  tableSubtitle,
+  aspect,
+}: {
+  title: string;
+  description: string;
+  tableTitle: string;
+  tableSubtitle: string;
+  aspect: "wide" | "square";
+}) {
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { data: branding, isLoading, isError } = useQuery({
+  const {
+    data: branding,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: BRANDING_QUERY_KEY,
     queryFn: () => brandAssetService.getBranding(),
   });
@@ -116,20 +194,26 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
       setCurrentImageBlobUrl(url);
       setIsImageLoading(false);
     });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
   }, [branding?.hasBackgroundImage, branding?.updatedAt]);
 
   // Blob URLs are never revoked by the browser on their own -- revoke the
   // previous one whenever a new one replaces it (including on unmount).
   useEffect(() => {
-    return () => { if (currentImageBlobUrl) URL.revokeObjectURL(currentImageBlobUrl); };
+    return () => {
+      if (currentImageBlobUrl) URL.revokeObjectURL(currentImageBlobUrl);
+    };
   }, [currentImageBlobUrl]);
 
   // Local, pre-upload preview only -- revoked whenever the selected file
   // changes or the component unmounts, so it never outlives its use.
   useEffect(() => {
-    if (!file) { setLocalPreviewUrl(null); return; }
+    if (!file) {
+      setLocalPreviewUrl(null);
+      return;
+    }
     const url = URL.createObjectURL(file);
     setLocalPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
@@ -174,9 +258,13 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
     setFile(f);
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => pickFile(e.target.files?.[0] ?? null);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) =>
+    pickFile(e.target.files?.[0] ?? null);
   const upload = () => {
-    if (!file) { toast.error("Choose a file to upload."); return; }
+    if (!file) {
+      toast.error("Choose a file to upload.");
+      return;
+    }
     uploadMutation.mutate(file);
   };
 
@@ -209,7 +297,10 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
             {branding?.hasBackgroundImage ? "Replace image" : "Upload image"}
           </label>
           <label
-            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragActive(true);
+            }}
             onDragLeave={() => setDragActive(false)}
             onDrop={(e) => {
               e.preventDefault();
@@ -218,7 +309,9 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
             }}
             className={cn(
               "flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors",
-              dragActive ? "border-primary bg-primary/5" : "border-input hover:border-primary/50 hover:bg-accent/40",
+              dragActive
+                ? "border-primary bg-primary/5"
+                : "border-input hover:border-primary/50 hover:bg-accent/40",
             )}
           >
             <ImageUp className="h-6 w-6 text-muted-foreground" />
@@ -318,16 +411,35 @@ function RealBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
 /** Demo mode: unchanged local-only simulation (no backend exists to talk
  * to for a demo session) -- purely illustrative multi-business-unit
  * table, same as before this page was wired to the real API. */
-function DemoBrandAssetPage({ title, description, tableTitle, tableSubtitle, aspect }: { title: string; description: string; tableTitle: string; tableSubtitle: string; aspect: "wide" | "square" }) {
+function DemoBrandAssetPage({
+  title,
+  description,
+  tableTitle,
+  tableSubtitle,
+  aspect,
+}: {
+  title: string;
+  description: string;
+  tableTitle: string;
+  tableSubtitle: string;
+  aspect: "wide" | "square";
+}) {
   const [businessUnit, setBusinessUnit] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [assets, setAssets] = useState<DemoAsset[]>([]);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] ?? null);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFile(e.target.files?.[0] ?? null);
 
   const upload = () => {
-    if (!businessUnit) { toast.error("Select a business unit."); return; }
-    if (!file) { toast.error("Choose a file to upload."); return; }
+    if (!businessUnit) {
+      toast.error("Select a business unit.");
+      return;
+    }
+    if (!file) {
+      toast.error("Choose a file to upload.");
+      return;
+    }
     const url = URL.createObjectURL(file);
     setAssets((a) => [{ businessUnit, url }, ...a.filter((x) => x.businessUnit !== businessUnit)]);
     setFile(null);
@@ -352,9 +464,20 @@ function DemoBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
       <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className={labelCls}>Business Unit <span className="text-destructive">*</span></label>
-            <select value={businessUnit} onChange={(e) => setBusinessUnit(e.target.value)} className={inputCls}>
-              <option value="">Choose business unit</option>{DEMO_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            <label className={labelCls}>
+              Business Unit <span className="text-destructive">*</span>
+            </label>
+            <select
+              value={businessUnit}
+              onChange={(e) => setBusinessUnit(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Choose business unit</option>
+              {DEMO_UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -366,31 +489,64 @@ function DemoBrandAssetPage({ title, description, tableTitle, tableSubtitle, asp
             </label>
           </div>
         </div>
-        <div className="mt-5 flex justify-center"><button onClick={upload} className="rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90">Upload</button></div>
+        <div className="mt-5 flex justify-center">
+          <button
+            onClick={upload}
+            className="rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
+          >
+            Upload
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
         <h3 className="text-base font-semibold text-foreground">{tableTitle}</h3>
         <p className="mb-4 text-xs text-muted-foreground">{tableSubtitle}</p>
         {assets.length === 0 ? (
-          <EmptyState icon={ImageUp} title="No images uploaded" description="Upload an image above to see it listed here." />
+          <EmptyState
+            icon={ImageUp}
+            title="No images uploaded"
+            description="Upload an image above to see it listed here."
+          />
         ) : (
-        <div className="overflow-x-auto rounded-xl border">
-          <Table>
-            <TableHeader><TableRow><TableHead className="text-xs font-medium">Business Name</TableHead><TableHead className="text-xs font-medium">Preview</TableHead><TableHead className="text-right text-xs font-medium">Action</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {assets.map((a) => (
-                <TableRow key={a.businessUnit} className="border-b">
-                  <TableCell className="font-medium text-foreground">{a.businessUnit}</TableCell>
-                  <TableCell>
-                    <img src={a.url} alt="" className={cn("rounded-md border object-cover", aspect === "wide" ? "h-10 w-20" : "h-10 w-10")} />
-                  </TableCell>
-                  <TableCell className="text-right"><button onClick={() => setAssets((p) => p.filter((x) => x.businessUnit !== a.businessUnit))} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button></TableCell>
+          <div className="overflow-x-auto rounded-xl border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs font-medium">Business Name</TableHead>
+                  <TableHead className="text-xs font-medium">Preview</TableHead>
+                  <TableHead className="text-right text-xs font-medium">Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {assets.map((a) => (
+                  <TableRow key={a.businessUnit} className="border-b">
+                    <TableCell className="font-medium text-foreground">{a.businessUnit}</TableCell>
+                    <TableCell>
+                      <img
+                        src={a.url}
+                        alt=""
+                        className={cn(
+                          "rounded-md border object-cover",
+                          aspect === "wide" ? "h-10 w-20" : "h-10 w-10",
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        onClick={() =>
+                          setAssets((p) => p.filter((x) => x.businessUnit !== a.businessUnit))
+                        }
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
     </div>

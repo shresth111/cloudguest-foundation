@@ -1,6 +1,13 @@
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -110,8 +117,16 @@ function QuotaCell({ used, limit, suffix = "" }: { used: number; limit: number; 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5 whitespace-nowrap text-sm tabular-nums">
-        <span className="font-medium">{fmt.format(used)}{suffix}</span>
-        <span className={cn("text-muted-foreground", implausible && "text-amber-600 dark:text-amber-400")}>
+        <span className="font-medium">
+          {fmt.format(used)}
+          {suffix}
+        </span>
+        <span
+          className={cn(
+            "text-muted-foreground",
+            implausible && "text-amber-600 dark:text-amber-400",
+          )}
+        >
           / {fmt.format(limit)}
           {suffix}
         </span>

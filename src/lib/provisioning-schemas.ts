@@ -134,9 +134,7 @@ export const FEATURE_GROUPS: Record<string, Array<{ key: string; label: string }
 
 export function defaultFeatures(): Record<string, boolean> {
   const out: Record<string, boolean> = {};
-  Object.values(FEATURE_GROUPS).forEach((group) =>
-    group.forEach((f) => (out[f.key] = true)),
-  );
+  Object.values(FEATURE_GROUPS).forEach((group) => group.forEach((f) => (out[f.key] = true)));
   return out;
 }
 

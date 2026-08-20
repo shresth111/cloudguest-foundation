@@ -13,7 +13,7 @@ function Page() {
         title="Business Units"
         description="Group locations into regions or brands and scope regional admins."
         icon={Building}
-        bullets={["Region / brand groups","Scoped access","Rollup reporting"]}
+        bullets={["Region / brand groups", "Scoped access", "Rollup reporting"]}
       />
     </PageShell>
   );

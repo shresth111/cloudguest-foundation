@@ -15,7 +15,8 @@ export const useDiagnosticRuns = (routerId: string, organizationId?: string) =>
 export const usePingRouter = (routerId: string, organizationId?: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (target: string) => networkDiagnosticsService.ping(routerId, target, organizationId),
+    mutationFn: (target: string) =>
+      networkDiagnosticsService.ping(routerId, target, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: K.runs(routerId) }),
   });
 };
@@ -23,7 +24,8 @@ export const usePingRouter = (routerId: string, organizationId?: string) => {
 export const useTracerouteRouter = (routerId: string, organizationId?: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (target: string) => networkDiagnosticsService.traceroute(routerId, target, organizationId),
+    mutationFn: (target: string) =>
+      networkDiagnosticsService.traceroute(routerId, target, organizationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: K.runs(routerId) }),
   });
 };

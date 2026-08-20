@@ -1,5 +1,13 @@
 import { toast } from "sonner";
-import { AlertOctagon, BellRing, CalendarClock, CreditCard, Loader2, Send, Sparkles } from "lucide-react";
+import {
+  AlertOctagon,
+  BellRing,
+  CalendarClock,
+  CreditCard,
+  Loader2,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +49,9 @@ export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle className="text-base">Reminders</CardTitle>
-          <p className="text-xs text-muted-foreground">Renewals, invoice due dates, failed payments and trial endings.</p>
+          <p className="text-xs text-muted-foreground">
+            Renewals, invoice due dates, failed payments and trial endings.
+          </p>
         </div>
         <Badge variant="outline">{data?.length ?? 0} active</Badge>
       </CardHeader>
@@ -57,14 +67,21 @@ export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
             const meta = TYPE_META[r.type];
             const Icon = meta.icon;
             return (
-              <div key={r.id} className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3">
+              <div
+                key={r.id}
+                className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3"
+              >
                 <div className="flex items-start gap-3">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg border ${SEVERITY_CLASS[r.severity]}`}>
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg border ${SEVERITY_CLASS[r.severity]}`}
+                  >
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-medium">{r.title}</div>
-                    <div className="text-xs text-muted-foreground">{r.organizationName} · {meta.label} · {dateFmt.format(new Date(r.dueAt))}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {r.organizationName} · {meta.label} · {dateFmt.format(new Date(r.dueAt))}
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -78,7 +95,12 @@ export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
                     })
                   }
                 >
-                  {send.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />} Send
+                  {send.isPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="mr-1.5 h-3.5 w-3.5" />
+                  )}{" "}
+                  Send
                 </Button>
               </div>
             );

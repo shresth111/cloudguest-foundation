@@ -13,8 +13,14 @@ export const Route = createFileRoute("/agent")({
       // See authGuards.ts's requireCustomerSession's identical guard --
       // never carry a redirect target that's already /login itself
       // forward as the ?redirect= value.
-      const isAlreadyOnLogin = location.href === "/login" || location.href.startsWith("/login?") || location.href.startsWith("/login#");
-      throw redirect({ to: "/login", search: isAlreadyOnLogin ? undefined : { redirect: location.href } });
+      const isAlreadyOnLogin =
+        location.href === "/login" ||
+        location.href.startsWith("/login?") ||
+        location.href.startsWith("/login#");
+      throw redirect({
+        to: "/login",
+        search: isAlreadyOnLogin ? undefined : { redirect: location.href },
+      });
     }
   },
   component: () => <Outlet />,

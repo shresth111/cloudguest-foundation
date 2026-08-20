@@ -194,16 +194,12 @@ export const routerProvisioningService = {
   },
 
   async factoryReset(routerId: string): Promise<ProvisioningJob> {
-    const { data } = await api.post<BackendProvisioningJob>(
-      `/routers/${routerId}/factory-reset`,
-    );
+    const { data } = await api.post<BackendProvisioningJob>(`/routers/${routerId}/factory-reset`);
     return toJob(data);
   },
 
   async rotateSecret(routerId: string): Promise<SecretRotationResult> {
-    const { data } = await api.post<BackendSecretRotation>(
-      `/routers/${routerId}/rotate-secret`,
-    );
+    const { data } = await api.post<BackendSecretRotation>(`/routers/${routerId}/rotate-secret`);
     return {
       routerId: data.router_id,
       apiUsername: data.api_username,

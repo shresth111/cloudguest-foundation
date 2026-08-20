@@ -46,7 +46,12 @@ import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
-import { PROPERTY_TYPE_LABEL, type PropertyType, type ProvisionLocationPayload, type ProvisionLocationResult } from "@/types/location";
+import {
+  PROPERTY_TYPE_LABEL,
+  type PropertyType,
+  type ProvisionLocationPayload,
+  type ProvisionLocationResult,
+} from "@/types/location";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
 
@@ -55,13 +60,40 @@ import type { AppError } from "@/services/api";
 // left this wizard's "Plan" step with nothing to pick and the whole wizard
 // stuck (a plan is required to reach Review).
 const DEMO_PLANS: BackendPlan[] = [
-  { id: "plan-demo-starter", name: "Starter", plan_type: "standard", base_price: "999.00", currency: "INR" },
-  { id: "plan-demo-growth", name: "Growth", plan_type: "standard", base_price: "2999.00", currency: "INR" },
-  { id: "plan-demo-enterprise", name: "Enterprise", plan_type: "custom", base_price: "9999.00", currency: "INR" },
+  {
+    id: "plan-demo-starter",
+    name: "Starter",
+    plan_type: "standard",
+    base_price: "999.00",
+    currency: "INR",
+  },
+  {
+    id: "plan-demo-growth",
+    name: "Growth",
+    plan_type: "standard",
+    base_price: "2999.00",
+    currency: "INR",
+  },
+  {
+    id: "plan-demo-enterprise",
+    name: "Enterprise",
+    plan_type: "custom",
+    base_price: "9999.00",
+    currency: "INR",
+  },
 ];
 
 const COUNTRIES = ["US", "GB", "IN", "SG", "AE", "DE", "AU", "CA"];
-const TIMEZONES = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin"];
+const TIMEZONES = [
+  "UTC",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Dubai",
+  "America/Los_Angeles",
+  "America/New_York",
+  "Europe/London",
+  "Europe/Berlin",
+];
 
 const STEPS = [
   { key: "org", title: "Organization", desc: "Select or create", icon: Building2 },
@@ -69,7 +101,12 @@ const STEPS = [
   { key: "owner", title: "Owner", desc: "Location owner account", icon: UserCog },
   { key: "router", title: "Router", desc: "First device", icon: RouterIcon },
   { key: "plan", title: "Plan", desc: "Assign a subscription plan", icon: Sparkles },
-  { key: "features", title: "Features", desc: "Customize beyond the plan defaults", icon: SlidersHorizontal },
+  {
+    key: "features",
+    title: "Features",
+    desc: "Customize beyond the plan defaults",
+    icon: SlidersHorizontal,
+  },
   { key: "review", title: "Review", desc: "Confirm & provision", icon: Check },
 ] as const;
 
@@ -79,7 +116,13 @@ interface FeatureOverrideState {
 }
 
 interface WizardState {
-  org: { mode: "existing" | "new"; existingId?: string; name: string; slug: string; contactEmail: string };
+  org: {
+    mode: "existing" | "new";
+    existingId?: string;
+    name: string;
+    slug: string;
+    contactEmail: string;
+  };
   location: {
     name: string;
     slug: string;
@@ -92,14 +135,30 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
-  router: { name: string; serialNumber: string; macAddress: string; model: string; managementIpAddress: string };
+  router: {
+    name: string;
+    serialNumber: string;
+    macAddress: string;
+    model: string;
+    managementIpAddress: string;
+  };
   planId: string;
   featureOverrides: Record<string, FeatureOverrideState>;
 }
 
 const DEFAULT_STATE: WizardState = {
   org: { mode: "existing", name: "", slug: "", contactEmail: "" },
-  location: { name: "", slug: "", propertyType: "", addressLine1: "", city: "", stateProvince: "", postalCode: "", country: "", timezone: "UTC" },
+  location: {
+    name: "",
+    slug: "",
+    propertyType: "",
+    addressLine1: "",
+    city: "",
+    stateProvince: "",
+    postalCode: "",
+    country: "",
+    timezone: "UTC",
+  },
   owner: { firstName: "", lastName: "", email: "" },
   router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
   planId: "",
@@ -139,7 +198,12 @@ interface BackendFeature {
   default_enabled: boolean;
 }
 
-export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, initialOrganizationId }: Props) {
+export function PlatformLocationWizard({
+  open,
+  onOpenChange,
+  onProvisioned,
+  initialOrganizationId,
+}: Props) {
   const [step, setStep] = useState(0);
   const [state, setState] = useState<WizardState>(DEFAULT_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -154,7 +218,10 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
     if (!open) return;
     setState(
       initialOrganizationId
-        ? { ...DEFAULT_STATE, org: { ...DEFAULT_STATE.org, mode: "existing", existingId: initialOrganizationId } }
+        ? {
+            ...DEFAULT_STATE,
+            org: { ...DEFAULT_STATE.org, mode: "existing", existingId: initialOrganizationId },
+          }
         : DEFAULT_STATE,
     );
   }, [open, initialOrganizationId]);
@@ -168,7 +235,9 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
     queryKey: ["billing", "plans", "active"],
     queryFn: async () => {
       if (isDemo()) return DEMO_PLANS;
-      const { data } = await api.get<{ items: BackendPlan[] }>("/plans", { params: { is_active: true } });
+      const { data } = await api.get<{ items: BackendPlan[] }>("/plans", {
+        params: { is_active: true },
+      });
       return data.items;
     },
     enabled: open,
@@ -201,16 +270,20 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
       } else {
         if (!state.org.name.trim()) e["org.name"] = "Required";
         if (!state.org.slug.trim()) e["org.slug"] = "Required";
-        if (!z.string().email().safeParse(state.org.contactEmail).success) e["org.contactEmail"] = "Invalid email";
+        if (!z.string().email().safeParse(state.org.contactEmail).success)
+          e["org.contactEmail"] = "Invalid email";
       }
     } else if (step === 1) {
-      (["name", "slug", "addressLine1", "city", "stateProvince", "postalCode", "country"] as const).forEach((k) => {
+      (
+        ["name", "slug", "addressLine1", "city", "stateProvince", "postalCode", "country"] as const
+      ).forEach((k) => {
         if (!state.location[k].trim()) e[`location.${k}`] = "Required";
       });
     } else if (step === 2) {
       if (!state.owner.firstName.trim()) e["owner.firstName"] = "Required";
       if (!state.owner.lastName.trim()) e["owner.lastName"] = "Required";
-      if (!z.string().email().safeParse(state.owner.email).success) e["owner.email"] = "Invalid email";
+      if (!z.string().email().safeParse(state.owner.email).success)
+        e["owner.email"] = "Invalid email";
     } else if (step === 3) {
       (["name", "serialNumber", "macAddress", "model"] as const).forEach((k) => {
         if (!state.router[k].trim()) e[`router.${k}`] = "Required";
@@ -252,11 +325,18 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
         timezone: state.location.timezone,
       },
       owner: state.owner,
-      router: { ...state.router, managementIpAddress: state.router.managementIpAddress || undefined },
+      router: {
+        ...state.router,
+        managementIpAddress: state.router.managementIpAddress || undefined,
+      },
       planId: state.planId,
       featureOverrides: Object.entries(state.featureOverrides)
         .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
-        .map(([featureKey, v]) => ({ featureKey, isEnabled: v.isEnabled, limitValue: v.limitValue })),
+        .map(([featureKey, v]) => ({
+          featureKey,
+          isEnabled: v.isEnabled,
+          limitValue: v.limitValue,
+        })),
     };
     try {
       const r = await provision.mutateAsync(payload);
@@ -272,7 +352,13 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
   const planOptions = plans.data ?? [];
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) reset();
+      }}
+    >
       <DialogContent className="max-w-5xl gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
@@ -280,7 +366,8 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
             Smart location provisioning
           </DialogTitle>
           <DialogDescription>
-            Creates an organization (or reuses one), a location, its owner account, and its first router in one transaction.
+            Creates an organization (or reuses one), a location, its owner account, and its first
+            router in one transaction.
           </DialogDescription>
         </DialogHeader>
 
@@ -302,19 +389,42 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
             <ScrollArea className="max-h-[70vh] flex-1">
               <div className="px-6 py-5">
                 {step === 0 && (
-                  <OrgStep state={state.org} setState={(v) => set("org", v)} orgs={orgOptions} errors={errors} />
+                  <OrgStep
+                    state={state.org}
+                    setState={(v) => set("org", v)}
+                    orgs={orgOptions}
+                    errors={errors}
+                  />
                 )}
                 {step === 1 && (
-                  <LocationStep state={state.location} setState={(v) => set("location", v)} errors={errors} />
+                  <LocationStep
+                    state={state.location}
+                    setState={(v) => set("location", v)}
+                    errors={errors}
+                  />
                 )}
                 {step === 2 && (
-                  <OwnerStep state={state.owner} setState={(v) => set("owner", v)} errors={errors} />
+                  <OwnerStep
+                    state={state.owner}
+                    setState={(v) => set("owner", v)}
+                    errors={errors}
+                  />
                 )}
                 {step === 3 && (
-                  <RouterStep state={state.router} setState={(v) => set("router", v)} errors={errors} />
+                  <RouterStep
+                    state={state.router}
+                    setState={(v) => set("router", v)}
+                    errors={errors}
+                  />
                 )}
                 {step === 4 && (
-                  <PlanStep value={state.planId} onChange={(v) => set("planId", v)} plans={planOptions} loading={plans.isLoading} error={errors.planId} />
+                  <PlanStep
+                    value={state.planId}
+                    onChange={(v) => set("planId", v)}
+                    plans={planOptions}
+                    loading={plans.isLoading}
+                    error={errors.planId}
+                  />
                 )}
                 {step === 5 && (
                   <FeaturesStep
@@ -325,13 +435,21 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
                   />
                 )}
                 {step === 6 && (
-                  <ReviewStep state={state} orgs={orgOptions} plans={planOptions} result={result} provisioning={provision.isPending} />
+                  <ReviewStep
+                    state={state}
+                    orgs={orgOptions}
+                    plans={planOptions}
+                    result={result}
+                    provisioning={provision.isPending}
+                  />
                 )}
               </div>
             </ScrollArea>
 
             <div className="flex items-center justify-between border-t border-border/70 bg-muted/20 px-6 py-3">
-              <div className="text-xs text-muted-foreground">Step {Math.min(step + 1, STEPS.length)} of {STEPS.length}</div>
+              <div className="text-xs text-muted-foreground">
+                Step {Math.min(step + 1, STEPS.length)} of {STEPS.length}
+              </div>
               <div className="flex gap-2">
                 {step > 0 && !result && (
                   <Button variant="ghost" size="sm" onClick={back} disabled={provision.isPending}>
@@ -349,7 +467,9 @@ export function PlatformLocationWizard({ open, onOpenChange, onProvisioned, init
                   </Button>
                 )}
                 {result && (
-                  <Button size="sm" onClick={() => onOpenChange(false)}>Done</Button>
+                  <Button size="sm" onClick={() => onOpenChange(false)}>
+                    Done
+                  </Button>
                 )}
               </div>
             </div>
@@ -390,7 +510,10 @@ function slugify(input: string): string {
 
 function ModeCard({ value, title, desc }: { value: string; title: string; desc: string }) {
   return (
-    <label htmlFor={`mode-${value}`} className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+    <label
+      htmlFor={`mode-${value}`}
+      className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+    >
       <RadioGroupItem id={`mode-${value}`} value={value} className="mt-1" />
       <div>
         <div className="text-sm font-medium">{title}</div>
@@ -401,7 +524,10 @@ function ModeCard({ value, title, desc }: { value: string; title: string; desc: 
 }
 
 function OrgStep({
-  state, setState, orgs, errors,
+  state,
+  setState,
+  orgs,
+  errors,
 }: {
   state: WizardState["org"];
   setState: (v: WizardState["org"]) => void;
@@ -410,19 +536,39 @@ function OrgStep({
 }) {
   return (
     <div>
-      <StepHeader title="Select or create organization" description="Provision under an existing organization, or create a new one." />
-      <RadioGroup value={state.mode} onValueChange={(v) => setState({ ...state, mode: v as "existing" | "new" })} className="grid grid-cols-2 gap-3">
-        <ModeCard value="existing" title="Existing organization" desc="Add this location to an org you manage." />
+      <StepHeader
+        title="Select or create organization"
+        description="Provision under an existing organization, or create a new one."
+      />
+      <RadioGroup
+        value={state.mode}
+        onValueChange={(v) => setState({ ...state, mode: v as "existing" | "new" })}
+        className="grid grid-cols-2 gap-3"
+      >
+        <ModeCard
+          value="existing"
+          title="Existing organization"
+          desc="Add this location to an org you manage."
+        />
         <ModeCard value="new" title="New organization" desc="Onboard a brand-new customer." />
       </RadioGroup>
       <Separator className="my-4" />
       {state.mode === "existing" ? (
         <div className="space-y-2">
           <Label>Organization</Label>
-          <Select value={state.existingId} onValueChange={(v) => setState({ ...state, existingId: v })}>
-            <SelectTrigger><SelectValue placeholder="Select an organization…" /></SelectTrigger>
+          <Select
+            value={state.existingId}
+            onValueChange={(v) => setState({ ...state, existingId: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select an organization…" />
+            </SelectTrigger>
             <SelectContent>
-              {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+              {orgs.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <ErrorText msg={errors.org} />
@@ -447,13 +593,24 @@ function OrgStep({
           </div>
           <div>
             <Label>Slug</Label>
-            <Input value={state.slug} onChange={(e) => setState({ ...state, slug: e.target.value })} placeholder="e.g. acme-hospitality" />
-            <p className="mt-1 text-xs text-muted-foreground">Auto-suggested from the name above -- edit freely.</p>
+            <Input
+              value={state.slug}
+              onChange={(e) => setState({ ...state, slug: e.target.value })}
+              placeholder="e.g. acme-hospitality"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Auto-suggested from the name above -- edit freely.
+            </p>
             <ErrorText msg={errors["org.slug"]} />
           </div>
           <div className="md:col-span-2">
             <Label>Contact email</Label>
-            <Input type="email" value={state.contactEmail} onChange={(e) => setState({ ...state, contactEmail: e.target.value })} placeholder="ops@acme.example.com" />
+            <Input
+              type="email"
+              value={state.contactEmail}
+              onChange={(e) => setState({ ...state, contactEmail: e.target.value })}
+              placeholder="ops@acme.example.com"
+            />
             <ErrorText msg={errors["org.contactEmail"]} />
           </div>
         </div>
@@ -463,16 +620,22 @@ function OrgStep({
 }
 
 function LocationStep({
-  state, setState, errors,
+  state,
+  setState,
+  errors,
 }: {
   state: WizardState["location"];
   setState: (v: WizardState["location"]) => void;
   errors: Record<string, string>;
 }) {
-  const upd = <K extends keyof WizardState["location"]>(k: K, v: WizardState["location"][K]) => setState({ ...state, [k]: v });
+  const upd = <K extends keyof WizardState["location"]>(k: K, v: WizardState["location"][K]) =>
+    setState({ ...state, [k]: v });
   return (
     <div>
-      <StepHeader title="Location details" description="Name, property type and address for the physical site." />
+      <StepHeader
+        title="Location details"
+        description="Name, property type and address for the physical site."
+      />
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Location name</Label>
@@ -492,21 +655,33 @@ function LocationStep({
         </div>
         <div>
           <Label>Slug</Label>
-          <Input value={state.slug} onChange={(e) => upd("slug", e.target.value)} placeholder="e.g. downtown-branch" />
-          <p className="mt-1 text-xs text-muted-foreground">Auto-suggested from the name above -- edit freely.</p>
+          <Input
+            value={state.slug}
+            onChange={(e) => upd("slug", e.target.value)}
+            placeholder="e.g. downtown-branch"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Auto-suggested from the name above -- edit freely.
+          </p>
           <ErrorText msg={errors["location.slug"]} />
         </div>
         <div>
           <Label>Property type (optional)</Label>
-          <Select value={state.propertyType} onValueChange={(v) => upd("propertyType", v as PropertyType)}>
-            <SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger>
+          <Select
+            value={state.propertyType}
+            onValueChange={(v) => upd("propertyType", v as PropertyType)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select property type" />
+            </SelectTrigger>
             <SelectContent>
               {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => {
                 const TypeIcon = businessTypeIcon(t);
                 return (
                   <SelectItem key={t} value={t}>
                     <span className="flex items-center gap-2">
-                      <TypeIcon className="h-4 w-4 text-muted-foreground" /> {PROPERTY_TYPE_LABEL[t]}
+                      <TypeIcon className="h-4 w-4 text-muted-foreground" />{" "}
+                      {PROPERTY_TYPE_LABEL[t]}
                     </span>
                   </SelectItem>
                 );
@@ -517,14 +692,25 @@ function LocationStep({
         <div>
           <Label>Country</Label>
           <Select value={state.country} onValueChange={(v) => upd("country", v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           <ErrorText msg={errors["location.country"]} />
         </div>
         <div>
           <Label>State / Region</Label>
-          <Input value={state.stateProvince} onChange={(e) => upd("stateProvince", e.target.value)} />
+          <Input
+            value={state.stateProvince}
+            onChange={(e) => upd("stateProvince", e.target.value)}
+          />
           <ErrorText msg={errors["location.stateProvince"]} />
         </div>
         <div>
@@ -540,8 +726,16 @@ function LocationStep({
         <div>
           <Label>Timezone</Label>
           <Select value={state.timezone} onValueChange={(v) => upd("timezone", v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{TIMEZONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
         <div className="md:col-span-2">
@@ -555,7 +749,9 @@ function LocationStep({
 }
 
 function OwnerStep({
-  state, setState, errors,
+  state,
+  setState,
+  errors,
 }: {
   state: WizardState["owner"];
   setState: (v: WizardState["owner"]) => void;
@@ -563,21 +759,34 @@ function OwnerStep({
 }) {
   return (
     <div>
-      <StepHeader title="Location owner" description="A new user account is created and granted the Organization Owner role. A temporary password is generated server-side and shown once, at the end." />
+      <StepHeader
+        title="Location owner"
+        description="A new user account is created and granted the Organization Owner role. A temporary password is generated server-side and shown once, at the end."
+      />
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>First name</Label>
-          <Input value={state.firstName} onChange={(e) => setState({ ...state, firstName: e.target.value })} />
+          <Input
+            value={state.firstName}
+            onChange={(e) => setState({ ...state, firstName: e.target.value })}
+          />
           <ErrorText msg={errors["owner.firstName"]} />
         </div>
         <div>
           <Label>Last name</Label>
-          <Input value={state.lastName} onChange={(e) => setState({ ...state, lastName: e.target.value })} />
+          <Input
+            value={state.lastName}
+            onChange={(e) => setState({ ...state, lastName: e.target.value })}
+          />
           <ErrorText msg={errors["owner.lastName"]} />
         </div>
         <div className="md:col-span-2">
           <Label>Email</Label>
-          <Input type="email" value={state.email} onChange={(e) => setState({ ...state, email: e.target.value })} />
+          <Input
+            type="email"
+            value={state.email}
+            onChange={(e) => setState({ ...state, email: e.target.value })}
+          />
           <ErrorText msg={errors["owner.email"]} />
         </div>
       </div>
@@ -586,7 +795,9 @@ function OwnerStep({
 }
 
 function RouterStep({
-  state, setState, errors,
+  state,
+  setState,
+  errors,
 }: {
   state: WizardState["router"];
   setState: (v: WizardState["router"]) => void;
@@ -594,11 +805,18 @@ function RouterStep({
 }) {
   return (
     <div>
-      <StepHeader title="First router" description="Every location needs at least one router enrolled at provisioning time." />
+      <StepHeader
+        title="First router"
+        description="Every location needs at least one router enrolled at provisioning time."
+      />
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Router name</Label>
-          <Input value={state.name} onChange={(e) => setState({ ...state, name: e.target.value })} placeholder="Lobby Router" />
+          <Input
+            value={state.name}
+            onChange={(e) => setState({ ...state, name: e.target.value })}
+            placeholder="Lobby Router"
+          />
           <ErrorText msg={errors["router.name"]} />
         </div>
         <div>
@@ -612,18 +830,35 @@ function RouterStep({
         </div>
         <div>
           <Label>Serial number</Label>
-          <Input value={state.serialNumber} onChange={(e) => setState({ ...state, serialNumber: e.target.value })} className="font-mono" />
+          <Input
+            value={state.serialNumber}
+            onChange={(e) => setState({ ...state, serialNumber: e.target.value })}
+            className="font-mono"
+          />
           <ErrorText msg={errors["router.serialNumber"]} />
         </div>
         <div>
           <Label>MAC address</Label>
-          <Input value={state.macAddress} onChange={(e) => setState({ ...state, macAddress: e.target.value })} placeholder="AA:BB:CC:DD:EE:01" className="font-mono" />
+          <Input
+            value={state.macAddress}
+            onChange={(e) => setState({ ...state, macAddress: e.target.value })}
+            placeholder="AA:BB:CC:DD:EE:01"
+            className="font-mono"
+          />
           <ErrorText msg={errors["router.macAddress"]} />
         </div>
         <div className="md:col-span-2">
           <Label>Management IP (optional)</Label>
-          <Input value={state.managementIpAddress} onChange={(e) => setState({ ...state, managementIpAddress: e.target.value })} placeholder="20.219.19.32" className="font-mono" />
-          <p className="mt-1 text-xs text-muted-foreground">The router's real, reachable IP -- lets the platform actually connect to it (e.g. a MikroTik CHR/hardware device). Leave blank for a records-only entry.</p>
+          <Input
+            value={state.managementIpAddress}
+            onChange={(e) => setState({ ...state, managementIpAddress: e.target.value })}
+            placeholder="20.219.19.32"
+            className="font-mono"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            The router's real, reachable IP -- lets the platform actually connect to it (e.g. a
+            MikroTik CHR/hardware device). Leave blank for a records-only entry.
+          </p>
         </div>
       </div>
     </div>
@@ -631,7 +866,11 @@ function RouterStep({
 }
 
 function PlanStep({
-  value, onChange, plans, loading, error,
+  value,
+  onChange,
+  plans,
+  loading,
+  error,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -641,7 +880,10 @@ function PlanStep({
 }) {
   return (
     <div>
-      <StepHeader title="Assign plan" description="Sets the subscription plan and its feature limits for this organization." />
+      <StepHeader
+        title="Assign plan"
+        description="Sets the subscription plan and its feature limits for this organization."
+      />
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading plans…</p>
       ) : plans.length === 0 ? (
@@ -657,15 +899,21 @@ function PlanStep({
                 onClick={() => onChange(p.id)}
                 className={cn(
                   "rounded-xl border p-4 text-left transition-all",
-                  active ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/40" : "border-border hover:border-primary/40",
+                  active
+                    ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/40"
+                    : "border-border hover:border-primary/40",
                 )}
               >
                 <div className="flex items-center justify-between">
                   <div className="text-base font-semibold">{p.name}</div>
                   {active && <Check className="h-4 w-4 text-primary" />}
                 </div>
-                <div className="mt-1 text-sm text-muted-foreground">{p.currency} {p.base_price}</div>
-                <Badge variant="secondary" className="mt-2 capitalize">{p.plan_type}</Badge>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {p.currency} {p.base_price}
+                </div>
+                <Badge variant="secondary" className="mt-2 capitalize">
+                  {p.plan_type}
+                </Badge>
               </button>
             );
           })}
@@ -677,7 +925,10 @@ function PlanStep({
 }
 
 function FeaturesStep({
-  value, onChange, features, loading,
+  value,
+  onChange,
+  features,
+  loading,
 }: {
   value: Record<string, FeatureOverrideState>;
   onChange: (v: Record<string, FeatureOverrideState>) => void;
@@ -717,50 +968,64 @@ function FeaturesStep({
 
   return (
     <div>
-      <StepHeader title="Customize features (optional)" description="Overrides applied on top of the selected plan's defaults, for this customer only. Leave everything alone to just use the plan as-is." />
+      <StepHeader
+        title="Customize features (optional)"
+        description="Overrides applied on top of the selected plan's defaults, for this customer only. Leave everything alone to just use the plan as-is."
+      />
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading feature catalog…</p>
       ) : (
         <div className="space-y-5">
           {categories.map((cat) => (
             <div key={cat}>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat}</div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {cat}
+              </div>
               <div className="grid gap-2 md:grid-cols-2">
-                {overridableFeatures.filter((f) => f.category === cat).map((f) => {
-                  const override = value[f.key];
-                  if (f.type === "limit") {
+                {overridableFeatures
+                  .filter((f) => f.category === cat)
+                  .map((f) => {
+                    const override = value[f.key];
+                    if (f.type === "limit") {
+                      return (
+                        <div
+                          key={f.key}
+                          className="flex items-center justify-between gap-2 rounded-lg border p-2.5"
+                        >
+                          <Label className="text-xs">{f.description || f.name}</Label>
+                          <Input
+                            type="number"
+                            className="h-7 w-24 text-xs"
+                            placeholder="Plan default"
+                            value={override?.limitValue ?? ""}
+                            onChange={(e) => setLimit(f.key, e.target.value)}
+                          />
+                        </div>
+                      );
+                    }
+                    const effective = override?.isEnabled ?? f.default_enabled;
+                    const isOverridden = override?.isEnabled !== undefined;
                     return (
-                      <div key={f.key} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
-                        <Label className="text-xs">{f.description || f.name}</Label>
-                        <Input
-                          type="number"
-                          className="h-7 w-24 text-xs"
-                          placeholder="Plan default"
-                          value={override?.limitValue ?? ""}
-                          onChange={(e) => setLimit(f.key, e.target.value)}
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        key={f.key}
+                        onClick={() => toggle(f.key, f.default_enabled)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors",
+                          isOverridden ? "border-primary bg-primary/5" : "border-border",
+                        )}
+                      >
+                        <span className="text-xs">{f.description || f.name}</span>
+                        <Badge
+                          variant={effective ? "default" : "secondary"}
+                          className="shrink-0 text-[10px]"
+                        >
+                          {effective ? "On" : "Off"}
+                          {isOverridden && " (custom)"}
+                        </Badge>
+                      </button>
                     );
-                  }
-                  const effective = override?.isEnabled ?? f.default_enabled;
-                  const isOverridden = override?.isEnabled !== undefined;
-                  return (
-                    <button
-                      type="button"
-                      key={f.key}
-                      onClick={() => toggle(f.key, f.default_enabled)}
-                      className={cn(
-                        "flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors",
-                        isOverridden ? "border-primary bg-primary/5" : "border-border",
-                      )}
-                    >
-                      <span className="text-xs">{f.description || f.name}</span>
-                      <Badge variant={effective ? "default" : "secondary"} className="shrink-0 text-[10px]">
-                        {effective ? "On" : "Off"}{isOverridden && " (custom)"}
-                      </Badge>
-                    </button>
-                  );
-                })}
+                  })}
               </div>
             </div>
           ))}
@@ -771,7 +1036,11 @@ function FeaturesStep({
 }
 
 function ReviewStep({
-  state, orgs, plans, result, provisioning,
+  state,
+  orgs,
+  plans,
+  result,
+  provisioning,
 }: {
   state: WizardState;
   orgs: Array<{ id: string; name: string }>;
@@ -779,17 +1048,26 @@ function ReviewStep({
   result: ProvisionLocationResult | null;
   provisioning: boolean;
 }) {
-  const orgLabel = state.org.mode === "existing" ? orgs.find((o) => o.id === state.org.existingId)?.name ?? "—" : state.org.name || "New organization";
+  const orgLabel =
+    state.org.mode === "existing"
+      ? (orgs.find((o) => o.id === state.org.existingId)?.name ?? "—")
+      : state.org.name || "New organization";
   const planLabel = plans.find((p) => p.id === state.planId)?.name ?? "—";
 
   if (result) {
     return (
       <div>
-        <StepHeader title="Location provisioned" description="This temporary password is shown once — copy it now." />
+        <StepHeader
+          title="Location provisioned"
+          description="This temporary password is shown once — copy it now."
+        />
         <Card className="border-primary/40 bg-primary/5">
           <CardContent className="space-y-3 p-4">
             <SummaryRow label="Organization" value={result.organizationName} />
-            <SummaryRow label="Location" value={`${result.locationName} (${result.locationCode})`} />
+            <SummaryRow
+              label="Location"
+              value={`${result.locationName} (${result.locationCode})`}
+            />
             <SummaryRow label="Router" value={result.routerName} />
             <SummaryRow label="Plan" value={result.planName} />
             <SummaryRow label="Owner" value={`${result.ownerName} · ${result.ownerEmail}`} />
@@ -821,7 +1099,10 @@ function ReviewStep({
 
   return (
     <div>
-      <StepHeader title="Review & confirm" description="Verify every decision before provisioning." />
+      <StepHeader
+        title="Review & confirm"
+        description="Verify every decision before provisioning."
+      />
       <div className="grid gap-3 md:grid-cols-2">
         <SummaryRow label="Organization" value={orgLabel} />
         <SummaryRow label="Location" value={state.location.name || "—"} />
@@ -830,12 +1111,22 @@ function ReviewStep({
           value={`${state.location.propertyType ? PROPERTY_TYPE_LABEL[state.location.propertyType] : "—"} · ${state.location.city}, ${state.location.country}`}
           icon={businessTypeIcon(state.location.propertyType)}
         />
-        <SummaryRow label="Owner" value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`} />
-        <SummaryRow label="Router" value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`} />
+        <SummaryRow
+          label="Owner"
+          value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`}
+        />
+        <SummaryRow
+          label="Router"
+          value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`}
+        />
         <SummaryRow label="Plan" value={planLabel} />
         <SummaryRow
           label="Custom features"
-          value={Object.keys(state.featureOverrides).length ? `${Object.keys(state.featureOverrides).length} overridden` : "None (plan defaults)"}
+          value={
+            Object.keys(state.featureOverrides).length
+              ? `${Object.keys(state.featureOverrides).length} overridden`
+              : "None (plan defaults)"
+          }
         />
       </div>
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
@@ -843,7 +1134,15 @@ function ReviewStep({
   );
 }
 
-function SummaryRow({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
+function SummaryRow({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon?: LucideIcon;
+}) {
   return (
     <div className="rounded-lg border bg-muted/20 px-3 py-2">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>

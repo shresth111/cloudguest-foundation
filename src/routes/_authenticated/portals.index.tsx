@@ -20,7 +20,11 @@ function PortalsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => toast.success("Portal metrics exported")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toast.success("Portal metrics exported")}
+          >
             <Download className="mr-2 h-4 w-4" /> Export report
           </Button>
           <Button variant="outline" size="sm" onClick={() => window.location.reload()}>

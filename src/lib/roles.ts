@@ -41,7 +41,12 @@ export type LegacyRoleBucket =
   | "support_engineer"
   | "read_only";
 
-const ORG_ADMIN_SLUGS = new Set(["organization-owner", "organization-admin", "msp-owner", "msp-admin"]);
+const ORG_ADMIN_SLUGS = new Set([
+  "organization-owner",
+  "organization-admin",
+  "msp-owner",
+  "msp-admin",
+]);
 const LOCATION_MANAGER_SLUGS = new Set(["location-manager", "office-admin"]);
 const SUPPORT_SLUGS = new Set([
   "network-administrator",

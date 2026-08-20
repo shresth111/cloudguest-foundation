@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { analyticsService } from "@/services/analytics.service";
 import { locationService } from "@/services/location.service";
-import type { AnalyticsSettings, DateRangePreset, ReportFormat, ReportType, ScheduledReport } from "@/types/analytics";
+import type {
+  AnalyticsSettings,
+  DateRangePreset,
+  ReportFormat,
+  ReportType,
+  ScheduledReport,
+} from "@/types/analytics";
 
 export function useAnalyticsSnapshot(range: DateRangePreset) {
   return useQuery({

@@ -77,12 +77,21 @@ function orgHeaders(organizationId?: string) {
   return organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined;
 }
 
-export async function fetchPolicyDetail(id: string, organizationId?: string): Promise<BackendPolicyDetail> {
-  const { data } = await api.get<BackendPolicyDetail>(`/policies/${id}`, orgHeaders(organizationId));
+export async function fetchPolicyDetail(
+  id: string,
+  organizationId?: string,
+): Promise<BackendPolicyDetail> {
+  const { data } = await api.get<BackendPolicyDetail>(
+    `/policies/${id}`,
+    orgHeaders(organizationId),
+  );
   return data;
 }
 
-export async function listPolicyDetails(policyType: string, organizationId?: string): Promise<BackendPolicyDetail[]> {
+export async function listPolicyDetails(
+  policyType: string,
+  organizationId?: string,
+): Promise<BackendPolicyDetail[]> {
   const { data } = await api.get<BackendPolicyListResponse>("/policies", {
     params: { policy_type: policyType, page: 1, page_size: 100 },
     ...orgHeaders(organizationId),
@@ -122,7 +131,11 @@ export async function createPolicyWithRules(args: {
     orgHeaders(args.organizationId),
   );
   if (args.publish) {
-    await api.post(`/policies/${policy.id}/versions/${version.id}/publish`, undefined, orgHeaders(args.organizationId));
+    await api.post(
+      `/policies/${policy.id}/versions/${version.id}/publish`,
+      undefined,
+      orgHeaders(args.organizationId),
+    );
   }
   return fetchPolicyDetail(policy.id, args.organizationId);
 }
@@ -144,7 +157,11 @@ export async function updatePolicyRules(args: {
     orgHeaders(args.organizationId),
   );
   if (args.publish) {
-    await api.post(`/policies/${args.id}/versions/${version.id}/publish`, undefined, orgHeaders(args.organizationId));
+    await api.post(
+      `/policies/${args.id}/versions/${version.id}/publish`,
+      undefined,
+      orgHeaders(args.organizationId),
+    );
   }
   if (args.archive) {
     await api.post(`/policies/${args.id}/deactivate`, undefined, orgHeaders(args.organizationId));

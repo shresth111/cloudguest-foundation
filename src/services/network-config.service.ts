@@ -103,9 +103,7 @@ export const networkConfigService = {
   },
 
   async push(routerId: string): Promise<ConfigVersionApplyResult> {
-    const { data } = await api.post<BackendApplyResult>(
-      `/network-config/routers/${routerId}/push`,
-    );
+    const { data } = await api.post<BackendApplyResult>(`/network-config/routers/${routerId}/push`);
     return { version: toVersion(data.version), job: data.job };
   },
 

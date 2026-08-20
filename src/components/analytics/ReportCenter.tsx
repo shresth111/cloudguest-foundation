@@ -39,15 +39,60 @@ function downloadBlobUrl(url: string, filename: string) {
 }
 
 const REPORTS: { type: ReportType; label: string; description: string; icon: typeof FileText }[] = [
-  { type: "guest", label: "Guest report", description: "Guest activity, sessions and demographics", icon: FileText },
-  { type: "router", label: "Router report", description: "Fleet performance, uptime and health", icon: RouterIcon },
-  { type: "network", label: "Network report", description: "Bandwidth, latency and utilization", icon: Wifi },
-  { type: "organization", label: "Organization report", description: "Per-org rollup and rankings", icon: Building2 },
-  { type: "location", label: "Location report", description: "Location traffic, guests and revenue", icon: MapPin },
-  { type: "revenue", label: "Revenue report", description: "MRR, ARR and revenue trend", icon: DollarSign },
-  { type: "audit", label: "Audit report", description: "System audit trail and user actions", icon: ClipboardList },
-  { type: "billing", label: "Billing report", description: "Invoices, subscriptions and payments", icon: Receipt },
-  { type: "monitoring", label: "Monitoring report", description: "Alerts, incidents and SLA", icon: Activity },
+  {
+    type: "guest",
+    label: "Guest report",
+    description: "Guest activity, sessions and demographics",
+    icon: FileText,
+  },
+  {
+    type: "router",
+    label: "Router report",
+    description: "Fleet performance, uptime and health",
+    icon: RouterIcon,
+  },
+  {
+    type: "network",
+    label: "Network report",
+    description: "Bandwidth, latency and utilization",
+    icon: Wifi,
+  },
+  {
+    type: "organization",
+    label: "Organization report",
+    description: "Per-org rollup and rankings",
+    icon: Building2,
+  },
+  {
+    type: "location",
+    label: "Location report",
+    description: "Location traffic, guests and revenue",
+    icon: MapPin,
+  },
+  {
+    type: "revenue",
+    label: "Revenue report",
+    description: "MRR, ARR and revenue trend",
+    icon: DollarSign,
+  },
+  {
+    type: "audit",
+    label: "Audit report",
+    description: "System audit trail and user actions",
+    icon: ClipboardList,
+  },
+  {
+    type: "billing",
+    label: "Billing report",
+    description: "Invoices, subscriptions and payments",
+    icon: Receipt,
+  },
+  {
+    type: "monitoring",
+    label: "Monitoring report",
+    description: "Alerts, incidents and SLA",
+    icon: Activity,
+  },
 ];
 
 const FORMAT_ICONS: Record<ReportFormat, typeof FileText> = {
@@ -106,13 +151,28 @@ export function ReportCenter({ range }: Props) {
                 const key = `${r.type}:${fmt}`;
                 const busy = pending === key;
                 return (
-                  <Button key={fmt} size="sm" variant="outline" disabled={busy} onClick={() => run(r.type, fmt)}>
-                    {busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Fico className="mr-2 h-3.5 w-3.5" />}
+                  <Button
+                    key={fmt}
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => run(r.type, fmt)}
+                  >
+                    {busy ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Fico className="mr-2 h-3.5 w-3.5" />
+                    )}
                     {fmt.toUpperCase()}
                   </Button>
                 );
               })}
-              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => run(r.type, "pdf")}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto"
+                onClick={() => run(r.type, "pdf")}
+              >
                 <Download className="mr-2 h-3.5 w-3.5" /> Download
               </Button>
             </CardContent>

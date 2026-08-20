@@ -26,7 +26,10 @@ export const Route = createFileRoute("/master")({
     // requireCustomerSession's identical guard for the live symptom this
     // was written for -- ?redirect=/login there, ?redirect=/master-login's
     // equivalent risk here).
-    const isAlreadyOnLoginTarget = location.href === "/master-login" || location.href.startsWith("/master-login?") || location.href.startsWith("/master-login#");
+    const isAlreadyOnLoginTarget =
+      location.href === "/master-login" ||
+      location.href.startsWith("/master-login?") ||
+      location.href.startsWith("/master-login#");
     const redirectSearch = isAlreadyOnLoginTarget ? undefined : { redirect: location.href };
     if (context.auth?.status === "anonymous") {
       throw redirect({ to: "/master-login", search: redirectSearch });

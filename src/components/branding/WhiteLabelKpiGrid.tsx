@@ -1,5 +1,14 @@
 import { motion } from "framer-motion";
-import { Palette, Globe, Sparkles, Image as ImageIcon, Mail, MessageSquare, Layers, CheckCircle2 } from "lucide-react";
+import {
+  Palette,
+  Globe,
+  Sparkles,
+  Image as ImageIcon,
+  Mail,
+  MessageSquare,
+  Layers,
+  CheckCircle2,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -26,7 +35,9 @@ export function WhiteLabelKpiGrid({ data, isLoading, isError, onRetry }: Props) 
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
+        ))}
       </div>
     );
   }
@@ -40,7 +51,12 @@ export function WhiteLabelKpiGrid({ data, isLoading, isError, onRetry }: Props) 
     { label: "Email templates", value: data.emailTemplates, icon: Mail, tone: tones.info },
     { label: "SMS templates", value: data.smsTemplates, icon: MessageSquare, tone: tones.warning },
     { label: "Active logos", value: data.activeLogos, icon: ImageIcon, tone: tones.pink },
-    { label: "Published branding", value: data.publishedBranding, icon: CheckCircle2, tone: tones.success },
+    {
+      label: "Published branding",
+      value: data.publishedBranding,
+      icon: CheckCircle2,
+      tone: tones.success,
+    },
   ];
 
   return (
@@ -48,14 +64,23 @@ export function WhiteLabelKpiGrid({ data, isLoading, isError, onRetry }: Props) 
       {tiles.map((t, i) => {
         const Icon = t.icon;
         return (
-          <motion.div key={t.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+          <motion.div
+            key={t.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.03 }}
+          >
             <Card className="hover:shadow-md transition-shadow">
               <CardContent className="flex items-start justify-between gap-4 p-4">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.label}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {t.label}
+                  </div>
                   <div className="mt-1 text-2xl font-semibold tracking-tight">{t.value}</div>
                 </div>
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", t.tone)}>
+                <div
+                  className={cn("flex h-10 w-10 items-center justify-center rounded-lg", t.tone)}
+                >
                   <Icon className="h-5 w-5" />
                 </div>
               </CardContent>

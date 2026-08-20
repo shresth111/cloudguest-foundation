@@ -1,5 +1,7 @@
 import { KeyRound } from "lucide-react";
-import { PortalCard } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
+import { scriptClassOf } from "@/lib/portal-script";
+import { PortalTextPlate, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -66,7 +68,33 @@ export function GuestSignInCard() {
             <img
               src={config.logoUrl}
               alt=""
-              className="h-12 w-12 object-contain drop-shadow sm:h-14 sm:w-14 md:h-16 md:w-16"
+              // v7 §2/§8.3. This was `h-12 w-12 object-contain`, and `w-12`
+              // is a hard 48px *width* box. `object-contain` preserves the
+              // aspect ratio inside that box, so it does not stretch a
+              // horizontal lockup -- it shrinks it. Measured in a real
+              // browser at 390x844 with a 480x96 (5:1) lockup, the kind most
+              // hotels and cafes actually upload: the rendered ink is
+              // **48 x 9.6 CSS px**. The venue's own brand, on the screen
+              // whose job is to confirm whose network this is, renders as a
+              // ~10px smear.
+              //
+              // That is not only a polish defect. §8.3's survey data has
+              // guests connecting to public WiFi while actively believing it
+              // is unsafe (41% have had information compromised; only 23%
+              // think it is safe), which primes them to read anything that
+              // looks off -- a squashed logo above all -- as an evil twin.
+              // The venue's mark is a security signal, and it has been
+              // illegible for every venue that did not happen to upload a
+              // square file.
+              //
+              // Constrain the HEIGHT and let the width follow. `max-w` is
+              // what keeps a pathological 20:1 banner from spanning the card
+              // and out-shouting the venue's name below it; at 176px it is
+              // still comfortably inside the 358px content column at 390px
+              // and inside the 248px one at 320px. `object-contain` stays,
+              // so a square logo is unchanged to the pixel -- this widens
+              // the box, it never crops.
+              className="h-12 w-auto max-w-[176px] object-contain drop-shadow sm:h-14 sm:max-w-[200px] md:h-16 md:max-w-[224px]"
             />
           ) : (
             <PortalDefaultBrandBadge
@@ -74,18 +102,107 @@ export function GuestSignInCard() {
               className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16"
             />
           )}
-          <h1 className="pg-title mt-3 text-[var(--pg-ink)]">{sign.heading}</h1>
+          {/* v7 Part 2. The courtesy line, demoted out of the headline --
+           * see `useGuestSignIn`'s own comment for the two variants this
+           * slot carries and why `splashHeadline` no longer deletes the
+           * venue's name.
+           *
+           * `pg-meta` (13px), not `pg-micro` (11px): this is a hierarchy
+           * step below the name, not a footnote. It also matters that
+           * `pg-meta` is one of the three utilities that deliberately do
+           * NOT bind `--pg-display-font-family` -- so when a venue picks
+           * one of the curated heading faces, that face is spent on the
+           * venue's own name and our chrome stays on the system stack.
+           *
+           * THE TWO VARIANTS ARE STYLED DIFFERENTLY, AND THAT IS THE POINT.
+           *
+           * The greeting variant ("Welcome to") is *our* label, so it takes
+           * wyfyguest.com's own `.eyebrow` treatment verbatim -- 12px, 600,
+           * +0.14em, uppercase, violet-700 -- read off that site's
+           * `global.css` and confirmed against its live computed styles.
+           * That kicker is the marketing site's most repeated typographic
+           * signature, it appears above every section heading there, and
+           * reproducing it here costs nothing and is the clearest
+           * zero-byte statement that these two surfaces are one product.
+           *
+           * The identity variant puts a real customer's brand name in this
+           * slot, and it gets none of that: no uppercase, because shouting
+           * a customer's name ("TAJ PALACE") is a liberty we do not get to
+           * take; no violet, because that is our colour and this is their
+           * name. Neutral `--pg-ink-faint`, sentence case, normal tracking.
+           * One slot, one rule: our chrome may wear our brand, the venue's
+           * identity never does.
+           *
+           * Note `uppercase` is a no-op in Devanagari and every other
+           * unicase script, which is correct rather than broken -- the
+           * structure (small tracked label above a large name) survives, and
+           * only the case change, which those scripts do not have, drops
+           * out. The tracking does not: `+0.14em` on Devanagari would break
+           * conjuncts apart, so `pg-eyebrow` deliberately does not set it
+           * for `data-pg-script="tall"`. See styles.css. */}
+          {sign.eyebrow && (
+            <span
+              data-pg-measure="eyebrow"
+              data-pg-script={scriptClassOf(sign.eyebrow)}
+              className={cn(
+                "mt-3 block",
+                sign.eyebrowIsVenueName
+                  ? "pg-meta text-[var(--pg-ink-faint)]"
+                  : "pg-eyebrow text-[var(--pg-brand-accent)]",
+              )}
+            >
+              {sign.eyebrow}
+            </span>
+          )}
+          {/* `data-pg-script` carries the extra leading Brahmic scripts need
+           * -- see src/lib/portal-script.ts for the measured overlap this
+           * fixes, and for why it is keyed on the string rather than on
+           * `:lang()`. `text-balance` evens the ragged edge of a two-line
+           * venue name; `break-words` is the safety net for a single
+           * unbreakable 40-character token at 320px, and only engages when
+           * a word genuinely cannot fit, so ordinary names are untouched. */}
+          <h1
+            data-pg-measure="headline"
+            data-pg-script={scriptClassOf(sign.heading)}
+            className={cn(
+              "pg-title text-balance break-words text-[var(--pg-ink)]",
+              sign.eyebrow ? "mt-0.5" : "mt-3",
+            )}
+          >
+            {sign.heading}
+          </h1>
           {/* captive-portal-v5-design-spec.md §3.2: no fallback filler
            * line when a venue hasn't configured a real welcome message --
            * see useGuestSignIn's `subtext` for why this is `undefined`,
-           * not an empty string, when there's nothing real to show. */}
+           * not an empty string, when there's nothing real to show.
+           *
+           * `text-pretty` rather than `text-balance` here on purpose: the
+           * venue's message can run to four or five lines, and `balance` is
+           * both capped by the UA at a handful of lines and wrong for a
+           * paragraph (it equalises line lengths, which reads as a poster).
+           * `pretty` only suppresses orphans, which is what a body
+           * paragraph actually wants. */}
           {sign.subtext && (
-            <p className="mt-1.5 pg-body text-[var(--pg-ink-muted)]">{sign.subtext}</p>
+            <p
+              data-pg-measure="welcome"
+              data-pg-script={scriptClassOf(sign.subtext)}
+              className="mt-2.5 pg-body text-pretty text-[var(--pg-ink-muted)]"
+            >
+              {sign.subtext}
+            </p>
           )}
         </div>
 
+        {/* Was `text-sm text-slate-500`. A literal slate utility cannot
+         * follow a token retune, and #64748B is exactly the *old*
+         * `--pg-ink-muted` that v7 §1.5 retired: it measures 4.76:1 on white,
+         * which per Part 9-4 passes only at >=16px, and this renders at 14px.
+         * `pg-meta` additionally makes the line respond to `--pg-type-scale`,
+         * which a raw Tailwind size does not. */}
         {sign.noMethods ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t("noMethodsAvailable")}</p>
+          <p className="py-6 text-center pg-meta text-[var(--pg-ink-muted)]">
+            {t("noMethodsAvailable")}
+          </p>
         ) : (
           <>
             <div className="mt-4">
@@ -100,10 +217,38 @@ export function GuestSignInCard() {
         )}
       </PortalCard>
 
+      {/* captive-portal-v7-design-spec.md §1.4 C3 -- the one line on this
+       * screen that no token value could ever have fixed.
+       *
+       * The accessibility workstream flagged it and correctly declined to
+       * try. It renders *outside* `PortalCard`, so it stands directly on the
+       * venue's photo, and it stands there in the scrim's deliberately
+       * transparent 24-78% middle band -- so there is nothing behind it but
+       * the photograph. That makes it unsolvable by colour: darkening the
+       * text helps over a light photo and hurts over a dark one, lightening
+       * it does the exact reverse, and the photo is chosen by the customer,
+       * so no single value is right. The only fix is to stop standing on the
+       * photo, which is what `PortalTextPlate` does -- a surface bounded
+       * to this one line's own content box.
+       *
+       * This is also the literal reading of "size the scrim from the content
+       * box": the sizing happens here, on the text, and not by growing the
+       * vignette to reach it. Growing the vignette is §0.1 item 1's
+       * forbidden move -- it is how you arrive at PR #81 a third time. The
+       * pill covers this line and not one pixel more.
+       *
+       * `pg-micro` replaces a literal `text-[11px]`, which was a leftover
+       * the relative-units pass missed: an absolute px size cannot respond
+       * to `--pg-type-scale`, so the portal's own "large text" control (and
+       * the platform's) did nothing to the smallest text on the screen --
+       * precisely the text that needed it most. `pg-micro` is the same 11px
+       * at the default scale, so this is not a visual change. */}
       {sign.tab === "password" && (
-        <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[var(--pg-ink-faint)]">
-          <KeyRound className="h-3 w-3" /> {t("savedPasswordsNote")}
-        </p>
+        <PortalTextPlate shape="pill">
+          <p className="flex items-center justify-center gap-1.5 text-center pg-micro text-[var(--pg-ink-faint)]">
+            <KeyRound className="h-3 w-3 shrink-0" /> {t("savedPasswordsNote")}
+          </p>
+        </PortalTextPlate>
       )}
     </div>
   );

@@ -16,10 +16,19 @@ export function Error500Page() {
         Something went wrong on our end. Our team has been notified and is working on a fix.
       </p>
       <div className="mt-6 flex gap-3">
-        <Button onClick={() => { window.location.reload(); }}>
+        <Button
+          onClick={() => {
+            window.location.reload();
+          }}
+        >
           <RefreshCw className="mr-2 h-4 w-4" /> Try again
         </Button>
-        <Button variant="outline" onClick={() => { toast.success("Report submitted"); }}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            toast.success("Report submitted");
+          }}
+        >
           Report issue
         </Button>
       </div>

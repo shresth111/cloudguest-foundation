@@ -1,13 +1,15 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
+import { PortalShell, GUEST_LEGIBILITY_CARD_CLASS } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
 import {
   usePortalRuntime,
   loadPersistedHotspotSubmit,
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
+import { buildSessionUrl } from "@/lib/portal-session-url";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -50,28 +52,6 @@ const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
 // which *does* have an active session under that exact identifier.
 const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 
-/** Builds the real `/portal/session` URL -- same organizationId/
- * locationId/routerId this exact guest's portal link always carries (see
- * src/routes/portal.tsx's own search schema) -- for RouterOS's `dst`
- * field to land the guest's browser on once its own hotspot-login
- * processing finishes. `dst` used to point back at this very success
- * page (see `submitHotspotLogin`'s own docstring below); that produced a
- * redundant second "you're connected" screen with its own full copy of
- * the connected-status UI, duplicating `/portal/session` (the real,
- * already-redesigned "you're connected" resting page) -- exactly the
- * extra unwanted page type the founder kept landing on. Landing the
- * guest on `/portal/session` directly instead means this page is now
- * only ever visible for the brief moment between OTP/password/voucher
- * verification and this exact POST actually firing -- a few hundred ms
- * at most, not a second full page the guest has to sit through. */
-function buildSessionUrl(organizationId: string, locationId: string, routerId: string): string {
-  const url = new URL("/portal/session", window.location.origin);
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("locationId", locationId);
-  url.searchParams.set("routerId", routerId);
-  return url.toString();
-}
-
 /** Submits username/password to RouterOS's `$(link-login-only)` URL.
  *
  * Real incident #1: this used to POST via a hidden iframe so the guest
@@ -90,7 +70,8 @@ function buildSessionUrl(organizationId: string, locationId: string, routerId: s
  * full-page form POST -- the same mechanism RouterOS's own bundled
  * hotspot login page uses. A `dst` field (RouterOS's standard "where to
  * send the browser after a successful hotspot login" field) points at
- * the real `/portal/session` URL (see `buildSessionUrl` above), so once
+ * the real `/portal/session` URL (see `buildSessionUrl` in
+ * src/lib/portal-session-url.ts), so once
  * the NAS's gate opens the guest lands directly on the real, resting
  * "you're connected" page -- that page's own state (session, countdown,
  * etc.) survives the round trip via PortalRuntimeContext's persisted
@@ -126,7 +107,8 @@ function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
  * page, then session page, that's it" flow they asked for. All of that
  * real functionality now lives on `/portal/session`, the one real
  * resting page this POST is actually navigating the guest towards (via
- * `dst`, see `buildSessionUrl`) -- this page's own job is now only to
+ * `dst`, see `@/lib/portal-session-url`) -- this page's own job is now
+ * only to
  * fire the real hotspot-login POST and show an honest "connecting"
  * state while that's in flight.
  *
@@ -144,8 +126,29 @@ function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
  * session, see that function's own docstring).
  */
 function SuccessPage() {
-  const { session, organizationId, locationId, routerId, hotspotLoginUrl, guestIdentifier, t } =
-    usePortalRuntime();
+  const {
+    config,
+    session,
+    organizationId,
+    locationId,
+    routerId,
+    hotspotLoginUrl,
+    guestIdentifier,
+    // Carried into `dst` so the guest's chosen language survives the
+    // full-document POST below -- see `buildSessionUrl`'s own note on why a
+    // URL parameter is the only channel that works on iOS's CNA.
+    language,
+    t,
+  } = usePortalRuntime();
+  // captive-portal-v7-design-spec.md §1.1 (L1). This route is NOT in the
+  // spec's own L1 route list, and that list is wrong: the slow/stuck
+  // notice below renders past SLOW_NOTICE_DELAY_MS as plain text directly
+  // on the venue photo, outside `PortalConnectingState`'s card and in the
+  // scrim's fully-transparent 24-78% band -- the identical defect, on the
+  // one screen a guest only ever sees when something has already gone
+  // wrong. Same bounded plate as the other portal.* routes; the retry
+  // control beside it already carries its own opaque `bg-indigo-50` fill.
+  const hasPhoto = !!config?.backgroundImageUrl;
   const navigate = useNavigate({ from: "/portal/success" });
   const portalSearch = { organizationId, locationId, routerId };
   const [showSlowNotice, setShowSlowNotice] = useState(false);
@@ -189,16 +192,41 @@ function SuccessPage() {
       lastSubmit.identifier === guestIdentifier &&
       Date.now() - lastSubmit.at < HOTSPOT_RESUBMIT_COOLDOWN_MS;
     if (recentlySubmitted) {
-      navigate({ to: "/portal/session", replace: true, search: (prev) => prev });
+      // A real document load, NOT `navigate()`. A client-side route change
+      // repaints "you're connected" without a single byte crossing the
+      // network, so it can only ever *assert* that the NAS gate is open --
+      // it can never find out. A top-level navigation is the one thing
+      // that actually asks: if the gate is open the browser simply loads
+      // `/portal/session`; if it is shut (the cooldown fired on a bounce
+      // whose earlier POST never landed, a Wi-Fi blip in between) the NAS
+      // intercepts this request and redirects to a fresh portal URL
+      // carrying a new `link-login-only`, which comes back through
+      // `portal.index.tsx` and re-enters this page with a real
+      // `hotspotLoginUrl` to submit. Self-correcting either way.
+      window.location.assign(buildSessionUrl(organizationId, locationId, routerId, language));
       return;
     }
 
-    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
+    // ORDER IS LOAD-BEARING. `submitHotspotLogin` is the only thing on
+    // this entire page that opens the NAS gate; `persistHotspotSubmit` is
+    // bookkeeping for the flick-flash cooldown above. The persist used to
+    // run first, so on iOS's Captive Network Assistant -- where
+    // sessionStorage *throws* on access, not merely fails to store -- it
+    // pre-empted the POST completely: the guest's OTP verified, the
+    // backend really created the session, and the browser sat on "Just a
+    // moment" forever, with `retry()` re-entering the same throw.
+    // `form.submit()` only *schedules* the navigation, so the statement
+    // after it still runs and the cooldown is still recorded in the
+    // normal case. Defence in depth on top of PortalRuntimeContext's
+    // `safeSet`: even if that guard is ever lost, the worst outcome here
+    // is a redundant (harmless) duplicate POST, never a guest with no
+    // internet.
     submitHotspotLogin(
       hotspotLoginUrl,
       guestIdentifier,
-      buildSessionUrl(organizationId, locationId, routerId),
+      buildSessionUrl(organizationId, locationId, routerId, language),
     );
+    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
   }
 
   useEffect(() => {
@@ -252,7 +280,19 @@ function SuccessPage() {
       <PortalConnectingState />
       {showSlowNotice && (
         <div className="pg-enter mt-5 flex flex-col items-center gap-3 text-center">
-          <p className="pg-meta text-[var(--pg-ink-muted)]">
+          {/* Hand-written, not `PortalTextPlate`: this plate is `px-4 py-3`
+           * and the component hardcodes `p-5`. tailwind-merge does not drop
+           * an earlier `p-5` for a later `px-*`/`py-*` (verified on these
+           * exact strings), so passing the padding through `className` would
+           * emit both and leave the winner to stylesheet order rather than
+           * intent -- exactly the silent failure mode PortalShell's own
+           * class-ordering notes exist to prevent. */}
+          <p
+            className={cn(
+              "pg-meta max-w-full text-[var(--pg-ink-muted)]",
+              hasPhoto && cn("px-4 py-3", GUEST_LEGIBILITY_CARD_CLASS),
+            )}
+          >
             {showEscapeHatch ? t("successStuckNotice") : t("successSlowNotice")}
           </p>
           <div className="flex items-center gap-3">
@@ -264,10 +304,17 @@ function SuccessPage() {
               <RefreshCw className="h-3.5 w-3.5" /> {t("retry")}
             </button>
             {showEscapeHatch && (
+              // Hand-written for the same reason as the routes' back links:
+              // the pill classes are on the anchor, so its padding is part
+              // of the tap target, and `PortalTextPlate` wraps rather than
+              // decorates. See portal.verify.tsx's own note.
               <Link
                 to="/portal/welcome"
                 search={portalSearch}
-                className="text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+                className={cn(
+                  "text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline",
+                  hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-4 py-2"),
+                )}
               >
                 {t("signInAgainLink")}
               </Link>

@@ -12,10 +12,34 @@ export function TopologyView() {
   if (isError || !data) return <ErrorState onRetry={refetch} />;
 
   const nodes = [
-    { key: "cloud", label: "CloudGuest Platform", sub: "Global control plane", icon: Cloud, color: "bg-sky-500/15 text-sky-500" },
-    { key: "org", label: "Organizations", sub: `${data.organizations} tenant${data.organizations === 1 ? "" : "s"}`, icon: Building2, color: "bg-violet-500/15 text-violet-500" },
-    { key: "loc", label: "Locations", sub: `${data.locations} site${data.locations === 1 ? "" : "s"}`, icon: MapPin, color: "bg-emerald-500/15 text-emerald-500" },
-    { key: "router", label: "Routers", sub: `${data.routers} device${data.routers === 1 ? "" : "s"} registered`, icon: RouterIcon, color: "bg-amber-500/15 text-amber-500" },
+    {
+      key: "cloud",
+      label: "CloudGuest Platform",
+      sub: "Global control plane",
+      icon: Cloud,
+      color: "bg-sky-500/15 text-sky-500",
+    },
+    {
+      key: "org",
+      label: "Organizations",
+      sub: `${data.organizations} tenant${data.organizations === 1 ? "" : "s"}`,
+      icon: Building2,
+      color: "bg-violet-500/15 text-violet-500",
+    },
+    {
+      key: "loc",
+      label: "Locations",
+      sub: `${data.locations} site${data.locations === 1 ? "" : "s"}`,
+      icon: MapPin,
+      color: "bg-emerald-500/15 text-emerald-500",
+    },
+    {
+      key: "router",
+      label: "Routers",
+      sub: `${data.routers} device${data.routers === 1 ? "" : "s"} registered`,
+      icon: RouterIcon,
+      color: "bg-amber-500/15 text-amber-500",
+    },
   ];
 
   return (
@@ -35,7 +59,9 @@ export function TopologyView() {
                   transition={{ delay: i * 0.08 }}
                   className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm"
                 >
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${n.color}`}>
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-lg ${n.color}`}
+                  >
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="flex-1">

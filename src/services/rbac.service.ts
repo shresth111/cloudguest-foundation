@@ -364,14 +364,22 @@ export const rbacService = {
         organization_id: payload.organizationId,
         initial_role_id: payload.initialRoleId,
       },
-      { headers: payload.organizationId ? { "X-Organization-Id": payload.organizationId } : undefined },
+      {
+        headers: payload.organizationId
+          ? { "X-Organization-Id": payload.organizationId }
+          : undefined,
+      },
     );
     return { user: toUser(data.user), temporaryPassword: data.temporary_password };
   },
 
   // organizationId optional on all three -- same GLOBAL-vs-ORGANIZATION
   // scope story as inviteUser()/listRoles() above.
-  async updateUser(id: string, payload: UpdateUserPayload, organizationId?: string): Promise<RbacUser> {
+  async updateUser(
+    id: string,
+    payload: UpdateUserPayload,
+    organizationId?: string,
+  ): Promise<RbacUser> {
     const { data } = await api.put<BackendUser>(
       `/users/${id}`,
       {
@@ -450,7 +458,10 @@ export const rbacService = {
     return data.map(toPermissionGroup);
   },
 
-  async listPermissions(permissionGroupId?: string, organizationId?: string): Promise<Permission[]> {
+  async listPermissions(
+    permissionGroupId?: string,
+    organizationId?: string,
+  ): Promise<Permission[]> {
     const { data } = await api.get<BackendPermission[]>("/permissions", {
       params: { permission_group_id: permissionGroupId },
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
@@ -589,7 +600,10 @@ export const rbacService = {
   // scope story as listRoles()/listUsers() above: users.read/roles.assign
   // are only held at ORGANIZATION scope for a customer/org-owner session,
   // and these endpoints infer GLOBAL whenever X-Organization-Id is absent.
-  async listUserRoleAssignments(userId: string, organizationId?: string): Promise<UserRoleAssignment[]> {
+  async listUserRoleAssignments(
+    userId: string,
+    organizationId?: string,
+  ): Promise<UserRoleAssignment[]> {
     const { data } = await api.get<{ items: BackendUserRoleAssignment[] }>(
       `/users/${userId}/roles`,
       { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
@@ -597,7 +611,11 @@ export const rbacService = {
     return data.items.map(toUserRoleAssignment);
   },
 
-  async assignRole(userId: string, payload: AssignRolePayload, organizationId?: string): Promise<UserRoleAssignment> {
+  async assignRole(
+    userId: string,
+    payload: AssignRolePayload,
+    organizationId?: string,
+  ): Promise<UserRoleAssignment> {
     const { data } = await api.post<BackendUserRoleAssignment>(
       `/users/${userId}/roles`,
       {
@@ -613,7 +631,11 @@ export const rbacService = {
     return toUserRoleAssignment(data);
   },
 
-  async revokeRoleAssignment(userId: string, assignmentId: string, organizationId?: string): Promise<void> {
+  async revokeRoleAssignment(
+    userId: string,
+    assignmentId: string,
+    organizationId?: string,
+  ): Promise<void> {
     await api.delete(`/users/${userId}/roles/${assignmentId}`, {
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });

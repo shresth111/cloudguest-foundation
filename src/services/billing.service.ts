@@ -17,11 +17,7 @@ import type {
   TaxType,
   UsageRow,
 } from "@/types/billing";
-import type {
-  BillingReportFormat,
-  PaymentGateway,
-  ReportFrequency,
-} from "@/types/billing";
+import type { BillingReportFormat, PaymentGateway, ReportFrequency } from "@/types/billing";
 
 // The Master Console's demo sign-in (master-login.tsx's "admin@example.com
 // / test") issues a local-only token the real backend never accepts --
@@ -41,48 +37,208 @@ const DEMO_BILLING_ORGS: { id: string; name: string }[] = [
 
 const DEMO_PLANS: Plan[] = [
   {
-    id: "plan-demo-starter", name: "Starter", tier: "starter", currency: "INR",
-    monthlyPrice: 999, annualPrice: 11988, includedLocations: 1, includedRouters: 2,
-    includedGuests: 500, storageLimitGb: 10, apiAccess: false, whiteLabel: false,
-    pmsIntegration: false, aiFeatures: false, supportLevel: "basic",
+    id: "plan-demo-starter",
+    name: "Starter",
+    tier: "starter",
+    currency: "INR",
+    monthlyPrice: 999,
+    annualPrice: 11988,
+    includedLocations: 1,
+    includedRouters: 2,
+    includedGuests: 500,
+    storageLimitGb: 10,
+    apiAccess: false,
+    whiteLabel: false,
+    pmsIntegration: false,
+    aiFeatures: false,
+    supportLevel: "basic",
   },
   {
-    id: "plan-demo-growth", name: "Growth", tier: "professional", currency: "INR",
-    monthlyPrice: 2999, annualPrice: 35988, includedLocations: 5, includedRouters: 10,
-    includedGuests: 2500, storageLimitGb: 50, apiAccess: true, whiteLabel: false,
-    pmsIntegration: true, aiFeatures: false, supportLevel: "priority", popular: true,
+    id: "plan-demo-growth",
+    name: "Growth",
+    tier: "professional",
+    currency: "INR",
+    monthlyPrice: 2999,
+    annualPrice: 35988,
+    includedLocations: 5,
+    includedRouters: 10,
+    includedGuests: 2500,
+    storageLimitGb: 50,
+    apiAccess: true,
+    whiteLabel: false,
+    pmsIntegration: true,
+    aiFeatures: false,
+    supportLevel: "priority",
+    popular: true,
   },
   {
-    id: "plan-demo-enterprise", name: "Enterprise", tier: "enterprise", currency: "INR",
-    monthlyPrice: 9999, annualPrice: 119988, includedLocations: 50, includedRouters: 200,
-    includedGuests: 25000, storageLimitGb: 500, apiAccess: true, whiteLabel: true,
-    pmsIntegration: true, aiFeatures: true, supportLevel: "dedicated",
+    id: "plan-demo-enterprise",
+    name: "Enterprise",
+    tier: "enterprise",
+    currency: "INR",
+    monthlyPrice: 9999,
+    annualPrice: 119988,
+    includedLocations: 50,
+    includedRouters: 200,
+    includedGuests: 25000,
+    storageLimitGb: 500,
+    apiAccess: true,
+    whiteLabel: true,
+    pmsIntegration: true,
+    aiFeatures: true,
+    supportLevel: "dedicated",
   },
 ];
 
 const DEMO_COUPONS: Coupon[] = [
-  { id: "coupon-demo-1", code: "WELCOME10", discountType: "percentage", discountValue: 10, expiryDate: new Date(Date.now() + 60 * 86400000).toISOString(), maxUsage: 100, used: 12, status: "active" },
-  { id: "coupon-demo-2", code: "LAUNCH500", discountType: "fixed", discountValue: 500, expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(), maxUsage: 50, used: 50, status: "active" },
+  {
+    id: "coupon-demo-1",
+    code: "WELCOME10",
+    discountType: "percentage",
+    discountValue: 10,
+    expiryDate: new Date(Date.now() + 60 * 86400000).toISOString(),
+    maxUsage: 100,
+    used: 12,
+    status: "active",
+  },
+  {
+    id: "coupon-demo-2",
+    code: "LAUNCH500",
+    discountType: "fixed",
+    discountValue: 500,
+    expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+    maxUsage: 50,
+    used: 50,
+    status: "active",
+  },
 ];
 
 const DEMO_SUBSCRIPTIONS: Subscription[] = [
-  { id: "sub-demo-1", organizationId: "org-001", organizationName: "Acme Corp", planId: "plan-demo-growth", planName: "Growth", tier: "professional", billingCycle: "monthly", startDate: new Date(Date.now() - 90 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 20 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 20 * 86400000).toISOString(), status: "active", amount: 2999, autoRenewal: true, paymentStatus: "paid", locations: 5, routers: 10, maxGuests: 2500 },
-  { id: "sub-demo-2", organizationId: "org-002", organizationName: "Blue Cedar Cafes", planId: "plan-demo-starter", planName: "Starter", tier: "starter", billingCycle: "monthly", startDate: new Date(Date.now() - 30 * 86400000).toISOString(), renewalDate: new Date(Date.now() + 5 * 86400000).toISOString(), expiryDate: new Date(Date.now() + 5 * 86400000).toISOString(), status: "active", amount: 999, autoRenewal: true, paymentStatus: "paid", locations: 1, routers: 2, maxGuests: 500 },
+  {
+    id: "sub-demo-1",
+    organizationId: "org-001",
+    organizationName: "Acme Corp",
+    planId: "plan-demo-growth",
+    planName: "Growth",
+    tier: "professional",
+    billingCycle: "monthly",
+    startDate: new Date(Date.now() - 90 * 86400000).toISOString(),
+    renewalDate: new Date(Date.now() + 20 * 86400000).toISOString(),
+    expiryDate: new Date(Date.now() + 20 * 86400000).toISOString(),
+    status: "active",
+    amount: 2999,
+    autoRenewal: true,
+    paymentStatus: "paid",
+    locations: 5,
+    routers: 10,
+    maxGuests: 2500,
+  },
+  {
+    id: "sub-demo-2",
+    organizationId: "org-002",
+    organizationName: "Blue Cedar Cafes",
+    planId: "plan-demo-starter",
+    planName: "Starter",
+    tier: "starter",
+    billingCycle: "monthly",
+    startDate: new Date(Date.now() - 30 * 86400000).toISOString(),
+    renewalDate: new Date(Date.now() + 5 * 86400000).toISOString(),
+    expiryDate: new Date(Date.now() + 5 * 86400000).toISOString(),
+    status: "active",
+    amount: 999,
+    autoRenewal: true,
+    paymentStatus: "paid",
+    locations: 1,
+    routers: 2,
+    maxGuests: 500,
+  },
 ];
 
 const DEMO_PAYMENTS: Payment[] = [
-  { id: "pay-demo-1", invoiceNumber: "INV-DEMO-0001", organizationId: "org-001", organizationName: "Acme Corp", amount: 2999, tax: 540, discount: 0, gateway: "razorpay", transactionId: "txn_demo_1", status: "paid", paidAt: new Date(Date.now() - 5 * 86400000).toISOString() },
-  { id: "pay-demo-2", invoiceNumber: "INV-DEMO-0002", organizationId: "org-002", organizationName: "Blue Cedar Cafes", amount: 999, tax: 180, discount: 100, gateway: "razorpay", transactionId: "txn_demo_2", status: "paid", paidAt: new Date(Date.now() - 25 * 86400000).toISOString() },
+  {
+    id: "pay-demo-1",
+    invoiceNumber: "INV-DEMO-0001",
+    organizationId: "org-001",
+    organizationName: "Acme Corp",
+    amount: 2999,
+    tax: 540,
+    discount: 0,
+    gateway: "razorpay",
+    transactionId: "txn_demo_1",
+    status: "paid",
+    paidAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+  },
+  {
+    id: "pay-demo-2",
+    invoiceNumber: "INV-DEMO-0002",
+    organizationId: "org-002",
+    organizationName: "Blue Cedar Cafes",
+    amount: 999,
+    tax: 180,
+    discount: 100,
+    gateway: "razorpay",
+    transactionId: "txn_demo_2",
+    status: "paid",
+    paidAt: new Date(Date.now() - 25 * 86400000).toISOString(),
+  },
 ];
 
 const DEMO_INVOICES: Invoice[] = [
-  { id: "inv-demo-1", invoiceNumber: "INV-DEMO-0001", organizationName: "Acme Corp", type: "tax_invoice", amount: 2999, tax: 540, total: 3539, issuedAt: new Date(Date.now() - 5 * 86400000).toISOString(), dueAt: new Date(Date.now() + 25 * 86400000).toISOString(), status: "paid" },
-  { id: "inv-demo-2", invoiceNumber: "INV-DEMO-0002", organizationName: "Blue Cedar Cafes", type: "tax_invoice", amount: 999, tax: 180, total: 1079, issuedAt: new Date(Date.now() - 25 * 86400000).toISOString(), dueAt: new Date(Date.now() + 5 * 86400000).toISOString(), status: "paid" },
+  {
+    id: "inv-demo-1",
+    invoiceNumber: "INV-DEMO-0001",
+    organizationName: "Acme Corp",
+    type: "tax_invoice",
+    amount: 2999,
+    tax: 540,
+    total: 3539,
+    issuedAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    dueAt: new Date(Date.now() + 25 * 86400000).toISOString(),
+    status: "paid",
+  },
+  {
+    id: "inv-demo-2",
+    invoiceNumber: "INV-DEMO-0002",
+    organizationName: "Blue Cedar Cafes",
+    type: "tax_invoice",
+    amount: 999,
+    tax: 180,
+    total: 1079,
+    issuedAt: new Date(Date.now() - 25 * 86400000).toISOString(),
+    dueAt: new Date(Date.now() + 5 * 86400000).toISOString(),
+    status: "paid",
+  },
 ];
 
 const DEMO_USAGE: UsageRow[] = [
-  { organizationId: "org-001", organizationName: "Acme Corp", locationsUsed: 3, locationsLimit: 5, routersUsed: 6, routersLimit: 10, guestSessions: 1840, smsOtp: 620, emailOtp: 410, storageUsedGb: 12, storageLimitGb: 50, apiCalls: 8400 },
-  { organizationId: "org-002", organizationName: "Blue Cedar Cafes", locationsUsed: 1, locationsLimit: 1, routersUsed: 2, routersLimit: 2, guestSessions: 340, smsOtp: 90, emailOtp: 60, storageUsedGb: 2, storageLimitGb: 10, apiCalls: 0 },
+  {
+    organizationId: "org-001",
+    organizationName: "Acme Corp",
+    locationsUsed: 3,
+    locationsLimit: 5,
+    routersUsed: 6,
+    routersLimit: 10,
+    guestSessions: 1840,
+    smsOtp: 620,
+    emailOtp: 410,
+    storageUsedGb: 12,
+    storageLimitGb: 50,
+    apiCalls: 8400,
+  },
+  {
+    organizationId: "org-002",
+    organizationName: "Blue Cedar Cafes",
+    locationsUsed: 1,
+    locationsLimit: 1,
+    routersUsed: 2,
+    routersLimit: 2,
+    guestSessions: 340,
+    smsOtp: 90,
+    emailOtp: 60,
+    storageUsedGb: 2,
+    storageLimitGb: 10,
+    apiCalls: 0,
+  },
 ];
 
 /**
@@ -101,7 +257,10 @@ const DEMO_USAGE: UsageRow[] = [
  */
 function buildDemoSnapshot(): BillingSnapshot {
   const active = DEMO_SUBSCRIPTIONS.filter((s) => s.status === "active");
-  const mrr = active.reduce((sum, s) => sum + (s.billingCycle === "annual" ? s.amount / 12 : s.amount), 0);
+  const mrr = active.reduce(
+    (sum, s) => sum + (s.billingCycle === "annual" ? s.amount / 12 : s.amount),
+    0,
+  );
   const paidPayments = DEMO_PAYMENTS.filter((p) => p.status === "paid");
   return {
     kpis: {
@@ -115,7 +274,9 @@ function buildDemoSnapshot(): BillingSnapshot {
       }).length,
       overduePayments: DEMO_SUBSCRIPTIONS.filter((s) => s.status === "past_due").length,
       totalRevenue: Math.round(DEMO_PAYMENTS.reduce((sum, p) => sum + p.amount, 0)),
-      collectionRate: DEMO_PAYMENTS.length ? Math.round((paidPayments.length / DEMO_PAYMENTS.length) * 100) : 100,
+      collectionRate: DEMO_PAYMENTS.length
+        ? Math.round((paidPayments.length / DEMO_PAYMENTS.length) * 100)
+        : 100,
       arpo: active.length ? Math.round(mrr / active.length) : 0,
     },
     subscriptions: DEMO_SUBSCRIPTIONS,
@@ -124,21 +285,44 @@ function buildDemoSnapshot(): BillingSnapshot {
     coupons: DEMO_COUPONS,
     usage: DEMO_USAGE,
     gateways: [
-      { id: "razorpay", name: "Razorpay", connected: true, lastTransactionAt: new Date(Date.now() - 5 * 86400000).toISOString(), mode: "test" },
+      {
+        id: "razorpay",
+        name: "Razorpay",
+        connected: true,
+        lastTransactionAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+        mode: "test",
+      },
       { id: "stripe", name: "Stripe", connected: false, mode: "test" },
     ],
     revenue: {
-      trend: Array.from({ length: 6 }, (_, i) => ({ label: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString("en-US", { month: "short" }), revenue: 90000 + i * 8000, growth: i === 0 ? 0 : 8 })),
+      trend: Array.from({ length: 6 }, (_, i) => ({
+        label: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString("en-US", {
+          month: "short",
+        }),
+        revenue: 90000 + i * 8000,
+        growth: i === 0 ? 0 : 8,
+      })),
       planDistribution: DEMO_PLANS.map((p) => ({
         tier: p.tier,
         count: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).length,
-        revenue: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).reduce((sum, s) => sum + s.amount, 0),
+        revenue: DEMO_SUBSCRIPTIONS.filter((s) => s.planId === p.id).reduce(
+          (sum, s) => sum + s.amount,
+          0,
+        ),
       })).filter((d) => d.count > 0),
-      subscriptionDistribution: (["active", "trial", "past_due", "canceled"] as const).map((status) => ({
-        status,
-        count: DEMO_SUBSCRIPTIONS.filter((s) => s.status === status).length,
-      })),
-      paymentSuccessRate: [{ label: "This month", success: paidPayments.length, failed: DEMO_PAYMENTS.length - paidPayments.length }],
+      subscriptionDistribution: (["active", "trial", "past_due", "canceled"] as const).map(
+        (status) => ({
+          status,
+          count: DEMO_SUBSCRIPTIONS.filter((s) => s.status === status).length,
+        }),
+      ),
+      paymentSuccessRate: [
+        {
+          label: "This month",
+          success: paidPayments.length,
+          failed: DEMO_PAYMENTS.length - paidPayments.length,
+        },
+      ],
       churnRate: [{ label: "Current", value: 0 }],
     },
     reminders: [],
@@ -379,7 +563,12 @@ async function fetchAllOrganizations(): Promise<BackendOrg[]> {
 // are read from the matching PlanFeatureKey row when present.
 // ============================================================================
 
-const PLAN_TIERS: ReadonlySet<string> = new Set(["starter", "professional", "enterprise", "custom"]);
+const PLAN_TIERS: ReadonlySet<string> = new Set([
+  "starter",
+  "professional",
+  "enterprise",
+  "custom",
+]);
 
 function planTier(planType: string): PlanTier {
   return (PLAN_TIERS.has(planType) ? planType : "custom") as PlanTier;
@@ -426,7 +615,10 @@ function toPlan(p: BackendPlan): Plan {
     includedLocations: featureLimit(p.features, "max_locations"),
     includedRouters: featureLimit(p.features, "max_routers"),
     includedGuests: featureLimit(p.features, "max_guests"),
-    storageLimitGb: (() => { const mb = featureLimit(p.features, "storage_quota_mb"); return mb === -1 ? -1 : Math.round(mb / 1024); })(),
+    storageLimitGb: (() => {
+      const mb = featureLimit(p.features, "storage_quota_mb");
+      return mb === -1 ? -1 : Math.round(mb / 1024);
+    })(),
     apiAccess: featureBool(p.features, "api_access"),
     whiteLabel: featureBool(p.features, "white_label"),
     pmsIntegration: featureBool(p.features, "pms_integration"),
@@ -497,11 +689,19 @@ function toSubscription(
     amount: plan ? n(plan.base_price) : 0,
     autoRenewal: s.auto_renew,
     paymentStatus:
-      status === "past_due" ? "failed" : status === "trial" ? "pending" : hasConfirmedPayment ? "paid" : "pending",
+      status === "past_due"
+        ? "failed"
+        : status === "trial"
+          ? "pending"
+          : hasConfirmedPayment
+            ? "paid"
+            : "pending",
     locations: plan ? featureLimit(plan.features, "max_locations") : 0,
     routers: plan ? featureLimit(plan.features, "max_routers") : 0,
     maxGuests: plan ? featureLimit(plan.features, "max_guests") : 0,
-    trialDays: s.trial_end ? Math.max(0, Math.round((new Date(s.trial_end).getTime() - Date.now()) / 86_400_000)) : undefined,
+    trialDays: s.trial_end
+      ? Math.max(0, Math.round((new Date(s.trial_end).getTime() - Date.now()) / 86_400_000))
+      : undefined,
     discount: coupon ? n(coupon.discount_value) : undefined,
     tax: undefined,
     notes: undefined,
@@ -522,7 +722,10 @@ async function fetchAllSubscriptions(
     }),
   );
   return settled
-    .filter((r): r is PromiseFulfilledResult<{ sub: BackendSubscription; org: BackendOrg }> => r.status === "fulfilled")
+    .filter(
+      (r): r is PromiseFulfilledResult<{ sub: BackendSubscription; org: BackendOrg }> =>
+        r.status === "fulfilled",
+    )
     .map((r) => r.value);
 }
 
@@ -632,7 +835,10 @@ function usageMetric(metrics: BackendUsageMetric[], key: string): number {
   return n(metrics.find((m) => m.metric_key === key)?.value);
 }
 
-function usageLimit(checks: BackendUsageLimitCheck[], key: string): { used: number; limit: number } {
+function usageLimit(
+  checks: BackendUsageLimitCheck[],
+  key: string,
+): { used: number; limit: number } {
   const row = checks.find((c) => c.metric_key === key);
   return { used: n(row?.current_value), limit: n(row?.limit_value) };
 }
@@ -689,20 +895,30 @@ interface BackendCustomerBillingDashboard {
   recent_payments: BackendPayment[];
 }
 
-async function fetchMyBillingDashboard(organizationId: string): Promise<BackendCustomerBillingDashboard> {
+async function fetchMyBillingDashboard(
+  organizationId: string,
+): Promise<BackendCustomerBillingDashboard> {
   const { data } = await api.get<BackendCustomerBillingDashboard>("/billing/dashboard/me", {
     headers: { "X-Organization-Id": organizationId },
   });
   return data;
 }
 
-function myUsage(checks: BackendUsageLimitCheck[]): { key: string; label: string; used: number; limit: number; unit?: string }[] {
+function myUsage(
+  checks: BackendUsageLimitCheck[],
+): { key: string; label: string; used: number; limit: number; unit?: string }[] {
   const storage = usageLimit(checks, "storage_usage_mb");
   return [
     { key: "locations", label: "Locations", ...usageLimit(checks, "locations") },
     { key: "routers", label: "Routers", ...usageLimit(checks, "routers") },
     { key: "guests", label: "Guests", ...usageLimit(checks, "guests") },
-    { key: "storage", label: "Storage", used: Math.round(storage.used / 1024), limit: Math.round(storage.limit / 1024), unit: "GB" },
+    {
+      key: "storage",
+      label: "Storage",
+      used: Math.round(storage.used / 1024),
+      limit: Math.round(storage.limit / 1024),
+      unit: "GB",
+    },
   ];
 }
 
@@ -767,15 +983,57 @@ async function fetchAllCoupons(): Promise<BackendCoupon[]> {
 // ============================================================================
 
 let gatewaysStore = [
-  { id: "stripe" as PaymentGateway, name: "Stripe", connected: true, lastTransactionAt: undefined as string | undefined, mode: "live" as const },
-  { id: "razorpay" as PaymentGateway, name: "Razorpay", connected: true, lastTransactionAt: undefined as string | undefined, mode: "live" as const },
-  { id: "paypal" as PaymentGateway, name: "PayPal", connected: false, lastTransactionAt: undefined as string | undefined, mode: "test" as const },
+  {
+    id: "stripe" as PaymentGateway,
+    name: "Stripe",
+    connected: true,
+    lastTransactionAt: undefined as string | undefined,
+    mode: "live" as const,
+  },
+  {
+    id: "razorpay" as PaymentGateway,
+    name: "Razorpay",
+    connected: true,
+    lastTransactionAt: undefined as string | undefined,
+    mode: "live" as const,
+  },
+  {
+    id: "paypal" as PaymentGateway,
+    name: "PayPal",
+    connected: false,
+    lastTransactionAt: undefined as string | undefined,
+    mode: "test" as const,
+  },
 ];
 
 let scheduledReports: ScheduledBillingReport[] = [
-  { id: "srp_1", name: "Weekly revenue digest", frequency: "weekly", recipients: ["finance@cloudguest.io"], format: "pdf", enabled: true, nextRunAt: new Date(Date.now() + 3 * 86_400_000).toISOString() },
-  { id: "srp_2", name: "Monthly MRR report", frequency: "monthly", recipients: ["cfo@cloudguest.io", "ops@cloudguest.io"], format: "excel", enabled: true, nextRunAt: new Date(Date.now() + 10 * 86_400_000).toISOString() },
-  { id: "srp_3", name: "Daily overdue payments", frequency: "daily", recipients: ["billing@cloudguest.io"], format: "csv", enabled: false, nextRunAt: new Date(Date.now() + 86_400_000).toISOString() },
+  {
+    id: "srp_1",
+    name: "Weekly revenue digest",
+    frequency: "weekly",
+    recipients: ["finance@cloudguest.io"],
+    format: "pdf",
+    enabled: true,
+    nextRunAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+  },
+  {
+    id: "srp_2",
+    name: "Monthly MRR report",
+    frequency: "monthly",
+    recipients: ["cfo@cloudguest.io", "ops@cloudguest.io"],
+    format: "excel",
+    enabled: true,
+    nextRunAt: new Date(Date.now() + 10 * 86_400_000).toISOString(),
+  },
+  {
+    id: "srp_3",
+    name: "Daily overdue payments",
+    frequency: "daily",
+    recipients: ["billing@cloudguest.io"],
+    format: "csv",
+    enabled: false,
+    nextRunAt: new Date(Date.now() + 86_400_000).toISOString(),
+  },
 ];
 
 async function fetchDashboard(): Promise<BackendSuperAdminDashboard> {
@@ -798,7 +1056,10 @@ async function findSubscriptionContext(
     }),
   );
   return settled
-    .filter((r): r is PromiseFulfilledResult<{ org: BackendOrg; sub: BackendSubscription }> => r.status === "fulfilled")
+    .filter(
+      (r): r is PromiseFulfilledResult<{ org: BackendOrg; sub: BackendSubscription }> =>
+        r.status === "fulfilled",
+    )
     .map((r) => r.value)
     .find((r) => r.sub.id === subscriptionId);
 }
@@ -826,7 +1087,9 @@ export const billingService = {
     // "paid" default.
     const orgsWithConfirmedPayment = new Set<string>([
       ...payments.filter((p) => p.status === "paid").map((p) => p.organizationId),
-      ...invoices.filter((i) => i.status === "paid" && i.organizationId).map((i) => i.organizationId!),
+      ...invoices
+        .filter((i) => i.status === "paid" && i.organizationId)
+        .map((i) => i.organizationId!),
     ]);
     const subscriptions = subRecords.map(({ sub, org }) =>
       toSubscription(
@@ -851,17 +1114,19 @@ export const billingService = {
     const mrr = Math.round(n(dashboard.revenue.mrr));
     const arpo = active.length ? Math.round(mrr / active.length) : 0;
 
-    const reminders: BillingSnapshot["reminders"] = dashboard.failed_payments.items.map((row, i) => {
-      const org = orgs.find((o) => o.id === row.payment.organization_id);
-      return {
-        id: `fp_${row.payment.id ?? i}`,
-        type: "payment_failed",
-        title: row.payment.failure_reason ?? "Payment retry required",
-        organizationName: org?.name ?? "Unknown organization",
-        dueAt: row.payment.updated_at,
-        severity: "critical",
-      };
-    });
+    const reminders: BillingSnapshot["reminders"] = dashboard.failed_payments.items.map(
+      (row, i) => {
+        const org = orgs.find((o) => o.id === row.payment.organization_id);
+        return {
+          id: `fp_${row.payment.id ?? i}`,
+          type: "payment_failed",
+          title: row.payment.failure_reason ?? "Payment retry required",
+          organizationName: org?.name ?? "Unknown organization",
+          dueAt: row.payment.updated_at,
+          severity: "critical",
+        };
+      },
+    );
     dashboard.customers.items
       .filter((c) => c.outstanding_invoice_count > 0)
       .slice(0, 10)
@@ -886,7 +1151,10 @@ export const billingService = {
         reminders.push({
           id: `exp_${s.id}`,
           type: "expiry",
-          title: daysLeft <= 0 ? `${s.planName} plan expired` : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          title:
+            daysLeft <= 0
+              ? `${s.planName} plan expired`
+              : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
           organizationName: s.organizationName,
           dueAt: s.expiryDate,
           severity: daysLeft <= 3 ? "critical" : "warning",
@@ -934,19 +1202,29 @@ export const billingService = {
           const growth = prev ? Math.round(((n(pt.net_amount) - prev) / prev) * 1000) / 10 : 0;
           return { label: pt.month, revenue: Math.round(n(pt.net_amount)), growth };
         }),
-        planDistribution: (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map((tier) => ({
-          tier,
-          count: planTierCounts[tier] ?? 0,
-          revenue: Math.round(planTierRevenue[tier] ?? 0),
-        })),
-        subscriptionDistribution: Object.entries(dashboard.subscriptions.counts_by_status).map(([status, count]) => ({
-          status: SUBSCRIPTION_STATUS_MAP[status] ?? "active",
-          count,
-        })),
+        planDistribution: (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map(
+          (tier) => ({
+            tier,
+            count: planTierCounts[tier] ?? 0,
+            revenue: Math.round(planTierRevenue[tier] ?? 0),
+          }),
+        ),
+        subscriptionDistribution: Object.entries(dashboard.subscriptions.counts_by_status).map(
+          ([status, count]) => ({
+            status: SUBSCRIPTION_STATUS_MAP[status] ?? "active",
+            count,
+          }),
+        ),
         paymentSuccessRate: [],
-        churnRate: dashboard.subscriptions.churn.churn_rate === null
-          ? []
-          : [{ label: "Current", value: Math.round(dashboard.subscriptions.churn.churn_rate * 1000) / 10 }],
+        churnRate:
+          dashboard.subscriptions.churn.churn_rate === null
+            ? []
+            : [
+                {
+                  label: "Current",
+                  value: Math.round(dashboard.subscriptions.churn.churn_rate * 1000) / 10,
+                },
+              ],
       },
       reminders,
       plans,
@@ -979,7 +1257,9 @@ export const billingService = {
     if (isDemo()) {
       const org = DEMO_BILLING_ORGS.find((o) => o.id === input.organizationId);
       const plan = DEMO_PLANS.find((p) => p.id === input.planId);
-      const coupon = input.couponCode ? DEMO_COUPONS.find((c) => c.code === input.couponCode) : undefined;
+      const coupon = input.couponCode
+        ? DEMO_COUPONS.find((c) => c.code === input.couponCode)
+        : undefined;
       const now = new Date().toISOString();
       const created: Subscription = {
         id: `sub-demo-${Date.now()}`,
@@ -1026,7 +1306,12 @@ export const billingService = {
       },
       { headers: { "X-Organization-Id": input.organizationId } },
     );
-    return toSubscription(data, org ?? { id: input.organizationId, name: "New organization" }, plan, coupon);
+    return toSubscription(
+      data,
+      org ?? { id: input.organizationId, name: "New organization" },
+      plan,
+      coupon,
+    );
   },
 
   async cancelSubscription(id: string) {
@@ -1044,7 +1329,9 @@ export const billingService = {
     const ctx = await findSubscriptionContext(id);
     if (!ctx) return false;
     const backendPlans = await fetchAllPlans();
-    const active = backendPlans.filter((p) => p.is_active).sort((a, b) => n(a.base_price) - n(b.base_price));
+    const active = backendPlans
+      .filter((p) => p.is_active)
+      .sort((a, b) => n(a.base_price) - n(b.base_price));
     const idx = active.findIndex((p) => p.id === ctx.sub.plan_id);
     const next = active[Math.min(idx + 1, active.length - 1)];
     if (!next) return false;
@@ -1071,7 +1358,9 @@ export const billingService = {
     const ctx = await findSubscriptionContext(id);
     if (!ctx) return false;
     const backendPlans = await fetchAllPlans();
-    const active = backendPlans.filter((p) => p.is_active).sort((a, b) => n(a.base_price) - n(b.base_price));
+    const active = backendPlans
+      .filter((p) => p.is_active)
+      .sort((a, b) => n(a.base_price) - n(b.base_price));
     const idx = active.findIndex((p) => p.id === ctx.sub.plan_id);
     const prev = active[Math.max(idx - 1, 0)];
     if (!prev) return false;
@@ -1096,10 +1385,27 @@ export const billingService = {
       return created;
     }
     const features = [
-      { feature_key: "max_locations", feature_type: "limit", limit_value: toBackendLimit(input.includedLocations) },
-      { feature_key: "max_routers", feature_type: "limit", limit_value: toBackendLimit(input.includedRouters) },
-      { feature_key: "max_guests", feature_type: "limit", limit_value: toBackendLimit(input.includedGuests) },
-      { feature_key: "storage_quota_mb", feature_type: "limit", limit_value: toBackendLimit(input.storageLimitGb) === null ? null : input.storageLimitGb * 1024 },
+      {
+        feature_key: "max_locations",
+        feature_type: "limit",
+        limit_value: toBackendLimit(input.includedLocations),
+      },
+      {
+        feature_key: "max_routers",
+        feature_type: "limit",
+        limit_value: toBackendLimit(input.includedRouters),
+      },
+      {
+        feature_key: "max_guests",
+        feature_type: "limit",
+        limit_value: toBackendLimit(input.includedGuests),
+      },
+      {
+        feature_key: "storage_quota_mb",
+        feature_type: "limit",
+        limit_value:
+          toBackendLimit(input.storageLimitGb) === null ? null : input.storageLimitGb * 1024,
+      },
       { feature_key: "api_access", feature_type: "boolean", is_enabled: input.apiAccess },
       { feature_key: "white_label", feature_type: "boolean", is_enabled: input.whiteLabel },
       { feature_key: "pms_integration", feature_type: "boolean", is_enabled: input.pmsIntegration },
@@ -1214,11 +1520,20 @@ export const billingService = {
       }),
     );
     const found = settled
-      .filter((r): r is PromiseFulfilledResult<{ org: BackendOrg; payment: BackendPayment | undefined }> => r.status === "fulfilled")
+      .filter(
+        (
+          r,
+        ): r is PromiseFulfilledResult<{ org: BackendOrg; payment: BackendPayment | undefined }> =>
+          r.status === "fulfilled",
+      )
       .map((r) => r.value)
       .find((r) => r.payment);
     if (!found) return false;
-    await api.post(`/payments/${id}/refund`, {}, { headers: { "X-Organization-Id": found.org.id } });
+    await api.post(
+      `/payments/${id}/refund`,
+      {},
+      { headers: { "X-Organization-Id": found.org.id } },
+    );
     return true;
   },
 
@@ -1233,7 +1548,10 @@ export const billingService = {
     const rep: ScheduledBillingReport = {
       ...input,
       id: `srp_${Date.now()}`,
-      nextRunAt: new Date(Date.now() + (input.frequency === "daily" ? 1 : input.frequency === "weekly" ? 7 : 30) * 86_400_000).toISOString(),
+      nextRunAt: new Date(
+        Date.now() +
+          (input.frequency === "daily" ? 1 : input.frequency === "weekly" ? 7 : 30) * 86_400_000,
+      ).toISOString(),
     };
     scheduledReports = [rep, ...scheduledReports];
     return rep;
@@ -1256,18 +1574,29 @@ export const billingService = {
     // the "Revenue report" card downloads a real, backend-rendered file.
     // export_format's values (pdf/excel/csv) match ExportFormat 1:1.
     if (type === "revenue") {
-      const response = await api.post("/reports", { report_type: "revenue", export_format: format }, { responseType: "blob" });
+      const response = await api.post(
+        "/reports",
+        { report_type: "revenue", export_format: format },
+        { responseType: "blob" },
+      );
       const blob = response.data as Blob;
       const url = URL.createObjectURL(blob);
-      const disposition = String((response.headers as Record<string, string>)?.["content-disposition"] ?? "");
-      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? `revenue-report-${Date.now()}.${format === "excel" ? "xlsx" : format}`;
+      const disposition = String(
+        (response.headers as Record<string, string>)?.["content-disposition"] ?? "",
+      );
+      const fileName =
+        disposition.match(/filename="?([^"]+)"?/)?.[1] ??
+        `revenue-report-${Date.now()}.${format === "excel" ? "xlsx" : format}`;
       return { url, fileName, size: `${Math.max(1, Math.round(blob.size / 1024))} KB` };
     }
     // The other 8 report-center cards have no matching real, callable
     // report for this platform-wide page (see the module comment above)
     // -- kept mocked.
     await delay(600);
-    return { fileName: `${type}-report-${Date.now()}.${format}`, size: `${Math.round(200 + Math.random() * 1800)} KB` };
+    return {
+      fileName: `${type}-report-${Date.now()}.${format}`,
+      size: `${Math.round(200 + Math.random() * 1800)} KB`,
+    };
   },
 
   // GET /invoices/{id}/download returns the file directly (no shareable
@@ -1323,7 +1652,10 @@ export const billingService = {
    * given (description/quantity/unit price each) -- a one-off charge or
    * custom quote, not tied to any subscription. Same real GST computation
    * and email-send outcome shape as the subscription-based call. */
-  async createManualInvoice(organizationId: string, lineItems: { description: string; quantity: number; unitPrice: number }[]) {
+  async createManualInvoice(
+    organizationId: string,
+    lineItems: { description: string; quantity: number; unitPrice: number }[],
+  ) {
     const { data } = await api.post<{
       invoice: { invoice_number: string; total_amount: string; currency: string };
       email_sent: boolean;
@@ -1331,7 +1663,13 @@ export const billingService = {
       email_error: string | null;
     }>(
       "/invoices/manual",
-      { line_items: lineItems.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: i.unitPrice })) },
+      {
+        line_items: lineItems.map((i) => ({
+          description: i.description,
+          quantity: i.quantity,
+          unit_price: i.unitPrice,
+        })),
+      },
       { headers: { "X-Organization-Id": organizationId } },
     );
     return {
@@ -1362,7 +1700,9 @@ export const billingService = {
     return data.items.map(toTaxRate);
   },
 
-  async saveTaxRate(input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<TaxRate> {
+  async saveTaxRate(
+    input: Omit<TaxRate, "id" | "createdAt" | "updatedAt"> & { id?: string },
+  ): Promise<TaxRate> {
     if (input.id) {
       const { data } = await api.put<BackendTaxRate>(`/billing/tax-rates/${input.id}`, {
         name: input.name,
@@ -1385,7 +1725,10 @@ export const billingService = {
 
   // Real, org-scoped GET /billing/dashboard/me -- see the module comment
   // above this section for why this is a separate call from getSnapshot().
-  async getMyBillingDashboard(organizationId: string, organizationName: string): Promise<MyBillingSummary> {
+  async getMyBillingDashboard(
+    organizationId: string,
+    organizationName: string,
+  ): Promise<MyBillingSummary> {
     const data = await fetchMyBillingDashboard(organizationId);
     const org: BackendOrg = { id: organizationId, name: organizationName };
     return {

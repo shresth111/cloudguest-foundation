@@ -195,6 +195,19 @@ export interface PlatformSettings {
 }
 
 export type SettingsSectionId =
-  | "general" | "branding" | "authentication" | "security" | "notifications"
-  | "email" | "sms" | "storage" | "integrations" | "payment" | "api"
-  | "system" | "backup" | "feature_flags" | "license" | "about";
+  | "general"
+  | "branding"
+  | "authentication"
+  | "security"
+  | "notifications"
+  | "email"
+  | "sms"
+  | "storage"
+  | "integrations"
+  | "payment"
+  | "api"
+  | "system"
+  | "backup"
+  | "feature_flags"
+  | "license"
+  | "about";

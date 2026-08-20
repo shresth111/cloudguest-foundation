@@ -9,7 +9,12 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "test:a11y": "node scripts/check-a11y-invariants.mjs",
+    "test:fw-order": "node scripts/test-fw-rule-order.mjs",
+    "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
+    "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
+    "format": "prettier --write .",
+    "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -74,7 +79,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "^2.7.6",
+    "@lovable.dev/vite-tanstack-config": "2.13.1",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

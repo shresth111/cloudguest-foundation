@@ -10,10 +10,7 @@ import {
   RouterHealthChart,
   SubscriptionStatusChart,
 } from "./DashboardCharts";
-import {
-  RecentAuditWidget,
-  RecentLocationsWidget,
-} from "./DashboardWidgets";
+import { RecentAuditWidget, RecentLocationsWidget } from "./DashboardWidgets";
 import type { DashboardWidget, WidgetKind, WidgetSize } from "@/types/dashboard-layout";
 import { useAuth } from "@/context/AuthContext";
 import { primaryRoleLabel } from "@/lib/roles";

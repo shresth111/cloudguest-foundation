@@ -46,7 +46,12 @@ function toRun(r: BackendDiagnosticRun): DiagnosticRun {
 // Router.organization_id) -- optional only so a caller that genuinely
 // holds a GLOBAL role (and has no org context to give) still works.
 export const networkDiagnosticsService = {
-  async ping(routerId: string, target: string, organizationId?: string, count = 4): Promise<DiagnosticRun> {
+  async ping(
+    routerId: string,
+    target: string,
+    organizationId?: string,
+    count = 4,
+  ): Promise<DiagnosticRun> {
     const { data } = await api.post<BackendDiagnosticRun>(
       `/network-diagnostics/routers/${routerId}/ping`,
       { target, count },
@@ -55,7 +60,11 @@ export const networkDiagnosticsService = {
     return toRun(data);
   },
 
-  async traceroute(routerId: string, target: string, organizationId?: string): Promise<DiagnosticRun> {
+  async traceroute(
+    routerId: string,
+    target: string,
+    organizationId?: string,
+  ): Promise<DiagnosticRun> {
     const { data } = await api.post<BackendDiagnosticRun>(
       `/network-diagnostics/routers/${routerId}/traceroute`,
       { target },
@@ -64,14 +73,16 @@ export const networkDiagnosticsService = {
     return toRun(data);
   },
 
-  async listRuns(routerId: string, organizationId?: string, page = 1, pageSize = 20): Promise<DiagnosticRunListResult> {
-    const { data } = await api.get<BackendDiagnosticRunListResponse>(
-      "/network-diagnostics/runs",
-      {
-        params: { router_id: routerId, page, page_size: pageSize },
-        headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
-      },
-    );
+  async listRuns(
+    routerId: string,
+    organizationId?: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<DiagnosticRunListResult> {
+    const { data } = await api.get<BackendDiagnosticRunListResponse>("/network-diagnostics/runs", {
+      params: { router_id: routerId, page, page_size: pageSize },
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
     return { rows: data.items.map(toRun), total: data.total_items };
   },
 };

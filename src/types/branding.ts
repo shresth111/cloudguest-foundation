@@ -1,7 +1,15 @@
 export type BrandStatus = "draft" | "published" | "archived";
 export type DomainStatus = "pending" | "verifying" | "active" | "failed";
 export type Language = "en" | "hi" | "ar" | "fr" | "es";
-export type TemplateCategory = "hotel" | "cafe" | "restaurant" | "hospital" | "university" | "corporate" | "airport" | "retail";
+export type TemplateCategory =
+  | "hotel"
+  | "cafe"
+  | "restaurant"
+  | "hospital"
+  | "university"
+  | "corporate"
+  | "airport"
+  | "retail";
 
 export interface BrandColors {
   primary: string;

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  Download, RefreshCw, RotateCcw, Save, Send, ServerCog, Upload,
-} from "lucide-react";
+import { Download, RefreshCw, RotateCcw, Save, Send, ServerCog, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { settingsService } from "@/services/settings.service";
@@ -46,7 +48,9 @@ export function SettingsQuickActions() {
   const testAll = async () => {
     const r = await settingsService.testAllConnections();
     inv();
-    const failed = Object.entries(r).filter(([, v]) => !v).map(([k]) => k);
+    const failed = Object.entries(r)
+      .filter(([, v]) => !v)
+      .map(([k]) => k);
     if (failed.length) toast.error(`Failed: ${failed.join(", ")}`);
     else toast.success("All connections healthy");
   };
@@ -64,22 +68,37 @@ export function SettingsQuickActions() {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={testAll}><Send className="mr-2 h-4 w-4" /> Test connections</Button>
-        <Button size="sm" variant="outline" onClick={() => toast.success("All open sections saved")}>
+        <Button size="sm" variant="outline" onClick={testAll}>
+          <Send className="mr-2 h-4 w-4" /> Test connections
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => toast.success("All open sections saved")}
+        >
           <Save className="mr-2 h-4 w-4" /> Save all
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline"><ServerCog className="mr-2 h-4 w-4" /> More</Button>
+            <Button size="sm" variant="outline">
+              <ServerCog className="mr-2 h-4 w-4" /> More
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={exportCfg}><Download className="mr-2 h-4 w-4" /> Export configuration</DropdownMenuItem>
-            <DropdownMenuItem onClick={importCfg}><Upload className="mr-2 h-4 w-4" /> Import configuration</DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCfg}>
+              <Download className="mr-2 h-4 w-4" /> Export configuration
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={importCfg}>
+              <Upload className="mr-2 h-4 w-4" /> Import configuration
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setRestartOpen(true)}>
               <RefreshCw className="mr-2 h-4 w-4" /> Restart services
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setResetOpen(true)} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={() => setResetOpen(true)}
+              className="text-destructive focus:text-destructive"
+            >
               <RotateCcw className="mr-2 h-4 w-4" /> Reset to defaults
             </DropdownMenuItem>
           </DropdownMenuContent>

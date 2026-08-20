@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, ArrowRightLeft, ShieldCheck, ShieldOff, Share2 } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Trash2,
+  Pencil,
+  ArrowRightLeft,
+  ShieldCheck,
+  ShieldOff,
+  Share2,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -118,10 +127,10 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
       routerId: routerFilter === "all" ? undefined : routerFilter,
       organizationId: locationId ? scopedOrgId : undefined,
     },
-    { enabled: locationId ? (demoFlag || !!scopedOrgId) : true },
+    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
   );
   const { data: kpis } = usePortForwardingKpis(locationId ? scopedOrgId : undefined, {
-    enabled: locationId ? (demoFlag || !!scopedOrgId) : true,
+    enabled: locationId ? demoFlag || !!scopedOrgId : true,
   });
   const del = useDeletePortForwardingRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -158,9 +167,13 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
     );
   });
 
-  const rows = locationId ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filteredRows;
-  const total = locationId ? filteredRows.length : data?.total ?? 0;
-  const totalPages = locationId ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE)) : data?.totalPages ?? 1;
+  const rows = locationId
+    ? filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : filteredRows;
+  const total = locationId ? filteredRows.length : (data?.total ?? 0);
+  const totalPages = locationId
+    ? Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+    : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
   // The dedicated KPI endpoint isn't location-scoped (same backend gap as
@@ -168,9 +181,9 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
   // from the already-narrowed filteredRows instead of the org-wide kpis
   // query -- same tradeoff DhcpManagement makes.
   const scopedEnabled = filteredRows.filter((r) => r.isEnabled).length;
-  const statTotal = locationId ? total : kpis?.total ?? 0;
-  const statEnabled = locationId ? scopedEnabled : kpis?.enabled ?? 0;
-  const statDisabled = locationId ? total - scopedEnabled : kpis?.disabled ?? 0;
+  const statTotal = locationId ? total : (kpis?.total ?? 0);
+  const statEnabled = locationId ? scopedEnabled : (kpis?.enabled ?? 0);
+  const statDisabled = locationId ? total - scopedEnabled : (kpis?.disabled ?? 0);
 
   return (
     <div className="space-y-6">
@@ -242,14 +255,20 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No port forwarding rules match your filters.
                   </TableCell>
                 </TableRow>
@@ -260,12 +279,16 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
                     <div className="min-w-0">
                       <div className="truncate font-medium">{r.name}</div>
                       {r.description && (
-                        <div className="truncate text-xs text-muted-foreground">{r.description}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {r.description}
+                        </div>
                       )}
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">{routerName(r.routerId)}</TableCell>
-                  <TableCell className="text-xs uppercase text-muted-foreground">{r.protocol}</TableCell>
+                  <TableCell className="text-xs uppercase text-muted-foreground">
+                    {r.protocol}
+                  </TableCell>
                   <TableCell className="font-mono text-xs">
                     {r.destinationAddress ?? "any"}:{r.destinationPort}
                   </TableCell>
@@ -297,10 +320,20 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
                 Page {page} of {totalPages} · {total} rules
               </span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={!hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasPrevious}
+                  onClick={() => setPage((p) => p - 1)}
+                >
                   Previous
                 </Button>
-                <Button size="sm" variant="outline" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
                   Next
                 </Button>
               </div>
@@ -477,7 +510,9 @@ function RuleDialog({
               )}
             />
             {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.routerId.message}</p>
+              <p className="text-[11px] text-destructive">
+                {form.formState.errors.routerId.message}
+              </p>
             )}
           </div>
           <div className="sm:col-span-2 space-y-1.5">
@@ -552,7 +587,9 @@ function RuleDialog({
             <Controller
               control={form.control}
               name="isEnabled"
-              render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
           <DialogFooter className="sm:col-span-2">

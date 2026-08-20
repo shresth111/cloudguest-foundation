@@ -20,7 +20,14 @@ export function AirtelIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset="100%" stopColor="#C4121A" />
         </linearGradient>
       </defs>
-      <circle cx="12" cy="12" r="11.25" fill={`url(#${id})`} stroke="rgba(255,255,255,0.35)" strokeWidth="0.75" />
+      <circle
+        cx="12"
+        cy="12"
+        r="11.25"
+        fill={`url(#${id})`}
+        stroke="rgba(255,255,255,0.35)"
+        strokeWidth="0.75"
+      />
       <text
         x="12"
         y="12"

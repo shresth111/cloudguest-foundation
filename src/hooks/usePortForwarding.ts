@@ -11,7 +11,10 @@ export const portForwardingKeys = {
   kpis: (organizationId?: string) => ["port-forwarding", "kpis", organizationId] as const,
 };
 
-export const usePortForwardingRules = (q: PortForwardingListQuery, options?: { enabled?: boolean }) =>
+export const usePortForwardingRules = (
+  q: PortForwardingListQuery,
+  options?: { enabled?: boolean },
+) =>
   useQuery({
     queryKey: portForwardingKeys.list(q),
     queryFn: () => portForwardingService.list(q),

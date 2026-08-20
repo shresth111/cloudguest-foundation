@@ -4,11 +4,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAnalyticsSettings, useUpdateAnalyticsSettings } from "@/hooks/useAnalytics";
 import type { AnalyticsSettings, DateRangePreset } from "@/types/analytics";
 
-const TIMEZONES = ["UTC", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Dubai", "Asia/Singapore", "Australia/Sydney"];
+const TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "Europe/London",
+  "Europe/Berlin",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Australia/Sydney",
+];
 
 export function AnalyticsSettingsPanel() {
   const { data, isLoading } = useAnalyticsSettings();
@@ -28,19 +42,30 @@ export function AnalyticsSettingsPanel() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold">Analytics settings</CardTitle>
-        <p className="text-xs text-muted-foreground">Configure defaults for the analytics workspace.</p>
+        <p className="text-xs text-muted-foreground">
+          Configure defaults for the analytics workspace.
+        </p>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Default dashboard</Label>
-              <Select value={data.defaultDashboard} onValueChange={(v) => set("defaultDashboard", v as AnalyticsSettings["defaultDashboard"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={data.defaultDashboard}
+                onValueChange={(v) =>
+                  set("defaultDashboard", v as AnalyticsSettings["defaultDashboard"])
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="overview">Overview</SelectItem>
                   <SelectItem value="guests">Guests</SelectItem>
@@ -51,8 +76,13 @@ export function AnalyticsSettingsPanel() {
             </div>
             <div className="space-y-1.5">
               <Label>Default date range</Label>
-              <Select value={data.defaultDateRange} onValueChange={(v) => set("defaultDateRange", v as DateRangePreset)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={data.defaultDateRange}
+                onValueChange={(v) => set("defaultDateRange", v as DateRangePreset)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="today">Today</SelectItem>
                   <SelectItem value="yesterday">Yesterday</SelectItem>
@@ -66,8 +96,13 @@ export function AnalyticsSettingsPanel() {
             </div>
             <div className="space-y-1.5">
               <Label>Auto refresh</Label>
-              <Select value={String(data.autoRefreshSec)} onValueChange={(v) => set("autoRefreshSec", Number(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={String(data.autoRefreshSec)}
+                onValueChange={(v) => set("autoRefreshSec", Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="0">Off</SelectItem>
                   <SelectItem value="30">Every 30s</SelectItem>
@@ -80,16 +115,27 @@ export function AnalyticsSettingsPanel() {
             <div className="space-y-1.5">
               <Label>Report timezone</Label>
               <Select value={data.timezone} onValueChange={(v) => set("timezone", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {TIMEZONES.map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
+                  {TIMEZONES.map((tz) => (
+                    <SelectItem key={tz} value={tz}>
+                      {tz}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Chart style</Label>
-              <Select value={data.chartStyle} onValueChange={(v) => set("chartStyle", v as AnalyticsSettings["chartStyle"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={data.chartStyle}
+                onValueChange={(v) => set("chartStyle", v as AnalyticsSettings["chartStyle"])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="smooth">Smooth curves</SelectItem>
                   <SelectItem value="linear">Linear lines</SelectItem>
@@ -98,7 +144,11 @@ export function AnalyticsSettingsPanel() {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button variant="outline" disabled={update.isPending} onClick={() => set("defaultDateRange", data.defaultDateRange)}>
+              <Button
+                variant="outline"
+                disabled={update.isPending}
+                onClick={() => set("defaultDateRange", data.defaultDateRange)}
+              >
                 {update.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save preferences
               </Button>

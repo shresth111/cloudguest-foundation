@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { DateRangeFilter } from "./DateRangeFilter";
 import { useGenerateReport } from "@/hooks/useAnalytics";
@@ -42,7 +48,17 @@ const METRICS = [
 ] as const;
 
 const schema = z.object({
-  reportType: z.enum(["guest", "router", "network", "organization", "location", "revenue", "audit", "billing", "monitoring"]),
+  reportType: z.enum([
+    "guest",
+    "router",
+    "network",
+    "organization",
+    "location",
+    "revenue",
+    "audit",
+    "billing",
+    "monitoring",
+  ]),
   organizationId: z.string().min(1),
   locationId: z.string().min(1),
   routerId: z.string().min(1),
@@ -77,7 +93,11 @@ export function CustomReportBuilder() {
 
   async function onExport(v: FormValues) {
     try {
-      const res = await generate.mutateAsync({ type: v.reportType as ReportType, format: v.format as ReportFormat, range });
+      const res = await generate.mutateAsync({
+        type: v.reportType as ReportType,
+        format: v.format as ReportFormat,
+        range,
+      });
       // See ReportCenter.tsx's identical check: analyticsService
       // .generateReport() returns this sentinel (never throws) for report
       // types the backend Report Engine doesn't compose (audit/billing/
@@ -99,18 +119,39 @@ export function CustomReportBuilder() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">Custom report builder</CardTitle>
-          <p className="text-xs text-muted-foreground">Compose a report by scope, metrics and format.</p>
+          <p className="text-xs text-muted-foreground">
+            Compose a report by scope, metrics and format.
+          </p>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={form.handleSubmit(onExport)}>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Report type</Label>
-                <Select value={values.reportType} onValueChange={(v) => form.setValue("reportType", v as FormValues["reportType"])}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={values.reportType}
+                  onValueChange={(v) => form.setValue("reportType", v as FormValues["reportType"])}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {(["guest", "router", "network", "organization", "location", "revenue", "audit", "billing", "monitoring"] as const).map((t) => (
-                      <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                    {(
+                      [
+                        "guest",
+                        "router",
+                        "network",
+                        "organization",
+                        "location",
+                        "revenue",
+                        "audit",
+                        "billing",
+                        "monitoring",
+                      ] as const
+                    ).map((t) => (
+                      <SelectItem key={t} value={t} className="capitalize">
+                        {t}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -121,29 +162,64 @@ export function CustomReportBuilder() {
               </div>
               <div className="space-y-1.5">
                 <Label>Organization</Label>
-                <Select value={values.organizationId} onValueChange={(v) => form.setValue("organizationId", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{ORGS.map((o) => <SelectItem key={o} value={o}>{o === "all" ? "All organizations" : o}</SelectItem>)}</SelectContent>
+                <Select
+                  value={values.organizationId}
+                  onValueChange={(v) => form.setValue("organizationId", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORGS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o === "all" ? "All organizations" : o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Location</Label>
-                <Select value={values.locationId} onValueChange={(v) => form.setValue("locationId", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{LOCS.map((o) => <SelectItem key={o} value={o}>{o === "all" ? "All locations" : o}</SelectItem>)}</SelectContent>
+                <Select
+                  value={values.locationId}
+                  onValueChange={(v) => form.setValue("locationId", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOCS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o === "all" ? "All locations" : o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Router</Label>
                 <Select value={values.routerId} onValueChange={(v) => form.setValue("routerId", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{ROUTERS.map((o) => <SelectItem key={o} value={o}>{o === "all" ? "All routers" : o}</SelectItem>)}</SelectContent>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROUTERS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o === "all" ? "All routers" : o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Format</Label>
-                <Select value={values.format} onValueChange={(v) => form.setValue("format", v as ReportFormat)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={values.format}
+                  onValueChange={(v) => form.setValue("format", v as ReportFormat)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pdf">PDF</SelectItem>
                     <SelectItem value="excel">Excel</SelectItem>
@@ -159,12 +235,16 @@ export function CustomReportBuilder() {
                 {METRICS.map((m) => {
                   const checked = values.metrics.includes(m);
                   return (
-                    <label key={m} className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm">
+                    <label
+                      key={m}
+                      className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+                    >
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(v) => {
                           const set = new Set(values.metrics);
-                          if (v) set.add(m); else set.delete(m);
+                          if (v) set.add(m);
+                          else set.delete(m);
                           form.setValue("metrics", Array.from(set), { shouldValidate: true });
                         }}
                       />
@@ -183,7 +263,11 @@ export function CustomReportBuilder() {
                 <Eye className="mr-2 h-4 w-4" /> Preview
               </Button>
               <Button type="submit" disabled={generate.isPending}>
-                {generate.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                {generate.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 Export
               </Button>
             </div>
@@ -199,24 +283,46 @@ export function CustomReportBuilder() {
         <CardContent>
           {!preview ? (
             <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              Configure the report and click <span className="font-medium text-foreground">Preview</span> to see the summary here.
+              Configure the report and click{" "}
+              <span className="font-medium text-foreground">Preview</span> to see the summary here.
             </div>
           ) : (
             <div className="space-y-3 text-sm">
-              <SummaryRow label="Type" value={<Badge variant="secondary" className="capitalize">{preview.reportType}</Badge>} />
+              <SummaryRow
+                label="Type"
+                value={
+                  <Badge variant="secondary" className="capitalize">
+                    {preview.reportType}
+                  </Badge>
+                }
+              />
               <SummaryRow label="Date range" value={range.replace("_", " ")} />
-              <SummaryRow label="Organization" value={preview.organizationId === "all" ? "All" : preview.organizationId} />
-              <SummaryRow label="Location" value={preview.locationId === "all" ? "All" : preview.locationId} />
-              <SummaryRow label="Router" value={preview.routerId === "all" ? "All" : preview.routerId} />
+              <SummaryRow
+                label="Organization"
+                value={preview.organizationId === "all" ? "All" : preview.organizationId}
+              />
+              <SummaryRow
+                label="Location"
+                value={preview.locationId === "all" ? "All" : preview.locationId}
+              />
+              <SummaryRow
+                label="Router"
+                value={preview.routerId === "all" ? "All" : preview.routerId}
+              />
               <SummaryRow label="Format" value={preview.format.toUpperCase()} />
               <div>
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Metrics</div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {preview.metrics.map((m) => <Badge key={m} variant="outline">{m}</Badge>)}
+                  {preview.metrics.map((m) => (
+                    <Badge key={m} variant="outline">
+                      {m}
+                    </Badge>
+                  ))}
                 </div>
               </div>
               <div className="mt-4 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-                Preview generated from mock data. Export produces a downloadable {preview.format.toUpperCase()} file.
+                Preview generated from mock data. Export produces a downloadable{" "}
+                {preview.format.toUpperCase()} file.
               </div>
             </div>
           )}

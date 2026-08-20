@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertCircle,
@@ -36,7 +37,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { routerWizardSchema, type RouterWizardValues } from "@/lib/router-schemas";
@@ -71,7 +78,15 @@ interface Props {
 }
 
 const DEFAULTS: RouterWizardValues = {
-  basic: { name: "", locationId: "", model: "", serialNumber: "", macAddress: "", managementIpAddress: "", publicIpAddress: "" },
+  basic: {
+    name: "",
+    locationId: "",
+    model: "",
+    serialNumber: "",
+    macAddress: "",
+    managementIpAddress: "",
+    publicIpAddress: "",
+  },
   credentials: { apiUsername: "", apiSecret: "" },
   services: {
     freeradius: true,
@@ -181,7 +196,12 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                         {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
                       </div>
                       <div>
-                        <div className={cn("text-sm font-medium", !active && !done && "text-muted-foreground")}>
+                        <div
+                          className={cn(
+                            "text-sm font-medium",
+                            !active && !done && "text-muted-foreground",
+                          )}
+                        >
                           {s.title}
                         </div>
                         <div className="text-xs text-muted-foreground">{s.description}</div>
@@ -198,8 +218,18 @@ export function RouterWizard({ open, onOpenChange }: Props) {
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 {step === 0 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="basic.name" label="Router name" placeholder="Lobby Router" form={form} />
-                    <SelectFieldOpts name="basic.locationId" label="Location" options={locations} form={form} />
+                    <TextField
+                      name="basic.name"
+                      label="Router name"
+                      placeholder="Lobby Router"
+                      form={form}
+                    />
+                    <SelectFieldOpts
+                      name="basic.locationId"
+                      label="Location"
+                      options={locations}
+                      form={form}
+                    />
                     <FormField
                       control={form.control}
                       name="basic.model"
@@ -217,18 +247,48 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                         </FormItem>
                       )}
                     />
-                    <TextField name="basic.serialNumber" label="Serial number" placeholder="SN01234567" form={form} />
-                    <TextField name="basic.macAddress" label="MAC address" placeholder="AA:BB:CC:DD:EE:01" form={form} />
-                    <TextField name="basic.managementIpAddress" label="Management IP (optional)" placeholder="192.168.88.1" form={form} />
-                    <TextField name="basic.publicIpAddress" label="Public IP (optional)" placeholder="203.0.113.10" form={form} />
+                    <TextField
+                      name="basic.serialNumber"
+                      label="Serial number"
+                      placeholder="SN01234567"
+                      form={form}
+                    />
+                    <TextField
+                      name="basic.macAddress"
+                      label="MAC address"
+                      placeholder="AA:BB:CC:DD:EE:01"
+                      form={form}
+                    />
+                    <TextField
+                      name="basic.managementIpAddress"
+                      label="Management IP (optional)"
+                      placeholder="192.168.88.1"
+                      form={form}
+                    />
+                    <TextField
+                      name="basic.publicIpAddress"
+                      label="Public IP (optional)"
+                      placeholder="203.0.113.10"
+                      form={form}
+                    />
                   </div>
                 )}
                 {step === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField name="credentials.apiUsername" label="API username (optional)" form={form} />
-                    <TextField name="credentials.apiSecret" label="API secret (optional)" type="password" form={form} />
+                    <TextField
+                      name="credentials.apiUsername"
+                      label="API username (optional)"
+                      form={form}
+                    />
+                    <TextField
+                      name="credentials.apiSecret"
+                      label="API secret (optional)"
+                      type="password"
+                      form={form}
+                    />
                     <p className="sm:col-span-2 text-xs text-muted-foreground">
-                      Stored encrypted server-side. Never shown again after this form — the API never returns it back.
+                      Stored encrypted server-side. Never shown again after this form — the API
+                      never returns it back.
                     </p>
                     {/* Skipping this step is a real, common path (e.g. the
                      * physical device isn't reachable yet at registration
@@ -240,22 +300,54 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                      * RouterTable's own "Needs credentials" badge (see that
                      * file) are the two places this is now surfaced instead
                      * of silently disappearing after registration. */}
-                    {!form.watch("credentials.apiUsername") && !form.watch("credentials.apiSecret") && (
-                      <p className="sm:col-span-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-                        Skipping this leaves the router unable to connect at all -- no speed test, no health monitoring,
-                        no device management -- until credentials are added later from the router's own detail page.
-                      </p>
-                    )}
+                    {!form.watch("credentials.apiUsername") &&
+                      !form.watch("credentials.apiSecret") && (
+                        <p className="sm:col-span-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                          Skipping this leaves the router unable to connect at all -- no speed test,
+                          no health monitoring, no device management -- until credentials are added
+                          later from the router's own detail page.
+                        </p>
+                      )}
                   </div>
                 )}
                 {step === 2 && (
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <ToggleField name="services.freeradius" label="FreeRADIUS" description="AAA & accounting" form={form} />
-                    <ToggleField name="services.wireguard" label="WireGuard" description="Management tunnel" form={form} />
-                    <ToggleField name="services.captivePortal" label="Captive portal" description="Guest splash page" form={form} />
-                    <ToggleField name="services.guestWifi" label="Guest WiFi" description="Public guest network" form={form} />
-                    <ToggleField name="services.monitoring" label="Monitoring" description="Live metrics collection" form={form} />
-                    <ToggleField name="services.analytics" label="Analytics" description="Session & usage analytics" form={form} />
+                    <ToggleField
+                      name="services.freeradius"
+                      label="FreeRADIUS"
+                      description="AAA & accounting"
+                      form={form}
+                    />
+                    <ToggleField
+                      name="services.wireguard"
+                      label="WireGuard"
+                      description="Management tunnel"
+                      form={form}
+                    />
+                    <ToggleField
+                      name="services.captivePortal"
+                      label="Captive portal"
+                      description="Guest splash page"
+                      form={form}
+                    />
+                    <ToggleField
+                      name="services.guestWifi"
+                      label="Guest WiFi"
+                      description="Public guest network"
+                      form={form}
+                    />
+                    <ToggleField
+                      name="services.monitoring"
+                      label="Monitoring"
+                      description="Live metrics collection"
+                      form={form}
+                    />
+                    <ToggleField
+                      name="services.analytics"
+                      label="Analytics"
+                      description="Session & usage analytics"
+                      form={form}
+                    />
                   </div>
                 )}
                 {step === 3 && createdRouter && <ProvisionStep router={createdRouter} />}
@@ -359,9 +451,9 @@ function ProvisionStep({ router }: { router: { id: string; name: string } }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{router.name}</span> was registered. This
-        step is optional — discover and validate the live device, then run a provisioning job to
-        push its baseline config, or skip and finish now.
+        <span className="font-medium text-foreground">{router.name}</span> was registered. This step
+        is optional — discover and validate the live device, then run a provisioning job to push its
+        baseline config, or skip and finish now.
       </p>
 
       {!jobId && (
@@ -433,7 +525,12 @@ function ProvisionStep({ router }: { router: { id: string; name: string } }) {
       )}
 
       {!jobId ? (
-        <Button type="button" size="sm" onClick={runStart} disabled={createJob.isPending || startJob.isPending}>
+        <Button
+          type="button"
+          size="sm"
+          onClick={runStart}
+          disabled={createJob.isPending || startJob.isPending}
+        >
           {(createJob.isPending || startJob.isPending) && (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           )}
@@ -512,8 +609,19 @@ function ProvisionStep({ router }: { router: { id: string; name: string } }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TextField({ name, label, placeholder, type, form }: { name: any; label: string; placeholder?: string; type?: string; form: any }) {
+function TextField<T extends FieldValues>({
+  name,
+  label,
+  placeholder,
+  type,
+  form,
+}: {
+  name: FieldPath<T>;
+  label: string;
+  placeholder?: string;
+  type?: string;
+  form: UseFormReturn<T>;
+}) {
   return (
     <FormField
       control={form.control}
@@ -531,8 +639,17 @@ function TextField({ name, label, placeholder, type, form }: { name: any; label:
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function SelectFieldOpts({ name, label, options, form }: { name: any; label: string; options: { id: string; name: string }[]; form: any }) {
+function SelectFieldOpts<T extends FieldValues>({
+  name,
+  label,
+  options,
+  form,
+}: {
+  name: FieldPath<T>;
+  label: string;
+  options: { id: string; name: string }[];
+  form: UseFormReturn<T>;
+}) {
   return (
     <FormField
       control={form.control}
@@ -561,8 +678,17 @@ function SelectFieldOpts({ name, label, options, form }: { name: any; label: str
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ToggleField({ name, label, description, form }: { name: any; label: string; description: string; form: any }) {
+function ToggleField<T extends FieldValues>({
+  name,
+  label,
+  description,
+  form,
+}: {
+  name: FieldPath<T>;
+  label: string;
+  description: string;
+  form: UseFormReturn<T>;
+}) {
   return (
     <FormField
       control={form.control}

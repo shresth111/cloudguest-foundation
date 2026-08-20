@@ -15,9 +15,7 @@ export function Error401Page() {
         You need to sign in to access this page. Please log in with your credentials.
       </p>
       <div className="mt-6 flex gap-3">
-        <Button onClick={() => navigate({ to: "/login" })}>
-          Sign in
-        </Button>
+        <Button onClick={() => navigate({ to: "/login" })}>Sign in</Button>
         <Button variant="outline" onClick={() => navigate({ to: "/" })}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Go home
         </Button>

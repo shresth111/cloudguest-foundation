@@ -6,7 +6,13 @@ import { RefreshCw, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WhiteLabelKpiGrid } from "@/components/branding/WhiteLabelKpiGrid";
 import { BrandTable } from "@/components/branding/BrandTable";
 import { LivePreview } from "@/components/branding/LivePreview";
@@ -40,31 +46,55 @@ function BrandingPage() {
     if (!selectedId && snap.data?.brands.length) setSelectedId(snap.data.brands[0].id);
   }, [snap.data?.brands, selectedId]);
 
-  const brand = useMemo(() => snap.data?.brands.find((b) => b.id === selectedId), [snap.data?.brands, selectedId]);
-  const domain = useMemo(() => snap.data?.domains.find((d) => d.brandId === selectedId), [snap.data?.domains, selectedId]);
+  const brand = useMemo(
+    () => snap.data?.brands.find((b) => b.id === selectedId),
+    [snap.data?.brands, selectedId],
+  );
+  const domain = useMemo(
+    () => snap.data?.domains.find((d) => d.brandId === selectedId),
+    [snap.data?.domains, selectedId],
+  );
 
   const state = { isLoading: snap.isLoading, isError: snap.isError, onRetry: () => snap.refetch() };
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["branding"] }); toast.success("Branding refreshed"); };
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["branding"] });
+    toast.success("Branding refreshed");
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">White label & branding</h1>
-          <p className="text-sm text-muted-foreground">Manage brands, themes, domains and messaging across the platform.</p>
+          <p className="text-sm text-muted-foreground">
+            Manage brands, themes, domains and messaging across the platform.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {brand && (
             <Select value={selectedId} onValueChange={setSelectedId}>
-              <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {snap.data?.brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                {snap.data?.brands.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           )}
-          <Button size="sm" variant="outline" onClick={refresh}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+          <Button size="sm" variant="outline" onClick={refresh}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+          </Button>
           {brand && (
-            <Button size="sm" onClick={() => publish.mutate(brand.id, { onSuccess: () => toast.success("Brand published") })}>
+            <Button
+              size="sm"
+              onClick={() =>
+                publish.mutate(brand.id, { onSuccess: () => toast.success("Brand published") })
+              }
+            >
               <Rocket className="mr-2 h-4 w-4" /> Publish
             </Button>
           )}
@@ -76,16 +106,36 @@ function BrandingPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
           <TabsTrigger value="brands">Brands</TabsTrigger>
-          <TabsTrigger value="settings" disabled={!brand}>Settings</TabsTrigger>
-          <TabsTrigger value="colors" disabled={!brand}>Colors</TabsTrigger>
-          <TabsTrigger value="typography" disabled={!brand}>Typography</TabsTrigger>
-          <TabsTrigger value="login" disabled={!brand}>Login</TabsTrigger>
-          <TabsTrigger value="domain" disabled={!brand}>Domain</TabsTrigger>
-          <TabsTrigger value="email" disabled={!brand}>Email</TabsTrigger>
-          <TabsTrigger value="sms" disabled={!brand}>SMS</TabsTrigger>
-          <TabsTrigger value="portal" disabled={!brand}>Portal</TabsTrigger>
-          <TabsTrigger value="templates" disabled={!brand}>Templates</TabsTrigger>
-          <TabsTrigger value="preview" disabled={!brand}>Live preview</TabsTrigger>
+          <TabsTrigger value="settings" disabled={!brand}>
+            Settings
+          </TabsTrigger>
+          <TabsTrigger value="colors" disabled={!brand}>
+            Colors
+          </TabsTrigger>
+          <TabsTrigger value="typography" disabled={!brand}>
+            Typography
+          </TabsTrigger>
+          <TabsTrigger value="login" disabled={!brand}>
+            Login
+          </TabsTrigger>
+          <TabsTrigger value="domain" disabled={!brand}>
+            Domain
+          </TabsTrigger>
+          <TabsTrigger value="email" disabled={!brand}>
+            Email
+          </TabsTrigger>
+          <TabsTrigger value="sms" disabled={!brand}>
+            SMS
+          </TabsTrigger>
+          <TabsTrigger value="portal" disabled={!brand}>
+            Portal
+          </TabsTrigger>
+          <TabsTrigger value="templates" disabled={!brand}>
+            Templates
+          </TabsTrigger>
+          <TabsTrigger value="preview" disabled={!brand}>
+            Live preview
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="brands" className="mt-4">
@@ -94,7 +144,10 @@ function BrandingPage() {
             domains={snap.data?.domains}
             {...state}
             selectedId={selectedId}
-            onSelect={(id) => { setSelectedId(id); setTab("settings"); }}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setTab("settings");
+            }}
           />
         </TabsContent>
 
@@ -156,7 +209,15 @@ function BrandingPage() {
                 <CardContent className="flex flex-wrap items-center gap-2 p-3">
                   <span className="text-xs text-muted-foreground">Surface:</span>
                   {(["dashboard", "login", "portal"] as const).map((v) => (
-                    <Button key={v} size="sm" variant={preview === v ? "default" : "outline"} className="capitalize" onClick={() => setPreview(v)}>{v}</Button>
+                    <Button
+                      key={v}
+                      size="sm"
+                      variant={preview === v ? "default" : "outline"}
+                      className="capitalize"
+                      onClick={() => setPreview(v)}
+                    >
+                      {v}
+                    </Button>
                   ))}
                 </CardContent>
               </Card>

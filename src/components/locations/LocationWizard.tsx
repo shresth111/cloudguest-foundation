@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
@@ -23,7 +24,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCreateLocation } from "@/hooks/useLocations";
 import { locationService } from "@/services/location.service";
 import { PROPERTY_TYPE_LABEL, type Location, type PropertyType } from "@/types/location";
@@ -52,7 +59,12 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const schema = z.object({
   organizationId: z.string().min(1, "Select an organization"),
   name: z.string().trim().min(1, "Name is required").max(200),
-  slug: z.string().trim().min(1, "Slug is required").max(150).regex(SLUG_PATTERN, "Lowercase letters, numbers, and hyphens only"),
+  slug: z
+    .string()
+    .trim()
+    .min(1, "Slug is required")
+    .max(150)
+    .regex(SLUG_PATTERN, "Lowercase letters, numbers, and hyphens only"),
   propertyType: z.string().optional(),
   addressLine1: z.string().trim().min(1, "Address is required").max(255),
   city: z.string().trim().min(1, "City is required").max(100),
@@ -77,9 +89,24 @@ const DEFAULTS: FormValues = {
   timezone: "UTC",
 };
 
-const TIMEZONES = ["UTC", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Asia/Dubai"];
+const TIMEZONES = [
+  "UTC",
+  "America/Los_Angeles",
+  "America/New_York",
+  "Europe/London",
+  "Europe/Berlin",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Dubai",
+];
 
-export function LocationWizard({ open, onOpenChange, lockedOrganizationId, lockedOrganizationName, onCreated }: Props) {
+export function LocationWizard({
+  open,
+  onOpenChange,
+  lockedOrganizationId,
+  lockedOrganizationName,
+  onCreated,
+}: Props) {
   const create = useCreateLocation();
   const { data: orgs = [] } = useQuery({
     queryKey: ["locations", "org-options"],
@@ -129,58 +156,103 @@ export function LocationWizard({ open, onOpenChange, lockedOrganizationId, locke
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) form.reset({ ...DEFAULTS, organizationId: lockedOrganizationId ?? "" }); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) form.reset({ ...DEFAULTS, organizationId: lockedOrganizationId ?? "" });
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Add location</DialogTitle>
           <DialogDescription>
-            {lockedOrganizationName ? `Add a new location to ${lockedOrganizationName}.` : "Add a new location to an organization you manage."}
+            {lockedOrganizationName
+              ? `Add a new location to ${lockedOrganizationName}.`
+              : "Add a new location to an organization you manage."}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
             {lockedOrganizationId ? (
-              <FormField control={form.control} name="organizationId" render={() => (
-                <FormItem>
-                  <FormLabel>Organization</FormLabel>
-                  <FormControl><Input value={lockedOrganizationName ?? "Your organization"} disabled readOnly /></FormControl>
-                </FormItem>
-              )} />
+              <FormField
+                control={form.control}
+                name="organizationId"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Organization</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={lockedOrganizationName ?? "Your organization"}
+                        disabled
+                        readOnly
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             ) : (
-              <FormField control={form.control} name="organizationId" render={({ field }) => (
+              <FormField
+                control={form.control}
+                name="organizationId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Organization</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select organization" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {orgs.map((o) => (
+                          <SelectItem key={o.id} value={o.id}>
+                            {o.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextField
+                name="name"
+                label="Location name"
+                placeholder="Downtown Branch"
+                form={form}
+              />
+              <TextField name="slug" label="Slug" placeholder="downtown-branch" form={form} />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="propertyType"
+              render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Organization</FormLabel>
+                  <FormLabel>Property type (optional)</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger></FormControl>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select property type" />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
-                      {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                      {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {PROPERTY_TYPE_LABEL[t]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
-              )} />
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField name="name" label="Location name" placeholder="Downtown Branch" form={form} />
-              <TextField name="slug" label="Slug" placeholder="downtown-branch" form={form} />
-            </div>
-
-            <FormField control={form.control} name="propertyType" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Property type (optional)</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {(Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]).map((t) => (
-                      <SelectItem key={t} value={t}>{PROPERTY_TYPE_LABEL[t]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+              )}
+            />
 
             <TextField name="addressLine1" label="Address" placeholder="123 Main St" form={form} />
 
@@ -191,18 +263,30 @@ export function LocationWizard({ open, onOpenChange, lockedOrganizationId, locke
               <TextField name="country" label="Country code" placeholder="US" form={form} />
             </div>
 
-            <FormField control={form.control} name="timezone" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Timezone</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {TIMEZONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormField
+              control={form.control}
+              name="timezone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Timezone</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {TIMEZONES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button type="submit" disabled={create.isPending}>
@@ -217,15 +301,30 @@ export function LocationWizard({ open, onOpenChange, lockedOrganizationId, locke
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TextField({ name, label, placeholder, form }: { name: any; label: string; placeholder?: string; form: any }) {
+function TextField<T extends FieldValues>({
+  name,
+  label,
+  placeholder,
+  form,
+}: {
+  name: FieldPath<T>;
+  label: string;
+  placeholder?: string;
+  form: UseFormReturn<T>;
+}) {
   return (
-    <FormField control={form.control} name={name} render={({ field }) => (
-      <FormItem>
-        <FormLabel>{label}</FormLabel>
-        <FormControl><Input placeholder={placeholder} {...field} /></FormControl>
-        <FormMessage />
-      </FormItem>
-    )} />
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <FormControl>
+            <Input placeholder={placeholder} {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 }

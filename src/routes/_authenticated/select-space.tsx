@@ -15,13 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -122,9 +116,7 @@ async function fetchRolesScopedLocations(
       roles
         .filter(
           (r): r is RoleAssignment & { locationId: string } =>
-            r.scopeType === "location" &&
-            r.organizationId === organizationId &&
-            !!r.locationId,
+            r.scopeType === "location" && r.organizationId === organizationId && !!r.locationId,
         )
         .map((r) => r.locationId),
     ),
@@ -151,7 +143,11 @@ export const Route = createFileRoute("/_authenticated/select-space")({
 
 const TIER_META: Record<Tier, { label: string; icon: LucideIcon; tone: string }> = {
   platform: { label: "Platform", icon: Shield, tone: "text-primary" },
-  organization: { label: "Organization", icon: Building2, tone: "text-amber-600 dark:text-amber-400" },
+  organization: {
+    label: "Organization",
+    icon: Building2,
+    tone: "text-amber-600 dark:text-amber-400",
+  },
   location: { label: "Location", icon: MapPin, tone: "text-sky-600 dark:text-sky-400" },
 };
 
@@ -287,7 +283,8 @@ function SelectSpacePage() {
     const q = query.trim().toLowerCase();
     return allCards.filter((c) => {
       if (tierFilter !== "all" && c.tier !== tierFilter) return false;
-      if (spaceTypeFilter !== "all" && c.tier === "location" && c.siteType !== spaceTypeFilter) return false;
+      if (spaceTypeFilter !== "all" && c.tier === "location" && c.siteType !== spaceTypeFilter)
+        return false;
       if (!q) return true;
       return (
         c.title.toLowerCase().includes(q) ||
@@ -314,9 +311,7 @@ function SelectSpacePage() {
     .filter((g) => g.cards.length > 0);
 
   function toggleFavorite(id: string) {
-    const next = favorites.includes(id)
-      ? favorites.filter((x) => x !== id)
-      : [id, ...favorites];
+    const next = favorites.includes(id) ? favorites.filter((x) => x !== id) : [id, ...favorites];
     setFavorites(next);
     writeList(FAV_KEY, next);
   }
@@ -337,7 +332,9 @@ function SelectSpacePage() {
     // location
     try {
       localStorage.setItem(ACTIVE_LOC_KEY, card.id);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     navigate({ to: "/workspace", replace: true });
   }
 
@@ -409,10 +406,24 @@ function SelectSpacePage() {
       ) : (
         <div className="space-y-10">
           {favoriteCards.length > 0 && (
-            <Section title="Favorites" icon={Star} cards={favoriteCards} favorites={favorites} onSelect={selectSpace} onFav={toggleFavorite} />
+            <Section
+              title="Favorites"
+              icon={Star}
+              cards={favoriteCards}
+              favorites={favorites}
+              onSelect={selectSpace}
+              onFav={toggleFavorite}
+            />
           )}
           {recentCards.length > 0 && (
-            <Section title="Recent" icon={Clock} cards={recentCards} favorites={favorites} onSelect={selectSpace} onFav={toggleFavorite} />
+            <Section
+              title="Recent"
+              icon={Clock}
+              cards={recentCards}
+              favorites={favorites}
+              onSelect={selectSpace}
+              onFav={toggleFavorite}
+            />
           )}
           {otherByTier.map(({ tier, cards }) => (
             <Section
@@ -455,7 +466,13 @@ function Section({
       </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
-          <SpaceTile key={c.id} card={c} isFav={favorites.includes(c.id)} onSelect={onSelect} onFav={onFav} />
+          <SpaceTile
+            key={c.id}
+            card={c}
+            isFav={favorites.includes(c.id)}
+            onSelect={onSelect}
+            onFav={onFav}
+          />
         ))}
       </div>
     </section>
@@ -481,11 +498,15 @@ function SpaceTile({
 
   return (
     <Card className="group relative overflow-hidden border-border/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_40px_-20px_oklch(0.52_0.18_265/0.35)]">
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-70`} />
+      <div
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-70`}
+      />
       <CardHeader className="relative pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider ${tier.tone}`}>
+            <div
+              className={`inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider ${tier.tone}`}
+            >
               <TierIcon className="h-3 w-3" />
               {tier.label}
             </div>
@@ -515,7 +536,10 @@ function SpaceTile({
       <CardContent className="relative space-y-4">
         {card.memberCount !== undefined && (
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <Metric icon={card.tier === "platform" ? Building2 : MapPin} label={card.tier === "platform" ? "Organizations" : "Locations"}>
+            <Metric
+              icon={card.tier === "platform" ? Building2 : MapPin}
+              label={card.tier === "platform" ? "Organizations" : "Locations"}
+            >
               {card.memberCount}
             </Metric>
           </div>

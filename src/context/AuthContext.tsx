@@ -1,9 +1,23 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
 import { useCustomerStore } from "@/stores/customerStore";
 import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
-import type { AuthSession, LoginCredentials, OrganizationMembership, RoleAssignment, User } from "@/types/auth";
+import type {
+  AuthSession,
+  LoginCredentials,
+  OrganizationMembership,
+  RoleAssignment,
+  User,
+} from "@/types/auth";
 
 export const ROLES_STORAGE_KEY = "cloudguest_roles";
 export const ORGS_STORAGE_KEY = "cloudguest_organizations";
@@ -49,20 +63,54 @@ function readStoredJson<T>(key: string): T | null {
   }
 }
 
+/** The plain-string counterpart to `readStoredJson` above, and guarded for
+ * exactly the same reason: `localStorage` access can *throw* (Apple's
+ * Captive Network Assistant treats Web Storage like private browsing and
+ * raises a SecurityError; so does storage-disabled Firefox). The token
+ * read in `rehydrate()` used to be unguarded, and because `rehydrate` is
+ * `async`, a throw there became an unhandled rejection that silently
+ * skipped every `setStatus` call -- leaving auth pinned at "loading"
+ * forever, i.e. an app that never finishes booting rather than one that
+ * says "signed out". */
+function readStoredString(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable -- the session still lives in React state for
+    // this page's lifetime; it just won't survive a reload.
+  }
+}
+
+function removeStored(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Nothing was stored, so nothing needs clearing.
+  }
+}
+
 function persistSession(session: AuthSession) {
-  localStorage.setItem(TOKEN_STORAGE_KEY, session.tokens.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, session.tokens.refreshToken);
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(session.user));
-  localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(session.roles));
-  localStorage.setItem(ORGS_STORAGE_KEY, JSON.stringify(session.organizations));
+  writeStored(TOKEN_STORAGE_KEY, session.tokens.accessToken);
+  writeStored(REFRESH_TOKEN_STORAGE_KEY, session.tokens.refreshToken);
+  writeStored(USER_STORAGE_KEY, JSON.stringify(session.user));
+  writeStored(ROLES_STORAGE_KEY, JSON.stringify(session.roles));
+  writeStored(ORGS_STORAGE_KEY, JSON.stringify(session.organizations));
 }
 
 function clearStoredSession() {
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(USER_STORAGE_KEY);
-  localStorage.removeItem(ROLES_STORAGE_KEY);
-  localStorage.removeItem(ORGS_STORAGE_KEY);
+  removeStored(TOKEN_STORAGE_KEY);
+  removeStored(REFRESH_TOKEN_STORAGE_KEY);
+  removeStored(USER_STORAGE_KEY);
+  removeStored(ROLES_STORAGE_KEY);
+  removeStored(ORGS_STORAGE_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -77,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function rehydrate() {
-      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      const token = readStoredString(TOKEN_STORAGE_KEY);
       const storedUser = readStoredJson<User>(USER_STORAGE_KEY);
       if (!token || !storedUser) {
         if (!cancelled) setStatus("anonymous");
@@ -104,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
         if (cancelled) return;
         setUser(freshUser);
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(freshUser));
+        writeStored(USER_STORAGE_KEY, JSON.stringify(freshUser));
         setPermissions(new Set(freshPermissions));
       } catch {
         // A 401 here is handled globally by the api.ts response interceptor
@@ -118,91 +166,99 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (creds: LoginCredentials) => {
-    // Switching identities mid-session (e.g. testing multiple accounts in
-    // one tab) must not leak the previous account's cached queries --
-    // customerKeys.permissions/sidebar/etc. aren't scoped by user/org id,
-    // so without this a new login can render stale data (wrong features,
-    // wrong locations) until each query's own staleTime happens to elapse.
-    queryClient.clear();
+  const login = useCallback(
+    async (creds: LoginCredentials) => {
+      // Switching identities mid-session (e.g. testing multiple accounts in
+      // one tab) must not leak the previous account's cached queries --
+      // customerKeys.permissions/sidebar/etc. aren't scoped by user/org id,
+      // so without this a new login can render stale data (wrong features,
+      // wrong locations) until each query's own staleTime happens to elapse.
+      queryClient.clear();
 
-    // Same identity-switch problem, but for useCustomerStore's own
-    // Zustand `persist` middleware (customerStore.ts) -- activeLocationId
-    // survives in localStorage independent of the auth token entirely, so
-    // a *previous* session's location silently carried into this new
-    // login. src/routes/index.tsx's IndexRedirect only sends an
-    // authenticated visitor to the /switch-location picker when
-    // activeLocationId is null -- with a stale non-null value left over
-    // from before, a fresh login skipped the picker outright and landed
-    // straight in whatever location happened to be selected last time,
-    // even when that location doesn't belong to (or isn't the intended
-    // one for) the account that just signed in. Bug report: "demo saari
-    // location wale pr pehle nahi ja raha... login hote hi direct
-    // location mai ja raha hai."
-    useCustomerStore.getState().clearLocation();
+      // Same identity-switch problem, but for useCustomerStore's own
+      // Zustand `persist` middleware (customerStore.ts) -- activeLocationId
+      // survives in localStorage independent of the auth token entirely, so
+      // a *previous* session's location silently carried into this new
+      // login. src/routes/index.tsx's IndexRedirect only sends an
+      // authenticated visitor to the /switch-location picker when
+      // activeLocationId is null -- with a stale non-null value left over
+      // from before, a fresh login skipped the picker outright and landed
+      // straight in whatever location happened to be selected last time,
+      // even when that location doesn't belong to (or isn't the intended
+      // one for) the account that just signed in. Bug report: "demo saari
+      // location wale pr pehle nahi ja raha... login hote hi direct
+      // location mai ja raha hai."
+      useCustomerStore.getState().clearLocation();
 
-    // Demo mode: bypass backend if using test credentials
-    if (creds.email === "admin@example.com" && creds.password === "test") {
-      const demoSession: AuthSession = {
-        user: {
-          id: "u-001",
-          firstName: "Admin",
-          lastName: "User",
-          name: "Admin User",
-          email: creds.email,
-          phone: "+919876543210",
-          username: "admin",
-          timezone: "Asia/Kolkata",
-          language: "en",
-          isActive: true,
-          isVerified: true,
-          status: "active",
-        },
-        tokens: {
-          accessToken: "demo-access-token",
-          refreshToken: "demo-refresh-token",
-          tokenType: "Bearer",
-          expiresIn: 3600,
-          refreshExpiresIn: 86400,
-        },
-        sessionId: "sess-demo-001",
-        roles: [
-          { roleId: "r-001", roleName: "Super Admin", roleSlug: "super-admin", scopeType: "global", isActive: true },
-        ],
-        organizations: [
-          {
-            organizationId: "org-001",
-            organizationName: "Acme Corp",
-            organizationSlug: "acme-corp",
-            isPrimaryContact: true,
-            enabledFeatures: ["all"],
+      // Demo mode: bypass backend if using test credentials
+      if (creds.email === "admin@example.com" && creds.password === "test") {
+        const demoSession: AuthSession = {
+          user: {
+            id: "u-001",
+            firstName: "Admin",
+            lastName: "User",
+            name: "Admin User",
+            email: creds.email,
+            phone: "+919876543210",
+            username: "admin",
+            timezone: "Asia/Kolkata",
+            language: "en",
+            isActive: true,
+            isVerified: true,
+            status: "active",
           },
-        ],
-      };
-      persistSession(demoSession);
-      setUser(demoSession.user);
-      setRoles(demoSession.roles);
-      setOrganizations(demoSession.organizations);
-      setPermissions(new Set(["*"]));
+          tokens: {
+            accessToken: "demo-access-token",
+            refreshToken: "demo-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            refreshExpiresIn: 86400,
+          },
+          sessionId: "sess-demo-001",
+          roles: [
+            {
+              roleId: "r-001",
+              roleName: "Super Admin",
+              roleSlug: "super-admin",
+              scopeType: "global",
+            },
+          ],
+          organizations: [
+            {
+              organizationId: "org-001",
+              organizationName: "Acme Corp",
+              organizationSlug: "acme-corp",
+              isPrimaryContact: true,
+              enabledFeatures: ["all"],
+            },
+          ],
+        };
+        persistSession(demoSession);
+        setUser(demoSession.user);
+        setRoles(demoSession.roles);
+        setOrganizations(demoSession.organizations);
+        setPermissions(new Set(["*"]));
+        setStatus("authenticated");
+        return demoSession;
+      }
+
+      const session = await authService.login(creds);
+      persistSession(session);
+      setUser(session.user);
+      setRoles(session.roles);
+      setOrganizations(session.organizations);
       setStatus("authenticated");
-      return demoSession;
-    }
 
-    const session = await authService.login(creds);
-    persistSession(session);
-    setUser(session.user);
-    setRoles(session.roles);
-    setOrganizations(session.organizations);
-    setStatus("authenticated");
+      const myPermissions = await authService.myPermissions();
+      setPermissions(new Set(myPermissions));
 
-    const myPermissions = await authService.myPermissions();
-    setPermissions(new Set(myPermissions));
-
-    return session;
-  }, [queryClient]);
+      return session;
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+    const refreshToken = readStoredString(REFRESH_TOKEN_STORAGE_KEY);
     try {
       await authService.logout(refreshToken);
     } catch {
@@ -225,7 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUser = useCallback((next: User) => {
     setUser(next);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(next));
+    writeStored(USER_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
   const value = useMemo<AuthContextValue>(

@@ -59,17 +59,20 @@ function SubscriptionPage() {
 
   function handleDownload(invoiceId: string, invoiceNumber: string) {
     setDownloadingId(invoiceId);
-    download.mutate({ id: invoiceId, organizationId: activeOrg?.organizationId }, {
-      onSuccess: ({ url, fileName }) => {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        toast.success(`Downloading ${invoiceNumber} (GST invoice PDF)`);
+    download.mutate(
+      { id: invoiceId, organizationId: activeOrg?.organizationId },
+      {
+        onSuccess: ({ url, fileName }) => {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          toast.success(`Downloading ${invoiceNumber} (GST invoice PDF)`);
+        },
+        onError: () => toast.error("Could not download the invoice PDF."),
+        onSettled: () => setDownloadingId(null),
       },
-      onError: () => toast.error("Could not download the invoice PDF."),
-      onSettled: () => setDownloadingId(null),
-    });
+    );
   }
 
   return (
@@ -201,24 +204,24 @@ function SubscriptionPage() {
               <AreaChart data={metrics.data}>
                 <defs>
                   <linearGradient id="req" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{
-                    background: "hsl(var(--popover))",
+                    background: "var(--popover)",
                     borderRadius: 8,
-                    border: "1px solid hsl(var(--border))",
+                    border: "1px solid var(--border)",
                   }}
                 />
                 <Area
                   type="monotone"
                   dataKey="requests"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--primary)"
                   fill="url(#req)"
                   strokeWidth={2}
                 />

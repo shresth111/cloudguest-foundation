@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,9 +10,13 @@ import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
-import { defaultCountryCode } from "@/lib/portal-locale";
+import {
+  defaultCountryCode,
+  nationalNumberMaxLength,
+  normalizeNationalPhone,
+} from "@/lib/portal-locale";
 import { PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
-import { PhoneNumberFields, EmailField } from "./AuthFields";
+import { PhoneNumberFields, EmailField, PG_FIELD_LABEL } from "./AuthFields";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -64,7 +68,11 @@ function usePhoneOtpForm(
   { organizationId, locationId, onSent }: PhoneFormProps,
 ) {
   const { config } = usePortalRuntime();
-  const [countryCode, setCountryCode] = useState(() => defaultCountryCode(config?.defaultLanguage));
+  // v7 §8.1, same change as the primary path (see useGuestSignIn.ts): the
+  // dialling code is a fixed prefix derived from the venue's own
+  // `location_country`, not a second editable box, so there is no state to
+  // hold for it.
+  const dialCode = defaultCountryCode(config?.defaultLanguage, config?.locationCountry);
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
@@ -78,15 +86,17 @@ function usePhoneOtpForm(
   });
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const identifier = countryCode + phone;
-    if (phone.trim().replace(/\D/g, "").length < 6) {
+    const national = normalizeNationalPhone(phone, dialCode);
+    const expected = nationalNumberMaxLength(dialCode);
+    const ok = expected === 15 ? national.length >= 6 : national.length === expected;
+    if (!ok) {
       setError("Enter a valid number");
       return;
     }
     setError(null);
-    send.mutate(identifier);
+    send.mutate(dialCode + national);
   };
-  return { countryCode, setCountryCode, phone, setPhone, error, send, onSubmit };
+  return { dialCode, phone, setPhone, error, send, onSubmit };
 }
 
 export function MobileForm(props: PhoneFormProps) {
@@ -94,10 +104,13 @@ export function MobileForm(props: PhoneFormProps) {
   const f = usePhoneOtpForm("sms", props);
   return (
     <form onSubmit={f.onSubmit} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
+      {/* v7 §7.2: the bare `<Label>` here carried no `htmlFor`, so it named
+       * nothing. The name now goes *into* the field component, which owns
+       * the `htmlFor`/`id` pairing. */}
       <PhoneNumberFields
-        countryCode={f.countryCode}
-        onCountryCodeChange={f.setCountryCode}
+        label={t("mobileNumber")}
+        hint={t("whyWeAskMobile")}
+        dialCode={f.dialCode}
         phone={f.phone}
         onPhoneChange={f.setPhone}
       />
@@ -114,10 +127,13 @@ export function WhatsAppForm(props: PhoneFormProps) {
   const f = usePhoneOtpForm("whatsapp", props);
   return (
     <form onSubmit={f.onSubmit} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
+      {/* v7 §7.2: the bare `<Label>` here carried no `htmlFor`, so it named
+       * nothing. The name now goes *into* the field component, which owns
+       * the `htmlFor`/`id` pairing. */}
       <PhoneNumberFields
-        countryCode={f.countryCode}
-        onCountryCodeChange={f.setCountryCode}
+        label={t("whatsappNumberLabel")}
+        hint={t("whyWeAskWhatsapp")}
+        dialCode={f.dialCode}
         phone={f.phone}
         onPhoneChange={f.setPhone}
       />
@@ -153,8 +169,7 @@ export function EmailForm({ organizationId, locationId, onSent }: PhoneFormProps
   };
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("emailAddress")}</Label>
-      <EmailField email={email} onEmailChange={setEmail} />
+      <EmailField label={t("emailAddress")} email={email} onEmailChange={setEmail} />
       {error && <p className="text-xs text-red-600">{error}</p>}
       <button type="submit" disabled={send.isPending} className={PG_PRIMARY_BTN}>
         {send.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("sendOtp")}
@@ -209,21 +224,35 @@ export function PasswordForm({
     onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "password")),
   });
 
+  // v7 §7.2 -- these `<Label>`s had no `htmlFor` and these `<Input>`s had
+  // no `id`, so the labels named nothing. `react-hook-form`'s `register()`
+  // supplies `name`, never `id`, so the pairing has to be explicit.
+  const fieldId = useId();
+  const identifierId = `${fieldId}-identifier`;
+  const passwordId = `${fieldId}-password`;
   return (
     <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
+      <Label htmlFor={identifierId} className={PG_FIELD_LABEL}>
+        {t("mobileOrEmailLabel")}
+      </Label>
       <Input
+        id={identifierId}
         {...form.register("identifier")}
+        autoComplete="username"
         placeholder="you@example.com or +1 555 010 2200"
         className={PG_INPUT}
       />
       {form.formState.errors.identifier && (
         <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
       )}
-      <Label className="text-xs font-semibold text-slate-500">{t("password")}</Label>
+      <Label htmlFor={passwordId} className={PG_FIELD_LABEL}>
+        {t("password")}
+      </Label>
       <Input
+        id={passwordId}
         {...form.register("password")}
         type="password"
+        autoComplete="current-password"
         placeholder="••••••••••••"
         className={PG_INPUT}
       />
@@ -276,20 +305,32 @@ export function VoucherForm({
     },
     onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "voucher")),
   });
+  // v7 §7.2 -- see PasswordForm above.
+  const fieldId = useId();
+  const identifierId = `${fieldId}-identifier`;
+  const codeId = `${fieldId}-code`;
   return (
     <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
-      <Label className="text-xs font-semibold text-slate-500">{t("mobileNumber")}</Label>
+      <Label htmlFor={identifierId} className={PG_FIELD_LABEL}>
+        {t("mobileOrEmailLabel")}
+      </Label>
       <Input
+        id={identifierId}
         {...form.register("identifier")}
+        autoComplete="username"
         placeholder="you@example.com or +1 555 010 2200"
         className={PG_INPUT}
       />
       {form.formState.errors.identifier && (
         <p className="text-xs text-red-600">{form.formState.errors.identifier.message}</p>
       )}
-      <Label className="text-xs font-semibold text-slate-500">{t("voucherCode")}</Label>
+      <Label htmlFor={codeId} className={PG_FIELD_LABEL}>
+        {t("voucherCode")}
+      </Label>
       <Input
+        id={codeId}
         {...form.register("code")}
+        autoComplete="off"
         placeholder="ABCD-1234"
         className={`${PG_INPUT} uppercase`}
       />

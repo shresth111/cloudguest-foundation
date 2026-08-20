@@ -27,8 +27,52 @@ const DEMO_ORGS: { id: string; name: string }[] = [
 ];
 
 const DEMO_ROUTERS: RouterDevice[] = [
-  { id: "router-demo-1", locationId: "loc-demo-001", locationName: "Downtown Branch", organizationId: "org-001", organizationName: "Acme Corp", name: "HT001-CORE", serialNumber: "SN-DEMO-001", macAddress: "AA:BB:CC:DD:EE:01", model: "RB5009UG+S+", vendor: "MikroTik", routerOsVersion: "7.14", managementIpAddress: "10.20.0.1", publicIpAddress: "203.0.113.10", status: "online", lastSeenAt: new Date().toISOString(), lastHealthCheckAt: new Date().toISOString(), healthStatus: "healthy", hasApiCredentials: true, settings: {}, createdAt: new Date(Date.now() - 90 * 86400000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: "router-demo-2", locationId: "loc-demo-002", locationName: "Airport Kiosk", organizationId: "org-002", organizationName: "Blue Cedar Cafes", name: "BCC-KIOSK-01", serialNumber: "SN-DEMO-002", macAddress: "AA:BB:CC:DD:EE:02", model: "hAP ax²", vendor: "MikroTik", routerOsVersion: "7.13", managementIpAddress: "10.20.0.2", publicIpAddress: "203.0.113.11", status: "online", lastSeenAt: new Date().toISOString(), lastHealthCheckAt: new Date().toISOString(), healthStatus: "healthy", hasApiCredentials: true, settings: {}, createdAt: new Date(Date.now() - 30 * 86400000).toISOString(), updatedAt: new Date().toISOString() },
+  {
+    id: "router-demo-1",
+    locationId: "loc-demo-001",
+    locationName: "Downtown Branch",
+    organizationId: "org-001",
+    organizationName: "Acme Corp",
+    name: "HT001-CORE",
+    serialNumber: "SN-DEMO-001",
+    macAddress: "AA:BB:CC:DD:EE:01",
+    model: "RB5009UG+S+",
+    vendor: "MikroTik",
+    routerOsVersion: "7.14",
+    managementIpAddress: "10.20.0.1",
+    publicIpAddress: "203.0.113.10",
+    status: "online",
+    lastSeenAt: new Date().toISOString(),
+    lastHealthCheckAt: new Date().toISOString(),
+    healthStatus: "healthy",
+    hasApiCredentials: true,
+    settings: {},
+    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "router-demo-2",
+    locationId: "loc-demo-002",
+    locationName: "Airport Kiosk",
+    organizationId: "org-002",
+    organizationName: "Blue Cedar Cafes",
+    name: "BCC-KIOSK-01",
+    serialNumber: "SN-DEMO-002",
+    macAddress: "AA:BB:CC:DD:EE:02",
+    model: "hAP ax²",
+    vendor: "MikroTik",
+    routerOsVersion: "7.13",
+    managementIpAddress: "10.20.0.2",
+    publicIpAddress: "203.0.113.11",
+    status: "online",
+    lastSeenAt: new Date().toISOString(),
+    lastHealthCheckAt: new Date().toISOString(),
+    healthStatus: "healthy",
+    hasApiCredentials: true,
+    settings: {},
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 interface BackendRouter {
@@ -454,10 +498,14 @@ export const routerService = {
    * since this hands back a real secret, not just metadata. `host` is the
    * router's WireGuard tunnel IP when one exists (the only address
    * reliably reachable for a remote router behind NAT/CGNAT). */
-  async getDeviceConnection(routerId: string): Promise<{ host: string | null; username: string | null; password: string | null }> {
-    const { data } = await api.get<{ host: string | null; username: string | null; password: string | null }>(
-      `/routers/${routerId}/device-connection`,
-    );
+  async getDeviceConnection(
+    routerId: string,
+  ): Promise<{ host: string | null; username: string | null; password: string | null }> {
+    const { data } = await api.get<{
+      host: string | null;
+      username: string | null;
+      password: string | null;
+    }>(`/routers/${routerId}/device-connection`);
     return data;
   },
 

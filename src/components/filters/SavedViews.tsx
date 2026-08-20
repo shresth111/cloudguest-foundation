@@ -4,11 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -38,7 +47,9 @@ export function SavedViews({ onApplyView }: SavedViewsProps) {
     if (stored) {
       try {
         return [...PRESETS, ...JSON.parse(stored)];
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     return PRESETS;
   });
@@ -83,12 +94,25 @@ export function SavedViews({ onApplyView }: SavedViewsProps) {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             {views.map((view) => (
-              <DropdownMenuItem key={view.id} className="flex items-center justify-between" onSelect={(e) => e.preventDefault()}>
-                <button className="flex items-center gap-2 min-w-0 flex-1" onClick={() => { onApplyView?.(view); toast.info(`Applied: ${view.name}`); }}>
+              <DropdownMenuItem
+                key={view.id}
+                className="flex items-center justify-between"
+                onSelect={(e) => e.preventDefault()}
+              >
+                <button
+                  className="flex items-center gap-2 min-w-0 flex-1"
+                  onClick={() => {
+                    onApplyView?.(view);
+                    toast.info(`Applied: ${view.name}`);
+                  }}
+                >
                   <BookmarkCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="truncate text-sm">{view.name}</span>
                 </button>
-                <button onClick={() => deleteView(view.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
+                <button
+                  onClick={() => deleteView(view.id)}
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                >
                   <Trash2 className="h-3 w-3" />
                 </button>
               </DropdownMenuItem>
@@ -117,8 +141,12 @@ export function SavedViews({ onApplyView }: SavedViewsProps) {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setSaving(false)}>Cancel</Button>
-            <Button size="sm" disabled={!newName} onClick={() => saveCurrentView(newName)}>Save</Button>
+            <Button variant="outline" size="sm" onClick={() => setSaving(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={!newName} onClick={() => saveCurrentView(newName)}>
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

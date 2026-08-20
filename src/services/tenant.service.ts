@@ -16,26 +16,121 @@ import type {
 import { ROUTER_OPS } from "@/types/tenant";
 
 const FEATURE_CATALOG: Omit<FeatureCard, "status">[] = [
-  { key: "guestWifi", name: "Guest WiFi", description: "Public Wi-Fi with session and quota tracking.", category: "Networking" },
-  { key: "captivePortal", name: "Captive Portal", description: "Branded splash and auth landing.", category: "Networking" },
-  { key: "freeradius", name: "FreeRADIUS", description: "RADIUS auth backend for enterprise Wi-Fi.", category: "Networking" },
-  { key: "wireguard", name: "WireGuard", description: "Site-to-site VPN mesh.", category: "Networking" },
-  { key: "analytics", name: "Analytics", description: "Traffic, dwell time, and behavioural charts.", category: "Insights" },
-  { key: "monitoring", name: "Monitoring", description: "Router uptime, CPU, RAM, latency.", category: "Insights" },
-  { key: "reports", name: "Reports", description: "Scheduled PDF / Excel / CSV delivery.", category: "Insights" },
-  { key: "voucherLogin", name: "Voucher Login", description: "Prepaid access codes for guests.", category: "Authentication" },
-  { key: "qrLogin", name: "QR Login", description: "Scan-to-connect onboarding.", category: "Authentication" },
-  { key: "otpLogin", name: "OTP Login", description: "Mobile & email one-time passcodes.", category: "Authentication" },
-  { key: "socialLogin", name: "Social Login", description: "Google, Facebook, Apple sign-in.", category: "Authentication" },
-  { key: "sms", name: "SMS", description: "Outbound SMS engine and templates.", category: "Messaging" },
-  { key: "email", name: "Email", description: "Transactional email pipeline.", category: "Messaging" },
-  { key: "whiteLabel", name: "White Label", description: "Custom branding, domain and themes.", category: "Branding" },
-  { key: "pms", name: "PMS", description: "Property management system integrations.", category: "Integrations" },
-  { key: "billing", name: "Billing", description: "Plans, invoices, and payment gateways.", category: "Commerce" },
+  {
+    key: "guestWifi",
+    name: "Guest WiFi",
+    description: "Public Wi-Fi with session and quota tracking.",
+    category: "Networking",
+  },
+  {
+    key: "captivePortal",
+    name: "Captive Portal",
+    description: "Branded splash and auth landing.",
+    category: "Networking",
+  },
+  {
+    key: "freeradius",
+    name: "FreeRADIUS",
+    description: "RADIUS auth backend for enterprise Wi-Fi.",
+    category: "Networking",
+  },
+  {
+    key: "wireguard",
+    name: "WireGuard",
+    description: "Site-to-site VPN mesh.",
+    category: "Networking",
+  },
+  {
+    key: "analytics",
+    name: "Analytics",
+    description: "Traffic, dwell time, and behavioural charts.",
+    category: "Insights",
+  },
+  {
+    key: "monitoring",
+    name: "Monitoring",
+    description: "Router uptime, CPU, RAM, latency.",
+    category: "Insights",
+  },
+  {
+    key: "reports",
+    name: "Reports",
+    description: "Scheduled PDF / Excel / CSV delivery.",
+    category: "Insights",
+  },
+  {
+    key: "voucherLogin",
+    name: "Voucher Login",
+    description: "Prepaid access codes for guests.",
+    category: "Authentication",
+  },
+  {
+    key: "qrLogin",
+    name: "QR Login",
+    description: "Scan-to-connect onboarding.",
+    category: "Authentication",
+  },
+  {
+    key: "otpLogin",
+    name: "OTP Login",
+    description: "Mobile & email one-time passcodes.",
+    category: "Authentication",
+  },
+  {
+    key: "socialLogin",
+    name: "Social Login",
+    description: "Google, Facebook, Apple sign-in.",
+    category: "Authentication",
+  },
+  {
+    key: "sms",
+    name: "SMS",
+    description: "Outbound SMS engine and templates.",
+    category: "Messaging",
+  },
+  {
+    key: "email",
+    name: "Email",
+    description: "Transactional email pipeline.",
+    category: "Messaging",
+  },
+  {
+    key: "whiteLabel",
+    name: "White Label",
+    description: "Custom branding, domain and themes.",
+    category: "Branding",
+  },
+  {
+    key: "pms",
+    name: "PMS",
+    description: "Property management system integrations.",
+    category: "Integrations",
+  },
+  {
+    key: "billing",
+    name: "Billing",
+    description: "Plans, invoices, and payment gateways.",
+    category: "Commerce",
+  },
   { key: "api", name: "API", description: "Public REST + webhook surface.", category: "Developer" },
-  { key: "aiAssistant", name: "AI Assistant", description: "In-app copilot for analytics & support.", category: "Insights" },
-  { key: "notificationCenter", name: "Notification Center", description: "Priority alerts, in-app drawer.", category: "Messaging" },
-  { key: "auditLogs", name: "Audit Logs", description: "Timeline of every tenant change.", category: "Governance" },
+  {
+    key: "aiAssistant",
+    name: "AI Assistant",
+    description: "In-app copilot for analytics & support.",
+    category: "Insights",
+  },
+  {
+    key: "notificationCenter",
+    name: "Notification Center",
+    description: "Priority alerts, in-app drawer.",
+    category: "Messaging",
+  },
+  {
+    key: "auditLogs",
+    name: "Audit Logs",
+    description: "Timeline of every tenant change.",
+    category: "Governance",
+  },
 ];
 
 interface CustomerState {
@@ -69,7 +164,12 @@ function seed(id: string): CustomerState {
     { id: "GRP-HTL", name: "Hotel Group", description: "All hospitality properties.", nasCount: 3 },
     { id: "GRP-CAF", name: "Cafe Group", description: "F&B outlets.", nasCount: 1 },
     { id: "GRP-HSP", name: "Hospital Group", description: "Clinical sites.", nasCount: 1 },
-    { id: "GRP-WHR", name: "Warehouse Group", description: "Logistics and back-office.", nasCount: 1 },
+    {
+      id: "GRP-WHR",
+      name: "Warehouse Group",
+      description: "Logistics and back-office.",
+      nasCount: 1,
+    },
     { id: "GRP-BRN", name: "Branch Office", description: "Corporate branches.", nasCount: 0 },
   ];
   const nas: NasDevice[] = [
@@ -164,10 +264,9 @@ function seed(id: string): CustomerState {
       status: "online",
     },
   ];
-  const routerOps = Object.fromEntries(ROUTER_OPS.map((k) => [k, k !== "factory_reset" && k !== "delete"])) as Record<
-    string,
-    boolean
-  >;
+  const routerOps = Object.fromEntries(
+    ROUTER_OPS.map((k) => [k, k !== "factory_reset" && k !== "delete"]),
+  ) as Record<string, boolean>;
   const featureBool = Object.fromEntries(
     FEATURE_CATALOG.map((f) => [f.key, features[f.key] === "enabled"]),
   );
@@ -188,7 +287,13 @@ function seed(id: string): CustomerState {
       id: "POL-CAFE-LITE",
       name: "Cafe Lite",
       description: "Lightweight portal + voucher access.",
-      features: { ...featureBool, whiteLabel: false, socialLogin: false, aiAssistant: false, freeradius: false },
+      features: {
+        ...featureBool,
+        whiteLabel: false,
+        socialLogin: false,
+        aiAssistant: false,
+        freeradius: false,
+      },
       routerOps: { ...routerOps, upgrade_os: false, terminal: false },
       assignments: [{ scope: "nas_group", targetId: "GRP-CAF", targetLabel: "Cafe Group" }],
       updatedAt: new Date().toISOString(),
@@ -197,10 +302,28 @@ function seed(id: string): CustomerState {
   const integrations: IntegrationRow[] = [
     { key: "smtp", name: "SMTP", category: "Messaging", enabled: true, configured: true },
     { key: "sms", name: "SMS Gateway", category: "Messaging", enabled: true, configured: true },
-    { key: "freeradius", name: "FreeRADIUS", category: "Networking", enabled: true, configured: true },
-    { key: "wireguard", name: "WireGuard", category: "Networking", enabled: false, configured: false },
+    {
+      key: "freeradius",
+      name: "FreeRADIUS",
+      category: "Networking",
+      enabled: true,
+      configured: true,
+    },
+    {
+      key: "wireguard",
+      name: "WireGuard",
+      category: "Networking",
+      enabled: false,
+      configured: false,
+    },
     { key: "google", name: "Google OAuth", category: "Auth", enabled: true, configured: true },
-    { key: "facebook", name: "Facebook Login", category: "Auth", enabled: false, configured: false },
+    {
+      key: "facebook",
+      name: "Facebook Login",
+      category: "Auth",
+      enabled: false,
+      configured: false,
+    },
     { key: "apple", name: "Apple Login", category: "Auth", enabled: false, configured: false },
     { key: "stripe", name: "Stripe", category: "Commerce", enabled: true, configured: true },
     { key: "razorpay", name: "Razorpay", category: "Commerce", enabled: false, configured: false },
@@ -226,7 +349,12 @@ function seed(id: string): CustomerState {
     },
   ];
   const webhooks: WebhookRow[] = [
-    { id: "WH-1", url: "https://ops.example.com/hooks/cloudguest", events: ["guest.connected", "router.down"], enabled: true },
+    {
+      id: "WH-1",
+      url: "https://ops.example.com/hooks/cloudguest",
+      events: ["guest.connected", "router.down"],
+      enabled: true,
+    },
   ];
   const security: SecurityConfig = {
     mfaRequired: true,
@@ -243,15 +371,57 @@ function seed(id: string): CustomerState {
     { key: "webhook", enabled: true, events: ["guest.connected", "policy.updated"] },
   ];
   const audit: TenantAuditEntry[] = [
-    { id: "AUD-1", at: new Date(Date.now() - 3600000).toISOString(), actor: "priya@cloudguest.io", action: "Module Enabled", target: "Analytics", meta: "trial → enabled" },
-    { id: "AUD-2", at: new Date(Date.now() - 7200000).toISOString(), actor: "priya@cloudguest.io", action: "Router Added", target: "NAS-DEL-002" },
-    { id: "AUD-3", at: new Date(Date.now() - 3 * 3600000).toISOString(), actor: "system", action: "Policy Updated", target: "Hotel Premium" },
-    { id: "AUD-4", at: new Date(Date.now() - 5 * 3600000).toISOString(), actor: "ravi@cloudguest.io", action: "User Invited", target: "manager@hoteldelhi.com" },
-    { id: "AUD-5", at: new Date(Date.now() - 26 * 3600000).toISOString(), actor: "priya@cloudguest.io", action: "Brand Changed", target: "Primary color #2563eb → #0f766e" },
+    {
+      id: "AUD-1",
+      at: new Date(Date.now() - 3600000).toISOString(),
+      actor: "priya@cloudguest.io",
+      action: "Module Enabled",
+      target: "Analytics",
+      meta: "trial → enabled",
+    },
+    {
+      id: "AUD-2",
+      at: new Date(Date.now() - 7200000).toISOString(),
+      actor: "priya@cloudguest.io",
+      action: "Router Added",
+      target: "NAS-DEL-002",
+    },
+    {
+      id: "AUD-3",
+      at: new Date(Date.now() - 3 * 3600000).toISOString(),
+      actor: "system",
+      action: "Policy Updated",
+      target: "Hotel Premium",
+    },
+    {
+      id: "AUD-4",
+      at: new Date(Date.now() - 5 * 3600000).toISOString(),
+      actor: "ravi@cloudguest.io",
+      action: "User Invited",
+      target: "manager@hoteldelhi.com",
+    },
+    {
+      id: "AUD-5",
+      at: new Date(Date.now() - 26 * 3600000).toISOString(),
+      actor: "priya@cloudguest.io",
+      action: "Brand Changed",
+      target: "Primary color #2563eb → #0f766e",
+    },
   ];
   const state: CustomerState = {
     features,
-    limits: { locations: 25, routers: 100, nas: 100, guests: 25000, concurrentSessions: 5000, staff: 50, apiKeys: 10, storageGb: 250, smsCredits: 5000, emailCredits: 50000 },
+    limits: {
+      locations: 25,
+      routers: 100,
+      nas: 100,
+      guests: 25000,
+      concurrentSessions: 5000,
+      staff: 50,
+      apiKeys: 10,
+      storageGb: 250,
+      smsCredits: 5000,
+      emailCredits: 50000,
+    },
     groups,
     nas,
     policies,
@@ -261,7 +431,17 @@ function seed(id: string): CustomerState {
     security,
     notifications,
     audit,
-    usage: { locations: 6, routers: 12, nas: nas.length, guests: 4218, bandwidthGb: 812, storageGb: 96, emails: 12480, sms: 1043, apiCalls: 84210 },
+    usage: {
+      locations: 6,
+      routers: 12,
+      nas: nas.length,
+      guests: 4218,
+      bandwidthGb: 812,
+      storageGb: 96,
+      emails: 12480,
+      sms: 1043,
+      apiCalls: 84210,
+    },
   };
   STATE[id] = state;
   return state;
@@ -277,13 +457,25 @@ export const tenantService = {
 
   async getConfig(customerId: string) {
     const s = seed(customerId);
-    const features: FeatureCard[] = FEATURE_CATALOG.map((c) => ({ ...c, status: s.features[c.key] ?? "disabled" }));
+    const features: FeatureCard[] = FEATURE_CATALOG.map((c) => ({
+      ...c,
+      status: s.features[c.key] ?? "disabled",
+    }));
     return delay({ features, limits: s.limits });
   },
-  async setFeatureStatus(customerId: string, key: string, status: "enabled" | "disabled" | "upgrade_required") {
+  async setFeatureStatus(
+    customerId: string,
+    key: string,
+    status: "enabled" | "disabled" | "upgrade_required",
+  ) {
     const s = seed(customerId);
     s.features[key] = status;
-    pushAudit(customerId, { actor: "admin", action: "Feature Enabled", target: key, meta: `→ ${status}` });
+    pushAudit(customerId, {
+      actor: "admin",
+      action: "Feature Enabled",
+      target: key,
+      meta: `→ ${status}`,
+    });
     return delay(true);
   },
   async setLimits(customerId: string, limits: ModuleLimits) {
@@ -306,7 +498,9 @@ export const tenantService = {
   async deleteGroup(id: string, groupId: string) {
     const s = seed(id);
     s.groups = s.groups.filter((g) => g.id !== groupId);
-    s.nas.forEach((n) => { if (n.groupId === groupId) n.groupId = undefined; });
+    s.nas.forEach((n) => {
+      if (n.groupId === groupId) n.groupId = undefined;
+    });
     return delay(true);
   },
 
@@ -318,7 +512,9 @@ export const tenantService = {
     const idx = s.nas.findIndex((n) => n.id === nas.id);
     if (idx >= 0) s.nas[idx] = nas;
     else s.nas.push(nas);
-    s.groups.forEach((g) => { g.nasCount = s.nas.filter((n) => n.groupId === g.id).length; });
+    s.groups.forEach((g) => {
+      g.nasCount = s.nas.filter((n) => n.groupId === g.id).length;
+    });
     pushAudit(id, { actor: "admin", action: "Router Added", target: nas.id });
     return delay(true);
   },
@@ -353,7 +549,11 @@ export const tenantService = {
         (a) => a.scope === assignment.scope && a.targetId === assignment.targetId,
       );
       if (!dup) p.assignments.push(assignment);
-      pushAudit(id, { actor: "admin", action: "Policy Assigned", target: `${p.name} → ${assignment.targetLabel}` });
+      pushAudit(id, {
+        actor: "admin",
+        action: "Policy Assigned",
+        target: `${p.name} → ${assignment.targetLabel}`,
+      });
     }
     return delay(true);
   },

@@ -45,14 +45,46 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  /* "Noto Sans Devanagari" added for Hindi -- none of Inter/ui-sans-serif/
-   * system-ui cover Devanagari script, so Hindi text (this dashboard's first
-   * Hindi slice -- nav, Connected Guests table, Account settings -- and the
-   * captive portal's own Hindi rollout) used to fall through to whatever
-   * Devanagari font the OS happened to have, at visibly inconsistent
-   * weight/line-height versus the rest of the UI. Loaded async alongside the
-   * rest of this app's Google Fonts in __root.tsx's LOAD_FONTS_SCRIPT. */
-  --font-sans: "Inter", "Noto Sans Devanagari", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* The DASHBOARD's body stack -- deliberately not `--pg-font-stack`:
+   * Inter is a real, wanted dependency here (it is one of the five
+   * families __root.tsx loads from Google Fonts, on an authenticated
+   * surface with working internet), whereas the portal ships zero font
+   * bytes. Kept in step with the portal stack in coverage and in ORDERING
+   * PRINCIPLE, not literally.
+   *
+   * Indic fallbacks -- none of Inter/ui-sans-serif/system-ui cover any
+   * Indic script, so text in one used to fall through to whatever face the
+   * OS happened to have (or to tofu), at visibly inconsistent weight/line-
+   * height versus the rest of the UI. "Noto Sans Devanagari" was added for
+   * this dashboard's first Hindi slice (nav, Connected Guests table,
+   * Account settings); the seven families after it cover the other seven
+   * scripts the captive portal now renders, and reach the dashboard's own
+   * portal preview (`PortalPage.tsx`), which shows a venue's real guest
+   * copy in whatever languages that venue enabled.
+   *
+   * All system font names -- zero bytes, zero requests.
+   *
+   * THE INDIC BLOCK MOVED TO THE BACK, for the same reason it moved in
+   * `PG_FONT_STACK`: "Noto Sans Devanagari" carries a complete Latin set,
+   * and CSS font matching is per character, left to right. The old comment
+   * here claimed the block "can never capture Latin, which Inter (or,
+   * before Inter loads, 'Noto Sans Devanagari') already claims" -- note
+   * that the parenthetical concedes the bug. Inter arrives from
+   * fonts.googleapis.com via a script-injected, post-paint <link>, so
+   * there is a real window on every cold load (and a permanent state
+   * whenever that request fails) in which Inter has NOT claimed Latin --
+   * and in that window a machine with fonts-noto-devanagari installed
+   * rendered the whole dashboard, English included, in Noto Sans
+   * Devanagari's Latin. Behind the generics it cannot.
+   *
+   * `ui-sans-serif` is kept HERE, unlike in `PG_FONT_STACK` where it was
+   * dropped: it is Safari-only, but here it sits ahead of `-apple-system`
+   * rather than behind it, so on Safari it is the entry that actually
+   * resolves. Removing it would be a behaviour change, not a cleanup.
+   * `BlinkMacSystemFont` and "Segoe UI Variable Text" are added for the
+   * same free wins as in the portal stack (Chrome/Edge on macOS; Windows
+   * 11's actual system font, which HTML has to name explicitly). */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", sans-serif;
   /* Display face for page titles, section headings, and big metric
    * numbers -- Space Grotesk was already the de-facto display face
    * (hand-copied into 15+ inline `style={{ fontFamily: ... }}` props
@@ -69,13 +101,19 @@
    * carry white body text. */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
-  --shadow-soft: 0 1px 2px oklch(0.2 0.03 235 / 0.05), 0 4px 14px oklch(0.2 0.03 235 / 0.05);
-  --shadow-elevated: 0 1px 2px oklch(0.2 0.03 235 / 0.06), 0 10px 28px -6px oklch(0.2 0.03 235 / 0.1);
-  --shadow-glow: 0 0 0 1px oklch(0.62 0.14 200 / 0.1), 0 18px 40px -20px oklch(0.6 0.15 195 / 0.4);
-  --shadow-ring: 0 0 0 1px oklch(0.6 0.13 200 / 0.16), 0 12px 32px -18px oklch(0.6 0.15 195 / 0.4);
-  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.12 208), oklch(0.68 0.15 190));
-  --gradient-mesh: radial-gradient(1100px 520px at 8% -12%, oklch(0.66 0.14 192 / 0.14), transparent 62%),
-                   radial-gradient(880px 420px at 102% 4%, oklch(0.58 0.14 245 / 0.1), transparent 60%);
+  /* Modern elevation: a crisp hairline + a wide, very soft ambient pool,
+   * rather than one mid-strength blur. Reads closer to Linear/Vercel --
+   * surfaces feel like paper on a canvas instead of drop-shadowed boxes. */
+  --shadow-soft: 0 0 0 1px oklch(0.22 0.03 265 / 0.04), 0 1px 2px oklch(0.22 0.03 265 / 0.04), 0 8px 24px -12px oklch(0.22 0.03 265 / 0.12);
+  --shadow-elevated: 0 0 0 1px oklch(0.22 0.03 265 / 0.05), 0 2px 4px oklch(0.22 0.03 265 / 0.04), 0 18px 42px -16px oklch(0.22 0.03 265 / 0.18);
+  --shadow-glow: 0 0 0 1px oklch(0.55 0.19 265 / 0.14), 0 20px 46px -22px oklch(0.5 0.2 265 / 0.45);
+  --shadow-ring: 0 0 0 1px oklch(0.55 0.19 265 / 0.18), 0 14px 34px -20px oklch(0.5 0.2 265 / 0.45);
+  --gradient-primary: linear-gradient(135deg, oklch(0.5 0.2 268), oklch(0.62 0.16 232));
+  /* Ambient canvas wash, indigo-led to match --primary (it used to be teal,
+   * a leftover from the pre-indigo brand) and toned down so dense tables
+   * and charts sit on a near-neutral surface. */
+  --gradient-mesh: radial-gradient(1200px 560px at 6% -14%, oklch(0.58 0.18 268 / 0.1), transparent 64%),
+                   radial-gradient(900px 440px at 104% 2%, oklch(0.66 0.13 205 / 0.08), transparent 62%);
   --gradient-brand: linear-gradient(135deg, oklch(0.7 0.15 190), oklch(0.55 0.13 210) 55%, oklch(0.5 0.14 250));
   --gradient-accent: linear-gradient(135deg, oklch(0.72 0.15 188), oklch(0.56 0.13 240));
   --gradient-success: linear-gradient(135deg, oklch(0.72 0.15 155), oklch(0.7 0.14 175));
@@ -95,9 +133,33 @@
 
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.984 0.005 220);
-  --foreground: oklch(0.22 0.03 235);
+  /* THE guest-portal font stack, defined once for CSS. Mirrors
+   * `PG_FONT_STACK` (src/lib/portal-font-stack.ts) character for
+   * character -- CSS cannot import a JS constant, so this is the one
+   * unavoidable duplicate, and `scripts/check-a11y-invariants.mjs`
+   * asserts the two are equal so it cannot drift silently. Read that
+   * module's doc comment for the per-entry rationale; the short version
+   * is that every name here is a font the device already has (zero
+   * bytes, zero requests, no @font-face -- non-negotiable on a surface
+   * whose Android WebView calls `clearCache(true)` before every single
+   * launch), and that the Indic families sit AFTER `system-ui` because
+   * "Noto Sans Devanagari" carries a full Latin set and, ahead of the
+   * generics, silently restyled the entire English portal on any machine
+   * where the family resolves.
+   *
+   * Used by `.portal-runtime .font-display` and the iOS Dynamic Type
+   * `font:` restore further down this file -- both of which previously
+   * carried their own hand-copied literal. */
+  --pg-font-stack:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, system-ui,
+    "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi",
+    "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu",
+    "Nirmala UI", sans-serif;
+  /* Slightly softer corner scale + a cleaner, near-neutral canvas: the old
+   * 0.75rem/blue-tinted paper read a little dated next to the indigo brand. */
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.003 265);
+  --foreground: oklch(0.2 0.02 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.03 235);
   --popover: oklch(1 0 0);
@@ -112,16 +174,16 @@
    * here fixes every dialog everywhere in one place, not per-page patches. */
   --primary: oklch(0.47 0.2 265);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.955 0.012 216);
-  --secondary-foreground: oklch(0.26 0.03 232);
-  --muted: oklch(0.962 0.008 218);
-  --muted-foreground: oklch(0.5 0.025 230);
-  --accent: oklch(0.945 0.022 202);
-  --accent-foreground: oklch(0.3 0.06 210);
+  --secondary: oklch(0.965 0.005 265);
+  --secondary-foreground: oklch(0.26 0.02 265);
+  --muted: oklch(0.968 0.004 265);
+  --muted-foreground: oklch(0.52 0.018 265);
+  --accent: oklch(0.955 0.014 268);
+  --accent-foreground: oklch(0.3 0.06 268);
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0.005 250);
-  --border: oklch(0.905 0.012 220);
-  --input: oklch(0.925 0.012 220);
+  --border: oklch(0.918 0.006 265);
+  --input: oklch(0.932 0.006 265);
   --ring: oklch(0.6 0.19 265);
   /* Cyan/teal "Aurora" accent -- design v3 spec Part 0 Fix 1: this token's
      own comment above (line ~66) always said "electric cyan/teal", but its
@@ -136,32 +198,36 @@
   --chart-3: oklch(0.55 0.15 250);
   --chart-4: oklch(0.72 0.15 145);
   --chart-5: oklch(0.75 0.15 70);
-  /* Signature dark teal-navy brand rail against the light content canvas. */
-  --sidebar: oklch(0.235 0.035 232);
-  --sidebar-foreground: oklch(0.85 0.018 218);
-  --sidebar-primary: oklch(0.7 0.14 194);
-  --sidebar-primary-foreground: oklch(0.16 0.03 232);
-  --sidebar-accent: oklch(0.31 0.04 226);
-  --sidebar-accent-foreground: oklch(0.98 0.012 200);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.7 0.14 194);
+  /* Modern ink rail: near-black graphite with a faint indigo cast (was a
+   * saturated teal-navy, which fought the indigo --primary everywhere the
+   * two met). Active items now read as indigo on ink, matching buttons. */
+  --sidebar: oklch(0.185 0.014 268);
+  --sidebar-foreground: oklch(0.83 0.012 265);
+  --sidebar-primary: oklch(0.66 0.18 268);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.26 0.018 268);
+  --sidebar-accent-foreground: oklch(0.98 0.006 265);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.66 0.18 268);
 }
 
 .dark {
-  --background: oklch(0.17 0.02 236);
-  --foreground: oklch(0.96 0.008 220);
-  --card: oklch(0.212 0.025 236);
-  --card-foreground: oklch(0.96 0.008 220);
-  --popover: oklch(0.212 0.025 236);
-  --popover-foreground: oklch(0.96 0.008 220);
+  /* Dark mode moved off the blue-teal cast onto the same graphite/indigo
+   * axis as light mode, so switching themes no longer shifts hue. */
+  --background: oklch(0.155 0.012 268);
+  --foreground: oklch(0.96 0.005 265);
+  --card: oklch(0.2 0.014 268);
+  --card-foreground: oklch(0.96 0.005 265);
+  --popover: oklch(0.2 0.014 268);
+  --popover-foreground: oklch(0.96 0.005 265);
   --primary: oklch(0.68 0.19 265);
   --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.27 0.03 234);
-  --secondary-foreground: oklch(0.96 0.008 220);
-  --muted: oklch(0.25 0.025 234);
-  --muted-foreground: oklch(0.7 0.022 222);
-  --accent: oklch(0.3 0.05 206);
-  --accent-foreground: oklch(0.96 0.01 200);
+  --secondary: oklch(0.26 0.016 268);
+  --secondary-foreground: oklch(0.96 0.005 265);
+  --muted: oklch(0.245 0.014 268);
+  --muted-foreground: oklch(0.71 0.014 265);
+  --accent: oklch(0.29 0.03 268);
+  --accent-foreground: oklch(0.96 0.008 265);
   --destructive: oklch(0.68 0.19 22);
   --destructive-foreground: oklch(0.99 0.005 250);
   --border: oklch(1 0 0 / 9%);
@@ -176,14 +242,14 @@
   --chart-3: oklch(0.66 0.15 250);
   --chart-4: oklch(0.76 0.15 145);
   --chart-5: oklch(0.78 0.15 70);
-  --sidebar: oklch(0.148 0.024 236);
-  --sidebar-foreground: oklch(0.88 0.012 220);
-  --sidebar-primary: oklch(0.74 0.14 194);
-  --sidebar-primary-foreground: oklch(0.15 0.02 236);
-  --sidebar-accent: oklch(0.26 0.032 232);
-  --sidebar-accent-foreground: oklch(0.98 0.012 200);
+  --sidebar: oklch(0.13 0.012 268);
+  --sidebar-foreground: oklch(0.87 0.008 265);
+  --sidebar-primary: oklch(0.68 0.19 265);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.235 0.016 268);
+  --sidebar-accent-foreground: oklch(0.97 0.006 265);
   --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.74 0.14 194);
+  --sidebar-ring: oklch(0.68 0.19 265);
 }
 
 /**
@@ -641,15 +707,100 @@
  * class on a portal route yet.
  */
 .portal-runtime {
-  --pg-canvas: #FAFAF8;
+  /* ---------------------------------------------------------------------
+   * v7 Parts 2 & 3 -- brand alignment with wyfyguest.com, at zero bytes.
+   * ---------------------------------------------------------------------
+   * The founder asked why the portal has never looked like the marketing
+   * site. The honest answer is that nobody ever wrote it down: v4 through v7
+   * are defect lists, not one of them names brand consistency as a goal, and
+   * the two surfaces live in different repos on different stacks with no
+   * shared design system. So they were never going to converge on their own.
+   *
+   * The values below are read off `~/wyfy-guest-website/src/styles/global.css`
+   * and confirmed against the live computed styles of the rendered hero at
+   * 390x844, not eyeballed from a screenshot:
+   *
+   *   --color-ink    #1E1B4B   body colour, every h1-h4
+   *   --color-paper  #F8F8FC   body background
+   *   --shadow-card  0 1px 2px rgba(30,27,75,.06), 0 8px 24px -12px rgba(30,27,75,.18)
+   *   .eyebrow       12px / 600 / +0.14em / uppercase
+   *   h1             Poppins 600, -0.02em
+   *   violet-700     #6D28D9   eyebrow + accent ink
+   *
+   * The typeface is deliberately NOT matched, and that decision is costed
+   * rather than assumed -- see the report and PortalShell's `PG_FONT_STACK`.
+   * Android's CaptivePortalLogin WebView calls `clearCache(true)` on every
+   * activity creation, so a webfont here is not amortised across visits, it
+   * is re-downloaded by every guest at every venue on every session; and a
+   * swap on this screen's centred 26px headline was measured at up to +25.5px
+   * of growth, which re-wraps the line and moves the form under the guest's
+   * thumb. Everything else about the brand is carried by colour, weight,
+   * tracking, rhythm and the lockup, all of which are free.
+   * --------------------------------------------------------------------- */
+  /* wyfyguest.com `--color-paper`. Was #FAFAF8, a warm neutral; the site's
+   * paper is a cool violet-white, and side by side the temperature was the
+   * first thing that read as "two different products". Visible on the
+   * no-photo canvas and behind the card. */
+  --pg-canvas: #F8F8FC;
   --pg-surface: #FFFFFF;
-  --pg-ink: #0F172A;
-  --pg-ink-muted: #64748B;
-  /* Real incident, live (PR #77-era, PortalShell.tsx's old footer): the
-   * previous slate-300 on this canvas was confirmed genuinely illegible in
-   * production. slate-400 is the empirically-confirmed legibility floor on
-   * `--pg-canvas` -- treat as a hard minimum, never fade further than this. */
-  --pg-ink-faint: #94A3B8;
+  /* wyfyguest.com `--color-ink` (indigo-950), the site's body colour and the
+   * colour of every heading on it. Was #0F172A (slate-900) -- the same
+   * lightness, a different hue family, and the single largest carrier of
+   * "this is a different brand" on the screen.
+   *
+   * Re-derived rather than assumed, because this token is load-bearing:
+   *   #0F172A  17.85:1 on #FFFFFF   12.62:1 on the worst plate composite
+   *   #1E1B4B  15.99:1 on #FFFFFF   11.30:1 on the worst plate composite
+   * `pg-title` is 26px/700, i.e. WCAG large text needing 3:1, and body uses
+   * of this token need 4.5:1. Both clear by a factor of three or more, so
+   * this is a hue change with no contrast consequence -- confirmed
+   * end-to-end by `npm run measure:portal-contrast`, which measures the real
+   * composited pixels rather than the token in isolation. */
+  --pg-ink: #1E1B4B;
+  /* wyfyguest.com violet-700, the site's `.eyebrow` colour and the accent in
+   * its logo lockup. The one saturated brand colour the portal uses, and it
+   * is used in exactly two places: the greeting eyebrow above the venue's
+   * name, and the Wyfy mark in the footer lockup. Never on the venue's own
+   * name, never on body copy, never as a surface.
+   *   7.10:1 on #FFFFFF, 6.72:1 on --pg-canvas, 5.02:1 on the worst plate
+   *   composite (#D9D9D9). Clears 4.5:1 as text at any size and 3:1 as a
+   *   non-text graphic, everywhere it appears.
+   * Deliberately not `--pr-primary`: that is the *venue's* colour, it is
+   * unbounded, and its own default (#6366f1) measures 4.47:1 on white --
+   * it fails as small text before a venue has changed anything. */
+  --pg-brand-accent: #6D28D9;
+  /* captive-portal-v7-design-spec.md §1.5/§7.4-4 -- was #64748B (slate-500).
+   * Every ratio below is computed (sRGB relative luminance, WCAG 2.x
+   * formula), not eyeballed; see this token block's `--pg-ink-faint` note
+   * for the worst-composite derivation both tokens are sized against.
+   *   #64748B: 4.76:1 on #FFFFFF, 4.55:1 on --pg-canvas, 3.36:1 on the
+   *            worst legibility-card composite. Per v7 Part 9-4 a 4.76:1
+   *            token passes only at >=16px, and this is used at pg-meta
+   *            (13px) and pg-body (15px) -- so it was failing in practice.
+   *   #475569: 7.58:1 on #FFFFFF, 7.25:1 on --pg-canvas, 5.36:1 on the
+   *            worst legibility-card composite. Passes AA at every size
+   *            in every zone it is actually used in. */
+  --pg-ink-muted: #475569;
+  /* Was #94A3B8 (slate-400), with a comment calling it "the empirically-
+   * confirmed legibility floor". It was not a floor; it was a failure, and
+   * that comment is how the failure survived three design specs. Real
+   * computed figures for #94A3B8:
+   *   2.56:1 on #FFFFFF, 2.45:1 on --pg-canvas, 1.81:1 on the worst
+   *   legibility-card composite. AA needs 4.5:1. It failed everywhere.
+   * The worst composite for this token's own zone is the footer's
+   * GUEST_LEGIBILITY_CARD backing (`--pg-surface` at 85% alpha) over a
+   * near-black region of an arbitrary venue photo: 0.85*255 = #D9D9D9,
+   * relative luminance 0.6921. Clearing 4.5:1 against that caps text
+   * luminance at 0.11490, which is why this token had to travel most of
+   * the way to `--pg-ink-muted`: there is no room left on this backdrop
+   * for a genuinely lighter third grey. Hierarchy below `--pg-ink-muted`
+   * now has to come from size/weight, not from lightness.
+   *   #505E73: 6.58:1 on #FFFFFF, 6.30:1 on --pg-canvas, 4.65:1 on the
+   *            worst legibility-card composite (luminance 0.1095).
+   * NOT the placeholder colour any more -- v7 §7.2/§7.4-4, a placeholder
+   * is not a label, and PG_INPUT now uses `--pg-ink-muted` for its
+   * example text plus a real <Label htmlFor> for the actual name. */
+  --pg-ink-faint: #505E73;
   --pg-border: #E2E8F0;
   --pg-danger: #DC2626;
   --pg-danger-bg: #FEF2F2;
@@ -657,6 +808,209 @@
   /* Matches ConnectedIllustration's existing verified badge -- reuse, not a
    * second green. */
   --pg-success: #10B981;
+  /* v7 §7.3: gives the shell root an explicit, scale-aware font-size so
+   * that everything inheriting from it (button labels, plain <p>/<span>
+   * text with no size utility of its own) responds to the in-page text-size
+   * control too. `calc(1rem * 1)` is byte-for-byte today's inherited 16px
+   * at the default scale. */
+  font-size: calc(1rem * var(--pg-type-scale, 1));
+  /* Unitless multiplier the `pg-*` type utilities below fold into their
+   * own `rem` sizes (v7 §7.3/§7.5). Two independent axes, deliberately:
+   * `rem` carries whatever the *platform* does (desktop browser base font
+   * size, iOS Dynamic Type via the `@supports` opt-in below, Android
+   * WebView `textZoom`), and this multiplier carries the portal's own
+   * in-page control. A unitless number, never an `em`, so it composes
+   * multiplicatively instead of compounding through nesting. */
+  --pg-type-scale: 1;
+}
+
+/* v7 §7.1/§7.4-1: the in-page "large text" control. Was
+ * `largeText && "text-[17px]"` on the shell root, which could not cascade
+ * into a single one of `pg-title`/`pg-body`/`pg-micro`/`text-sm`/`text-xs`
+ * -- every one of those sets its own absolute font-size, so the control
+ * was inert and the menu item was lying. This multiplier is the same knob
+ * the platform's own text scaling turns, so the two compose. */
+.portal-runtime[data-pg-text-size="large"] {
+  --pg-type-scale: 1.25;
+}
+
+/* captive-portal-v7-design-spec.md §1.4 C3 -- the scrim's dark polarity.
+ *
+ * `GUEST_BACKDROP_SCRIM` was hardcoded `rgba(255,255,255, ...)`, so it could
+ * only ever *lighten* (§1.1 L3). That is a no-op over a bright photo, which
+ * is precisely the case that fails -- and it is the same photo whose
+ * brightness dissolves the card edge in L2. So over a measurably bright
+ * photo the scrim flips to black, and the text standing on it has to flip
+ * with it: a black scrim under dark ink is worse than no scrim at all.
+ * Polarity and ink colour are one decision, never two.
+ *
+ * Doing the flip on *tokens* is what lets it reach text this stylesheet's
+ * authors do not control. Ten `portal.*.tsx` routes render an `<h1>` and a
+ * subtitle in a bare `text-center` div directly on the photo (§1.1 L1);
+ * they read `--pg-ink`, so they follow this automatically, with no edit.
+ *
+ * Pure #FFFFFF, not an off-white, and that is a costed decision rather than
+ * a stylistic one: §1.3's alpha table shows `#F7F5F2` would need scrim alpha
+ * 0.558 and `#EDEAE4` 0.584, against 0.535 for pure white. Off-white text
+ * over imagery is paid for in scrim opacity, i.e. in how much of the venue's
+ * photo you give up. Warm off-whites belong on the card, where they are free.
+ *
+ * White ink here is safe by the §1.3 proof and not by inspection: at the
+ * floor alpha, the worst possible underlying pixel (pure white) composites
+ * to rgb(119,119,119), on which #FFFFFF measures 4.505:1 -- AA for body text
+ * over *any* image whatsoever. See src/lib/portal-backdrop.ts for the full
+ * derivation and the constants it produced. */
+.portal-runtime[data-pg-scrim="dark"] {
+  --pg-ink: #FFFFFF;
+  --pg-ink-muted: #FFFFFF;
+  --pg-ink-faint: #FFFFFF;
+}
+
+/* ...and flipped straight back wherever text is standing on a surface of
+ * ours rather than on the photo. `pg-surface-card` is the marker
+ * `PortalCard` and `GUEST_LEGIBILITY_CARD_CLASS` both carry (see
+ * PortalShell.tsx); form controls are listed alongside it because `PG_INPUT`
+ * paints its own `--pg-surface` background and so is an opaque surface too,
+ * whether or not it happens to sit inside a card. Without this rule a white
+ * card would inherit white ink and every word on it would disappear -- the
+ * exact inverse of the bug being fixed, which is why the restore is written
+ * as its own rule rather than left implicit. */
+.portal-runtime[data-pg-scrim="dark"] .pg-surface-card,
+.portal-runtime[data-pg-scrim="dark"] input,
+.portal-runtime[data-pg-scrim="dark"] textarea,
+.portal-runtime[data-pg-scrim="dark"] select {
+  --pg-ink: #1E1B4B;
+  --pg-ink-muted: #475569;
+  --pg-ink-faint: #505E73;
+}
+
+/* v7 §7.4-6 -- OS-honouring token blocks, same shape as the
+ * `prefers-reduced-motion` handling already used at 11 sites in this file.
+ * Deliberately re-declares *tokens*; never a CSS `filter` (v7 §7.5: a
+ * filter is blind to tokens, blind to forced-colors, cannot tell text from
+ * photo, and establishes a containing block for fixed-position
+ * descendants -- which is exactly the bug §7.1 documents).
+ *   #334155 (slate-700): 10.35:1 on #FFFFFF, 9.91:1 on --pg-canvas,
+ *                        7.32:1 on the worst legibility-card composite.
+ *   #0F172A (--pg-ink):  17.85:1 on #FFFFFF, 12.62:1 on that composite.
+ *   --pg-border #E2E8F0 is 1.23:1 against --pg-surface and so fails SC
+ *   1.4.11's 3:1 for the input boundary; #64748B is 4.76:1 and clears it.
+ *   (The *default* --pg-border is left alone on purpose -- see the report
+ *   for why that one is a separate, visible-redesign decision.) */
+@media (prefers-contrast: more) {
+  .portal-runtime {
+    --pg-ink-muted: #334155;
+    --pg-ink-faint: #334155;
+    --pg-border: #64748B;
+  }
+  /* v7 Part 3. `--pg-border` above reaches `PortalCard`, which asks for it
+   * by token -- but `GUEST_LEGIBILITY_CARD_CLASS` hard-codes
+   * `border-white/60`, so every `PortalTextPlate` (the footer's attribution
+   * plate included) kept a white hairline while everything around it
+   * darkened. Combined with the rule below, which drops the photo, that left
+   * a white box floating on a near-white canvas with no discernible edge --
+   * confirmed in a render at 390x844 under `prefers-contrast: more`.
+   * #64748B measures 4.76:1 against `--pg-surface`, comfortably clearing SC
+   * 1.4.11's 3:1 for a non-text boundary, and both colours are ours so the
+   * ratio holds whatever the photo does. */
+  .portal-runtime .pg-surface-card {
+    border-color: #64748B;
+  }
+  /* v7 §1.4 / §7.5 composition rule: under an explicit request for more
+   * contrast, **drop the photo and the scrim entirely** and let the text
+   * stand on the flat `--pg-canvas` token, rather than computing a "more
+   * contrasty scrim". Escalating the scrim is not a contrast improvement:
+   * a scrim cannot tell text from photo, so every extra point of alpha
+   * buys legibility by destroying the venue's image, and at the limit it
+   * *is* PR #81. Removing the image is the only move that raises contrast
+   * without that trade -- the canvas/ink pair is a known 17.85:1. Same
+   * reasoning the `forced-colors` block below already applies; this makes
+   * the two consistent instead of only handling the Windows case.
+   *
+   * The polarity flip is undone with it, because with no scrim left there
+   * is nothing dark for white ink to stand on. */
+  .portal-runtime [data-pg-backdrop] {
+    display: none !important;
+  }
+  .portal-runtime[data-pg-scrim="dark"] {
+    --pg-ink: #1E1B4B;
+    --pg-ink-muted: #334155;
+    --pg-ink-faint: #334155;
+  }
+}
+
+/* Ordered after the media query on purpose (v7 §7.5, "escalation only"):
+ * an explicit in-page choice outranks the OS for this page, and because
+ * the two rules have identical specificity, source order is the whole
+ * mechanism. There is deliberately no "off" state that undoes the media
+ * query -- the control can only escalate above the OS baseline. */
+.portal-runtime[data-pg-contrast="more"] {
+  --pg-ink-muted: #334155;
+  --pg-ink-faint: #334155;
+  --pg-border: #64748B;
+}
+
+/* The in-page control's half of the drop-the-photo rule above -- same
+ * argument, same outcome, so the guest gets the same page whether the
+ * request came from their OS or from this portal's own menu. */
+.portal-runtime[data-pg-contrast="more"] [data-pg-backdrop] {
+  display: none !important;
+}
+.portal-runtime[data-pg-contrast="more"][data-pg-scrim="dark"] {
+  --pg-ink: #1E1B4B;
+  --pg-ink-muted: #334155;
+  --pg-ink-faint: #334155;
+}
+
+/* Forced Colors Mode (Windows High Contrast and friends). The UA replaces
+ * every colour it controls with the user's own palette; our job is to stop
+ * fighting it -- drop the photo, the scrim and the backdrop blur so the
+ * text sits on the user's real system canvas, and hand the remaining
+ * tokens over to the system keywords. `forced-color-adjust: none` is
+ * deliberately NOT used anywhere here. Mirrors v7 §7.5's composition rule:
+ * under forced colors, drop the photo entirely rather than trying to
+ * compute a "more contrasty scrim". */
+@media (forced-colors: active) {
+  .portal-runtime {
+    --pg-canvas: Canvas;
+    --pg-surface: Canvas;
+    --pg-ink: CanvasText;
+    --pg-ink-muted: CanvasText;
+    --pg-ink-faint: CanvasText;
+    --pg-border: CanvasText;
+    --pg-danger: LinkText;
+    --pg-danger-bg: Canvas;
+    --pg-danger-border: CanvasText;
+    --pg-success: CanvasText;
+  }
+  /* The photo, its scrim and the no-photo pattern are all `aria-hidden`
+   * decorative layers carrying no information; in forced colors they can
+   * only wreck legibility, because the UA is about to repaint the text on
+   * top of them without knowing they exist.
+   *
+   * This used to match them structurally, by their Tailwind classes
+   * (`.portal-runtime > .pointer-events-none.absolute.inset-0`), with a
+   * note to replace that with a `data-pg-backdrop` attribute once the Part
+   * 1 legibility workstream landed and `GuestBackdrop` could be edited.
+   * That has landed, and this is the replacement. It was not cosmetic: C1
+   * changed those layers from `absolute` to `fixed`, which would have made
+   * the old `.absolute` selector silently stop matching and quietly
+   * reintroduce the photo underneath forced-colors text. */
+  .portal-runtime [data-pg-backdrop] {
+    display: none !important;
+  }
+  /* Nothing dark is left to stand on once the scrim is gone, so the
+   * polarity flip has to come off with it -- and `CanvasText` above is the
+   * only correct answer here anyway. */
+  .portal-runtime[data-pg-scrim="dark"],
+  .portal-runtime[data-pg-scrim="dark"] .pg-surface-card {
+    --pg-ink: CanvasText;
+    --pg-ink-muted: CanvasText;
+    --pg-ink-faint: CanvasText;
+  }
+  .portal-runtime .backdrop-blur-md {
+    backdrop-filter: none;
+  }
 }
 
 /* captive-portal-v5-design-spec.md §2.3 (UX/Perf): PortalShell's own
@@ -680,57 +1034,210 @@
  * beats the plain `.font-display` utility (0,1,0) regardless of source
  * order, so it doesn't depend on CSS layer/cascade ordering to win.
  * Retroactively fixes all 12 files at once since they all render inside
- * `.portal-runtime`. Keep this string literally in sync with
- * `PG_FONT_STACK` (PortalGuestUi.tsx) -- CSS can't import a JS constant,
- * so there's no single source of truth to enforce that automatically. */
+ * `.portal-runtime`. This used to be a hand-copied literal of the stack
+ * with a comment noting there was "no single source of truth to enforce
+ * that automatically"; there is one now -- `--pg-font-stack` at the top of
+ * this file, mirroring `PG_FONT_STACK` (src/lib/portal-font-stack.ts),
+ * with `scripts/check-a11y-invariants.mjs` asserting the two match. */
 .portal-runtime .font-display {
-  font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", ui-sans-serif,
-    system-ui, sans-serif;
+  font-family: var(--pg-font-stack);
+}
+
+/* captive-portal-v7-design-spec.md §7.3 -- the iOS Dynamic Type opt-in.
+ * iOS Safari does not apply Dynamic Type to web text sized in px *or* rem
+ * unless the page opts in with `font: -apple-system-body` on the root, so
+ * a guest at 235% Larger Text currently gets nothing at all: a silent SC
+ * 1.4.4 failure that generates no support tickets and therefore has never
+ * been filed. (Android WebView is the same root cause with the opposite,
+ * visible symptom -- it scales px text inside fixed `h-[48px]` boxes until
+ * it clips, which is what the `min-height` conversions below address.)
+ *
+ * Three deliberate narrowings of the spec's one-line version, each of
+ * which would otherwise be a regression:
+ *
+ * 1. `:has(.portal-runtime)`. `rem` is root-relative, so the opt-in has to
+ *    live on `:root` -- but `:root` is shared with the whole admin
+ *    dashboard, which is not part of this remediation and has not been
+ *    reviewed for it. `:has()` scopes the effect to pages that actually
+ *    mount a portal shell. Any engine that supports `-apple-system-body`
+ *    at all (WebKit) has supported `:has()` since Safari 15.4; older
+ *    Safari simply doesn't get the opt-in, which is today's behaviour.
+ * 2. `(hover: none) and (pointer: coarse)`. `-apple-system-body` is a
+ *    valid system font on *macOS* Safari too, where it resolves to roughly
+ *    13px -- ungated, this rule would shrink the portal ~19% on every Mac.
+ *    The pointer query keeps it to iOS/iPadOS, which is the platform whose
+ *    accessibility setting we are trying to honour.
+ * 3. `font-family` is restored immediately after the shorthand, because
+ *    `font:` is a shorthand and resets the family to the system UI face.
+ *    Restored from `--pg-font-stack` (top of this file) rather than a
+ *    third hand-copied literal of the stack.
+ *
+ * Consequence to know about: on iOS at *default* Dynamic Type the root
+ * becomes 17px rather than 16px, so the portal renders ~6.25% larger than
+ * it does today. That is Apple's own body metric and is the price of the
+ * feature working at all; every other engine is unchanged to the pixel. */
+@supports (font: -apple-system-body) {
+  @media (hover: none) and (pointer: coarse) {
+    :root:has(.portal-runtime) {
+      font: -apple-system-body;
+      font-family: var(--pg-font-stack);
+    }
+  }
 }
 
 /* Numeric type scale (v4 §4) -- replaces today's scattered per-screen sizes
  * (26px, 2xl, 42px, 50px, 4xl, lg, sm, xs, 11px, each hand-picked per
  * file) with one shared set. All on `PG_FONT_STACK` (system fonts) --
- * never a webfont, see that stack's own doc comment in PortalShell.tsx. */
+ * never a webfont, see that stack's own doc comment in PortalShell.tsx.
+ *
+ * v7 §7.3: every size below is now `rem * var(--pg-type-scale)` rather
+ * than an absolute px value. The px equivalents are unchanged at a 16px
+ * root with the scale at 1 (42/16 = 2.625rem, and so on down) -- this is a
+ * units change, not a redesign. `rem` is what makes the platform's own
+ * text scaling (the `@supports` block above, desktop browser base font
+ * size, Android `textZoom`) actually reach this type ramp; the unitless
+ * `--pg-type-scale` multiplier is the portal's own in-page control, and
+ * the two compose instead of one clobbering the other. */
+/* captive-portal-v6-design-spec.md §3.1/§3.3.6: heading-layer-only font
+ * choice (never body/UI text -- see PG_FONT_STACK's own comment in
+ * PortalShell.tsx for why every non-heading utility stays on it
+ * permanently). `--pg-display-font-family` is unset for every `system`-
+ * choice venue (still the vast majority) and during SSR/first paint before
+ * PortalRuntimeContext's style-injection effect runs -- `inherit` then
+ * resolves through `.pg-shell`'s own inline `font-family: PG_FONT_STACK`,
+ * pixel-identical to today's output, not a new default to verify against. */
 @utility pg-display {
-  font-size: 42px;
+  font-size: calc(2.625rem * var(--pg-type-scale, 1)); /* 42px @ 16px root */
   line-height: 1.08;
   font-weight: 700;
   letter-spacing: -0.02em;
+  font-family: var(--pg-display-font-family, inherit);
 }
 /* xl: (1280px+) bump -- plain media query rather than Tailwind's `@variant`
  * nesting, which applies to a *consumer* of a utility, not the utility
  * definition itself. */
 @media (min-width: 1280px) {
-  .pg-display { font-size: 50px; }
+  .pg-display { font-size: calc(3.125rem * var(--pg-type-scale, 1)); } /* 50px @ 16px root */
 }
 @utility pg-title {
-  font-size: 26px;
+  font-size: calc(1.625rem * var(--pg-type-scale, 1)); /* 26px @ 16px root */
   line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  /* v7 Parts 2 & 3, brand alignment: was -0.015em. wyfyguest.com's hero h1
+   * computes to -0.88px on 44px, i.e. **-0.02em**, and `pg-display` here was
+   * already at -0.02em -- so this token was the odd one out both against the
+   * site and against its own scale. Tracking is the affordable half of a
+   * typographic match: it is free, it is the part a reader perceives as
+   * "same voice", and unlike a weight change it does not weaken the venue's
+   * name, which Part 2 exists to strengthen.
+   *
+   * The site's headings are 600, not 700. That half is deliberately NOT
+   * matched: the site can afford 600 because Poppins is a geometric face
+   * with a tall x-height that reads heavy at 600, whereas on the system
+   * stack -- SF, Segoe, or an unknowable Android OEM face -- 600 reads
+   * markedly lighter, and dropping the venue's name to it would undo the
+   * hierarchy Part 2 is built on. See styles.css's `--pg-ink` note for why
+   * the typeface itself is not matched at all. */
+  letter-spacing: -0.02em;
+  font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-subtitle {
-  font-size: 20px;
+  font-size: calc(1.25rem * var(--pg-type-scale, 1)); /* 20px @ 16px root */
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.01em;
+  font-family: var(--pg-display-font-family, inherit);
 }
 @utility pg-body {
-  font-size: 15px;
+  font-size: calc(0.9375rem * var(--pg-type-scale, 1)); /* 15px @ 16px root */
   line-height: 1.5;
   font-weight: 500;
 }
 @utility pg-meta {
-  font-size: 13px;
+  font-size: calc(0.8125rem * var(--pg-type-scale, 1)); /* 13px @ 16px root */
   line-height: 1.4;
   font-weight: 600;
 }
 @utility pg-micro {
-  font-size: 11px;
+  font-size: calc(0.6875rem * var(--pg-type-scale, 1)); /* 11px @ 16px root */
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* v7 Parts 2 & 3 -- wyfyguest.com's `.eyebrow`, reproduced exactly.
+ *
+ * Values read off that site's `src/styles/global.css` and confirmed against
+ * the rendered hero's live computed styles at 390x844: `font-size: 12px`,
+ * `font-weight: 600`, `letter-spacing: 1.68px` (= 0.14em at 12px),
+ * `text-transform: uppercase`. It is the marketing site's most repeated
+ * typographic signature -- it opens every section there -- and it costs
+ * nothing to reproduce, which makes it the single best zero-byte statement
+ * that the portal and the site are one product.
+ *
+ * NOT reproduced: the site's `.eyebrow::after`, a 32x3px violet-to-indigo
+ * gradient tick. On a marketing page that is a section opener; on this
+ * screen it would sit directly above the venue's own name, and decorating a
+ * customer's identity with our brand furniture is the one thing §3 P5 says
+ * not to do.
+ *
+ * `--pg-type-scale` is folded in for the same reason every other utility
+ * here does it, and the size is authored in `rem` so the platform's own text
+ * scaling reaches it too. */
+@utility pg-eyebrow {
+  font-size: calc(0.75rem * var(--pg-type-scale, 1)); /* 12px @ 16px root */
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* captive-portal-v7-design-spec.md Part 2 -- extra leading for Brahmic
+ * scripts, applied per *string* rather than per UI language. See
+ * src/lib/portal-script.ts for why `:lang()` is the wrong key (a venue's
+ * Tamil name renders inside an English UI on `lang="en"`) and for the
+ * measurement this is sized against.
+ *
+ * The defect, measured in a real browser at 390x844, `--pg-type-scale: 1.25`
+ * (so `pg-title` = 32.5px), a 40-character Devanagari venue name on the
+ * shipped system stack: each line's client rect is **42px tall inside a
+ * 37.375px line box**, and successive line tops sit 37.3px apart -- so every
+ * pair of lines overlaps by 4.7px, and line 2's upper matras run into line
+ * 1's descenders. At the default scale it is 3.7px. Brahmic scripts hang
+ * from a head-stroke with matras stacking above *and* below it, so their
+ * inked envelope is far taller than Latin's at the same font-size; 1.15 was
+ * tuned for Latin and is simply too small to hold them.
+ *
+ * The published metrics for Noto Sans Devanagari -- the Android fallback
+ * named in `PG_FONT_STACK`, i.e. the majority case for this product -- put
+ * its ink box near 1.36em, worse than the face the measurement above was
+ * taken on. 1.45 clears that with margin; 1.38 does for `pg-display`, which
+ * only ever carries the desktop BrandPanel heading.
+ *
+ * Specificity note, since this has to beat the `@utility` definitions:
+ * `.portal-runtime [data-pg-script]` is (0,2,0) against a bare utility
+ * class's (0,1,0), so it wins on specificity and does not depend on source
+ * or layer order. Latin strings never carry the attribute at all, so the
+ * Latin type scale is byte-for-byte unchanged -- this is additive, not a
+ * retune of Part 6. */
+.portal-runtime [data-pg-script="tall"] {
+  line-height: 1.5;
+  /* Negative tracking is a Latin device. Brahmic scripts are assembled from
+   * a base glyph plus matras and conjunct ligatures, and pulling the
+   * letterfit tighter closes the gaps those marks need -- so `pg-title`'s
+   * -0.02em, and `pg-eyebrow`'s +0.14em, are both wrong here for opposite
+   * reasons. `normal` is the only correct value for either. This also
+   * corrects a pre-existing defect: `pg-title`'s negative tracking has been
+   * applied to Devanagari venue names for as long as the utility has
+   * existed. */
+  letter-spacing: normal;
+}
+.portal-runtime .pg-title[data-pg-script="tall"],
+.portal-runtime .pg-subtitle[data-pg-script="tall"] {
+  line-height: 1.45;
+}
+.portal-runtime .pg-display[data-pg-script="tall"] {
+  line-height: 1.38;
 }
 
 /* CSS-only replacement for ConnectedIllustration's (portal.session.tsx)

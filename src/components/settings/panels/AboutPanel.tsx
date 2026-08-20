@@ -5,16 +5,17 @@ import type { AboutInfo } from "@/types/settings";
 
 export function AboutPanel({ data }: { data: AboutInfo }) {
   return (
-    <SectionCard
-      title="About"
-      description="Runtime versions and build information."
-    >
+    <SectionCard title="About" description="Runtime versions and build information.">
       <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><InfoIcon className="h-5 w-5" /></div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <InfoIcon className="h-5 w-5" />
+        </div>
         <div className="flex-1">
           <div className="flex items-center gap-2 text-sm font-medium">
             CloudGuest v{data.platformVersion}
-            <Badge variant="outline" className="uppercase">{data.environment}</Badge>
+            <Badge variant="outline" className="uppercase">
+              {data.environment}
+            </Badge>
           </div>
           <div className="text-xs text-muted-foreground">{data.buildNumber}</div>
         </div>

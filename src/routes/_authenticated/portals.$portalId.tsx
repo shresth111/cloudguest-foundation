@@ -1,25 +1,11 @@
 import { useState } from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Copy,
-  Download,
-  Eye,
-  Loader2,
-  RotateCcw,
-  Save,
-  Upload,
-} from "lucide-react";
+import { ArrowLeft, Copy, Download, Eye, Loader2, RotateCcw, Save, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -76,10 +62,22 @@ function PortalDetailPage() {
   const resetDesign = () => {
     patch({
       components: [
-        { id: Math.random().toString(36).slice(2, 10), type: "logo", props: { align: "center", size: 96 } },
-        { id: Math.random().toString(36).slice(2, 10), type: "heading", props: { text: "Welcome" } },
+        {
+          id: Math.random().toString(36).slice(2, 10),
+          type: "logo",
+          props: { align: "center", size: 96 },
+        },
+        {
+          id: Math.random().toString(36).slice(2, 10),
+          type: "heading",
+          props: { text: "Welcome" },
+        },
         { id: Math.random().toString(36).slice(2, 10), type: "login_card", props: {} },
-        { id: Math.random().toString(36).slice(2, 10), type: "footer", props: { text: "Powered by CloudGuest" } },
+        {
+          id: Math.random().toString(36).slice(2, 10),
+          type: "footer",
+          props: { text: "Powered by CloudGuest" },
+        },
       ],
     });
     toast.success("Design reset to defaults");
@@ -89,7 +87,10 @@ function PortalDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <Link to="/portals" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <Link
+            to="/portals"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-3 w-3" /> Back to portals
           </Link>
           <div className="flex flex-wrap items-center gap-2">
@@ -98,8 +99,8 @@ function PortalDetailPage() {
             <LoginMethodBadge method={data.primaryLoginMethod} />
           </div>
           <p className="text-sm text-muted-foreground">
-            {data.organizationName} · {data.locationName} · v{data.currentVersion} ·
-            {" "}Updated {new Date(data.updatedAt).toLocaleString()}
+            {data.organizationName} · {data.locationName} · v{data.currentVersion} · Updated{" "}
+            {new Date(data.updatedAt).toLocaleString()}
           </p>
         </div>
 
@@ -115,7 +116,11 @@ function PortalDetailPage() {
               size="sm"
               variant="outline"
               onClick={() =>
-                publish.mutate({ id: data.id, status: "draft", organizationId: data.organizationId })
+                publish.mutate({
+                  id: data.id,
+                  status: "draft",
+                  organizationId: data.organizationId,
+                })
               }
             >
               Unpublish
@@ -131,7 +136,11 @@ function PortalDetailPage() {
                 })
               }
             >
-              {publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              {publish.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
               Publish
             </Button>
           )}
@@ -151,8 +160,15 @@ function PortalDetailPage() {
         <CardContent className="grid gap-3 p-4 md:grid-cols-4">
           <MetricTile label="Views" value={data.views.toLocaleString()} />
           <MetricTile label="Logins" value={data.logins.toLocaleString()} />
-          <MetricTile label="Conversion" value={`${((data.logins / Math.max(1, data.views)) * 100).toFixed(1)}%`} />
-          <MetricTile label="Languages" value={`${data.languages.length}`} hint={data.languages.map((l) => l.toUpperCase()).join(", ")} />
+          <MetricTile
+            label="Conversion"
+            value={`${((data.logins / Math.max(1, data.views)) * 100).toFixed(1)}%`}
+          />
+          <MetricTile
+            label="Languages"
+            value={`${data.languages.length}`}
+            hint={data.languages.map((l) => l.toUpperCase()).join(", ")}
+          />
         </CardContent>
       </Card>
 
@@ -204,7 +220,9 @@ function PortalDetailPage() {
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-4xl">
-          <DialogHeader><DialogTitle>Live preview</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Live preview</DialogTitle>
+          </DialogHeader>
           <PortalLivePreview portal={data} />
         </DialogContent>
       </Dialog>
@@ -216,7 +234,10 @@ function PortalDetailPage() {
         description="This restores the portal to a minimal default layout. You can restore any prior version from the Versions tab."
         destructive
         confirmLabel="Reset"
-        onConfirm={() => { resetDesign(); setConfirmReset(false); }}
+        onConfirm={() => {
+          resetDesign();
+          setConfirmReset(false);
+        }}
       />
     </div>
   );

@@ -87,6 +87,17 @@ const searchSchema = z.object({
   // padta"). See GuestSignInCard/AuthMethodForms' login calls for where
   // this threads through as `ip_address`.
   ip: z.string().optional(),
+  // The guest's own chosen portal language, put here by `buildSessionUrl`
+  // so it survives portal.success.tsx's full-document POST to the NAS --
+  // the one boundary on this flow where React state and (on iOS's Captive
+  // Network Assistant) localStorage both disappear. Declared on the schema
+  // so `search: (prev) => prev` carries it through client-side navigations
+  // too; `PortalRuntimeContext` reads it straight off `window.location`,
+  // because it also has to work on the first render of the fresh document
+  // the NAS itself navigated to. Free text and never trusted as-is --
+  // `readLanguageFromUrl` validates it against `RUNTIME_LANGUAGES` and
+  // ignores anything else.
+  lang: z.string().optional(),
   // The site the guest was actually trying to reach before the hotspot
   // intercepted them -- RouterOS's `$(link-orig)` substitution. Used by
   // portal.success.tsx/portal.redirect.tsx as the "Continue browsing"
@@ -145,7 +156,7 @@ function IncompletePortalLinkError() {
   return (
     <div
       className="flex min-h-dvh w-full items-center justify-center px-4"
-      style={{ fontFamily: PG_FONT_STACK, background: "#FAFAF8" }}
+      style={{ fontFamily: PG_FONT_STACK, background: "#F8F8FC" }}
     >
       <PortalCard className="pg-enter w-full max-w-[400px] text-center">
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#6366f1]">
@@ -163,13 +174,28 @@ function IncompletePortalLinkError() {
 
 export const Route = createFileRoute("/portal")({
   // Was `ssr: false` from this route's very first commit (7c09a9c) --
-  // there is no comment or blocker recorded for it, and an audit of every
-  // window/document/localStorage/sessionStorage access anywhere under
-  // /portal (this file, PortalRuntimeContext, GuestSignInCard, PortalShell,
-  // portal.success/redirect/team/etc.) shows every single one is already
-  // guarded (`typeof window === "undefined"`) or confined to an effect/
-  // event handler -- never at module scope or in a render body -- so there
-  // is nothing here that actually requires a browser to evaluate. With
+  // there is no comment or blocker recorded for it, and nothing under
+  // /portal needs a browser present merely to *evaluate*: the browser-only
+  // work is confined to effects and event handlers, not module scope or a
+  // render body.
+  //
+  // An earlier version of this comment went further and claimed every
+  // window/document/localStorage/sessionStorage access under /portal was
+  // "already guarded" on the strength of its `typeof window === "undefined"`
+  // check. That was wrong, and it is why a real production sign-in bug went
+  // unnoticed: `typeof window` is an SSR guard. It answers "is there a
+  // window", which says nothing at all about whether that window's
+  // `localStorage`/`sessionStorage` *works*. Apple's Captive Network
+  // Assistant -- the websheet iOS opens for a WiFi login, i.e. the single
+  // most common environment this portal actually runs in -- behaves like
+  // private browsing and makes Web Storage access *throw*. A pile of
+  // `typeof window` -guarded but un-try/catch'd storage calls on the
+  // mandatory guest path therefore broke sign-in on every iPhone while
+  // reading as audited-safe. The real guard is a try/catch around each
+  // access (see `PortalRuntimeContext`'s safeGet/safeSet/safeRemove and
+  // `src/lib/portal-returning-guest.ts`); if you are adding storage access
+  // anywhere under /portal, use one of those, and do not read a `typeof
+  // window` check as protection. With
   // `ssr: false`, a guest's very first response for this page was an empty
   // `<body>` (just the app-wide `InitialLoader` spinner) until the full JS
   // bundle downloaded, parsed, executed, and hydrated -- on the weak/
@@ -183,7 +209,7 @@ export const Route = createFileRoute("/portal")({
       { title: "WyFy" },
       { name: "description", content: "Connect to complimentary guest WiFi." },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "theme-color", content: "#0F172A" },
+      { name: "theme-color", content: "#1E1B4B" },
     ],
   }),
   component: PortalRuntimeLayout,

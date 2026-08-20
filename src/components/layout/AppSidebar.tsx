@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { BrandTitle } from "@/components/brand/BrandTitle";
@@ -25,7 +26,7 @@ import { primaryRoleLabel } from "@/lib/roles";
 import type { SidebarGroupDef, SidebarNode } from "@/types/permissions";
 
 export function AppSidebar() {
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation("nav", { i18n });
   const { user, roles } = useAuth();
   const { sidebar, isLoading } = usePermissions();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -87,7 +88,7 @@ export function AppSidebar() {
 }
 
 function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: string }) {
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation("nav", { i18n });
   const label = t(`item.${item.id}`, item.label);
   const Icon = resolveIcon(item.icon);
   const to = item.to ?? "#";
@@ -113,10 +114,15 @@ function SidebarNodeRow({ item, pathname }: { item: SidebarNode; pathname: strin
   }
 
   const badgeTone =
-    item.badge?.tone === "primary" ? "default" :
-    item.badge?.tone === "success" ? "default" :
-    item.badge?.tone === "warning" ? "secondary" :
-    item.badge?.tone === "danger" ? "destructive" : "outline";
+    item.badge?.tone === "primary"
+      ? "default"
+      : item.badge?.tone === "success"
+        ? "default"
+        : item.badge?.tone === "warning"
+          ? "secondary"
+          : item.badge?.tone === "danger"
+            ? "destructive"
+            : "outline";
 
   return (
     <SidebarMenuItem>

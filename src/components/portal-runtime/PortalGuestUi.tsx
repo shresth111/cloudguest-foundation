@@ -155,7 +155,7 @@ export function PortalConnectingState() {
         style={{
           borderColor: "var(--pg-border, #E2E8F0)",
           backgroundColor: "var(--pg-surface, #fff)",
-          boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 8px 20px -12px rgba(15,23,42,0.10)",
+          boxShadow: "0 1px 2px rgba(30,27,75,0.06), 0 8px 24px -12px rgba(30,27,75,0.18)",
         }}
       >
         <Loader2 className="h-8 w-8 animate-spin text-[var(--pr-primary,#6366f1)]" />
@@ -189,8 +189,45 @@ export function PortalConnectingState() {
 // comfortably above the 44x44px WCAG 2.1 / Purple splash-page-guidance
 // touch-target floor (§0), this is trimming the excess above that floor,
 // not undercutting accessibility.
+// captive-portal-v7-design-spec.md §7.3: `h-[48px]` -> `h-auto
+// min-h-[3rem]` + `py-2`. A fixed height is the exact shape that fails on
+// Android WebView, which DOES apply the system font scale to web text --
+// the label grows and clips inside a box that cannot grow with it (SC
+// 1.4.4 + 1.4.10 + 1.4.12). `min-height` in `rem` is the same 48px at a
+// 16px root and expands instead of clipping. `h-auto` is load-bearing:
+// `min-h-*` does not displace `h-9` from the shared `<Input>`/`<button>`
+// base classes under tailwind-merge, but `h-auto` does.
 export const PG_PRIMARY_BTN =
-  "h-[48px] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
+  "h-auto min-h-[3rem] w-full rounded-2xl bg-[var(--pr-primary,#6366f1)] px-4 py-2 font-semibold text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:brightness-105 active:translate-y-px disabled:opacity-60 disabled:shadow-none";
 
+// v7 §7.2/§7.4-4: `placeholder:text-[var(--pg-ink-faint)]` is gone.
+// `--pg-ink-faint` was 2.56:1 on this input's own white background, and
+// under the old "high contrast" root filter it dropped to 2.30:1 -- on
+// what was, until this branch, the *only* labelling these fields had. The
+// placeholder is now `--pg-ink-muted` (7.58:1 on #FFFFFF) and it is an
+// example, not a name: every field on the primary path carries a real
+// `<Label htmlFor>` (AuthFields.tsx).
+// The hover border moving to the retuned `--pg-ink-faint` also fixes a
+// second, quieter failure: the old #94A3B8 hover state was 2.56:1 against
+// --pg-surface and so missed SC 1.4.11's 3:1 for a non-text UI indicator.
+// #505E73 is 6.58:1.
+// captive-portal-v7-design-spec.md §8.2, and this was left explicitly
+// unfixed by the Part 7 pass: **every input must be >= 16px**, or iOS
+// zooms the page on focus. That zoom is not a cosmetic wobble -- it
+// rescales a layout that has already committed to `viewport-fit=cover`
+// and `dvh`, so the primary button can end up off-screen at the exact
+// moment the guest is typing into the field above it, on the one screen
+// the whole product exists to complete. 0.9375rem (15px) was under it.
+//
+// Two font-size utilities, not one: the shared `<Input>` base carries
+// `text-base md:text-sm`, and tailwind-merge resolves `md:` variants
+// independently of the bare class -- so a single unprefixed size here
+// leaves `md:text-sm` (14px) winning from 768px up, which is both under
+// the threshold and the width the admin Portal Preview renders the guest
+// card at. Both forms are `text-[length:...]` arbitrary values rather
+// than a custom `@utility`, because only that form is recognised as a
+// font-size by tailwind-merge and therefore only that form can displace
+// the base class at all (a custom utility silently loses -- the exact bug
+// the first cut of the Part 7 branch shipped).
 export const PG_INPUT =
-  "h-[48px] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] text-[15px] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-faint,#94A3B8)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#94A3B8)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "h-auto min-h-[3rem] rounded-2xl border-[var(--pg-border,#E2E8F0)] bg-[var(--pg-surface,#fff)] py-2 text-[length:calc(1rem*var(--pg-type-scale,1))] md:text-[length:calc(1rem*var(--pg-type-scale,1))] text-[var(--pg-ink,#0F172A)] placeholder:text-[var(--pg-ink-muted,#475569)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--pg-ink-faint,#505E73)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";

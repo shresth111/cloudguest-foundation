@@ -23,12 +23,16 @@ export const Route = createFileRoute("/_authenticated")({
       // /login, the CUSTOMER sign-in form, on the master hostname. Safe
       // to read window here: this route is ssr:false, so beforeLoad only
       // ever runs client-side, no hydration-mismatch risk.
-      const isMasterHost = typeof window !== "undefined" && window.location.hostname === "master.wyfyguest.com";
+      const isMasterHost =
+        typeof window !== "undefined" && window.location.hostname === "master.wyfyguest.com";
       const loginTarget = isMasterHost ? "/master-login" : "/login";
       // Same defensive guard as authGuards.ts's requireCustomerSession --
       // never carry a redirect target that's already the login page itself
       // forward as the ?redirect= value.
-      const isAlreadyOnLoginTarget = location.href === loginTarget || location.href.startsWith(`${loginTarget}?`) || location.href.startsWith(`${loginTarget}#`);
+      const isAlreadyOnLoginTarget =
+        location.href === loginTarget ||
+        location.href.startsWith(`${loginTarget}?`) ||
+        location.href.startsWith(`${loginTarget}#`);
       throw redirect({
         to: loginTarget,
         search: isAlreadyOnLoginTarget ? undefined : { redirect: location.href },

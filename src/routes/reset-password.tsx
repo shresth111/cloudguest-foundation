@@ -36,7 +36,10 @@ function ResetPasswordPage() {
   const [done, setDone] = useState(false);
   const navigate = useNavigate();
   const { token } = Route.useSearch();
-  const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { password: "", confirm: "" } });
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { password: "", confirm: "" },
+  });
 
   const onSubmit = async (values: FormValues) => {
     if (!token) {
@@ -135,7 +138,10 @@ function ResetPasswordPage() {
             <p className="text-xs text-destructive">{form.formState.errors.confirm.message}</p>
           )}
         </div>
-        <motion.div whileHover={{ scale: submitting ? 1 : 1.01 }} whileTap={{ scale: submitting ? 1 : 0.98 }}>
+        <motion.div
+          whileHover={{ scale: submitting ? 1 : 1.01 }}
+          whileTap={{ scale: submitting ? 1 : 0.98 }}
+        >
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

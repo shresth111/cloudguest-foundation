@@ -1,6 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
+import { cn } from "@/lib/utils";
+import {
+  PortalShell,
+  PortalCard,
+  GUEST_LEGIBILITY_CARD_CLASS,
+  PortalTextPlate,
+} from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/terms")({
@@ -86,6 +92,7 @@ const DEFAULT_SECTIONS: {
 function TermsPage() {
   const { config, t, organizationId, locationId, routerId } = usePortalRuntime();
   const portalSearch = { organizationId, locationId, routerId };
+  const hasPhoto = !!config?.backgroundImageUrl;
 
   const sections = [
     config?.termsAndConditionsText || config?.termsAndConditionsUrl
@@ -103,15 +110,50 @@ function TermsPage() {
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
+        {/* captive-portal-v7-design-spec.md §1.1 (L1). This route is the
+         * one the spec's "bare `<div className="text-center">` outside
+         * PortalCard" description does NOT fit: it is a long prose
+         * document, and every section heading and every paragraph of that
+         * prose already sits inside an opaque `<PortalCard>`. So there is
+         * no "plate per heading" to add here, and a plate around the prose
+         * column would be the single worst place in the product to put one
+         * -- this is the tallest scrolling route, so a column-wide backing
+         * would cover essentially the whole photo at full document height,
+         * which is exactly PR #81's shipped-and-reverted regression (§0.1
+         * item 1). Only three things on this page are actually set on bare
+         * photo: this back link, the page <h1>, and the two trailing lines
+         * below the cards. Each of those -- and nothing else -- gets its
+         * own bounded plate. */}
+        {/* Hand-written rather than `PortalTextPlate shape="pill"` for the
+         * same reason as the other two back links (see portal.verify.tsx):
+         * the plate classes sit on the anchor, so the padding is part of
+         * the tap target, and the component wraps rather than decorates. */}
         <Link
           to="/portal/welcome"
           from="/portal/terms"
           search={(prev) => prev}
-          className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
+          className={cn(
+            "inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600",
+            hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
+          )}
         >
-          <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
+          <ArrowLeft className="h-4 w-4" /> Back
         </Link>
-        <h1 className="pg-subtitle text-[var(--pg-ink)]">{t("termsTitle")}</h1>
+        {/* `w-fit` with no `mx-auto`: this heading is left-aligned today
+         * and stays left-aligned -- the plate hugs the title, it does not
+         * re-center it. That is also why this one is not `PortalTextPlate`:
+         * the component hardcodes `mx-auto`, `text-center` and `p-5`, and
+         * this heading wants none of the three (start-aligned, `px-5 py-3`).
+         * Three simultaneous overrides fighting the component's own
+         * opinions is worse than one honest hand-written plate. */}
+        <h1
+          className={cn(
+            "pg-subtitle w-fit max-w-full text-[var(--pg-ink)]",
+            hasPhoto && cn("px-5 py-3", GUEST_LEGIBILITY_CARD_CLASS),
+          )}
+        >
+          {t("termsTitle")}
+        </h1>
         <div className="space-y-3">
           {sections.length === 0
             ? DEFAULT_SECTIONS.map((s) => (
@@ -148,16 +190,31 @@ function TermsPage() {
                 </PortalCard>
               ))}
         </div>
-        <p className="text-center text-xs text-slate-400">
-          Questions about this network or your data? Ask venue staff.
-        </p>
-        <Link
-          to="/portal/welcome"
-          search={portalSearch}
-          className="mt-1 text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
-        >
-          Back to sign in
-        </Link>
+        {/* The page's two trailing lines are the last text on this route
+         * still set on bare photo. One shared plate rather than two
+         * separate ones -- they read as a single closing block, and two
+         * stacked one-line plates 20px apart would be visual noise. The
+         * inner `gap-5` + the link's existing `mt-1` reproduce exactly the
+         * 24px that the parent column's `gap-5` gave these two before they
+         * became one flex item. */}
+        <div className="mx-auto flex w-fit max-w-full flex-col gap-5 text-center">
+          <PortalTextPlate className="flex flex-col gap-5">
+            {/* `--pg-ink-faint` (#505E73), not `text-slate-400` (#94A3B8). On
+             * this plate's own worst composite #94A3B8 is 1.81:1 -- the exact
+             * figure v7 §1.1 L4 records for the footer -- and #505E73 is 4.65:1.
+             * Both computed, both reproducing styles.css's own derivation. */}
+            <p className="text-xs text-[var(--pg-ink-faint)]">
+              Questions about this network or your data? Ask venue staff.
+            </p>
+            <Link
+              to="/portal/welcome"
+              search={portalSearch}
+              className="mt-1 text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+            >
+              Back to sign in
+            </Link>
+          </PortalTextPlate>
+        </div>
       </div>
     </PortalShell>
   );

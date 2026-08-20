@@ -155,15 +155,20 @@ export function AlertRulesPanel() {
                     <TableCell>
                       <div className="font-medium">{r.name}</div>
                       {r.description && (
-                        <div className="truncate text-xs text-muted-foreground">{r.description}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {r.description}
+                        </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs">{ALERT_TRIGGER_TYPE_LABEL[r.triggerType]}</TableCell>
+                    <TableCell className="text-xs">
+                      {ALERT_TRIGGER_TYPE_LABEL[r.triggerType]}
+                    </TableCell>
                     <TableCell>
                       <SeverityBadge severity={r.severity} />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      {orgName(r.organizationId) ?? (r.organizationId ? r.organizationId.slice(0, 8) : "All")}
+                      {orgName(r.organizationId) ??
+                        (r.organizationId ? r.organizationId.slice(0, 8) : "All")}
                     </TableCell>
                     <TableCell className="text-xs">{r.isActive ? "Active" : "Inactive"}</TableCell>
                     <TableCell className="text-right">
@@ -178,11 +183,7 @@ export function AlertRulesPanel() {
                         >
                           Edit
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setConfirmDelete(r)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(r)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -197,10 +198,20 @@ export function AlertRulesPanel() {
                   Page {data.page} of {data.totalPages}
                 </span>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!data.hasPrevious}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
                     Previous
                   </Button>
-                  <Button size="sm" variant="outline" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!data.hasNext}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
                     Next
                   </Button>
                 </div>
@@ -226,7 +237,10 @@ export function AlertRulesPanel() {
         onConfirm={async () => {
           if (!confirmDelete) return;
           try {
-            await deleteRule.mutateAsync({ id: confirmDelete.id, organizationId: confirmDelete.organizationId ?? undefined });
+            await deleteRule.mutateAsync({
+              id: confirmDelete.id,
+              organizationId: confirmDelete.organizationId ?? undefined,
+            });
             toast.success("Alert rule deleted");
           } catch (err) {
             toast.error((err as AppError).message || "Failed to delete");
@@ -266,7 +280,8 @@ function AlertRuleFormDialog({
         severity: editing.severity,
         isActive: editing.isActive,
         notificationChannelIds: editing.notificationChannelIds,
-        expectedStatus: (conditionConfig.expected_status as AlertRuleFormValues["expectedStatus"]) ?? "unhealthy",
+        expectedStatus:
+          (conditionConfig.expected_status as AlertRuleFormValues["expectedStatus"]) ?? "unhealthy",
         metric: conditionConfig.metric as AlertRuleFormValues["metric"],
         operator: conditionConfig.operator as AlertRuleFormValues["operator"],
         value: conditionConfig.value as number | undefined,
@@ -329,7 +344,10 @@ function AlertRuleFormDialog({
           <DialogTitle>{editing ? "Edit alert rule" : "Add alert rule"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(submit)} className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+          <form
+            onSubmit={form.handleSubmit(submit)}
+            className="max-h-[70vh] space-y-4 overflow-y-auto pr-1"
+          >
             <FormField
               control={form.control}
               name="name"
@@ -420,7 +438,9 @@ function AlertRuleFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value={ALERT_TARGET_ROUTER}>Router health (any router in scope)</SelectItem>
+                          <SelectItem value={ALERT_TARGET_ROUTER}>
+                            Router health (any router in scope)
+                          </SelectItem>
                           <SelectItem value={ALERT_TARGET_ISP_LINK}>
                             Internet connection (any ISP link in scope)
                           </SelectItem>
@@ -476,13 +496,15 @@ function AlertRuleFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {(Object.keys(THRESHOLD_METRIC_LABEL) as Array<keyof typeof THRESHOLD_METRIC_LABEL>).map(
-                            (m) => (
-                              <SelectItem key={m} value={m}>
-                                {THRESHOLD_METRIC_LABEL[m]}
-                              </SelectItem>
-                            ),
-                          )}
+                          {(
+                            Object.keys(THRESHOLD_METRIC_LABEL) as Array<
+                              keyof typeof THRESHOLD_METRIC_LABEL
+                            >
+                          ).map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {THRESHOLD_METRIC_LABEL[m]}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -502,13 +524,15 @@ function AlertRuleFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {(Object.keys(THRESHOLD_OPERATOR_LABEL) as Array<keyof typeof THRESHOLD_OPERATOR_LABEL>).map(
-                            (op) => (
-                              <SelectItem key={op} value={op}>
-                                {THRESHOLD_OPERATOR_LABEL[op]}
-                              </SelectItem>
-                            ),
-                          )}
+                          {(
+                            Object.keys(THRESHOLD_OPERATOR_LABEL) as Array<
+                              keyof typeof THRESHOLD_OPERATOR_LABEL
+                            >
+                          ).map((op) => (
+                            <SelectItem key={op} value={op}>
+                              {THRESHOLD_OPERATOR_LABEL[op]}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -599,7 +623,9 @@ function AlertRuleFormDialog({
                               checked={checked}
                               onCheckedChange={(v) =>
                                 field.onChange(
-                                  v ? [...field.value, c.id] : field.value.filter((id) => id !== c.id),
+                                  v
+                                    ? [...field.value, c.id]
+                                    : field.value.filter((id) => id !== c.id),
                                 )
                               }
                             />

@@ -15,7 +15,17 @@ import type {
   RuntimePortalConfig,
   RuntimeSession,
 } from "@/types/portal-runtime";
-import { RTL_LANGS, translate, loadPersistedLanguage, persistLanguage } from "@/lib/portal-i18n";
+import {
+  translate,
+  loadPersistedLanguage,
+  persistLanguage,
+  readLanguageFromUrl,
+} from "@/lib/portal-i18n";
+import {
+  GUEST_FONT_FACES,
+  GUEST_FONT_UNICODE_RANGE,
+  PG_FALLBACK_FONT_STACK,
+} from "@/lib/portal-guest-fonts";
 
 /**
  * v4 §2's contrast-safe accent-foreground fix. `PG_PRIMARY_BTN` and the
@@ -46,6 +56,59 @@ export function accessibleForeground(hex: string): "#ffffff" | "#0F172A" {
 const SESSION_STORAGE_KEY = "cloudguest_portal_session";
 const IDENTIFIER_STORAGE_KEY = "cloudguest_portal_identifier";
 const RUNTIME_IDS_STORAGE_KEY = "cloudguest_portal_runtime_ids";
+
+/**
+ * The only three ways this file is allowed to touch `sessionStorage`.
+ *
+ * Web Storage *access itself* can throw -- it is not just "returns null
+ * when empty". Apple's Captive Network Assistant (the websheet iOS opens
+ * for a WiFi login, i.e. the single most common environment this portal
+ * actually runs in) behaves like private browsing: reading or writing
+ * `window.sessionStorage` raises a SecurityError. Firefox with
+ * `dom.storage.enabled=false`, locked-down enterprise WebViews and a full
+ * quota all do the same.
+ *
+ * The `typeof window === "undefined"` checks that used to be the only
+ * protection here are SSR guards -- they answer "is there a `window`",
+ * which says nothing about whether the storage object on it works. Every
+ * unguarded access on the mandatory guest path was therefore a real
+ * sign-in blocker: a write throwing inside `setSession`/`setGuestIdentifier`
+ * aborts the caller mid-login, and (worst of all) an unguarded *read* in a
+ * `useState` initializer throws during render, which white-screens this
+ * entire provider and every screen under it.
+ *
+ * Same shape as `src/lib/portal-returning-guest.ts`: a storage failure
+ * degrades to "nothing was persisted" -- the guest may re-see a screen or
+ * lose a language preference -- never to an exception on the path between
+ * a verified OTP and the NAS gate opening.
+ */
+function safeGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable (CNA websheet / private browsing / quota).
+    // Persistence here is an optimization, never a precondition.
+  }
+}
+
+function safeRemove(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // As above -- nothing was stored, so nothing needs clearing.
+  }
+}
 
 /** The three IDs `src/routes/portal.tsx`'s search schema treats as required
  * (organizationId/locationId/routerId) -- see that file's own
@@ -78,45 +141,41 @@ interface PersistedRuntimeIds {
 }
 
 function loadPersistedRuntimeIds(): PersistedRuntimeIds | undefined {
-  if (typeof window === "undefined") return undefined;
+  const raw = safeGet(RUNTIME_IDS_STORAGE_KEY);
+  if (!raw) return undefined;
   try {
-    const raw = window.sessionStorage.getItem(RUNTIME_IDS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedRuntimeIds) : undefined;
+    return JSON.parse(raw) as PersistedRuntimeIds;
   } catch {
     return undefined;
   }
 }
 
 function persistRuntimeIds(ids: PersistedRuntimeIds) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(RUNTIME_IDS_STORAGE_KEY, JSON.stringify(ids));
+  safeSet(RUNTIME_IDS_STORAGE_KEY, JSON.stringify(ids));
 }
 
 function loadPersistedSession(): RuntimeSession | undefined {
-  if (typeof window === "undefined") return undefined;
+  const raw = safeGet(SESSION_STORAGE_KEY);
+  if (!raw) return undefined;
   try {
-    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as RuntimeSession) : undefined;
+    return JSON.parse(raw) as RuntimeSession;
   } catch {
     return undefined;
   }
 }
 
 function persistSession(session: RuntimeSession | undefined) {
-  if (typeof window === "undefined") return;
-  if (session) window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-  else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  if (session) safeSet(SESSION_STORAGE_KEY, JSON.stringify(session));
+  else safeRemove(SESSION_STORAGE_KEY);
 }
 
 function loadPersistedIdentifier(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(IDENTIFIER_STORAGE_KEY) ?? undefined;
+  return safeGet(IDENTIFIER_STORAGE_KEY) ?? undefined;
 }
 
 function persistIdentifier(identifier: string | undefined) {
-  if (typeof window === "undefined") return;
-  if (identifier) window.sessionStorage.setItem(IDENTIFIER_STORAGE_KEY, identifier);
-  else window.sessionStorage.removeItem(IDENTIFIER_STORAGE_KEY);
+  if (identifier) safeSet(IDENTIFIER_STORAGE_KEY, identifier);
+  else safeRemove(IDENTIFIER_STORAGE_KEY);
 }
 
 const HOTSPOT_SUBMIT_STORAGE_KEY = "cloudguest_portal_hotspot_submit";
@@ -151,18 +210,22 @@ interface PersistedHotspotSubmit {
 }
 
 function loadPersistedHotspotSubmit(): PersistedHotspotSubmit | undefined {
-  if (typeof window === "undefined") return undefined;
+  const raw = safeGet(HOTSPOT_SUBMIT_STORAGE_KEY);
+  if (!raw) return undefined;
   try {
-    const raw = window.sessionStorage.getItem(HOTSPOT_SUBMIT_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedHotspotSubmit) : undefined;
+    return JSON.parse(raw) as PersistedHotspotSubmit;
   } catch {
     return undefined;
   }
 }
 
+/** Best-effort: when storage is unavailable (see `safeSet`) the cooldown
+ * simply never triggers, so an OS-triggered remount re-fires a harmless
+ * duplicate hotspot POST. That is strictly better than the alternative
+ * this function used to cause -- throwing on the line before
+ * `submitHotspotLogin`, so the gate-opening POST never fired at all. */
 function persistHotspotSubmit(v: PersistedHotspotSubmit) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
+  safeSet(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
 }
 
 interface PortalRuntimeState {
@@ -341,6 +404,20 @@ export function PortalRuntimeProvider({
   // reads. See the effect right below for how this stays race-free against
   // the config-default effect regardless of which one actually runs first.
   useEffect(() => {
+    // URL first, storage second. A `?lang=` is THIS session's own explicit
+    // choice, put there moments ago by `buildSessionUrl` and carried across
+    // the NAS redirect by the navigation itself; a stored value may be from
+    // a visit months back. It is also the only one of the two that exists at
+    // all on iOS's CNA, where `loadPersistedLanguage` can only ever return
+    // `undefined` because the write that would have populated it threw.
+    // Re-persisted best-effort so the choice survives later reloads on every
+    // browser where storage does work.
+    const fromUrl = readLanguageFromUrl();
+    if (fromUrl) {
+      setLanguageState(fromUrl);
+      persistLanguage(fromUrl);
+      return;
+    }
     const persisted = loadPersistedLanguage();
     if (persisted) setLanguageState(persisted);
   }, []);
@@ -353,22 +430,80 @@ export function PortalRuntimeProvider({
     // config synchronously on the very first render), and effects in one
     // commit see each other's *pre-update* closure values, not each
     // other's dispatched updates.
-    if (config && !language && !loadPersistedLanguage()) setLanguage(config.defaultLanguage);
+    // `readLanguageFromUrl()` is re-checked here for the same reason
+    // `loadPersistedLanguage()` is: both effects can fire in the same commit
+    // and would otherwise see each other's pre-update closure values.
+    if (config && !language && !readLanguageFromUrl() && !loadPersistedLanguage())
+      setLanguage(config.defaultLanguage);
   }, [config, language]);
+
+  /* Clamps the resolved language to what this venue actually offers.
+   *
+   * Both inputs above outlive the config they were chosen under: a stored
+   * `cg_portal_lang` can be months old, and a `?lang=` can be hand-edited or
+   * come from a bookmarked link to a different venue. Without this, a guest
+   * carrying `hi` into an English-only venue got a Hindi portal whose
+   * switcher listed only "English" -- so the one control that sets the
+   * language could not undo it. Runs only once `config` is present, and only
+   * when the current language is genuinely absent from the supported set, so
+   * it never fights the two effects above in the normal case.
+   *
+   * `supportedLanguages` is guaranteed non-empty and duplicate-free by
+   * `resolveLanguageSelection` (types/portal-runtime.ts), so `[0]` is always
+   * a real language -- this does not need its own "en" fallback. */
+  useEffect(() => {
+    if (!config || !language) return;
+    if (config.supportedLanguages.includes(language)) return;
+    setLanguage(config.defaultLanguage);
+  }, [config, language, setLanguage]);
 
   const resolvedLanguage = language ?? "en";
 
+  // `<html lang>` only. The `dir` toggle that used to sit here went with
+  // Arabic -- all ten languages the portal now ships are LTR, so the
+  // assignment could only ever have written "ltr"; see portal-i18n.ts's
+  // "RTL SUPPORT WAS REMOVED HERE" note for the full argument and for what
+  // to reinstate if an RTL language is ever added. `lang` still matters and
+  // still updates on every switch: it is what tells a screen reader which
+  // pronunciation rules to use, and what lets the browser pick the correct
+  // script-specific face out of PG_FONT_STACK's Noto families for the
+  // several scripts (e.g. Devanagari shared by hi and mr) where more than
+  // one language maps to the same block.
   useEffect(() => {
-    const root = document.documentElement;
-    root.dir = RTL_LANGS.includes(resolvedLanguage) ? "rtl" : "ltr";
-    root.lang = resolvedLanguage;
-    return () => {
-      root.dir = "ltr";
-    };
+    document.documentElement.lang = resolvedLanguage;
   }, [resolvedLanguage]);
 
   useEffect(() => {
     if (!config) return;
+
+    // captive-portal-v6-design-spec.md §3.3.5 -- extends this same effect
+    // (not a new Context/Provider, not a second effect) to also load the
+    // curated heading font, conditionally: a `system`-choice venue (still
+    // the default, and every venue until an admin picks otherwise) hits
+    // neither branch below, so it downloads zero extra bytes and injects
+    // zero extra tags -- §3.4's "no venue pays for a font it didn't choose"
+    // stays literally true, not just true in the common case.
+    const face =
+      config.guestFontChoice !== "system" ? GUEST_FONT_FACES[config.guestFontChoice] : null;
+
+    let link: HTMLLinkElement | null = null;
+    if (face) {
+      // Same-origin only (§3.3.1) -- `face.woff2Path` is always this app's
+      // own `/fonts/portal/*.woff2` static asset, never a third-party CDN
+      // URL. `crossOrigin` is required for a font `<link rel=preload>`
+      // regardless of same-origin-ness (fonts are always fetched in CORS
+      // mode) -- omitting it silently makes the preload not match the
+      // actual @font-face fetch, defeating the whole point of preloading.
+      link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "font";
+      link.type = "font/woff2";
+      link.crossOrigin = "anonymous";
+      link.href = face.woff2Path;
+      link.setAttribute("data-portal-runtime-font", "1");
+      document.head.appendChild(link);
+    }
+
     const style = document.createElement("style");
     style.setAttribute("data-portal-runtime", "1");
     style.textContent = `
@@ -380,10 +515,53 @@ export function PortalRuntimeProvider({
         --pr-primary-foreground: ${accessibleForeground(config.primaryColor)};
         --pr-radius: 18px;
       }
+      ${
+        face
+          ? `
+      @font-face {
+        font-family: "${face.fontFamily}";
+        src: url("${face.woff2Path}") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+        /* §3.3.3 -- optional, not swap: on this surface's actual operating
+         * environment (a flaky pre-auth connection), a font that isn't
+         * ready within the browser's short block period simply never
+         * swaps in for that render. No FOIT, no jank, no dependency on the
+         * network cooperating -- the fallback (PG_FONT_STACK) is not a
+         * degraded state, it's today's already-shipped visual. */
+        font-display: optional;
+        /* §3.3.4 -- metric-matched overrides so the heading's box
+         * height/baseline are identical whether or not the swap happens;
+         * see src/lib/portal-guest-fonts.ts's own doc comment for how
+         * these were computed (real font metrics, not eyeballed). */
+        ascent-override: ${face.ascentOverride};
+        descent-override: ${face.descentOverride};
+        line-gap-override: ${face.lineGapOverride};
+        size-adjust: ${face.sizeAdjust};
+        /* §3.2 -- an Indic heading's codepoints aren't in this range,
+         * so the browser's own per-character fallback sends them straight
+         * to the Noto Sans <script> / "Nirmala UI" entries of
+         * PG_FALLBACK_FONT_STACK below instead of this curated face, by
+         * design, not by accident. This holds unchanged for all nine
+         * non-English languages: the range is Latin + typographic
+         * punctuation only, and Devanagari (hi, mr), Bengali (bn),
+         * Gujarati (gu), Gurmukhi (pa), Kannada (kn), Malayalam (ml),
+         * Tamil (ta) and Telugu (te) are each entirely outside it, so a
+         * venue that picks a curated heading face still gets a correct
+         * -- just not curated -- heading in every one of them. */
+        unicode-range: ${GUEST_FONT_UNICODE_RANGE};
+      }
+      .portal-runtime {
+        --pg-display-font-family: "${face.fontFamily}", ${PG_FALLBACK_FONT_STACK};
+      }
+      `
+          : ""
+      }
     `;
     document.head.appendChild(style);
     return () => {
       style.remove();
+      link?.remove();
     };
   }, [config]);
 
@@ -461,4 +639,24 @@ export function usePortalRuntime() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("usePortalRuntime must be used inside PortalRuntimeProvider");
   return ctx;
+}
+
+/** Same context, but `null` instead of a throw when there is no provider
+ * above -- for the shared guest-flow *presentation* components, which are
+ * deliberately reusable outside a mounted runtime.
+ *
+ * This is not hypothetical. `portal.tsx`'s `IncompletePortalLinkError`
+ * renders `<PortalCard>` from a route that has not resolved an organization
+ * or location yet, so it is genuinely outside `PortalRuntimeProvider`; the
+ * comment above that component even calls out that `PortalCard` "has no such
+ * dependency" as the reason it is safe to reuse there. When `PortalCard`
+ * gained its v7 adaptive card edge it needed to read the resolved config,
+ * and reading it through the throwing hook would have turned that error
+ * screen into a blank crash -- a strictly worse failure than the one it
+ * exists to report. A presentation component asking "is there a runtime, and
+ * if so what does it say?" is a real question with a real `null` answer;
+ * `usePortalRuntime` stays throwing for everything that genuinely requires
+ * the provider. */
+export function usePortalRuntimeOptional() {
+  return useContext(Ctx);
 }

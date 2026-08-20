@@ -1526,25 +1526,22 @@ function RouterFleetScreen() {
               </div>
             </div>
 
-            {loading ? (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading router fleet…
-              </div>
-            ) : (
-              <MTable
-                head={
-                  <>
-                    <MTh>Router</MTh>
-                    <MTh className="hidden md:table-cell">Model</MTh>
-                    <MTh className="hidden sm:table-cell">Customer</MTh>
-                    <MTh>RouterOS</MTh>
-                    <MTh>Last seen</MTh>
-                    <MTh>Status</MTh>
-                    {!demo && <MTh className="text-right">Setup</MTh>}
-                  </>
-                }
-              >
-                {rows.map((r) => (
+            <MTable
+              loading={loading}
+              head={
+                <>
+                  <MTh>Router</MTh>
+                  <MTh className="hidden md:table-cell">Model</MTh>
+                  <MTh className="hidden sm:table-cell">Customer</MTh>
+                  <MTh>RouterOS</MTh>
+                  <MTh>Last seen</MTh>
+                  <MTh>Status</MTh>
+                  {!demo && <MTh className="text-right">Setup</MTh>}
+                </>
+              }
+            >
+              {!loading &&
+                rows.map((r) => (
                   <MTr key={r.id} onClick={() => setSel(r)}>
                     <MTd>
                       <p className="font-semibold">{r.name}</p>
@@ -1582,8 +1579,7 @@ function RouterFleetScreen() {
                     )}
                   </MTr>
                 ))}
-              </MTable>
-            )}
+            </MTable>
             {!loading && rows.length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
                 {routers.length === 0

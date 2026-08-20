@@ -44,7 +44,8 @@ function ReportsPage() {
           downloadBlobUrl(url, filename);
           toast.success(`${filename} downloaded`);
         },
-        onError: (err) => toast.error((err as unknown as AppError).message || "Failed to generate report"),
+        onError: (err) =>
+          toast.error((err as unknown as AppError).message || "Failed to generate report"),
       },
     );
   }

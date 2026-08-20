@@ -1,6 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Cell, Pie, PieChart, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from "recharts";
+import {
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Area,
+  AreaChart,
+} from "recharts";
 
 const SMS_DATA = [
   { month: "Jan", sent: 12400, delivered: 11800, failed: 600 },
@@ -28,7 +41,13 @@ const API_DATA = [
   { hour: "20", calls: 2100 },
 ];
 
-const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+const COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
 
 export function UsageCharts() {
   return (
@@ -38,7 +57,9 @@ export function UsageCharts() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             SMS Usage
-            <Badge variant="outline" className="text-[10px]">15,800 / 20,000 this month</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              15,800 / 20,000 this month
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -49,8 +70,13 @@ export function UsageCharts() {
                 <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 11 }} />
                 <YAxis className="text-xs" tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="delivered" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Delivered" />
-                <Bar dataKey="failed" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} name="Failed" />
+                <Bar
+                  dataKey="delivered"
+                  fill="var(--chart-1)"
+                  radius={[4, 4, 0, 0]}
+                  name="Delivered"
+                />
+                <Bar dataKey="failed" fill="var(--chart-5)" radius={[4, 4, 0, 0]} name="Failed" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -110,13 +136,21 @@ export function UsageCharts() {
                 <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Area type="monotone" dataKey="calls" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.2} />
+                <Area
+                  type="monotone"
+                  dataKey="calls"
+                  stroke="var(--chart-1)"
+                  fill="var(--chart-1)"
+                  fillOpacity={0.2}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
             <span>Total: 17,900 calls</span>
-            <Badge variant="outline" className="text-[10px]">+12% vs yesterday</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              +12% vs yesterday
+            </Badge>
           </div>
         </CardContent>
       </Card>
@@ -128,18 +162,40 @@ export function UsageCharts() {
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            { label: "Enterprise License", status: "Active", expiry: "Dec 31, 2025", seats: 50, used: 42 },
-            { label: "SMS Pack", status: "Active", expiry: "Aug 15, 2025", seats: 5000, used: 3200 },
-            { label: "API Add-on", status: "Active", expiry: "Oct 1, 2025", seats: 100000, used: 45000 },
+            {
+              label: "Enterprise License",
+              status: "Active",
+              expiry: "Dec 31, 2025",
+              seats: 50,
+              used: 42,
+            },
+            {
+              label: "SMS Pack",
+              status: "Active",
+              expiry: "Aug 15, 2025",
+              seats: 5000,
+              used: 3200,
+            },
+            {
+              label: "API Add-on",
+              status: "Active",
+              expiry: "Oct 1, 2025",
+              seats: 100000,
+              used: 45000,
+            },
           ].map((l) => (
             <div key={l.label} className="rounded-lg border p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{l.label}</span>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px]">{l.status}</Badge>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 text-[10px]">
+                  {l.status}
+                </Badge>
               </div>
               <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Expires {l.expiry}</span>
-                <span>{l.used}/{l.seats} used</span>
+                <span>
+                  {l.used}/{l.seats} used
+                </span>
               </div>
             </div>
           ))}

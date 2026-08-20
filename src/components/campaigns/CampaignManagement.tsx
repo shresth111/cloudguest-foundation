@@ -1,8 +1,19 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Plus, Search, Trash2, Pencil, Megaphone, Activity, CalendarClock, FileEdit,
-  Play, Pause, RotateCcw, Square, Copy,
+  Plus,
+  Search,
+  Trash2,
+  Pencil,
+  Megaphone,
+  Activity,
+  CalendarClock,
+  FileEdit,
+  Play,
+  Pause,
+  RotateCcw,
+  Square,
+  Copy,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,18 +28,40 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
 import {
-  useCampaigns, useCampaignKpis, useCreateCampaign, useUpdateCampaign, useDeleteCampaign,
-  useCloneCampaign, useScheduleCampaign, usePauseCampaign, useResumeCampaign, useEndCampaign,
+  useCampaigns,
+  useCampaignKpis,
+  useCreateCampaign,
+  useUpdateCampaign,
+  useDeleteCampaign,
+  useCloneCampaign,
+  useScheduleCampaign,
+  usePauseCampaign,
+  useResumeCampaign,
+  useEndCampaign,
 } from "@/hooks/useCampaign";
 import { useAllLocations } from "@/hooks/useLocations";
 import { campaignService } from "@/services/campaign.service";
@@ -88,7 +121,7 @@ export function CampaignManagement() {
   }, [rows, q]);
 
   const locationName = (id: string | null) =>
-    id ? locations.find((l) => l.id === id)?.name ?? "—" : "Org-wide";
+    id ? (locations.find((l) => l.id === id)?.name ?? "—") : "Org-wide";
 
   return (
     <div className="space-y-6">
@@ -115,10 +148,17 @@ export function CampaignManagement() {
           <CardTitle className="text-base font-semibold">All campaigns</CardTitle>
           <div className="relative w-72 max-w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="pl-8" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search…"
+              className="pl-8"
+            />
           </div>
         </CardHeader>
-        <CardContent className={cn(!isLoading && filtered.length === 0 ? "p-6" : "overflow-x-auto p-0")}>
+        <CardContent
+          className={cn(!isLoading && filtered.length === 0 ? "p-6" : "overflow-x-auto p-0")}
+        >
           {!isLoading && filtered.length === 0 ? (
             <EmptyState
               icon={Megaphone}
@@ -127,77 +167,137 @@ export function CampaignManagement() {
               action={{ label: "New campaign", onClick: () => setCreating(true) }}
             />
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Campaign</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Display rule</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[180px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j}><Skeleton className="h-5 w-full max-w-32" /></TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Campaign</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Display rule</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[180px] text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-5 w-full max-w-32" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   ))}
-                </TableRow>
-              ))}
-              {filtered.map((c) => (
-                <TableRow key={c.id} className="group">
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell><Badge variant="outline" className="capitalize">{c.campaignType}</Badge></TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{locationName(c.locationId)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.displayRule.replace(/_/g, " ")}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn("capitalize", STATUS_TONE[c.status])}>{c.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      {c.status === "draft" && (
-                        <Button size="icon" variant="ghost" title="Schedule"
-                          onClick={async () => { await schedule.mutateAsync(c.id); toast.success("Campaign scheduled"); }}>
-                          <CalendarClock className="h-3.5 w-3.5" />
+                {filtered.map((c) => (
+                  <TableRow key={c.id} className="group">
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {c.campaignType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {locationName(c.locationId)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {c.displayRule.replace(/_/g, " ")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn("capitalize", STATUS_TONE[c.status])}>
+                        {c.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        {c.status === "draft" && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Schedule"
+                            onClick={async () => {
+                              await schedule.mutateAsync(c.id);
+                              toast.success("Campaign scheduled");
+                            }}
+                          >
+                            <CalendarClock className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {(c.status === "scheduled" || c.status === "active") && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Pause"
+                            onClick={async () => {
+                              await pause.mutateAsync(c.id);
+                              toast.success("Campaign paused");
+                            }}
+                          >
+                            <Pause className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {c.status === "paused" && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Resume"
+                            onClick={async () => {
+                              await resume.mutateAsync(c.id);
+                              toast.success("Campaign resumed");
+                            }}
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {c.status !== "ended" && c.status !== "draft" && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="End"
+                            onClick={async () => {
+                              await end.mutateAsync(c.id);
+                              toast.success("Campaign ended");
+                            }}
+                          >
+                            <Square className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Clone"
+                          onClick={async () => {
+                            await clone.mutateAsync({ id: c.id, newName: `${c.name} (copy)` });
+                            toast.success("Campaign cloned");
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
                         </Button>
-                      )}
-                      {(c.status === "scheduled" || c.status === "active") && (
-                        <Button size="icon" variant="ghost" title="Pause"
-                          onClick={async () => { await pause.mutateAsync(c.id); toast.success("Campaign paused"); }}>
-                          <Pause className="h-3.5 w-3.5" />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Edit"
+                          onClick={() => setEditing(c)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                      )}
-                      {c.status === "paused" && (
-                        <Button size="icon" variant="ghost" title="Resume"
-                          onClick={async () => { await resume.mutateAsync(c.id); toast.success("Campaign resumed"); }}>
-                          <Play className="h-3.5 w-3.5" />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Delete"
+                          onClick={async () => {
+                            await del.mutateAsync(c.id);
+                            toast.success("Campaign deleted");
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
-                      )}
-                      {c.status !== "ended" && c.status !== "draft" && (
-                        <Button size="icon" variant="ghost" title="End"
-                          onClick={async () => { await end.mutateAsync(c.id); toast.success("Campaign ended"); }}>
-                          <Square className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      <Button size="icon" variant="ghost" title="Clone"
-                        onClick={async () => { await clone.mutateAsync({ id: c.id, newName: `${c.name} (copy)` }); toast.success("Campaign cloned"); }}>
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" title="Edit" onClick={() => setEditing(c)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" title="Delete"
-                        onClick={async () => { await del.mutateAsync(c.id); toast.success("Campaign deleted"); }}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -206,9 +306,15 @@ export function CampaignManagement() {
         open={creating || !!editing}
         campaign={editing}
         locations={locations}
-        onClose={() => { setCreating(false); setEditing(null); }}
+        onClose={() => {
+          setCreating(false);
+          setEditing(null);
+        }}
         onSave={async (v) => {
-          const targetNetworks = (v.targetNetworks ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+          const targetNetworks = (v.targetNetworks ?? "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
           if (editing) {
             await update.mutateAsync({
               id: editing.id,
@@ -234,7 +340,8 @@ export function CampaignManagement() {
             });
             toast.success("Campaign created");
           }
-          setCreating(false); setEditing(null);
+          setCreating(false);
+          setEditing(null);
         }}
       />
     </div>
@@ -242,7 +349,11 @@ export function CampaignManagement() {
 }
 
 function CampaignDialog({
-  open, campaign, locations, onClose, onSave,
+  open,
+  campaign,
+  locations,
+  onClose,
+  onSave,
 }: {
   open: boolean;
   campaign: Campaign | null;
@@ -263,15 +374,27 @@ function CampaignDialog({
           isSkippable: campaign.isSkippable,
         }
       : {
-          name: "", campaignType: "survey" as CampaignType, locationId: undefined,
-          displayRule: "every_login" as DisplayRule, displayIntervalDays: undefined,
-          targetNetworks: "", isSkippable: true,
+          name: "",
+          campaignType: "survey" as CampaignType,
+          locationId: undefined,
+          displayRule: "every_login" as DisplayRule,
+          displayIntervalDays: undefined,
+          targetNetworks: "",
+          isSkippable: true,
         },
   });
   const values = form.watch();
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); form.reset(); } }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          onClose();
+          form.reset();
+        }
+      }}
+    >
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{campaign ? "Edit campaign" : "New campaign"}</DialogTitle>
@@ -280,9 +403,19 @@ function CampaignDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(async (v) => { await onSave(v); form.reset(); })} className="space-y-4">
+        <form
+          onSubmit={form.handleSubmit(async (v) => {
+            await onSave(v);
+            form.reset();
+          })}
+          className="space-y-4"
+        >
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Name" className="sm:col-span-2" error={form.formState.errors.name?.message}>
+            <Field
+              label="Name"
+              className="sm:col-span-2"
+              error={form.formState.errors.name?.message}
+            >
               <Input {...form.register("name")} />
             </Field>
             <Field label="Type">
@@ -291,7 +424,9 @@ function CampaignDialog({
                 onValueChange={(v) => form.setValue("campaignType", v as CampaignType)}
                 disabled={!!campaign}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="survey">Survey</SelectItem>
                   <SelectItem value="banner">Banner</SelectItem>
@@ -304,18 +439,27 @@ function CampaignDialog({
                 value={values.locationId ?? "__org__"}
                 onValueChange={(v) => form.setValue("locationId", v === "__org__" ? undefined : v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__org__">Org-wide</SelectItem>
                   {locations.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
             <Field label="Display rule">
-              <Select value={values.displayRule} onValueChange={(v) => form.setValue("displayRule", v as DisplayRule)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={values.displayRule}
+                onValueChange={(v) => form.setValue("displayRule", v as DisplayRule)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="every_login">Every login</SelectItem>
                   <SelectItem value="first_login_only">First login only</SelectItem>
@@ -328,15 +472,24 @@ function CampaignDialog({
                 <Input type="number" {...form.register("displayIntervalDays")} />
               </Field>
             )}
-            <Field label="Target networks / SSIDs" className="sm:col-span-2" hint="Comma-separated, leave blank for all">
+            <Field
+              label="Target networks / SSIDs"
+              className="sm:col-span-2"
+              hint="Comma-separated, leave blank for all"
+            >
               <Input {...form.register("targetNetworks")} placeholder="Guest-WiFi, Lobby-5G" />
             </Field>
-            <SwitchField label="Skippable" checked={values.isSkippable}
-              onChange={(b) => form.setValue("isSkippable", b)} />
+            <SwitchField
+              label="Skippable"
+              checked={values.isSkippable}
+              onChange={(b) => form.setValue("isSkippable", b)}
+            />
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
             <Button type="submit">{campaign ? "Save changes" : "Create campaign"}</Button>
           </DialogFooter>
         </form>
@@ -345,7 +498,19 @@ function CampaignDialog({
   );
 }
 
-function Field({ label, hint, error, children, className }: { label: string; hint?: string; error?: string; children: React.ReactNode; className?: string }) {
+function Field({
+  label,
+  hint,
+  error,
+  children,
+  className,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label className="text-xs font-medium">{label}</Label>
@@ -356,7 +521,15 @@ function Field({ label, hint, error, children, className }: { label: string; hin
   );
 }
 
-function SwitchField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function SwitchField({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
       <div className="text-sm font-medium">{label}</div>

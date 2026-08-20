@@ -4,20 +4,28 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/common/ErrorState";
 import { HealthBadge } from "./MonitoringBadges";
 import { useHealthDashboard, useHealthHistory, useRunHealthChecks } from "@/hooks/useMonitoring";
 import { HEALTH_COMPONENT_LABEL, type HealthComponent } from "@/types/monitoring";
 import type { AppError } from "@/services/api";
 
-function HistoryDialog({ component, onClose }: { component: HealthComponent; onClose: () => void }) {
+function HistoryDialog({
+  component,
+  onClose,
+}: {
+  component: HealthComponent;
+  onClose: () => void;
+}) {
   const { data, isLoading } = useHealthHistory({ component, page: 1, pageSize: 25 });
 
   return (
@@ -135,7 +143,8 @@ export function HealthDashboard() {
               </p>
               {c.consecutiveFailureCount > 0 && (
                 <p className="text-xs text-red-500">
-                  {c.consecutiveFailureCount} consecutive failure{c.consecutiveFailureCount === 1 ? "" : "s"}
+                  {c.consecutiveFailureCount} consecutive failure
+                  {c.consecutiveFailureCount === 1 ? "" : "s"}
                 </p>
               )}
               <Button
