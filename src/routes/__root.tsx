@@ -248,7 +248,40 @@ function InitialLoader() {
 // worst case (guest portal, fonts unreachable) the request just fails
 // quietly in the background and the page already rendered with its
 // system-font fallback.
+//
+// ...and NOT AT ALL on `portal.*`. Non-blocking is not the same as free.
+// `fonts.googleapis.com` is not a walled-garden host -- the backend models
+// the garden as `HotspotProfile.walled_garden_hosts` and renders it to
+// `/ip hotspot walled-garden add dst-host=...`, and Google's font CDN is
+// not and should not be in it -- so pre-authentication this request is a
+// GUARANTEED-FAILING DNS lookup plus connection attempt, on the worst
+// connection in the product, for five families the guest flow deliberately
+// does not use (see `PG_FONT_STACK`: the portal ships zero font bytes).
+// It burns a connection slot at the exact moment the page is trying to
+// reach the API for `/captive-portal/resolve`.
+//
+// THE ROUTE CHECK IS `location.pathname`, ON PURPOSE, AND IT IS NOT
+// LAZINESS. The obvious-looking alternatives do not work from here:
+// this script is emitted by `RootShell`, which is the document shell --
+// it renders before route matching has produced anything to read, has no
+// router context of its own, and runs its output as a plain inline
+// <script> during HTML parse, before the client bundle has loaded, let
+// alone hydrated. `useMatches()`/`useRouterState()` are unavailable at
+// that point, and moving the injection into `RootComponent`'s effect
+// would delay it until after hydration for every dashboard page, which is
+// a real regression on the surface that actually wants these fonts.
+// `location.pathname` is available to the inline script immediately, is
+// the same value the router will go on to match, and is correct on a cold
+// load of any URL -- which is the only way a guest ever reaches the
+// portal. (Client-side navigation into a portal route is not a case: the
+// script has already run, and a dashboard user who navigates to a preview
+// keeps the fonts they already have. `/preview/portal/...` -- the
+// dashboard's own portal preview -- is deliberately NOT matched here; it
+// is an authenticated dashboard surface with real internet, and its
+// chrome is the dashboard's, Inter and all.)
 const LOAD_FONTS_SCRIPT = `(function(){
+  var p = location.pathname;
+  if (p === "/portal" || p.slice(0, 8) === "/portal/") return;
   var l = document.createElement("link");
   l.rel = "stylesheet";
   l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap";

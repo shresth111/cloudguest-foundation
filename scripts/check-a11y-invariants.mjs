@@ -284,6 +284,37 @@ for (const file of [
   );
 }
 
+// The portal must not reach for fonts.googleapis.com. It is not a
+// walled-garden host, so pre-authentication that request is a
+// guaranteed-failing DNS lookup and connection attempt, for five families
+// the guest flow does not use, on the worst connection in the product.
+//
+// Read RAW here, not through `readCode`. `stripComments` is a line-based
+// approximation that pairs `/*` with the next `*/`, and the injector it
+// has to inspect is a template literal sitting right below a long prose
+// comment -- one stray "/*" in that prose (a path glob, say) silently
+// swallows the whole script and turns this check into a no-op that still
+// reports green. Found exactly that way, by deleting the guard and
+// watching this test pass. The subject here is a template literal, so
+// there is nothing for comment-stripping to buy anyway.
+const rootRouteRaw = read("src/routes/__root.tsx");
+const injector = rootRouteRaw.match(/const LOAD_FONTS_SCRIPT = `([\s\S]*?)`;/)?.[1];
+check(
+  "google-fonts-injector-found",
+  !!injector,
+  "LOAD_FONTS_SCRIPT not found in src/routes/__root.tsx",
+);
+if (injector) {
+  check(
+    "google-fonts-gated-off-portal",
+    !/fonts\.googleapis\.com/.test(injector) ||
+      (/location\.pathname/.test(injector) && /"\/portal/.test(injector)),
+    "LOAD_FONTS_SCRIPT injects fonts.googleapis.com without a portal.* pathname guard -- " +
+      "that host is not in the walled garden, so pre-auth it is a guaranteed-failing " +
+      "DNS lookup and connection attempt on the worst connection in the product",
+  );
+}
+
 // ---------------------------------------------------------------------------
 if (failures.length) {
   console.error("Portal accessibility invariants FAILED:\n");
