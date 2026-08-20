@@ -7,3 +7,7 @@ export { RightDrawer } from "./RightDrawer";
 export { LockedOverlay } from "./LockedOverlay";
 export { ComingSoonPanel } from "./ComingSoonPanel";
 export { NumberedPagination } from "./NumberedPagination";
+export { Stepper } from "./Stepper";
+export type { StepperItem, StepperProps } from "./Stepper";
+export { StepStatusBadge } from "./StepStatusBadge";
+export type { StepStatus, StepStatusBadgeProps } from "./StepStatusBadge";
