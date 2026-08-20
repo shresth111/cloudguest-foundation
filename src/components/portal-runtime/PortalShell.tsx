@@ -8,7 +8,18 @@ import type { BackdropPlan } from "@/lib/portal-backdrop";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
+import { PortalFootnoteMark } from "./PortalDefaultBrandBadge";
 import { PortalNoPhotoPattern } from "./PortalNoPhotoPattern";
+
+/** The product name, deliberately NOT translated and deliberately not a
+ * per-language string: it is a proper noun, and the whole point of §3 P5 is
+ * that a guest recognises the *same* operator across every venue they visit.
+ * The `{brand}` token is what `poweredByTemplate` splits on, in EN and HI
+ * alike -- see that key's own comment in portal-i18n.ts for why the phrase
+ * is a template rather than two keys (the word order flips: Hindi puts the
+ * brand first). */
+const WYFY_GUEST_BRAND = "Wyfy Guest";
+const WYFY_GUEST_TOKEN = "{brand}";
 
 // System-font stack for the guest flow -- see captive-portal-v4-design-
 // spec.md §4: the guest path only ever used one of the app's four
@@ -424,6 +435,11 @@ export function PortalShell({
   const heightCls = constrained ? "min-h-full" : "min-h-dvh";
   const hasBackgroundImage = !!config?.backgroundImageUrl;
   const backdropPlan = usePortalBackdropPlan();
+  // v7 Part 3 -- see the footer's own comment. The template is split rather
+  // than interpolated so the brand can be styled independently of the verb,
+  // and split *here* rather than inline so the footer JSX stays readable.
+  const [poweredByBefore, ...poweredByRest] = t("poweredByTemplate").split(WYFY_GUEST_TOKEN);
+  const poweredByAfter = poweredByRest.join(WYFY_GUEST_TOKEN);
 
   return (
     <div
@@ -610,60 +626,152 @@ export function PortalShell({
             <main className={cn("pg-enter flex flex-1 flex-col", contentClassName)}>
               {children}
             </main>
-            <footer
-              className={cn(
-                "mt-8 flex items-center justify-center gap-2.5 text-center pg-micro",
-                // Same bounded legibility card as BrandPanel/GuestSignInCard's
-                // header -- the footer sits directly on the photo with no
-                // other opaque backing (the vignette scrim below is
-                // deliberately transparent through the middle and only
-                // partial at this bottom edge), so without its own card
-                // this text is exactly the same "washed to ghost text"
-                // failure mode a busy photo can otherwise cause.
-                // Shared class FIRST -- this is a real bug fix, not a
-                // reformat. It was written the natural way round (local
-                // overrides after the shared base), and `cn` is
-                // tailwind-merge, which resolves a conflict group by keeping
-                // the LAST class in it. `GUEST_LEGIBILITY_CARD_CLASS`
-                // contains `rounded-[20px]`, so `rounded-full` was being
-                // silently discarded and this footer has been rendering as a
-                // 20px-radius bar, not the pill the source says, for as long
-                // as the line has existed. Verified by running `twMerge` on
-                // these exact strings: as-written yields `rounded-[20px]`,
-                // swapped yields `rounded-full`. Nothing errors, nothing
-                // warns -- the only signal is the pixels, which is why the
-                // ordering is called out here and in `PortalTextPlate`
-                // rather than quietly corrected.
-                hasBackgroundImage && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-4 py-2"),
-              )}
-            >
-              {/* One link, not two -- /portal/terms already covers both
-               * Terms of service and Privacy policy as separate sections.
-               * "Support" has no real guest-facing contact field wired
-               * through /captive-portal/resolve today, so it stays plain
-               * text rather than a fabricated mailto/tel link -- visually
-               * set apart (no separator, dimmer, non-interactive) so it
-               * doesn't read as a third, silently-broken link next to a
-               * real one. */}
-              <Link
-                to="/portal/terms"
-                search={portalSearch}
-                className="text-[var(--pg-ink-faint)] hover:text-[var(--pg-ink-muted)] hover:underline"
-              >
-                {t("termsTitle")}
-              </Link>
-              {/* `--pg-ink-faint` -- retuned in v7 §1.5/§7.4-4 from #94A3B8
-               * to #505E73. The old value was 1.81:1 against this footer's
-               * own worst real backing (the legibility card at 85% alpha
-               * over a near-black photo region) and 2.45:1 on the plain
-               * canvas; a comment in styles.css called it an "empirically-
-               * confirmed legibility floor", which is how a 2.45:1 token
-               * carrying "Powered by Wyfy Guest" survived three specs. See
-               * that token's rewritten comment for every computed figure. */}
-              <span className="text-[var(--pg-ink-faint)]">·</span>
-              <span className="text-[var(--pg-ink-faint)]">{t("supportAskStaff")}</span>
-              <span className="text-[var(--pg-ink-faint)]">·</span>
-              <span className="text-[var(--pg-ink-faint)]">{t("poweredByWyfy")}</span>
+            {/* captive-portal-v7-design-spec.md Part 3.
+             *
+             * This footer used to be one `flex` row of four dot-separated
+             * children -- Terms, "Support: ask venue staff", and "Powered by
+             * Wyfy Guest" -- all five in `--pg-ink-faint` at `pg-micro`.
+             *
+             * §3's complaint is that the attribution is illegible. That was
+             * half the story, and the token retune fixed that half. The
+             * other half is that **its problem was never its size, it was
+             * its company**: a line sitting third in a dot-list next to
+             * "Support: ask venue staff" reads as legal boilerplate by
+             * association, and no amount of enlarging it fixes that. §3 P5
+             * and §8.3 want the opposite reading -- a named operator across
+             * venues is a *trust asset* to a guest who (per the survey data
+             * in §8.3) is connecting while actively believing public WiFi is
+             * unsafe.
+             *
+             * It was also literally broken, which §3 P2 suspected and marked
+             * "not visually confirmed. QA must check this". Confirmed, at
+             * 390x844 in a real browser: the row is ~362px of content in a
+             * 326px box, so it already wraps to two lines today, in English,
+             * on the design-target viewport -- with the separator dots left
+             * stranded at mid-height between two ragged columns, inside a
+             * `rounded-full` box whose 23px end-caps make a two-line pill
+             * look like a rendering fault. In Hindi at 320px it is three
+             * lines. So restructuring costs no height; it recovers some.
+             *
+             * The fix is three moves, and only one of them is new pixels:
+             *
+             *  1. **Two rows.** Utility copy on the first, the mark alone on
+             *     the second. Removed from the disclaimer list.
+             *  2. **Contrast, not size, carries the promotion.** "Powered by"
+             *     stays `--pg-ink-faint`; the brand goes to `--pg-ink`, the
+             *     darkest value in the system. Measured against the worst
+             *     real composite of this zone (#D9D9D9, the plate at 85%
+             *     alpha over a near-black photo region) that is 4.66:1 ->
+             *     12.65:1, a 2.7x gain, **at exactly the same 11px**. That
+             *     ratio is the whole argument: the mark gets materially more
+             *     presence without taking one pixel of size from the venue's
+             *     own name, which matters because the venue is the customer.
+             *  3. **A 14px monochrome mark**, so the line reads as a lockup
+             *     rather than a sentence. See `PortalFootnoteMark`.
+             *
+             * `flex-wrap` + `min-w-0` are the §3 P2 fix proper; `gap-y` means
+             * that when row 1 does wrap it wraps deliberately, with the dots
+             * as flex items on their own rather than stranded mid-height.
+             *
+             * The bespoke `hasBackgroundImage && cn(GUEST_LEGIBILITY_CARD_
+             * CLASS, "rounded-full px-4 py-2")` branch is GONE, replaced by
+             * the existing `PortalTextPlate` primitive. That is a functional
+             * upgrade, not a refactor: the plate is `w-fit`, so it still
+             * covers its own content and not one pixel more (§0.1 item 1 --
+             * two content-sized rows in one bounded surface is not PR #81;
+             * PR #81 was one panel sized to the *column*, independent of
+             * content), it renders bare on the flat canvas with no photo,
+             * and -- the part the footer did not have before -- it picks up
+             * §1.4 C5's refusal rule, so on an image measured hostile the
+             * plate goes opaque and the mark jumps to 17.85:1. It also fixes
+             * the radius honestly: `rounded-[20px]`, the shared family
+             * value, which is what a two-line block should have had all
+             * along. */}
+            <footer className="mt-8">
+              <PortalTextPlate className="px-4 py-2.5">
+                {/* One link, not two -- /portal/terms already covers both
+                 * Terms of service and Privacy policy as separate sections.
+                 * "Support" has no real guest-facing contact field wired
+                 * through /captive-portal/resolve today, so it stays plain
+                 * text rather than a fabricated mailto/tel link -- visually
+                 * set apart (no separator, dimmer, non-interactive) so it
+                 * doesn't read as a third, silently-broken link next to a
+                 * real one. */}
+                {/* The `·` separator that used to sit between these two is
+                 * gone, and a permanent underline has replaced it. Two
+                 * independent reasons, both found by looking at real
+                 * renders rather than by taste:
+                 *
+                 *  - **The separator cannot survive wrapping.** As a flex
+                 *    item it stays glued to the end of line 1 when the row
+                 *    breaks, leaving a dangling dot -- visible today at
+                 *    390x844 in English, and at 320px in Hindi it stranded
+                 *    dots at mid-height between two ragged columns. There is
+                 *    no CSS that hides a separator only when it lands last
+                 *    on a line, so the honest fix is not to need one.
+                 *  - **The link was not identifiable as a link.** `Terms &
+                 *    privacy` is an anchor rendered in exactly the same
+                 *    colour, size and weight as the static "Support: ask
+                 *    venue staff" beside it, with the underline appearing
+                 *    only on `:hover` -- which does not exist on the phone
+                 *    every guest is holding. So the one legal-consent
+                 *    control in the footer had no visual affordance at all
+                 *    on touch. Underlining it permanently distinguishes the
+                 *    two items far better than a dot did, and it is what
+                 *    made dropping the dot possible. */}
+                <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-0.5 pg-micro text-[var(--pg-ink-faint)]">
+                  <Link
+                    data-pg-measure="footer-terms"
+                    to="/portal/terms"
+                    search={portalSearch}
+                    className="underline decoration-1 underline-offset-2 hover:text-[var(--pg-ink-muted)]"
+                  >
+                    {t("termsTitle")}
+                  </Link>
+                  <span>{t("supportAskStaff")}</span>
+                </div>
+                <div
+                  data-pg-measure="powered-by"
+                  className="mt-1.5 flex min-w-0 items-center justify-center gap-1.5 pg-micro text-[var(--pg-ink-faint)]"
+                >
+                  {/* Sized in `em`, not `px`. A fixed `h-3.5` would stay 14px
+                   * while the words beside it grew to 13.75px and beyond
+                   * under Part 7's `--pg-type-scale`, so the lockup would
+                   * come apart for exactly the guest who turned the text
+                   * size up. `1.25em` against `pg-micro`'s 11px is 13.75px
+                   * at the default scale and 17.2px at 1.25, keeping the
+                   * mark and the wordmark in fixed proportion at every
+                   * setting -- and it inherits the platform's own text
+                   * scaling for free, since `pg-micro` is authored in
+                   * `rem`. */}
+                  <PortalFootnoteMark className="h-[1.25em] w-[1.25em] text-[var(--pg-ink)]" />
+                  {/* Split on `{brand}` rather than interpolated, because the
+                   * two halves are styled differently and because the word
+                   * order flips between languages -- Hindi puts the brand
+                   * first ("{brand} द्वारा संचालित"), so a fixed prefix/suffix
+                   * pair would be wrong. Same reason `courtesyOfTemplate`
+                   * exists. `split` with a limit of 2 is not used on purpose:
+                   * if a future translation ever contains the token twice,
+                   * losing the tail is a visible bug, whereas rendering it
+                   * twice is at least self-evident.
+                   *
+                   * `whitespace-nowrap` on the brand only. A brand name broken
+                   * across two lines is precisely the "something is wrong with
+                   * this page" cue §8.3 describes, and at 320px in Hindi this
+                   * row is genuinely tight. Wrapping is still permitted
+                   * *between* the mark and the text. */}
+                  <span>
+                    {poweredByBefore}
+                    <span
+                      data-pg-measure="powered-by-brand"
+                      className="whitespace-nowrap text-[var(--pg-ink)]"
+                    >
+                      {WYFY_GUEST_BRAND}
+                    </span>
+                    {poweredByAfter}
+                  </span>
+                </div>
+              </PortalTextPlate>
             </footer>
           </div>
         </div>
