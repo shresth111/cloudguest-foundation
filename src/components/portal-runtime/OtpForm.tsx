@@ -14,6 +14,40 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
  * as the password tab always had it), not the code-entry screen -- a
  * guest never discovers a blocking requirement only after already
  * waiting for and typing a code.
+ *
+ * captive-portal-v7-design-spec.md §8.2 asks for "two screens, not one --
+ * phone -> 'Get code', then OTP -> connected. Each a real page with a real
+ * POST." **The two screens ship; the two documents deliberately do not**,
+ * and the reasoning is §0.2's, not a style preference:
+ *
+ * - What §8.2 is actually protecting is the *authorization* step: "full
+ *   navigation is how the CNA learns it can close." That step is
+ *   `portal.success.tsx`, which builds a real `<form>` and calls
+ *   `form.submit()` -- a genuine top-level document POST to the NAS's
+ *   `link-login-only` URL. It is untouched by this pass and must stay that
+ *   way. Neither "send me a code" nor "here is my code" authorizes
+ *   anything, so neither one is a moment the CNA can learn anything from.
+ *
+ * - Carrying the guest's number across a real document load needs it to
+ *   live *somewhere*. Web Storage throws in the CNA (§0.2), so the only
+ *   remaining place is the URL -- putting a guest's phone number into a
+ *   URL that a NAS, a proxy and a router log all see. That is a privacy
+ *   regression, and per §8.4 a DPDP-relevant one, in exchange for nothing.
+ *
+ * - This is not hypothetical: `/portal/verify`, the older deep-linkable
+ *   "real page" version of exactly this step, reads `otpTarget` from
+ *   `PortalRuntimeContext`, which is a plain `useState` with no
+ *   persistence at all. Reached by a real document navigation it would
+ *   find `otpTarget` undefined and bounce the guest straight back to
+ *   `/portal/auth`. The spec's own preferred shape is the one that is
+ *   already broken under its own §0.2 constraint.
+ *
+ * What the guest gets is what §8.2 is describing: one thing on screen at a
+ * time, a real `<form>` per step so the phone keyboard's "Go" key submits
+ * it, and an honest "Step 1 of 2" / "Step 2 of 2". What they do not get is
+ * a second full SPA boot inside a websheet with a folklore ~128 KB initial
+ * HTML budget, to move between two steps that neither open nor close the
+ * NAS gate.
  */
 export function OtpForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
@@ -48,9 +82,34 @@ export function OtpForm(sign: UseGuestSignInReturn) {
     </label>
   );
 
+  const StepProgress = ({ n }: { n: 1 | 2 }) => (
+    // v7 §8.2: "show progress honestly". Two steps, named as two steps --
+    // not a progress bar, which would have to invent a completion
+    // percentage for a flow whose second step is bounded by how fast an
+    // SMS arrives.
+    <p className="pg-meta text-[var(--pg-ink-muted,#475569)]">
+      {t("stepProgressTemplate").replace("{n}", String(n)).replace("{total}", "2")}
+    </p>
+  );
+
   if (sign.phase === "phone") {
     return (
-      <div className="space-y-3">
+      // A real <form>, not a bare <div> with an onClick button: on a phone
+      // keyboard the "Go"/"Done" key only submits a form, and until now it
+      // did nothing at all here -- a guest who typed their number and
+      // pressed Go got silence, on the first interaction of the flow.
+      // `onSubmit`/`preventDefault` keeps this an in-page mutation, which
+      // is correct for a step that authorizes nothing (see this file's own
+      // docstring on why only the final NAS POST is a real navigation).
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          sign.onSendOtp();
+        }}
+        className="space-y-3"
+      >
+        <StepProgress n={1} />
         {/* v7 §7.2: this used to be a floating `<label>` with no `htmlFor`
          * sitting above a two-input row -- an element that named nothing,
          * for either a screen reader or a sighted guest trying to work out
@@ -60,8 +119,15 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         {sign.otpChannel !== "email" ? (
           <PhoneNumberFields
             label={sign.otpChannel === "whatsapp" ? t("whatsappNumberLabel") : t("mobileNumber")}
-            countryCode={sign.countryCode}
-            onCountryCodeChange={sign.setCountryCode}
+            // v7 §8.3-2: say why, in one plain sentence, next to the
+            // field. Deliberately a statement of what happens to the
+            // number ("we send your code here") rather than a promise
+            // about what it is not used for -- the identifier is also this
+            // guest's RADIUS username and their stored identity on this
+            // platform, so "we only use this to..." would be a claim this
+            // codebase cannot honour.
+            hint={sign.otpChannel === "whatsapp" ? t("whyWeAskWhatsapp") : t("whyWeAskMobile")}
+            dialCode={sign.dialCode}
             phone={sign.phone}
             onPhoneChange={sign.setPhone}
           />
@@ -70,20 +136,23 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         )}
         {TermsCheckbox}
         <AlertBanner message={sign.otpError} />
-        <button
-          type="button"
-          onClick={sign.onSendOtp}
-          disabled={sign.sendOtpPending}
-          className={PG_PRIMARY_BTN}
-        >
+        <button type="submit" disabled={sign.sendOtpPending} className={PG_PRIMARY_BTN}>
           {sign.sendOtpPending ? t("sendingLabel") : t("sendOtp")}
         </button>
-      </div>
+      </form>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <form
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        sign.onVerifyOtp();
+      }}
+      className="space-y-3"
+    >
+      <StepProgress n={2} />
       <p className="text-center text-sm text-slate-500">
         {t("sentCodeToPrefix")} <span className="font-semibold text-slate-800">{sign.target}</span>
       </p>
@@ -98,8 +167,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
       />
       <AlertBanner message={sign.otpError} />
       <button
-        type="button"
-        onClick={sign.onVerifyOtp}
+        type="submit"
         disabled={sign.code.length !== 6 || sign.verifyOtpPending}
         className={PG_PRIMARY_BTN}
       >
@@ -129,6 +197,6 @@ export function OtpForm(sign: UseGuestSignInReturn) {
           {t("changeNumberLabel")}
         </button>
       </div>
-    </div>
+    </form>
   );
 }
