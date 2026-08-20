@@ -29,10 +29,47 @@ export function buildSessionUrl(
   organizationId: string,
   locationId: string,
   routerId: string,
+  /** The guest's CURRENT language, carried across the document boundary --
+   * see this parameter's own note below. Optional: every caller that has no
+   * runtime in hand still compiles and still produces exactly the URL it
+   * used to. */
+  language?: string,
 ): string {
   const url = new URL("/portal/session", window.location.origin);
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("locationId", locationId);
   url.searchParams.set("routerId", routerId);
+  if (language) url.searchParams.set("lang", language);
   return url.toString();
 }
+
+/* WHY `lang` IS ON THIS URL AND NOT IN STORAGE.
+ *
+ * A guest who switches the portal to Tamil and then signs in crosses a real
+ * document boundary: `portal.success.tsx` fires a full-page form POST at
+ * RouterOS, RouterOS redirects the browser to this `dst`, and a brand-new
+ * document loads with a brand-new React tree. Everything held in memory --
+ * including `PortalRuntimeContext`'s `language` state -- is gone.
+ *
+ * `localStorage` is what normally carries a choice across that boundary, and
+ * it is exactly what cannot be relied on here. Per
+ * docs/captive-portal-v7-design-spec.md §0.2, Apple's Captive Network
+ * Assistant does not merely fail to persist: touching `localStorage` THROWS.
+ * `persistLanguage` already swallows that (best-effort by design), so on iOS
+ * the write silently never happened, and after the POST the portal fell back
+ * to the venue's `defaultLanguage` -- an English portal for a guest who had
+ * just chosen Tamil, on the single screen (a live session, a countdown, a
+ * disconnect button) where being able to read it matters most.
+ *
+ * A query parameter is the one channel that genuinely survives this trip: it
+ * is part of the URL RouterOS itself redirects to, so it is carried by the
+ * navigation rather than by any storage the webview may refuse. It needs no
+ * new backend field, no cookie (which the CNA is equally free to drop), and
+ * it degrades to today's behaviour when absent.
+ *
+ * Deliberately NOT a replacement for `persistLanguage`. Storage still wins on
+ * every browser where it works, and covers the case this cannot: a returning
+ * guest on a later visit, where there is no URL to carry anything. The two
+ * are complementary, and `PortalRuntimeContext` reads the URL first because a
+ * `lang` in it is this session's own explicit, just-made choice, while a
+ * stored value may be months old. */

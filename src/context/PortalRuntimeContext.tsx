@@ -15,7 +15,12 @@ import type {
   RuntimePortalConfig,
   RuntimeSession,
 } from "@/types/portal-runtime";
-import { RTL_LANGS, translate, loadPersistedLanguage, persistLanguage } from "@/lib/portal-i18n";
+import {
+  translate,
+  loadPersistedLanguage,
+  persistLanguage,
+  readLanguageFromUrl,
+} from "@/lib/portal-i18n";
 import {
   GUEST_FONT_FACES,
   GUEST_FONT_UNICODE_RANGE,
@@ -399,6 +404,20 @@ export function PortalRuntimeProvider({
   // reads. See the effect right below for how this stays race-free against
   // the config-default effect regardless of which one actually runs first.
   useEffect(() => {
+    // URL first, storage second. A `?lang=` is THIS session's own explicit
+    // choice, put there moments ago by `buildSessionUrl` and carried across
+    // the NAS redirect by the navigation itself; a stored value may be from
+    // a visit months back. It is also the only one of the two that exists at
+    // all on iOS's CNA, where `loadPersistedLanguage` can only ever return
+    // `undefined` because the write that would have populated it threw.
+    // Re-persisted best-effort so the choice survives later reloads on every
+    // browser where storage does work.
+    const fromUrl = readLanguageFromUrl();
+    if (fromUrl) {
+      setLanguageState(fromUrl);
+      persistLanguage(fromUrl);
+      return;
+    }
     const persisted = loadPersistedLanguage();
     if (persisted) setLanguageState(persisted);
   }, []);
@@ -411,18 +430,47 @@ export function PortalRuntimeProvider({
     // config synchronously on the very first render), and effects in one
     // commit see each other's *pre-update* closure values, not each
     // other's dispatched updates.
-    if (config && !language && !loadPersistedLanguage()) setLanguage(config.defaultLanguage);
+    // `readLanguageFromUrl()` is re-checked here for the same reason
+    // `loadPersistedLanguage()` is: both effects can fire in the same commit
+    // and would otherwise see each other's pre-update closure values.
+    if (config && !language && !readLanguageFromUrl() && !loadPersistedLanguage())
+      setLanguage(config.defaultLanguage);
   }, [config, language]);
+
+  /* Clamps the resolved language to what this venue actually offers.
+   *
+   * Both inputs above outlive the config they were chosen under: a stored
+   * `cg_portal_lang` can be months old, and a `?lang=` can be hand-edited or
+   * come from a bookmarked link to a different venue. Without this, a guest
+   * carrying `hi` into an English-only venue got a Hindi portal whose
+   * switcher listed only "English" -- so the one control that sets the
+   * language could not undo it. Runs only once `config` is present, and only
+   * when the current language is genuinely absent from the supported set, so
+   * it never fights the two effects above in the normal case.
+   *
+   * `supportedLanguages` is guaranteed non-empty and duplicate-free by
+   * `resolveLanguageSelection` (types/portal-runtime.ts), so `[0]` is always
+   * a real language -- this does not need its own "en" fallback. */
+  useEffect(() => {
+    if (!config || !language) return;
+    if (config.supportedLanguages.includes(language)) return;
+    setLanguage(config.defaultLanguage);
+  }, [config, language, setLanguage]);
 
   const resolvedLanguage = language ?? "en";
 
+  // `<html lang>` only. The `dir` toggle that used to sit here went with
+  // Arabic -- all ten languages the portal now ships are LTR, so the
+  // assignment could only ever have written "ltr"; see portal-i18n.ts's
+  // "RTL SUPPORT WAS REMOVED HERE" note for the full argument and for what
+  // to reinstate if an RTL language is ever added. `lang` still matters and
+  // still updates on every switch: it is what tells a screen reader which
+  // pronunciation rules to use, and what lets the browser pick the correct
+  // script-specific face out of PG_FONT_STACK's Noto families for the
+  // several scripts (e.g. Devanagari shared by hi and mr) where more than
+  // one language maps to the same block.
   useEffect(() => {
-    const root = document.documentElement;
-    root.dir = RTL_LANGS.includes(resolvedLanguage) ? "rtl" : "ltr";
-    root.lang = resolvedLanguage;
-    return () => {
-      root.dir = "ltr";
-    };
+    document.documentElement.lang = resolvedLanguage;
   }, [resolvedLanguage]);
 
   useEffect(() => {
@@ -490,10 +538,17 @@ export function PortalRuntimeProvider({
         descent-override: ${face.descentOverride};
         line-gap-override: ${face.lineGapOverride};
         size-adjust: ${face.sizeAdjust};
-        /* §3.2 -- a Hindi/Arabic heading's codepoints aren't in this
-         * range, so the browser's own per-character fallback sends them
-         * straight to "Noto Sans Devanagari"/PG_FALLBACK_FONT_STACK below
-         * instead of this curated face, by design, not by accident. */
+        /* §3.2 -- an Indic heading's codepoints aren't in this range,
+         * so the browser's own per-character fallback sends them straight
+         * to the Noto Sans <script> / "Nirmala UI" entries of
+         * PG_FALLBACK_FONT_STACK below instead of this curated face, by
+         * design, not by accident. This holds unchanged for all nine
+         * non-English languages: the range is Latin + typographic
+         * punctuation only, and Devanagari (hi, mr), Bengali (bn),
+         * Gujarati (gu), Gurmukhi (pa), Kannada (kn), Malayalam (ml),
+         * Tamil (ta) and Telugu (te) are each entirely outside it, so a
+         * venue that picks a curated heading face still gets a correct
+         * -- just not curated -- heading in every one of them. */
         unicode-range: ${GUEST_FONT_UNICODE_RANGE};
       }
       .portal-runtime {

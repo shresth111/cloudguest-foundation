@@ -87,6 +87,17 @@ const searchSchema = z.object({
   // padta"). See GuestSignInCard/AuthMethodForms' login calls for where
   // this threads through as `ip_address`.
   ip: z.string().optional(),
+  // The guest's own chosen portal language, put here by `buildSessionUrl`
+  // so it survives portal.success.tsx's full-document POST to the NAS --
+  // the one boundary on this flow where React state and (on iOS's Captive
+  // Network Assistant) localStorage both disappear. Declared on the schema
+  // so `search: (prev) => prev` carries it through client-side navigations
+  // too; `PortalRuntimeContext` reads it straight off `window.location`,
+  // because it also has to work on the first render of the fresh document
+  // the NAS itself navigated to. Free text and never trusted as-is --
+  // `readLanguageFromUrl` validates it against `RUNTIME_LANGUAGES` and
+  // ignores anything else.
+  lang: z.string().optional(),
   // The site the guest was actually trying to reach before the hotspot
   // intercepted them -- RouterOS's `$(link-orig)` substitution. Used by
   // portal.success.tsx/portal.redirect.tsx as the "Continue browsing"

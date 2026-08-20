@@ -137,7 +137,7 @@ function TermsPage() {
             hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
           )}
         >
-          <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> Back
+          <ArrowLeft className="h-4 w-4" /> Back
         </Link>
         {/* `w-fit` with no `mx-auto`: this heading is left-aligned today
          * and stays left-aligned -- the plate hugs the title, it does not
