@@ -215,7 +215,7 @@ export function RouterFleetSetupWizard({
   onBack: () => void;
 }) {
   const bootstrapRequired = needsBootstrapStep(router);
-  const [step, setStep] = useState(bootstrapRequired ? STEP.bootstrap : STEP.discover);
+  const [step, setStep] = useState<number>(bootstrapRequired ? STEP.bootstrap : STEP.discover);
   const [discoverResult, setDiscoverResult] = useState<FleetDiscoverResult | null>(null);
   const [bootstrapPreview, setBootstrapPreview] = useState<FleetBootstrapScriptPreview | null>(
     null,
