@@ -48,7 +48,7 @@ export function FleetWizardBootstrapStep({
       <div>
         <h3 className="text-lg font-semibold">Bootstrap on the device</h3>
         <p className="text-sm text-muted-foreground">
-          Paste this server-rendered script once in WinBox or SSH before discovery. It enrolls the
+          Paste this server-rendered script once in WinBox or SSH before discovery. Copy it with the button — it is joined onto one line on purpose, because RouterOS gives each pasted line its own scope and a line-by-line paste makes every field check fail. It enrolls the
           router, brings up WireGuard, and pulls the first config — the embedded token is shown only
           this once.
         </p>
@@ -71,11 +71,11 @@ export function FleetWizardBootstrapStep({
               variant="outline"
               size="sm"
               onClick={async () => {
-                const ok = await copyToClipboard(preview.script);
-                if (ok) toast.success("Bootstrap script copied");
+                const ok = await copyToClipboard(preview.scriptSingleLine);
+                if (ok) toast.success("Copied as one line — paste it in a single go");
               }}
             >
-              <Copy className="h-3.5 w-3.5" /> Copy script
+              <Copy className="h-3.5 w-3.5" /> Copy script (1 line)
             </Button>
           </div>
           <pre className="max-h-72 overflow-auto rounded-xl border border-border bg-muted/40 p-4 font-mono text-xs leading-relaxed">
