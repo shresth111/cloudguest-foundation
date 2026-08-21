@@ -170,6 +170,32 @@ const NUDGE_ROW_CLASS =
 const NUDGE_CHIP_CLASS =
   "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]";
 
+/** The two stat rows share one real progressbar (role + aria-value*), one
+ * track/fill recipe: flat venue-primary fill on a 15% tint track -- the
+ * indigo gradient is retired for the same reason PG_PRIMARY_BTN went
+ * flat. Deduplicated as a component so the long color-mix class string
+ * exists once in the chunk. */
+function UsageBar({ label, pct, className }: { label: string; pct: number; className?: string }) {
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      className={cn(
+        "h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_15%,var(--pg-surface,#fff))]",
+        className,
+      )}
+    >
+      <div
+        className="h-full rounded-full bg-[var(--pr-primary,#6366f1)]"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
 /**
  * "Already connected" status page -- reached from `/portal/` when a
  * device has (or is found to still have) an active session, from the
@@ -322,10 +348,7 @@ function SessionPage() {
          * muted comes from size, not lightness -- the old slate-400
          * uppercase label measured 2.56:1, the exact failure v7 retired).
          * Value: 28px (nearest ramp-consistent size to the old off-ramp
-         * text-3xl), scale-aware. Progress: flat venue-primary fill on a
-         * 15% tint track -- the indigo gradient is retired for the same
-         * reason PG_PRIMARY_BTN went flat -- with real progressbar
-         * semantics (aria-*) instead of a mute div. */}
+         * text-3xl), scale-aware. */}
         <PortalCard className="space-y-4">
           <div>
             <div className="flex items-center justify-between gap-3">
@@ -337,19 +360,7 @@ function SessionPage() {
               </span>
             </div>
             {hasExpiry && (
-              <div
-                role="progressbar"
-                aria-label={t("sessionRemaining")}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(timePct)}
-                className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_15%,var(--pg-surface,#fff))]"
-              >
-                <div
-                  className="h-full rounded-full bg-[var(--pr-primary,#6366f1)]"
-                  style={{ width: `${timePct}%` }}
-                />
-              </div>
+              <UsageBar label={t("sessionRemaining")} pct={timePct} className="mt-2.5" />
             )}
           </div>
 
@@ -364,19 +375,7 @@ function SessionPage() {
               </span>
             </div>
             {bytesLimit > 0 && (
-              <div
-                role="progressbar"
-                aria-label={t("dataUsage")}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(Math.min(100, usagePct))}
-                className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_15%,var(--pg-surface,#fff))]"
-              >
-                <div
-                  className="h-full rounded-full bg-[var(--pr-primary,#6366f1)]"
-                  style={{ width: `${Math.min(100, usagePct)}%` }}
-                />
-              </div>
+              <UsageBar label={t("dataUsage")} pct={Math.min(100, usagePct)} className="mt-2" />
             )}
           </div>
         </PortalCard>
