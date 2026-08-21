@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { portalService } from "@/services/portal.service";
+import { splashLimitErrorMessage } from "@/lib/splash-limits";
 import type { Portal, PortalAd, PortalListQuery, PortalStatus } from "@/types/portal";
 
 const K = {
@@ -51,7 +52,11 @@ export function useUpdatePortal(id: string, organizationId?: string) {
       qc.invalidateQueries({ queryKey: ["portal", "list"] });
       qc.invalidateQueries({ queryKey: K.kpis() });
     },
-    onError: (e: Error) => toast.error(e.message || "Update failed"),
+    // An over-limit splash_headline/splash_welcome_message 400 (see
+    // src/lib/splash-limits.ts) gets its specific, actionable message --
+    // the client-side gates should prevent it, but an older tab can still
+    // race a save through. Everything else keeps the generic path.
+    onError: (e: Error) => toast.error(splashLimitErrorMessage(e) ?? (e.message || "Update failed")),
   });
 }
 

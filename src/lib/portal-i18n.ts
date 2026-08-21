@@ -570,6 +570,12 @@ const BN: Dict = {
   countryCodeLabel: "দেশের কোড",
   otpCodeLabel: "6 অঙ্কের কোড",
   otpCodeHint: "আমরা যে 6 অঙ্কের কোড পাঠিয়েছি সেটা লিখুন।",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "ধাপ {n} / {total}",
+  whyWeAskMobile: "আপনার একবারের sign-in কোড আমরা এই নম্বরে SMS-এ পাঠাই।",
+  whyWeAskWhatsapp: "আপনার একবারের sign-in কোড আমরা এই WhatsApp নম্বরে পাঠাই।",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Marathi (mr).
@@ -726,6 +732,12 @@ const MR: Dict = {
   countryCodeLabel: "देशाचा code",
   otpCodeLabel: "6 अंकी code",
   otpCodeHint: "आम्ही पाठवलेला 6 अंकी code टाका.",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "टप्पा {n} / {total}",
+  whyWeAskMobile: "आम्ही तुमचा एक-वेळचा sign-in code याच नंबरवर SMS करतो.",
+  whyWeAskWhatsapp: "आम्ही तुमचा एक-वेळचा sign-in code याच WhatsApp नंबरवर पाठवतो.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Telugu (te).
@@ -882,6 +894,12 @@ const TE: Dict = {
   countryCodeLabel: "దేశ కోడ్",
   otpCodeLabel: "6 అంకెల కోడ్",
   otpCodeHint: "మేం పంపిన 6 అంకెల కోడ్ ఇవ్వండి.",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "దశ {n} / {total}",
+  whyWeAskMobile: "మీ వన్-టైమ్ సైన్-ఇన్ కోడ్‌ను ఈ నంబర్‌కు SMSలో పంపుతాం.",
+  whyWeAskWhatsapp: "మీ వన్-టైమ్ సైన్-ఇన్ కోడ్‌ను ఈ WhatsApp నంబర్‌కు పంపుతాం.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Tamil (ta).
@@ -1040,6 +1058,12 @@ const TA: Dict = {
   countryCodeLabel: "நாட்டுக் குறியீடு",
   otpCodeLabel: "6 இலக்கக் குறியீடு",
   otpCodeHint: "நாங்கள் அனுப்பிய 6 இலக்கக் குறியீட்டை உள்ளிடுங்கள்.",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "படி {n} / {total}",
+  whyWeAskMobile: "உங்கள் ஒருமுறை உள்நுழைவுக் குறியீட்டை இந்த எண்ணுக்கு SMS-இல் அனுப்புகிறோம்.",
+  whyWeAskWhatsapp: "உங்கள் ஒருமுறை உள்நுழைவுக் குறியீட்டை இந்த WhatsApp எண்ணுக்கு அனுப்புகிறோம்.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Gujarati (gu).
@@ -1195,6 +1219,12 @@ const GU: Dict = {
   countryCodeLabel: "દેશનો કોડ",
   otpCodeLabel: "6 અંકનો કોડ",
   otpCodeHint: "અમે મોકલેલો 6 અંકનો કોડ નાખો.",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "સ્ટેપ {n} / {total}",
+  whyWeAskMobile: "તમારો એક-વખતનો sign-in કોડ અમે આ નંબર પર SMS થી મોકલીએ છીએ.",
+  whyWeAskWhatsapp: "તમારો એક-વખતનો sign-in કોડ અમે આ WhatsApp નંબર પર મોકલીએ છીએ.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Kannada (kn).
@@ -1351,6 +1381,12 @@ const KN: Dict = {
   countryCodeLabel: "ದೇಶದ ಕೋಡ್",
   otpCodeLabel: "6 ಅಂಕಿಯ ಕೋಡ್",
   otpCodeHint: "ನಾವು ಕಳಿಸಿದ 6 ಅಂಕಿಯ ಕೋಡ್ ಬರೆಯಿರಿ.",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "ಹಂತ {n} / {total}",
+  whyWeAskMobile: "ನಿಮ್ಮ ಒಂದು ಬಾರಿಯ sign-in ಕೋಡ್ ಅನ್ನು ಈ ಸಂಖ್ಯೆಗೆ SMS ನಲ್ಲಿ ಕಳಿಸುತ್ತೇವೆ.",
+  whyWeAskWhatsapp: "ನಿಮ್ಮ ಒಂದು ಬಾರಿಯ sign-in ಕೋಡ್ ಅನ್ನು ಈ WhatsApp ಸಂಖ್ಯೆಗೆ ಕಳಿಸುತ್ತೇವೆ.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Malayalam (ml).
@@ -1508,6 +1544,12 @@ const ML: Dict = {
   countryCodeLabel: "രാജ്യ കോഡ്",
   otpCodeLabel: "6 അക്ക കോഡ്",
   otpCodeHint: "ഞങ്ങൾ അയച്ച 6 അക്ക കോഡ് നൽകൂ.",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "ഘട്ടം {n} / {total}",
+  whyWeAskMobile: "നിങ്ങളുടെ ഒറ്റത്തവണ sign-in കോഡ് ഈ നമ്പറിലേക്ക് SMS ആയി അയയ്ക്കും.",
+  whyWeAskWhatsapp: "നിങ്ങളുടെ ഒറ്റത്തവണ sign-in കോഡ് ഈ WhatsApp നമ്പറിലേക്ക് അയയ്ക്കും.",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 // Punjabi (pa, Gurmukhi).
@@ -1665,6 +1707,12 @@ const PA: Dict = {
   countryCodeLabel: "ਦੇਸ਼ ਦਾ code",
   otpCodeLabel: "6 ਅੰਕਾਂ ਦਾ code",
   otpCodeHint: "ਅਸੀਂ ਜੋ 6 ਅੰਕਾਂ ਦਾ code ਭੇਜਿਆ ਹੈ, ਉਹ ਭਰੋ।",
+  // ---- v7 Part 8 (sign-in flow) -- ADDED BY THE PART 8 WORKSTREAM ------
+  // See the EN block. Same three keys.
+  stepProgressTemplate: "ਕਦਮ {n} / {total}",
+  whyWeAskMobile: "ਅਸੀਂ ਤੁਹਾਡਾ ਇੱਕ-ਵਾਰੀ sign-in code ਇਸੇ ਨੰਬਰ ’ਤੇ SMS ਰਾਹੀਂ ਭੇਜਦੇ ਹਾਂ।",
+  whyWeAskWhatsapp: "ਅਸੀਂ ਤੁਹਾਡਾ ਇੱਕ-ਵਾਰੀ sign-in code ਇਸੇ WhatsApp ਨੰਬਰ ’ਤੇ ਭੇਜਦੇ ਹਾਂ।",
+  // ---- end v7 Part 8 block --------------------------------------------
 };
 
 const DICTS: Record<RuntimeLanguage, Dict> = {
