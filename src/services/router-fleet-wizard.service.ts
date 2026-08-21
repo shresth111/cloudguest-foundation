@@ -5,6 +5,7 @@ import type { ProvisionJob } from "@/types/provisioning";
 import type {
   FleetBasicWanApplyResult,
   FleetBasicWanPreview,
+  FleetBootstrapScriptPreview,
   FleetCompatibilityReport,
   FleetConfigurationPlan,
   FleetDiscoverResult,
@@ -77,6 +78,15 @@ interface BackendRouterSnapshot {
 interface BackendDiscoverResult {
   snapshot: BackendRouterSnapshot;
   compatibility: BackendCompatibilityReport;
+}
+
+interface BackendBootstrapScriptPreview {
+  router_id: string;
+  location_code: string;
+  lines: string[];
+  script: string;
+  line_count: number;
+  token_expires_at: string;
 }
 
 interface BackendWanVerificationCheck {
@@ -359,6 +369,24 @@ function toSnapshot(s: BackendRouterSnapshot): FleetRouterSnapshot {
 }
 
 export const routerFleetWizardService = {
+  async previewBootstrap(
+    routerId: string,
+    organizationId?: string,
+  ): Promise<FleetBootstrapScriptPreview> {
+    const { data } = await api.get<BackendBootstrapScriptPreview>(
+      `/routers/${routerId}/bootstrap/preview`,
+      orgHeaders(organizationId),
+    );
+    return {
+      routerId: data.router_id,
+      locationCode: data.location_code,
+      lines: data.lines,
+      script: data.script,
+      lineCount: data.line_count,
+      tokenExpiresAt: data.token_expires_at,
+    };
+  },
+
   async discover(routerId: string, organizationId?: string): Promise<FleetDiscoverResult> {
     const { data } = await api.post<BackendDiscoverResult>(
       `/routers/${routerId}/discover`,
