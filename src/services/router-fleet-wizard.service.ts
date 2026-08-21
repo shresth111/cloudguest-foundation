@@ -88,6 +88,7 @@ interface BackendBootstrapScriptPreview {
   revert_window_minutes: number | null;
   lines: string[];
   script: string;
+  script_single_line?: string;
   line_count: number;
   token_expires_at: string;
 }
@@ -390,6 +391,7 @@ export const routerFleetWizardService = {
       revertWindowMinutes: data.revert_window_minutes,
       lines: data.lines,
       script: data.script,
+      scriptSingleLine: data.script_single_line ?? data.lines.join("; "),
       lineCount: data.line_count,
       tokenExpiresAt: data.token_expires_at,
     };

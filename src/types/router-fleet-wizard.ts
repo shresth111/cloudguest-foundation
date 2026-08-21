@@ -78,7 +78,16 @@ export interface FleetBootstrapScriptPreview {
    * itself. `null` for on-site scripts. */
   revertWindowMinutes: number | null;
   lines: string[];
+  /** Newline-joined -- for on-screen display only. */
   script: string;
+  /**
+   * Semicolon-joined: the form a human actually pastes. RouterOS runs each
+   * pasted line as its own command with its own scope, so the `:local enroll`
+   * set by the check-in line is gone by the next line -- a multi-line paste
+   * makes every field check report "check-in response missing ..." even when
+   * the platform returned every field. Confirmed on a real 7.23.3 device.
+   */
+  scriptSingleLine: string;
   lineCount: number;
   tokenExpiresAt: string;
 }

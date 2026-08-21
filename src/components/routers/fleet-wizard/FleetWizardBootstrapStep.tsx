@@ -217,7 +217,7 @@ export function FleetWizardBootstrapStep({
         <p className="text-sm text-muted-foreground">
           {skipped
             ? "This router is already past initial enrollment — continue to discovery, or pick a re-provision mode below to run Step 1 again."
-            : "Paste this server-rendered script once before discovery. It enrolls the router, brings up WireGuard, and pulls the first config — the embedded token is shown only this once."}
+            : "Paste this once before discovery. Copy it with the button — it comes as a single line on purpose, because RouterOS gives each pasted line its own scope and a line-by-line paste makes every field check fail. It enrolls the router, brings up WireGuard, and pulls the first config; the embedded token is shown only this once."}
         </p>
       </div>
 
@@ -265,16 +265,16 @@ export function FleetWizardBootstrapStep({
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  const ok = await copyToClipboard(activePreview.script);
+                  const ok = await copyToClipboard(activePreview.scriptSingleLine);
                   if (ok)
                     toast.success(
                       activePreview.mode === "remote"
-                        ? "Remote re-provision script copied"
-                        : "Bootstrap script copied",
+                        ? "Remote script copied as one line — paste it in a single go"
+                        : "Copied as one line — paste it in a single go",
                     );
                 }}
               >
-                <Copy className="h-3.5 w-3.5" /> Copy script
+                <Copy className="h-3.5 w-3.5" /> Copy script (1 line)
               </Button>
               <Button
                 type="button"
