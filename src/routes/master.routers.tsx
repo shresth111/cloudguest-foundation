@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
@@ -64,8 +64,23 @@ export const Route = createFileRoute("/master/routers")({
     setup: z.string().optional(),
     advanced: z.string().optional(),
   }),
-  component: RouterFleetScreen,
+  component: RouterFleetRoute,
 });
+
+/** This route has a child (`/master/routers/setup/$routerId`, the fleet
+ * provisioning wizard) but `RouterFleetScreen` never rendered an
+ * `<Outlet/>`, so navigating to the wizard just re-rendered the fleet
+ * list -- the wizard route was unreachable. The wizard is a full-page
+ * surface (it renders its own `MasterShell`), so when a child match
+ * exists this defers to it entirely instead of embedding it below the
+ * list. Kept as a wrapper component (not an early return inside
+ * `RouterFleetScreen`) so the screen's own hooks never change order
+ * across renders. */
+function RouterFleetRoute() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <RouterFleetScreen />;
+}
 
 type Filter = "all" | "online" | "degraded" | "offline";
 
