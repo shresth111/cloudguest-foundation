@@ -85,6 +85,7 @@ interface BackendBootstrapScriptPreview {
   location_code: string;
   lines: string[];
   script: string;
+  script_single_line?: string;
   line_count: number;
   token_expires_at: string;
 }
@@ -382,6 +383,7 @@ export const routerFleetWizardService = {
       locationCode: data.location_code,
       lines: data.lines,
       script: data.script,
+      scriptSingleLine: data.script_single_line ?? data.lines.join("; "),
       lineCount: data.line_count,
       tokenExpiresAt: data.token_expires_at,
     };
