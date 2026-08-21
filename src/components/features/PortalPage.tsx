@@ -31,6 +31,13 @@ import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
 import { toAppError } from "@/services/api";
+import { SplashCharCounter } from "@/components/portals/SplashCharCounter";
+import {
+  SPLASH_HEADLINE_MAX,
+  SPLASH_WELCOME_MAX,
+  splashLimitErrorMessage,
+  splashOverLimitBlocked,
+} from "@/lib/splash-limits";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
@@ -146,6 +153,15 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // screen (bug report: "welcome to haldwani kyun nahi hat raha hai").
   const [headline, setHeadline] = useState("");
   const [msg, setMsg] = useState("Welcome! Connect to enjoy free WiFi");
+  // Last-loaded (or last-successfully-saved) values of the two
+  // backend-length-limited splash fields (see src/lib/splash-limits.ts for
+  // the PR #39 contract) -- the baseline for the grandfathering rule below:
+  // the backend only rejects an over-limit value when that field itself is
+  // being CHANGED, so an existing over-limit row shows its counter in the
+  // destructive tone immediately on load but never blocks saving OTHER
+  // fields. Save is disabled only when the user edits an over-limit field
+  // and leaves it over.
+  const [savedSplash, setSavedSplash] = useState({ headline: "", msg: "" });
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
   const [form, setForm] = useState({
     theme: "enterprise",
@@ -231,6 +247,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setPortalId(p.id);
     setHeadline(p.seo.pageTitle || "");
     setMsg(p.seo.metaDescription || "Welcome! Connect to enjoy free WiFi");
+    setSavedSplash({
+      headline: p.seo.pageTitle || "",
+      msg: p.seo.metaDescription || "Welcome! Connect to enjoy free WiFi",
+    });
     setPrimary(p.branding.primaryColor);
     setForm((f) => ({
       ...f,
@@ -449,7 +469,22 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     }
   };
 
+  // Mirrors the backend's accept/reject rule exactly (splashOverLimitBlocked:
+  // code points over the trimmed value, and only when changed from the last
+  // loaded/saved value) -- refuse at authoring time with a visible reason
+  // instead of silently truncating, or letting the save 400.
+  const headlineBlocked = splashOverLimitBlocked(
+    headline,
+    SPLASH_HEADLINE_MAX,
+    savedSplash.headline,
+  );
+  const msgBlocked = splashOverLimitBlocked(msg, SPLASH_WELCOME_MAX, savedSplash.msg);
+  const splashBlocked = headlineBlocked || msgBlocked;
+
   const saveConfig = async () => {
+    // The Save button is disabled while blocked; this guard just keeps the
+    // rule airtight if another code path ever calls saveConfig directly.
+    if (splashBlocked) return;
     if (demo) {
       toast.success("Portal configuration saved");
       return;
@@ -492,12 +527,18 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         });
         setPortalId(created.id);
       }
+      setSavedSplash({ headline, msg });
       toast.success("Portal configuration saved");
     } catch (err) {
+      // The disabled Save above makes the over-limit 400 unreachable from
+      // THIS tab, but an older tab (predating the limits) can still race a
+      // save through -- surface the backend's own max_length/actual_length
+      // envelope instead of a generic failure toast.
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not save — check the connection and try again.",
+        splashLimitErrorMessage(err) ??
+          (axios.isAxiosError(err)
+            ? toAppError(err).message
+            : "Could not save — check the connection and try again."),
       );
     }
   };
@@ -555,7 +596,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-1.5">
-              <Label>Headline</Label>
+              <div className="flex items-center justify-between">
+                <Label>Headline</Label>
+                <SplashCharCounter value={headline} max={SPLASH_HEADLINE_MAX} />
+              </div>
               <Input
                 value={headline}
                 onChange={(e) => setHeadline(e.target.value)}
@@ -567,7 +611,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label>Welcome Message</Label>
+              <div className="flex items-center justify-between">
+                <Label>Welcome Message</Label>
+                <SplashCharCounter value={msg} max={SPLASH_WELCOME_MAX} />
+              </div>
               <Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} />
               <p className="text-xs text-muted-foreground">
                 Smaller subtext shown under the headline.
@@ -735,9 +782,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 onChange={(e) => setForm({ ...form, terms: e.target.value })}
               />
             </div>
-            <Button className="w-full sm:w-auto" onClick={saveConfig}>
-              Save Configuration
-            </Button>
+            <div className="space-y-1.5">
+              <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={splashBlocked}>
+                Save Configuration
+              </Button>
+              {splashBlocked && (
+                <p className="text-xs text-destructive" role="alert">
+                  {headlineBlocked && msgBlocked
+                    ? "The headline and welcome message are over their length limits — shorten them to save."
+                    : headlineBlocked
+                      ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
+                      : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
@@ -9,10 +10,16 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   loginSettingsSchema,
-  seoSchema,
+  makeSeoSchema,
   type LoginSettingsValues,
   type SeoValues,
 } from "@/lib/portal-schemas";
+import { SplashCharCounter } from "@/components/portals/SplashCharCounter";
+import {
+  SPLASH_HEADLINE_MAX,
+  SPLASH_WELCOME_MAX,
+  splashOverLimitBlocked,
+} from "@/lib/splash-limits";
 import { useUpdatePortal } from "@/hooks/usePortals";
 import type { Portal, PortalLanguage } from "@/types/portal";
 import { LANGUAGES } from "@/types/portal";
@@ -84,10 +91,26 @@ export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
 
 export function PortalSeoPanel({ portal }: { portal: Portal }) {
   const update = useUpdatePortal(portal.id, portal.organizationId);
-  const { register, handleSubmit, formState } = useForm<SeoValues>({
-    resolver: zodResolver(seoSchema),
+  // "Page title" / "Meta description" here are `splash_headline` /
+  // `splash_welcome_message` on the wire (portal.service.ts maps them), so
+  // they carry the backend's 26/78 code-point limits -- see
+  // src/lib/splash-limits.ts. The schema is built against this portal's
+  // loaded values so an unchanged grandfathered over-limit value still
+  // validates (the backend only rejects the field when it is being changed);
+  // `blocked` below applies the same rule live for the counter/button state.
+  const { register, handleSubmit, watch, formState } = useForm<SeoValues>({
+    resolver: zodResolver(makeSeoSchema(portal.seo)),
     defaultValues: portal.seo,
   });
+  const titleValue = watch("pageTitle") ?? "";
+  const descValue = watch("metaDescription") ?? "";
+  const titleBlocked = splashOverLimitBlocked(titleValue, SPLASH_HEADLINE_MAX, portal.seo.pageTitle);
+  const descBlocked = splashOverLimitBlocked(
+    descValue,
+    SPLASH_WELCOME_MAX,
+    portal.seo.metaDescription,
+  );
+  const blocked = titleBlocked || descBlocked;
   const submit = handleSubmit((v) =>
     update.mutate({
       seo: { ...v, faviconUrl: v.faviconUrl ?? "", socialImageUrl: v.socialImageUrl ?? "" },
@@ -105,11 +128,14 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
             reg={register("pageTitle")}
             placeholder="Sign in to WiFi"
             error={formState.errors.pageTitle?.message}
+            counter={<SplashCharCounter value={titleValue} max={SPLASH_HEADLINE_MAX} />}
           />
           <TextRow
             label="Meta description"
             reg={register("metaDescription")}
             placeholder="Description shown in search results"
+            error={formState.errors.metaDescription?.message}
+            counter={<SplashCharCounter value={descValue} max={SPLASH_WELCOME_MAX} />}
           />
           <TextRow
             label="Favicon URL"
@@ -121,11 +147,20 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
             reg={register("socialImageUrl")}
             placeholder="https://…/og.jpg"
           />
-          <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" size="sm">
+          <div className="md:col-span-2 flex flex-col items-end gap-1.5">
+            <Button type="submit" size="sm" disabled={blocked}>
               <Save className="mr-2 h-4 w-4" />
               Save SEO
             </Button>
+            {blocked && (
+              <p className="text-xs text-destructive" role="alert">
+                {titleBlocked && descBlocked
+                  ? "Page title and meta description are over their length limits — shorten them to save."
+                  : titleBlocked
+                    ? `Page title is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
+                    : `Meta description is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
+              </p>
+            )}
           </div>
         </form>
       </CardContent>
@@ -244,15 +279,26 @@ function TextRow({
   reg,
   placeholder,
   error,
+  counter,
 }: {
   label: string;
   reg: ReturnType<ReturnType<typeof useForm>["register"]>;
   placeholder?: string;
   error?: string;
+  /** Optional right-aligned adornment on the label row -- used for the
+   * splash-field live character counters (SplashCharCounter). */
+  counter?: ReactNode;
 }) {
   return (
     <div className="space-y-1">
-      <Label>{label}</Label>
+      {counter ? (
+        <div className="flex items-center justify-between">
+          <Label>{label}</Label>
+          {counter}
+        </div>
+      ) : (
+        <Label>{label}</Label>
+      )}
       <Input placeholder={placeholder} {...reg} />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
