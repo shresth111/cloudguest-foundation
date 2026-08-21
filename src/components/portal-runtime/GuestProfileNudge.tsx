@@ -3,6 +3,7 @@ import { UserRound, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
 import { PG_INPUT, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { PG_FIELD_LABEL } from "@/components/portal-runtime/AuthFields";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { deviceProfilePromptDone, markProfilePromptDone } from "@/lib/portal-profile-prompt";
@@ -76,21 +77,23 @@ export function GuestProfileNudge({ session }: { session: RuntimeSession }) {
         type="button"
         onClick={finish}
         aria-label={t("skipForNow")}
-        className="absolute right-3 top-3 rounded-full p-1 text-[var(--pg-ink-faint)] hover:bg-slate-100 hover:text-[var(--pg-ink-muted)]"
+        className="absolute right-3 top-3 rounded-full p-1 text-[var(--pg-ink-faint)] hover:bg-[color-mix(in_srgb,var(--pg-ink,#1E1B4B)_6%,var(--pg-surface,#fff))] hover:text-[var(--pg-ink-muted)]"
       >
         <X className="h-4 w-4" />
       </button>
       <div className="flex items-center gap-3 pr-6">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]">
           <UserRound className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-800">{t("profileNudgeTitle")}</p>
-          <p className="truncate text-xs text-slate-500">{t("profileNudgeSubtitle")}</p>
+          <p className="pg-body font-semibold text-[var(--pg-ink)]">{t("profileNudgeTitle")}</p>
+          <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
+            {t("profileNudgeSubtitle")}
+          </p>
         </div>
       </div>
       <div>
-        <label className="text-xs font-semibold text-slate-500">{t("nameLabel")}</label>
+        <label className={PG_FIELD_LABEL}>{t("nameLabel")}</label>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -99,7 +102,7 @@ export function GuestProfileNudge({ session }: { session: RuntimeSession }) {
         />
       </div>
       <div>
-        <label className="text-xs font-semibold text-slate-500">{t("emailAddress")}</label>
+        <label className={PG_FIELD_LABEL}>{t("emailAddress")}</label>
         <Input
           value={email}
           onChange={(e) => setEmail(e.target.value)}

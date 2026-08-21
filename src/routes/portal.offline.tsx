@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { WifiOff } from "lucide-react";
-import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { GlyphOffline } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/offline")({
@@ -31,8 +32,13 @@ function OfflinePage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-slate-100 text-slate-400">
-              <WifiOff className="h-10 w-10" />
+            {/* Muted disc (same neutral recipe as portal.closed.tsx);
+             * GlyphOffline redraws the brand mark's own dot+arcs signal
+             * motif with a slash -- "our signal, interrupted" -- instead
+             * of the generic lucide WifiOff, and slate-400 (2.56:1, an SC
+             * 1.4.11 failure) moves to `--pg-ink-muted`. */}
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--pg-ink,#1E1B4B)_6%,var(--pg-surface,#fff))] text-[var(--pg-ink-muted)]">
+              <GlyphOffline className="h-8 w-8" />
             </div>
             <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("offlineTitle")}</h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
@@ -42,16 +48,16 @@ function OfflinePage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">{t("offlineSubtitle")}</p>
+            <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">{t("offlineSubtitle")}</p>
+            {/* Folded out of a one-sentence filler PortalCard and into the
+             * plate -- see portal.expired.tsx for the reasoning. */}
+            <p className="mt-3 pg-meta text-[var(--pg-ink-faint)]">{t("offlineHelp")}</p>
           </PortalTextPlate>
         </div>
-        <PortalCard className="text-center text-sm text-slate-500">
-          Make sure you're connected to the venue's guest network, then retry.
-        </PortalCard>
         <button
           type="button"
           onClick={() => navigate({ to: "/portal", replace: true, search: (prev) => prev })}
-          className="h-[52px] w-full rounded-2xl bg-gradient-to-r from-[var(--pr-primary,#6366f1)] to-[var(--pr-accent,#4f46e5)] font-semibold text-white shadow-[0_6px_18px_-6px_rgba(79,70,229,0.55)] transition-all duration-200 hover:brightness-105 active:translate-y-px"
+          className={PG_PRIMARY_BTN}
         >
           {t("retry")}
         </button>

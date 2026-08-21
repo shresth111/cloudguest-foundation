@@ -205,11 +205,13 @@ export function MEmptyState({ icon: Icon, title, description, action }: MEmptySt
 export function MSectionHeader({
   eyebrow,
   title,
+  description,
   actions,
   className,
 }: {
   eyebrow?: string;
   title: string;
+  description?: string;
   actions?: ReactNode;
   className?: string;
 }) {
@@ -227,6 +229,7 @@ export function MSectionHeader({
           </div>
         )}
         <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

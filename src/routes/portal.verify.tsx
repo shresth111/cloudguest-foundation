@@ -14,6 +14,7 @@ import { AlertBanner, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalG
 import { OtpCodeInput } from "@/components/portal-runtime/AuthFields";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { scriptClassOf } from "@/lib/portal-script";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
 import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
@@ -155,7 +156,7 @@ function VerifyPage() {
           from="/portal/verify"
           search={(prev) => prev}
           className={cn(
-            "inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600",
+            "inline-flex w-fit items-center gap-1.5 pg-meta font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)]",
             hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
           )}
         >
@@ -174,7 +175,12 @@ function VerifyPage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <h1 className="pg-subtitle text-[var(--pg-ink)]">Enter your code</h1>
+            <h1
+              className="pg-subtitle text-[var(--pg-ink)]"
+              data-pg-script={scriptClassOf(t("verifyTitle"))}
+            >
+              {t("verifyTitle")}
+            </h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
              * §1.5 retuned that token #64748B -> #475569, and a slate class does
              * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
@@ -182,55 +188,74 @@ function VerifyPage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
-              We sent a 6-digit code to{" "}
-              <span className="font-semibold text-slate-800">{otpTarget}</span>
+            <p className="mt-1.5 pg-meta text-[var(--pg-ink-muted)]">
+              {t("sentCodeToPrefix")}{" "}
+              <span className="font-semibold text-[var(--pg-ink)]">{otpTarget}</span>
             </p>
           </PortalTextPlate>
         </div>
-        <PortalCard className="space-y-4">
-          {/* v7 §7.2: `autoComplete` is a required, literal-typed prop --
-           * SC 3.3.8 (AA) is not left resting on the `input-otp`
-           * dependency's internal default. */}
-          <OtpCodeInput value={code} onChange={setCode} autoFocus autoComplete="one-time-code" />
-
-          {requiresTerms && (
-            <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-[13px] leading-snug text-slate-600">
-              <Checkbox
-                checked={termsAccepted}
-                onCheckedChange={(v) => setTermsAccepted(!!v)}
-                className="mt-0.5 border-slate-300 data-[state=checked]:border-indigo-600 data-[state=checked]:bg-indigo-600"
-              />
-              <span>{t("agreeTerms")}</span>
-            </label>
-          )}
-
-          <AlertBanner message={error} />
-
-          <button
-            type="button"
-            disabled={code.length !== 6 || login.isPending || (requiresTerms && !termsAccepted)}
-            onClick={() => login.mutate(code)}
-            className={PG_PRIMARY_BTN}
+        <PortalCard>
+          {/* A real <form>, mirroring OtpForm on the primary path: the
+           * phone keyboard's "Go"/"Done" key only submits a form, and this
+           * page's actions were bare onClick buttons -- the exact defect
+           * OtpForm already fixed. Presentation-level only: the submit
+           * guard is the same condition set the old button's `disabled`
+           * enforced, and the mutation call is unchanged. */}
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (code.length !== 6 || login.isPending || (requiresTerms && !termsAccepted)) return;
+              login.mutate(code);
+            }}
+            className="space-y-4"
           >
-            {login.isPending ? "Verifying…" : t("verifyOtp")}
-          </button>
-          <div className="flex items-center justify-center gap-2 text-xs">
-            {cooldown > 0 ? (
-              <span className="text-slate-400">
-                {t("resendAvailableInTemplate").replace("{n}", String(cooldown))}
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => resend.mutate()}
-                disabled={resend.isPending}
-                className="font-medium text-indigo-600 hover:underline"
-              >
-                {t("resend")}
-              </button>
+            {/* v7 §7.2: `autoComplete` is a required, literal-typed prop --
+             * SC 3.3.8 (AA) is not left resting on the `input-otp`
+             * dependency's internal default. */}
+            <OtpCodeInput value={code} onChange={setCode} autoFocus autoComplete="one-time-code" />
+
+            {requiresTerms && (
+              // Shared terms-row recipe (redesign spec §3.3) -- the
+              // `bg-slate-50` wash v5 §4b removed from the primary path's
+              // two copies goes here too; type-scale-responsive pg-meta
+              // instead of a raw 13px.
+              <label className="flex items-start gap-2.5 text-left pg-meta font-medium text-[var(--pg-ink-muted)]">
+                <Checkbox
+                  checked={termsAccepted}
+                  onCheckedChange={(v) => setTermsAccepted(!!v)}
+                  className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
+                />
+                <span>{t("agreeTerms")}</span>
+              </label>
             )}
-          </div>
+
+            <AlertBanner message={error} />
+
+            <button
+              type="submit"
+              disabled={code.length !== 6 || login.isPending || (requiresTerms && !termsAccepted)}
+              className={PG_PRIMARY_BTN}
+            >
+              {login.isPending ? t("verifyingLabel") : t("verifyOtpConnect")}
+            </button>
+            <div className="flex items-center justify-center gap-2 pg-meta">
+              {cooldown > 0 ? (
+                <span className="font-normal text-[var(--pg-ink-faint)]">
+                  {t("resendAvailableInTemplate").replace("{n}", String(cooldown))}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => resend.mutate()}
+                  disabled={resend.isPending}
+                  className="inline-flex min-h-6 items-center px-2 py-1 font-medium text-[var(--pr-primary,#6366f1)] underline-offset-2 hover:underline"
+                >
+                  {t("resend")}
+                </button>
+              )}
+            </div>
+          </form>
         </PortalCard>
       </div>
     </PortalShell>

@@ -161,7 +161,7 @@ function RouterFleetScreen() {
           setSel((prev) => (prev && prev.id === router.id ? { ...prev, vendor } : prev));
         },
         onError: (err) => {
-          toast.error((err as AppError).message || "Could not update vendor");
+          toast.error(err.message || "Could not update vendor");
         },
       },
     );

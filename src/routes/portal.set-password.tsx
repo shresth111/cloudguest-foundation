@@ -1,14 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { KeyRound, Loader2 } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
-import { AlertBanner } from "@/components/portal-runtime/PortalGuestUi";
+import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { PG_FIELD_LABEL } from "@/components/portal-runtime/AuthFields";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { markDeviceHasPassword } from "@/lib/portal-returning-guest";
@@ -92,6 +94,12 @@ function SetPasswordPage() {
 
   const skip = () => navigate({ to: nextRoute, search: (prev) => prev });
 
+  // v7 §7.2 pattern (see PasswordSignInForm): both labels below used to be
+  // bare <label>s naming nothing.
+  const fieldId = useId();
+  const passwordId = `${fieldId}-password`;
+  const confirmId = `${fieldId}-confirm`;
+
   return (
     <PortalShell>
       <div className="flex flex-1 flex-col gap-5">
@@ -108,7 +116,7 @@ function SetPasswordPage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]">
               <KeyRound className="h-6 w-6" />
             </div>
             <h1 className="pg-subtitle mt-4 text-[var(--pg-ink)]">{t("setPasswordTitle")}</h1>
@@ -119,43 +127,44 @@ function SetPasswordPage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">{t("setPasswordSubtitle")}</p>
+            <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">{t("setPasswordSubtitle")}</p>
           </PortalTextPlate>
         </div>
 
         <PortalCard>
           <form onSubmit={form.handleSubmit((v) => save.mutate(v))} className="space-y-3">
-            <label className="text-xs font-semibold text-slate-500">{t("newPassword")}</label>
+            <Label htmlFor={passwordId} className={PG_FIELD_LABEL}>
+              {t("newPassword")}
+            </Label>
             <Input
+              id={passwordId}
               {...form.register("password")}
               type="password"
+              autoComplete="new-password"
               placeholder="••••••••••••"
-              className="h-11 rounded-[13px] border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
+              className={PG_INPUT}
             />
             <AlertBanner message={form.formState.errors.password?.message} />
-            <label className="text-xs font-semibold text-slate-500">{t("confirmPassword")}</label>
+            <Label htmlFor={confirmId} className={PG_FIELD_LABEL}>
+              {t("confirmPassword")}
+            </Label>
             <Input
+              id={confirmId}
               {...form.register("confirm")}
               type="password"
+              autoComplete="new-password"
               placeholder="••••••••••••"
-              className="h-11 rounded-[13px] border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
+              className={PG_INPUT}
             />
             <AlertBanner message={form.formState.errors.confirm?.message} />
-            <button
-              type="submit"
-              disabled={save.isPending}
-              className="h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 disabled:opacity-60"
-            >
-              {save.isPending ? (
-                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-              ) : (
-                t("savePassword")
-              )}
+            <button type="submit" disabled={save.isPending} className={PG_PRIMARY_BTN}>
+              {save.isPending ? t("savingLabel") : t("savePassword")}
             </button>
+            {/* Tertiary skip -- same reasoning as portal.team.tsx. */}
             <button
               type="button"
               onClick={skip}
-              className="h-11 w-full rounded-[14px] text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+              className="block min-h-11 w-full pg-meta font-medium text-[var(--pg-ink-muted)] underline-offset-2 transition-colors hover:text-[var(--pr-primary,#6366f1)] hover:underline"
             >
               {t("skipForNow")}
             </button>

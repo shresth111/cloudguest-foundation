@@ -299,7 +299,7 @@ function SuccessPage() {
             <button
               type="button"
               onClick={retry}
-              className="flex items-center gap-1.5 rounded-full bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+              className="flex min-h-6 items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] px-4 py-2 pg-meta font-medium text-[var(--pr-primary,#6366f1)] hover:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_14%,var(--pg-surface,#fff))]"
             >
               <RefreshCw className="h-3.5 w-3.5" /> {t("retry")}
             </button>
@@ -312,7 +312,7 @@ function SuccessPage() {
                 to="/portal/welcome"
                 search={portalSearch}
                 className={cn(
-                  "text-xs font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline",
+                  "pg-meta font-medium text-[var(--pg-ink-muted)] underline-offset-2 hover:text-[var(--pr-primary,#6366f1)] hover:underline",
                   hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-4 py-2"),
                 )}
               >

@@ -64,7 +64,11 @@ export function AuthTabSwitcher(sign: UseGuestSignInReturn) {
                 <span
                   className={cn(
                     "block pg-body leading-tight",
-                    active ? "text-indigo-700" : "text-slate-500",
+                    // v7 §1.5 completion: the inactive label was
+                    // slate-500 (4.76:1 -- fails at 15px); ink-muted is
+                    // 7.58:1. Pill ground/focus geometry stays
+                    // pixel-identical (shipped #108-adjacent look).
+                    active ? "text-indigo-700" : "text-[var(--pg-ink-muted)]",
                   )}
                 >
                   {item.label}
@@ -97,7 +101,7 @@ export function AuthTabSwitcher(sign: UseGuestSignInReturn) {
                 "flex items-center gap-1.5 rounded-full border px-3 py-1.5 pg-meta transition-colors",
                 active
                   ? "border-[var(--pr-primary,#6366f1)]/30 bg-[var(--pr-primary,#6366f1)]/10 text-[var(--pr-primary,#6366f1)]"
-                  : "border-transparent text-slate-500 hover:text-slate-700",
+                  : "border-transparent text-[var(--pg-ink-muted)] hover:text-[var(--pg-ink)]",
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -119,13 +123,13 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
   return (
     <>
       {!sign.hasOtp && !sign.hasPassword && sign.hasVoucher && (
-        <p className="py-2 text-center text-xs text-slate-500">
+        <p className="py-2 text-center text-xs text-[var(--pg-ink-muted)]">
           {t("voucherFallbackPrefix")}{" "}
           <Link
             to="/portal/auth/$method"
             params={{ method: "voucher" }}
             search={sign.portalSearch}
-            className="font-medium text-indigo-600 hover:underline"
+            className="font-medium text-[var(--pr-primary,#6366f1)] hover:underline"
           >
             {t("redeemVoucherLink")}
           </Link>
@@ -150,7 +154,7 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
            * from the box rather than from the glyph, so it holds up when
            * the text scales. Nothing else on this screen is padded to
            * chase a threshold it already meets. */}
-          <summary className="flex min-h-6 cursor-pointer list-none items-center justify-center gap-1 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-6 cursor-pointer list-none items-center justify-center gap-1 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] [&::-webkit-details-marker]:hidden">
             {t("otherWaysToSignIn")}
             <ChevronDown className="h-3.5 w-3.5 transition-transform duration-150 group-open:rotate-180" />
           </summary>
@@ -160,7 +164,7 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
                 key={l.label}
                 type="button"
                 onClick={l.onClick}
-                className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+                className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] hover:underline"
               >
                 <l.icon className="h-3.5 w-3.5" /> {l.label}
               </button>
@@ -170,7 +174,7 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
                 to="/portal/auth/$method"
                 params={{ method: "voucher" }}
                 search={sign.portalSearch}
-                className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-indigo-600 hover:underline"
+                className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] hover:underline"
               >
                 <Ticket className="h-3.5 w-3.5" /> {t("haveVoucherUseInstead")}
               </Link>

@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Users2, Loader2, CheckCircle2 } from "lucide-react";
+import { Users2, CheckCircle2 } from "lucide-react";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { PG_FIELD_LABEL } from "@/components/portal-runtime/AuthFields";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
@@ -73,6 +75,9 @@ function TeamJoinPage() {
 
   const [teamCode, setTeamCode] = useState("");
   const [joined, setJoined] = useState<{ alreadyMember: boolean } | null>(null);
+  // v7 §7.2 pattern (see PasswordSignInForm): the label below used to be a
+  // bare <label> naming nothing.
+  const teamCodeId = useId();
 
   const join = useMutation<{ isNewMembership: boolean }, AppError>({
     mutationFn: () =>
@@ -108,7 +113,7 @@ function TeamJoinPage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-indigo-50 text-indigo-600">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]">
               <Users2 className="h-6 w-6" />
             </div>
             <h1 className="pg-subtitle mt-4 text-[var(--pg-ink)]">{t("teamPageTitle")}</h1>
@@ -119,18 +124,20 @@ function TeamJoinPage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">{t("teamPageSubtitle")}</p>
+            <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">{t("teamPageSubtitle")}</p>
           </PortalTextPlate>
         </div>
 
         <PortalCard>
           {joined ? (
             <div className="flex flex-col items-center gap-3 py-2 text-center">
-              <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-              <p className="text-sm font-semibold text-slate-800">
+              <CheckCircle2 className="h-10 w-10 text-[var(--pg-success,#10B981)]" />
+              <p className="pg-body font-semibold text-[var(--pg-ink)]">
                 {joined.alreadyMember ? t("teamAlreadyJoined") : t("teamJoined")}
               </p>
-              <p className="text-xs text-slate-500">{t("teamJoinedHelper")}</p>
+              <p className="pg-meta font-normal text-[var(--pg-ink-muted)]">
+                {t("teamJoinedHelper")}
+              </p>
               <button type="button" onClick={backToSession} className={PG_PRIMARY_BTN}>
                 {t("backToConnection")}
               </button>
@@ -143,8 +150,11 @@ function TeamJoinPage() {
               }}
               className="space-y-3"
             >
-              <label className="text-xs font-semibold text-slate-500">{t("teamCodeLabel")}</label>
+              <Label htmlFor={teamCodeId} className={PG_FIELD_LABEL}>
+                {t("teamCodeLabel")}
+              </Label>
               <Input
+                id={teamCodeId}
                 value={teamCode}
                 onChange={(e) => setTeamCode(e.target.value.toUpperCase())}
                 placeholder={t("teamCodePlaceholder")}
@@ -162,17 +172,16 @@ function TeamJoinPage() {
                 disabled={join.isPending || !teamCode.trim()}
                 className={PG_PRIMARY_BTN}
               >
-                {join.isPending ? (
-                  <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                ) : (
-                  t("joinTeam")
-                )}
+                {join.isPending ? t("submitting") : t("joinTeam")}
               </button>
+              {/* Tertiary, not a boxed secondary -- skip must read
+               * visually lighter than the join action. Height keeps the
+               * 44px comfortable target the old h-11 had. */}
               <button
                 type="button"
                 onClick={backToSession}
                 disabled={join.isPending}
-                className="h-11 w-full rounded-[14px] text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                className="block min-h-11 w-full pg-meta font-medium text-[var(--pg-ink-muted)] underline-offset-2 transition-colors hover:text-[var(--pr-primary,#6366f1)] hover:underline disabled:opacity-60"
               >
                 {t("skipForNow")}
               </button>

@@ -59,11 +59,14 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   // exactly the "boxes within boxes" bulk this section's brief calls out.
   // Same legal text, same checkbox, materially less visual "boxiness."
   const TermsCheckbox = (
-    <label className="flex items-start gap-2.5 text-[13px] leading-snug text-slate-600">
+    // Shared terms-row recipe (redesign spec §3.3): token colors only --
+    // geometry and copy untouched (welcome-card internals are #108's
+    // shipped look; slate-600/13px was its documented a11y debt).
+    <label className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
       <Checkbox
         checked={sign.termsAccepted}
         onCheckedChange={(v) => sign.setTermsAccepted(!!v)}
-        className="mt-0.5 border-slate-300 data-[state=checked]:border-indigo-600 data-[state=checked]:bg-indigo-600"
+        className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
       />
       <span>
         {t("agreeToThe")}{" "}
@@ -71,12 +74,12 @@ export function OtpForm(sign: UseGuestSignInReturn) {
           <Link
             to="/portal/terms"
             search={sign.portalSearch}
-            className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+            className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
           >
             {t("termsAcceptableUsePolicy")}
           </Link>
         ) : (
-          <span className="font-medium text-slate-800">{t("termsAcceptableUsePolicy")}</span>
+          <span className="font-medium text-[var(--pg-ink)]">{t("termsAcceptableUsePolicy")}</span>
         )}
       </span>
     </label>
@@ -153,8 +156,9 @@ export function OtpForm(sign: UseGuestSignInReturn) {
       className="space-y-3"
     >
       <StepProgress n={2} />
-      <p className="text-center text-sm text-slate-500">
-        {t("sentCodeToPrefix")} <span className="font-semibold text-slate-800">{sign.target}</span>
+      <p className="text-center text-sm text-[var(--pg-ink-muted)]">
+        {t("sentCodeToPrefix")}{" "}
+        <span className="font-semibold text-[var(--pg-ink)]">{sign.target}</span>
       </p>
       {/* v7 §7.2: `autoComplete` is a required, literal-typed prop -- SC
        * 3.3.8 (AA) is not left resting on the `input-otp` dependency's
@@ -175,7 +179,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
       </button>
       <div className="flex items-center justify-center gap-3 pt-0.5 text-xs">
         {sign.resendCooldown > 0 ? (
-          <span className="text-slate-400">
+          <span className="text-[var(--pg-ink-faint)]">
             {t("resendAvailableInTemplate").replace("{n}", String(sign.resendCooldown))}
           </span>
         ) : (
@@ -183,16 +187,18 @@ export function OtpForm(sign: UseGuestSignInReturn) {
             type="button"
             onClick={sign.onResendOtp}
             disabled={sign.sendOtpPending}
-            className="font-medium text-indigo-600 hover:underline"
+            className="font-medium text-[var(--pr-primary,#6366f1)] hover:underline"
           >
             {t("resend")}
           </button>
         )}
-        <span className="text-slate-300">|</span>
+        <span aria-hidden="true" className="text-[var(--pg-border)]">
+          |
+        </span>
         <button
           type="button"
           onClick={sign.onChangeNumber}
-          className="font-medium text-slate-500 hover:text-slate-700 hover:underline"
+          className="font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pg-ink)] hover:underline"
         >
           {t("changeNumberLabel")}
         </button>

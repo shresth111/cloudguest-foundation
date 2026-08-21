@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ArrowLeft, Wifi } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   PortalShell,
@@ -8,8 +8,10 @@ import {
   GUEST_LEGIBILITY_CARD_CLASS,
   PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
+import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { otherAuthMethods, AUTH_METHOD_FALLBACK_COPY } from "@/lib/portal-auth-methods";
+import { scriptClassOf } from "@/lib/portal-script";
+import { otherAuthMethods } from "@/lib/portal-auth-methods";
 import {
   MobileForm,
   EmailForm,
@@ -35,6 +37,19 @@ const METHODS: RuntimeAuthMethod[] = [
   "voucher",
 ];
 
+/** The "use X instead" link per other enabled method -- translated (the
+ * English-only AUTH_METHOD_FALLBACK_COPY constant loses its UI role; four
+ * of five keys pre-existed, `usePasswordInstead` is new), and on the
+ * tertiary-link recipe with a >=24px target (SC 2.5.8 -- same fix
+ * AuthMoreOptions already carries; the old bare text-xs rows were ~18px). */
+const OTHER_METHOD_LABEL_KEY: Record<RuntimeAuthMethod, string> = {
+  otp_sms: "useMobileInstead",
+  otp_email: "useEmailInstead",
+  otp_whatsapp: "useWhatsappInstead",
+  username_password: "usePasswordInstead",
+  voucher: "haveVoucherUseInstead",
+};
+
 function OtherMethodsLinks({
   config,
   current,
@@ -42,12 +57,12 @@ function OtherMethodsLinks({
   config: RuntimePortalConfig | undefined;
   current: RuntimeAuthMethod;
 }) {
-  const { setSelectedMethod } = usePortalRuntime();
+  const { t, setSelectedMethod } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/auth/$method" });
   const others = config ? otherAuthMethods(config, current) : [];
   if (others.length === 0) return null;
   return (
-    <div className="space-y-1.5 pt-1">
+    <div className="flex flex-col items-center gap-1.5 pt-1">
       {others.map((m) => (
         <button
           key={m}
@@ -56,9 +71,9 @@ function OtherMethodsLinks({
             setSelectedMethod(m);
             navigate({ to: "/portal/auth/$method", params: { method: m }, search: (prev) => prev });
           }}
-          className="block w-full text-center text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline"
+          className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta font-medium text-[var(--pg-ink-muted)] underline-offset-2 hover:text-[var(--pr-primary,#6366f1)] hover:underline"
         >
-          {AUTH_METHOD_FALLBACK_COPY[m]}
+          {t(OTHER_METHOD_LABEL_KEY[m])}
         </button>
       ))}
     </div>
@@ -155,11 +170,11 @@ function AuthMethodPage() {
           from="/portal/auth/$method"
           search={(prev) => prev}
           className={cn(
-            "inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--pg-ink-muted)] hover:text-indigo-600",
+            "inline-flex w-fit items-center gap-1.5 pg-meta font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)]",
             hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-3.5 py-1.5"),
           )}
         >
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {t("backLabel")}
         </Link>
 
         {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
@@ -185,14 +200,20 @@ function AuthMethodPage() {
                 className="h-16 w-auto max-w-[200px] object-contain drop-shadow sm:h-20 sm:max-w-[240px] md:h-24 md:max-w-[280px]"
               />
             ) : (
-              <div
-                className="grid h-14 w-14 place-items-center rounded-2xl shadow-lg shadow-indigo-500/25 sm:h-16 sm:w-16 md:h-20 md:w-20"
-                style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
-              >
-                <Wifi className="h-7 w-7 text-white sm:h-8 sm:w-8 md:h-10 md:w-10" />
-              </div>
+              // The real Wyfy Guest mark, not the retired lucide-Wifi
+              // gradient badge -- same default-brand treatment #108 gave
+              // the welcome surface (PortalDefaultBrandBadge).
+              <PortalDefaultBrandBadge
+                size={64}
+                className="h-14 w-14 sm:h-16 sm:w-16 md:h-20 md:w-20"
+              />
             )}
-            <h1 className="pg-title mt-4 text-[var(--pg-ink)]">{t(titleKey)}</h1>
+            <h1
+              className="pg-title mt-4 text-[var(--pg-ink)]"
+              data-pg-script={scriptClassOf(t(titleKey))}
+            >
+              {t(titleKey)}
+            </h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
              * §1.5 retuned that token #64748B -> #475569, and a slate class does
              * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
@@ -200,9 +221,7 @@ function AuthMethodPage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1.5 text-sm text-[var(--pg-ink-muted)]">
-              Complete the form below to get online.
-            </p>
+            <p className="mt-1.5 pg-meta text-[var(--pg-ink-muted)]">{t("authMethodSubtitle")}</p>
           </PortalTextPlate>
         </div>
 
@@ -244,7 +263,7 @@ function AuthMethodPage() {
               onLoggedIn={onVoucherLoggedIn}
             />
           )}
-          {!m && <p className="text-sm text-slate-500">Unknown sign-in method.</p>}
+          {!m && <p className="pg-meta text-[var(--pg-ink-muted)]">{t("unknownMethodLabel")}</p>}
           {m && <OtherMethodsLinks config={config} current={m} />}
         </PortalCard>
       </div>

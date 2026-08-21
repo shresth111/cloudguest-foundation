@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Clock } from "lucide-react";
-import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { PG_PRIMARY_BTN, PG_SECONDARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { GlyphExpired } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 
@@ -48,8 +49,12 @@ function ExpiredPage() {
          * column's `gap-5` and lose `text-center`. */}
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-50 text-amber-500">
-              <Clock className="h-10 w-10" />
+            {/* Amber stays: it is the one semantic "caution, not error"
+             * hue on this surface. amber-500 -> amber-600 lifts the 40px
+             * glyph from 2.85:1 to 3.9:1 on white (SC 1.4.11's 3:1
+             * non-text floor). GlyphExpired is the brand set's hourglass. */}
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-amber-50 text-amber-600">
+              <GlyphExpired className="h-8 w-8" />
             </div>
             <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("sessionExpired")}</h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
@@ -59,42 +64,40 @@ function ExpiredPage() {
              * full derivation in styles.css's own `--pg-ink-muted` note. Backing
              * the block and leaving its subtitle at 3.36:1 would only have half-
              * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">
-              You've been disconnected from the network.
-            </p>
+            <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">{t("expiredSubtitle")}</p>
+            {/* Was a whole PortalCard whose entire content was this one
+             * grey sentence -- 68px of opaque surface on a short viewport
+             * for a helper line. Folded into the plate (both lines now sit
+             * on the same composited backing the alpha floors guarantee),
+             * which also uncovers more of the venue photo -- the opposite
+             * of the twice-reverted column wash (§0.1 item 1). */}
+            <p className="mt-3 pg-meta text-[var(--pg-ink-faint)]">{t("expiredHelp")}</p>
           </PortalTextPlate>
         </div>
-        <PortalCard className="text-center text-sm text-slate-500">
-          Sign in again to continue using guest WiFi.
-        </PortalCard>
         <div className="flex flex-col gap-2.5">
           {hasPassword && (
             <button
               type="button"
               onClick={() => goSignIn("username_password")}
-              className="h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105"
+              className={PG_PRIMARY_BTN}
             >
-              Sign in again
+              {t("signInAgainLink")}
             </button>
           )}
           {hasOtp && (
             <button
               type="button"
               onClick={() => goSignIn(preferredOtp)}
-              className={
-                hasPassword
-                  ? "h-12 w-full rounded-[14px] border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50"
-                  : "h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105"
-              }
+              className={hasPassword ? PG_SECONDARY_BTN : PG_PRIMARY_BTN}
             >
-              Use OTP instead
+              {t("useOtpInsteadLabel")}
             </button>
           )}
           {!hasPassword && !hasOtp && (
             <button
               type="button"
               onClick={() => navigate({ to: "/portal/welcome", search: (prev) => prev })}
-              className="h-12 w-full rounded-[14px] bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105"
+              className={PG_PRIMARY_BTN}
             >
               {t("reconnect")}
             </button>
