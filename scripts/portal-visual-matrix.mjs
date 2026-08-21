@@ -27,6 +27,16 @@
  *     case that pushes the primary CTA below the fold (§2 W2).
  *   - prefers-reduced-motion and prefers-contrast: more, the two OS
  *     preferences this surface answers.
+ *
+ * Cases 18+ (portal-redesign pass) extend the same matrix beyond the
+ * welcome surface to the screens the redesign touched: the per-method
+ * auth page, deep-link OTP verify (driven through the real form, since
+ * `otpTarget` is unpersisted context state a direct URL can never have),
+ * the connected session page (session seeded through the same
+ * `cloudguest_portal_session` localStorage key the runtime itself
+ * persists), the five state screens, and terms -- including the
+ * long-Devanagari-venue-name and --pg-type-scale 1.25 shots for the
+ * screens that carry venue/translated text. Cases 01-17 are untouched.
  */
 
 import { chromium } from "playwright";
@@ -93,6 +103,60 @@ const CASES = [
   // shot must show the footer plate WITHOUT the lockup row and with the
   // terms/support row intact.
   { id: "17-powered-by-off", photo: "busy", poweredBy: false },
+  // ---- portal-redesign pass (18+): the other portal screens ----
+  { id: "18-auth-method-sms", photo: "busy", path: "/portal/auth/otp_sms", passwordToo: true },
+  { id: "19-auth-method-no-logo-none", photo: "none", path: "/portal/auth/otp_sms" },
+  { id: "20-verify", photo: "busy", path: "/portal/auth/otp_sms", drive: "verify" },
+  {
+    id: "21-verify-320-scale125",
+    photo: "busy",
+    path: "/portal/auth/otp_sms",
+    drive: "verify",
+    width: 320,
+    scale: "1.25",
+  },
+  { id: "22-session", photo: "busy", path: "/portal/session", seedSession: true },
+  {
+    id: "23-session-320-scale125",
+    photo: "busy",
+    path: "/portal/session",
+    seedSession: true,
+    width: 320,
+    scale: "1.25",
+  },
+  {
+    id: "24-session-hindi",
+    photo: "busy",
+    path: "/portal/session",
+    seedSession: true,
+    lang: "hi",
+  },
+  {
+    id: "25-closed-hindi-long-name",
+    photo: "busy",
+    path: "/portal/closed",
+    lang: "hi",
+    name: LONG_HI,
+  },
+  { id: "26-closed-scale125", photo: "busy", path: "/portal/closed", scale: "1.25" },
+  { id: "27-expired", photo: "busy", path: "/portal/expired", passwordToo: true },
+  { id: "28-failure-dark", photo: "dark", path: "/portal/failure" },
+  { id: "29-offline-320", photo: "busy", path: "/portal/offline", width: 320 },
+  {
+    id: "30-redirect",
+    photo: "busy",
+    path: "/portal/redirect",
+    dst: "https://example.com/lobby/deals?campaign=summer",
+  },
+  { id: "31-terms-org-text", photo: "busy", path: "/portal/terms" },
+  {
+    id: "32-terms-default-tamil-scale125",
+    photo: "busy",
+    path: "/portal/terms",
+    termsText: null,
+    name: LONG_TA,
+    scale: "1.25",
+  },
 ];
 
 const VENUE_LOGO =
@@ -110,10 +174,10 @@ const config = (c) => ({
   primary_color: "#6366f1",
   secondary_color: "#1E293B",
   default_language: c.lang ?? "en",
-  supported_languages: ["en", "hi", "ar"],
+  supported_languages: c.langs ?? ["en", "hi", "ar"],
   advertisement_banner_url: null,
   advertisement_banner_link: null,
-  terms_and_conditions_text: "Fair use applies.",
+  terms_and_conditions_text: c.termsText === null ? null : "Fair use applies.",
   terms_and_conditions_url: null,
   privacy_policy_text: null,
   privacy_policy_url: null,
@@ -126,7 +190,7 @@ const config = (c) => ({
   otp_sms_enabled: true,
   otp_email_enabled: false,
   otp_whatsapp_enabled: false,
-  username_password_enabled: false,
+  username_password_enabled: c.passwordToo ?? false,
   voucher_enabled: false,
   resolved_via_location_override: true,
   is_open_now: true,
@@ -146,10 +210,46 @@ const config = (c) => ({
   location_country: "IN",
 });
 
-const URL_ =
-  "/portal/welcome?organizationId=11111111-1111-4111-8111-111111111111" +
-  "&locationId=22222222-2222-4222-8222-222222222222" +
-  "&routerId=33333333-3333-4333-8333-333333333333";
+const IDS = {
+  organizationId: "11111111-1111-4111-8111-111111111111",
+  locationId: "22222222-2222-4222-8222-222222222222",
+  routerId: "33333333-3333-4333-8333-333333333333",
+};
+
+const urlFor = (c) => {
+  const params = new URLSearchParams(IDS);
+  if (c.dst) params.set("dst", c.dst);
+  return `${c.path ?? "/portal/welcome"}?${params}`;
+};
+
+/** A realistic active session, persisted through the exact sessionStorage
+ * key the runtime itself reads (`cloudguest_portal_session` via
+ * PortalRuntimeContext's safeGet -- sessionStorage, not localStorage) so
+ * the /portal/session shots exercise the real persistence path rather
+ * than a mocked context. 90 of 120 minutes remaining, 210MB of 500MB. */
+const seededSession = () => ({
+  guestId: "44444444-4444-4444-8444-444444444444",
+  identifier: "+919876543210",
+  sessionId: "55555555-5555-4555-8555-555555555555",
+  deviceId: null,
+  routerId: IDS.routerId,
+  locationId: IDS.locationId,
+  organizationId: IDS.organizationId,
+  authMethod: "otp_sms",
+  status: "ACTIVE",
+  startedAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+  endedAt: null,
+  lastActivityAt: new Date().toISOString(),
+  ipAddress: "10.5.50.23",
+  bytesUploaded: 42 * 1024 * 1024,
+  bytesDownloaded: 168 * 1024 * 1024,
+  dataLimitMb: 500,
+  sessionTimeoutMinutes: 120,
+  isNewGuest: false,
+  deviceMacAddress: "AA:BB:CC:DD:EE:FF",
+  deviceName: "Guest device",
+  hasPassword: false,
+});
 
 const browser = await chromium.launch();
 mkdirSync(OUT, { recursive: true });
@@ -164,6 +264,17 @@ for (const c of CASES) {
     contrast: c.contrast === "more" ? "more" : "no-preference",
     locale: c.lang === "ar" ? "ar" : c.lang === "hi" ? "hi-IN" : "en-IN",
   });
+  if (c.seedSession) {
+    const session = JSON.stringify(seededSession());
+    await ctx.addInitScript(
+      ([s, ids]) => {
+        sessionStorage.setItem("cloudguest_portal_session", s);
+        sessionStorage.setItem("cloudguest_portal_identifier", "+919876543210");
+        sessionStorage.setItem("cloudguest_portal_runtime_ids", JSON.stringify(ids));
+      },
+      [session, IDS],
+    );
+  }
   const page = await ctx.newPage();
   await page.route("**/api/v1/**", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: "null" }),
@@ -175,8 +286,19 @@ for (const c of CASES) {
       body: JSON.stringify(config(c)),
     }),
   );
-  await page.goto(BASE + URL_, { waitUntil: "networkidle" });
+  await page.goto(BASE + urlFor(c), { waitUntil: "networkidle" });
   await page.waitForSelector("main h1", { timeout: 20000 });
+  if (c.drive === "verify") {
+    // /portal/verify is reachable only through the real form: `otpTarget`
+    // is unpersisted context state, and the route bounces back to
+    // /portal/auth without it. Submit a valid number on the method page
+    // (requestOtp is answered by the **/api/v1/** mock above) and let its
+    // own onSent navigate us there -- the same path a guest takes.
+    await page.fill('main input[type="tel"]', "9876543210");
+    await page.click('main button[type="submit"]');
+    await page.waitForURL("**/portal/verify**", { timeout: 20000 });
+    await page.waitForSelector("main h1", { timeout: 20000 });
+  }
   if (c.scale) {
     await page.evaluate(
       (s) => document.querySelector(".portal-runtime")?.style.setProperty("--pg-type-scale", s),
