@@ -60,12 +60,16 @@ import {
   useRenderConfigurationPlan,
   useVerifyPlanFinal,
   useVerifyRouterWan,
+  useWizardWireGuardPeer,
 } from "@/hooks/useRouterFleetWizard";
 import { routerFleetWizardService } from "@/services/router-fleet-wizard.service";
+import { routerService } from "@/services/router.service";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type {
+  FleetBootstrapMode,
   FleetBootstrapScriptPreview,
+  FleetRemoteCutoverPhase,
   FleetConfigurationPlan,
   FleetDiscoverResult,
   FleetFinalVerificationResult,
@@ -81,7 +85,7 @@ const STEPS = [
   {
     key: "bootstrap",
     title: "Bootstrap",
-    description: "Paste Step 0 enrollment",
+    description: "Paste Step 1 enrollment",
     icon: TerminalSquare,
   },
   { key: "discover", title: "Discover", description: "Read-only device sweep", icon: Radar },
@@ -221,6 +225,20 @@ export function RouterFleetSetupWizard({
     null,
   );
   const [bootstrapConfirmed, setBootstrapConfirmed] = useState(!bootstrapRequired);
+  // "Technician on site" is the default whenever the step is live; an
+  // already-enrolled router starts with no selection (the step stays
+  // informational until the operator opts into a remote re-provision).
+  const [bootstrapMode, setBootstrapMode] = useState<FleetBootstrapMode | null>(
+    bootstrapRequired ? "onsite" : null,
+  );
+  // Remote-cutover confirmation tracking. The peer's rotationCount before
+  // the script was generated is the baseline; a bump means the device
+  // checked in (keys rotated in place, lastHandshakeAt reset to null), and
+  // the rotated peer's first reported handshake is the proof the
+  // replacement tunnel reached the hub.
+  const [remoteBaseline, setRemoteBaseline] = useState<number | null>(null);
+  const [cutoverSeenAt, setCutoverSeenAt] = useState<number | null>(null);
+  const [remotePhase, setRemotePhase] = useState<FleetRemoteCutoverPhase | null>(null);
   const [wanDrafts, setWanDrafts] = useState<FleetWanInputDraft[]>(DEFAULT_WAN_DRAFTS);
   const [savedLinkIds, setSavedLinkIds] = useState<string[]>([]);
   const [wanPreview, setWanPreview] = useState<string | null>(null);
@@ -242,6 +260,39 @@ export function RouterFleetSetupWizard({
 
   const discover = useDiscoverRouter();
   const previewBootstrap = usePreviewBootstrapScript();
+  // A remote script is "outstanding" from generation until the operator
+  // moves on -- while it is, the peer is the only truth signal (the
+  // operator's own session may drop the moment the cutover fires), so poll
+  // it on the wizard's standard cadence until a terminal phase.
+  const remoteOutstanding = bootstrapMode === "remote" && bootstrapPreview?.mode === "remote";
+  const wireguardPeer = useWizardWireGuardPeer(
+    router.id,
+    remoteOutstanding && remotePhase !== "confirmed" && remotePhase !== "presumed_reverted",
+  );
+  const peer = wireguardPeer.data ?? null;
+
+  useEffect(() => {
+    if (!remoteOutstanding || remoteBaseline == null) {
+      setRemotePhase(null);
+      return;
+    }
+    if (!peer || peer.rotationCount <= remoteBaseline) {
+      setRemotePhase("awaiting_run");
+      return;
+    }
+    if (peer.lastHandshakeAt) {
+      setRemotePhase("confirmed");
+      return;
+    }
+    const seenAt = cutoverSeenAt ?? Date.now();
+    if (cutoverSeenAt == null) setCutoverSeenAt(seenAt);
+    // The device restores its previous tunnel by itself once the revert
+    // window lapses without a confirmed cutover. The API has no explicit
+    // revert signal, so past the window (plus slack for handshake
+    // reporting) the honest reading is "presumed reverted".
+    const windowMs = ((bootstrapPreview?.revertWindowMinutes ?? 10) + 2) * 60_000;
+    setRemotePhase(Date.now() - seenAt > windowMs ? "presumed_reverted" : "cutover_staged");
+  }, [remoteOutstanding, remoteBaseline, peer, cutoverSeenAt, bootstrapPreview]);
   const previewWan = usePreviewBasicWan();
   const applyWan = useApplyBasicWan();
   const verifyWan = useVerifyRouterWan();
@@ -285,22 +336,73 @@ export function RouterFleetSetupWizard({
     status: stepStatusForIndex(index, step, completedThrough, blockedAt),
   }));
 
+  function handleBootstrapModeChange(mode: FleetBootstrapMode) {
+    if (mode === bootstrapMode) return;
+    setBootstrapMode(mode);
+    // The two renderings are entirely different scripts -- a previous
+    // mode's text must never survive a mode switch. Each generation also
+    // mints a one-time token (and remote generation rewinds a live router
+    // to pending provisioning), so the switch clears the preview and the
+    // operator re-generates explicitly rather than auto-minting on toggle.
+    setBootstrapPreview(null);
+    setBootstrapConfirmed(false);
+    setRemoteBaseline(null);
+    setCutoverSeenAt(null);
+    setRemotePhase(null);
+  }
+
   async function loadBootstrapPreview() {
+    const mode = bootstrapMode ?? "onsite";
     try {
+      if (mode === "remote") {
+        // Capture the pre-generation rotation count fresh -- the cached
+        // query value may predate another admin's action.
+        const baselinePeer = await routerService
+          .getWireGuardPeer(router.id)
+          .catch(() => wireguardPeer.data ?? null);
+        setRemoteBaseline(baselinePeer?.rotationCount ?? -1);
+        setCutoverSeenAt(null);
+        setRemotePhase(null);
+      }
       const result = await previewBootstrap.mutateAsync({
         routerId: router.id,
+        mode,
         organizationId: router.organizationId,
       });
       setBootstrapPreview(result);
       setBootstrapConfirmed(false);
-      toast.success("Bootstrap script ready — copy and paste on the device");
+      toast.success(
+        result.mode === "remote"
+          ? "Remote re-provision script ready — run it on the device when you are ready to cut over"
+          : "Bootstrap script ready — copy and paste on the device",
+      );
     } catch (err) {
-      toast.error((err as AppError).message || "Could not generate bootstrap script");
+      const appErr = err as AppError;
+      if (mode === "remote" && appErr.status === 409) {
+        // The selector already disables remote for a never-enrolled
+        // router; this covers stale data or a concurrent change.
+        toast.error(
+          "Remote re-provision refused — this router has never checked in. Use the on-site script for first enrollment.",
+        );
+      } else {
+        toast.error(appErr.message || "Could not generate bootstrap script");
+      }
     }
   }
 
   function continueFromBootstrap() {
-    if (bootstrapRequired && !bootstrapConfirmed) {
+    if (remoteOutstanding) {
+      if (!bootstrapConfirmed) {
+        toast.error("Confirm you ran the remote re-provision script on the device");
+        return;
+      }
+      if (remotePhase !== "confirmed") {
+        toast.error(
+          "Wait for the cutover to confirm — the replacement tunnel has not handshaked the hub yet",
+        );
+        return;
+      }
+    } else if (bootstrapRequired && !bootstrapConfirmed) {
       toast.error("Confirm you pasted the bootstrap script on the device");
       return;
     }
@@ -584,6 +686,10 @@ export function RouterFleetSetupWizard({
 
   function canGoNext(): boolean {
     if (step === STEP.bootstrap) {
+      // An outstanding remote script gates on the truth signal, not the
+      // paste: "the paste succeeded" is not "the re-provision worked". Only
+      // the rotated peer's reported handshake confirms the cutover.
+      if (remoteOutstanding) return bootstrapConfirmed && remotePhase === "confirmed";
       return bootstrapConfirmed || !bootstrapRequired;
     }
     if (step === STEP.discover) return !!discoverResult && discoverResult.snapshot.status !== "failed";
@@ -651,10 +757,14 @@ export function RouterFleetSetupWizard({
               {step === STEP.bootstrap && (
                 <FleetWizardBootstrapStep
                   router={router}
+                  mode={bootstrapMode}
+                  onModeChange={handleBootstrapModeChange}
                   preview={bootstrapPreview}
                   loading={previewBootstrap.isPending}
                   skipped={!bootstrapRequired}
                   confirmed={bootstrapConfirmed}
+                  remotePhase={remoteOutstanding ? remotePhase : null}
+                  remoteLastHandshakeAt={peer?.lastHandshakeAt ?? null}
                   onGenerate={() => void loadBootstrapPreview()}
                   onConfirmedChange={setBootstrapConfirmed}
                 />
@@ -748,11 +858,7 @@ export function RouterFleetSetupWizard({
                 Step {step + 1} of {STEPS.length}
               </div>
               {step === STEP.bootstrap ? (
-                <Button
-                  type="button"
-                  onClick={continueFromBootstrap}
-                  disabled={bootstrapRequired && !bootstrapConfirmed}
-                >
+                <Button type="button" onClick={continueFromBootstrap} disabled={!canGoNext()}>
                   Continue to discovery <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : step === STEP.discover ? (
