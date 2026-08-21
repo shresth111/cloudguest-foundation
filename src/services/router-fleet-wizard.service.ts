@@ -5,6 +5,7 @@ import type { ProvisionJob } from "@/types/provisioning";
 import type {
   FleetBasicWanApplyResult,
   FleetBasicWanPreview,
+  FleetBootstrapMode,
   FleetBootstrapScriptPreview,
   FleetCompatibilityReport,
   FleetConfigurationPlan,
@@ -83,6 +84,8 @@ interface BackendDiscoverResult {
 interface BackendBootstrapScriptPreview {
   router_id: string;
   location_code: string;
+  mode: string;
+  revert_window_minutes: number | null;
   lines: string[];
   script: string;
   line_count: number;
@@ -371,15 +374,20 @@ function toSnapshot(s: BackendRouterSnapshot): FleetRouterSnapshot {
 export const routerFleetWizardService = {
   async previewBootstrap(
     routerId: string,
+    mode: FleetBootstrapMode,
     organizationId?: string,
   ): Promise<FleetBootstrapScriptPreview> {
     const { data } = await api.get<BackendBootstrapScriptPreview>(
       `/routers/${routerId}/bootstrap/preview`,
-      orgHeaders(organizationId),
+      { ...orgHeaders(organizationId), params: { mode } },
     );
     return {
       routerId: data.router_id,
       locationCode: data.location_code,
+      // Trust the server's echo over the requested value -- the script text
+      // must never be shown under a mode it was not rendered for.
+      mode: data.mode === "remote" ? "remote" : "onsite",
+      revertWindowMinutes: data.revert_window_minutes,
       lines: data.lines,
       script: data.script,
       lineCount: data.line_count,

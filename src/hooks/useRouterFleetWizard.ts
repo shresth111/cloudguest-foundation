@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { routerFleetWizardService } from "@/services/router-fleet-wizard.service";
-import type { FleetGuestNetworkRequest } from "@/types/router-fleet-wizard";
+import { routerService } from "@/services/router.service";
+import type { FleetBootstrapMode, FleetGuestNetworkRequest } from "@/types/router-fleet-wizard";
 
 export const fleetWizardKeys = {
   all: ["router-fleet-wizard"] as const,
@@ -12,12 +13,33 @@ export const fleetWizardKeys = {
     [...fleetWizardKeys.all, "guest-availability", routerId] as const,
   plan: (routerId: string, planId: string) =>
     [...fleetWizardKeys.all, "plan", routerId, planId] as const,
+  wireguardPeer: (routerId: string) =>
+    [...fleetWizardKeys.all, "wireguard-peer", routerId] as const,
 };
 
 export function usePreviewBootstrapScript() {
   return useMutation({
-    mutationFn: (args: { routerId: string; organizationId?: string }) =>
-      routerFleetWizardService.previewBootstrap(args.routerId, args.organizationId),
+    mutationFn: (args: {
+      routerId: string;
+      mode: FleetBootstrapMode;
+      organizationId?: string;
+    }) =>
+      routerFleetWizardService.previewBootstrap(args.routerId, args.mode, args.organizationId),
+  });
+}
+
+/** The wizard's view of the router's WireGuard peer -- the truth signal for
+ * a remote-mode cutover. After the device checks in, the platform rotates
+ * the peer in place (`rotationCount` bumped, `lastHandshakeAt` reset to
+ * null); the rotated peer reporting a handshake is the only API-visible
+ * proof the replacement tunnel actually reached the hub. Polls on the same
+ * cadence as the wizard's other gates while `poll` is true. */
+export function useWizardWireGuardPeer(routerId: string, poll = false) {
+  return useQuery({
+    queryKey: fleetWizardKeys.wireguardPeer(routerId),
+    queryFn: () => routerService.getWireGuardPeer(routerId),
+    enabled: !!routerId,
+    refetchInterval: poll ? 3000 : false,
   });
 }
 
