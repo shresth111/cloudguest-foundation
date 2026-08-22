@@ -213,6 +213,28 @@ jobs:
             "manual-wizard-engine: all checks passed" \
             bun run test:manual-wizard
 
+      # --- Edit Plan dialog ---------------------------------------------
+      #
+      # Regression test for a confirmed-live "it doesn't work and it won't
+      # go away" report against the master console's Edit Plan dialog.
+      # Three defects produced that one symptom and NONE was visible to
+      # tsc, eslint or the build: the browser's own constraint validation
+      # suppressed the submit event entirely for a plan whose limit was 0
+      # (measured: 0 submit events, so no React, no zod, no request, no
+      # message); twelve of thirteen fields had nowhere to render a
+      # validation message; and save.mutate had no onError, so a rejected
+      # save left the dialog waiting forever on a success that never came.
+      #
+      # Reuses the Chromium installed above, so it adds no CI
+      # infrastructure. All three defects were verified to FAIL this suite
+      # when reintroduced (9, 2 and 4 checks red respectively).
+      - name: edit plan dialog feedback
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "plan-editor-feedback" 33 \
+            "plan-editor-feedback: all checks passed" \
+            bun run test:plan-editor
+
       # This one prints only a verdict line, no per-check output, so its
       # floor is 0 and the sentinel is doing all the work.
       - name: portal a11y invariants

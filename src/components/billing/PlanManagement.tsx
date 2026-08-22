@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Check, Crown, Pencil, Sparkles, Trash2, Zap } from "lucide-react";
+import { AlertTriangle, Check, Crown, Pencil, Sparkles, Trash2, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { planSchema, type PlanFormValues } from "@/lib/billing-schemas";
+import { humanizeApiError } from "@/lib/errorMessages";
+import type { AppError } from "@/services/api";
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, {
@@ -44,6 +46,59 @@ function limitLabel(value: number, thousands = false): string {
   return thousands ? value.toLocaleString() : String(value);
 }
 
+/** The one place a field's validation message gets rendered. Every input
+ * in PlanEditor now has one. Before, only `name` did -- so a resolver
+ * rejection on any of the other twelve fields aborted the submit with no
+ * mutation, no toast, and nothing at all on screen. The dialog just sat
+ * there looking like the Save button was dead. See PlanEditor's onInvalid. */
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-destructive">{message}</p>;
+}
+
+/** api.ts's response interceptor rejects every failed request with an
+ * `AppError`, but react-query types a mutation's error as plain `Error` and
+ * a fault thrown before the request leaves (a serialisation bug, say) really
+ * would be one. Narrow rather than assert, so an unexpected shape degrades
+ * to "something went wrong" instead of reading `.status` off undefined and
+ * throwing inside the error handler itself. */
+function asAppError(err: unknown): AppError {
+  const e = err as Partial<AppError> | null;
+  if (e && typeof e === "object" && "status" in e && "code" in e) return e as AppError;
+  return {
+    status: null,
+    code: "unknown_error",
+    message: err instanceof Error ? err.message : "Something went wrong",
+  };
+}
+
+/**
+ * Why a write failed, in words the operator can act on (and quote when
+ * reporting it). Deliberately does not print the backend's raw message
+ * except for a 422's per-field detail -- `lib/errorMessages.ts` documents
+ * why that text is not safe to surface verbatim. The HTTP status is always
+ * included: it is the one thing that makes a failure routable.
+ */
+function writeFailureMessage(err: AppError, what: string): string {
+  switch (err.status) {
+    case 400:
+    case 422:
+      return `The server rejected these values (HTTP ${err.status}). Check the highlighted fields and try again.`;
+    case 401:
+      return "Your session is no longer valid (HTTP 401). Sign in again, then retry.";
+    case 403:
+      return `You do not have permission to ${what} (HTTP 403). Plan changes need a platform-level role.`;
+    case 404:
+      return "This plan no longer exists (HTTP 404). It may have been deleted in another session — close this dialog and reload.";
+    case 409:
+      return "Another change to this plan landed first (HTTP 409). Close this dialog, reload, then reapply your edit.";
+    case null:
+      return "Unable to reach the server. Nothing was saved — check your connection and try again.";
+    default:
+      return `Could not ${what} (HTTP ${err.status}). ${humanizeApiError(err, "Please try again.")}`;
+  }
+}
+
 /** A number field for one of the four included-limit fields, with an
  * "Unlimited" toggle alongside it -- typing a number was previously the
  * only option, with no way to express "no cap" short of typing something
@@ -56,11 +111,13 @@ function LimitField({
   value,
   onChange,
   defaultValue = 1,
+  error,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
   defaultValue?: number;
+  error?: string;
 }) {
   const [lastNumber, setLastNumber] = useState(value === -1 ? defaultValue : value);
   const unlimited = value === -1;
@@ -90,6 +147,7 @@ function LimitField({
           onChange(next);
         }}
       />
+      <FieldError message={error} />
     </div>
   );
 }
@@ -199,7 +257,19 @@ export function PlanManagement({ plans }: { plans: Plan[] }) {
         destructive
         onConfirm={() => {
           if (!deleting) return;
-          del.mutate(deleting.id, { onSuccess: () => toast.success("Plan deleted") });
+          const name = deleting.name;
+          del.mutate(deleting.id, {
+            onSuccess: () => toast.success("Plan deleted"),
+            // Same swallowed-rejection bug the editor had: with only an
+            // onSuccess, a failed delete closed the confirm dialog and said
+            // nothing at all, so the plan looked deleted right up until the
+            // card was still there. useDeletePlan invalidates ["billing"]
+            // on success only, so the card correctly stays -- say why.
+            onError: (err) =>
+              toast.error(writeFailureMessage(asAppError(err), "delete this plan"), {
+                description: `"${name}" was not deleted.`,
+              }),
+          });
           setDeleting(null);
         }}
       />
@@ -265,7 +335,16 @@ function PlanEditor({
         },
   });
 
+  // Why the last attempt failed, shown inside the dialog. Previously
+  // `save.mutate` was handed an `onSuccess` and nothing else, so a rejected
+  // save resolved into nothing whatsoever -- no toast, no text -- and the
+  // dialog stayed open waiting on a success that was never coming. Cleared
+  // at the start of every attempt so a stale failure cannot outlive it.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const errors = form.formState.errors;
+
   const onSubmit = (values: PlanFormValues) => {
+    setSaveError(null);
     // The real backend Plan model (PlanCreateRequest/PlanUpdateRequest --
     // backend/app/domains/billing/schemas.py) has one base_price and one
     // billing_cycle per plan, never a separate monthly *and* annual price.
@@ -275,13 +354,37 @@ function PlanEditor({
     save.mutate(
       { ...values, annualPrice: values.monthlyPrice * 12, id: plan?.id },
       {
+        // useSavePlan invalidates the whole ["billing"] key on success, so
+        // the card behind this dialog re-reads from the server instead of
+        // from anything held locally here. A save that did not persist can
+        // therefore never leave a changed-looking card behind.
         onSuccess: () => {
           toast.success(plan ? "Plan updated" : "Plan created");
           onOpenChange(false);
         },
+        onError: (err) => {
+          const appError = asAppError(err);
+          // A 422 names the offending fields -- put each message back on
+          // the input it belongs to, so it sits where the fix is.
+          const fieldErrors = appError.fieldErrors;
+          if (fieldErrors) {
+            for (const [field, message] of Object.entries(fieldErrors)) {
+              if (field in planSchema.shape) {
+                form.setError(field as keyof PlanFormValues, { type: "server", message });
+              }
+            }
+          }
+          setSaveError(writeFailureMessage(appError, plan ? "save this plan" : "create this plan"));
+        },
       },
     );
   };
+
+  // A resolver rejection never reaches onSubmit at all, so the banner has
+  // to be raised from here or an invalid submit is once again a silent
+  // no-op -- which is exactly how this dialog looked broken.
+  const onInvalid = () =>
+    setSaveError("Some fields need fixing before this plan can be saved. See the messages below.");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -289,13 +392,35 @@ function PlanEditor({
         <DialogHeader>
           <DialogTitle>{plan ? "Edit plan" : "New plan"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
+        {/* `noValidate` is load-bearing, not tidying.
+            LimitField renders `<input type="number" min={1}>`. A plan whose
+            backend feature row carries limit_value 0 -- or a storage quota
+            under ~512 MB, which toPlan rounds down to 0 GB -- loads that
+            input with value 0, which fails the browser's OWN constraint
+            validation. The browser then refuses to fire the submit event at
+            all: no React handler, no zod resolver, no request, no message.
+            Pressing "Save plan" did nothing whatsoever, and the dialog sat
+            there looking dead. Measured in a real Chromium: 0 submit events.
+            Validation is RHF + planSchema's job exclusively -- it is the
+            only one of the two that can render a message the user can see. */}
+        <form
+          noValidate
+          onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+          className="grid grid-cols-2 gap-4"
+        >
+          {saveError && (
+            <div
+              role="alert"
+              className="col-span-2 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          )}
           <div className="col-span-2">
             <Label>Plan name</Label>
             <Input className="mt-1" {...form.register("name")} />
-            {form.formState.errors.name && (
-              <p className="mt-1 text-xs text-destructive">{form.formState.errors.name.message}</p>
-            )}
+            <FieldError message={errors.name?.message} />
           </div>
           <div>
             <Label>Tier</Label>
@@ -324,6 +449,7 @@ function PlanEditor({
                 Tier can't be changed after a plan is created.
               </p>
             )}
+            <FieldError message={errors.tier?.message} />
           </div>
           <div>
             <Label>Support level</Label>
@@ -340,12 +466,14 @@ function PlanEditor({
                 <SelectItem value="dedicated">Dedicated (24×7)</SelectItem>
               </SelectContent>
             </Select>
+            <FieldError message={errors.supportLevel?.message} />
           </div>
           <div>
             <Label>Currency</Label>
             <p className="mt-1 flex h-9 items-center text-sm text-muted-foreground">
               ₹ INR — GST applies
             </p>
+            <FieldError message={errors.currency?.message} />
           </div>
           <div />
           <div>
@@ -354,6 +482,18 @@ function PlanEditor({
               type="number"
               className="mt-1"
               {...form.register("monthlyPrice", { valueAsNumber: true })}
+            />
+            {/* Clearing this input makes valueAsNumber hand the resolver a
+                NaN, which fails `min(0)`. That rejection used to be
+                completely invisible: blank the price, press Save, and
+                nothing at all happened. */}
+            <FieldError
+              message={
+                errors.monthlyPrice &&
+                (Number.isNaN(form.getValues("monthlyPrice"))
+                  ? "Enter a monthly price (0 for a free plan)."
+                  : errors.monthlyPrice.message)
+              }
             />
           </div>
           <div>
@@ -364,27 +504,38 @@ function PlanEditor({
               {formatMoney((form.watch("monthlyPrice") || 0) * 12, form.watch("currency"))} / year
             </p>
           </div>
+          {/* These four are the ones that actually bit. A plan whose backend
+              feature row carries limit_value 0 -- or a storage quota under
+              ~512 MB, which toPlan rounds down to 0 GB -- loads here as 0,
+              which planSchema rejects outright. So the dialog opened
+              already-invalid and Save did nothing, with nothing on screen
+              to say why. The value still has to be corrected, but now the
+              form says which one and what it wants. */}
           <LimitField
             label="Locations"
             value={form.watch("includedLocations")}
             onChange={(v) => form.setValue("includedLocations", v)}
+            error={errors.includedLocations?.message}
           />
           <LimitField
             label="Routers"
             value={form.watch("includedRouters")}
             onChange={(v) => form.setValue("includedRouters", v)}
+            error={errors.includedRouters?.message}
           />
           <LimitField
             label="Guests"
             value={form.watch("includedGuests")}
             onChange={(v) => form.setValue("includedGuests", v)}
             defaultValue={100}
+            error={errors.includedGuests?.message}
           />
           <LimitField
             label="Storage (GB)"
             value={form.watch("storageLimitGb")}
             onChange={(v) => form.setValue("storageLimitGb", v)}
             defaultValue={10}
+            error={errors.storageLimitGb?.message}
           />
 
           {(["apiAccess", "whiteLabel", "pmsIntegration", "aiFeatures"] as const).map((k) => (
@@ -398,6 +549,11 @@ function PlanEditor({
           ))}
 
           <DialogFooter className="col-span-2">
+            {/* Never disabled while saving. A dialog the user cannot leave
+                is worse than the bug this file is fixing, and an in-flight
+                PUT is not a reason to trap them: react-query's onSuccess
+                still lands and still invalidates ["billing"], so leaving
+                early cannot lose a write that did go through. */}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

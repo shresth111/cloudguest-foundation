@@ -96,9 +96,7 @@ export const RESOLVER: ResolverEntry[] = [
 :delay 12s
 :put ("date=" . [/system clock get date])
 :put ("time=" . [/system clock get time])
-:local st "unknown"
-:do { :set st [:tostr [/system ntp client get status]] } on-error={ :set st "unknown" }
-:put ("ntp-status=" . $st)`,
+:local st "unknown"; :do { :set st [:tostr [/system ntp client get status]] } on-error={ :set st "unknown" }; :put ("ntp-status=" . $st)`,
                 note: "Sets the timezone, switches the time service on, waits, then prints the date, the time and the service status back so you can see it actually took. If the date has not moved, the router has no internet yet — fix that rather than running this again.",
                 destructive: false,
                 confidence: "field",
@@ -128,9 +126,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]
-:put ("matching-count=" . [:tostr [:len $s]])
-:if ([:len $s] > 0) do={ /system scheduler set $s start-time=startup }
+                command: `:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]; :put ("matching-count=" . [:tostr [:len $s]]); :if ([:len $s] > 0) do={ /system scheduler set $s start-time=startup }
 :put ("start-time=" . [:tostr [/system scheduler get [find where name="cloudguest-heartbeat-sched"] start-time]])`,
                 note: "Only run this after the clock is confirmed correct, or it re-anchors the task to another wrong time. It prints the match count first, so a task that does not exist cannot pass as fixed. This re-anchoring has not been confirmed on a real device — watch the run count for two intervals afterwards rather than assuming it worked.",
                 destructive: false,
@@ -213,9 +209,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local d [/ip address find where interface="bridge" dynamic=yes]
-:put ("removing-count=" . [:tostr [:len $d]])
-:if ([:len $d] > 0) do={ /ip address remove $d }`,
+                command: `:local d [/ip address find where interface="bridge" dynamic=yes]; :put ("removing-count=" . [:tostr [:len $d]]); :if ([:len $d] > 0) do={ /ip address remove $d }`,
                 note: "Removes only automatically-assigned addresses on the guest bridge. Anything set by hand is untouched.",
                 destructive: false,
                 confidence: "generator",
@@ -244,9 +238,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local p [/ip pool find where name="hotspot-pool"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip pool set $p ranges=10.5.50.10-10.5.50.254 }
+                command: `:local p [/ip pool find where name="hotspot-pool"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip pool set $p ranges=10.5.50.10-10.5.50.254 }
 :put ("ranges=" . [:tostr [/ip pool get [find name="hotspot-pool"] ranges]])`,
                 note: "Updates the existing range instead of creating a duplicate. Devices already holding an address keep it until their lease expires.",
                 destructive: false,
@@ -424,9 +416,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local c [/certificate find where name="cloudguest-ca"]
-:put ("matching-count=" . [:tostr [:len $c]])
-:if ([:len $c] > 0) do={ /certificate sign cloudguest-ca }
+                command: `:local c [/certificate find where name="cloudguest-ca"]; :put ("matching-count=" . [:tostr [:len $c]]); :if ([:len $c] > 0) do={ /certificate sign cloudguest-ca }
 :delay 5s
 :put ("after=" . [:tostr [/certificate get [find name="cloudguest-ca"] serial-number]])`,
                 note: "Signs the authority certificate with no ca= at all, which is the correct form for one that signs itself. It waits, then prints the serial number back — signing can return before it has finished, so an immediate read shows nothing even on success.",
@@ -455,10 +445,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local l [/certificate find where name="cloudguest-hotspot-cert"]
-:put ("matching-count=" . [:tostr [:len $l]])
-:delay 3s
-:if ([:len $l] > 0) do={ /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca }`,
+                command: `:local l [/certificate find where name="cloudguest-hotspot-cert"]; :put ("matching-count=" . [:tostr [:len $l]]); :delay 3s; :if ([:len $l] > 0) do={ /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca }`,
                 note: "Signs the page certificate using the authority. Naming the authority here is correct — it is a different certificate. Only the authority signing itself must omit ca=.",
                 destructive: false,
                 confidence: "field",
@@ -587,9 +574,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip hotspot profile set $p login-by=http-pap }
+                command: `:local p [/ip hotspot profile find where name="hsprof1"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip hotspot profile set $p login-by=http-pap }
 :put ("login-by=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] login-by]])`,
                 note: "Sets the accepted login method and prints it back.",
                 destructive: false,
@@ -789,11 +774,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:put ("allow-count=" . [:tostr [:len $allow]])
-:put ("drop-count=" . [:tostr [:len $drop]])
-:if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
+                command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
                 note: "Moves the allow rule above the drop rule and changes nothing else. Both counts print first, so a missing rule is visible rather than becoming a silent no-op.",
                 destructive: false,
                 confidence: "field",
@@ -837,11 +818,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: 1,
             fix: [
               {
-                command: `:local gw [:tostr [/ip dhcp-client get [find where interface="ether1"] gateway]]
-:put ("gateway-read=" . $gw)
-:local r [/ip route find where comment="cloudguest-plain-wan1"]
-:put ("matching-routes=" . [:tostr [:len $r]])
-:if ($gw != "" && $gw != "0.0.0.0" && [:len $r] > 0) do={ /ip route set $r gateway=$gw }`,
+                command: `:local gw [:tostr [/ip dhcp-client get [find where interface="ether1"] gateway]]; :put ("gateway-read=" . $gw); :local r [/ip route find where comment="cloudguest-plain-wan1"]; :put ("matching-routes=" . [:tostr [:len $r]]); :if ($gw != "" && $gw != "0.0.0.0" && [:len $r] > 0) do={ /ip route set $r gateway=$gw }`,
                 note: "Reads the gateway from the live lease and writes it into the route this setup owns. It prints what it read and how many routes it matched, so an empty match cannot look like success. It never touches a route this setup did not create.",
                 destructive: false,
                 confidence: "field",
@@ -949,9 +926,7 @@ export const RESOLVER: ResolverEntry[] = [
               {
                 command: `/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes
 :put ("servers=" . [:tostr [/ip dns get servers]])
-:local t ""
-:do { :set t [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set t "" }
-:put ("resolves-to=" . $t)`,
+:local t ""; :do { :set t [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set t "" }; :put ("resolves-to=" . $t)`,
                 note: "Sets two well-known public name servers and immediately tries a lookup, printing the answer. If the answer line is empty the change did not help and the problem is upstream of this router.",
                 destructive: false,
                 confidence: "field",
@@ -1067,12 +1042,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local r [/radius find]
-:local w [/interface wireguard find where name="wg-cloudguest"]
-:local u [/user find where name="cloudguest-api"]
-:put ("radius-count=" . [:tostr [:len $r]])
-:put ("tunnel-count=" . [:tostr [:len $w]])
-:put ("api-user-count=" . [:tostr [:len $u]])`,
+                command: `:local r [/radius find]; :local w [/interface wireguard find where name="wg-cloudguest"]; :local u [/user find where name="cloudguest-api"]; :put ("radius-count=" . [:tostr [:len $r]]); :put ("tunnel-count=" . [:tostr [:len $w]]); :put ("api-user-count=" . [:tostr [:len $u]])`,
                 note: "This only reports what would be removed. Read the three counts, confirm they are what you expect, and only then run the removal below. Nothing is changed by this command.",
                 destructive: false,
                 confidence: "field",
