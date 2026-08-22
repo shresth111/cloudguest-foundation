@@ -123,17 +123,8 @@ export const STEPS_PART3: ManualStep[] = [
       command: `:put "==== CLOUD REGISTRATION ===="
 :put "WYFY-BEGIN step07"
 :put ("api-user-count=" . [:tostr [:len [/user find where name="cloudguest-api"]]])
-:local apiSvc "unknown"
-:do { :set apiSvc [:tostr [/ip service get [find name="api"] disabled]] } on-error={ :set apiSvc "unknown" }
-:put ("api-service-disabled=" . $apiSvc)
-:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]
-:put ("sched-count=" . [:tostr [:len $s]])
-:local s0 ""
-:if ([:len $s] > 0) do={ :set s0 [:pick $s 0] }
-:if ($s0 != "") do={ :put ("sched-interval=" . [:tostr [/system scheduler get $s0 interval]]) }
-:if ($s0 != "") do={ :put ("sched-run-count=" . [:tostr [/system scheduler get $s0 run-count]]) }
-:if ($s0 != "") do={ :put ("sched-next-run=" . [:tostr [/system scheduler get $s0 next-run]]) }
-:if ($s0 != "") do={ :put ("sched-disabled=" . [:tostr [/system scheduler get $s0 disabled]]) }
+:local apiSvc "unknown"; :do { :set apiSvc [:tostr [/ip service get [find name="api"] disabled]] } on-error={ :set apiSvc "unknown" }; :put ("api-service-disabled=" . $apiSvc)
+:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]; :put ("sched-count=" . [:tostr [:len $s]]); :local s0 ""; :if ([:len $s] > 0) do={ :set s0 [:pick $s 0] }; :if ($s0 != "") do={ :put ("sched-interval=" . [:tostr [/system scheduler get $s0 interval]]) }; :if ($s0 != "") do={ :put ("sched-run-count=" . [:tostr [/system scheduler get $s0 run-count]]) }; :if ($s0 != "") do={ :put ("sched-next-run=" . [:tostr [/system scheduler get $s0 next-run]]) }; :if ($s0 != "") do={ :put ("sched-disabled=" . [:tostr [/system scheduler get $s0 disabled]]) }
 :put ("heartbeat-warn-count=" . [:tostr [:len [/log find where message~"cloudguest-heartbeat"]]])
 :put ("login-failure-count=" . [:tostr [:len [/log find where message~"login failure for user cloudguest-api"]]])
 :put ("date=" . [/system clock get date])
@@ -272,9 +263,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The start time and the next run time. A start time in 1970, or a next run that never moves, means the task was created against a wrong clock.",
         fix: [
           {
-            command: `:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]
-:put ("matching-count=" . [:tostr [:len $s]])
-:if ([:len $s] > 0) do={ /system scheduler set $s start-time=startup }
+            command: `:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]; :put ("matching-count=" . [:tostr [:len $s]]); :if ([:len $s] > 0) do={ /system scheduler set $s start-time=startup }
 :put ("start-time=" . [:tostr [/system scheduler get [find where name="cloudguest-heartbeat-sched"] start-time]])`,
             note: "Only use this after confirming the clock is correct. It re-anchors the task so it stops waiting for a time that already passed. It prints the match count first, so a task that does not exist cannot pass as fixed.",
             destructive: false,
@@ -302,9 +291,7 @@ export const STEPS_PART3: ManualStep[] = [
           "How recent the failures are. Failures from before the last paste are historical and can be ignored.",
         fix: [
           {
-            command: `:local u [/user find where name="cloudguest-api"]
-:put ("removing-count=" . [:tostr [:len $u]])
-:if ([:len $u] > 0) do={ /user remove $u }`,
+            command: `:local u [/user find where name="cloudguest-api"]; :put ("removing-count=" . [:tostr [:len $u]]); :if ([:len $u] > 0) do={ /user remove $u }`,
             note: "Removes only this platform's own account, then press Generate in Master console exactly once and paste the fresh blocks in the same sitting. Do not press Generate more than once — every press rotates the secrets again.",
             destructive: true,
             confirmPrompt:
@@ -348,9 +335,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The reporting task exists but is switched off. Someone disabled it, probably while debugging.",
         fix: [
           {
-            command: `:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]
-:put ("matching-count=" . [:tostr [:len $s]])
-:if ([:len $s] > 0) do={ /system scheduler set $s disabled=no }`,
+            command: `:local s [/system scheduler find where name="cloudguest-heartbeat-sched"]; :put ("matching-count=" . [:tostr [:len $s]]); :if ([:len $s] > 0) do={ /system scheduler set $s disabled=no }`,
             note: "Switches it back on. The match count is printed first so an empty match is visible.",
             destructive: false,
             confidence: "generator",
@@ -405,23 +390,10 @@ export const STEPS_PART3: ManualStep[] = [
 :foreach w in=[/interface wireguard find] do={ :put ("wg=" . [/interface wireguard get $w name] . ";running=" . [:tostr [/interface wireguard get $w running]] . ";listen-port=" . [:tostr [/interface wireguard get $w listen-port]]) }
 :put ("expected-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
 :put ("legacy-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])
-:local w0 ""
-:if ([:len [/interface wireguard find where name="wg-cloudguest"]] > 0) do={ :set w0 [:pick [/interface wireguard find where name="wg-cloudguest"] 0] }
-:if ($w0 != "") do={ :put ("router-public-key=" . [:tostr [/interface wireguard get $w0 public-key]]) }
-:local p [/interface wireguard peers find where interface="wg-cloudguest"]
-:put ("peer-count=" . [:tostr [:len $p]])
-:local p0 ""
-:if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }
-:if ($p0 != "") do={ :put ("peer-endpoint=" . [:tostr [/interface wireguard peers get $p0 endpoint-address]]) }
-:if ($p0 != "") do={ :put ("peer-port=" . [:tostr [/interface wireguard peers get $p0 endpoint-port]]) }
-:if ($p0 != "") do={ :put ("peer-allowed=" . [:tostr [/interface wireguard peers get $p0 allowed-address]]) }
-:if ($p0 != "") do={ :put ("peer-keepalive=" . [:tostr [/interface wireguard peers get $p0 persistent-keepalive]]) }
-:local a [/ip address find where interface="wg-cloudguest"]
-:put ("tunnel-address-count=" . [:tostr [:len $a]])
-:foreach x in=$a do={ :put ("tunnel-address=" . [:tostr [/ip address get $x address]]) }
-:local hip ""
-:do { :set hip [:tostr [:resolve "hub.wyfyguest.com"]] } on-error={ :set hip "" }
-:put ("hub-resolves-to=" . $hip)
+:local w0 ""; :if ([:len [/interface wireguard find where name="wg-cloudguest"]] > 0) do={ :set w0 [:pick [/interface wireguard find where name="wg-cloudguest"] 0] }; :if ($w0 != "") do={ :put ("router-public-key=" . [:tostr [/interface wireguard get $w0 public-key]]) }
+:local p [/interface wireguard peers find where interface="wg-cloudguest"]; :put ("peer-count=" . [:tostr [:len $p]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("peer-endpoint=" . [:tostr [/interface wireguard peers get $p0 endpoint-address]]) }; :if ($p0 != "") do={ :put ("peer-port=" . [:tostr [/interface wireguard peers get $p0 endpoint-port]]) }; :if ($p0 != "") do={ :put ("peer-allowed=" . [:tostr [/interface wireguard peers get $p0 allowed-address]]) }; :if ($p0 != "") do={ :put ("peer-keepalive=" . [:tostr [/interface wireguard peers get $p0 persistent-keepalive]]) }
+:local a [/ip address find where interface="wg-cloudguest"]; :put ("tunnel-address-count=" . [:tostr [:len $a]]); :foreach x in=$a do={ :put ("tunnel-address=" . [:tostr [/ip address get $x address]]) }
+:local hip ""; :do { :set hip [:tostr [:resolve "hub.wyfyguest.com"]] } on-error={ :set hip "" }; :put ("hub-resolves-to=" . $hip)
 :put "WYFY-END step08"
 :put "===================="`,
       emits: [
@@ -639,9 +611,7 @@ export const STEPS_PART3: ManualStep[] = [
           "No keepalive on the peer. The tunnel will connect and then quietly die whenever the venue's own router forgets the connection, typically within a few minutes of idleness. It then only comes back when the router happens to send something.",
         fix: [
           {
-            command: `:local p [/interface wireguard peers find where interface="wg-cloudguest"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /interface wireguard peers set $p persistent-keepalive=25s }`,
+            command: `:local p [/interface wireguard peers find where interface="wg-cloudguest"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /interface wireguard peers set $p persistent-keepalive=25s }`,
             note: "Sets the keepalive on the existing peer. The match count is printed first so an empty match cannot pass as done.",
             destructive: false,
             confidence: "generator",
@@ -675,35 +645,16 @@ export const STEPS_PART3: ManualStep[] = [
       {
         label:
           "Move the tunnel rule above the drop rule, if it is below it. Safe to run more than once.",
-        script: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:put ("allow-count=" . [:tostr [:len $allow]])
-:put ("drop-count=" . [:tostr [:len $drop]])
-:if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
+        script: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
         oncePerRouter: false,
       },
     ],
     probe: {
       command: `:put "==== WIREGUARD VALIDATION ===="
 :put "WYFY-BEGIN step09"
-:local p [/interface wireguard peers find where interface="wg-cloudguest"]
-:put ("peer-count=" . [:tostr [:len $p]])
-:foreach x in=$p do={ :put ("peer=" . [:tostr [/interface wireguard peers get $x endpoint-address]] . ";handshake=" . [:tostr [/interface wireguard peers get $x last-handshake]] . ";rx=" . [:tostr [/interface wireguard peers get $x rx]] . ";tx=" . [:tostr [/interface wireguard peers get $x tx]]) }
+:local p [/interface wireguard peers find where interface="wg-cloudguest"]; :put ("peer-count=" . [:tostr [:len $p]]); :foreach x in=$p do={ :put ("peer=" . [:tostr [/interface wireguard peers get $x endpoint-address]] . ";handshake=" . [:tostr [/interface wireguard peers get $x last-handshake]] . ";rx=" . [:tostr [/interface wireguard peers get $x rx]] . ";tx=" . [:tostr [/interface wireguard peers get $x tx]]) }
 :put ("ping-hub=" . [:tostr [/ping 10.20.0.1 count=4]])
-:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:put ("allow-rule-count=" . [:tostr [:len $allow]])
-:put ("drop-rule-count=" . [:tostr [:len $drop]])
-:local allowId ""
-:local dropId ""
-:if ([:len $allow] > 0) do={ :set allowId [:pick $allow 0] }
-:if ([:len $drop] > 0) do={ :set dropId [:pick $drop 0] }
-:local pos 0
-:local allowPos -1
-:local dropPos -1
-:foreach f in=[/ip firewall filter find] do={ :set pos ($pos + 1); :if ($f = $allowId) do={ :set allowPos $pos }; :if ($f = $dropId) do={ :set dropPos $pos } }
-:put ("allow-position=" . [:tostr $allowPos])
-:put ("drop-position=" . [:tostr $dropPos])
+:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-rule-count=" . [:tostr [:len $allow]]); :put ("drop-rule-count=" . [:tostr [:len $drop]]); :local allowId ""; :local dropId ""; :if ([:len $allow] > 0) do={ :set allowId [:pick $allow 0] }; :if ([:len $drop] > 0) do={ :set dropId [:pick $drop 0] }; :local pos 0; :local allowPos -1; :local dropPos -1; :foreach f in=[/ip firewall filter find] do={ :set pos ($pos + 1); :if ($f = $allowId) do={ :set allowPos $pos }; :if ($f = $dropId) do={ :set dropPos $pos } }; :put ("allow-position=" . [:tostr $allowPos]); :put ("drop-position=" . [:tostr $dropPos])
 :put ("tunnel-address-count=" . [:tostr [:len [/ip address find where interface="wg-cloudguest"]]])
 :put "WYFY-END step09"
 :put "===================="`,
@@ -825,11 +776,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The row numbers of the two rules. The one whose comment mentions allow-wg-mgmt must appear above the one whose comment mentions drop-wan-input.",
         fix: [
           {
-            command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:put ("allow-count=" . [:tostr [:len $allow]])
-:put ("drop-count=" . [:tostr [:len $drop]])
-:if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
+            command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
             note: "Moves the allow rule directly above the drop rule and touches nothing else. Both counts are printed first, so if either rule is missing you will see it rather than getting a silent no-op. The handshake normally returns within 30 seconds.",
             destructive: false,
             confidence: "field",
@@ -851,11 +798,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The rule that lets tunnel traffic in does not exist at all, and the drop rule does. Everything the hub sends is discarded on arrival.",
         fix: [
           {
-            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:put ("allow-count=" . [:tostr [:len $a]])
-:if ([:len $a] = 0 && [:len $d] > 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$d }
-:if ([:len $a] = 0 && [:len $d] = 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" }
+            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $a]]); :if ([:len $a] = 0 && [:len $d] > 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$d }; :if ([:len $a] = 0 && [:len $d] = 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" }
 :put ("after-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]]])`,
             note: "Adds the rule, placing it above the drop rule when that rule exists. It prints the count before and after so an add that did nothing is visible.",
             destructive: false,
@@ -931,12 +874,7 @@ export const STEPS_PART3: ManualStep[] = [
       {
         label:
           "Set the source address to this router's own tunnel address. Run this after the block above.",
-        script: `:local tip ""
-:foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }
-:put ("tunnel-ip=" . $tip)
-:local r [/radius find]
-:put ("radius-count=" . [:tostr [:len $r]])
-:if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+        script: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("radius-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
         oncePerRouter: false,
       },
@@ -944,16 +882,7 @@ export const STEPS_PART3: ManualStep[] = [
     probe: {
       command: `:put "==== RADIUS ===="
 :put "WYFY-BEGIN step10"
-:local r [/radius find]
-:put ("radius-count=" . [:tostr [:len $r]])
-:foreach x in=$r do={ :put ("radius=" . [:tostr [/radius get $x address]] . ";service=" . [:tostr [/radius get $x service]] . ";src=" . [:tostr [/radius get $x src-address]] . ";timeout=" . [:tostr [/radius get $x timeout]] . ";disabled=" . [:tostr [/radius get $x disabled]]) }
-:local tip ""
-:foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }
-:put ("tunnel-ip=" . $tip)
-:local h ""
-:if ([:len $r] > 0) do={ :set h [:tostr [/radius get [:pick $r 0] address]] }
-:put ("radius-address=" . $h)
-:if ($h != "") do={ :put ("ping-radius=" . [:tostr [/ping $h count=4]]) }
+:local r [/radius find]; :put ("radius-count=" . [:tostr [:len $r]]); :foreach x in=$r do={ :put ("radius=" . [:tostr [/radius get $x address]] . ";service=" . [:tostr [/radius get $x service]] . ";src=" . [:tostr [/radius get $x src-address]] . ";timeout=" . [:tostr [/radius get $x timeout]] . ";disabled=" . [:tostr [/radius get $x disabled]]) }; :local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local h ""; :if ([:len $r] > 0) do={ :set h [:tostr [/radius get [:pick $r 0] address]] }; :put ("radius-address=" . $h); :if ($h != "") do={ :put ("ping-radius=" . [:tostr [/ping $h count=4]]) }
 :put ("incoming-accept=" . [:tostr [/radius incoming get accept]])
 :put "WYFY-END step10"
 :put "===================="`,
@@ -1076,12 +1005,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The src-address value. It must equal the tunnel-ip printed by this step's check, exactly.",
         fix: [
           {
-            command: `:local tip ""
-:foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }
-:put ("tunnel-ip=" . $tip)
-:local r [/radius find]
-:put ("matching-count=" . [:tostr [:len $r]])
-:if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
             note: "Reads the router's tunnel address and writes it as the source. It prints the address it read, the number of entries it matched, and the value afterwards — so an empty match cannot look like success.",
             destructive: false,
@@ -1109,9 +1033,7 @@ export const STEPS_PART3: ManualStep[] = [
           "Which entries point at {{10.20.0.1}} and which are leftovers from an earlier attempt or a different hub.",
         fix: [
           {
-            command: `:local wrong [/radius find where address!="10.20.0.1"]
-:put ("removing-count=" . [:tostr [:len $wrong]])
-:if ([:len $wrong] > 0) do={ /radius remove $wrong }
+            command: `:local wrong [/radius find where address!="10.20.0.1"]; :put ("removing-count=" . [:tostr [:len $wrong]]); :if ([:len $wrong] > 0) do={ /radius remove $wrong }
 :put ("remaining-count=" . [:tostr [:len [/radius find]]])`,
             note: "Removes only entries that do not point at the expected hub address. If two entries both point at it, do not remove either — that means the block was pasted twice and the team has to say which secret is current.",
             destructive: true,
@@ -1134,9 +1056,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The login server entry is switched off. Someone disabled it while debugging and did not switch it back.",
         fix: [
           {
-            command: `:local r [/radius find]
-:put ("matching-count=" . [:tostr [:len $r]])
-:if ([:len $r] > 0) do={ /radius set $r disabled=no }`,
+            command: `:local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ([:len $r] > 0) do={ /radius set $r disabled=no }`,
             note: "Switches it back on. The match count is printed first.",
             destructive: false,
             confidence: "generator",
@@ -1173,9 +1093,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The entry exists but is not marked for use by the guest hotspot, so the hotspot will never consult it. Guests fall through to whatever local accounts exist, which is the portal bypass this setup is supposed to close.",
         fix: [
           {
-            command: `:local r [/radius find]
-:put ("matching-count=" . [:tostr [:len $r]])
-:if ([:len $r] > 0) do={ /radius set $r service=hotspot }
+            command: `:local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ([:len $r] > 0) do={ /radius set $r service=hotspot }
 :put ("service=" . [:tostr [/radius get [:pick [/radius find] 0] service]])`,
             note: "Marks the entry for hotspot use and prints the result back.",
             destructive: false,

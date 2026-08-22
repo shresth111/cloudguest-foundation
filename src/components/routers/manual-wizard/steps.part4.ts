@@ -26,9 +26,7 @@ export const STEPS_PART4: ManualStep[] = [
       {
         label:
           "Create the bridge and add every port except the internet port. Safe to run more than once.",
-        script: `:local b [/interface bridge find where name="bridge"]
-:put ("bridge-existing=" . [:tostr [:len $b]])
-:if ([:len $b] = 0) do={ /interface bridge add name="bridge" }
+        script: `:local b [/interface bridge find where name="bridge"]; :put ("bridge-existing=" . [:tostr [:len $b]]); :if ([:len $b] = 0) do={ /interface bridge add name="bridge" }
 /interface bridge set [find name="bridge"] disabled=no
 :foreach eth in=[/interface ethernet find] do={ :local n [/interface ethernet get $eth name]; :if ($n != "ether1") do={ :local ex [/interface bridge port find where interface=$n]; :if ([:len $ex] = 0) do={ /interface bridge port add bridge="bridge" interface=$n } } }
 :put ("bridge-count=" . [:tostr [:len [/interface bridge find where name="bridge"]]])
@@ -174,9 +172,7 @@ export const STEPS_PART4: ManualStep[] = [
           "The names that do exist. If the guest ports are already in a bridge under a different name, decide with the team whether to rename it or to run the rest of this wizard against that name — do not do both.",
         fix: [
           {
-            command: `:local b [/interface bridge find where name="bridge"]
-:put ("existing-count=" . [:tostr [:len $b]])
-:if ([:len $b] = 0) do={ /interface bridge add name="bridge" }
+            command: `:local b [/interface bridge find where name="bridge"]; :put ("existing-count=" . [:tostr [:len $b]]); :if ([:len $b] = 0) do={ /interface bridge add name="bridge" }
 :put ("after-count=" . [:tostr [:len [/interface bridge find where name="bridge"]]])`,
             note: "Creates the correctly-named bridge. It does not touch the existing one — moving ports between bridges drops every connected device, so do that deliberately, not as part of a fix.",
             destructive: false,
@@ -208,9 +204,7 @@ export const STEPS_PART4: ManualStep[] = [
           "The internet port is inside a bridge. The ISP and the guests are now on the same network: the hotspot cannot control guest traffic, and the router may hand guest addresses upstream to the ISP's equipment.",
         fix: [
           {
-            command: `:local p [/interface bridge port find where interface="ether1"]
-:put ("removing-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /interface bridge port remove $p }`,
+            command: `:local p [/interface bridge port find where interface="ether1"]; :put ("removing-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /interface bridge port remove $p }`,
             note: "Removes only the internet port's bridge membership. It prints the match count first.",
             destructive: false,
             confidence: "generator",
@@ -244,9 +238,7 @@ export const STEPS_PART4: ManualStep[] = [
           "A bridge is switched off. If it is the guest bridge, nothing on the guest side works.",
         fix: [
           {
-            command: `:local b [/interface bridge find where name="bridge"]
-:put ("matching-count=" . [:tostr [:len $b]])
-:if ([:len $b] > 0) do={ /interface bridge set $b disabled=no }`,
+            command: `:local b [/interface bridge find where name="bridge"]; :put ("matching-count=" . [:tostr [:len $b]]); :if ([:len $b] > 0) do={ /interface bridge set $b disabled=no }`,
             note: "Switches the guest bridge back on. The match count is printed first.",
             destructive: false,
             confidence: "generator",
@@ -272,9 +264,7 @@ export const STEPS_PART4: ManualStep[] = [
           "The rule that lets guests reach the router itself is missing. Depending on what other rules exist, guests may be unable to open the portal or to get an address at all.",
         fix: [
           {
-            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]
-:put ("existing-count=" . [:tostr [:len $a]])
-:if ([:len $a] = 0) do={ /ip firewall filter add chain=input in-interface="bridge" action=accept comment="cloudguest-fw-allow-lan" }
+            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]; :put ("existing-count=" . [:tostr [:len $a]]); :if ([:len $a] = 0) do={ /ip firewall filter add chain=input in-interface="bridge" action=accept comment="cloudguest-fw-allow-lan" }
 :put ("after-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]]])`,
             note: "Adds the rule if it is missing. Counts before and after are printed.",
             destructive: false,
@@ -301,15 +291,9 @@ export const STEPS_PART4: ManualStep[] = [
     probe: {
       command: `:put "==== VLAN ===="
 :put "WYFY-BEGIN step12"
-:local v [/interface vlan find]
-:put ("vlan-count=" . [:tostr [:len $v]])
-:foreach x in=$v do={ :put ("vlan=" . [/interface vlan get $x name] . ";id=" . [:tostr [/interface vlan get $x vlan-id]] . ";parent=" . [:tostr [/interface vlan get $x interface]] . ";disabled=" . [:tostr [/interface vlan get $x disabled]]) }
-:local vf "unknown"
-:do { :set vf [:tostr [/interface bridge get [find name="bridge"] vlan-filtering]] } on-error={ :set vf "unknown" }
-:put ("bridge-vlan-filtering=" . $vf)
-:local bv 0
-:do { :set bv [:len [/interface bridge vlan find]] } on-error={ :set bv -1 }
-:put ("bridge-vlan-rows=" . [:tostr $bv])
+:local v [/interface vlan find]; :put ("vlan-count=" . [:tostr [:len $v]]); :foreach x in=$v do={ :put ("vlan=" . [/interface vlan get $x name] . ";id=" . [:tostr [/interface vlan get $x vlan-id]] . ";parent=" . [:tostr [/interface vlan get $x interface]] . ";disabled=" . [:tostr [/interface vlan get $x disabled]]) }
+:local vf "unknown"; :do { :set vf [:tostr [/interface bridge get [find name="bridge"] vlan-filtering]] } on-error={ :set vf "unknown" }; :put ("bridge-vlan-filtering=" . $vf)
+:local bv 0; :do { :set bv [:len [/interface bridge vlan find]] } on-error={ :set bv -1 }; :put ("bridge-vlan-rows=" . [:tostr $bv])
 :put "WYFY-END step12"
 :put "===================="`,
       emits: [
@@ -429,9 +413,7 @@ export const STEPS_PART4: ManualStep[] = [
       {
         label: "Put the address on the guest bridge, clearing any leftover automatic one first.",
         script: `:foreach a in=[/ip address find where interface="bridge" dynamic=yes] do={ /ip address remove $a }
-:local ex [/ip address find where interface="bridge" address="10.5.50.1/24"]
-:put ("existing-count=" . [:tostr [:len $ex]])
-:if ([:len $ex] = 0) do={ /ip address add address=10.5.50.1/24 interface="bridge" comment="cloudguest-lan" }
+:local ex [/ip address find where interface="bridge" address="10.5.50.1/24"]; :put ("existing-count=" . [:tostr [:len $ex]]); :if ([:len $ex] = 0) do={ /ip address add address=10.5.50.1/24 interface="bridge" comment="cloudguest-lan" }
 :put ("after-count=" . [:tostr [:len [/ip address find where interface="bridge"]]])`,
         oncePerRouter: false,
       },
@@ -439,13 +421,9 @@ export const STEPS_PART4: ManualStep[] = [
     probe: {
       command: `:put "==== LAN ADDRESS ===="
 :put "WYFY-BEGIN step13"
-:local a [/ip address find where interface="bridge"]
-:put ("lan-address-count=" . [:tostr [:len $a]])
-:foreach x in=$a do={ :put ("lan=" . [:tostr [/ip address get $x address]] . ";dynamic=" . [:tostr [/ip address get $x dynamic]] . ";disabled=" . [:tostr [/ip address get $x disabled]] . ";network=" . [:tostr [/ip address get $x network]]) }
+:local a [/ip address find where interface="bridge"]; :put ("lan-address-count=" . [:tostr [:len $a]]); :foreach x in=$a do={ :put ("lan=" . [:tostr [/ip address get $x address]] . ";dynamic=" . [:tostr [/ip address get $x dynamic]] . ";disabled=" . [:tostr [/ip address get $x disabled]] . ";network=" . [:tostr [/ip address get $x network]]) }
 :put ("expected-address-count=" . [:tostr [:len [/ip address find where interface="bridge" address="10.5.50.1/24"]]])
-:local wanAddr ""
-:foreach x in=[/ip address find where interface="ether1"] do={ :set wanAddr [:tostr [/ip address get $x address]] }
-:put ("wan-address=" . $wanAddr)
+:local wanAddr ""; :foreach x in=[/ip address find where interface="ether1"] do={ :set wanAddr [:tostr [/ip address get $x address]] }; :put ("wan-address=" . $wanAddr)
 :put ("total-address-count=" . [:tostr [:len [/ip address find]]])
 :foreach x in=[/ip address find] do={ :put ("addr=" . [:tostr [/ip address get $x address]] . ";if=" . [:tostr [/ip address get $x interface]]) }
 :put "WYFY-END step13"
@@ -563,9 +541,7 @@ export const STEPS_PART4: ManualStep[] = [
         lookFor: "Which rows are marked dynamic. Those are leftovers and can go.",
         fix: [
           {
-            command: `:local d [/ip address find where interface="bridge" dynamic=yes]
-:put ("removing-count=" . [:tostr [:len $d]])
-:if ([:len $d] > 0) do={ /ip address remove $d }
+            command: `:local d [/ip address find where interface="bridge" dynamic=yes]; :put ("removing-count=" . [:tostr [:len $d]]); :if ([:len $d] > 0) do={ /ip address remove $d }
 :put ("remaining-count=" . [:tostr [:len [/ip address find where interface="bridge"]]])`,
             note: "Removes only automatically-assigned addresses from the guest bridge. If two addresses are both set by hand, do not guess — ask which one the venue is meant to use.",
             destructive: false,
@@ -613,9 +589,7 @@ export const STEPS_PART4: ManualStep[] = [
     configure: [
       {
         label: "Create the guest address range. Safe to run more than once.",
-        script: `:local p [/ip pool find where name="hotspot-pool"]
-:put ("existing-count=" . [:tostr [:len $p]])
-:if ([:len $p] = 0) do={ /ip pool add name="hotspot-pool" ranges=10.5.50.10-10.5.50.254 }
+        script: `:local p [/ip pool find where name="hotspot-pool"]; :put ("existing-count=" . [:tostr [:len $p]]); :if ([:len $p] = 0) do={ /ip pool add name="hotspot-pool" ranges=10.5.50.10-10.5.50.254 }
 :put ("after-count=" . [:tostr [:len [/ip pool find where name="hotspot-pool"]]])
 :put ("ranges=" . [:tostr [/ip pool get [find name="hotspot-pool"] ranges]])`,
         oncePerRouter: false,
@@ -624,13 +598,10 @@ export const STEPS_PART4: ManualStep[] = [
     probe: {
       command: `:put "==== DHCP POOL ===="
 :put "WYFY-BEGIN step14"
-:local p [/ip pool find where name="hotspot-pool"]
-:put ("pool-count=" . [:tostr [:len $p]])
+:local p [/ip pool find where name="hotspot-pool"]; :put ("pool-count=" . [:tostr [:len $p]])
 :put ("all-pool-count=" . [:tostr [:len [/ip pool find]]])
 :foreach x in=[/ip pool find] do={ :put ("pool=" . [/ip pool get $x name] . ";ranges=" . [:tostr [/ip pool get $x ranges]]) }
-:local used 0
-:do { :set used [:len [/ip pool used find where pool="hotspot-pool"]] } on-error={ :set used -1 }
-:put ("addresses-in-use=" . [:tostr $used])
+:local used 0; :do { :set used [:len [/ip pool used find where pool="hotspot-pool"]] } on-error={ :set used -1 }; :put ("addresses-in-use=" . [:tostr $used])
 :put ("lan-address=" . [:tostr [/ip address get [find where interface="bridge"] address]])
 :put "WYFY-END step14"
 :put "===================="`,
@@ -721,9 +692,7 @@ export const STEPS_PART4: ManualStep[] = [
           "The guest address range does not exist. The DHCP server in the next step binds to it by name, so creating that server first would bind it to nothing.",
         fix: [
           {
-            command: `:local p [/ip pool find where name="hotspot-pool"]
-:put ("existing-count=" . [:tostr [:len $p]])
-:if ([:len $p] = 0) do={ /ip pool add name="hotspot-pool" ranges=10.5.50.10-10.5.50.254 }
+            command: `:local p [/ip pool find where name="hotspot-pool"]; :put ("existing-count=" . [:tostr [:len $p]]); :if ([:len $p] = 0) do={ /ip pool add name="hotspot-pool" ranges=10.5.50.10-10.5.50.254 }
 :put ("after-count=" . [:tostr [:len [/ip pool find where name="hotspot-pool"]]])`,
             note: "Creates the range. Counts before and after are printed so you can see it landed.",
             destructive: false,
@@ -768,9 +737,7 @@ export const STEPS_PART4: ManualStep[] = [
           "The range starts at the router's own address. One guest device per venue will be handed the router's address and will fail completely, and it will be a different device each time. Nothing in the configuration looks wrong.",
         fix: [
           {
-            command: `:local p [/ip pool find where name="hotspot-pool"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip pool set $p ranges=10.5.50.10-10.5.50.254 }
+            command: `:local p [/ip pool find where name="hotspot-pool"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip pool set $p ranges=10.5.50.10-10.5.50.254 }
 :put ("ranges=" . [:tostr [/ip pool get [find name="hotspot-pool"] ranges]])`,
             note: "Moves the start of the range clear of the router. Devices already holding an address keep it until their lease expires.",
             destructive: false,

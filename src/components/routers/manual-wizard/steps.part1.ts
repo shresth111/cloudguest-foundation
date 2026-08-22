@@ -39,24 +39,16 @@ export const STEPS_PART1: ManualStep[] = [
 :put "WYFY-BEGIN step01"
 :put ("version=" . [/system resource get version])
 :put ("board=" . [/system resource get board-name])
-:local arch "unknown"
-:do { :set arch [/system resource get architecture-name] } on-error={ :set arch "unknown" }
-:put ("arch=" . $arch)
+:local arch "unknown"; :do { :set arch [/system resource get architecture-name] } on-error={ :set arch "unknown" }; :put ("arch=" . $arch)
 :put ("uptime=" . [:tostr [/system resource get uptime]])
 :put ("free-flash=" . [:tostr [/system resource get free-hdd-space]])
 :put ("identity=" . [/system identity get name])
 :put ("date=" . [/system clock get date])
 :put ("time=" . [/system clock get time])
 :put ("timezone=" . [:tostr [/system clock get time-zone-name]])
-:local ntpEn "unknown"
-:do { :set ntpEn [:tostr [/system ntp client get enabled]] } on-error={ :set ntpEn "unknown" }
-:put ("ntp-enabled=" . $ntpEn)
-:local ntpSt "unknown"
-:do { :set ntpSt [:tostr [/system ntp client get status]] } on-error={ :set ntpSt "unknown" }
-:put ("ntp-status=" . $ntpSt)
-:local wgMenu "absent"
-:do { :set wgMenu ("present-" . [:tostr [:len [/interface wireguard find]]]) } on-error={ :set wgMenu "absent" }
-:put ("wg-menu=" . $wgMenu)
+:local ntpEn "unknown"; :do { :set ntpEn [:tostr [/system ntp client get enabled]] } on-error={ :set ntpEn "unknown" }; :put ("ntp-enabled=" . $ntpEn)
+:local ntpSt "unknown"; :do { :set ntpSt [:tostr [/system ntp client get status]] } on-error={ :set ntpSt "unknown" }; :put ("ntp-status=" . $ntpSt)
+:local wgMenu "absent"; :do { :set wgMenu ("present-" . [:tostr [:len [/interface wireguard find]]]) } on-error={ :set wgMenu "absent" }; :put ("wg-menu=" . $wgMenu)
 :put "WYFY-END step01"
 :put "===================="`,
       emits: [
@@ -301,9 +293,7 @@ export const STEPS_PART1: ManualStep[] = [
 :put ("eth-count=" . [:tostr [:len [/interface ethernet find]]])
 :foreach i in=[/interface ethernet find] do={ :put ("eth=" . [/interface ethernet get $i name] . ";running=" . [:tostr [/interface ethernet get $i running]] . ";disabled=" . [:tostr [/interface ethernet get $i disabled]]) }
 :put ("wan-present=" . [:tostr ([:len [/interface ethernet find where name="ether1"]] > 0)])
-:local wanRun "unknown"
-:do { :set wanRun [:tostr [/interface ethernet get [find name="ether1"] running]] } on-error={ :set wanRun "unknown" }
-:put ("wan-running=" . $wanRun)
+:local wanRun "unknown"; :do { :set wanRun [:tostr [/interface ethernet get [find name="ether1"] running]] } on-error={ :set wanRun "unknown" }; :put ("wan-running=" . $wanRun)
 :put ("wan-in-bridge-count=" . [:tostr [:len [/interface bridge port find where interface="ether1"]]])
 :put ("bridge-count=" . [:tostr [:len [/interface bridge find]]])
 :foreach b in=[/interface bridge find] do={ :put ("bridge=" . [/interface bridge get $b name]) }
@@ -454,9 +444,7 @@ export const STEPS_PART1: ManualStep[] = [
         lookFor: "The row whose INTERFACE is {{ether1}}. Note which BRIDGE it belongs to.",
         fix: [
           {
-            command: `:local p [/interface bridge port find where interface="ether1"]
-:put ("removing-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /interface bridge port remove $p }`,
+            command: `:local p [/interface bridge port find where interface="ether1"]; :put ("removing-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /interface bridge port remove $p }`,
             note: "Removes only the bridge membership of {{ether1}} and nothing else. It prints how many rows it is about to remove first, so you can see it actually matched something.",
             destructive: false,
             confidence: "generator",
@@ -500,9 +488,7 @@ export const STEPS_PART1: ManualStep[] = [
           "A leftover DHCP client is still bound to the factory bridge. It keeps its last lease even with no ports attached, so the router ends up with the same address on two interfaces. Seen live as roughly 65 percent packet loss to the WAN gateway with nothing wrong with the cabling.",
         fix: [
           {
-            command: `:local c [/ip dhcp-client find where interface="bridgeLocal"]
-:put ("removing-count=" . [:tostr [:len $c]])
-:if ([:len $c] > 0) do={ /ip dhcp-client remove $c }`,
+            command: `:local c [/ip dhcp-client find where interface="bridgeLocal"]; :put ("removing-count=" . [:tostr [:len $c]]); :if ([:len $c] > 0) do={ /ip dhcp-client remove $c }`,
             note: "Removes only the DHCP client attached to the factory bridge. That bridge is never used by this platform, so nothing else is affected.",
             destructive: false,
             confidence: "generator",

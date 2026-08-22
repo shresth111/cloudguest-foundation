@@ -35,29 +35,20 @@ export const STEPS_PART2: ManualStep[] = [
     configure: [
       {
         label: "Add the DHCP client on the internet port. Safe to run more than once.",
-        script: `:local existing [/ip dhcp-client find where interface="ether1" comment="cloudguest-dhcp-wan1"]
-:put ("existing-count=" . [:tostr [:len $existing]])
-:if ([:len $existing] = 0) do={ /ip dhcp-client add interface="ether1" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan1" }
+        script: `:local existing [/ip dhcp-client find where interface="ether1" comment="cloudguest-dhcp-wan1"]; :put ("existing-count=" . [:tostr [:len $existing]]); :if ([:len $existing] = 0) do={ /ip dhcp-client add interface="ether1" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan1" }
 :put ("after-count=" . [:tostr [:len [/ip dhcp-client find where interface="ether1" comment="cloudguest-dhcp-wan1"]]])`,
         oncePerRouter: false,
       },
       {
         label:
           "Wait for the lease, then write the default route from the real gateway. Run this AFTER the block above, not in the same paste.",
-        script: `:local gw ""
-:local c [/ip dhcp-client find where interface="ether1"]
-:put ("client-count=" . [:tostr [:len $c]])
-:if ([:len $c] > 0) do={ :for i from=1 to=20 do={ :if ($gw = "" || $gw = "0.0.0.0") do={ :do { :set gw [:tostr [/ip dhcp-client get [:pick $c 0] gateway]] } on-error={ :set gw "" } }; :if ($gw = "" || $gw = "0.0.0.0") do={ :delay 2s } } }
-:put ("resolved-gateway=" . $gw)
-:if ($gw != "" && $gw != "0.0.0.0") do={ :local r [/ip route find where comment="cloudguest-plain-wan1"]; :if ([:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" } else={ /ip route set $r gateway=$gw distance=1 check-gateway=ping } }
+        script: `:local gw ""; :local c [/ip dhcp-client find where interface="ether1"]; :put ("client-count=" . [:tostr [:len $c]]); :if ([:len $c] > 0) do={ :for i from=1 to=20 do={ :if ($gw = "" || $gw = "0.0.0.0") do={ :do { :set gw [:tostr [/ip dhcp-client get [:pick $c 0] gateway]] } on-error={ :set gw "" } }; :if ($gw = "" || $gw = "0.0.0.0") do={ :delay 2s } } }; :put ("resolved-gateway=" . $gw); :if ($gw != "" && $gw != "0.0.0.0") do={ :local r [/ip route find where comment="cloudguest-plain-wan1"]; :if ([:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" } else={ /ip route set $r gateway=$gw distance=1 check-gateway=ping } }
 :put ("route-count=" . [:tostr [:len [/ip route find where comment="cloudguest-plain-wan1"]]])`,
         oncePerRouter: false,
       },
       {
         label: "Add NAT so guest traffic can leave the router. Safe to run more than once.",
-        script: `:local n [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]
-:put ("existing-count=" . [:tostr [:len $n]])
-:if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="cloudguest-nat-wan1" }
+        script: `:local n [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]; :put ("existing-count=" . [:tostr [:len $n]]); :if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="cloudguest-nat-wan1" }
 :put ("after-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]]])`,
         oncePerRouter: false,
       },
@@ -65,22 +56,7 @@ export const STEPS_PART2: ManualStep[] = [
     probe: {
       command: `:put "==== WAN DHCP ===="
 :put "WYFY-BEGIN step03-dhcp"
-:local c [/ip dhcp-client find where interface="ether1"]
-:put ("client-count=" . [:tostr [:len $c]])
-:local c0 ""
-:if ([:len $c] > 0) do={ :set c0 [:pick $c 0] }
-:if ($c0 != "") do={ :put ("status=" . [:tostr [/ip dhcp-client get $c0 status]]) }
-:if ($c0 != "") do={ :put ("address=" . [:tostr [/ip dhcp-client get $c0 address]]) }
-:if ($c0 != "") do={ :put ("gateway=" . [:tostr [/ip dhcp-client get $c0 gateway]]) }
-:if ($c0 != "") do={ :put ("add-default-route=" . [:tostr [/ip dhcp-client get $c0 add-default-route]]) }
-:if ($c0 != "") do={ :put ("client-comment=" . [:tostr [/ip dhcp-client get $c0 comment]]) }
-:put ("default-route-count=" . [:tostr [:len [/ip route find where dst-address="0.0.0.0/0"]]])
-:foreach r in=[/ip route find where dst-address="0.0.0.0/0"] do={ :put ("route=" . [:tostr [/ip route get $r gateway]] . ";distance=" . [:tostr [/ip route get $r distance]] . ";comment=" . [:tostr [/ip route get $r comment]]) }
-:local activeCount -1
-:do { :set activeCount [:len [/ip route find where dst-address="0.0.0.0/0" active=yes]] } on-error={ :set activeCount -1 }
-:put ("active-default-routes=" . [:tostr $activeCount])
-:put ("nat-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat action=masquerade out-interface="ether1"]]])
-:put ("ping-gateway=" . [:tostr [/ping [:tostr [/ip dhcp-client get $c0 gateway]] count=3]])
+:local c [/ip dhcp-client find where interface="ether1"]; :put ("client-count=" . [:tostr [:len $c]]); :local c0 ""; :if ([:len $c] > 0) do={ :set c0 [:pick $c 0] }; :if ($c0 != "") do={ :put ("status=" . [:tostr [/ip dhcp-client get $c0 status]]) }; :if ($c0 != "") do={ :put ("address=" . [:tostr [/ip dhcp-client get $c0 address]]) }; :if ($c0 != "") do={ :put ("gateway=" . [:tostr [/ip dhcp-client get $c0 gateway]]) }; :if ($c0 != "") do={ :put ("add-default-route=" . [:tostr [/ip dhcp-client get $c0 add-default-route]]) }; :if ($c0 != "") do={ :put ("client-comment=" . [:tostr [/ip dhcp-client get $c0 comment]]) }; :put ("default-route-count=" . [:tostr [:len [/ip route find where dst-address="0.0.0.0/0"]]]); :foreach r in=[/ip route find where dst-address="0.0.0.0/0"] do={ :put ("route=" . [:tostr [/ip route get $r gateway]] . ";distance=" . [:tostr [/ip route get $r distance]] . ";comment=" . [:tostr [/ip route get $r comment]]) }; :local activeCount -1; :do { :set activeCount [:len [/ip route find where dst-address="0.0.0.0/0" active=yes]] } on-error={ :set activeCount -1 }; :put ("active-default-routes=" . [:tostr $activeCount]); :put ("nat-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat action=masquerade out-interface="ether1"]]]); :put ("ping-gateway=" . [:tostr [/ping [:tostr [/ip dhcp-client get $c0 gateway]] count=3]])
 :put "WYFY-END step03-dhcp"
 :put "===================="`,
       emits: [
@@ -235,12 +211,7 @@ export const STEPS_PART2: ManualStep[] = [
           "A route whose gateway is {{0.0.0.0}} and whose flags contain I for inactive. That is the dead route.",
         fix: [
           {
-            command: `:local gw [:tostr [/ip dhcp-client get [find where interface="ether1"] gateway]]
-:put ("gateway-read=" . $gw)
-:local r [/ip route find where comment="cloudguest-plain-wan1"]
-:put ("matching-routes=" . [:tostr [:len $r]])
-:if ($gw != "" && $gw != "0.0.0.0" && [:len $r] > 0) do={ /ip route set $r gateway=$gw }
-:if ($gw != "" && $gw != "0.0.0.0" && [:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" }`,
+            command: `:local gw [:tostr [/ip dhcp-client get [find where interface="ether1"] gateway]]; :put ("gateway-read=" . $gw); :local r [/ip route find where comment="cloudguest-plain-wan1"]; :put ("matching-routes=" . [:tostr [:len $r]]); :if ($gw != "" && $gw != "0.0.0.0" && [:len $r] > 0) do={ /ip route set $r gateway=$gw }; :if ($gw != "" && $gw != "0.0.0.0" && [:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" }`,
             note: "Reads the real gateway out of the lease and writes it into the route this setup owns. It prints what it read and how many rows it matched first, so a match of zero is visible instead of silently succeeding. It never touches a route that does not carry this setup's own comment.",
             destructive: false,
             confidence: "field",
@@ -260,9 +231,7 @@ export const STEPS_PART2: ManualStep[] = [
           "Whether status is {{bound}} and whether a gateway line is present with a real address.",
         fix: [
           {
-            command: `:local gw [:tostr [/ip dhcp-client get [find where interface="ether1"] gateway]]
-:put ("gateway-read=" . $gw)
-:if ($gw != "" && $gw != "0.0.0.0") do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" }
+            command: `:local gw [:tostr [/ip dhcp-client get [find where interface="ether1"] gateway]]; :put ("gateway-read=" . $gw); :if ($gw != "" && $gw != "0.0.0.0") do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" }
 :put ("route-count=" . [:tostr [:len [/ip route find where comment="cloudguest-plain-wan1"]]])`,
             note: "Adds the default route from the live lease. If the printed gateway is empty, the lease has not arrived yet — wait 30 seconds and run it again rather than typing an address by hand.",
             destructive: false,
@@ -307,9 +276,7 @@ export const STEPS_PART2: ManualStep[] = [
           "Outbound translation is missing. The router itself will reach the internet and every guest will not. The symptom looks exactly like a broken portal, so it is usually chased in the wrong place for an hour.",
         fix: [
           {
-            command: `:local n [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]
-:put ("existing-count=" . [:tostr [:len $n]])
-:if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="cloudguest-nat-wan1" }
+            command: `:local n [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]; :put ("existing-count=" . [:tostr [:len $n]]); :if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="cloudguest-nat-wan1" }
 :put ("after-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]]])`,
             note: "Adds the translation rule. It prints the count before and after, so you can see it actually created something.",
             destructive: false,
@@ -340,9 +307,7 @@ export const STEPS_PART2: ManualStep[] = [
           "Which row carries the comment cloudguest-dhcp-wan1. Every other row on {{ether1}} is the leftover.",
         fix: [
           {
-            command: `:local foreign [/ip dhcp-client find where interface="ether1" !comment="cloudguest-dhcp-wan1"]
-:put ("removing-count=" . [:tostr [:len $foreign]])
-:if ([:len $foreign] > 0) do={ /ip dhcp-client remove $foreign }`,
+            command: `:local foreign [/ip dhcp-client find where interface="ether1" !comment="cloudguest-dhcp-wan1"]; :put ("removing-count=" . [:tostr [:len $foreign]]); :if ([:len $foreign] > 0) do={ /ip dhcp-client remove $foreign }`,
             note: "Removes only DHCP clients on {{ether1}} that this setup did not create. It prints how many it matched first. It never touches a client on any other interface.",
             destructive: false,
             confidence: "generator",
@@ -358,9 +323,7 @@ export const STEPS_PART2: ManualStep[] = [
           "RouterOS is adding its own default route from the lease. That route is unmonitored and competes with the one this setup manages, so failover behaves unpredictably. Not urgent, but it should be turned off.",
         fix: [
           {
-            command: `:local c [/ip dhcp-client find where interface="ether1"]
-:put ("matching-count=" . [:tostr [:len $c]])
-:if ([:len $c] > 0) do={ /ip dhcp-client set $c add-default-route=no }`,
+            command: `:local c [/ip dhcp-client find where interface="ether1"]; :put ("matching-count=" . [:tostr [:len $c]]); :if ([:len $c] > 0) do={ /ip dhcp-client set $c add-default-route=no }`,
             note: "Turns off RouterOS's own route for this client only. The count is printed first so a match of zero cannot pass as done.",
             destructive: false,
             confidence: "generator",
@@ -415,16 +378,8 @@ export const STEPS_PART2: ManualStep[] = [
       {
         label:
           "Set the fixed address and route. Replace the three placeholder values with what the ISP gave the venue, and change nothing else.",
-        script: `:local wanIp "REPLACE-ADDRESS/REPLACE-PREFIX"
-:local wanGw "REPLACE-GATEWAY"
-:foreach a in=[/ip address find where interface="ether1" dynamic=yes] do={ /ip address remove $a }
-:local existing [/ip address find where interface="ether1" address=$wanIp]
-:put ("existing-count=" . [:tostr [:len $existing]])
-:if ([:len $existing] = 0) do={ /ip address add address=$wanIp interface="ether1" comment="cloudguest-addr-wan1" }
-:local r [/ip route find where comment="cloudguest-plain-wan1"]
-:if ([:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wanGw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" } else={ /ip route set $r gateway=$wanGw distance=1 check-gateway=ping }
-:local n [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]
-:if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="cloudguest-nat-wan1" }
+        script: `:local wanIp "REPLACE-ADDRESS/REPLACE-PREFIX"; :local wanGw "REPLACE-GATEWAY"; :foreach a in=[/ip address find where interface="ether1" dynamic=yes] do={ /ip address remove $a }; :local existing [/ip address find where interface="ether1" address=$wanIp]; :put ("existing-count=" . [:tostr [:len $existing]]); :if ([:len $existing] = 0) do={ /ip address add address=$wanIp interface="ether1" comment="cloudguest-addr-wan1" }; :local r [/ip route find where comment="cloudguest-plain-wan1"]; :if ([:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wanGw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" } else={ /ip route set $r gateway=$wanGw distance=1 check-gateway=ping }
+:local n [/ip firewall nat find where chain=srcnat out-interface="ether1" action=masquerade]; :if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="cloudguest-nat-wan1" }
 :put ("address-count=" . [:tostr [:len [/ip address find where interface="ether1"]]])
 :put ("route-count=" . [:tostr [:len [/ip route find where comment="cloudguest-plain-wan1"]]])`,
         oncePerRouter: false,
@@ -433,20 +388,9 @@ export const STEPS_PART2: ManualStep[] = [
     probe: {
       command: `:put "==== WAN STATIC ===="
 :put "WYFY-BEGIN step03-static"
-:local a [/ip address find where interface="ether1"]
-:put ("address-count=" . [:tostr [:len $a]])
-:foreach x in=$a do={ :put ("addr=" . [:tostr [/ip address get $x address]] . ";dynamic=" . [:tostr [/ip address get $x dynamic]] . ";disabled=" . [:tostr [/ip address get $x disabled]] . ";comment=" . [:tostr [/ip address get $x comment]]) }
+:local a [/ip address find where interface="ether1"]; :put ("address-count=" . [:tostr [:len $a]]); :foreach x in=$a do={ :put ("addr=" . [:tostr [/ip address get $x address]] . ";dynamic=" . [:tostr [/ip address get $x dynamic]] . ";disabled=" . [:tostr [/ip address get $x disabled]] . ";comment=" . [:tostr [/ip address get $x comment]]) }
 :put ("default-route-count=" . [:tostr [:len [/ip route find where dst-address="0.0.0.0/0"]]])
-:local gw ""
-:local r [/ip route find where comment="cloudguest-plain-wan1"]
-:put ("owned-route-count=" . [:tostr [:len $r]])
-:if ([:len $r] > 0) do={ :set gw [:tostr [/ip route get [:pick $r 0] gateway]] }
-:put ("gateway=" . $gw)
-:local activeCount -1
-:do { :set activeCount [:len [/ip route find where dst-address="0.0.0.0/0" active=yes]] } on-error={ :set activeCount -1 }
-:put ("active-default-routes=" . [:tostr $activeCount])
-:put ("nat-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat action=masquerade out-interface="ether1"]]])
-:if ($gw != "" && $gw != "0.0.0.0") do={ :put ("ping-gateway=" . [:tostr [/ping $gw count=3]]) }
+:local gw ""; :local r [/ip route find where comment="cloudguest-plain-wan1"]; :put ("owned-route-count=" . [:tostr [:len $r]]); :if ([:len $r] > 0) do={ :set gw [:tostr [/ip route get [:pick $r 0] gateway]] }; :put ("gateway=" . $gw); :local activeCount -1; :do { :set activeCount [:len [/ip route find where dst-address="0.0.0.0/0" active=yes]] } on-error={ :set activeCount -1 }; :put ("active-default-routes=" . [:tostr $activeCount]); :put ("nat-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat action=masquerade out-interface="ether1"]]]); :if ($gw != "" && $gw != "0.0.0.0") do={ :put ("ping-gateway=" . [:tostr [/ping $gw count=3]]) }
 :put "WYFY-END step03-static"
 :put "===================="`,
       emits: [
@@ -582,9 +526,7 @@ export const STEPS_PART2: ManualStep[] = [
         lookFor: "Which rows are marked dynamic. Those are the leftovers.",
         fix: [
           {
-            command: `:local d [/ip address find where interface="ether1" dynamic=yes]
-:put ("removing-count=" . [:tostr [:len $d]])
-:if ([:len $d] > 0) do={ /ip address remove $d }`,
+            command: `:local d [/ip address find where interface="ether1" dynamic=yes]; :put ("removing-count=" . [:tostr [:len $d]]); :if ([:len $d] > 0) do={ /ip address remove $d }`,
             note: "Removes only automatically-assigned addresses on the internet port. The fixed address configured by hand is never touched.",
             destructive: false,
             confidence: "generator",
@@ -657,23 +599,15 @@ export const STEPS_PART2: ManualStep[] = [
       {
         label:
           "Create the PPPoE session. Replace the username and password with what the ISP gave the venue, and change nothing else.",
-        script: `:local pppUser "REPLACE-USERNAME"
-:local pppPass "REPLACE-PASSWORD"
-:local existing [/interface pppoe-client find where name="cloudguest-pppoe-wan1"]
-:put ("existing-count=" . [:tostr [:len $existing]])
-:if ([:len $existing] = 0) do={ /interface pppoe-client add name="cloudguest-pppoe-wan1" interface="ether1" user=$pppUser password=$pppPass disabled=no add-default-route=no comment="cloudguest-pppoe-wan1" }
+        script: `:local pppUser "REPLACE-USERNAME"; :local pppPass "REPLACE-PASSWORD"; :local existing [/interface pppoe-client find where name="cloudguest-pppoe-wan1"]; :put ("existing-count=" . [:tostr [:len $existing]]); :if ([:len $existing] = 0) do={ /interface pppoe-client add name="cloudguest-pppoe-wan1" interface="ether1" user=$pppUser password=$pppPass disabled=no add-default-route=no comment="cloudguest-pppoe-wan1" }
 :put ("after-count=" . [:tostr [:len [/interface pppoe-client find where name="cloudguest-pppoe-wan1"]]])`,
         oncePerRouter: false,
       },
       {
         label:
           "Once the session is connected, write the route and the translation rule. Run this AFTER the block above, not in the same paste.",
-        script: `:local gw ""
-:do { :set gw [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"remote-address")] } on-error={ :set gw "" }
-:put ("resolved-gateway=" . $gw)
-:if ($gw != "" && $gw != "0.0.0.0") do={ :local r [/ip route find where comment="cloudguest-plain-wan1"]; :if ([:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" } else={ /ip route set $r gateway=$gw distance=1 check-gateway=ping } }
-:local n [/ip firewall nat find where chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade]
-:if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade comment="cloudguest-nat-wan1" }
+        script: `:local gw ""; :do { :set gw [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"remote-address")] } on-error={ :set gw "" }; :put ("resolved-gateway=" . $gw); :if ($gw != "" && $gw != "0.0.0.0") do={ :local r [/ip route find where comment="cloudguest-plain-wan1"]; :if ([:len $r] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$gw distance=1 check-gateway=ping comment="cloudguest-plain-wan1" } else={ /ip route set $r gateway=$gw distance=1 check-gateway=ping } }
+:local n [/ip firewall nat find where chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade]; :if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade comment="cloudguest-nat-wan1" }
 :put ("route-count=" . [:tostr [:len [/ip route find where comment="cloudguest-plain-wan1"]]])
 :put ("nat-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade]]])`,
         oncePerRouter: false,
@@ -682,27 +616,12 @@ export const STEPS_PART2: ManualStep[] = [
     probe: {
       command: `:put "==== WAN PPPOE ===="
 :put "WYFY-BEGIN step03-pppoe"
-:local p [/interface pppoe-client find where name="cloudguest-pppoe-wan1"]
-:put ("client-count=" . [:tostr [:len $p]])
-:put ("any-pppoe-count=" . [:tostr [:len [/interface pppoe-client find]]])
-:local p0 ""
-:if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }
-:if ($p0 != "") do={ :put ("running=" . [:tostr [/interface pppoe-client get $p0 running]]) }
-:if ($p0 != "") do={ :put ("disabled=" . [:tostr [/interface pppoe-client get $p0 disabled]]) }
-:if ($p0 != "") do={ :put ("parent=" . [:tostr [/interface pppoe-client get $p0 interface]]) }
-:local remote ""
-:do { :set remote [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"remote-address")] } on-error={ :set remote "" }
-:put ("remote-address=" . $remote)
-:local local ""
-:do { :set local [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"local-address")] } on-error={ :set local "" }
-:put ("local-address=" . $local)
-:local st ""
-:do { :set st [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"status")] } on-error={ :set st "" }
-:put ("session-status=" . $st)
+:local p [/interface pppoe-client find where name="cloudguest-pppoe-wan1"]; :put ("client-count=" . [:tostr [:len $p]]); :put ("any-pppoe-count=" . [:tostr [:len [/interface pppoe-client find]]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("running=" . [:tostr [/interface pppoe-client get $p0 running]]) }; :if ($p0 != "") do={ :put ("disabled=" . [:tostr [/interface pppoe-client get $p0 disabled]]) }; :if ($p0 != "") do={ :put ("parent=" . [:tostr [/interface pppoe-client get $p0 interface]]) }
+:local remote ""; :do { :set remote [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"remote-address")] } on-error={ :set remote "" }; :put ("remote-address=" . $remote)
+:local local ""; :do { :set local [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"local-address")] } on-error={ :set local "" }; :put ("local-address=" . $local)
+:local st ""; :do { :set st [:tostr ([/interface pppoe-client monitor [find name="cloudguest-pppoe-wan1"] once as-value]->"status")] } on-error={ :set st "" }; :put ("session-status=" . $st)
 :put ("owned-route-count=" . [:tostr [:len [/ip route find where comment="cloudguest-plain-wan1"]]])
-:local activeCount -1
-:do { :set activeCount [:len [/ip route find where dst-address="0.0.0.0/0" active=yes]] } on-error={ :set activeCount -1 }
-:put ("active-default-routes=" . [:tostr $activeCount])
+:local activeCount -1; :do { :set activeCount [:len [/ip route find where dst-address="0.0.0.0/0" active=yes]] } on-error={ :set activeCount -1 }; :put ("active-default-routes=" . [:tostr $activeCount])
 :put ("nat-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat action=masquerade out-interface="cloudguest-pppoe-wan1"]]])
 :put "WYFY-END step03-pppoe"
 :put "===================="`,
@@ -887,9 +806,7 @@ export const STEPS_PART2: ManualStep[] = [
           "The out-interface on each masquerade rule. It must name the PPPoE interface, not {{ether1}}.",
         fix: [
           {
-            command: `:local n [/ip firewall nat find where chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade]
-:put ("existing-count=" . [:tostr [:len $n]])
-:if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade comment="cloudguest-nat-wan1" }
+            command: `:local n [/ip firewall nat find where chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade]; :put ("existing-count=" . [:tostr [:len $n]]); :if ([:len $n] = 0) do={ /ip firewall nat add chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade comment="cloudguest-nat-wan1" }
 :put ("after-count=" . [:tostr [:len [/ip firewall nat find where chain=srcnat out-interface="cloudguest-pppoe-wan1" action=masquerade]]])`,
             note: "Adds the rule against the virtual interface. It leaves any existing rule on the physical port alone — that one is harmless, just useless.",
             destructive: false,
@@ -963,10 +880,8 @@ export const STEPS_PART2: ManualStep[] = [
       {
         label:
           "Block name lookups arriving from the internet side, so this router is not an open resolver.",
-        script: `:local u [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]
-:if ([:len $u] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns" }
-:local t [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]
-:if ([:len $t] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=tcp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns-tcp" }
+        script: `:local u [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]; :if ([:len $u] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns" }
+:local t [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]; :if ([:len $t] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=tcp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns-tcp" }
 :put ("udp-rule-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]]])
 :put ("tcp-rule-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]]])`,
         oncePerRouter: false,
@@ -976,17 +891,11 @@ export const STEPS_PART2: ManualStep[] = [
       command: `:put "==== DNS ===="
 :put "WYFY-BEGIN step04"
 :put ("servers=" . [:tostr [/ip dns get servers]])
-:local dyn ""
-:do { :set dyn [:tostr [/ip dns get dynamic-servers]] } on-error={ :set dyn "" }
-:put ("dynamic-servers=" . $dyn)
+:local dyn ""; :do { :set dyn [:tostr [/ip dns get dynamic-servers]] } on-error={ :set dyn "" }; :put ("dynamic-servers=" . $dyn)
 :put ("allow-remote-requests=" . [:tostr [/ip dns get allow-remote-requests]])
 :put ("cache-size=" . [:tostr [/ip dns get cache-size]])
-:local pip ""
-:do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }
-:put ("portal-ip=" . $pip)
-:local hip ""
-:do { :set hip [:tostr [:resolve "hub.wyfyguest.com"]] } on-error={ :set hip "" }
-:put ("hub-ip=" . $hip)
+:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip)
+:local hip ""; :do { :set hip [:tostr [:resolve "hub.wyfyguest.com"]] } on-error={ :set hip "" }; :put ("hub-ip=" . $hip)
 :put ("wan-list-count=" . [:tostr [:len [/interface list find where name="WAN"]]])
 :put ("wan-list-members=" . [:tostr [:len [/interface list member find where list="WAN"]]])
 :put ("block-dns-udp-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]]])
@@ -1189,10 +1098,8 @@ export const STEPS_PART2: ManualStep[] = [
           "Guests can use this router for lookups and so can the whole internet. An open resolver on a public address gets found within days and used to attack other people, and the venue's ISP will eventually cut the line. Not a guest-facing fault, but it must not ship.",
         fix: [
           {
-            command: `:local u [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]
-:if ([:len $u] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns" }
-:local t [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]
-:if ([:len $t] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=tcp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns-tcp" }
+            command: `:local u [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]; :if ([:len $u] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns" }
+:local t [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]; :if ([:len $t] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN protocol=tcp dst-port=53 action=drop comment="cloudguest-fw-block-wan-dns-tcp" }
 :put ("udp-rule-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns"]]])
 :put ("tcp-rule-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-block-wan-dns-tcp"]]])`,
             note: "Adds both blocking rules if they are missing. They only affect lookups arriving from the internet side; guests are unaffected.",
@@ -1218,9 +1125,7 @@ export const STEPS_PART2: ManualStep[] = [
         lookFor: "Whether any interface is listed under WAN.",
         fix: [
           {
-            command: `:local m [/interface list member find where interface="ether1" list="WAN"]
-:put ("existing-count=" . [:tostr [:len $m]])
-:if ([:len $m] = 0) do={ /interface list member add list="WAN" interface="ether1" }
+            command: `:local m [/interface list member find where interface="ether1" list="WAN"]; :put ("existing-count=" . [:tostr [:len $m]]); :if ([:len $m] = 0) do={ /interface list member add list="WAN" interface="ether1" }
 :put ("after-count=" . [:tostr [:len [/interface list member find where list="WAN"]]])`,
             note: "Puts the internet port into the WAN list. If this venue is on PPPoE, use the PPPoE interface name here instead of {{ether1}}.",
             destructive: false,
@@ -1257,10 +1162,7 @@ export const STEPS_PART2: ManualStep[] = [
 :put "WYFY-BEGIN step05"
 :put ("ping-8888=" . [:tostr [/ping 8.8.8.8 count=4]])
 :put ("ping-1111=" . [:tostr [/ping 1.1.1.1 count=4]])
-:local pip ""
-:do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }
-:put ("portal-ip=" . $pip)
-:if ($pip != "") do={ :put ("ping-portal=" . [:tostr [/ping $pip count=4]]) }
+:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :if ($pip != "") do={ :put ("ping-portal=" . [:tostr [/ping $pip count=4]]) }
 :foreach f in=[/file find where name="wyfy-https-probe.tmp"] do={ /file remove $f }
 :do { /tool fetch url="https://portal.wyfyguest.com/" dst-path="wyfy-https-probe.tmp" } on-error={ :put "fetch-threw=yes" }
 :put ("https-file-count=" . [:tostr [:len [/file find where name="wyfy-https-probe.tmp"]]])

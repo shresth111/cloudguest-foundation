@@ -37,12 +37,8 @@ export const STEPS_PART5: ManualStep[] = [
     configure: [
       {
         label: "Create the DHCP server and its network entry. Safe to run more than once.",
-        script: `:local s [/ip dhcp-server find where interface="bridge"]
-:put ("server-existing=" . [:tostr [:len $s]])
-:if ([:len $s] = 0) do={ /ip dhcp-server add name="hotspot-dhcp" interface="bridge" address-pool="hotspot-pool" disabled=no }
-:local n [/ip dhcp-server network find where address="10.5.50.0/24"]
-:put ("network-existing=" . [:tostr [:len $n]])
-:if ([:len $n] = 0) do={ /ip dhcp-server network add address=10.5.50.0/24 gateway=10.5.50.1 dns-server=10.5.50.1 }
+        script: `:local s [/ip dhcp-server find where interface="bridge"]; :put ("server-existing=" . [:tostr [:len $s]]); :if ([:len $s] = 0) do={ /ip dhcp-server add name="hotspot-dhcp" interface="bridge" address-pool="hotspot-pool" disabled=no }
+:local n [/ip dhcp-server network find where address="10.5.50.0/24"]; :put ("network-existing=" . [:tostr [:len $n]]); :if ([:len $n] = 0) do={ /ip dhcp-server network add address=10.5.50.0/24 gateway=10.5.50.1 dns-server=10.5.50.1 }
 :put ("server-count=" . [:tostr [:len [/ip dhcp-server find where interface="bridge"]]])
 :put ("network-count=" . [:tostr [:len [/ip dhcp-server network find where address="10.5.50.0/24"]]])`,
         oncePerRouter: false,
@@ -51,13 +47,10 @@ export const STEPS_PART5: ManualStep[] = [
     probe: {
       command: `:put "==== DHCP SERVER ===="
 :put "WYFY-BEGIN step15"
-:local s [/ip dhcp-server find where interface="bridge"]
-:put ("server-count=" . [:tostr [:len $s]])
+:local s [/ip dhcp-server find where interface="bridge"]; :put ("server-count=" . [:tostr [:len $s]])
 :put ("all-server-count=" . [:tostr [:len [/ip dhcp-server find]]])
 :foreach x in=[/ip dhcp-server find] do={ :put ("server=" . [/ip dhcp-server get $x name] . ";if=" . [:tostr [/ip dhcp-server get $x interface]] . ";pool=" . [:tostr [/ip dhcp-server get $x address-pool]] . ";disabled=" . [:tostr [/ip dhcp-server get $x disabled]] . ";lease=" . [:tostr [/ip dhcp-server get $x lease-time]]) }
-:local n [/ip dhcp-server network find]
-:put ("network-count=" . [:tostr [:len $n]])
-:foreach x in=$n do={ :put ("network=" . [:tostr [/ip dhcp-server network get $x address]] . ";gw=" . [:tostr [/ip dhcp-server network get $x gateway]] . ";dns=" . [:tostr [/ip dhcp-server network get $x dns-server]]) }
+:local n [/ip dhcp-server network find]; :put ("network-count=" . [:tostr [:len $n]]); :foreach x in=$n do={ :put ("network=" . [:tostr [/ip dhcp-server network get $x address]] . ";gw=" . [:tostr [/ip dhcp-server network get $x gateway]] . ";dns=" . [:tostr [/ip dhcp-server network get $x dns-server]]) }
 :put ("lease-count=" . [:tostr [:len [/ip dhcp-server lease find]]])
 :put ("pool-count=" . [:tostr [:len [/ip pool find where name="hotspot-pool"]]])
 :put "WYFY-END step15"
@@ -197,9 +190,7 @@ export const STEPS_PART5: ManualStep[] = [
         lookFor: "Whether any row exists at all. An empty listing here is the fault.",
         fix: [
           {
-            command: `:local n [/ip dhcp-server network find where address="10.5.50.0/24"]
-:put ("existing-count=" . [:tostr [:len $n]])
-:if ([:len $n] = 0) do={ /ip dhcp-server network add address=10.5.50.0/24 gateway=10.5.50.1 dns-server=10.5.50.1 }
+            command: `:local n [/ip dhcp-server network find where address="10.5.50.0/24"]; :put ("existing-count=" . [:tostr [:len $n]]); :if ([:len $n] = 0) do={ /ip dhcp-server network add address=10.5.50.0/24 gateway=10.5.50.1 dns-server=10.5.50.1 }
 :put ("after-count=" . [:tostr [:len [/ip dhcp-server network find where address="10.5.50.0/24"]]])`,
             note: "Adds the missing network entry. Devices already connected keep their broken settings until their lease renews — reconnect one to test.",
             destructive: false,
@@ -252,9 +243,7 @@ export const STEPS_PART5: ManualStep[] = [
           "Guests are being pointed at a name server other than this router. The captive portal depends on the router answering name lookups — if guests use a public name server directly, the portal never appears and they simply have no internet with no explanation.",
         fix: [
           {
-            command: `:local n [/ip dhcp-server network find where address="10.5.50.0/24"]
-:put ("matching-count=" . [:tostr [:len $n]])
-:if ([:len $n] > 0) do={ /ip dhcp-server network set $n dns-server=10.5.50.1 }
+            command: `:local n [/ip dhcp-server network find where address="10.5.50.0/24"]; :put ("matching-count=" . [:tostr [:len $n]]); :if ([:len $n] > 0) do={ /ip dhcp-server network set $n dns-server=10.5.50.1 }
 :put ("dns=" . [:tostr [/ip dhcp-server network get [find where address="10.5.50.0/24"] dns-server]])`,
             note: "Points guests at the router for name lookups and prints the result back.",
             destructive: false,
@@ -282,9 +271,7 @@ export const STEPS_PART5: ManualStep[] = [
         meaning: "The DHCP server exists but is switched off. Guests receive no address.",
         fix: [
           {
-            command: `:local s [/ip dhcp-server find where interface="bridge"]
-:put ("matching-count=" . [:tostr [:len $s]])
-:if ([:len $s] > 0) do={ /ip dhcp-server set $s disabled=no }`,
+            command: `:local s [/ip dhcp-server find where interface="bridge"]; :put ("matching-count=" . [:tostr [:len $s]]); :if ([:len $s] > 0) do={ /ip dhcp-server set $s disabled=no }`,
             note: "Switches it on. The match count is printed first so an empty match cannot pass as done.",
             destructive: false,
             confidence: "generator",
@@ -349,13 +336,10 @@ export const STEPS_PART5: ManualStep[] = [
       },
       {
         label: "Create the hotspot and its profile. Safe to run more than once.",
-        script: `:local pr [/ip hotspot profile find where name="hsprof1"]
-:if ([:len $pr] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=10.5.50.1 html-directory=hotspot dns-name="wifi.wyfyguest.com" }
+        script: `:local pr [/ip hotspot profile find where name="hsprof1"]; :if ([:len $pr] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=10.5.50.1 html-directory=hotspot dns-name="wifi.wyfyguest.com" }
 /ip hotspot profile set [find name="hsprof1"] login-by=http-pap dns-name="wifi.wyfyguest.com" hotspot-address=10.5.50.1
-:local ds [/ip dns static find where name="wifi.wyfyguest.com"]
-:if ([:len $ds] = 0) do={ /ip dns static add name="wifi.wyfyguest.com" address=10.5.50.1 comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set $ds address=10.5.50.1 }
-:local hs [/ip hotspot find where interface="bridge"]
-:if ([:len $hs] = 0) do={ /ip hotspot add name="hotspot1" interface="bridge" address-pool="hotspot-pool" profile="hsprof1" disabled=no }
+:local ds [/ip dns static find where name="wifi.wyfyguest.com"]; :if ([:len $ds] = 0) do={ /ip dns static add name="wifi.wyfyguest.com" address=10.5.50.1 comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set $ds address=10.5.50.1 }
+:local hs [/ip hotspot find where interface="bridge"]; :if ([:len $hs] = 0) do={ /ip hotspot add name="hotspot1" interface="bridge" address-pool="hotspot-pool" profile="hsprof1" disabled=no }
 :put ("profile-count=" . [:tostr [:len [/ip hotspot profile find where name="hsprof1"]]])
 :put ("server-count=" . [:tostr [:len [/ip hotspot find where interface="bridge"]]])`,
         oncePerRouter: false,
@@ -363,28 +347,15 @@ export const STEPS_PART5: ManualStep[] = [
       {
         label:
           "Close the three gaps the generated blocks leave behind: sessions that never end, one device per guest, and the local account that bypasses the portal.",
-        script: `:local hs [/ip hotspot find]
-:put ("hotspot-count=" . [:tostr [:len $hs]])
-:if ([:len $hs] > 0) do={ /ip hotspot set $hs idle-timeout=5m }
-:local up [/ip hotspot user profile find where name="default"]
-:put ("user-profile-count=" . [:tostr [:len $up]])
-:if ([:len $up] > 0) do={ /ip hotspot user profile set $up shared-users=5 keepalive-timeout=none }
-:local gu [/ip hotspot user find where name="guest"]
-:put ("guest-user-count=" . [:tostr [:len $gu]])
-:if ([:len $gu] > 0) do={ /ip hotspot user set $gu disabled=yes }`,
+        script: `:local hs [/ip hotspot find]; :put ("hotspot-count=" . [:tostr [:len $hs]]); :if ([:len $hs] > 0) do={ /ip hotspot set $hs idle-timeout=5m }
+:local up [/ip hotspot user profile find where name="default"]; :put ("user-profile-count=" . [:tostr [:len $up]]); :if ([:len $up] > 0) do={ /ip hotspot user profile set $up shared-users=5 keepalive-timeout=none }
+:local gu [/ip hotspot user find where name="guest"]; :put ("guest-user-count=" . [:tostr [:len $gu]]); :if ([:len $gu] > 0) do={ /ip hotspot user set $gu disabled=yes }`,
         oncePerRouter: false,
       },
       {
         label:
           "Let guests reach the portal before they log in. Both lists are needed — one covers plain traffic, the other encrypted.",
-        script: `:local pip ""
-:do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }
-:put ("portal-ip=" . $pip)
-:local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]
-:if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal" }
-:local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]
-:if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }
-:if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
+        script: `:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]; :if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal" }; :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }; :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
 :put ("host-list-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])
 :put ("ip-list-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])`,
         oncePerRouter: false,
@@ -393,24 +364,11 @@ export const STEPS_PART5: ManualStep[] = [
     probe: {
       command: `:put "==== HOTSPOT ===="
 :put "WYFY-BEGIN step16"
-:local hs [/ip hotspot find where interface="bridge"]
-:put ("hotspot-count=" . [:tostr [:len $hs]])
+:local hs [/ip hotspot find where interface="bridge"]; :put ("hotspot-count=" . [:tostr [:len $hs]])
 :put ("all-hotspot-count=" . [:tostr [:len [/ip hotspot find]]])
 :foreach x in=[/ip hotspot find] do={ :put ("hotspot=" . [/ip hotspot get $x name] . ";if=" . [:tostr [/ip hotspot get $x interface]] . ";profile=" . [:tostr [/ip hotspot get $x profile]] . ";disabled=" . [:tostr [/ip hotspot get $x disabled]] . ";idle=" . [:tostr [/ip hotspot get $x idle-timeout]]) }
-:local pr [/ip hotspot profile find where name="hsprof1"]
-:put ("profile-count=" . [:tostr [:len $pr]])
-:local p0 ""
-:if ([:len $pr] > 0) do={ :set p0 [:pick $pr 0] }
-:if ($p0 != "") do={ :put ("login-by=" . [:tostr [/ip hotspot profile get $p0 login-by]]) }
-:if ($p0 != "") do={ :put ("dns-name=" . [:tostr [/ip hotspot profile get $p0 dns-name]]) }
-:if ($p0 != "") do={ :put ("html-directory=" . [:tostr [/ip hotspot profile get $p0 html-directory]]) }
-:if ($p0 != "") do={ :put ("hotspot-address=" . [:tostr [/ip hotspot profile get $p0 hotspot-address]]) }
-:local up [/ip hotspot user profile find where name="default"]
-:put ("user-profile-count=" . [:tostr [:len $up]])
-:local u0 ""
-:if ([:len $up] > 0) do={ :set u0 [:pick $up 0] }
-:if ($u0 != "") do={ :put ("shared-users=" . [:tostr [/ip hotspot user profile get $u0 shared-users]]) }
-:if ($u0 != "") do={ :put ("keepalive-timeout=" . [:tostr [/ip hotspot user profile get $u0 keepalive-timeout]]) }
+:local pr [/ip hotspot profile find where name="hsprof1"]; :put ("profile-count=" . [:tostr [:len $pr]]); :local p0 ""; :if ([:len $pr] > 0) do={ :set p0 [:pick $pr 0] }; :if ($p0 != "") do={ :put ("login-by=" . [:tostr [/ip hotspot profile get $p0 login-by]]) }; :if ($p0 != "") do={ :put ("dns-name=" . [:tostr [/ip hotspot profile get $p0 dns-name]]) }; :if ($p0 != "") do={ :put ("html-directory=" . [:tostr [/ip hotspot profile get $p0 html-directory]]) }; :if ($p0 != "") do={ :put ("hotspot-address=" . [:tostr [/ip hotspot profile get $p0 hotspot-address]]) }
+:local up [/ip hotspot user profile find where name="default"]; :put ("user-profile-count=" . [:tostr [:len $up]]); :local u0 ""; :if ([:len $up] > 0) do={ :set u0 [:pick $up 0] }; :if ($u0 != "") do={ :put ("shared-users=" . [:tostr [/ip hotspot user profile get $u0 shared-users]]) }; :if ($u0 != "") do={ :put ("keepalive-timeout=" . [:tostr [/ip hotspot user profile get $u0 keepalive-timeout]]) }
 :put ("guest-user-count=" . [:tostr [:len [/ip hotspot user find where name="guest"]]])
 :foreach g in=[/ip hotspot user find where name="guest"] do={ :put ("guest-user-disabled=" . [:tostr [/ip hotspot user get $g disabled]]) }
 :put ("local-user-count=" . [:tostr [:len [/ip hotspot user find]]])
@@ -418,16 +376,11 @@ export const STEPS_PART5: ManualStep[] = [
 :put ("plain-prefix-count=" . [:tostr [:len [/file find where name="hotspot/login.html"]]])
 :put ("login-file-count=" . [:tostr [:len [/file find where name~"login.html"]]])
 :foreach f in=[/file find where name~"login.html"] do={ :put ("login-file=" . [/file get $f name] . ";size=" . [:tostr [/file get $f size]]) }
-:local lc ""
-:do { :set lc [:tostr [/file get [find where name~"login.html"] contents]] } on-error={ :set lc "" }
-:put ("login-has-portal-url=" . [:tostr ([:typeof [:find $lc "portal.wyfyguest.com"]] != "nothing")])
-:put ("login-has-link-token=" . [:tostr ([:typeof [:find $lc "link-login-only"]] != "nothing")])
+:local lc ""; :do { :set lc [:tostr [/file get [find where name~"login.html"] contents]] } on-error={ :set lc "" }; :put ("login-has-portal-url=" . [:tostr ([:typeof [:find $lc "portal.wyfyguest.com"]] != "nothing")]); :put ("login-has-link-token=" . [:tostr ([:typeof [:find $lc "link-login-only"]] != "nothing")])
 :put ("wg-host-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])
 :put ("wg-ip-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])
 :foreach w in=[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"] do={ :put ("wg-ip=" . [:tostr [/ip hotspot walled-garden ip get $w dst-address]]) }
-:local pip ""
-:do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }
-:put ("portal-resolves-to=" . $pip)
+:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-resolves-to=" . $pip)
 :put ("hotspot-dns-static-count=" . [:tostr [:len [/ip dns static find where name="wifi.wyfyguest.com"]]])
 :put "WYFY-END step16"
 :put "===================="`,
@@ -726,9 +679,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The router does not accept the kind of login form the portal submits. This is RouterOS's own factory default and it is the single most invisible failure in the product: the guest enters the correct code, nothing happens, and nothing is written to the router's log either.",
         fix: [
           {
-            command: `:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip hotspot profile set $p login-by=http-pap }
+            command: `:local p [/ip hotspot profile find where name="hsprof1"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip hotspot profile set $p login-by=http-pap }
 :put ("login-by=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] login-by]])`,
             note: "Sets the accepted login method and prints it back. The match count comes first, so a profile that does not exist cannot pass as fixed.",
             destructive: false,
@@ -755,9 +706,7 @@ export const STEPS_PART5: ManualStep[] = [
           "There is a local account on the router and it is switched on. The router checks local accounts before it asks the login server, so anyone who knows it is straight onto the internet with no code, no record, no data limit and no session. The account name and password are printed on a Master console screen, which makes this a real exposure rather than a theoretical one.",
         fix: [
           {
-            command: `:local g [/ip hotspot user find where name="guest"]
-:put ("matching-count=" . [:tostr [:len $g]])
-:if ([:len $g] > 0) do={ /ip hotspot user set $g disabled=yes }
+            command: `:local g [/ip hotspot user find where name="guest"]; :put ("matching-count=" . [:tostr [:len $g]]); :if ([:len $g] > 0) do={ /ip hotspot user set $g disabled=yes }
 :put ("disabled=" . [:tostr [/ip hotspot user get [find name="guest"] disabled]])`,
             note: "Switches the account off and prints the result back. It is disabled rather than removed, so a venue that genuinely relies on it can be restored after a conversation rather than silently losing access.",
             destructive: false,
@@ -792,13 +741,7 @@ export const STEPS_PART5: ManualStep[] = [
         lookFor: "Whether any row exists. An empty listing here is the fault.",
         fix: [
           {
-            command: `:local pip ""
-:do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }
-:put ("portal-ip=" . $pip)
-:local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]
-:put ("existing-count=" . [:tostr [:len $i]])
-:if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }
-:if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
+            command: `:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :put ("existing-count=" . [:tostr [:len $i]]); :if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }; :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
 :put ("after-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])`,
             note: "Looks the portal up and allows its address through. It prints the address it resolved first — if that line is empty, name lookup is broken and nothing was written, so fix step 4 before trying again.",
             destructive: false,
@@ -829,12 +772,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The address allowed through is not the address the portal resolves to now. The portal moved and this router was never updated. Guests cannot open the portal, and the configuration looks complete.",
         fix: [
           {
-            command: `:local pip ""
-:do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }
-:put ("portal-ip=" . $pip)
-:local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]
-:put ("matching-count=" . [:tostr [:len $i]])
-:if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
+            command: `:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :put ("matching-count=" . [:tostr [:len $i]]); :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
 :put ("after=" . [:tostr [/ip hotspot walled-garden ip get [find where comment="cloudguest-portal-https"] dst-address]])`,
             note: "Updates the existing entry rather than adding a second one, and prints the value afterwards.",
             destructive: false,
@@ -851,9 +789,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The plain-traffic entry is missing. The encrypted one covers most real traffic, so guests will usually still get through, but some devices' own connectivity checks use plain traffic and will report no internet.",
         fix: [
           {
-            command: `:local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]
-:put ("existing-count=" . [:tostr [:len $h]])
-:if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal" }
+            command: `:local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]; :put ("existing-count=" . [:tostr [:len $h]]); :if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal" }
 :put ("after-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])`,
             note: "Adds the plain-traffic entry. The two lists are separate mechanisms and both are needed.",
             destructive: false,
@@ -873,9 +809,7 @@ export const STEPS_PART5: ManualStep[] = [
           "Nothing ever closes a guest session. Session polling is deliberately off, which leaves the idle timeout as the only backstop, and it is not set. Sessions accumulate forever, data limits never take effect, and the active list grows until the venue's guests start being refused.",
         fix: [
           {
-            command: `:local hs [/ip hotspot find]
-:put ("matching-count=" . [:tostr [:len $hs]])
-:if ([:len $hs] > 0) do={ /ip hotspot set $hs idle-timeout=5m }
+            command: `:local hs [/ip hotspot find]; :put ("matching-count=" . [:tostr [:len $hs]]); :if ([:len $hs] > 0) do={ /ip hotspot set $hs idle-timeout=5m }
 :put ("idle-timeout=" . [:tostr [/ip hotspot get [:pick [/ip hotspot find] 0] idle-timeout]])`,
             note: "Sets a five minute idle timeout and prints it back.",
             destructive: false,
@@ -892,9 +826,7 @@ export const STEPS_PART5: ManualStep[] = [
           "A guest may use only one device. Their phone connects, then their laptop is refused outright with an error about no more sessions. It is a hard failure, not a soft limit, and it generates support calls immediately.",
         fix: [
           {
-            command: `:local up [/ip hotspot user profile find where name="default"]
-:put ("matching-count=" . [:tostr [:len $up]])
-:if ([:len $up] > 0) do={ /ip hotspot user profile set $up shared-users=5 }
+            command: `:local up [/ip hotspot user profile find where name="default"]; :put ("matching-count=" . [:tostr [:len $up]]); :if ([:len $up] > 0) do={ /ip hotspot user profile set $up shared-users=5 }
 :put ("shared-users=" . [:tostr [/ip hotspot user profile get [find name="default"] shared-users]])`,
             note: "Allows five devices per guest and prints the result back.",
             destructive: false,
@@ -923,9 +855,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The hotspot exists but is switched off, which has the same effect as not having one.",
         fix: [
           {
-            command: `:local hs [/ip hotspot find where interface="bridge"]
-:put ("matching-count=" . [:tostr [:len $hs]])
-:if ([:len $hs] > 0) do={ /ip hotspot set $hs disabled=no }`,
+            command: `:local hs [/ip hotspot find where interface="bridge"]; :put ("matching-count=" . [:tostr [:len $hs]]); :if ([:len $hs] > 0) do={ /ip hotspot set $hs disabled=no }`,
             note: "Switches it on. The match count is printed first.",
             destructive: false,
             confidence: "generator",
@@ -963,10 +893,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The login page's own name does not point at this router. Guests told to type it into the address bar will be sent to the internet instead of to the login page.",
         fix: [
           {
-            command: `:local d [/ip dns static find where name="wifi.wyfyguest.com"]
-:put ("existing-count=" . [:tostr [:len $d]])
-:if ([:len $d] = 0) do={ /ip dns static add name="wifi.wyfyguest.com" address=10.5.50.1 comment="cloudguest-hotspot-dns-name" }
-:if ([:len $d] > 0) do={ /ip dns static set $d address=10.5.50.1 }
+            command: `:local d [/ip dns static find where name="wifi.wyfyguest.com"]; :put ("existing-count=" . [:tostr [:len $d]]); :if ([:len $d] = 0) do={ /ip dns static add name="wifi.wyfyguest.com" address=10.5.50.1 comment="cloudguest-hotspot-dns-name" }; :if ([:len $d] > 0) do={ /ip dns static set $d address=10.5.50.1 }
 :put ("after-count=" . [:tostr [:len [/ip dns static find where name="wifi.wyfyguest.com"]]])`,
             note: "Points the name at the router. Counts before and after are printed.",
             destructive: false,
@@ -992,9 +919,7 @@ export const STEPS_PART5: ManualStep[] = [
     configure: [
       {
         label: "Tell the hotspot to use the login server, and to report sessions back to it.",
-        script: `:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip hotspot profile set $p use-radius=yes radius-accounting=yes }
+        script: `:local p [/ip hotspot profile find where name="hsprof1"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip hotspot profile set $p use-radius=yes radius-accounting=yes }
 :put ("use-radius=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] use-radius]])
 :put ("radius-accounting=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] radius-accounting]])`,
         oncePerRouter: false,
@@ -1002,9 +927,7 @@ export const STEPS_PART5: ManualStep[] = [
       {
         label:
           "Turn on packet-level logging for the login server, so a failed guest login leaves a trace. Remember to turn it off again after testing.",
-        script: `:local l [/system logging find where topics~"radius"]
-:put ("existing-count=" . [:tostr [:len $l]])
-:if ([:len $l] = 0) do={ /system logging add topics=radius action=memory }
+        script: `:local l [/system logging find where topics~"radius"]; :put ("existing-count=" . [:tostr [:len $l]]); :if ([:len $l] = 0) do={ /system logging add topics=radius action=memory }
 :put ("after-count=" . [:tostr [:len [/system logging find where topics~"radius"]]])`,
         oncePerRouter: false,
       },
@@ -1012,17 +935,9 @@ export const STEPS_PART5: ManualStep[] = [
     probe: {
       command: `:put "==== RADIUS HOTSPOT ===="
 :put "WYFY-BEGIN step17"
-:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("profile-count=" . [:tostr [:len $p]])
-:local p0 ""
-:if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }
-:if ($p0 != "") do={ :put ("use-radius=" . [:tostr [/ip hotspot profile get $p0 use-radius]]) }
-:if ($p0 != "") do={ :put ("radius-accounting=" . [:tostr [/ip hotspot profile get $p0 radius-accounting]]) }
-:if ($p0 != "") do={ :put ("login-by=" . [:tostr [/ip hotspot profile get $p0 login-by]]) }
+:local p [/ip hotspot profile find where name="hsprof1"]; :put ("profile-count=" . [:tostr [:len $p]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("use-radius=" . [:tostr [/ip hotspot profile get $p0 use-radius]]) }; :if ($p0 != "") do={ :put ("radius-accounting=" . [:tostr [/ip hotspot profile get $p0 radius-accounting]]) }; :if ($p0 != "") do={ :put ("login-by=" . [:tostr [/ip hotspot profile get $p0 login-by]]) }
 :put ("radius-count=" . [:tostr [:len [/radius find]]])
-:local tip ""
-:foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }
-:put ("tunnel-ip=" . $tip)
+:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip)
 :if ([:len [/radius find]] > 0) do={ :put ("radius-src=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]]) }
 :put ("local-user-count=" . [:tostr [:len [/ip hotspot user find]]])
 :put ("radius-log-count=" . [:tostr [:len [/system logging find where topics~"radius"]]])
@@ -1237,9 +1152,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The hotspot is not asking the login server at all. Guest codes are never checked. Whatever local account exists is the only way in, and if none does, nobody can log in.",
         fix: [
           {
-            command: `:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip hotspot profile set $p use-radius=yes }
+            command: `:local p [/ip hotspot profile find where name="hsprof1"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip hotspot profile set $p use-radius=yes }
 :put ("use-radius=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] use-radius]])`,
             note: "Joins the hotspot to the login server and prints the result back.",
             destructive: false,
@@ -1256,9 +1169,7 @@ export const STEPS_PART5: ManualStep[] = [
           "Sessions are not reported back to the server. Guests can log in and nothing is recorded — no usage, no data limits, no session history. Everything looks fine until someone asks for a report or a limit fails to apply.",
         fix: [
           {
-            command: `:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip hotspot profile set $p radius-accounting=yes }
+            command: `:local p [/ip hotspot profile find where name="hsprof1"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip hotspot profile set $p radius-accounting=yes }
 :put ("radius-accounting=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] radius-accounting]])`,
             note: "Turns session reporting on and prints the result back.",
             destructive: false,
@@ -1315,12 +1226,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The router is no longer sending login requests from its tunnel address. The server identifies routers by that address, so it cannot tell which router this is and will refuse with nothing logged on either side.",
         fix: [
           {
-            command: `:local tip ""
-:foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }
-:put ("tunnel-ip=" . $tip)
-:local r [/radius find]
-:put ("matching-count=" . [:tostr [:len $r]])
-:if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
             note: "Re-reads the tunnel address and writes it as the source, printing every value it used.",
             destructive: false,
@@ -1345,9 +1251,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The accepted login method no longer includes the one the portal uses. The certificate block sets this value too, so pasting it after step 16 can quietly undo that step's fix.",
         fix: [
           {
-            command: `:local p [/ip hotspot profile find where name="hsprof1"]
-:put ("matching-count=" . [:tostr [:len $p]])
-:if ([:len $p] > 0) do={ /ip hotspot profile set $p login-by=http-pap }
+            command: `:local p [/ip hotspot profile find where name="hsprof1"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /ip hotspot profile set $p login-by=http-pap }
 :put ("login-by=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] login-by]])`,
             note: "Restores the accepted login method and prints it back.",
             destructive: false,
@@ -1560,9 +1464,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The account name against the logged-in device. If it matches a local account rather than a phone number, this is the bypass.",
         fix: [
           {
-            command: `:local u [/ip hotspot user find]
-:put ("local-account-count=" . [:tostr [:len $u]])
-:foreach x in=$u do={ :put ("account=" . [/ip hotspot user get $x name] . ";disabled=" . [:tostr [/ip hotspot user get $x disabled]]) }`,
+            command: `:local u [/ip hotspot user find]; :put ("local-account-count=" . [:tostr [:len $u]]); :foreach x in=$u do={ :put ("account=" . [/ip hotspot user get $x name] . ";disabled=" . [:tostr [/ip hotspot user get $x disabled]]) }`,
             note: "Lists every local account and whether it is switched off. This only reports — decide with the team which to disable, because some venues deliberately keep a staff account.",
             destructive: false,
             confidence: "field",

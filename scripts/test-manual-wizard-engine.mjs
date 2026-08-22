@@ -1283,6 +1283,189 @@ console.log("\n-- the {{token}} i18n convention --");
 }
 
 // =====================================================================
+// 14. THE CONSOLE-SCOPE GUARD
+// =====================================================================
+// The RouterOS terminal runs EACH ENTERED LINE as its own program. A
+// `:local` declared on one line does not exist on the next. On 2026-08-23
+// `guided-setup`'s Phase 0 audit block was pasted into a real hEX
+// (RouterOS 7.23.3) and every `:set dirty ...` line came back
+// `syntax error`; because an undefined `$dirty` is not equal to 0, the
+// block then printed `RESULT: PURANA CONFIG MILA` unconditionally -- the
+// same confident wrong answer it would have given a factory-fresh router.
+//
+// This module had the same defect at larger scale: 91 of its 268
+// pasteable scripts, spanning all 19 steps and 5 resolver entries,
+// carried a variable across a line break. Every one of them would either
+// syntax-error or evaluate against nothing. They are flattened onto one
+// `;`-joined line each -- the shape `chunksToSingleLineScript` already
+// ships and the founder's hEX already runs -- and this is what stops the
+// next one.
+//
+// The rule is exactly the defect and nothing wider: a variable REFERENCED
+// on a line must have been BOUND on that same line, by `:local`,
+// `:global`, or a `:for` / `:foreach` loop variable. `:set` is a USE, not
+// a binder -- that is precisely what failed on the hEX. A `:local`
+// declared and consumed inside one line is legal and is the intended way
+// to keep carried state.
+console.log("\n-- the console-scope guard --");
+{
+  /** Every pasteable string this module can put in front of an operator:
+   * configure scripts, the probe itself, unscored context commands, the
+   * diagnostic `nextCommand`s, and every repair -- including the ones the
+   * resolver hands over mid-incident, which are the worst place to
+   * discover a syntax error. */
+  const pasteables = [];
+  for (const s of MANUAL_STEPS) {
+    (s.configure ?? []).forEach((c, i) =>
+      pasteables.push([`step "${s.id}" configure[${i}].script`, c.script]),
+    );
+    pasteables.push([`step "${s.id}" probe.command`, s.probe.command]);
+    (s.contextCommands ?? []).forEach((c, i) =>
+      pasteables.push([`step "${s.id}" contextCommands[${i}].command`, c.command]),
+    );
+    (s.outcomes ?? []).forEach((o) => {
+      if (o.nextCommand)
+        pasteables.push([`step "${s.id}" outcome "${o.id}".nextCommand`, o.nextCommand]);
+      (o.fix ?? []).forEach((f, fi) =>
+        pasteables.push([`step "${s.id}" outcome "${o.id}".fix[${fi}].command`, f.command]),
+      );
+    });
+  }
+  for (const r of RESOLVER) {
+    (r.sequence ?? []).forEach((d, di) => {
+      if (d.command) pasteables.push([`resolver "${r.id}" sequence[${di}].command`, d.command]);
+      (d.branches ?? []).forEach((b, bi) =>
+        (b.fix ?? []).forEach((f, fi) =>
+          pasteables.push([
+            `resolver "${r.id}" sequence[${di}].branches[${bi}].fix[${fi}].command`,
+            f.command,
+          ]),
+        ),
+      );
+    });
+  }
+
+  const RE_VAR_USE = /\$([A-Za-z_][A-Za-z0-9_]*)/g;
+  const RE_SET = /:set\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  const RE_BIND = /:(?:local|global)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  const RE_LOOP = /:(?:for|foreach)\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:from|in)\b/g;
+  const names = (line, re) => [...line.matchAll(re)].map((m) => m[1]);
+  /** Names read on this line that this line did not bind. */
+  const unboundOn = (line) => {
+    const bound = new Set([...names(line, RE_BIND), ...names(line, RE_LOOP)]);
+    // `:set x` READS an existing binding, so it is a use, not a bind.
+    const used = new Set([...names(line, RE_VAR_USE), ...names(line, RE_SET)]);
+    return [...used].filter((v) => !bound.has(v));
+  };
+
+  check(
+    "the guard has every pasteable in scope, not just the probes",
+    pasteables.length >= 260,
+    `only ${pasteables.length} pasteable strings swept`,
+  );
+
+  const offenders = [];
+  for (const [label, script] of pasteables) {
+    script.split("\n").forEach((line, n) => {
+      for (const v of unboundOn(line)) offenders.push(`${label}, line ${n + 1}: $${v}`);
+    });
+  }
+  check(
+    "no pasteable script carries a variable across a line break",
+    offenders.length === 0,
+    `${offenders.length} unbound reference(s). The RouterOS console runs each line as its own ` +
+      `program, so these read a variable that no longer exists -- the line will either be a ` +
+      `syntax error or, worse, evaluate against nothing and print a confident wrong answer. ` +
+      `Join the statements onto ONE line with ";", or restructure the block to carry no state ` +
+      `at all.\n      ${offenders.slice(0, 12).join("\n      ")}` +
+      (offenders.length > 12 ? `\n      ... and ${offenders.length - 12} more` : ""),
+  );
+
+  // A guard that cannot see the pattern it was written for is decoration,
+  // so it is pointed at the exact block that shipped broken -- and at the
+  // shape this module actually had, which is the same bug wearing the
+  // local idiom (`:local x ""` / `:do { :set x ... }` / `:put $x`).
+  const REGRESSIONS = [
+    [
+      "the guided-setup block that failed on the hEX",
+      `:local dirty 0\n:if ([:len [/ip hotspot find]] > 0) do={ :set dirty ($dirty + 1) }`,
+    ],
+    [
+      "this module's own `on-error` fallback idiom, unflattened",
+      `:local arch "unknown"\n:do { :set arch [/system resource get architecture-name] } on-error={ :set arch "unknown" }\n:put ("arch=" . $arch)`,
+    ],
+    [
+      "a fix that counts a find-set on one line and removes it on the next",
+      `:local p [/interface bridge port find where interface="ether1"]\n:put ("removing-count=" . [:tostr [:len $p]])\n:if ([:len $p] > 0) do={ /interface bridge port remove $p }`,
+    ],
+  ];
+  for (const [what, script] of REGRESSIONS) {
+    const caught = script.split("\n").some((line, n) => n > 0 && unboundOn(line).length > 0);
+    check(`INJECTED: the guard fires on ${what}`, caught, "the guard is blind to it");
+  }
+
+  // The same three, legally flattened. If the guard fired on these it
+  // would ban the very fix it exists to enforce, and the cheapest way to
+  // defeat it would be to make it so strict that someone loosens it.
+  const LEGAL = [
+    `:local dirty 0; :if ([:len [/ip hotspot find]] > 0) do={ :set dirty ($dirty + 1) }; :put $dirty`,
+    `:local arch "unknown"; :do { :set arch [/system resource get architecture-name] } on-error={ :set arch "unknown" }; :put ("arch=" . $arch)`,
+    `:local p [/interface bridge port find where interface="ether1"]; :put ("removing-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /interface bridge port remove $p }`,
+  ];
+  check(
+    "...and does NOT fire on the same scripts flattened onto one line",
+    LEGAL.every((s) => unboundOn(s).length === 0),
+    LEGAL.filter((s) => unboundOn(s).length > 0).join(" || "),
+  );
+  // `:foreach` binds its loop variable for the body on its own line, and
+  // this module leans on that in every row-listing probe. A guard that
+  // did not know it would report ~20 false positives and be turned off.
+  check(
+    "...and understands a `:foreach` loop variable as a binding",
+    unboundOn(
+      `:foreach x in=[/ip address find] do={ :put ("addr=" . [:tostr [/ip address get $x address]]) }`,
+    ).length === 0,
+  );
+
+  // Flattening kept the statements and dropped only the newlines, so the
+  // device prints exactly what it printed before and no rule, fingerprint
+  // or fixture needed touching. These two invariants are the ones that
+  // would have been quietly lost if it had not:
+  //  - a set-inspecting probe must still emit its own `*-count=`, the
+  //    module's only defence against `set [find ...]` succeeding silently
+  //    against an empty match (asserted in section 7 above);
+  //  - a probe must still print evidence and never a verdict.
+  check(
+    "flattening did not let a probe start grading itself",
+    MANUAL_STEPS.every((s) => !/\b(RESULT:|PASS|FAIL)\b/.test(s.probe.command)),
+    MANUAL_STEPS.filter((s) => /\b(RESULT:|PASS|FAIL)\b/.test(s.probe.command))
+      .map((s) => s.id)
+      .join(","),
+  );
+  check(
+    "every probe still opens with its banner on a line of its own",
+    MANUAL_STEPS.every((s) => /^:put "==== .* ===="$/.test(s.probe.command.split("\n")[0])),
+    MANUAL_STEPS.filter((s) => !/^:put "==== .* ===="$/.test(s.probe.command.split("\n")[0]))
+      .map((s) => s.id)
+      .join(","),
+  );
+  const closesCleanly = (s) => {
+    const lines = s.probe.command.split("\n");
+    return (
+      lines[lines.length - 1] === `:put "===================="` &&
+      lines[lines.length - 2] === `:put "WYFY-END ${s.fingerprint.sentinelId}"`
+    );
+  };
+  check(
+    "every probe still closes its sentinel and banner on lines of their own",
+    MANUAL_STEPS.every(closesCleanly),
+    MANUAL_STEPS.filter((s) => !closesCleanly(s))
+      .map((s) => s.id)
+      .join(","),
+  );
+}
+
+// =====================================================================
 
 console.log("");
 if (failures.length) {
