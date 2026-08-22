@@ -154,20 +154,37 @@ if (firewall && wg) {
   );
 
   // 3. The plain-add fallback (nothing to place before yet) must be
-  //    exactly one line and the *later* branch -- if it ever becomes the
-  //    first/only add again, natural paste order re-creates the lockout.
-  const lines = wg.script.split("\n");
-  const plainAddLines = lines
-    .map((l, i) => ({ l, i }))
+  //    exactly one statement and the *later* branch -- if it ever becomes
+  //    the first/only add again, natural paste order re-creates the
+  //    lockout.
+  //
+  //    Split on STATEMENTS, not lines. These three guards used to be a
+  //    nested `:if`/`else={}` spread over ten lines, which could not
+  //    survive a real console paste: the RouterOS terminal runs each
+  //    entered line as its own program, so `$wanDropRule` was read on
+  //    lines after the one that bound it and `place-before=$wanDropRule`
+  //    was a syntax error -- meaning the accept rule, when it was added at
+  //    all, was appended BELOW the drop rule. That is exactly the
+  //    confirmed-live lockout this suite exists to prevent, so the
+  //    generator now emits them `;`-joined on one line. This check follows
+  //    the statements wherever they live rather than assuming newlines,
+  //    and asserts the identical property it always did.
+  const statements = wg.script
+    .split("\n")
+    .flatMap((l) => l.split(";"))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const plainAdds = statements
+    .map((s, i) => ({ s, i }))
     .filter(
-      ({ l }) =>
-        l.includes(`comment="${ALLOW}"`) && l.includes(" add ") && !l.includes("place-before"),
+      ({ s }) =>
+        s.includes(`comment="${ALLOW}"`) && s.includes(" add ") && !s.includes("place-before"),
     );
-  const placeBeforeLine = lines.findIndex((l) => l.includes("place-before=$wanDropRule"));
+  const placeBeforeAt = statements.findIndex((s) => s.includes("place-before=$wanDropRule"));
   check(
     "exactly one plain-add fallback, placed after the place-before add",
-    plainAddLines.length === 1 && placeBeforeLine !== -1 && plainAddLines[0].i > placeBeforeLine,
-    `plain adds at lines ${JSON.stringify(plainAddLines.map((x) => x.i))}, place-before add at line ${placeBeforeLine}`,
+    plainAdds.length === 1 && placeBeforeAt !== -1 && plainAdds[0].i > placeBeforeAt,
+    `plain adds at statements ${JSON.stringify(plainAdds.map((x) => x.i))}, place-before add at statement ${placeBeforeAt}`,
   );
 
   // 4. Self-heal for already-affected devices: an existing mispositioned

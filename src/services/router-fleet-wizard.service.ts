@@ -1,8 +1,10 @@
+import { normalizePreconditionStatus } from "@/lib/discovery-preflight";
 import { api } from "@/services/api";
 import { provisioningService } from "@/services/provisioning.service";
 import type { IspLink } from "@/types/isp";
 import type { ProvisionJob } from "@/types/provisioning";
 import type {
+  DiscoveryPreflight,
   FleetBasicWanApplyResult,
   FleetBasicWanPreview,
   FleetBootstrapMode,
@@ -79,6 +81,23 @@ interface BackendRouterSnapshot {
 interface BackendDiscoverResult {
   snapshot: BackendRouterSnapshot;
   compatibility: BackendCompatibilityReport;
+}
+
+interface BackendDiscoveryPrecondition {
+  key: string;
+  label: string;
+  status: string;
+  detail: string;
+  next_step: string | null;
+}
+
+interface BackendDiscoveryPreflight {
+  router_id: string;
+  can_attempt: boolean;
+  summary: string | null;
+  checks: BackendDiscoveryPrecondition[];
+  blocking_count: number;
+  unverified_count: number;
 }
 
 interface BackendBootstrapScriptPreview {
@@ -394,6 +413,32 @@ export const routerFleetWizardService = {
       scriptSingleLine: data.script_single_line ?? data.lines.join("; "),
       lineCount: data.line_count,
       tokenExpiresAt: data.token_expires_at,
+    };
+  },
+
+  /** Every precondition `discover()` genuinely has, each already checked
+   * by the backend. Read-only; opens no connection to the device. */
+  async getDiscoveryPreflight(
+    routerId: string,
+    organizationId?: string,
+  ): Promise<DiscoveryPreflight> {
+    const { data } = await api.get<BackendDiscoveryPreflight>(
+      `/routers/${routerId}/discover/preflight`,
+      orgHeaders(organizationId),
+    );
+    return {
+      routerId: data.router_id,
+      canAttempt: data.can_attempt,
+      summary: data.summary,
+      checks: (data.checks ?? []).map((c) => ({
+        key: c.key,
+        label: c.label,
+        status: normalizePreconditionStatus(c.status),
+        detail: c.detail,
+        nextStep: c.next_step,
+      })),
+      blockingCount: data.blocking_count,
+      unverifiedCount: data.unverified_count,
     };
   },
 

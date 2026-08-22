@@ -16,6 +16,7 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
+#   test:setup-script ... 177 checks (added 2026-08-23)
 
 on:
   push:
@@ -234,6 +235,35 @@ jobs:
             "plan-editor-feedback" 33 \
             "plan-editor-feedback: all checks passed" \
             bun run test:plan-editor
+
+      # --- MikroTik setup-script generator ------------------------------
+      #
+      # The text a technician pastes into a real router. tsc cannot see a
+      # single defect in it: every value is a `string` and every bug is in
+      # what the string MEANS to RouterOS.
+      #
+      # It gates two confirmed-live defect classes over the generator's
+      # whole option matrix (each WAN mode, 1/2/3 WANs, both routing modes,
+      # basicConfigOnly, every optional subsystem):
+      #   - a `:local` read on a later line than the one that bound it.
+      #     The RouterOS console runs each entered line as its own program,
+      #     so those lines are a syntax error -- and a block that computes
+      #     its verdict from such a variable prints a confident wrong
+      #     answer. Same defect as PRs #125/#126 fixed in the two sibling
+      #     modules; it was present in 12 of this generator's chunk kinds.
+      #   - a multi-statement `do={}` body, which threw a real syntax error
+      #     on a live router at the boundary between the two statements.
+      #
+      # Six mutations of the real generator and three of the guards
+      # themselves were verified to fail this suite; see the script header
+      # for the table. The floor is the count observed green on
+      # 2026-08-23.
+      - name: setup script generator
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "setup-script-generator" 160 \
+            "setup-script-generator: all checks passed" \
+            bun run test:setup-script
 
       # This one prints only a verdict line, no per-check output, so its
       # floor is 0 and the sentinel is doing all the work.

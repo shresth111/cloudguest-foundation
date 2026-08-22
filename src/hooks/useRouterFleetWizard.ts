@@ -15,6 +15,8 @@ export const fleetWizardKeys = {
     [...fleetWizardKeys.all, "plan", routerId, planId] as const,
   wireguardPeer: (routerId: string) =>
     [...fleetWizardKeys.all, "wireguard-peer", routerId] as const,
+  discoveryPreflight: (routerId: string) =>
+    [...fleetWizardKeys.all, "discovery-preflight", routerId] as const,
 };
 
 export function usePreviewBootstrapScript() {
@@ -36,6 +38,20 @@ export function useWizardWireGuardPeer(routerId: string, poll = false) {
     queryFn: () => routerService.getWireGuardPeer(routerId),
     enabled: !!routerId,
     refetchInterval: poll ? 3000 : false,
+  });
+}
+
+/** Discovery's preconditions, checked before the operator can press the
+ * button. Kept fresh while the wizard sits on the Discover step so that
+ * pasting the WireGuard chunk on the device unblocks the UI without a
+ * manual reload -- the tunnel's first handshake is the signal we are
+ * waiting for, and it arrives out-of-band. */
+export function useDiscoveryPreflight(routerId: string, organizationId?: string, poll = false) {
+  return useQuery({
+    queryKey: fleetWizardKeys.discoveryPreflight(routerId),
+    queryFn: () => routerFleetWizardService.getDiscoveryPreflight(routerId, organizationId),
+    enabled: !!routerId,
+    refetchInterval: poll ? 5000 : false,
   });
 }
 
