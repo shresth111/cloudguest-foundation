@@ -1,5 +1,8 @@
 import { api } from "@/services/api";
-import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/context/AuthContext";
+// Straight from api.ts, which is where these now live -- AuthContext only
+// re-exports them, and importing it here would drag React into a module
+// that is otherwise plain data-fetching code.
+import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -1423,252 +1426,330 @@ export const customerService = {
   },
 
   /* ── Feature Data ──────────────────────────────────────── */
+  /**
+   * Real data, or a real error. Never demo fixtures for a real session.
+   *
+   * This used to end in `catch { return getDemoFeatureData(feature) }`,
+   * which meant any failure -- a 403 from a missing org header, a 500, a
+   * dropped connection -- rendered as a populated, plausible page built
+   * from `DEMO_*` fixtures. A customer could not tell a broken backend
+   * from a working one, and neither could we: the missing-org-header 403s
+   * this fallback was masking were found by calling the API by hand, not
+   * from the dashboard, because the dashboard looked fine.
+   *
+   * The rest of this file already takes the honest position -- `getUsers`
+   * and `getDashboard` return empty/`null` on failure with comments
+   * saying so in as many words ("an honest omission, not a fabricated
+   * fallback"), and `DevicesView` gates its own fixtures behind
+   * `useIsDemo()`. This was the one outlier, so the fix is to make it
+   * consistent rather than to invent a policy.
+   *
+   * Letting the rejection through is deliberate: every caller reaches this
+   * via `useCustomerFeatureData`, a TanStack Query hook, so a throw
+   * becomes `isError` -- something the UI can honestly render, and retry
+   * and refetch for free. Resolving with fake data threw that away.
+   *
+   * It matters most for `mac-auth`, one of only two features actually
+   * wired to this method today: the fixtures it was falling back to are
+   * three invented MAC addresses ("Front desk tablet", "Contractor
+   * laptop"). That is an access-control list. Showing an administrator
+   * entries that are not really authorised -- or hiding ones that are --
+   * is materially worse than showing them that it could not load.
+   */
   async getFeatureData(feature: string, locationId: string): Promise<CustomerFeatureData> {
     if (isDemo()) return getDemoFeatureData(feature);
 
-    try {
-      switch (feature) {
-        case "analytics": {
-          const [summary, guests] = await Promise.allSettled([
-            api
-              .get<{
-                visitors: number;
-                unique_guests: number;
-                returning_guests: number;
-                average_session_duration_seconds: number | null;
-              }>("/guest-analytics/summary")
-              .catch(() => null),
-            api
-              .get<{ items: Array<Record<string, unknown>> }>("/guest-analytics/top-devices")
-              .catch(() => null),
-          ]);
-          const s =
-            summary.status === "fulfilled" && summary.value?.data ? summary.value.data : null;
-          return {
-            analytics: {
-              totalSessions: s?.visitors ?? 0,
-              uniqueGuests: s?.unique_guests ?? 0,
-              returningRate: s?.returning_guests ?? 0,
-              avgDuration: (s?.average_session_duration_seconds ?? 0) / 60,
-            },
-          };
-        }
-        case "campaigns": {
-          const { data } = await api
+    switch (feature) {
+      case "analytics": {
+        // `start_date`/`end_date` are REQUIRED query params on both of
+        // these endpoints -- omitting them is a 422, not a default
+        // "all time" window, so this pair used to fail every time and
+        // report zeros (or, before the fallback above was removed, the
+        // fixture's invented 1892 sessions / 847 guests). Same 30-day
+        // window guest.service.ts's own `analyticsWindow()` uses.
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const window = {
+          params: { start_date: startDate.toISOString(), end_date: endDate.toISOString() },
+        };
+        const [summary, guests] = await Promise.allSettled([
+          api
             .get<{
-              items: { id: string; name: string; status: string }[];
-            }>("/campaigns", { params: { page_size: 20 } })
-            .catch(() => ({ data: { items: [] } }));
-          return {
-            campaigns: (data?.items ?? []).map((c) => ({
-              id: c.id,
-              name: c.name,
-              status: c.status,
-              impressions: 0,
-              conversions: 0,
-            })),
-          };
-        }
-        case "vouchers": {
-          const { data } = await api
-            .get<{
-              items: { code?: string; plan?: string; status: string; used_count?: number }[];
-            }>("/voucher-batches", { params: { page_size: 20 } })
-            .catch(() => ({ data: { items: [] } }));
-          return {
-            vouchers:
-              data?.items?.map((v) => ({
-                code: v.code ?? "",
-                plan: v.plan ?? "",
-                status: v.status,
-                used: v.used_count ?? 0,
-              })) ?? [],
-          };
-        }
-        case "portal": {
-          const caption = locationId
-            ? await api
-                .get(`/captive-portal`, { params: { location_id: locationId } })
-                .catch(() => null)
-            : null;
-          return {
-            portal: {
-              status: "Live",
-              theme: "Enterprise Blue",
-              authMethods: ["Email OTP", "SMS", "Voucher"],
-              languages: ["EN", "HI", "AR"],
-            },
-          };
-        }
-        case "devices": {
-          // Same fix -- /connected-devices requires connected_devices.read
-          // at ORGANIZATION scope via X-Organization-Id.
-          const orgId = await resolveOrgId();
-          const { data } = await api
-            .get<{
-              items: {
-                mac_address: string;
-                ip_address: string;
-                hostname: string | null;
-                connected_at: string;
-                last_seen_at: string;
-              }[];
-            }>("/connected-devices", {
-              params: { location_id: locationId, page_size: 10 },
-              headers: { "X-Organization-Id": orgId },
-            })
-            .catch(() => ({ data: { items: [] } }));
-          return {
-            devices: (data?.items ?? []).map((d) => ({
-              mac: d.mac_address,
-              ip: d.ip_address,
-              device: d.hostname ?? "Unknown",
-              firstSeen: timeAgo(d.connected_at),
-              lastSeen: timeAgo(d.last_seen_at),
-            })),
-          };
-        }
-        case "mac-auth": {
-          const orgId = await resolveOrgId();
-          const { data } = await api.get<{
+              visitors: number;
+              unique_guests: number;
+              returning_guests: number;
+              average_session_duration_seconds: number | null;
+            }>("/guest-analytics/summary", window)
+            .catch(() => null),
+          api
+            .get<{ items: Array<Record<string, unknown>> }>("/guest-analytics/top-devices", window)
+            .catch(() => null),
+        ]);
+        const s = summary.status === "fulfilled" && summary.value?.data ? summary.value.data : null;
+        return {
+          analytics: {
+            totalSessions: s?.visitors ?? 0,
+            uniqueGuests: s?.unique_guests ?? 0,
+            returningRate: s?.returning_guests ?? 0,
+            avgDuration: (s?.average_session_duration_seconds ?? 0) / 60,
+          },
+        };
+      }
+      case "campaigns": {
+        const { data } = await api
+          .get<{
+            items: { id: string; name: string; status: string }[];
+          }>("/campaigns", { params: { page_size: 20 } })
+          .catch(() => ({ data: { items: [] } }));
+        return {
+          campaigns: (data?.items ?? []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            impressions: 0,
+            conversions: 0,
+          })),
+        };
+      }
+      case "vouchers": {
+        const { data } = await api
+          .get<{
+            items: { code?: string; plan?: string; status: string; used_count?: number }[];
+          }>("/voucher-batches", { params: { page_size: 20 } })
+          .catch(() => ({ data: { items: [] } }));
+        return {
+          vouchers:
+            data?.items?.map((v) => ({
+              code: v.code ?? "",
+              plan: v.plan ?? "",
+              status: v.status,
+              used: v.used_count ?? 0,
+            })) ?? [],
+        };
+      }
+      case "portal": {
+        // Was the worst offender in this file: it fetched `/captive-portal`
+        // -- a path that does not exist (404; the real collection is
+        // `/captive-portal-configs`, see portal.service.ts) -- then threw
+        // the response away and returned a hardcoded "Live" /
+        // "Enterprise Blue" / Email OTP + SMS + Voucher / EN + HI + AR
+        // card. Not a fallback: that ran on the success path too, so it
+        // was fabricated for every real customer unconditionally, and
+        // described a portal configuration nobody had. Wyfy Demo's real
+        // config, for instance, is theme "default" with email OTP and
+        // username/password only, English only.
+        const { data } = await api.get<{
+          items: {
+            is_active: boolean;
+            theme: string | null;
+            supported_languages: string[] | null;
+            default_language: string | null;
+            otp_email_enabled: boolean;
+            otp_sms_enabled: boolean;
+            otp_whatsapp_enabled: boolean;
+            voucher_enabled: boolean;
+            username_password_enabled: boolean;
+            pin_login_enabled: boolean;
+            social_login_enabled: boolean;
+          }[];
+        }>("/captive-portal-configs", {
+          params: { page: 1, page_size: 100, ...(locationId ? { location_id: locationId } : {}) },
+        });
+        // The portal actually serving this location is the active one;
+        // fall back to the first config only so a location whose portal is
+        // switched off still describes the portal it has.
+        const configs = data?.items ?? [];
+        const config = configs.find((c) => c.is_active) ?? configs[0] ?? null;
+        if (!config) return { portal: undefined };
+        const authMethods = [
+          config.otp_email_enabled && "Email OTP",
+          config.otp_sms_enabled && "SMS OTP",
+          config.otp_whatsapp_enabled && "WhatsApp OTP",
+          config.voucher_enabled && "Voucher",
+          config.username_password_enabled && "Username & password",
+          config.pin_login_enabled && "PIN",
+          config.social_login_enabled && "Social login",
+        ].filter((m): m is string => typeof m === "string");
+        const languages = (
+          config.supported_languages?.length
+            ? config.supported_languages
+            : [config.default_language ?? "en"]
+        ).map((l) => l.toUpperCase());
+        return {
+          portal: {
+            status: config.is_active ? "Live" : "Inactive",
+            theme: config.theme ?? "default",
+            authMethods,
+            languages,
+          },
+        };
+      }
+      case "devices": {
+        // Same fix -- /connected-devices requires connected_devices.read
+        // at ORGANIZATION scope via X-Organization-Id.
+        const orgId = await resolveOrgId();
+        const { data } = await api
+          .get<{
+            items: {
+              mac_address: string;
+              ip_address: string;
+              hostname: string | null;
+              connected_at: string;
+              last_seen_at: string;
+            }[];
+          }>("/connected-devices", {
+            params: { location_id: locationId, page_size: 10 },
+            headers: { "X-Organization-Id": orgId },
+          })
+          .catch(() => ({ data: { items: [] } }));
+        return {
+          devices: (data?.items ?? []).map((d) => ({
+            mac: d.mac_address,
+            ip: d.ip_address,
+            device: d.hostname ?? "Unknown",
+            firstSeen: timeAgo(d.connected_at),
+            lastSeen: timeAgo(d.last_seen_at),
+          })),
+        };
+      }
+      case "mac-auth": {
+        const orgId = await resolveOrgId();
+        const { data } = await api.get<{
+          items: {
+            id: string;
+            mac_address: string;
+            authorization_type: string;
+            expires_at: string | null;
+            comment: string | null;
+            is_enabled: boolean;
+          }[];
+        }>("/mac-authorization/entries", {
+          params: { location_id: locationId, page: 1, page_size: 50 },
+          headers: { "X-Organization-Id": orgId },
+        });
+        return {
+          macAuth: data.items.map((e) => ({
+            id: e.id,
+            mac: e.mac_address,
+            type: e.authorization_type,
+            expiresAt: e.expires_at,
+            comment: e.comment,
+            enabled: e.is_enabled,
+          })),
+        };
+      }
+      case "admin-logs": {
+        // Owner-only on the backend for all three sections below --
+        // dashboard-logins/router-events via app.domains.admin_logs
+        // .router's RequirePermission("audit_logs.read") + RequireRole
+        // ("organization-owner", ...) + RequireFeature; accountActivity
+        // (/audit/entries, the former standalone "Audit Log" tab's real
+        // data source) via app.domains.audit.router's own
+        // RequirePermission + the same RequireRole narrowing, added when
+        // this section was folded in here. An Agent session 403s on all
+        // three even if it somehow reaches this route (the sidebar/route
+        // guard already keep it from getting this far in the first
+        // place, see customerNav.ts/authGuards.ts). Each call is caught
+        // independently via allSettled rather than one try/catch, so one
+        // endpoint 403ing/erroring doesn't blank out the others -- and,
+        // deliberately, a failure here resolves to an *empty* section,
+        // never demo/fabricated log rows: this is a security audit
+        // trail, and a fake "who logged in"/"who changed what" row would
+        // be actively misleading, unlike the numeric placeholders every
+        // other feature's own demo fallback shows.
+        const orgId = await resolveOrgId();
+        const orgHeaders = { headers: { "X-Organization-Id": orgId } };
+        const [loginsR, routerR, activityR] = await Promise.allSettled([
+          api.get<{
             items: {
               id: string;
-              mac_address: string;
-              authorization_type: string;
-              expires_at: string | null;
-              comment: string | null;
-              is_enabled: boolean;
+              user_id: string | null;
+              email: string;
+              ip_address: string;
+              success: boolean;
+              failure_reason: string | null;
+              created_at: string;
             }[];
-          }>("/mac-authorization/entries", {
-            params: { location_id: locationId, page: 1, page_size: 50 },
-            headers: { "X-Organization-Id": orgId },
-          });
-          return {
-            macAuth: data.items.map((e) => ({
-              id: e.id,
-              mac: e.mac_address,
-              type: e.authorization_type,
-              expiresAt: e.expires_at,
-              comment: e.comment,
-              enabled: e.is_enabled,
+          }>("/admin-logs/dashboard-logins", { params: { page_size: 50 }, ...orgHeaders }),
+          api.get<{
+            items: {
+              id: string;
+              location_name: string;
+              router_name: string;
+              event_type: string;
+              message: string | null;
+              is_error: boolean;
+              occurred_at: string;
+            }[];
+          }>("/admin-logs/router-events", { params: { page_size: 50 }, ...orgHeaders }),
+          // exclude_view_events=true drops the "*_viewed" read-only
+          // access-logging noise (billing/analytics dashboard loads --
+          // fired on effectively every page view) that would otherwise
+          // vastly outnumber and bury the real role/location/policy/etc.
+          // change events this section exists to show -- see
+          // repository.search_audit_log_entries's own docstring.
+          api.get<{
+            items: {
+              id: string;
+              action: string;
+              description: string | null;
+              actor_user_id: string | null;
+              entity_type: string;
+              created_at: string;
+            }[];
+          }>("/audit/entries", {
+            params: { page_size: 30, exclude_view_events: true },
+            ...orgHeaders,
+          }),
+        ]);
+        const logins = loginsR.status === "fulfilled" ? (loginsR.value.data?.items ?? []) : [];
+        const routerEvents =
+          routerR.status === "fulfilled" ? (routerR.value.data?.items ?? []) : [];
+        const activity =
+          activityR.status === "fulfilled" ? (activityR.value.data?.items ?? []) : [];
+        // Real login history already carries user_id <-> email pairs for
+        // this same org -- reuse it to show a human actor instead of a
+        // raw UUID (accountActivity itself only has actor_user_id). Not
+        // exhaustive (only actors who have ever logged in appear), so
+        // this stays a display nicety with a UUID fallback, never a
+        // fabricated name.
+        const actorEmailById = new Map(
+          logins.filter((l) => l.user_id).map((l) => [l.user_id as string, l.email]),
+        );
+        return {
+          adminLogs: {
+            dashboardLogins: logins.map((l) => ({
+              id: l.id,
+              email: l.email,
+              ipAddress: l.ip_address,
+              success: l.success,
+              failureReason: l.failure_reason,
+              time: timeAgo(l.created_at),
             })),
-          };
-        }
-        case "admin-logs": {
-          // Owner-only on the backend for all three sections below --
-          // dashboard-logins/router-events via app.domains.admin_logs
-          // .router's RequirePermission("audit_logs.read") + RequireRole
-          // ("organization-owner", ...) + RequireFeature; accountActivity
-          // (/audit/entries, the former standalone "Audit Log" tab's real
-          // data source) via app.domains.audit.router's own
-          // RequirePermission + the same RequireRole narrowing, added when
-          // this section was folded in here. An Agent session 403s on all
-          // three even if it somehow reaches this route (the sidebar/route
-          // guard already keep it from getting this far in the first
-          // place, see customerNav.ts/authGuards.ts). Each call is caught
-          // independently via allSettled rather than one try/catch, so one
-          // endpoint 403ing/erroring doesn't blank out the others -- and,
-          // deliberately, a failure here resolves to an *empty* section,
-          // never demo/fabricated log rows: this is a security audit
-          // trail, and a fake "who logged in"/"who changed what" row would
-          // be actively misleading, unlike the numeric placeholders every
-          // other feature's own demo fallback shows.
-          const orgId = await resolveOrgId();
-          const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-          const [loginsR, routerR, activityR] = await Promise.allSettled([
-            api.get<{
-              items: {
-                id: string;
-                user_id: string | null;
-                email: string;
-                ip_address: string;
-                success: boolean;
-                failure_reason: string | null;
-                created_at: string;
-              }[];
-            }>("/admin-logs/dashboard-logins", { params: { page_size: 50 }, ...orgHeaders }),
-            api.get<{
-              items: {
-                id: string;
-                location_name: string;
-                router_name: string;
-                event_type: string;
-                message: string | null;
-                is_error: boolean;
-                occurred_at: string;
-              }[];
-            }>("/admin-logs/router-events", { params: { page_size: 50 }, ...orgHeaders }),
-            // exclude_view_events=true drops the "*_viewed" read-only
-            // access-logging noise (billing/analytics dashboard loads --
-            // fired on effectively every page view) that would otherwise
-            // vastly outnumber and bury the real role/location/policy/etc.
-            // change events this section exists to show -- see
-            // repository.search_audit_log_entries's own docstring.
-            api.get<{
-              items: {
-                id: string;
-                action: string;
-                description: string | null;
-                actor_user_id: string | null;
-                entity_type: string;
-                created_at: string;
-              }[];
-            }>("/audit/entries", {
-              params: { page_size: 30, exclude_view_events: true },
-              ...orgHeaders,
-            }),
-          ]);
-          const logins = loginsR.status === "fulfilled" ? (loginsR.value.data?.items ?? []) : [];
-          const routerEvents =
-            routerR.status === "fulfilled" ? (routerR.value.data?.items ?? []) : [];
-          const activity =
-            activityR.status === "fulfilled" ? (activityR.value.data?.items ?? []) : [];
-          // Real login history already carries user_id <-> email pairs for
-          // this same org -- reuse it to show a human actor instead of a
-          // raw UUID (accountActivity itself only has actor_user_id). Not
-          // exhaustive (only actors who have ever logged in appear), so
-          // this stays a display nicety with a UUID fallback, never a
-          // fabricated name.
-          const actorEmailById = new Map(
-            logins.filter((l) => l.user_id).map((l) => [l.user_id as string, l.email]),
-          );
-          return {
-            adminLogs: {
-              dashboardLogins: logins.map((l) => ({
-                id: l.id,
-                email: l.email,
-                ipAddress: l.ip_address,
-                success: l.success,
-                failureReason: l.failure_reason,
-                time: timeAgo(l.created_at),
-              })),
-              routerLogs: routerEvents.map((e) => ({
-                id: e.id,
-                locationName: e.location_name,
-                routerName: e.router_name,
-                eventType: e.event_type,
-                message: e.message,
-                isError: e.is_error,
-                time: timeAgo(e.occurred_at),
-              })),
-              accountActivity: activity.map((a) => ({
-                id: a.id,
-                action: a.action,
-                description: a.description,
-                actor: a.actor_user_id
-                  ? (actorEmailById.get(a.actor_user_id) ?? a.actor_user_id)
-                  : "System",
-                entityType: a.entity_type,
-                time: timeAgo(a.created_at),
-              })),
-            },
-          };
-        }
-        default:
-          return {};
+            routerLogs: routerEvents.map((e) => ({
+              id: e.id,
+              locationName: e.location_name,
+              routerName: e.router_name,
+              eventType: e.event_type,
+              message: e.message,
+              isError: e.is_error,
+              time: timeAgo(e.occurred_at),
+            })),
+            accountActivity: activity.map((a) => ({
+              id: a.id,
+              action: a.action,
+              description: a.description,
+              actor: a.actor_user_id
+                ? (actorEmailById.get(a.actor_user_id) ?? a.actor_user_id)
+                : "System",
+              entityType: a.entity_type,
+              time: timeAgo(a.created_at),
+            })),
+          },
+        };
       }
-    } catch {
-      return getDemoFeatureData(feature);
+      default:
+        return {};
     }
   },
 

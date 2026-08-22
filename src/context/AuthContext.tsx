@@ -10,7 +10,13 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
 import { useCustomerStore } from "@/stores/customerStore";
-import { TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "@/services/api";
+import {
+  TOKEN_STORAGE_KEY,
+  REFRESH_TOKEN_STORAGE_KEY,
+  USER_STORAGE_KEY,
+  ROLES_STORAGE_KEY,
+  ORGS_STORAGE_KEY,
+} from "@/services/api";
 import type {
   AuthSession,
   LoginCredentials,
@@ -19,8 +25,11 @@ import type {
   User,
 } from "@/types/auth";
 
-export const ROLES_STORAGE_KEY = "cloudguest_roles";
-export const ORGS_STORAGE_KEY = "cloudguest_organizations";
+// Moved to services/api.ts so the request interceptor can read the stored
+// roles/memberships without importing this module (which would be an
+// import cycle). Re-exported here because several modules already import
+// them from this path.
+export { ROLES_STORAGE_KEY, ORGS_STORAGE_KEY };
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
