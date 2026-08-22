@@ -59,9 +59,24 @@ export interface FleetDiscoverResult {
   compatibility: FleetCompatibilityReport;
 }
 
+/** Which Step 1 bootstrap rendering to request -- mirrors the backend's
+ * `BootstrapMode` (`app/domains/network_config/constants.py`). `onsite` is
+ * the cleanup-first fresh-enrollment paste (the default); `remote` is the
+ * validate-first, scheduler-staged live cutover with a timed automatic
+ * revert, for re-provisioning a router whose existing WireGuard tunnel is
+ * also the management path. */
+export type FleetBootstrapMode = "onsite" | "remote";
+
 export interface FleetBootstrapScriptPreview {
   routerId: string;
   locationCode: string;
+  /** Echoes which rendering the server produced -- the UI must never show
+   * a script under a mode it was not generated for. */
+  mode: FleetBootstrapMode;
+  /** Remote mode only: how long the on-device automatic revert stays armed
+   * before restoring the previous tunnel if the cutover never confirms
+   * itself. `null` for on-site scripts. */
+  revertWindowMinutes: number | null;
   lines: string[];
   /** Newline-joined -- for on-screen display only. */
   script: string;
@@ -76,6 +91,27 @@ export interface FleetBootstrapScriptPreview {
   lineCount: number;
   tokenExpiresAt: string;
 }
+
+/** Client-derived remote-cutover progress, inferred from polling the
+ * router's WireGuard peer (`GET /routers/{id}/wireguard-peer`):
+ *
+ * - `awaiting_run`: script generated, the device has not checked in yet
+ *   (peer `rotationCount` unchanged from the pre-generation baseline).
+ * - `cutover_staged`: the device checked in -- the platform rotated the
+ *   peer in place (`rotationCount` bumped, `lastHandshakeAt` reset to
+ *   null) and the on-device scheduler will fire the cutover; the new
+ *   tunnel has not handshaked yet.
+ * - `confirmed`: the rotated peer reported a handshake -- the replacement
+ *   tunnel reached the hub.
+ * - `presumed_reverted`: the revert window elapsed after the cutover was
+ *   staged without any handshake -- the device should have restored its
+ *   previous tunnel automatically. The API has no explicit revert signal,
+ *   so this is a client-side inference, stated as such in the UI. */
+export type FleetRemoteCutoverPhase =
+  | "awaiting_run"
+  | "cutover_staged"
+  | "confirmed"
+  | "presumed_reverted";
 
 export interface FleetVerificationCheck {
   name: string;
