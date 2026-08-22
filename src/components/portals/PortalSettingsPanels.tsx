@@ -104,7 +104,11 @@ export function PortalSeoPanel({ portal }: { portal: Portal }) {
   });
   const titleValue = watch("pageTitle") ?? "";
   const descValue = watch("metaDescription") ?? "";
-  const titleBlocked = splashOverLimitBlocked(titleValue, SPLASH_HEADLINE_MAX, portal.seo.pageTitle);
+  const titleBlocked = splashOverLimitBlocked(
+    titleValue,
+    SPLASH_HEADLINE_MAX,
+    portal.seo.pageTitle,
+  );
   const descBlocked = splashOverLimitBlocked(
     descValue,
     SPLASH_WELCOME_MAX,

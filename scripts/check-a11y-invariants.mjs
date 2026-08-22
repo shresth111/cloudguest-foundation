@@ -404,7 +404,8 @@ if (otpFontSize) {
   check(
     "otp-font-size",
     parseFloat(otpFontSize) >= MIN_INPUT_REM,
-    `${OTP_COMPONENT}: the OTP input is ${otpFontSize}rem; v7 §8.2 requires >= ${MIN_INPUT_REM}rem (16px)`,  );
+    `${OTP_COMPONENT}: the OTP input is ${otpFontSize}rem; v7 §8.2 requires >= ${MIN_INPUT_REM}rem (16px)`,
+  );
 }
 
 // ---------------------------------------------------------------------------

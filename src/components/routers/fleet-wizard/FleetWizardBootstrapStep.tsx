@@ -48,7 +48,9 @@ export function FleetWizardBootstrapStep({
       <div>
         <h3 className="text-lg font-semibold">Bootstrap on the device</h3>
         <p className="text-sm text-muted-foreground">
-          Paste this server-rendered script once in WinBox or SSH before discovery. Copy it with the button — it is joined onto one line on purpose, because RouterOS gives each pasted line its own scope and a line-by-line paste makes every field check fail. It enrolls the
+          Paste this server-rendered script once in WinBox or SSH before discovery. Copy it with the
+          button — it is joined onto one line on purpose, because RouterOS gives each pasted line
+          its own scope and a line-by-line paste makes every field check fail. It enrolls the
           router, brings up WireGuard, and pulls the first config — the embedded token is shown only
           this once.
         </p>

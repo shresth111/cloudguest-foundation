@@ -56,7 +56,8 @@ export function useUpdatePortal(id: string, organizationId?: string) {
     // src/lib/splash-limits.ts) gets its specific, actionable message --
     // the client-side gates should prevent it, but an older tab can still
     // race a save through. Everything else keeps the generic path.
-    onError: (e: Error) => toast.error(splashLimitErrorMessage(e) ?? (e.message || "Update failed")),
+    onError: (e: Error) =>
+      toast.error(splashLimitErrorMessage(e) ?? (e.message || "Update failed")),
   });
 }
 

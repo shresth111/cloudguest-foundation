@@ -226,9 +226,7 @@ export function RouterFleetSetupWizard({
   const [wanPreview, setWanPreview] = useState<string | null>(null);
   const [applyJobId, setApplyJobId] = useState<string | null>(null);
   const [verification, setVerification] = useState<FleetWanVerificationResult | null>(null);
-  const [completedThrough, setCompletedThrough] = useState(
-    bootstrapRequired ? -1 : STEP.bootstrap,
-  );
+  const [completedThrough, setCompletedThrough] = useState(bootstrapRequired ? -1 : STEP.bootstrap);
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
   const [lanBridge, setLanBridge] = useState("bridge1");
   const [guestRequest, setGuestRequest] = useState<FleetGuestNetworkRequest>(DEFAULT_GUEST_REQUEST);
@@ -586,7 +584,8 @@ export function RouterFleetSetupWizard({
     if (step === STEP.bootstrap) {
       return bootstrapConfirmed || !bootstrapRequired;
     }
-    if (step === STEP.discover) return !!discoverResult && discoverResult.snapshot.status !== "failed";
+    if (step === STEP.discover)
+      return !!discoverResult && discoverResult.snapshot.status !== "failed";
     if (step === STEP.compatibility) return !!compatibility && compatibility.overall !== "BLOCKED";
     if (step === STEP.wanInput) return savedLinkIds.length > 0;
     if (step === STEP.wanApply) {

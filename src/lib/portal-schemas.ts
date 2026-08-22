@@ -1,9 +1,5 @@
 import { z } from "zod";
-import {
-  SPLASH_HEADLINE_MAX,
-  SPLASH_WELCOME_MAX,
-  countSplashLength,
-} from "@/lib/splash-limits";
+import { SPLASH_HEADLINE_MAX, SPLASH_WELCOME_MAX, countSplashLength } from "@/lib/splash-limits";
 
 export const portalBasicsSchema = z.object({
   name: z.string().min(3, "Name is required"),

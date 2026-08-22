@@ -94,9 +94,7 @@ await build({
   ],
 });
 
-const { buildRouterSetupScriptChunks } = await import(
-  pathToFileURL(join(work, "bundle.mjs")).href
-);
+const { buildRouterSetupScriptChunks } = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 const chunks = buildRouterSetupScriptChunks({
   apiBase: "https://api.example.test/api/v1",
@@ -148,9 +146,7 @@ if (firewall && wg) {
 
   // 2. First provisioning: the management accept rule is inserted with
   //    place-before, never appended blind.
-  const placeBefore = wg.script.indexOf(
-    `comment="${ALLOW}" place-before=$wanDropRule`,
-  );
+  const placeBefore = wg.script.indexOf(`comment="${ALLOW}" place-before=$wanDropRule`);
   check(
     "accept rule is inserted with place-before=$wanDropRule",
     placeBefore !== -1,
@@ -165,18 +161,12 @@ if (firewall && wg) {
     .map((l, i) => ({ l, i }))
     .filter(
       ({ l }) =>
-        l.includes(`comment="${ALLOW}"`) &&
-        l.includes(" add ") &&
-        !l.includes("place-before"),
+        l.includes(`comment="${ALLOW}"`) && l.includes(" add ") && !l.includes("place-before"),
     );
-  const placeBeforeLine = lines.findIndex((l) =>
-    l.includes("place-before=$wanDropRule"),
-  );
+  const placeBeforeLine = lines.findIndex((l) => l.includes("place-before=$wanDropRule"));
   check(
     "exactly one plain-add fallback, placed after the place-before add",
-    plainAddLines.length === 1 &&
-      placeBeforeLine !== -1 &&
-      plainAddLines[0].i > placeBeforeLine,
+    plainAddLines.length === 1 && placeBeforeLine !== -1 && plainAddLines[0].i > placeBeforeLine,
     `plain adds at lines ${JSON.stringify(plainAddLines.map((x) => x.i))}, place-before add at line ${placeBeforeLine}`,
   );
 

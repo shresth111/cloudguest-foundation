@@ -13,7 +13,7 @@ function Page() {
         title="Authentication Policies"
         description="Central rules for OTP retries, SMS gateway routing, social provider preference and MFA enforcement."
         icon={KeyRound}
-        bullets={["OTP retry budgets","Provider preference","MFA enforcement"]}
+        bullets={["OTP retry budgets", "Provider preference", "MFA enforcement"]}
       />
     </PageShell>
   );

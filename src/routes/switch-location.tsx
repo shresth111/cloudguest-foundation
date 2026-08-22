@@ -449,7 +449,9 @@ function CustomerHomePage() {
     setSelectedDeviceIds(allVisibleSelected ? [] : filteredDevices.map((d) => d.id));
   const clearDeviceSelection = () => setSelectedDeviceIds([]);
   const runBulkAction = (label: string) => {
-    toast.success(`${label} — ${selectedDevices.length} device${selectedDevices.length === 1 ? "" : "s"}`);
+    toast.success(
+      `${label} — ${selectedDevices.length} device${selectedDevices.length === 1 ? "" : "s"}`,
+    );
     clearDeviceSelection();
   };
   const exportSelectedDevices = () => {
@@ -457,7 +459,9 @@ function CustomerHomePage() {
       ["Name", "MAC", "Type", "Floor", "Status"],
       ...selectedDevices.map((d) => [d.name, d.mac, d.type, d.floor, d.status]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a");
     a.href = url;
@@ -466,7 +470,6 @@ function CustomerHomePage() {
     URL.revokeObjectURL(url);
     toast.success(`Exported ${selectedDevices.length} devices`);
   };
-
 
   const totalLocations = (locations ?? []).length;
   const onlineLocations = (locations ?? []).filter((l) => l.status === "online").length;
@@ -583,7 +586,6 @@ function CustomerHomePage() {
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         </header>
@@ -639,7 +641,6 @@ function CustomerHomePage() {
                       <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                   ) : (
-
                     <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45 sm:block">
                       /
                     </kbd>
@@ -650,7 +651,6 @@ function CustomerHomePage() {
                   onClick={() => setAddLocationOpen(true)}
                   className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
-
                   <Plus className="h-4 w-4" /> Add location
                 </button>
               </div>
@@ -673,7 +673,6 @@ function CustomerHomePage() {
                   ))}
                 </div>
               )}
-
 
               <div className="mt-6 flex items-center gap-2 text-sm text-white/60">
                 <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
@@ -725,7 +724,6 @@ function CustomerHomePage() {
                 {query ? " matching" : ""}
               </span>
             )}
-
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-xs text-white/50">
@@ -748,7 +746,6 @@ function CustomerHomePage() {
               onClick={() => setDeviceSheetOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
-
               <Radio className="h-3.5 w-3.5" /> Device health
               {totalDownAcrossLocations > 0 && (
                 <span className="rounded-full bg-rose-500/20 px-1.5 text-[10px] font-semibold text-rose-300">
@@ -811,7 +808,6 @@ function CustomerHomePage() {
                   <X className="h-3.5 w-3.5" aria-hidden="true" /> Clear search
                 </button>
               </div>
-
             ) : (
               filtered.map((loc, i) => {
                 const LocationIcon = businessTypeIcon(loc.propertyType);
@@ -898,7 +894,6 @@ function CustomerHomePage() {
                       />
                     </button>
 
-
                     <div className="flex items-start gap-3">
                       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm shadow-indigo-500/20">
                         <LocationIcon className="h-5 w-5 text-white" />
@@ -910,7 +905,6 @@ function CustomerHomePage() {
                         <p className="text-xs text-white/50">
                           <HighlightedText text={loc.city} query={query} /> · {loc.organizationName}
                         </p>
-
                       </div>
                     </div>
 
@@ -1026,7 +1020,6 @@ function CustomerHomePage() {
         </span>
       </footer>
 
-
       {/* Device Monitoring -- moved into a drawer instead of a permanently
        * open, full-width section: it's genuinely different data (per-device,
        * not per-location) and competing with the venue grid for the same
@@ -1080,8 +1073,8 @@ function CustomerHomePage() {
               </div>
               <p className="mt-4 text-base font-semibold text-white">No hardware here yet</p>
               <p className="mt-1.5 max-w-sm text-sm text-white/50">
-                Once you add an access point or router to this venue, its floor map, live status
-                and CPU health will appear right here.
+                Once you add an access point or router to this venue, its floor map, live status and
+                CPU health will appear right here.
               </p>
               <button
                 type="button"
@@ -1094,380 +1087,388 @@ function CustomerHomePage() {
             </div>
           ) : (
             <>
-          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {/* Only floors that actually hold hardware -- disabled "No devices"
-             * tiles were pure noise and unclickable by design. */}
-            {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
-              const onFloor = devices.filter((d) => d.floor === f);
-
-              const down = onFloor.filter((d) => d.status === "down").length;
-              const up = onFloor.filter((d) => d.status === "up").length;
-              const typesHere = Array.from(new Set(onFloor.map((d) => d.type)));
-              const floorActive = floorFilter === f;
-              return (
-                <button
-                  key={f}
-                  type="button"
-                  title={`Filter: floor ${f}`}
-                  aria-pressed={floorActive}
-                  onClick={() => setFloorFilter(floorActive ? null : f)}
-                  className={cn(
-                    "group cursor-pointer rounded-xl border p-3 text-left backdrop-blur-sm transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-                    floorActive
-                      ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 ring-1 ring-[#6C4EFF]/40"
-                      : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
-                  )}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm font-bold text-white">{f}</p>
-                    <p className="text-[11px] tabular-nums text-white/40">
-                      {onFloor.length} {onFloor.length === 1 ? "device" : "devices"}
-                    </p>
-                  </div>
-
-                  {/* Health bar reads faster than a sentence: green = up, red = down. */}
-                  <div className="mt-2 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-white/10">
-                    {onFloor.map((d) => (
-                      <span
-                        key={d.id}
-                        className={cn(
-                          "h-full flex-1 rounded-full",
-                          d.status === "up"
-                            ? "bg-emerald-500"
-                            : d.status === "down"
-                              ? "bg-rose-500"
-                              : "bg-white/25",
-                        )}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <p
-                      className={cn(
-                        "text-xs",
-                        down > 0 ? "font-medium text-rose-400" : "text-white/45",
-                      )}
-                    >
-                      {down > 0 ? `${down} down` : `${up} online`}
-                    </p>
-                    {typesHere.length > 0 && (
-                      <span className="flex items-center gap-1 text-white/40">
-                        {typesHere.map((t) => {
-                          const Icon = DEVICE_TYPE_ICON[t];
-                          return <Icon key={t} className="h-3 w-3" aria-hidden="true" />;
-                        })}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
-            <div className="mb-3 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-white/50">
-                    {downCount} of {devices.length} devices down
-                  </p>
-                  {(typeFilter || floorFilter || deviceSearch) && (
-                    <span className="rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-200">
-                      {filteredDevices.length} shown
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {(typeFilter || floorFilter || deviceSearch) && (
-                    <button
-                      type="button"
-                      aria-label="Clear all device filters"
-                      onClick={() => {
-                        setTypeFilter(null);
-                        setFloorFilter(null);
-                        setDeviceSearch("");
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" /> Clear all
-                    </button>
-                  )}
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
-                    <Input
-                      placeholder="Search device or MAC…"
-                      value={deviceSearch}
-                      onChange={(e) => setDeviceSearch(e.target.value)}
-                      className="h-8 w-full border-white/15 bg-white/5 pl-8 text-xs text-white placeholder:text-white/40 sm:w-56"
-                    />
-                    {deviceSearch && (
-                      <button
-                        type="button"
-                        aria-label="Clear device search"
-                        onClick={() => setDeviceSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/60"
-                      >
-                        <X className="h-3 w-3" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Device type filter chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium text-white/40">Type:</span>
-                {DEVICE_TYPES.map((type) => {
-                  const count = devices.filter((d) => d.type === type).length;
-                  const Icon = DEVICE_TYPE_ICON[type];
-                  const active = typeFilter === type;
-                  if (count === 0) return null;
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      aria-pressed={active}
-                      aria-label={`Filter by ${type} (${count})`}
-                      onClick={() => setTypeFilter(active ? null : type)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-                        active
-                          ? cn("ring-1", DEVICE_TYPE_ACTIVE_TINT[type])
-                          : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
-                      )}
-                    >
-                      <Icon className="h-3 w-3" aria-hidden="true" />
-                      {type}
-                      <span className="ml-0.5 text-[10px] opacity-70">{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Floor filter chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium text-white/40">Floor:</span>
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {/* Only floors that actually hold hardware -- disabled "No devices"
+                 * tiles were pure noise and unclickable by design. */}
                 {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
-                  const count = devices.filter((d) => d.floor === f).length;
-                  const active = floorFilter === f;
+                  const onFloor = devices.filter((d) => d.floor === f);
+
+                  const down = onFloor.filter((d) => d.status === "down").length;
+                  const up = onFloor.filter((d) => d.status === "up").length;
+                  const typesHere = Array.from(new Set(onFloor.map((d) => d.type)));
+                  const floorActive = floorFilter === f;
                   return (
                     <button
                       key={f}
                       type="button"
-                      aria-pressed={active}
-                      aria-label={`Filter by floor ${f} (${count})`}
-                      onClick={() => setFloorFilter(active ? null : f)}
+                      title={`Filter: floor ${f}`}
+                      aria-pressed={floorActive}
+                      onClick={() => setFloorFilter(floorActive ? null : f)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-                        active
-                          ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 text-indigo-200 ring-1 ring-[#6C4EFF]/40"
-                          : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
+                        "group cursor-pointer rounded-xl border p-3 text-left backdrop-blur-sm transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                        floorActive
+                          ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 ring-1 ring-[#6C4EFF]/40"
+                          : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
                       )}
                     >
-                      {f}
-                      <span className="text-[10px] opacity-70">{count}</span>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-sm font-bold text-white">{f}</p>
+                        <p className="text-[11px] tabular-nums text-white/40">
+                          {onFloor.length} {onFloor.length === 1 ? "device" : "devices"}
+                        </p>
+                      </div>
+
+                      {/* Health bar reads faster than a sentence: green = up, red = down. */}
+                      <div className="mt-2 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-white/10">
+                        {onFloor.map((d) => (
+                          <span
+                            key={d.id}
+                            className={cn(
+                              "h-full flex-1 rounded-full",
+                              d.status === "up"
+                                ? "bg-emerald-500"
+                                : d.status === "down"
+                                  ? "bg-rose-500"
+                                  : "bg-white/25",
+                            )}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p
+                          className={cn(
+                            "text-xs",
+                            down > 0 ? "font-medium text-rose-400" : "text-white/45",
+                          )}
+                        >
+                          {down > 0 ? `${down} down` : `${up} online`}
+                        </p>
+                        {typesHere.length > 0 && (
+                          <span className="flex items-center gap-1 text-white/40">
+                            {typesHere.map((t) => {
+                              const Icon = DEVICE_TYPE_ICON[t];
+                              return <Icon key={t} className="h-3 w-3" aria-hidden="true" />;
+                            })}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
               </div>
-            </div>
-            {visibleSelectedIds.length > 0 && (
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#6C4EFF]/40 bg-[#6C4EFF]/10 px-3 py-2">
-                <span className="text-xs font-semibold text-indigo-100">
-                  {visibleSelectedIds.length} selected
-                </span>
-                <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                  {[
-                    { label: "Restart", icon: RefreshCw },
-                    { label: "Mark for maintenance", icon: HardDrive },
-                  ].map(({ label, icon: Icon }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => runBulkAction(label)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                    >
-                      <Icon className="h-3 w-3" aria-hidden="true" />
-                      {label}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={exportSelectedDevices}
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                  >
-                    Export CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearDeviceSelection}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-white/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                  >
-                    <X className="h-3 w-3" aria-hidden="true" /> Clear
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/[0.03] text-left text-xs font-medium uppercase tracking-wide text-white/40">
-                    <th className="px-3 py-2">
-                      <Checkbox
-                        aria-label="Select all devices"
-                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
-                        onCheckedChange={toggleSelectAllVisible}
-                        disabled={filteredDevices.length === 0}
-                        className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
-                      />
-                    </th>
-                    <th className="px-3 py-2">#</th>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">MAC ID</th>
-                    <th className="px-3 py-2">Device</th>
-                    <th className="px-3 py-2">Floor</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Status Since</th>
-                    <th className="px-3 py-2">CPU Usage</th>
-                    <th className="px-3 py-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDevices.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="py-8 text-center text-xs text-white/40">
 
-                        {devices.length === 0
-                          ? "No hardware set up here yet — add your first device from this location's Devices page."
-                          : "Nothing matches that search. Check the spelling or clear your filters."}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredDevices.map((d, i) => {
-                      const TypeIcon = DEVICE_TYPE_ICON[d.type];
-                      // No real CPU/load telemetry exists for arbitrary
-                      // monitored hardware (see monitored_hardware's own
-                      // module docstring) -- deriveCpu's random-from-MAC
-                      // value stays demo-only, real accounts honestly show
-                      // "—" via the existing cpu === null fallback below.
-                      const cpu =
-                        isDemo() && d.status !== "unknown" ? deriveCpu(d.mac, d.status) : null;
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
+                <div className="mb-3 flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-white/50">
+                        {downCount} of {devices.length} devices down
+                      </p>
+                      {(typeFilter || floorFilter || deviceSearch) && (
+                        <span className="rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-200">
+                          {filteredDevices.length} shown
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(typeFilter || floorFilter || deviceSearch) && (
+                        <button
+                          type="button"
+                          aria-label="Clear all device filters"
+                          onClick={() => {
+                            setTypeFilter(null);
+                            setFloorFilter(null);
+                            setDeviceSearch("");
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                        >
+                          <X className="h-3 w-3" aria-hidden="true" /> Clear all
+                        </button>
+                      )}
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
+                        <Input
+                          placeholder="Search device or MAC…"
+                          value={deviceSearch}
+                          onChange={(e) => setDeviceSearch(e.target.value)}
+                          className="h-8 w-full border-white/15 bg-white/5 pl-8 text-xs text-white placeholder:text-white/40 sm:w-56"
+                        />
+                        {deviceSearch && (
+                          <button
+                            type="button"
+                            aria-label="Clear device search"
+                            onClick={() => setDeviceSearch("")}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/60"
+                          >
+                            <X className="h-3 w-3" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Device type filter chips */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-medium text-white/40">Type:</span>
+                    {DEVICE_TYPES.map((type) => {
+                      const count = devices.filter((d) => d.type === type).length;
+                      const Icon = DEVICE_TYPE_ICON[type];
+                      const active = typeFilter === type;
+                      if (count === 0) return null;
                       return (
-                        <tr
-                          key={d.id}
-                          data-state={visibleSelectedIds.includes(d.id) ? "selected" : undefined}
+                        <button
+                          key={type}
+                          type="button"
+                          aria-pressed={active}
+                          aria-label={`Filter by ${type} (${count})`}
+                          onClick={() => setTypeFilter(active ? null : type)}
                           className={cn(
-                            "border-b border-white/5 last:border-0 hover:bg-white/[0.04]",
-                            visibleSelectedIds.includes(d.id) && "bg-[#6C4EFF]/10",
+                            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                            active
+                              ? cn("ring-1", DEVICE_TYPE_ACTIVE_TINT[type])
+                              : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
                           )}
                         >
-                          <td className="px-3 py-2">
-                            <Checkbox
-                              aria-label={`Select ${d.name}`}
-                              checked={visibleSelectedIds.includes(d.id)}
-                              onCheckedChange={() => toggleDeviceSelected(d.id)}
-                              className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
-                            />
+                          <Icon className="h-3 w-3" aria-hidden="true" />
+                          {type}
+                          <span className="ml-0.5 text-[10px] opacity-70">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Floor filter chips */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-medium text-white/40">Floor:</span>
+                    {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
+                      const count = devices.filter((d) => d.floor === f).length;
+                      const active = floorFilter === f;
+                      return (
+                        <button
+                          key={f}
+                          type="button"
+                          aria-pressed={active}
+                          aria-label={`Filter by floor ${f} (${count})`}
+                          onClick={() => setFloorFilter(active ? null : f)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                            active
+                              ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 text-indigo-200 ring-1 ring-[#6C4EFF]/40"
+                              : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
+                          )}
+                        >
+                          {f}
+                          <span className="text-[10px] opacity-70">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {visibleSelectedIds.length > 0 && (
+                  <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#6C4EFF]/40 bg-[#6C4EFF]/10 px-3 py-2">
+                    <span className="text-xs font-semibold text-indigo-100">
+                      {visibleSelectedIds.length} selected
+                    </span>
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                      {[
+                        { label: "Restart", icon: RefreshCw },
+                        { label: "Mark for maintenance", icon: HardDrive },
+                      ].map(({ label, icon: Icon }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => runBulkAction(label)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                        >
+                          <Icon className="h-3 w-3" aria-hidden="true" />
+                          {label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={exportSelectedDevices}
+                        className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                      >
+                        Export CSV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearDeviceSelection}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-white/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                      >
+                        <X className="h-3 w-3" aria-hidden="true" /> Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/[0.03] text-left text-xs font-medium uppercase tracking-wide text-white/40">
+                        <th className="px-3 py-2">
+                          <Checkbox
+                            aria-label="Select all devices"
+                            checked={
+                              allVisibleSelected
+                                ? true
+                                : someVisibleSelected
+                                  ? "indeterminate"
+                                  : false
+                            }
+                            onCheckedChange={toggleSelectAllVisible}
+                            disabled={filteredDevices.length === 0}
+                            className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
+                          />
+                        </th>
+                        <th className="px-3 py-2">#</th>
+                        <th className="px-3 py-2">Name</th>
+                        <th className="px-3 py-2">MAC ID</th>
+                        <th className="px-3 py-2">Device</th>
+                        <th className="px-3 py-2">Floor</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Status Since</th>
+                        <th className="px-3 py-2">CPU Usage</th>
+                        <th className="px-3 py-2 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDevices.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-xs text-white/40">
+                            {devices.length === 0
+                              ? "No hardware set up here yet — add your first device from this location's Devices page."
+                              : "Nothing matches that search. Check the spelling or clear your filters."}
                           </td>
-                          <td className="px-3 py-2 text-xs text-white/40">{i + 1}</td>
-                          <td className="px-3 py-2 text-xs font-medium text-white">{d.name}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-white/50">{d.mac}</td>
-                          <td className="px-3 py-2 text-xs text-white/50">
-                            <button
-                              type="button"
-                              title={`Filter: ${d.type}`}
-                              onClick={() => setTypeFilter(typeFilter === d.type ? null : d.type)}
-                              className="group inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-white/10 hover:text-white"
-                            >
-                              <TypeIcon className="h-3.5 w-3.5 text-indigo-300 transition-transform group-hover:scale-125" />
-                              {d.type}
-                            </button>
-                          </td>
-                          <td className="px-3 py-2 text-xs text-white/50">{d.floor}</td>
-                          <td className="px-3 py-2">
-                            <span
+                        </tr>
+                      ) : (
+                        filteredDevices.map((d, i) => {
+                          const TypeIcon = DEVICE_TYPE_ICON[d.type];
+                          // No real CPU/load telemetry exists for arbitrary
+                          // monitored hardware (see monitored_hardware's own
+                          // module docstring) -- deriveCpu's random-from-MAC
+                          // value stays demo-only, real accounts honestly show
+                          // "—" via the existing cpu === null fallback below.
+                          const cpu =
+                            isDemo() && d.status !== "unknown" ? deriveCpu(d.mac, d.status) : null;
+                          return (
+                            <tr
+                              key={d.id}
+                              data-state={
+                                visibleSelectedIds.includes(d.id) ? "selected" : undefined
+                              }
                               className={cn(
-                                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                                d.status === "up"
-                                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                                  : d.status === "down"
-                                    ? "border-rose-500/20 bg-rose-500/10 text-rose-400"
-                                    : "border-white/15 bg-white/5 text-white/50",
+                                "border-b border-white/5 last:border-0 hover:bg-white/[0.04]",
+                                visibleSelectedIds.includes(d.id) && "bg-[#6C4EFF]/10",
                               )}
                             >
-                              <span className="relative flex h-1.5 w-1.5">
-                                {d.status === "up" && (
-                                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                                )}
+                              <td className="px-3 py-2">
+                                <Checkbox
+                                  aria-label={`Select ${d.name}`}
+                                  checked={visibleSelectedIds.includes(d.id)}
+                                  onCheckedChange={() => toggleDeviceSelected(d.id)}
+                                  className="border-white/30 data-[state=checked]:border-[#6C4EFF] data-[state=checked]:bg-[#6C4EFF]"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-xs text-white/40">{i + 1}</td>
+                              <td className="px-3 py-2 text-xs font-medium text-white">{d.name}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-white/50">{d.mac}</td>
+                              <td className="px-3 py-2 text-xs text-white/50">
+                                <button
+                                  type="button"
+                                  title={`Filter: ${d.type}`}
+                                  onClick={() =>
+                                    setTypeFilter(typeFilter === d.type ? null : d.type)
+                                  }
+                                  className="group inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-white/10 hover:text-white"
+                                >
+                                  <TypeIcon className="h-3.5 w-3.5 text-indigo-300 transition-transform group-hover:scale-125" />
+                                  {d.type}
+                                </button>
+                              </td>
+                              <td className="px-3 py-2 text-xs text-white/50">{d.floor}</td>
+                              <td className="px-3 py-2">
                                 <span
                                   className={cn(
-                                    "relative inline-flex h-1.5 w-1.5 rounded-full",
+                                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
                                     d.status === "up"
-                                      ? "bg-emerald-500"
+                                      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
                                       : d.status === "down"
-                                        ? "bg-rose-500"
-                                        : "bg-white/30",
+                                        ? "border-rose-500/20 bg-rose-500/10 text-rose-400"
+                                        : "border-white/15 bg-white/5 text-white/50",
                                   )}
-                                />
-                              </span>
-                              {d.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-xs text-white/50">
-                            {d.status === "up"
-                              ? "Up"
-                              : d.status === "down"
-                                ? "Down"
-                                : "Never observed"}
-                            {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
-                          </td>
-                          <td className="px-3 py-2">
-                            {cpu === null ? (
-                              <span className="text-xs text-white/40">—</span>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/10">
-                                  <div
-                                    className={cn(
-                                      "h-full rounded-full",
-                                      cpu >= 80
-                                        ? "bg-rose-500"
-                                        : cpu >= 50
-                                          ? "bg-amber-500"
-                                          : "bg-emerald-500",
+                                >
+                                  <span className="relative flex h-1.5 w-1.5">
+                                    {d.status === "up" && (
+                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
                                     )}
-                                    style={{ width: `${cpu}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs tabular-nums text-white/50">{cpu}%</span>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              aria-label={`View history for ${d.name}`}
-                              onClick={() => toast.success(`History for ${d.name}`)}
-                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                            >
-                              <Eye className="h-3 w-3" aria-hidden="true" />
-                              View
-                            </button>
-                          </td>
-
-
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                                    <span
+                                      className={cn(
+                                        "relative inline-flex h-1.5 w-1.5 rounded-full",
+                                        d.status === "up"
+                                          ? "bg-emerald-500"
+                                          : d.status === "down"
+                                            ? "bg-rose-500"
+                                            : "bg-white/30",
+                                      )}
+                                    />
+                                  </span>
+                                  {d.status.toUpperCase()}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-xs text-white/50">
+                                {d.status === "up"
+                                  ? "Up"
+                                  : d.status === "down"
+                                    ? "Down"
+                                    : "Never observed"}
+                                {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
+                              </td>
+                              <td className="px-3 py-2">
+                                {cpu === null ? (
+                                  <span className="text-xs text-white/40">—</span>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/10">
+                                      <div
+                                        className={cn(
+                                          "h-full rounded-full",
+                                          cpu >= 80
+                                            ? "bg-rose-500"
+                                            : cpu >= 50
+                                              ? "bg-amber-500"
+                                              : "bg-emerald-500",
+                                        )}
+                                        style={{ width: `${cpu}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs tabular-nums text-white/50">
+                                      {cpu}%
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <button
+                                  type="button"
+                                  aria-label={`View history for ${d.name}`}
+                                  onClick={() => toast.success(`History for ${d.name}`)}
+                                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                >
+                                  <Eye className="h-3 w-3" aria-hidden="true" />
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </>
           )}
-
         </SheetContent>
       </Sheet>
 

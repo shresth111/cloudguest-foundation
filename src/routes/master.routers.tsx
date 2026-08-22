@@ -134,7 +134,11 @@ function ControlButton({
 
 function RouterFleetScreen() {
   const navigate = useNavigate();
-  const { open: openRouterId, setup: setupRouterId, advanced: advancedRouterId } = Route.useSearch();
+  const {
+    open: openRouterId,
+    setup: setupRouterId,
+    advanced: advancedRouterId,
+  } = Route.useSearch();
   const advancedId = advancedRouterId ?? setupRouterId;
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
@@ -239,9 +243,7 @@ function RouterFleetScreen() {
       <MPageShell>
         <MSectionHeader
           eyebrow="Infrastructure"
-          title={
-            advancedRouter ? `Advanced setup script — ${advancedRouter.name}` : "Router Fleet"
-          }
+          title={advancedRouter ? `Advanced setup script — ${advancedRouter.name}` : "Router Fleet"}
           actions={
             advancedRouter ? (
               <MButton variant="outline" onClick={backToFleet}>

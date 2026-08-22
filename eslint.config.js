@@ -6,7 +6,18 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  {
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      // Stale agent worktrees are full copies of src/. Without this,
+      // eslint walks ~2,900 phantom files and reports 67,000 problems,
+      // which makes the real signal (a few hundred, all auto-fixable)
+      // impossible to see and makes lint useless as a gate.
+      ".claude",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

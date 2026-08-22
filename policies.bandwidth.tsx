@@ -13,7 +13,7 @@ function Page() {
         title="Bandwidth Policies"
         description="Reusable bandwidth templates: cap, burst, DSCP marks and per-VLAN queue shaping."
         icon={Gauge}
-        bullets={["Cap & burst","DSCP mapping","Per-VLAN queues"]}
+        bullets={["Cap & burst", "DSCP mapping", "Per-VLAN queues"]}
       />
     </PageShell>
   );
