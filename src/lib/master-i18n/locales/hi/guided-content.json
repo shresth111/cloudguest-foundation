@@ -1,6 +1,1161 @@
 {
   "_comment": "Hindi (Devanagari) overrides for phases.content.ts / diagnostics.content.ts. EMPTY ON PURPOSE FOR NOW: the content translation is sequenced after the output-analyser work lands in those two files, so this file ships as the wired-up, verified mechanism and nothing else. Shape (see content-i18n.ts, which is the type-level source of truth): { \"phases\": { \"<phase.id>\": { \"title\", \"why\", \"stopGate\", \"paste\": { \"<index>\": { \"label\" } }, \"checks\": { \"<check.id>\": { \"label\", \"failFix\": { \"<index>\": { \"when\", \"note\" } } } } } }, \"symptoms\": { \"<symptom.id>\": { \"seen\", \"causes\": { \"<index>\": { \"tell\", \"cause\", \"note\" } } } }, \"assertions\": { \"<check.id>\": { \"fallback\", \"rules\": { \"<index>\": { \"why\" } } } } }. There is deliberately NO key for command, expect, assert, script, probe or fix -- those must stay byte-identical in every locale, and the absence of a key is what makes that true rather than a rule someone has to remember. scripts/check-guided-i18n.mjs enforces the rest.",
-  "phases": {},
-  "symptoms": {},
-  "assertions": {}
+  "phases": {
+    "audit": {
+      "title": "Router साफ़ है या नहीं",
+      "why": "पुराना provisioning बचा हो तो नई setting उसके ऊपर चढ़ जाती है और गलत org/location IDs चलते रहते हैं।",
+      "stopGate": "अगर CLEAN नहीं आया तो रुक जाओ और reset करो — पुराने config के ऊपर setup करोगे तो guests को पुराना portal दिखेगा और घंटों debug करना पड़ेगा।",
+      "paste": {
+        "0": {
+          "label": "Router audit — पुराना config ढूंढो"
+        }
+      },
+      "checks": {
+        "audit-clean": {
+          "label": "Router पे कोई पुराना Wyfy config तो नहीं",
+          "commandLabel": "(ऊपर वाला block चलाओ)",
+          "expectLabel": "RESULT: CLEAN -- ये router factory-fresh है, आगे बढ़ो",
+          "failFix": {
+            "0": {
+              "whenLabel": "RESULT: PURANA CONFIG MILA आया",
+              "note": "Router reboot होगा और connection टूट जाएगा — ये normal है। 2 मिनट रुको, फिर WinBox में MAC से दोबारा connect करो और ये audit दोबारा चलाओ। अब CLEAN आना चाहिए।"
+            },
+            "1": {
+              "whenLabel": "पुरानी FILES/FOLDER मिली, जैसे flash/cloudguest-hotspot/",
+              "note": "July वाले provisioning का बचा हुआ folder है। इसमें पुराने org/location/router ID वाले portal links हैं जो आज भी guests को गलत जगह भेजेंगे। सिर्फ़ files delete करना काफ़ी नहीं — पूरा reset करो।"
+            },
+            "2": {
+              "whenLabel": "Reset के बाद भी router नहीं मिल रहा",
+              "note": "Laptop का cable ether2 में डालो (ether1 नहीं — वो internet के लिए है)। WinBox खोलो, 'Neighbors' tab में MAC address पे click करो, login admin / password खाली।"
+            }
+          }
+        }
+      }
+    },
+    "clock": {
+      "title": "Internet और घड़ी",
+      "why": "hEX में battery वाली घड़ी नहीं होती — हर बार power जाने पे date गलत हो जाती है, और गलत date पे heartbeat scheduler और HTTPS दोनों चुपचाप fail होते हैं।",
+      "stopGate": "Date आज की न हो तो रुक जाओ। गलत date पे router set हो जाएगा पर Master console में हमेशा offline दिखेगा — और ये बाद में पकड़ना बहुत मुश्किल है।",
+      "paste": {
+        "0": {
+          "label": "घड़ी और NTP set करो"
+        },
+        "1": {
+          "label": "Internet और घड़ी check करो"
+        }
+      },
+      "checks": {
+        "clock-internet": {
+          "label": "Internet चल रहा है",
+          "commandLabel": "(ऊपर वाला check block चलाओ)",
+          "expectLabel": "RESULT: PASS -- internet चल रहा है",
+          "failFix": {
+            "0": {
+              "whenLabel": "ping false आया",
+              "note": "ISP का cable ether1 में होना चाहिए, laptop का ether2 में। उल्टा मत लगाओ। Cable लगाने के बाद 30 second रुककर block दोबारा चलाओ।"
+            }
+          }
+        },
+        "clock-date": {
+          "label": "Router की date आज की है",
+          "failFix": {
+            "0": {
+              "whenLabel": "date 1970 / jan/01/1970 दिखा रहा है",
+              "note": "NTP को internet चाहिए। पहले ऊपर वाला ping PASS कराओ, फिर ये command चलाओ और 10 second बाद /system clock print दोबारा देखो।"
+            },
+            "1": {
+              "whenLabel": "ntp status: synchronized नहीं आ रहा",
+              "note": "हाथ से date डाल दो (आज की date)। ये temporary है पर काफ़ी है — NTP बाद में खुद ठीक कर लेगा। गलत date पे आगे मत बढ़ो।"
+            }
+          }
+        }
+      }
+    },
+    "wan": {
+      "title": "WAN और route repair",
+      "why": "Script DHCP client बनाने के तुरंत बाद gateway पढ़ती है — lease अभी मिला ही नहीं होता, इसलिए route gateway 0.0.0.0 के साथ बनता है और पूरा internet बंद हो जाता है।",
+      "stopGate": "Route As न हो तो आगे बिल्कुल मत बढ़ो — hotspot, tunnel और RADIUS सब इसी route पे चलते हैं और तीनों चुपचाप fail होंगे।",
+      "paste": {
+        "0": {
+          "label": "DHCP lease का wait + route repair (script के बाद हमेशा चलाओ)"
+        }
+      },
+      "checks": {
+        "wan-lease": {
+          "label": "ISP से address मिल गया",
+          "failFix": {
+            "0": {
+              "whenLabel": "status searching... पे अटका है",
+              "note": "ISP का cable ether1 में ठीक से लगा है? ISP का अपना router on है? Cable निकालकर दोबारा लगाओ और 30 second बाद फिर देखो।"
+            }
+          }
+        },
+        "wan-route-active": {
+          "label": "Default route ACTIVE है, inactive नहीं",
+          "failFix": {
+            "0": {
+              "whenLabel": "flags में Is दिख रहा है, या GATEWAY column में 0.0.0.0 है",
+              "note": "यही वो bug है। Route बन गया था पर gateway खाली था। ये चलाने के बाद route As हो जाएगा और ping चलने लगेगी।"
+            },
+            "1": {
+              "whenLabel": "gw खाली print हुआ",
+              "note": "मतलब lease अभी तक नहीं मिला। 30 second रुको और ऊपर वाला repair block दोबारा चलाओ — दोबारा चलाना बिल्कुल safe है।"
+            }
+          }
+        }
+      }
+    },
+    "gate": {
+      "title": "Internet का असली gate",
+      "stopGate": "PASS न आए तो रुक जाओ। इसके आगे हर chunk को internet चाहिए और कुछ तो बिना error के चुपचाप fail हो जाएंगे।",
+      "paste": {
+        "0": {
+          "label": "Internet + DNS दोनों एक साथ test करो"
+        }
+      },
+      "checks": {
+        "gate-pass": {
+          "label": "Internet और DNS दोनों काम कर रहे हैं",
+          "commandLabel": "(ऊपर वाला block चलाओ)",
+          "expectLabel": "RESULT: PASS -- आगे बढ़ो",
+          "failFix": {
+            "0": {
+              "whenLabel": "ping true पर resolve false",
+              "note": "Script DNS servers बाद वाले chunk में set करती है, इसलिए ये check उससे पहले चलने पे झूठा FAIL दे देता है। ये command चलाओ और gate दोबारा चलाओ — अब PASS आएगा। Router ठीक ही था।"
+            },
+            "1": {
+              "whenLabel": "ping भी false",
+              "note": "वापस Phase 2 पे जाओ — route As है या Is, वही असली problem है।"
+            }
+          }
+        }
+      }
+    },
+    "hotspot": {
+      "title": "LAN और hotspot",
+      "why": "Master console के LAN और Hotspot chunks paste करने के बाद तीन setting रह जाती हैं जो script set नहीं करती।",
+      "stopGate": "चारों check PASS होने चाहिए। इनमें से कोई भी गलत रहेगा तो guest login करेगा और उसको लगेगा सब ठीक है, पर असल में कुछ काम नहीं करेगा।",
+      "paste": {
+        "0": {
+          "label": "Hotspot hardening (LAN + Hotspot chunks के बाद चलाओ)"
+        },
+        "1": {
+          "label": "Hotspot audit — सब setting सही है?"
+        }
+      },
+      "checks": {
+        "hs-idle": {
+          "label": "Session अपने आप बंद होती है (वरना sessions जमा होते रहते हैं)",
+          "commandLabel": "(ऊपर वाला audit block चलाओ)",
+          "expectLabel": "idle-timeout=00:05:00",
+          "failFix": {
+            "0": {
+              "whenLabel": "idle-timeout=none दिखा रहा है",
+              "note": "keepalive बंद है, तो idle-timeout ही अकेला backstop है। none रहेगा तो session कभी close नहीं होगी, data cap कभी नहीं लगेगा और active list बढ़ती रहेगी।"
+            }
+          }
+        },
+        "hs-loginby": {
+          "label": "Login form router accept करेगा",
+          "commandLabel": "(audit block की login-by line)",
+          "expectLabel": "login-by में http-pap होना चाहिए",
+          "failFix": {
+            "0": {
+              "whenLabel": "login-by: cookie,http-chap दिखा रहा है",
+              "note": "ये RouterOS का default है और portal का form इससे satisfy नहीं कर सकता। Guest सही OTP डालेगा, कुछ नहीं होगा, और router के log में भी कुछ नहीं आएगा।"
+            }
+          }
+        },
+        "hs-shared": {
+          "label": "एक guest दो device चला सकता है (phone + laptop)",
+          "commandLabel": "(audit block की shared-users line)",
+          "expectLabel": "shared-users : 5",
+          "failFix": {
+            "0": {
+              "whenLabel": "shared-users : 1",
+              "note": "1 रहेगा तो guest का laptop 'no more sessions are allowed for user' error देगा — और ये soft error नहीं है, पूरा login fail होता है।"
+            }
+          }
+        },
+        "hs-guest": {
+          "label": "Local guest user बंद है (portal bypass बंद)",
+          "failFix": {
+            "0": {
+              "whenLabel": "guest user enabled दिखा रहा है",
+              "note": "Router पहले अपना local user check करता है, RADIUS बाद में। मतलब जिसे guest का password पता है वो portal को पूरा bypass कर सकता है — बिना OTP, बिना record, बिना data cap. Password Master console screen पे लिखा होता है, इसलिए ये असली risk है।"
+            }
+          }
+        }
+      }
+    },
+    "portal": {
+      "title": "Portal तक रास्ता",
+      "why": "बिना walled-garden के guest का browser portal तक पहुंच ही नहीं सकता — captive portal अपने ही server को भी block करता है।",
+      "stopGate": "walled-garden ip list खाली रहेगी तो कोई भी guest portal खोल ही नहीं पाएगा — और router पे कहीं कोई error नहीं दिखेगा। ये check कभी skip मत करना।",
+      "paste": {
+        "0": {
+          "label": "Walled garden — दोनों list set करो (ये खुद FAIL बोलेगा)"
+        },
+        "1": {
+          "label": "Portal files कहां हैं और सही हैं?"
+        }
+      },
+      "checks": {
+        "wg-ip": {
+          "label": "HTTPS वाली list में portal का IP है (यही सबसे ज़्यादा टूटता है)",
+          "failFix": {
+            "0": {
+              "whenLabel": "list खाली है",
+              "note": "ऊपर वाला walled garden block दोबारा चलाओ। अगर फिर भी FAIL बोले तो Phase 3 का DNS fix चलाओ (/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes) और उसके बाद ये block. DNS ठीक न हो तो ये block चुपचाप कुछ set नहीं करता — इसलिए ये check skip मत करना।"
+            },
+            "1": {
+              "whenLabel": "dst-address कुछ और IP दिखा रहा है",
+              "note": "Portal का IP बदल गया होगा। ऊपर वाला block दोबारा चलाओ — वो पुरानी entry को update कर देगा, duplicate नहीं बनाएगा।"
+            }
+          }
+        },
+        "wg-host": {
+          "label": "HTTP वाली list भी set है",
+          "failFix": {
+            "0": {
+              "whenLabel": "खाली है",
+              "note": "दोनों list अलग अलग चीज़ हैं — HTTP वाली सिर्फ़ http के लिए, IP वाली https के लिए। दोनों चाहिए।"
+            }
+          }
+        },
+        "portal-files": {
+          "label": "Portal के redirect page router पे चढ़ गए",
+          "failFix": {
+            "0": {
+              "whenLabel": "login.html मिला ही नहीं",
+              "note": "Master console के 'Portal Redirect Page' वाले पांच chunks अभी paste नहीं हुए। वो paste करो फिर ये check दोबारा।"
+            },
+            "1": {
+              "whenLabel": "file तो है पर size छोटा है / $(link-login-only) नहीं दिख रहा",
+              "note": "Script flash/hotspot/login.html path मानती है पर कुछ models पे path सिर्फ़ hotspot/login.html होता है। ऐसे में paste चलती है, error कुछ नहीं आता, और file बदलती ही नहीं। ऊपर वाले block में जो असली path दिखा, वो Master console team को भेजो — उन्हें path बदलना पड़ेगा।"
+            },
+            "2": {
+              "whenLabel": "guest को नीला MikroTik login page दिख रहा है Wyfy portal की जगह",
+              "note": "यही ऊपर वाली problem का असली symptom है। Router ठीक है, सिर्फ़ redirect page नहीं चढ़ा।"
+            }
+          }
+        },
+        "cert-optional": {
+          "label": "Certificate वाला chunk (optional — skip कर सकते हो)",
+          "failFix": {
+            "0": {
+              "whenLabel": "'input does not match any value of ca' error आया",
+              "note": "ये chunk का पुराना bug है। ये command चलाकर साफ़ करो और certificate chunk छोड़ दो — guest का portal इसके बिना भी पूरा काम करता है, क्योंकि walled-garden वाला रास्ता hotspot के certificate को touch ही नहीं करता।"
+            }
+          }
+        }
+      }
+    },
+    "tunnel": {
+      "title": "Tunnel और RADIUS",
+      "why": "OTP verify करने के लिए router को tunnel के through hub तक पहुंचना होता है — tunnel down तो guest का OTP हमेशा spinner पे अटका रहेगा।",
+      "stopGate": "Hub तक ping न जाए तो guest का OTP कभी verify नहीं होगा — spinner चलता रहेगा और guest को लगेगा app खराब है।",
+      "paste": {
+        "0": {
+          "label": "Firewall order + RADIUS src-address ठीक करो (WireGuard/RADIUS chunks के बाद)"
+        },
+        "1": {
+          "label": "Tunnel और RADIUS ज़िंदा है?"
+        }
+      },
+      "checks": {
+        "tunnel-up": {
+          "label": "Tunnel के through hub तक ping जा रही है",
+          "commandLabel": "(ऊपर वाला tunnel check block चलाओ)",
+          "expectLabel": "RESULT: PASS -- hub तक पहुंच गए",
+          "failFix": {
+            "0": {
+              "whenLabel": "last-handshake बहुत पुराना है या blank है",
+              "note": "सबसे common वजह: firewall का allow rule drop rule के नीचे आ गया, तो tunnel का जवाब ही block हो जाता है। ये command उसे ऊपर उठा देती है। 30 second बाद handshake आ जाना चाहिए।"
+            },
+            "1": {
+              "whenLabel": "RESULT: FAIL -- कोई RADIUS entry नहीं है",
+              "note": "Master console का RADIUS chunk paste नहीं हुआ। ध्यान रखो: RADIUS के लिए WireGuard पहले चाहिए, इसलिए दोनों chunks order में paste करो।"
+            }
+          }
+        },
+        "radius-counters": {
+          "label": "RADIUS के counters (guest test के बाद देखना)",
+          "failFix": {
+            "0": {
+              "whenLabel": "timeouts बढ़ रहे हैं",
+              "note": "Packet hub तक पहुंच ही नहीं रहा — tunnel वाला check दोबारा चलाओ।"
+            },
+            "1": {
+              "whenLabel": "rejects बढ़ रहे हैं",
+              "note": "Hub तक पहुंच तो रहा है पर secret match नहीं हो रहा। Master console में Generate दोबारा मत करना — Phase 8 वाला recovery follow करो।"
+            },
+            "2": {
+              "whenLabel": "bad-replies बढ़ रहे हैं",
+              "note": "जवाब आ रहा है पर router उसे reject कर रहा है। ये server side की problem है, router की नहीं — team को बताओ।"
+            }
+          }
+        }
+      }
+    },
+    "phonetest": {
+      "title": "Phone से असली test",
+      "why": "Router के सारे check pass हो सकते हैं और फिर भी guest का experience टूटा हो — सिर्फ़ असली phone ही सच बताता है।",
+      "stopGate": "ये phase pass होने तक router को live मत मानो। बाकी सब check pass होने के बाद भी असली phone पे fail हो सकता है।",
+      "paste": {
+        "0": {
+          "label": "Live देखो — guest connect हुआ या नहीं"
+        }
+      },
+      "checks": {
+        "phone-mobiledata": {
+          "label": "Phone पे mobile data बंद है",
+          "commandLabel": "(phone settings में mobile data off करो, फिर WiFi से connect करो)",
+          "expectLabel": "Mobile data off — वरना phone चुपके से 4G use करेगा और test झूठा pass हो जाएगा",
+          "failFix": {
+            "0": {
+              "whenLabel": "test pass लग रहा है पर doubt है",
+              "note": "Mobile data off किए बिना कभी test मत करो। Phone background में 4G पे चला जाता है और तुम्हें लगता है WiFi चल रहा है।"
+            }
+          }
+        },
+        "phone-portal": {
+          "label": "Portal खुद खुलता है",
+          "commandLabel": "(WiFi connect करो, portal अपने आप खुलना चाहिए)",
+          "expectLabel": "Wyfy portal का sign-in page — नीला MikroTik page नहीं",
+          "failFix": {
+            "0": {
+              "whenLabel": "कुछ नहीं खुला",
+              "note": "Browser का ADDRESS BAR खोलो और type करो: wifi.wyfyguest.com — search box में मत लिखना, address bar में। ये खुद portal पे ले जाएगा।"
+            },
+            "1": {
+              "whenLabel": "नीला MikroTik login page खुला",
+              "note": "Portal के redirect page router पे नहीं चढ़े। Phase 5 का portal-files check दोबारा देखो।"
+            },
+            "2": {
+              "whenLabel": "page load ही नहीं हुआ / timeout",
+              "note": "walled-garden ip list खाली होगी। Phase 5 का पहला block दोबारा चलाओ।"
+            }
+          }
+        },
+        "phone-otp": {
+          "label": "OTP से login हो जाता है",
+          "commandLabel": "(अपना असली number डालो, OTP डालो)",
+          "expectLabel": "Login के बाद connected/session screen दिखनी चाहिए",
+          "failFix": {
+            "0": {
+              "whenLabel": "OTP डालने के बाद spinner चलता रहता है",
+              "note": "Phase 6 का tunnel check चलाओ — hub तक ping जा रही है या नहीं।"
+            },
+            "1": {
+              "whenLabel": "login सफल हुआ, internet भी चल रहा है, पर तुरंत 'session expired' आ गया",
+              "note": "ये expiry नहीं है। Guest का browser storage block कर रहा है (iPhone का WiFi login window, या private browsing)। Internet चल रहा है मतलब router का काम पूरा हो गया। ये app side की known problem है — team को बताओ, router पे कुछ मत बदलो।"
+            }
+          }
+        },
+        "phone-realsite": {
+          "label": "Login के बाद असली internet चलता है",
+          "commandLabel": "(कोई नई https site खोलो जो पहले कभी न खोली हो)",
+          "expectLabel": "Site normal खुलनी चाहिए",
+          "failFix": {
+            "0": {
+              "whenLabel": "portal तो खुला पर बाकी सब बंद है",
+              "note": "अगर यहां तुम्हारा phone दिख रहा है तो router ने login मान लिया है। अगर नहीं दिख रहा तो login पूरा हुआ ही नहीं।"
+            }
+          }
+        },
+        "phone-reconnect": {
+          "label": "WiFi off/on करके दोबारा connect",
+          "commandLabel": "(phone का WiFi बंद करो, 10 second रुको, वापस चालू करो)",
+          "expectLabel": "या तो सीधा चल जाए, या portal दोबारा खुले और login हो जाए",
+          "failFix": {
+            "0": {
+              "whenLabel": "reconnect के बाद 'connected' दिखता है पर internet नहीं",
+              "note": "ये पुराना known bug है जो fix हो चुका है। अगर फिर भी आए तो team को बताओ — ये router की नहीं, portal app की problem है।"
+            }
+          }
+        }
+      }
+    },
+    "recovery": {
+      "title": "कुछ गलत हो गया",
+      "why": "Master console में दोबारा Generate दबाते ही सारे secret बदल जाते हैं, पर router पे पुराने ही रहते हैं — और ये चुपचाप fail होता है।",
+      "stopGate": "Secret mismatch होने पे guests चलते रहते हैं पर Master console router को control नहीं कर पाता — इसलिए इसे 'बाद में देखेंगे' में मत डालो।",
+      "paste": {
+        "0": {
+          "label": "क्या secret mismatch है? (पहले ये check करो)"
+        },
+        "1": {
+          "label": "सिर्फ़ secrets का reset (router का बाकी config बचा रहता है)"
+        },
+        "2": {
+          "label": "पूरा factory reset (जब कुछ समझ न आए)"
+        }
+      },
+      "checks": {
+        "rec-secrets-gone": {
+          "label": "पुराने secrets हट गए",
+          "failFix": {
+            "0": {
+              "whenLabel": "row अभी भी है",
+              "note": "ये command दोबारा चलाओ।"
+            }
+          }
+        },
+        "rec-regenerated": {
+          "label": "नए secrets चढ़ गए",
+          "failFix": {
+            "0": {
+              "whenLabel": "दो entries दिख रही हैं",
+              "note": "सब हटा दो और RADIUS chunk सिर्फ़ एक बार paste करो। दो entry होने पे router गलत वाली try करता रह सकता है।"
+            },
+            "1": {
+              "whenLabel": "log में अभी भी login failure आ रहा है",
+              "note": "Master console में Generate दोबारा मत दबाओ। जो script पहले से generate है वही use करो — हर Generate नए secret बनाता है और problem वापस आ जाती है।"
+            }
+          }
+        },
+        "rec-full": {
+          "label": "Factory reset के बाद router मिल रहा है",
+          "failFix": {
+            "0": {
+              "whenLabel": "reset के बाद connect नहीं हो रहा",
+              "note": "2 मिनट रुको। Laptop का cable ether2 में। WinBox → Neighbors tab → MAC पे click. Login admin, password खाली। फिर Phase 0 से शुरू करो।"
+            }
+          }
+        }
+      }
+    }
+  },
+  "symptoms": {
+    "wan-no-route-to-host": {
+      "seen": "Router पर कुछ भी ping करो तो \"no route to host\" आता है, जबकि `/ip route print` में 0.0.0.0/0 की line दिख रही है।",
+      "causes": {
+        "0": {
+          "tell": "Flags में `Is` (I = inactive) और line में `gateway=0.0.0.0`.",
+          "cause": "Script `/import` से चली। `/import` कहीं रुकता नहीं -- DHCP client add होने के microseconds बाद ही lease का gateway पढ़ लिया गया, lease तब तक आई ही नहीं थी, इसलिए route gateway `0.0.0.0` के साथ बन गया और permanently Inactive है।",
+          "note": "ये live fix है, चला हुआ है। Chunk-by-chunk terminal paste में ये कभी नहीं होता क्योंकि इंसान की typing delay में DHCP bind हो जाती है -- `.rsc` `/import` करने पर ही आता है। Fix के बाद flag `As` हो जाना चाहिए।"
+        },
+        "1": {
+          "tell": "Flags में `Is` पर `gateway=` में एक असली IP है (जैसे `gateway=192.168.2.1`).",
+          "cause": "Gateway सही लिखा है पर वो ping का जवाब नहीं दे रहा, इसलिए `check-gateway=ping` ने route को खुद inactive कर दिया। मतलब WAN cable/ISP link actually down है।",
+          "note": "`status: no-link` मतलब cable/port का मसला, `status: link-ok` पर ping fail मतलब ISP का side. ये route का bug नहीं है -- gateway ठीक होते ही RouterOS खुद route को `As` कर देगा, कोई command नहीं चलानी।"
+        },
+        "2": {
+          "tell": "Command कुछ print ही नहीं करता -- 0.0.0.0/0 की कोई line नहीं है।",
+          "cause": "WAN Routing chunk ने route बनाया ही नहीं, क्योंकि उस वक़्त gateway blank था (DHCP bind नहीं हुई थी या PPPoE connect नहीं हुआ था)। Chunk error नहीं देता, चुपचाप skip कर देता है।",
+          "note": "पहले `/ip dhcp-client print detail` में `status: bound` confirm करो, वरना दोबारा paste करने पर भी वही blank gateway मिलेगा। Heartbeat scheduler भी हर 5 मिनट में यही try करता है, तो 5 min रुककर देख सकते हो।"
+        },
+        "3": {
+          "tell": "Flags में `As` (A = active) और `gateway=` में असली IP -- route बिल्कुल ठीक है।",
+          "cause": "Routing का कोई मसला नहीं है। `no route to host` नाम से दिखा था पर असली दिक्कत DNS या firewall में है।",
+          "note": "अगर `8.8.8.8` ping हो रहा है पर नाम resolve नहीं हो रहे, तो `dns-servers-empty` symptom पर जाओ। `As` route के साथ WAN को blame करना बंद कर दो।"
+        }
+      }
+    },
+    "wan-dhcp-client-not-bound": {
+      "seen": "WAN port में cable लगा है पर router को upstream से IP मिल ही नहीं रही -- WAN Connectivity Check FAIL दे रहा है।",
+      "causes": {
+        "0": {
+          "tell": "`status: searching...`",
+          "cause": "Router DHCP request भेज रहा है पर upstream से कोई जवाब नहीं। या तो cable गलत port में है, या upstream router/ONT का DHCP बंद है।",
+          "note": "`status: no-link` आए तो cable/port है; `link-ok` के साथ भी `searching` मतलब upstream का DHCP server जवाब नहीं दे रहा -- venue का ISP box check कराओ।"
+        },
+        "1": {
+          "tell": "`status: bound` और `gateway=` में असली IP।",
+          "cause": "DHCP बिल्कुल ठीक है। दिक्कत routing या DNS में है, addressing में नहीं।",
+          "note": "यहां से `gateway=` की value copy करके सीधा `wan-no-route-to-host` वाला fix लगा दो -- 90% cases में `.rsc` import के बाद यही बचा हुआ काम होता है।"
+        },
+        "2": {
+          "tell": "Command खाली output देता है -- कोई dhcp-client entry है ही नहीं।",
+          "cause": "या तो venue static-IP पर है (script static mode में generate हुआ था), या WAN Addressing chunk paste ही नहीं हुआ।",
+          "note": "अगर वहां `cloudguest-addr-wan1` comment के साथ static address दिख रहा है तो ये static venue है -- gateway ISP ने दिया होगा, DHCP से नहीं आएगा, और उस case में route का gateway generate time पर ही hardcode हो चुका होता है। अगर वहां भी कुछ नहीं तो WAN Addressing chunk paste करो।"
+        },
+        "3": {
+          "tell": "`status: bound` पर `gateway=` line है ही नहीं / खाली है।",
+          "cause": "Upstream ने address तो दिया पर default gateway option नहीं भेजा -- सस्ता/misconfigured upstream router. बहुत rare.",
+          "note": "आम तौर पर upstream का LAN IP वही subnet का `.1` होता है जो आपको lease में मिला है। ये एक बार का manual step है, इसका कोई auto fix नहीं।"
+        }
+      }
+    },
+    "wan-pppoe-not-connected": {
+      "seen": "Venue PPPoE पर है (BSNL/JioFiber type), script paste हो गया पर internet नहीं -- default route बना ही नहीं।",
+      "causes": {
+        "0": {
+          "tell": "`status: connected` और `remote-address:` में एक असली IP।",
+          "cause": "PPPoE session up है। Route सिर्फ़ इसलिए missing है क्योंकि WAN Routing chunk तब चला था जब session अभी negotiate हो रहा था।",
+          "note": "`remote-address` ही असली next hop है (ISP का BRAS)। PPPoE में `/ip dhcp-client` कभी नहीं देखना, वहां कुछ होगा ही नहीं।"
+        },
+        "1": {
+          "tell": "`status: connecting...` या बार-बार `dialing`.",
+          "cause": "PPPoE server तक पहुंच तो रहा है पर session बन नहीं रहा -- अक्सर ONT/modem अभी भी खुद PPPoE dial कर रहा है, और ISP एक ही session देता है।",
+          "note": "दो जगह से एक ही PPPoE account dial करना सबसे common field गलती है। Modem में session बंद होते ही router seconds में connect हो जाएगा।"
+        },
+        "2": {
+          "tell": "`status: authenticating` पर अटका है या log में `authentication failed`.",
+          "cause": "PPPoE username/password गलत है जो Generate करते वक़्त type हुआ था।",
+          "note": "यहां हाथ से ठीक कर लो -- Generate दोबारा मत click करना, वो WireGuard और RADIUS के secrets rotate कर देता है और router brick हो जाता है।"
+        },
+        "3": {
+          "tell": "Command error देता है: `no such item`.",
+          "cause": "pppoe-client interface बना ही नहीं -- WAN Addressing chunk paste नहीं हुआ।",
+          "note": "Order matter करता है: pppoe interface पहले exist करना चाहिए, तभी routing chunk उसका gateway पढ़ सकता है।"
+        }
+      }
+    },
+    "double-nat-private-wan-ip": {
+      "seen": "WAN port पर `192.168.2.199/24` type private IP मिला है, public IP नहीं -- लगता है कुछ गलत हो गया।",
+      "causes": {
+        "0": {
+          "tell": "`address=192.168.x.x/24` या `10.x.x.x` या `172.16-31.x.x`, `dynamic=yes`.",
+          "cause": "Double NAT है -- हमारा router upstream router के पीछे बैठा है। Captive portal के लिए ये बिल्कुल normal है और 95% venues में ऐसा ही होता है।",
+          "note": "इसमें कुछ मत करो। Guest का traffic दो बार NAT होगा, बस -- portal, OTP, RADIUS, WireGuard, bandwidth queue, सब इससे ठीक चलते हैं। ये सिर्फ़ तब तोड़ता है जब किसी को बाहर internet से router पर port-forward चाहिए हो (यानी WinBox/SSH remote से) -- और वो हम कभी करते ही नहीं, हम WireGuard tunnel से अंदर आते हैं। इसके पीछे time waste मत करो।"
+        },
+        "1": {
+          "tell": "`address=100.64.x.x` या `100.65-127.x.x`.",
+          "cause": "ISP खुद CGNAT (carrier-grade NAT) कर रहा है। ये भी हमारे लिए ठीक है, पर upstream UDP filtering यहां ज़्यादा common है।",
+          "note": "अगर WireGuard handshake नहीं हो रहा तो `wg-handshake-missing` symptom देखो -- CGNAT वाले connections पर ISP का UDP block सबसे ज़्यादा मिलता है।"
+        },
+        "2": {
+          "tell": "`address=` में असली public IP (private range में नहीं)।",
+          "cause": "Router सीधा ISP से जुड़ा है, कोई double NAT है ही नहीं।",
+          "note": "इसमें भी कुछ करने की ज़रूरत नहीं। सिर्फ़ इतना ध्यान रखो कि अब router internet से सीधा exposed है, इसलिए Firewall chunk paste होना चाहिए (`cloudguest-fw-drop-wan-input` मौजूद हो)।"
+        },
+        "3": {
+          "tell": "Command खाली output देता है।",
+          "cause": "उस interface पर कोई address है ही नहीं -- WAN अभी up नहीं हुआ।",
+          "note": "`wan-dhcp-client-not-bound` पर जाओ। ये double NAT का सवाल ही नहीं है।"
+        }
+      }
+    },
+    "dns-servers-empty": {
+      "seen": "Router से `8.8.8.8` ping हो जाता है पर guest के phone पर कोई भी website नहीं खुलती -- \"server not found\".",
+      "causes": {
+        "0": {
+          "tell": "`servers:` line खाली है (कुछ भी नहीं लिखा उसके आगे)।",
+          "cause": "Router के पास कोई upstream resolver है ही नहीं। हमारा DHCP client `use-peer-dns=no` के साथ चलता है (जान-बूझकर), इसलिए ISP के DNS अपने आप कभी नहीं आते -- और DHCP server guests को `10.5.50.1` यानी router खुद देता है। Router कुछ resolve नहीं कर सकता, तो guest भी कुछ resolve नहीं कर सकता।",
+          "note": "ये पूरे setup का सबसे ज़्यादा दोहराया जाने वाला failure है। `allow-remote-requests=yes` ज़रूरी है वरना guests router से पूछ ही नहीं पाएंगे। Fix के बाद `walled-garden-https-entry-missing` भी ज़रूर check करो -- खराब DNS ने शायद वहां भी entry नहीं बनने दी।"
+        },
+        "1": {
+          "tell": "`servers: 8.8.8.8,1.1.1.1` set है पर `:put [:resolve \"google.com\"]` फिर भी fail करता है।",
+          "cause": "Resolver set है पर router उन तक पहुंच नहीं पा रहा -- यानी WAN/route down है, DNS का मसला नहीं।",
+          "note": "Ping भी fail हो तो `wan-no-route-to-host` पर जाओ। DNS servers बदल-बदल कर try करना यहां बेकार है।"
+        },
+        "2": {
+          "tell": "`allow-remote-requests: no`",
+          "cause": "Router खुद तो resolve कर लेता है, पर guests की queries reject करता है -- उनको DHCP से `10.5.50.1` मिला है और वहां दरवाज़ा बंद है।",
+          "note": "Router पर `:resolve` चलता है लेकिन guest के phone पर कुछ नहीं खुलता -- ये exactly वही combination है। इसमें WAN को blame मत करना।"
+        },
+        "3": {
+          "tell": "`servers:` भरा हुआ है और `:resolve` भी चल रहा है।",
+          "cause": "DNS बिल्कुल ठीक है। दिक्कत आगे है -- walled garden या hotspot L2 में।",
+          "note": "`walled-garden-https-entry-missing` और `portal-never-loads` पर जाओ।"
+        }
+      }
+    },
+    "walled-garden-https-entry-missing": {
+      "seen": "Guest WiFi से जुड़ता है, login page आ भी जाता है, पर portal खुलता ही नहीं / white screen / timeout.",
+      "causes": {
+        "0": {
+          "tell": "`comment=\"cloudguest-portal-https\"` वाली कोई line है ही नहीं।",
+          "cause": "ये entry paste के वक़्त on-device `:resolve` से बनती है, और उसका `on-error` सिर्फ़ log में warning लिखता है। मतलब paste के वक़्त DNS खराब था -> entry बनी ही नहीं, कोई error दिखा ही नहीं। HTTPS portal के लिए guest के पास कोई रास्ता नहीं बचता।",
+          "note": "ये एक failure पूरे guest portal को पहुंच से बाहर कर देता है, और router पर और सब कुछ \"green\" दिखता है। पहले DNS ठीक करो, फिर ये चलाओ -- उल्टा करोगे तो entry फिर नहीं बनेगी। या Walled Garden chunk दोबारा paste कर दो, अब वो खुद resolve कर लेगा।"
+        },
+        "1": {
+          "tell": "`comment=\"cloudguest-portal-https\"` है पर `dst-address=` में पुरानी/गलत IP है।",
+          "cause": "Portal का IP बदल गया है (host या CDN move हुआ) और device पर पुरानी IP pinned है।",
+          "note": "Walled Garden chunk दोबारा paste करने से भी ये update हो जाता है -- वो add-if-missing नहीं, set-if-present है। Confirm करो कि नई IP `:resolve` वाली IP से match करती है।"
+        },
+        "2": {
+          "tell": "Entry मौजूद है, `dst-address=` सही है, `action=accept` है।",
+          "cause": "Walled garden ठीक है। दिक्कत guest के DNS में या hotspot L2 में है।",
+          "note": "एक और चीज़ check करो: `/ip hotspot walled-garden print detail` (ये अलग, host-based table है) में `cloudguest-portal` entry होनी चाहिए -- HTTP redirect के लिए वो चाहिए, HTTPS के लिए IP वाली। दोनों अलग mechanisms हैं।"
+        }
+      }
+    },
+    "portal-never-loads": {
+      "seen": "Guest WiFi से जुड़ा है पर portal page बिल्कुल नहीं आता -- न login page, न error, बस spinner या timeout.",
+      "causes": {
+        "0": {
+          "tell": "`status: finished` / `downloaded: ...KiB` -- router खुद portal तक पहुंच गया।",
+          "cause": "Router का WAN और DNS दोनों ठीक हैं। मतलब guest का रास्ता बंद है -- walled-garden की HTTPS entry missing है।",
+          "note": "ये सबसे ज़्यादा time खाने वाला lookalike है -- router से सब काम करता है, guest के लिए कुछ नहीं। पूरी detail `walled-garden-https-entry-missing` में है।"
+        },
+        "1": {
+          "tell": "`failure: dns name does not exist` या `resolving failed`.",
+          "cause": "Router के पास DNS ही नहीं है -- `/ip dns` में servers खाली होंगे।",
+          "note": "DNS ठीक करने के तुरंत बाद walled-garden entry भी बनवाओ -- वो paste के वक़्त खराब DNS की वजह से skip हो चुकी होगी।"
+        },
+        "2": {
+          "tell": "`failure: connection timed out` या `closed connection`.",
+          "cause": "WAN/route down है। नाम resolve हो गया पर packet बाहर नहीं जा रहा।",
+          "note": "`wan-no-route-to-host` पर जाओ। Walled garden या portal को यहां blame करना बेकार है।"
+        },
+        "3": {
+          "tell": "`status: finished` आता है और walled-garden entry भी मौजूद है।",
+          "cause": "Network side clean है। Guest का traffic router तक पहुंच ही नहीं रहा, या guest का phone ही portal trigger नहीं कर रहा।",
+          "note": "अब `guests-get-nothing` (L2/DHCP) पर जाओ। एक self-signed certificate warning interstitial भी guest के URL params खा जाता है -- अगर phone पर cert warning दिखी थी तो ये network का issue नहीं है।"
+        }
+      }
+    },
+    "wg-handshake-missing": {
+      "seen": "Dashboard में router \"offline\" या WireGuard \"not connected\", जबकि router के सामने बैठे हो और internet चल रहा है।",
+      "causes": {
+        "0": {
+          "tell": "`last-handshake=` line है ही नहीं (या value blank है), और `tx=` बढ़ रहा है पर `rx=0 B`.",
+          "cause": "हमारे packets बाहर जा रहे हैं, hub से कुछ वापस नहीं आ रहा। अक्सर upstream ISP UDP egress block करता है (hotel/mall के managed connections में common), या endpoint तक रास्ता नहीं है।",
+          "note": "अगर ICMP ping चल रहा है पर `rx=0 B` बना हुआ है, तो ISP UDP/51820 रोक रहा है -- ये router पर fix नहीं होता, venue के ISP से बात करनी पड़ेगी या दूसरा uplink लगाना पड़ेगा। ये सिर्फ़ remote management तोड़ता है; guests का portal और internet इससे रुकता नहीं।"
+        },
+        "1": {
+          "tell": "`tx=0 B` और `rx=0 B` दोनों, `last-handshake=` भी नहीं।",
+          "cause": "Router ने एक भी packet भेजा ही नहीं -- या तो peer गलत/अधूरा है, या tunnel interface पर IP address नहीं लगा।",
+          "note": "`endpoint-address=20.219.72.235`, `endpoint-port=51820`, `persistent-keepalive=25s` और tunnel पर `10.20.0.x/24` -- चारों होनी चाहिए। एक भी missing हो तो WireGuard Tunnel chunk दोबारा paste करो। Generate दोबारा मत click करना: वो keys rotate कर देता है और chunk add-if-missing है, इसलिए re-paste से भी repair नहीं होगा।"
+        },
+        "2": {
+          "tell": "दो interfaces दिख रहे हैं: `wg-cloudguest` और `wg-cloudguard`.",
+          "cause": "Frontend chunk `wg-cloudguest` बनाता है, backend bootstrap `wg-cloudguard` -- दोनों रास्ते चल गए। Firewall rule एक नाम से बंधी है, traffic दूसरे से जा रहा है।",
+          "note": "जो भी tunnel पर असली `last-handshake=` दिख रहा हो उसे रखो, दूसरा हटा दो। Firewall rule का `in-interface=` बचे हुए tunnel के नाम से match होना चाहिए।"
+        },
+        "3": {
+          "tell": "`last-handshake=1m30s` type recent value दिख रही है।",
+          "cause": "Handshake हो रहा है। Tunnel बन चुका है -- ये symptom यहां खत्म।",
+          "note": "Handshake होना और traffic बहना दो अलग बातें हैं। अब `wg-handshake-ok-no-traffic` पर जाओ और `/ping 10.20.0.1` से असली claim verify करो।"
+        }
+      }
+    },
+    "wg-handshake-ok-no-traffic": {
+      "seen": "WireGuard handshake दिख रहा है पर dashboard फिर भी router को offline दिखाता है / RADIUS timeout दे रहा है।",
+      "causes": {
+        "0": {
+          "tell": "`sent=4 received=0` (सारे timeout)।",
+          "cause": "Handshake हुआ पर tunnel से data नहीं जा रहा। सबसे आम वजह: peer का `allowed-address` hub के tunnel subnet को cover नहीं करता, या `wg-cloudguest` पर router का अपना tunnel IP लगा ही नहीं।",
+          "note": "`allowed-address` में `10.20.0.0/24` (या जो tunnel subnet script में था) होना चाहिए। `last-handshake=` होने का मतलब सिर्फ़ इतना है कि keys match हो गईं -- routing अलग चीज़ है। इसलिए dashboard \"handshake OK\" पर भरोसा मत करो, हमेशा ये ping चलाओ।"
+        },
+        "1": {
+          "tell": "`no route to host` या `host unreachable`.",
+          "cause": "Tunnel interface पर address नहीं है, इसलिए `10.20.0.0/24` के लिए router के पास कोई connected route ही नहीं।",
+          "note": "सही `<n>` Router Fleet में इस router के management IP से मिलता है -- गलत number डाल दोगे तो दूसरे router से clash होगा। अंदाज़ा मत लगाओ, dashboard से देखो।"
+        },
+        "2": {
+          "tell": "`sent=4 received=4` -- ping चल रहा है।",
+          "cause": "Tunnel पूरी तरह काम कर रहा है। Dashboard-offline या RADIUS-timeout की वजह कहीं और है।",
+          "note": "Dashboard offline है तो `router-offline-in-dashboard` (अक्सर NTP/घड़ी का मसला) देखो। RADIUS timeout है तो `radius-counters` पर जाओ -- tunnel अब suspect नहीं है।"
+        },
+        "3": {
+          "tell": "कभी reply, कभी timeout (`packet-loss=50%` type)।",
+          "cause": "Uplink flap कर रहा है या दो default routes आपस में लड़ रही हैं।",
+          "note": "अगर बिना `cloudguest-` comment वाली extra 0.0.0.0/0 route दिखे (RouterOS के अपने dhcp-client की बनाई हुई), तो उसे हटा दो -- वो हमारी check-gateway वाली route से लड़ती है।"
+        }
+      }
+    },
+    "wg-firewall-rule-order": {
+      "seen": "Tunnel तो बन जाता है पर hub से router तक कुछ नहीं पहुंचता -- WinBox/API tunnel के through नहीं खुलता।",
+      "causes": {
+        "0": {
+          "tell": "`cloudguest-fw-allow-wg-mgmt` का row number `cloudguest-fw-drop-wan-input` से बड़ा है (यानी नीचे है)।",
+          "cause": "RouterOS rules ऊपर से नीचे चलाता है। Drop rule पहले match कर जाता है, तो tunnel वाला accept कभी चलता ही नहीं।",
+          "note": "ये तब होता है जब Firewall chunk WireGuard chunk के बाद paste किया गया हो। Move के बाद allow का number छोटा होना चाहिए। सिर्फ़ number देखो, और कुछ नहीं।"
+        },
+        "1": {
+          "tell": "`cloudguest-fw-allow-wg-mgmt` वाली line है ही नहीं।",
+          "cause": "WireGuard chunk paste ही नहीं हुआ, या सिर्फ़ उसका firewall वाला हिस्सा नहीं चला।",
+          "note": "`place-before=` ज़रूरी है -- plain `add` हमेशा list के आख़िर में जोड़ता है, मतलब drop rule के नीचे, मतलब बेकार।"
+        },
+        "2": {
+          "tell": "Allow rule ऊपर है और उसके आगे flag `X` (disabled) है।",
+          "cause": "Rule मौजूद है पर किसी ने WinBox में debug करते वक़्त disable कर दिया।",
+          "note": "`X` flag आसानी से miss हो जाता है, order सही होने पर भी। Print output में flags column ज़रूर देखो।"
+        },
+        "3": {
+          "tell": "Allow rule ऊपर है, enabled है, फिर भी hub से कुछ नहीं आता।",
+          "cause": "Firewall का मसला नहीं है -- tunnel ही actual में traffic नहीं ले जा रहा।",
+          "note": "`wg-handshake-ok-no-traffic` पर जाओ। Firewall में और कुछ मत छेड़ो।"
+        }
+      }
+    },
+    "radius-counters": {
+      "seen": "Guest का OTP verify हो जाता है, app \"connected\" दिखाता है, पर internet नहीं चलता।",
+      "causes": {
+        "0": {
+          "tell": "चारों counters `0` हैं -- `accepts=0 rejects=0 timeouts=0 bad-replies=0`.",
+          "cause": "Router तक एक भी RADIUS request आई ही नहीं। मतलब hotspot का login POST कभी भेजा ही नहीं गया -- ये portal side का bug है, network का नहीं।",
+          "note": "ये 2026-08-18 वाली outage का असली final blocker था: portal के पास `guestIdentifier` set ही नहीं होता था तो hotspot POST silently no-op कर देता था, और router के logs बिल्कुल खाली रहते थे। Router पर कुछ मत बदलो -- backend/portal team को बोलो। Counters `0` होने का मतलब है router ने कभी कुछ देखा ही नहीं।"
+        },
+        "1": {
+          "tell": "`bad-replies` बढ़ रहा है।",
+          "cause": "Server का जवाब आया तो सही, पर RouterOS ने उसे validate होने से पहले ही फेंक दिया। आम तौर पर reply में Message-Authenticator attribute है ही नहीं, और router `require-message-auth=yes-for-request-resp` पर set है।",
+          "note": "ये reject नहीं है और timeout भी नहीं -- तीसरा अलग counter है, और यही चीज़ 2026-08-18 को घंटों खा गई थी। असली fix FreeRADIUS hub पर है। इसे reject समझकर credentials debug करना time waste है।"
+        },
+        "2": {
+          "tell": "`timeouts` बढ़ रहा है।",
+          "cause": "Request गई, जवाब आया ही नहीं। या तो tunnel down है (server tunnel IP पर है), या shared secret गलत है -- गलत secret पर FreeRADIUS चुपचाप drop करता है, reject नहीं भेजता।",
+          "note": "Ping fail = tunnel का मसला, `wg-handshake-ok-no-traffic` पर जाओ। Ping चल रहा है तो secret गलत है -- `POST /radius/nas/register-external/{router_id}` से दोबारा register करो और उसी बैठक में `/radius` chunk paste करो (register करने पर secret rotate होता है)।"
+        },
+        "3": {
+          "tell": "`rejects` बढ़ रहा है।",
+          "cause": "Server ने request देखी, समझी, और मना कर दिया। सबसे आम: इस router का identifier/registration backend के router record से match नहीं करता -- request किसी और router के नाम से authenticate हो रही है।",
+          "note": "ये ख़ास तौर पर दूसरे और उसके बाद के routers पर होता है: अगर hub का `sites-enabled/default` अभी भी router #1 का identifier hardcode किए बैठा है, तो नया router 401 नहीं होगा -- वो router #1 बनकर authenticate होगा और फिर `router_id` mismatch पर HTTP 200 के अंदर Reject आएगा, logs में कुछ नहीं। ये router पर fix नहीं होता।"
+        },
+        "4": {
+          "tell": "`accepts` बढ़ रहा है।",
+          "cause": "RADIUS बिल्कुल ठीक चल रहा है। Guest authorize हो रहा है।",
+          "note": "`/ip hotspot active print` चलाओ -- guest वहां दिखना चाहिए। दिख रहा है और फिर भी internet नहीं, तो मसला WAN/DNS में है, auth में नहीं।"
+        },
+        "5": {
+          "tell": "Command error देती है: `no such item`.",
+          "cause": "`/radius` पर कोई entry है ही नहीं -- RADIUS chunk paste नहीं हुआ।",
+          "note": "`monitor 0` का मतलब है पहली entry। Entry ही नहीं होगी तो command index पर ही fail हो जाएगी।"
+        }
+      }
+    },
+    "radius-bad-replies": {
+      "seen": "`/radius monitor 0 once` में `bad-replies` का counter चढ़ रहा है, `rejects` और `timeouts` zero हैं।",
+      "causes": {
+        "0": {
+          "tell": "`require-message-auth=yes-for-request-resp`",
+          "cause": "RouterOS reply में Message-Authenticator attribute मांग रहा है। FreeRADIUS का `rlm_rest`-से-बना Access-Accept उसको अपने आप attach नहीं करता, इसलिए router हर जवाब चुपचाप discard कर देता है।",
+          "note": "ये exactly 2026-08-18 वाला root cause #4 है। Server-side fix ही असली fix है। Router पर `require-message-auth=no` करके आगे बढ़ना सिर्फ़ demo बचाने के लिए है -- security कमज़ोर करता है और असली bug छुपा देता है, इसलिए ticket ज़रूर raise करो।"
+        },
+        "1": {
+          "tell": "`require-message-auth=no` और फिर भी `bad-replies` बढ़ रहा है।",
+          "cause": "Reply आ रहा है पर उसका authenticator hash match नहीं कर रहा -- दोनों तरफ़ का shared secret अलग है।",
+          "note": "आधा-गलत secret timeouts की जगह bad-replies देता है जब server जवाब तो दे रहा हो। Register और paste के बीच Generate मत click करना, वरना secret फिर बदल जाएगा।"
+        },
+        "2": {
+          "tell": "`timeout=300ms` (या `timeout=3s` से कम)।",
+          "cause": "RouterOS का default 300ms है, जो tunnel वाले रास्ते के लिए बहुत कम है -- देर से आया जवाब कभी-कभी bad-reply/timeout बन जाता है।",
+          "note": "Script `timeout=3s` set करता है; 300ms दिखे तो entry हाथ से बनाई गई है या किसी पुराने paste से बची है।"
+        }
+      }
+    },
+    "guests-get-nothing": {
+      "seen": "Dashboard में router \"online\" है पर guest के phone को IP ही नहीं मिलती -- WiFi \"obtaining IP address\" पर अटका रहता है।",
+      "causes": {
+        "0": {
+          "tell": "एक भी lease नहीं -- output खाली है।",
+          "cause": "Guest का traffic bridge तक पहुंच ही नहीं रहा। अक्सर AP जिस port में लगा है वो guest bridge का member नहीं है (किसी पुराने `bridgeLocal` में अटका है)।",
+          "note": "Print के `BRIDGE` column में हर LAN port हमारे guest bridge (default नाम `bridge`) के नीचे दिखना चाहिए। जो port किसी दूसरे bridge में है वो guests के लिए पूरी तरह dead है -- LAN Ports chunk दोबारा paste करो, वो port को detach करके सही bridge में डाल देता है।"
+        },
+        "1": {
+          "tell": "Leases दिख रही हैं और `status` column में `bound` लिखा है।",
+          "cause": "L2 और DHCP दोनों ठीक हैं। Guests को IP मिल रही है, दिक्कत आगे है।",
+          "note": "अब hotspot/portal/RADIUS layer देखो। `guests-get-nothing` यहां खत्म -- L2 clean है।"
+        },
+        "2": {
+          "tell": "Leases हैं पर सब `waiting` / `offered` पर अटकी हैं।",
+          "cause": "Guest DISCOVER भेज रहा है, OFFER पहुंच रहा है, पर ACK complete नहीं होता -- अक्सर उस subnet पर दूसरा DHCP server भी बोल रहा है (venue का पुराना router अभी भी on है)।",
+          "note": "एक ही LAN पर दो DHCP server सबसे गंदा field issue है -- guests random-random दोनों से IP लेते हैं और आधे portal पर पहुंचते ही नहीं। पुराना router का DHCP बंद करवाओ।"
+        },
+        "3": {
+          "tell": "`/ip dhcp-server print` खाली है -- कोई server define ही नहीं।",
+          "cause": "Hotspot chunk paste नहीं हुआ, या उस वक़्त bridge पर LAN IP नहीं था।",
+          "note": "Interface का नाम यहां type करने की ज़रूरत नहीं -- पूरी list छोटी होती है, bridge वाली line सामने दिख जाएगी। Order matter करता है: bridge पर address पहले, DHCP server बाद में। उल्टा paste करोगे तो server बनेगा ही नहीं और कोई error भी नहीं आएगा।"
+        }
+      }
+    },
+    "hotspot-traffic-not-reaching-bridge": {
+      "seen": "Guest का phone WiFi से \"connected\" दिखाता है पर router पर उसका कोई निशान नहीं -- न lease, न hotspot host.",
+      "causes": {
+        "0": {
+          "tell": "Guest के phone का MAC output में कहीं दिखता ही नहीं।",
+          "cause": "Phone AP से जुड़ा है पर उसके packets router तक आ ही नहीं रहे। या तो AP अपने अंदर ही NAT/isolation कर रहा है, या उसका uplink किसी दूसरे switch/VLAN में चला गया है।",
+          "note": "Sniffer हमेशा LAN bridge पर चलाओ, WireGuard tunnel पर नहीं -- ये फ़र्क़ ही एक पूरी गलत theory (\"network खराब है\") को एक मिनट में काट देता है। Probe में `[/ip hotspot get [find] interface]` इसलिए है कि bridge का नाम खुद router से आए, आप type न करो। AP को bridge/AP mode में होना चाहिए, router mode में नहीं।"
+        },
+        "1": {
+          "tell": "MAC दिख रहा है, DHCP Discover packets भी दिख रहे हैं।",
+          "cause": "Traffic bridge तक पहुंच रहा है। दिक्कत DHCP server या hotspot config में है, cabling/AP में नहीं।",
+          "note": "`guests-get-nothing` पर जाओ। अब cable, AP या \"network\" को blame करना बंद कर दो -- packets आ रहे हैं।"
+        },
+        "2": {
+          "tell": "MAC दिख रहा है पर सिर्फ़ ARP, कोई DHCP नहीं।",
+          "cause": "Phone के पास पहले से static/पुरानी IP है और वो नया lease मांग ही नहीं रहा।",
+          "note": "Testing वाले phone पर ये बहुत होता है। एक दूसरे, बिल्कुल नए device से test करो -- आधी बार \"router का bug\" यही निकलता है।"
+        },
+        "3": {
+          "tell": "Command ही error देती है: `no such item` या `input does not match any value of interface`.",
+          "cause": "Hotspot बना ही नहीं है, इसलिए probe bridge का नाम निकाल नहीं पाया -- sniffer से पहले Hotspot chunk paste करना बाकी है।",
+          "note": "ये खुद एक जवाब है: hotspot missing है। Sniffer फिर भी चला सकते हो -- बस bridge का नाम `/interface bridge print` से देखकर हाथ से डालो, कभी अंदाज़ा मत लगाओ।"
+        }
+      }
+    },
+    "hotspot-session-leak": {
+      "seen": "कुछ guests को \"device limit reached\" मिलता है या नए guests connect ही नहीं हो पा रहे, जबकि venue खाली है।",
+      "causes": {
+        "0": {
+          "tell": "बहुत सारी active entries हैं और `uptime` घंटों/दिनों में है।",
+          "cause": "Sessions बंद हो ही नहीं रहीं। Script `keepalive-timeout=none` set करता है पर `idle-timeout` कभी set नहीं करता -- guest के घर चले जाने के बाद भी session ज़िंदा रहता है।",
+          "note": "सिर्फ़ पहली line असली fix है; दूसरी अभी के अटके sessions साफ़ करती है। ये generator का खुला हुआ bug है -- हर नए router पर ये line हाथ से लगाओ।"
+        },
+        "1": {
+          "tell": "एक ही guest के नाम पर 5 entries और `shared-users=5` limit hit हो रही है।",
+          "cause": "हर reconnect एक नया session बनाता है, पुराना idle-timeout के बिना मरता नहीं -- एक ही phone 5 slots खा जाता है।",
+          "note": "`shared-users=5` जान-बूझकर है (एक guest के phone + laptop)। इसे बढ़ाओ मत -- idle-timeout ठीक करो, वही असली वजह है।"
+        },
+        "2": {
+          "tell": "`user=guest` नाम की entry दिख रही है।",
+          "cause": "Local `guest` hotspot user portal का पूरा bypass है -- RouterOS local users को RADIUS से पहले check करता है। न OTP, न session, न consent, न bandwidth cap, न accounting.",
+          "note": "ये हर नए router पर disable करना है। जब तक ये on है, \"OTP काम नहीं कर रहा\" वाली हर report शक के दायरे में है -- हो सकता है guest कभी portal से गुज़रा ही न हो।"
+        },
+        "3": {
+          "tell": "Output खाली है पर guests के पास IP है।",
+          "cause": "किसी ने hotspot gate पार ही नहीं किया -- या सभी walled garden पर अटके हैं।",
+          "note": "`portal-never-loads` पर जाओ। Active list खाली होना मतलब authorization बिल्कुल शुरू ही नहीं हो रहा।"
+        }
+      }
+    },
+    "router-offline-in-dashboard": {
+      "seen": "Router dashboard में \"offline\" दिखता है पर venue में guests आराम से internet चला रहे हैं।",
+      "causes": {
+        "0": {
+          "tell": "`date:` में गलत/पुरानी date (जैसे `jan/01/1970` या `jan/02/2020`)।",
+          "cause": "hEX में battery clock नहीं है, तो fresh/power-cycled box गलत date पर boot होता है। Scheduler ने गलत `start-time` पकड़ लिया, heartbeat का `run-count=0` रह गया, और HTTPS `/tool fetch` भी cert validity fail होने पर मर जाता है।",
+          "note": "ये सबसे आम \"offline पर guests ठीक हैं\" का कारण है। घड़ी ठीक होने के बाद scheduler को दोबारा बनवाना पड़ सकता है -- `run-count=0` बना रहे तो Heartbeat chunk दोबारा paste करो।"
+        },
+        "1": {
+          "tell": "Date सही है पर `/system scheduler print detail` में `run-count=0`.",
+          "cause": "Scheduler गलत घड़ी के साथ बना था और उसका `next-run` अब भी past में अटका है।",
+          "note": "`run-count` 5 मिनट के अंदर 1 होना चाहिए। नहीं होता तो scheduler का `start-time` अभी भी खराब है।"
+        },
+        "2": {
+          "tell": "Date सही है, `run-count` बढ़ रहा है, पर dashboard फिर भी offline.",
+          "cause": "Heartbeat चल रहा है पर backend तक पहुंच नहीं रहा -- tunnel या DNS का मसला।",
+          "note": "Log में `status: failed, downloaded: 0KiB` मतलब fetch निकल ही नहीं पाया -- `dns-servers-empty` या `wg-handshake-ok-no-traffic` पर जाओ।"
+        },
+        "3": {
+          "tell": "`/system scheduler print` में heartbeat वाली entry है ही नहीं।",
+          "cause": "Heartbeat chunk कभी paste हुआ ही नहीं।",
+          "note": "इसके बिना router dashboard में कभी online नहीं दिखेगा, चाहे बाकी सब perfect हो। Guests पर इसका कोई असर नहीं पड़ता।"
+        }
+      }
+    }
+  },
+  "assertions": {
+    "audit-clean": {
+      "fallback": "Block चला तो सही पर उसकी RESULT line समझ नहीं आई। पूरा output -- `==== ROUTER AUDIT ====` से `RESULT:` line तक -- दोबारा copy करो।",
+      "rules": {
+        "0": {
+          "why": "Router factory-fresh है -- कोई पुराना Wyfy config नहीं मिला।"
+        },
+        "1": {
+          "why": "पुराने provisioning का folder अभी भी router पे है। उसमें पुराने org/location IDs वाले portal links हैं।"
+        },
+        "2": {
+          "why": "Block ने CLEAN बोला, पर ऊपर पुराना config वाली line भी print हुई है। दोनों एक साथ सच नहीं हो सकते -- इसे CLEAN मत मानो।"
+        },
+        "3": {
+          "why": "पुराना Wyfy config मिला। इसके ऊपर नया setup करोगे तो guests को पुराना portal दिखता रहेगा।"
+        }
+      }
+    },
+    "clock-internet": {
+      "fallback": "`ping 8.8.8.8 :` वाली line output में नहीं मिली। Block का पूरा output copy करो।",
+      "rules": {
+        "0": {
+          "why": "Internet चल रहा है और router की date भी सही है।"
+        },
+        "1": {
+          "why": "Internet तो चल रहा है, पर router की date आज की नहीं लग रही। आगे बढ़ने से पहले नीचे वाला date check ज़रूर करो -- गलत date पे router Master console में हमेशा offline दिखेगा।"
+        },
+        "2": {
+          "why": "ping 8.8.8.8 fail हुई -- router का internet नहीं चल रहा।"
+        },
+        "3": {
+          "why": "Block ने खुद FAIL बोला -- ether1 का cable check करो।"
+        }
+      }
+    },
+    "clock-date": {
+      "fallback": "Date पढ़ी तो गई पर उसका format समझ नहीं आया। `/system clock print` का पूरा output दोबारा paste करो।",
+      "rules": {
+        "0": {
+          "why": "Router की date आज की है।"
+        },
+        "1": {
+          "why": "Router की date आज की नहीं है। इसी पे scheduler का start-time भरता है -- गलत date पे heartbeat कभी नहीं चलेगा और router Master console में हमेशा offline रहेगा।"
+        },
+        "2": {
+          "why": "`date:` वाली line output में नहीं है। `/system clock print` का पूरा output paste करो।"
+        }
+      }
+    },
+    "wan-lease": {
+      "fallback": "DHCP client की row तो दिखी पर उसका STATUS पढ़ा नहीं जा सका। `/ip dhcp-client print detail` चलाकर उसका output paste करो -- उसमें `status=` साफ़ लिखा आता है।",
+      "rules": {
+        "0": {
+          "why": "ISP से address मिल गया (status bound)।"
+        },
+        "1": {
+          "why": "इस router पे DHCP client है ही नहीं -- मतलब static WAN है। Gateway खुद check करना पड़ेगा; आगे वाला route check अब और ज़रूरी है।"
+        },
+        "2": {
+          "why": "DHCP client को अभी तक lease नहीं मिला।"
+        },
+        "3": {
+          "why": "ISP से address मिल गया (status bound)।"
+        },
+        "4": {
+          "why": "DHCP client को अभी तक lease नहीं मिला -- status bound नहीं है।"
+        },
+        "5": {
+          "why": "कोई DHCP client है ही नहीं। या तो WAN static है, या LAN/WAN वाला chunk paste नहीं हुआ।"
+        }
+      }
+    },
+    "wan-route-active": {
+      "fallback": "Route की row तो मिली, पर उसके flags पढ़े नहीं जा सके -- output में `Flags:` वाली line नहीं थी। `/ip route print where dst-address=\"0.0.0.0/0\"` दोबारा चलाओ और Flags वाली line से लेकर पूरा output copy करो।",
+      "rules": {
+        "0": {
+          "why": "Default route तो है, पर उसका gateway 0.0.0.0 है। ये वही bug है: route तब बना जब DHCP lease आया ही नहीं था। Route दिखता है, काम कुछ नहीं करता।"
+        },
+        "1": {
+          "why": "Default route Inactive (`I`) है। Hotspot, tunnel और RADIUS तीनों इसी route पे चलते हैं -- तीनों चुपचाप fail होंगे।"
+        },
+        "2": {
+          "why": "Default route disabled (`X`) है।"
+        },
+        "3": {
+          "why": "Default route Active है और उसका gateway एक असली IP है।"
+        },
+        "4": {
+          "why": "Default route की row में कोई gateway address है ही नहीं।"
+        },
+        "5": {
+          "why": "Default route पे ACTIVE flag नहीं है। RouterOS 6 में inactive route पे कोई `I` नहीं आता -- बस `A` गायब हो जाता है, और route दिखता बिल्कुल normal है।"
+        },
+        "6": {
+          "why": "कोई default route है ही नहीं -- 0.0.0.0/0 वाली एक भी row नहीं मिली।"
+        }
+      }
+    },
+    "gate-pass": {
+      "fallback": "Gate block का output अधूरा है -- `ping` और `resolve` दोनों lines चाहिए। पूरा block दोबारा चलाओ।",
+      "rules": {
+        "0": {
+          "why": "Internet और DNS दोनों चल रहे हैं।"
+        },
+        "1": {
+          "why": "Internet चल रहा है पर DNS resolve नहीं हो रहा। Router ठीक ही है -- DNS servers अभी set नहीं हुए।"
+        },
+        "2": {
+          "why": "ping भी fail हो रही है -- असली problem Phase 2 के route में है, DNS में नहीं।"
+        }
+      }
+    },
+    "hs-idle": {
+      "fallback": "idle-timeout की value पढ़ी नहीं जा सकी। Audit block दोबारा चलाओ।",
+      "rules": {
+        "0": {
+          "why": "Router पे कोई hotspot server है ही नहीं -- Master console का Hotspot chunk paste नहीं हुआ।"
+        },
+        "1": {
+          "why": "idle-timeout set है -- sessions अपने आप बंद हो जाएंगी।"
+        },
+        "2": {
+          "why": "idle-timeout set तो है पर बहुत लंबा है। Sessions देर से बंद होंगी और active list भरती रहेगी।"
+        },
+        "3": {
+          "why": "Audit के output में `idle-timeout=` वाली line नहीं मिली। पूरा audit block दोबारा चलाओ।"
+        },
+        "4": {
+          "why": "idle-timeout none है। keepalive भी बंद है, तो session कभी close होगी ही नहीं -- data cap कभी नहीं लगेगा।"
+        }
+      }
+    },
+    "hs-loginby": {
+      "fallback": "login-by की value पढ़ी नहीं जा सकी।",
+      "rules": {
+        "0": {
+          "why": "login-by में http-pap है -- portal का form router accept करेगा।"
+        },
+        "1": {
+          "why": "login-by में http-pap नहीं है। Guest सही OTP डालेगा, कुछ नहीं होगा, और router के log में भी कुछ नहीं आएगा।"
+        },
+        "2": {
+          "why": "`login-by` वाली line output में नहीं मिली -- audit block `hsprof1` नाम का profile ढूंढता है। पूरा audit output paste करो।"
+        }
+      }
+    },
+    "hs-shared": {
+      "fallback": "shared-users की value पढ़ी नहीं जा सकी।",
+      "rules": {
+        "0": {
+          "why": "shared-users 5 है -- guest phone और laptop दोनों चला सकता है।"
+        },
+        "1": {
+          "why": "दो से ज़्यादा device तो चलेंगे, पर fleet का standard 5 है। Guest का तीसरा device reject हो सकता है।"
+        },
+        "2": {
+          "why": "shared-users 5 से ज़्यादा है -- एक ही OTP पे ज़रूरत से ज़्यादा devices चल जाएंगे।"
+        },
+        "3": {
+          "why": "shared-users 1 है। Guest का दूसरा device 'no more sessions are allowed for user' से पूरा fail होगा -- ये soft error नहीं है।"
+        },
+        "4": {
+          "why": "`shared-users` वाली line output में नहीं मिली। पूरा audit block दोबारा चलाओ।"
+        }
+      }
+    },
+    "hs-guest": {
+      "fallback": "guest user का status पक्का नहीं हुआ -- output में `Flags:` वाली line नहीं थी, इसलिए X (disabled) flag पढ़ा नहीं जा सका। ऊपर वाला audit block चलाओ, वो साफ़-साफ़ `disabled=true/false` print करता है।",
+      "rules": {
+        "0": {
+          "why": "Local guest user है ही नहीं -- portal bypass का रास्ता बंद है।"
+        },
+        "1": {
+          "why": "Local guest user disabled है -- portal bypass बंद है।"
+        },
+        "2": {
+          "why": "Local guest user चालू है। Router पहले अपना local user check करता है, RADIUS बाद में -- मतलब जिसे password पता है वो portal पूरा bypass कर सकता है: बिना OTP, बिना record, बिना data cap."
+        },
+        "3": {
+          "why": "guest user पे X (disabled) flag है -- portal bypass बंद है।"
+        },
+        "4": {
+          "why": "guest user की row पे X flag नहीं है -- मतलब वो अभी भी चालू है और portal को पूरा bypass कर सकता है।"
+        },
+        "5": {
+          "why": "Hotspot user list में कोई guest user है ही नहीं।"
+        }
+      }
+    },
+    "wg-ip": {
+      "fallback": "walled-garden ip list पढ़ी नहीं जा सकी।",
+      "rules": {
+        "0": {
+          "why": "HTTPS वाली list में portal का IP (40.80.86.193) set है।"
+        },
+        "1": {
+          "why": "Entry तो है पर उसका IP 40.80.86.193 नहीं है। Portal का IP बदला हो सकता है -- walled garden block दोबारा चलाओ, वो पुरानी entry update कर देगा।"
+        },
+        "2": {
+          "why": "Entry मिल गई पर उसका dst-address पढ़ा नहीं जा सका। `/ip hotspot walled-garden ip print detail` चलाओ।"
+        },
+        "3": {
+          "why": "HTTPS वाली walled-garden list बिल्कुल खाली है। कोई guest portal खोल ही नहीं पाएगा, और router पे कहीं कोई error नहीं दिखेगा।"
+        },
+        "4": {
+          "why": "List में entries तो हैं पर `cloudguest-portal-https` वाली नहीं है। DNS ठीक न हो तो walled garden block चुपचाप कुछ set नहीं करता।"
+        }
+      }
+    },
+    "wg-host": {
+      "fallback": "walled-garden list पढ़ी नहीं जा सकी।",
+      "rules": {
+        "0": {
+          "why": "HTTP वाली list में portal.wyfyguest.com allow है।"
+        },
+        "1": {
+          "why": "portal.wyfyguest.com की entry तो है पर उसका action allow नहीं है।"
+        },
+        "2": {
+          "why": "HTTP वाली walled-garden list खाली है। दोनों list अलग चीज़ हैं -- ये वाली http के लिए चाहिए।"
+        },
+        "3": {
+          "why": "List में entries तो हैं पर portal.wyfyguest.com वाली नहीं है।"
+        }
+      }
+    },
+    "portal-files": {
+      "fallback": "login.html मिल तो गई, पर उसके अंदर का content इस output में नहीं आया -- सिर्फ़ file होने से ये साबित नहीं होता कि Wyfy का page चढ़ा है। `/file print detail where name~\"login.html\"` चलाओ और `contents=` वाला हिस्सा भी copy करो।",
+      "rules": {
+        "0": {
+          "why": "login.html router पे है और उसमें `$(link-login-only)` मौजूद है -- Wyfy का असली redirect page चढ़ा हुआ है।"
+        },
+        "1": {
+          "why": "File तो है पर उसमें `$(link-login-only)` नहीं है -- ये MikroTik का stock page है, Wyfy का नहीं। Guest को नीला login page दिखेगा।"
+        },
+        "2": {
+          "why": "Router पे login.html मिला ही नहीं -- 'Portal Redirect Page' वाले chunks अभी paste नहीं हुए।"
+        },
+        "3": {
+          "why": "login.html मिला, पर उसका path `flash/` से शुरू नहीं होता। Script `flash/hotspot/login.html` मानती है और RouterOS का `set [find ...]` गलत path पे बिना error के चुपचाप कुछ नहीं करता। ऊपर दिखा हुआ असली path Master console team को भेजो।"
+        },
+        "4": {
+          "why": "login.html सही path पे मिल गई। पर ये block सिर्फ़ path और size दिखाता है, file के अंदर का content नहीं -- और guest को नीला MikroTik page तब भी दिख सकता है जब file मौजूद हो। Confirm करने के लिए `/file print detail where name~\"login.html\"` चलाओ।"
+        },
+        "5": {
+          "why": "login.html नाम की कोई file router पे नहीं है।"
+        }
+      }
+    },
+    "tunnel-up": {
+      "fallback": "Tunnel block का RESULT line समझ नहीं आया। पूरा block दोबारा चलाओ और `==== TUNNEL + RADIUS ====` से आगे सब copy करो।",
+      "rules": {
+        "0": {
+          "why": "Router पे कोई RADIUS entry ही नहीं है। WireGuard पहले चाहिए, फिर RADIUS -- दोनों chunks order में paste करो।"
+        },
+        "1": {
+          "why": "Tunnel के through hub तक ping जा रही है।"
+        },
+        "2": {
+          "why": "Hub तक ping नहीं जा रही -- tunnel down है। सबसे common वजह: firewall का allow rule drop rule के नीचे चला गया।"
+        },
+        "3": {
+          "why": "Block ने PASS बोला पर RADIUS server का address एक असली IP नहीं है। इसे PASS मत मानो।"
+        }
+      }
+    },
+    "radius-counters": {
+      "fallback": "Counters पढ़े नहीं जा सके। `/radius monitor 0 once` चलाओ -- अगर `no such item` आए तो `/radius` पे कोई entry ही नहीं है।",
+      "rules": {
+        "0": {
+          "why": "bad-replies बढ़ रहे हैं। जवाब आ रहा है पर router उसे validate होने से पहले फेंक रहा है -- ये server side की problem है, router की नहीं।"
+        },
+        "1": {
+          "why": "timeouts बढ़ रहे हैं -- packet hub तक पहुंच ही नहीं रहा।"
+        },
+        "2": {
+          "why": "rejects बढ़ रहे हैं -- hub तक पहुंच तो रहा है पर secret match नहीं हो रहा।"
+        },
+        "3": {
+          "why": "accepts बढ़ रहे हैं और rejects/timeouts/bad-replies तीनों 0 हैं -- RADIUS बिल्कुल ठीक चल रहा है।"
+        },
+        "4": {
+          "why": "सारे counters 0 हैं -- मतलब router ने अभी तक एक भी RADIUS request देखी ही नहीं। ये PASS नहीं है। पहले phone से एक असली login करो, फिर ये command दोबारा चलाओ।"
+        }
+      }
+    },
+    "rec-secrets-gone": {
+      "fallback": "Output से ये पक्का नहीं हुआ कि list खाली थी या paste ही अधूरा था। Command वाली line (`[admin@...] > /user print ...`) भी साथ में copy करो।",
+      "rules": {
+        "0": {
+          "why": "cloudguest-api user अभी भी router पे है -- पुराने secrets हटे नहीं।"
+        },
+        "1": {
+          "why": "cloudguest-api user router पे नहीं बचा -- पुराने secrets हट गए।"
+        }
+      }
+    },
+    "rec-regenerated": {
+      "fallback": "RADIUS entry के fields पढ़े नहीं जा सके। `/radius print detail` चलाओ (सिर्फ़ `print` नहीं) -- उसमें हर value `key=value` की तरह आती है।",
+      "rules": {
+        "0": {
+          "why": "दो या ज़्यादा RADIUS entries हैं। Router गलत वाली try करता रह सकता है।"
+        },
+        "1": {
+          "why": "एक भी RADIUS entry नहीं है -- नया RADIUS chunk paste नहीं हुआ।"
+        },
+        "2": {
+          "why": "RADIUS entry disabled है।"
+        },
+        "3": {
+          "why": "एक RADIUS entry है, address hub के tunnel IP पे है और timeout ठीक है।"
+        },
+        "4": {
+          "why": "Address ठीक है पर timeout बहुत छोटा है (RouterOS का default 300ms)। Tunnel के ऊपर इतने कम time में जवाब नहीं आता -- 3s चाहिए, वरना timeouts बढ़ेंगे।"
+        },
+        "5": {
+          "why": "RADIUS entry है पर उसका address tunnel subnet (10.20.0.0/24) में नहीं है। Check करो कि ये hub का tunnel IP ही है।"
+        }
+      }
+    },
+    "rec-full": {
+      "fallback": "`model:` वाली line नहीं मिली। `/system routerboard print` का पूरा output paste करो।",
+      "rules": {
+        "0": {
+          "why": "Router से connection बन गया -- model line आ रही है।"
+        }
+      }
+    }
+  }
 }

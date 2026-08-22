@@ -55,7 +55,28 @@ export type Check = {
   id: string;
   label: string;
   command: string;
+  /** Display-only override for `command`, supplied by the active locale.
+   *
+   * Only ever set for OBSERVE-ONLY checks -- the ones whose `command` is
+   * not a RouterOS command at all but an instruction to the human
+   * ("(WiFi connect karo, portal apne aap khulna chahiye)"). `CheckRow`
+   * decides which kind a check is with `isRouterCommand`, and every real
+   * command starts with `/` or `:`. For a pasteable check this field must
+   * stay undefined: `scripts/check-guided-i18n.mjs` rejects a locale that
+   * sets it on one, because a translated command is a command that does
+   * not run. */
+  commandLabel?: string;
   expect: string;
+  /** Display-only override for `expect`, under exactly the same
+   * observe-only restriction as `commandLabel`. For a pasteable check
+   * `expect` is the text the operator compares character-for-character
+   * against what his terminal printed, so it is never translated; for an
+   * observe-only check there is no device output to compare and `expect`
+   * is a sentence describing what he should see. Any RouterOS token
+   * quoted inside one (`RESULT: CLEAN`, `idle-timeout=00:05:00`,
+   * `http-pap`) still has to survive translation intact, which the same
+   * script enforces. */
+  expectLabel?: string;
   failFix?: Fix[];
   assert?: OutputAssertion;
 };

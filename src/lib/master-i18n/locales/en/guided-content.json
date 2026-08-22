@@ -1,6 +1,1161 @@
 {
   "_comment": "English overrides for phases.content.ts / diagnostics.content.ts. EMPTY ON PURPOSE FOR NOW: the content translation is sequenced after the output-analyser work lands in those two files, so this file ships as the wired-up, verified mechanism and nothing else. Shape (see content-i18n.ts, which is the type-level source of truth): { \"phases\": { \"<phase.id>\": { \"title\", \"why\", \"stopGate\", \"paste\": { \"<index>\": { \"label\" } }, \"checks\": { \"<check.id>\": { \"label\", \"failFix\": { \"<index>\": { \"when\", \"note\" } } } } } }, \"symptoms\": { \"<symptom.id>\": { \"seen\", \"causes\": { \"<index>\": { \"tell\", \"cause\", \"note\" } } } }, \"assertions\": { \"<check.id>\": { \"fallback\", \"rules\": { \"<index>\": { \"why\" } } } } }. There is deliberately NO key for command, expect, assert, script, probe or fix -- those must stay byte-identical in every locale, and the absence of a key is what makes that true rather than a rule someone has to remember. scripts/check-guided-i18n.mjs enforces the rest.",
-  "phases": {},
-  "symptoms": {},
-  "assertions": {}
+  "phases": {
+    "audit": {
+      "title": "Is the router clean",
+      "why": "If old provisioning is left behind, the new settings stack on top of it and the wrong org/location IDs keep running.",
+      "stopGate": "If you do not get CLEAN, stop and reset. Build on top of an old config and guests will land on the old portal, and you will lose hours debugging it.",
+      "paste": {
+        "0": {
+          "label": "Router audit — find any old config"
+        }
+      },
+      "checks": {
+        "audit-clean": {
+          "label": "No old Wyfy config left on the router",
+          "commandLabel": "(run the block above)",
+          "expectLabel": "RESULT: CLEAN -- this router is factory-fresh, move on",
+          "failFix": {
+            "0": {
+              "whenLabel": "RESULT: PURANA CONFIG MILA came back",
+              "note": "The router will reboot and your connection will drop — that is normal. Wait 2 minutes, reconnect in WinBox by MAC, and run this audit again. It should say CLEAN now."
+            },
+            "1": {
+              "whenLabel": "old FILES/FOLDER found, e.g. flash/cloudguest-hotspot/",
+              "note": "That is a folder left over from the July provisioning. It holds portal links carrying the old org/location/router IDs, which will still send guests to the wrong place today. Deleting the files is not enough — do a full reset."
+            },
+            "2": {
+              "whenLabel": "Still cannot find the router after the reset",
+              "note": "Put the laptop cable into ether2 (not ether1 — that one is for the internet). Open WinBox, click the MAC address in the 'Neighbors' tab, log in as admin with a blank password."
+            }
+          }
+        }
+      }
+    },
+    "clock": {
+      "title": "Internet and the clock",
+      "why": "The hEX has no battery-backed clock — every power cut leaves it on the wrong date, and on a wrong date both the heartbeat scheduler and HTTPS fail silently.",
+      "stopGate": "If the date is not today's, stop. The router will configure fine on a wrong date but will show as offline in the Master console forever — and that is very hard to catch later.",
+      "paste": {
+        "0": {
+          "label": "Set the clock and NTP"
+        },
+        "1": {
+          "label": "Check internet and the clock"
+        }
+      },
+      "checks": {
+        "clock-internet": {
+          "label": "The internet is working",
+          "commandLabel": "(run the check block above)",
+          "expectLabel": "RESULT: PASS -- the internet is working",
+          "failFix": {
+            "0": {
+              "whenLabel": "ping came back false",
+              "note": "The ISP cable belongs in ether1 and the laptop in ether2. Do not swap them. Plug it in, wait 30 seconds, and run the block again."
+            }
+          }
+        },
+        "clock-date": {
+          "label": "The router's date is today's",
+          "failFix": {
+            "0": {
+              "whenLabel": "date shows 1970 / jan/01/1970",
+              "note": "NTP needs the internet. Get the ping above to PASS first, then run this command and check /system clock print again 10 seconds later."
+            },
+            "1": {
+              "whenLabel": "ntp status: synchronized never appears",
+              "note": "Set the date by hand (today's date). That is temporary but enough — NTP will correct it later on its own. Do not move on with a wrong date."
+            }
+          }
+        }
+      }
+    },
+    "wan": {
+      "title": "WAN and route repair",
+      "why": "The script reads the gateway immediately after creating the DHCP client — the lease has not arrived yet, so the route is built with gateway 0.0.0.0 and the whole internet goes down.",
+      "stopGate": "If the route is not As, do not move on at all — the hotspot, the tunnel and RADIUS all run over this route, and all three will fail silently.",
+      "paste": {
+        "0": {
+          "label": "Wait for the DHCP lease + repair the route (always run this after the script)"
+        }
+      },
+      "checks": {
+        "wan-lease": {
+          "label": "An address came through from the ISP",
+          "failFix": {
+            "0": {
+              "whenLabel": "stuck on status searching...",
+              "note": "Is the ISP cable seated properly in ether1? Is the ISP's own router powered on? Unplug the cable, plug it back in, and look again 30 seconds later."
+            }
+          }
+        },
+        "wan-route-active": {
+          "label": "The default route is ACTIVE, not inactive",
+          "failFix": {
+            "0": {
+              "whenLabel": "flags show Is, or the GATEWAY column is 0.0.0.0",
+              "note": "This is exactly the bug. The route was created but the gateway was empty. After you run this the route becomes As and ping starts working."
+            },
+            "1": {
+              "whenLabel": "gw printed empty",
+              "note": "That means the lease still has not arrived. Wait 30 seconds and run the repair block above again — re-running it is completely safe."
+            }
+          }
+        }
+      }
+    },
+    "gate": {
+      "title": "The real gate to the internet",
+      "stopGate": "If it does not come back PASS, stop. Everything past this point needs the internet, and some of it will fail silently with no error at all.",
+      "paste": {
+        "0": {
+          "label": "Test the internet and DNS together"
+        }
+      },
+      "checks": {
+        "gate-pass": {
+          "label": "Both the internet and DNS are working",
+          "commandLabel": "(run the block above)",
+          "expectLabel": "RESULT: PASS -- move on",
+          "failFix": {
+            "0": {
+              "whenLabel": "ping true but resolve false",
+              "note": "The script sets the DNS servers in a later chunk, so running this check before that gives a false FAIL. Run this command and run the gate again — it will PASS now. The router was fine all along."
+            },
+            "1": {
+              "whenLabel": "ping is false too",
+              "note": "Go back to Phase 2 — whether the route is As or Is is the real problem."
+            }
+          }
+        }
+      }
+    },
+    "hotspot": {
+      "title": "LAN and hotspot",
+      "why": "After you paste the Master console's LAN and Hotspot chunks, three settings are left over that the script does not set.",
+      "stopGate": "All four checks have to PASS. If any one of them is wrong the guest will log in and believe everything worked, while nothing actually does.",
+      "paste": {
+        "0": {
+          "label": "Hotspot hardening (run after the LAN + Hotspot chunks)"
+        },
+        "1": {
+          "label": "Hotspot audit — is every setting right?"
+        }
+      },
+      "checks": {
+        "hs-idle": {
+          "label": "Sessions close themselves (otherwise sessions pile up)",
+          "commandLabel": "(run the audit block above)",
+          "expectLabel": "idle-timeout=00:05:00",
+          "failFix": {
+            "0": {
+              "whenLabel": "shows idle-timeout=none",
+              "note": "With keepalive off, idle-timeout is the only backstop left. Leave it at none and sessions never close, the data cap never applies, and the active list keeps growing."
+            }
+          }
+        },
+        "hs-loginby": {
+          "label": "The router will accept the login form",
+          "commandLabel": "(the login-by line in the audit block)",
+          "expectLabel": "login-by should contain http-pap",
+          "failFix": {
+            "0": {
+              "whenLabel": "shows login-by: cookie,http-chap",
+              "note": "That is the RouterOS default, and the portal's form cannot satisfy it. The guest will enter the right OTP, nothing will happen, and nothing will appear in the router's log either."
+            }
+          }
+        },
+        "hs-shared": {
+          "label": "One guest can use two devices (phone + laptop)",
+          "commandLabel": "(the shared-users line in the audit block)",
+          "expectLabel": "shared-users : 5",
+          "failFix": {
+            "0": {
+              "whenLabel": "shared-users : 1",
+              "note": "At 1, the guest's laptop gets 'no more sessions are allowed for user' — and that is not a soft error, the whole login fails."
+            }
+          }
+        },
+        "hs-guest": {
+          "label": "The local guest user is disabled (no portal bypass)",
+          "failFix": {
+            "0": {
+              "whenLabel": "guest user shows as enabled",
+              "note": "The router checks its own local user first and RADIUS second. So anyone who knows the guest password can bypass the portal completely — no OTP, no record, no data cap. That password is printed on the Master console screen, which makes this a real risk."
+            }
+          }
+        }
+      }
+    },
+    "portal": {
+      "title": "The path to the portal",
+      "why": "Without the walled garden a guest's browser cannot reach the portal at all — a captive portal blocks even its own server.",
+      "stopGate": "If the walled-garden ip list stays empty no guest will ever be able to open the portal — and no error will show anywhere on the router. Never skip this check.",
+      "paste": {
+        "0": {
+          "label": "Walled garden — set both lists (this one reports its own FAIL)"
+        },
+        "1": {
+          "label": "Where are the portal files, and are they right?"
+        }
+      },
+      "checks": {
+        "wg-ip": {
+          "label": "The portal's IP is in the HTTPS list (this is what breaks most often)",
+          "failFix": {
+            "0": {
+              "whenLabel": "the list is empty",
+              "note": "Run the walled garden block above again. If it still reports FAIL, run the Phase 3 DNS fix (/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes) and then this block. With DNS broken this block sets nothing at all, silently — which is why you must not skip this check."
+            },
+            "1": {
+              "whenLabel": "dst-address shows some other IP",
+              "note": "The portal's IP must have changed. Run the block above again — it updates the old entry rather than creating a duplicate."
+            }
+          }
+        },
+        "wg-host": {
+          "label": "The HTTP list is set too",
+          "failFix": {
+            "0": {
+              "whenLabel": "it is empty",
+              "note": "The two lists are different things — the HTTP one is only for http, the IP one for https. You need both."
+            }
+          }
+        },
+        "portal-files": {
+          "label": "The portal's redirect pages are on the router",
+          "failFix": {
+            "0": {
+              "whenLabel": "login.html not found at all",
+              "note": "The five 'Portal Redirect Page' chunks from the Master console have not been pasted yet. Paste them, then run this check again."
+            },
+            "1": {
+              "whenLabel": "the file exists but is small / $(link-login-only) is missing",
+              "note": "The script assumes the path flash/hotspot/login.html, but on some models the path is just hotspot/login.html. When that happens the paste runs, no error appears, and the file never changes. Send whatever real path the block above printed to the Master console team — they will have to change it."
+            },
+            "2": {
+              "whenLabel": "the guest sees the blue MikroTik login page instead of the Wyfy portal",
+              "note": "That is the visible symptom of the problem above. The router is fine, the redirect page just never got uploaded."
+            }
+          }
+        },
+        "cert-optional": {
+          "label": "The certificate chunk (optional — you can skip it)",
+          "failFix": {
+            "0": {
+              "whenLabel": "'input does not match any value of ca' error",
+              "note": "That is an old bug in the chunk. Run this command to clean up and skip the certificate chunk — the guest portal works fully without it, because the walled-garden path never touches the hotspot's certificate."
+            }
+          }
+        }
+      }
+    },
+    "tunnel": {
+      "title": "Tunnel and RADIUS",
+      "why": "To verify an OTP the router has to reach the hub through the tunnel — with the tunnel down, a guest's OTP will sit on a spinner forever.",
+      "stopGate": "If ping does not reach the hub, a guest's OTP will never verify — the spinner just keeps going and the guest concludes the app is broken.",
+      "paste": {
+        "0": {
+          "label": "Fix the firewall order + the RADIUS src-address (after the WireGuard/RADIUS chunks)"
+        },
+        "1": {
+          "label": "Are the tunnel and RADIUS alive?"
+        }
+      },
+      "checks": {
+        "tunnel-up": {
+          "label": "Ping reaches the hub through the tunnel",
+          "commandLabel": "(run the tunnel check block above)",
+          "expectLabel": "RESULT: PASS -- we reached the hub",
+          "failFix": {
+            "0": {
+              "whenLabel": "last-handshake is very old or blank",
+              "note": "The most common cause: the firewall's allow rule ended up BELOW the drop rule, so the tunnel's own replies get blocked. This command lifts it above. The handshake should appear within 30 seconds."
+            },
+            "1": {
+              "whenLabel": "RESULT: FAIL -- there is no RADIUS entry",
+              "note": "The Master console's RADIUS chunk was never pasted. Note the order: RADIUS needs WireGuard first, so paste the two chunks in order."
+            }
+          }
+        },
+        "radius-counters": {
+          "label": "The RADIUS counters (look at these after a guest test)",
+          "failFix": {
+            "0": {
+              "whenLabel": "timeouts are climbing",
+              "note": "The packet is not reaching the hub at all — run the tunnel check again."
+            },
+            "1": {
+              "whenLabel": "rejects are climbing",
+              "note": "It is reaching the hub, but the secret does not match. Do NOT press Generate again in the Master console — follow the Phase 8 recovery instead."
+            },
+            "2": {
+              "whenLabel": "bad-replies are climbing",
+              "note": "A reply is coming back but the router is rejecting it. That is a server-side problem, not the router's — tell the team."
+            }
+          }
+        }
+      }
+    },
+    "phonetest": {
+      "title": "The real test, from a phone",
+      "why": "Every check on the router can pass and the guest experience can still be broken — only a real phone tells you the truth.",
+      "stopGate": "Do not treat the router as live until this phase passes. Everything else can pass and it can still fail on a real phone.",
+      "paste": {
+        "0": {
+          "label": "Watch it live — did the guest connect or not"
+        }
+      },
+      "checks": {
+        "phone-mobiledata": {
+          "label": "Mobile data is OFF on the phone",
+          "commandLabel": "(turn mobile data off in the phone's settings, then connect to the WiFi)",
+          "expectLabel": "Mobile data off — otherwise the phone quietly uses 4G and the test passes for the wrong reason",
+          "failFix": {
+            "0": {
+              "whenLabel": "the test looks like it passed but you are not sure",
+              "note": "Never run this test without mobile data off. The phone slips onto 4G in the background and you think the WiFi is working."
+            }
+          }
+        },
+        "phone-portal": {
+          "label": "The portal opens by itself",
+          "commandLabel": "(connect to the WiFi; the portal should open on its own)",
+          "expectLabel": "The Wyfy portal sign-in page — not the blue MikroTik page",
+          "failFix": {
+            "0": {
+              "whenLabel": "nothing opened",
+              "note": "Open the browser's ADDRESS BAR and type: wifi.wyfyguest.com — in the address bar, not the search box. That takes you straight to the portal."
+            },
+            "1": {
+              "whenLabel": "the blue MikroTik login page opened",
+              "note": "The portal's redirect pages are not on the router. Go back to the portal-files check in Phase 5."
+            },
+            "2": {
+              "whenLabel": "the page never loaded / timed out",
+              "note": "The walled-garden ip list is probably empty. Run the first block of Phase 5 again."
+            }
+          }
+        },
+        "phone-otp": {
+          "label": "The OTP login works",
+          "commandLabel": "(enter your own real number, then the OTP)",
+          "expectLabel": "After logging in you should see the connected/session screen",
+          "failFix": {
+            "0": {
+              "whenLabel": "the spinner keeps going after entering the OTP",
+              "note": "Run the Phase 6 tunnel check — is ping reaching the hub or not."
+            },
+            "1": {
+              "whenLabel": "login succeeded and the internet works, but 'session expired' appeared straight away",
+              "note": "That is NOT an expiry. The guest's browser is blocking storage (the iPhone WiFi login window, or private browsing). The internet working means the router has done its whole job. This is a known app-side problem — tell the team, change nothing on the router."
+            }
+          }
+        },
+        "phone-realsite": {
+          "label": "Real internet works after logging in",
+          "commandLabel": "(open some new https site you have never opened before)",
+          "expectLabel": "The site should open normally",
+          "failFix": {
+            "0": {
+              "whenLabel": "the portal opened but everything else is blocked",
+              "note": "If your phone shows up here, the router has accepted the login. If it does not show up, the login never completed."
+            }
+          }
+        },
+        "phone-reconnect": {
+          "label": "Turn WiFi off/on and reconnect",
+          "commandLabel": "(turn the phone's WiFi off, wait 10 seconds, turn it back on)",
+          "expectLabel": "Either it just works, or the portal opens again and you log in",
+          "failFix": {
+            "0": {
+              "whenLabel": "after reconnecting it says 'connected' but there is no internet",
+              "note": "That is an old known bug which has already been fixed. If it still happens, tell the team — it is the portal app's problem, not the router's."
+            }
+          }
+        }
+      }
+    },
+    "recovery": {
+      "title": "Something has gone wrong",
+      "why": "The moment you press Generate again in the Master console every secret changes, while the router keeps the old ones — and that fails silently.",
+      "stopGate": "With a secret mismatch the guests keep working but the Master console cannot control the router — so do not file this under 'we will look at it later'.",
+      "paste": {
+        "0": {
+          "label": "Is there a secret mismatch? (check this first)"
+        },
+        "1": {
+          "label": "Reset the secrets only (the rest of the router's config survives)"
+        },
+        "2": {
+          "label": "Full factory reset (when nothing else makes sense)"
+        }
+      },
+      "checks": {
+        "rec-secrets-gone": {
+          "label": "The old secrets are gone",
+          "failFix": {
+            "0": {
+              "whenLabel": "the row is still there",
+              "note": "Run this command again."
+            }
+          }
+        },
+        "rec-regenerated": {
+          "label": "The new secrets are on",
+          "failFix": {
+            "0": {
+              "whenLabel": "two entries are showing",
+              "note": "Remove them all and paste the RADIUS chunk exactly once. With two entries the router can keep trying the wrong one."
+            },
+            "1": {
+              "whenLabel": "the log still shows login failures",
+              "note": "Do NOT press Generate again in the Master console. Use the script that was already generated — every Generate mints new secrets and brings the problem straight back."
+            }
+          }
+        },
+        "rec-full": {
+          "label": "The router is reachable after the factory reset",
+          "failFix": {
+            "0": {
+              "whenLabel": "cannot connect after the reset",
+              "note": "Wait 2 minutes. Laptop cable into ether2. WinBox → Neighbors tab → click the MAC. Log in as admin with a blank password. Then start again from Phase 0."
+            }
+          }
+        }
+      }
+    }
+  },
+  "symptoms": {
+    "wan-no-route-to-host": {
+      "seen": "Ping anything from the router and you get \"no route to host\", even though `/ip route print` shows a 0.0.0.0/0 line.",
+      "causes": {
+        "0": {
+          "tell": "Flags show `Is` (I = inactive) and the line has `gateway=0.0.0.0`.",
+          "cause": "The script ran through `/import`. `/import` never pauses -- the lease's gateway was read microseconds after the DHCP client was added, the lease had not arrived yet, so the route was built with gateway `0.0.0.0` and is permanently Inactive.",
+          "note": "This is a live fix, already proven. It never happens on a chunk-by-chunk terminal paste, because human typing delay gives DHCP time to bind -- it only shows up on an `.rsc` `/import`. After the fix the flag should become `As`."
+        },
+        "1": {
+          "tell": "Flags show `Is` but `gateway=` holds a real IP (e.g. `gateway=192.168.2.1`).",
+          "cause": "The gateway is written correctly but it is not answering ping, so `check-gateway=ping` marked the route inactive itself. That means the WAN cable/ISP link is genuinely down.",
+          "note": "`status: no-link` means a cable/port problem; `status: link-ok` with ping failing means the ISP's side. This is not a route bug -- the moment the gateway is healthy RouterOS turns the route `As` by itself, no command needed."
+        },
+        "2": {
+          "tell": "The command prints nothing at all -- there is no 0.0.0.0/0 line.",
+          "cause": "The WAN Routing chunk never created the route, because the gateway was blank at the time (DHCP had not bound, or PPPoE had not connected). The chunk does not error, it skips silently.",
+          "note": "First confirm `/ip dhcp-client print detail` reports `status: bound`, otherwise pasting again gives you the same blank gateway. The heartbeat scheduler retries this every 5 minutes too, so you can also just wait 5 min and look again."
+        },
+        "3": {
+          "tell": "Flags show `As` (A = active) and `gateway=` holds a real IP -- the route is perfectly fine.",
+          "cause": "There is no routing problem. It showed up as `no route to host` by name, but the real trouble is in DNS or the firewall.",
+          "note": "If `8.8.8.8` pings but names do not resolve, go to the `dns-servers-empty` symptom. With an `As` route, stop blaming the WAN."
+        }
+      }
+    },
+    "wan-dhcp-client-not-bound": {
+      "seen": "The cable is in the WAN port but the router is getting no IP from upstream at all -- the WAN Connectivity Check reports FAIL.",
+      "causes": {
+        "0": {
+          "tell": "`status: searching...`",
+          "cause": "The router is sending DHCP requests and upstream is not answering. Either the cable is in the wrong port, or DHCP is off on the upstream router/ONT.",
+          "note": "`status: no-link` means cable/port; with `link-ok` and still `searching`, the upstream DHCP server is not replying -- get the venue's ISP box checked."
+        },
+        "1": {
+          "tell": "`status: bound` and `gateway=` holds a real IP.",
+          "cause": "DHCP is perfectly fine. The trouble is in routing or DNS, not in addressing.",
+          "note": "Copy the `gateway=` value from here and apply the `wan-no-route-to-host` fix directly -- in 90% of cases that is the one thing left over after an `.rsc` import."
+        },
+        "2": {
+          "tell": "The command gives empty output -- there is no dhcp-client entry at all.",
+          "cause": "Either the venue is on a static IP (the script was generated in static mode), or the WAN Addressing chunk was never pasted.",
+          "note": "If you see a static address there with the comment `cloudguest-addr-wan1`, this is a static venue -- the ISP supplied the gateway, it will never arrive over DHCP, and in that case the route's gateway was hardcoded at generate time. If there is nothing there either, paste the WAN Addressing chunk."
+        },
+        "3": {
+          "tell": "`status: bound` but the `gateway=` line is missing / empty.",
+          "cause": "Upstream handed out an address but sent no default gateway option -- a cheap or misconfigured upstream router. Very rare.",
+          "note": "Usually the upstream's LAN IP is the `.1` of the same subnet your lease came from. This is a one-off manual step; there is no automatic fix for it."
+        }
+      }
+    },
+    "wan-pppoe-not-connected": {
+      "seen": "The venue is on PPPoE (BSNL/JioFiber type), the script pasted fine but there is no internet -- the default route was never created.",
+      "causes": {
+        "0": {
+          "tell": "`status: connected` and `remote-address:` holds a real IP.",
+          "cause": "The PPPoE session is up. The route is missing only because the WAN Routing chunk ran while the session was still negotiating.",
+          "note": "`remote-address` is the real next hop (the ISP's BRAS). On PPPoE never look at `/ip dhcp-client`, there will be nothing there."
+        },
+        "1": {
+          "tell": "`status: connecting...` or `dialing` over and over.",
+          "cause": "It is reaching the PPPoE server but no session forms -- usually the ONT/modem is still dialling PPPoE itself, and the ISP allows only one session.",
+          "note": "Dialling one PPPoE account from two places is the single most common field mistake. Kill the session on the modem and the router connects within seconds."
+        },
+        "2": {
+          "tell": "Stuck on `status: authenticating`, or `authentication failed` in the log.",
+          "cause": "The PPPoE username/password typed at Generate time is wrong.",
+          "note": "Fix it by hand here -- do not click Generate again, that rotates the WireGuard and RADIUS secrets and bricks the router."
+        },
+        "3": {
+          "tell": "The command errors with `no such item`.",
+          "cause": "The pppoe-client interface was never created -- the WAN Addressing chunk was not pasted.",
+          "note": "Order matters: the pppoe interface has to exist first, only then can the routing chunk read its gateway."
+        }
+      }
+    },
+    "double-nat-private-wan-ip": {
+      "seen": "The WAN port got a private IP like `192.168.2.199/24` instead of a public one -- it looks like something went wrong.",
+      "causes": {
+        "0": {
+          "tell": "`address=192.168.x.x/24` or `10.x.x.x` or `172.16-31.x.x`, `dynamic=yes`.",
+          "cause": "This is double NAT -- our router sits behind an upstream router. For a captive portal that is completely normal and it is how 95% of venues are.",
+          "note": "Do nothing about it. The guest's traffic is NAT'd twice, that is all -- the portal, OTP, RADIUS, WireGuard and the bandwidth queue all work fine through it. It only breaks things if someone needs a port-forward into the router from the outside internet (i.e. WinBox/SSH remotely) -- and we never do that, we come in over the WireGuard tunnel. Do not waste time on this."
+        },
+        "1": {
+          "tell": "`address=100.64.x.x` or `100.65-127.x.x`.",
+          "cause": "The ISP is doing CGNAT (carrier-grade NAT) itself. That is also fine for us, though upstream UDP filtering is more common here.",
+          "note": "If the WireGuard handshake is not happening, see the `wg-handshake-missing` symptom -- ISP UDP blocking turns up most often on CGNAT connections."
+        },
+        "2": {
+          "tell": "`address=` holds a real public IP (not in a private range).",
+          "cause": "The router is connected straight to the ISP; there is no double NAT at all.",
+          "note": "Nothing to do here either. Just be aware the router is now directly exposed to the internet, so the Firewall chunk must have been pasted (`cloudguest-fw-drop-wan-input` should be present)."
+        },
+        "3": {
+          "tell": "The command gives empty output.",
+          "cause": "There is no address on that interface at all -- the WAN has not come up.",
+          "note": "Go to `wan-dhcp-client-not-bound`. This is not a double NAT question."
+        }
+      }
+    },
+    "dns-servers-empty": {
+      "seen": "The router can ping `8.8.8.8` but no website opens on a guest's phone -- \"server not found\".",
+      "causes": {
+        "0": {
+          "tell": "The `servers:` line is empty (nothing written after it).",
+          "cause": "The router has no upstream resolver at all. Our DHCP client runs with `use-peer-dns=no` (deliberately), so the ISP's DNS never arrives on its own -- and the DHCP server hands guests `10.5.50.1`, i.e. the router itself. If the router cannot resolve anything, neither can the guest.",
+          "note": "This is the single most repeated failure in the whole setup. `allow-remote-requests=yes` is essential, otherwise guests cannot even ask the router. After fixing it, be sure to check `walled-garden-https-entry-missing` too -- broken DNS may well have stopped that entry being created either."
+        },
+        "1": {
+          "tell": "`servers: 8.8.8.8,1.1.1.1` is set but `:put [:resolve \"google.com\"]` still fails.",
+          "cause": "The resolver is set but the router cannot reach it -- that is a WAN/route problem, not a DNS one.",
+          "note": "If ping fails too, go to `wan-no-route-to-host`. Trying one DNS server after another is pointless here."
+        },
+        "2": {
+          "tell": "`allow-remote-requests: no`",
+          "cause": "The router resolves fine for itself but rejects the guests' queries -- DHCP gave them `10.5.50.1` and the door there is shut.",
+          "note": "`:resolve` works on the router but nothing opens on the guest's phone -- that is exactly this combination. Do not blame the WAN for it."
+        },
+        "3": {
+          "tell": "`servers:` is populated and `:resolve` works too.",
+          "cause": "DNS is perfectly fine. The trouble is further on -- in the walled garden or in hotspot L2.",
+          "note": "Go to `walled-garden-https-entry-missing` and `portal-never-loads`."
+        }
+      }
+    },
+    "walled-garden-https-entry-missing": {
+      "seen": "The guest joins the WiFi, the login page even appears, but the portal never opens / white screen / timeout.",
+      "causes": {
+        "0": {
+          "tell": "There is no line with `comment=\"cloudguest-portal-https\"` at all.",
+          "cause": "That entry is built at paste time from an on-device `:resolve`, and its `on-error` only writes a warning to the log. So: DNS was broken at paste time -> the entry was never created, and no error was ever shown. The guest is left with no route to an HTTPS portal.",
+          "note": "This ONE failure puts the entire guest portal out of reach while everything else on the router looks green. Fix DNS first, then run this -- do it the other way round and the entry still will not be created. Or just paste the Walled Garden chunk again, it will resolve properly now."
+        },
+        "1": {
+          "tell": "`comment=\"cloudguest-portal-https\"` exists but `dst-address=` holds an old/wrong IP.",
+          "cause": "The portal's IP has changed (a host or CDN move) and the old one is pinned on the device.",
+          "note": "Pasting the Walled Garden chunk again updates this too -- it is set-if-present, not add-if-missing. Confirm the new IP matches the one `:resolve` returns."
+        },
+        "2": {
+          "tell": "The entry exists, `dst-address=` is right, and `action=accept` is set.",
+          "cause": "The walled garden is fine. The trouble is in the guest's DNS or in hotspot L2.",
+          "note": "Check one more thing: `/ip hotspot walled-garden print detail` (a separate, host-based table) should hold a `cloudguest-portal` entry -- that one is needed for the HTTP redirect, the IP one for HTTPS. They are two different mechanisms."
+        }
+      }
+    },
+    "portal-never-loads": {
+      "seen": "The guest is on the WiFi but the portal page never appears at all -- no login page, no error, just a spinner or a timeout.",
+      "causes": {
+        "0": {
+          "tell": "`status: finished` / `downloaded: ...KiB` -- the router itself reached the portal.",
+          "cause": "The router's WAN and DNS are both fine. So the guest's path is what is blocked -- the walled garden's HTTPS entry is missing.",
+          "note": "This is the most time-consuming lookalike there is -- everything works from the router, nothing works for the guest. The full detail is in `walled-garden-https-entry-missing`."
+        },
+        "1": {
+          "tell": "`failure: dns name does not exist` or `resolving failed`.",
+          "cause": "The router has no DNS at all -- `/ip dns` will have empty servers.",
+          "note": "Right after fixing DNS, get the walled-garden entry created as well -- it will have been skipped at paste time because of that same broken DNS."
+        },
+        "2": {
+          "tell": "`failure: connection timed out` or `closed connection`.",
+          "cause": "The WAN/route is down. The name resolved but the packet is not getting out.",
+          "note": "Go to `wan-no-route-to-host`. Blaming the walled garden or the portal here is pointless."
+        },
+        "3": {
+          "tell": "`status: finished` comes back and the walled-garden entry is present too.",
+          "cause": "The network side is clean. Either the guest's traffic is not reaching the router, or the guest's phone is not triggering the portal at all.",
+          "note": "Now go to `guests-get-nothing` (L2/DHCP). A self-signed certificate warning interstitial also eats the guest's URL params -- if a cert warning appeared on the phone, this is not a network issue."
+        }
+      }
+    },
+    "wg-handshake-missing": {
+      "seen": "The dashboard shows the router \"offline\" or WireGuard \"not connected\", while you are sitting in front of the router and the internet works.",
+      "causes": {
+        "0": {
+          "tell": "There is no `last-handshake=` line (or the value is blank), and `tx=` is climbing while `rx=0 B`.",
+          "cause": "Our packets are going out and nothing is coming back from the hub. Usually the upstream ISP blocks UDP egress (common on managed hotel/mall connections), or there is no path to the endpoint.",
+          "note": "If ICMP ping works but `rx=0 B` stays put, the ISP is blocking UDP/51820 -- that is not fixable on the router, you have to talk to the venue's ISP or add a second uplink. It only breaks remote management; the guests' portal and internet are not affected."
+        },
+        "1": {
+          "tell": "Both `tx=0 B` and `rx=0 B`, and no `last-handshake=` either.",
+          "cause": "The router has not sent a single packet -- either the peer is wrong/incomplete, or there is no IP address on the tunnel interface.",
+          "note": "`endpoint-address=20.219.72.235`, `endpoint-port=51820`, `persistent-keepalive=25s` and `10.20.0.x/24` on the tunnel -- all four have to be there. If even one is missing, paste the WireGuard Tunnel chunk again. Do not click Generate again: that rotates the keys, and since the chunk is add-if-missing, a re-paste will NOT repair it either."
+        },
+        "2": {
+          "tell": "Two interfaces are showing: `wg-cloudguest` and `wg-cloudguard`.",
+          "cause": "The frontend chunk creates `wg-cloudguest`, the backend bootstrap creates `wg-cloudguard` -- both paths ran. The firewall rule is tied to one name while the traffic goes over the other.",
+          "note": "Keep whichever tunnel actually shows a `last-handshake=` and remove the other. The firewall rule's `in-interface=` has to match the name of the surviving tunnel."
+        },
+        "3": {
+          "tell": "A recent value like `last-handshake=1m30s` is showing.",
+          "cause": "The handshake is happening. The tunnel is up -- this symptom ends here.",
+          "note": "A handshake happening and traffic flowing are two different things. Go to `wg-handshake-ok-no-traffic` now and verify the real claim with `/ping 10.20.0.1`."
+        }
+      }
+    },
+    "wg-handshake-ok-no-traffic": {
+      "seen": "The WireGuard handshake is showing but the dashboard still reports the router offline / RADIUS is timing out.",
+      "causes": {
+        "0": {
+          "tell": "`sent=4 received=0` (all timed out).",
+          "cause": "The handshake happened but no data is crossing the tunnel. The most common reason: the peer's `allowed-address` does not cover the hub's tunnel subnet, or the router's own tunnel IP was never put on `wg-cloudguest`.",
+          "note": "`allowed-address` must contain `10.20.0.0/24` (or whatever tunnel subnet was in the script). A `last-handshake=` only means the keys matched -- routing is a separate thing. So never trust a dashboard \"handshake OK\", always run this ping."
+        },
+        "1": {
+          "tell": "`no route to host` or `host unreachable`.",
+          "cause": "There is no address on the tunnel interface, so the router has no connected route for `10.20.0.0/24` at all.",
+          "note": "The right `<n>` comes from this router's management IP in Router Fleet -- put in the wrong number and you clash with another router. Do not guess, look it up in the dashboard."
+        },
+        "2": {
+          "tell": "`sent=4 received=4` -- ping is working.",
+          "cause": "The tunnel is working completely. The reason for dashboard-offline or RADIUS-timeout is somewhere else.",
+          "note": "If the dashboard says offline, look at `router-offline-in-dashboard` (usually an NTP/clock problem). If RADIUS is timing out, go to `radius-counters` -- the tunnel is no longer a suspect."
+        },
+        "3": {
+          "tell": "Sometimes a reply, sometimes a timeout (`packet-loss=50%` sort of thing).",
+          "cause": "The uplink is flapping, or two default routes are fighting each other.",
+          "note": "If you see an extra 0.0.0.0/0 route without a `cloudguest-` comment (created by RouterOS's own dhcp-client), remove it -- it fights with our check-gateway route."
+        }
+      }
+    },
+    "wg-firewall-rule-order": {
+      "seen": "The tunnel comes up but nothing reaches the router from the hub -- WinBox/API will not open through the tunnel.",
+      "causes": {
+        "0": {
+          "tell": "The row number of `cloudguest-fw-allow-wg-mgmt` is HIGHER than `cloudguest-fw-drop-wan-input` (i.e. it is below it).",
+          "cause": "RouterOS runs rules top to bottom. The drop rule matches first, so the tunnel's accept never runs at all.",
+          "note": "This happens when the Firewall chunk was pasted AFTER the WireGuard chunk. After the move the allow rule's number must be the smaller one. Look only at the number, nothing else."
+        },
+        "1": {
+          "tell": "There is no `cloudguest-fw-allow-wg-mgmt` line at all.",
+          "cause": "The WireGuard chunk was never pasted, or only its firewall part failed to run.",
+          "note": "`place-before=` is essential -- a plain `add` always appends to the end of the list, which means below the drop rule, which means useless."
+        },
+        "2": {
+          "tell": "The allow rule is above and has flag `X` (disabled) in front of it.",
+          "cause": "The rule exists but someone disabled it while debugging in WinBox.",
+          "note": "The `X` flag is easy to miss even when the order is right. Always look at the flags column in the print output."
+        },
+        "3": {
+          "tell": "The allow rule is above, enabled, and still nothing arrives from the hub.",
+          "cause": "It is not a firewall problem -- the tunnel is genuinely not carrying traffic.",
+          "note": "Go to `wg-handshake-ok-no-traffic`. Do not touch anything else in the firewall."
+        }
+      }
+    },
+    "radius-counters": {
+      "seen": "The guest's OTP verifies, the app shows \"connected\", but there is no internet.",
+      "causes": {
+        "0": {
+          "tell": "All four counters are `0` -- `accepts=0 rejects=0 timeouts=0 bad-replies=0`.",
+          "cause": "Not a single RADIUS request ever reached the router. That means the hotspot's login POST was never sent -- this is a portal-side bug, not a network one.",
+          "note": "This was the real final blocker in the 2026-08-18 outage: the portal never had `guestIdentifier` set, so the hotspot POST silently no-op'd and the router's logs stayed completely empty. Change nothing on the router -- tell the backend/portal team. Counters at `0` mean the router never saw anything at all."
+        },
+        "1": {
+          "tell": "`bad-replies` is climbing.",
+          "cause": "The server's reply did arrive, but RouterOS threw it away before validating it. Usually the reply carries no Message-Authenticator attribute while the router sits at `require-message-auth=yes-for-request-resp` instead.",
+          "note": "This is NOT a reject and NOT a timeout -- it is a third, separate counter, and it is the thing that ate hours on 2026-08-18. The real fix is on the FreeRADIUS hub. Treating it as a reject and debugging credentials is wasted time."
+        },
+        "2": {
+          "tell": "`timeouts` is climbing.",
+          "cause": "The request went out and no reply came back. Either the tunnel is down (the server is on a tunnel IP), or the shared secret is wrong -- on a wrong secret FreeRADIUS drops silently rather than sending a reject.",
+          "note": "Ping fail = tunnel problem, go to `wg-handshake-ok-no-traffic`. If ping works then the secret is wrong -- re-register with `POST /radius/nas/register-external/{router_id}` and paste the `/radius` chunk in the same sitting (registering rotates the secret)."
+        },
+        "3": {
+          "tell": "`rejects` is climbing.",
+          "cause": "The server saw the request, understood it, and refused. Most commonly: this router's identifier/registration does not match the backend's router record -- the request is authenticating as some other router.",
+          "note": "This bites particularly on the second router and beyond: if the hub's `sites-enabled/default` still has router #1's identifier hardcoded, the new router does not get a 401 -- it authenticates AS router #1 and then comes back as a Reject inside an HTTP 200 on `router_id` mismatch, with nothing in the logs. This is not fixable on the router."
+        },
+        "4": {
+          "tell": "`accepts` is climbing.",
+          "cause": "RADIUS is working perfectly. The guest is being authorised.",
+          "note": "Run `/ip hotspot active print` -- the guest should show up there. If they do and there is still no internet, the trouble is in WAN/DNS, not in auth."
+        },
+        "5": {
+          "tell": "The command errors with `no such item`.",
+          "cause": "There is no entry under `/radius` at all -- the RADIUS chunk was never pasted.",
+          "note": "`monitor 0` means the first entry. With no entry at all the command fails on the index itself."
+        }
+      }
+    },
+    "radius-bad-replies": {
+      "seen": "In `/radius monitor 0 once` the `bad-replies` counter is climbing, while `rejects` and `timeouts` are zero.",
+      "causes": {
+        "0": {
+          "tell": "`require-message-auth=yes-for-request-resp`",
+          "cause": "RouterOS is demanding a Message-Authenticator attribute in the reply. FreeRADIUS's `rlm_rest`-built Access-Accept does NOT attach one by itself, so the router silently discards every reply.",
+          "note": "This is exactly root cause #4 from 2026-08-18. The server-side fix is the real fix. Setting `require-message-auth=no` on the router to move on is only for saving a demo -- it weakens security and hides the real bug, so raise a ticket for it."
+        },
+        "1": {
+          "tell": "`require-message-auth=no` and `bad-replies` is still climbing.",
+          "cause": "A reply is arriving but its authenticator hash does not match -- the shared secret differs on the two sides.",
+          "note": "A half-wrong secret gives bad-replies rather than timeouts when the server is answering. Do not click Generate between registering and pasting, or the secret changes again."
+        },
+        "2": {
+          "tell": "`timeout=300ms` (or anything below `timeout=3s` at all).",
+          "cause": "RouterOS's default is 300ms, which is far too short for a path over the tunnel -- a late reply sometimes turns into a bad-reply/timeout.",
+          "note": "The script sets `timeout=3s`; seeing 300ms means the entry was made by hand or survived from an older paste."
+        }
+      }
+    },
+    "guests-get-nothing": {
+      "seen": "The dashboard shows the router \"online\" but the guest's phone gets no IP at all -- WiFi sits on \"obtaining IP address\".",
+      "causes": {
+        "0": {
+          "tell": "Not a single lease -- the output is empty.",
+          "cause": "The guest's traffic is not reaching the bridge at all. Usually the port the AP is plugged into is not a member of the guest bridge (it is stuck in some old `bridgeLocal`).",
+          "note": "In the print's `BRIDGE` column every LAN port should appear under our guest bridge (default name `bridge`). A port sitting in a different bridge is completely dead for guests -- paste the LAN Ports chunk again, it detaches the port and puts it in the right bridge."
+        },
+        "1": {
+          "tell": "Leases are showing and the `status` column says `bound`.",
+          "cause": "L2 and DHCP are both fine. Guests are getting IPs; the trouble is further on.",
+          "note": "Now look at the hotspot/portal/RADIUS layer. `guests-get-nothing` ends here -- L2 is clean."
+        },
+        "2": {
+          "tell": "There are leases but they are all stuck on `waiting` / `offered`.",
+          "cause": "The guest is sending DISCOVER, the OFFER is arriving, but the ACK never completes -- usually a second DHCP server is talking on that subnet (the venue's old router is still switched on).",
+          "note": "Two DHCP servers on one LAN is the nastiest field issue there is -- guests take IPs from either one at random and half of them never reach the portal. Get DHCP turned off on the old router."
+        },
+        "3": {
+          "tell": "`/ip dhcp-server print` is empty -- no server is defined at all.",
+          "cause": "The Hotspot chunk was not pasted, or the bridge had no LAN IP at the time.",
+          "note": "You do not need to type the interface name here -- the whole list is short and the bridge line is right there. Order matters: the address on the bridge first, the DHCP server after. Paste them the other way round and the server is never created, with no error either."
+        }
+      }
+    },
+    "hotspot-traffic-not-reaching-bridge": {
+      "seen": "The guest's phone shows \"connected\" to the WiFi but there is no trace of it on the router -- no lease, no hotspot host.",
+      "causes": {
+        "0": {
+          "tell": "The guest phone's MAC appears nowhere in the output.",
+          "cause": "The phone is associated with the AP but its packets are not reaching the router. Either the AP is doing NAT/isolation internally, or its uplink has gone into some other switch/VLAN.",
+          "note": "ALWAYS run the sniffer on the LAN bridge, never on the WireGuard tunnel -- that distinction alone kills an entire wrong theory (\"the network is broken\") in one minute. The probe uses `[/ip hotspot get [find] interface]` so the bridge name comes from the router itself and you do not type it. The AP has to be in bridge/AP mode, not router mode."
+        },
+        "1": {
+          "tell": "The MAC is showing, and DHCP Discover packets are showing too.",
+          "cause": "Traffic is reaching the bridge. The trouble is in the DHCP server or the hotspot config, not in the cabling or the AP.",
+          "note": "Go to `guests-get-nothing`. Stop blaming the cable, the AP or \"the network\" now -- the packets are arriving."
+        },
+        "2": {
+          "tell": "The MAC is showing but only ARP, no DHCP.",
+          "cause": "The phone already has a static/stale IP and is not asking for a new lease at all.",
+          "note": "This happens a lot on the test phone. Test with a second, completely fresh device -- half the time that is what \"the router's bug\" turns out to be."
+        },
+        "3": {
+          "tell": "The command itself errors: `no such item` or `input does not match any value of interface`.",
+          "cause": "There is no hotspot at all, so the probe could not pull the bridge name -- the Hotspot chunk still has to be pasted before the sniffer.",
+          "note": "That is an answer in itself: the hotspot is missing. You can still run the sniffer -- just read the bridge name from `/interface bridge print` and type it in by hand, never guess it."
+        }
+      }
+    },
+    "hotspot-session-leak": {
+      "seen": "Some guests get \"device limit reached\", or new guests cannot connect at all, while the venue is empty.",
+      "causes": {
+        "0": {
+          "tell": "There are a great many active entries and `uptime` is in hours/days.",
+          "cause": "Sessions are simply not closing. The script sets `keepalive-timeout=none` but never sets `idle-timeout` -- so a session stays alive long after the guest has gone home.",
+          "note": "Only the first line is the real fix; the second clears the sessions stuck right now. This is an open bug in the generator -- add this line by hand on every new router."
+        },
+        "1": {
+          "tell": "Five entries under one guest's name and the `shared-users=5` limit being hit.",
+          "cause": "Every reconnect creates a new session and the old one never dies without an idle-timeout -- one phone eats all 5 slots.",
+          "note": "`shared-users=5` is deliberate (a guest's phone + laptop). Do not raise it -- fix the idle-timeout, that is the actual cause."
+        },
+        "2": {
+          "tell": "An entry named `user=guest` is showing.",
+          "cause": "The local `guest` hotspot user is a complete bypass of the portal -- RouterOS checks local users BEFORE RADIUS. No OTP, no session, no consent, no bandwidth cap, no accounting.",
+          "note": "This has to be disabled on every new router. While it is on, every \"OTP is not working\" report is suspect -- the guest may never have gone through the portal at all."
+        },
+        "3": {
+          "tell": "The output is empty but the guests have IPs.",
+          "cause": "Nobody has crossed the hotspot gate -- or everyone is stuck at the walled garden.",
+          "note": "Go to `portal-never-loads`. An empty active list means authorisation is not starting at all."
+        }
+      }
+    },
+    "router-offline-in-dashboard": {
+      "seen": "The router shows as \"offline\" in the dashboard while guests at the venue are happily using the internet.",
+      "causes": {
+        "0": {
+          "tell": "A wrong/old date in `date:` (e.g. `jan/01/1970` or `jan/02/2020`).",
+          "cause": "The hEX has no battery clock, so a fresh or power-cycled box boots on the wrong date. The scheduler latched a wrong `start-time`, the heartbeat's `run-count=0` never moved, and HTTPS `/tool fetch` dies too when cert validity fails.",
+          "note": "This is the most common cause of \"offline but the guests are fine\". After fixing the clock the scheduler may need recreating -- if `run-count=0` persists, paste the Heartbeat chunk again."
+        },
+        "1": {
+          "tell": "The date is right but `/system scheduler print detail` shows `run-count=0`.",
+          "cause": "The scheduler was created against the wrong clock and its `next-run` is still stuck in the past.",
+          "note": "`run-count` should be 1 within 5 minutes. If it is not, the scheduler's `start-time` is still bad."
+        },
+        "2": {
+          "tell": "The date is right, `run-count` is climbing, and the dashboard is still offline.",
+          "cause": "The heartbeat is running but not reaching the backend -- a tunnel or DNS problem.",
+          "note": "`status: failed, downloaded: 0KiB` in the log means the fetch never got out -- go to `dns-servers-empty` or `wg-handshake-ok-no-traffic`."
+        },
+        "3": {
+          "tell": "There is no heartbeat entry at all in `/system scheduler print`.",
+          "cause": "The Heartbeat chunk was never pasted.",
+          "note": "Without it the router will never show as online in the dashboard, however perfect everything else is. It has no effect on guests whatsoever."
+        }
+      }
+    }
+  },
+  "assertions": {
+    "audit-clean": {
+      "fallback": "The block ran, but its RESULT line could not be read. Copy the whole output again -- from `==== ROUTER AUDIT ====` down to the `RESULT:` line.",
+      "rules": {
+        "0": {
+          "why": "The router is factory-fresh -- no old Wyfy config found."
+        },
+        "1": {
+          "why": "A folder from an earlier provisioning is still on the router. It holds portal links carrying the old org/location IDs."
+        },
+        "2": {
+          "why": "The block said CLEAN, but a line about old config was printed above it. Both cannot be true at once -- do not treat this as CLEAN."
+        },
+        "3": {
+          "why": "Old Wyfy config found. Set up on top of this and guests will keep landing on the old portal."
+        }
+      }
+    },
+    "clock-internet": {
+      "fallback": "The `ping 8.8.8.8 :` line was not in the output. Copy the block's whole output.",
+      "rules": {
+        "0": {
+          "why": "The internet is working and the router's date is right too."
+        },
+        "1": {
+          "why": "The internet is working, but the router's date does not look like today's. Be sure to do the date check below before moving on -- on a wrong date the router shows as offline in the Master console forever."
+        },
+        "2": {
+          "why": "ping 8.8.8.8 failed -- the router has no internet."
+        },
+        "3": {
+          "why": "The block reported FAIL itself -- check the cable in ether1."
+        }
+      }
+    },
+    "clock-date": {
+      "fallback": "The date was read but its format could not be understood. Paste the whole output of `/system clock print` again.",
+      "rules": {
+        "0": {
+          "why": "The router's date is today's."
+        },
+        "1": {
+          "why": "The router's date is not today's. The scheduler's start-time is filled from it -- on a wrong date the heartbeat never runs and the router stays offline in the Master console forever."
+        },
+        "2": {
+          "why": "There is no `date:` line in the output. Paste the whole output of `/system clock print`."
+        }
+      }
+    },
+    "wan-lease": {
+      "fallback": "The DHCP client's row was visible but its STATUS could not be read. Run `/ip dhcp-client print detail` and paste that output -- it spells out `status=`.",
+      "rules": {
+        "0": {
+          "why": "An address came through from the ISP (status bound)."
+        },
+        "1": {
+          "why": "There is no DHCP client on this router at all -- so this is a static WAN. You will have to check the gateway yourself; the route check ahead matters even more now."
+        },
+        "2": {
+          "why": "The DHCP client has not been given a lease yet."
+        },
+        "3": {
+          "why": "An address came through from the ISP (status bound)."
+        },
+        "4": {
+          "why": "The DHCP client has not been given a lease yet -- status is not bound."
+        },
+        "5": {
+          "why": "There is no DHCP client at all. Either the WAN is static, or the LAN/WAN chunk was never pasted."
+        }
+      }
+    },
+    "wan-route-active": {
+      "fallback": "The route's row was found, but its flags could not be read -- there was no `Flags:` line in the output. Run `/ip route print where dst-address=\"0.0.0.0/0\"` again and copy everything from the Flags line onwards.",
+      "rules": {
+        "0": {
+          "why": "There is a default route, but its gateway is 0.0.0.0. This is that bug: the route was created while the DHCP lease had not arrived. The route is visible and does nothing."
+        },
+        "1": {
+          "why": "The default route is Inactive (`I`). The hotspot, the tunnel and RADIUS all run over this route -- all three will fail silently."
+        },
+        "2": {
+          "why": "The default route is disabled (`X`)."
+        },
+        "3": {
+          "why": "The default route is Active and its gateway is a real IP."
+        },
+        "4": {
+          "why": "The default route's row carries no gateway address at all."
+        },
+        "5": {
+          "why": "The default route has no ACTIVE flag. In RouterOS 6 an inactive route gets no `I` at all -- the `A` simply disappears, and the route looks completely normal."
+        },
+        "6": {
+          "why": "There is no default route at all -- not a single 0.0.0.0/0 row was found."
+        }
+      }
+    },
+    "gate-pass": {
+      "fallback": "The gate block's output is incomplete -- both the `ping` and `resolve` lines are needed. Run the whole block again.",
+      "rules": {
+        "0": {
+          "why": "The internet and DNS are both working."
+        },
+        "1": {
+          "why": "The internet works but DNS is not resolving. The router is fine -- the DNS servers just are not set yet."
+        },
+        "2": {
+          "why": "ping is failing too -- the real problem is the Phase 2 route, not DNS."
+        }
+      }
+    },
+    "hs-idle": {
+      "fallback": "The idle-timeout value could not be read. Run the audit block again.",
+      "rules": {
+        "0": {
+          "why": "There is no hotspot server on the router at all -- the Master console's Hotspot chunk was never pasted."
+        },
+        "1": {
+          "why": "idle-timeout is set -- sessions will close themselves."
+        },
+        "2": {
+          "why": "idle-timeout is set but very long. Sessions will close late and the active list will keep filling."
+        },
+        "3": {
+          "why": "No `idle-timeout=` line was found in the audit output. Run the whole audit block again."
+        },
+        "4": {
+          "why": "idle-timeout is none. Keepalive is off too, so a session will never close -- and the data cap will never apply."
+        }
+      }
+    },
+    "hs-loginby": {
+      "fallback": "The login-by value could not be read.",
+      "rules": {
+        "0": {
+          "why": "login-by contains http-pap -- the router will accept the portal's form."
+        },
+        "1": {
+          "why": "login-by does not contain http-pap. The guest will enter the right OTP, nothing will happen, and nothing will appear in the router's log either."
+        },
+        "2": {
+          "why": "No `login-by` line was found in the output -- the audit block looks for a profile named `hsprof1`. Paste the whole audit output."
+        }
+      }
+    },
+    "hs-shared": {
+      "fallback": "The shared-users value could not be read.",
+      "rules": {
+        "0": {
+          "why": "shared-users is 5 -- a guest can use both a phone and a laptop."
+        },
+        "1": {
+          "why": "More than two devices will work, but the fleet standard is 5. A guest's third device may be rejected."
+        },
+        "2": {
+          "why": "shared-users is above 5 -- more devices than necessary will run on a single OTP."
+        },
+        "3": {
+          "why": "shared-users is 1. The guest's second device fails outright with 'no more sessions are allowed for user' -- this is not a soft error."
+        },
+        "4": {
+          "why": "No `shared-users` line was found in the output. Run the whole audit block again."
+        }
+      }
+    },
+    "hs-guest": {
+      "fallback": "The guest user's status was not established -- there was no `Flags:` line in the output, so the X (disabled) flag could not be read. Run the audit block above, which prints `disabled=true/false` plainly.",
+      "rules": {
+        "0": {
+          "why": "There is no local guest user at all -- the portal-bypass route is shut."
+        },
+        "1": {
+          "why": "The local guest user is disabled -- portal bypass is shut."
+        },
+        "2": {
+          "why": "The local guest user is enabled. The router checks its own local user first and RADIUS second -- so anyone who knows the password can bypass the portal completely: no OTP, no record, no data cap."
+        },
+        "3": {
+          "why": "The guest user carries the X (disabled) flag -- portal bypass is shut."
+        },
+        "4": {
+          "why": "The guest user's row has no X flag -- meaning it is still enabled and can bypass the portal completely."
+        },
+        "5": {
+          "why": "There is no guest user in the hotspot user list at all."
+        }
+      }
+    },
+    "wg-ip": {
+      "fallback": "The walled-garden ip list could not be read.",
+      "rules": {
+        "0": {
+          "why": "The portal's IP (40.80.86.193) is set in the HTTPS list."
+        },
+        "1": {
+          "why": "The entry exists but its IP is not 40.80.86.193. The portal's IP may have changed -- run the walled garden block again, it will update the old entry."
+        },
+        "2": {
+          "why": "The entry was found but its dst-address could not be read. Run `/ip hotspot walled-garden ip print detail`."
+        },
+        "3": {
+          "why": "The HTTPS walled-garden list is completely empty. No guest will be able to open the portal, and no error will show anywhere on the router."
+        },
+        "4": {
+          "why": "There are entries in the list but none for `cloudguest-portal-https`. With DNS broken, the walled garden block silently sets nothing."
+        }
+      }
+    },
+    "wg-host": {
+      "fallback": "The walled-garden list could not be read.",
+      "rules": {
+        "0": {
+          "why": "portal.wyfyguest.com is allowed in the HTTP list."
+        },
+        "1": {
+          "why": "There is an entry for portal.wyfyguest.com but its action is not allow."
+        },
+        "2": {
+          "why": "The HTTP walled-garden list is empty. The two lists are different things -- this one is the one http needs."
+        },
+        "3": {
+          "why": "There are entries in the list but none for portal.wyfyguest.com."
+        }
+      }
+    },
+    "portal-files": {
+      "fallback": "login.html was found, but its contents did not come through in this output -- the file merely existing does not prove the Wyfy page is on there. Run `/file print detail where name~\"login.html\"` and copy the `contents=` part too.",
+      "rules": {
+        "0": {
+          "why": "login.html is on the router and contains `$(link-login-only)` -- the real Wyfy redirect page is up."
+        },
+        "1": {
+          "why": "The file is there but has no `$(link-login-only)` in it -- that is MikroTik's stock page, not Wyfy's. The guest will see the blue login page."
+        },
+        "2": {
+          "why": "login.html was not found on the router at all -- the 'Portal Redirect Page' chunks have not been pasted yet."
+        },
+        "3": {
+          "why": "login.html was found, but its path does not begin with `flash/`. The script assumes `flash/hotspot/login.html`, and RouterOS's `set [find ...]` silently does nothing on a wrong path, without an error. Send the real path shown above to the Master console team."
+        },
+        "4": {
+          "why": "login.html was found at the right path. But this block shows only the path and the size, not what is inside the file -- and a guest can still get the blue MikroTik page while the file exists. To confirm, run `/file print detail where name~\"login.html\"`."
+        },
+        "5": {
+          "why": "There is no file named login.html on the router."
+        }
+      }
+    },
+    "tunnel-up": {
+      "fallback": "The tunnel block's RESULT line could not be understood. Run the whole block again and copy everything from `==== TUNNEL + RADIUS ====` onwards.",
+      "rules": {
+        "0": {
+          "why": "There is no RADIUS entry on the router at all. WireGuard has to come first, then RADIUS -- paste the two chunks in order."
+        },
+        "1": {
+          "why": "Ping is reaching the hub through the tunnel."
+        },
+        "2": {
+          "why": "Ping is not reaching the hub -- the tunnel is down. The most common reason: the firewall's allow rule ended up below the drop rule."
+        },
+        "3": {
+          "why": "The block said PASS but the RADIUS server's address is not a real IP. Do not treat this as a PASS."
+        }
+      }
+    },
+    "radius-counters": {
+      "fallback": "The counters could not be read. Run `/radius monitor 0 once` -- if it says `no such item` then there is no entry under `/radius` at all.",
+      "rules": {
+        "0": {
+          "why": "bad-replies are climbing. A reply is arriving but the router is throwing it away before validating it -- that is a server-side problem, not the router's."
+        },
+        "1": {
+          "why": "timeouts are climbing -- the packet is not reaching the hub at all."
+        },
+        "2": {
+          "why": "rejects are climbing -- it is reaching the hub but the secret does not match."
+        },
+        "3": {
+          "why": "accepts are climbing and rejects/timeouts/bad-replies are all 0 -- RADIUS is working perfectly."
+        },
+        "4": {
+          "why": "Every counter is 0 -- meaning the router has not seen a single RADIUS request yet. This is not a PASS. Do one real login from a phone first, then run this command again."
+        }
+      }
+    },
+    "rec-secrets-gone": {
+      "fallback": "The output did not establish whether the list was empty or the paste was simply incomplete. Copy the command line (`[admin@...] > /user print ...`) along with it.",
+      "rules": {
+        "0": {
+          "why": "The cloudguest-api user is still on the router -- the old secrets were not removed."
+        },
+        "1": {
+          "why": "No cloudguest-api user is left on the router -- the old secrets are gone."
+        }
+      }
+    },
+    "rec-regenerated": {
+      "fallback": "The RADIUS entry's fields could not be read. Run `/radius print detail` (not just `print`) -- that prints every value as `key=value`.",
+      "rules": {
+        "0": {
+          "why": "There are two or more RADIUS entries. The router can keep trying the wrong one."
+        },
+        "1": {
+          "why": "There is no RADIUS entry at all -- the new RADIUS chunk was never pasted."
+        },
+        "2": {
+          "why": "The RADIUS entry is disabled."
+        },
+        "3": {
+          "why": "There is one RADIUS entry, its address is the hub's tunnel IP, and the timeout is right."
+        },
+        "4": {
+          "why": "The address is right but the timeout is far too short (RouterOS's 300ms default). A reply cannot come back over the tunnel in that time -- 3s is needed, otherwise timeouts will climb."
+        },
+        "5": {
+          "why": "There is a RADIUS entry but its address is not in the tunnel subnet (10.20.0.0/24). Check that this really is the hub's tunnel IP."
+        }
+      }
+    },
+    "rec-full": {
+      "fallback": "No `model:` line was found. Paste the whole output of `/system routerboard print`.",
+      "rules": {
+        "0": {
+          "why": "A connection to the router was established -- the model line is coming through."
+        }
+      }
+    }
+  }
 }

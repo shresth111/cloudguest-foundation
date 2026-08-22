@@ -173,13 +173,13 @@ jobs:
       - name: guided setup i18n invariants
         run: |
           ./scripts/ci-gated-test.sh \
-            "guided-i18n" 520 "guided-i18n: all checks passed" \
+            "guided-i18n" 5400 "guided-i18n: all checks passed" \
             bun run test:guided-i18n
 
       - name: guided setup i18n state preservation
         run: |
           ./scripts/ci-gated-test.sh \
-            "guided-i18n-state" 200 "guided-i18n-state: all checks passed" \
+            "guided-i18n-state" 210 "guided-i18n-state: all checks passed" \
             bun run test:guided-i18n-state
 
       # Uses the Chromium installed above for test:signin-fields, so it
@@ -191,7 +191,7 @@ jobs:
       - name: guided setup language switch
         run: |
           ./scripts/ci-gated-test.sh \
-            "guided-i18n-switch" 26 \
+            "guided-i18n-switch" 28 \
             "Guided Setup language switch: all checks passed." \
             bun run test:guided-i18n-switch
 

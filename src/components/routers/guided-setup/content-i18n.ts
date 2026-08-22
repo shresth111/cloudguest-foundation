@@ -52,6 +52,13 @@ import type { Phase, Symptom } from "./types";
 /** Per-check overrides. No `command`, no `expect`, no `assert`. */
 export type CheckOverride = {
   label?: string;
+  /** OBSERVE-ONLY checks only -- see `Check.commandLabel` / `expectLabel`
+   * in types.ts. There is deliberately no `command` or `expect` key: for a
+   * pasteable check those are matched against a terminal and must never
+   * move, and `check-guided-i18n.mjs` rejects a locale that sets these two
+   * on a pasteable check. */
+  commandLabel?: string;
+  expectLabel?: string;
   /** Keyed by the fix's index in `failFix`, as a string.
    *
    * No `command`, and deliberately no `when` either: `Fix.when` is the
@@ -155,6 +162,8 @@ export function localizePhase(phase: Phase, o: PhaseOverride | undefined): Phase
       return {
         ...c,
         label: pick(co.label, c.label),
+        commandLabel: pickOpt(co.commandLabel, c.commandLabel),
+        expectLabel: pickOpt(co.expectLabel, c.expectLabel),
         failFix: c.failFix?.map((f, i) => {
           const fo = co.failFix?.[String(i)];
           if (!fo) return f;

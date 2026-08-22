@@ -223,7 +223,12 @@ export function CheckRow({
         ) : (
           <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
             <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <p className="text-xs leading-relaxed text-foreground">{check.command}</p>
+            {/* Observe-only: `command` here is an instruction to the
+                human, not something to paste, so it has a localized
+                display label. Pasteable checks never reach this branch. */}
+            <p className="text-xs leading-relaxed text-foreground">
+              {check.commandLabel ?? check.command}
+            </p>
           </div>
         )}
 
@@ -237,7 +242,10 @@ export function CheckRow({
               pasteable ? "font-mono" : "font-sans",
             )}
           >
-            {check.expect}
+            {/* Same split: for a pasteable check this is the text he
+                compares against his terminal and `expectLabel` is never
+                set; for an observe-only check it is a sentence. */}
+            {(pasteable ? undefined : check.expectLabel) ?? check.expect}
           </pre>
         </div>
 
