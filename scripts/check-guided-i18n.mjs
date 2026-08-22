@@ -272,6 +272,21 @@ for (const lang of LANGS) {
         `phase "${phaseId}" has no check with id "${checkId}"`,
       );
       if (!c) continue;
+      // `commandLabel` / `expectLabel` exist ONLY for checks whose
+      // "command" is an instruction to a human. `CheckRow.isRouterCommand`
+      // is the same test: every real RouterOS command starts with `/` or
+      // `:`. Setting either on a pasteable check would translate the text
+      // the operator is comparing against his own terminal output.
+      const pasteable = /^\s*[/:]/.test(c.command);
+      if (pasteable) {
+        check(
+          `content-no-command-label-on-pasteable:${lang}:${phaseId}:${checkId}`,
+          co.commandLabel === undefined && co.expectLabel === undefined,
+          `check "${checkId}" is pasteable (its command runs on the router), so its command and ` +
+            `expect are matched character-for-character against the device. Neither may carry a ` +
+            `translated display label.`,
+        );
+      }
       for (const idx of Object.keys(co.failFix ?? {})) {
         check(
           `content-fix-index:${lang}:${phaseId}:${checkId}:${idx}`,
@@ -334,9 +349,54 @@ for (const lang of LANGS) {
   //    backticks: IPs, CIDRs, interface names, config values, hostnames.
   // ---------------------------------------------------------------------
   const backticks = (s) => [...s.matchAll(/`[^`]*`/g)].map((m) => m[0]);
-  const HARD_TOKENS =
-    /\b(?:\d{1,3}(?:\.\d{1,3}){3}(?:\/\d{1,2})?|ether\d+|sfp\d*|wg-cloudguest|hsprof\d+|bridge\d*|\d{2}:\d{2}:\d{2}|http-pap|cloudguest-\w+|[a-z0-9-]+\.wyfyguest\.com)\b/g;
+  // Anything the operator matches by eye against his own terminal. The
+  // `key=value` / `key : value` / `RESULT: WORD` arms matter most for the
+  // observe-only `expectLabel` strings, which are sentences with RouterOS
+  // fragments embedded in them (`idle-timeout=00:05:00`, `shared-users :
+  // 5`, `RESULT: CLEAN`) rather than pure prose.
+  const HARD_TOKENS = new RegExp(
+    [
+      "\\b\\d{1,3}(?:\\.\\d{1,3}){3}(?:/\\d{1,2})?\\b", // IPv4 / CIDR
+      "\\bether\\d+\\b",
+      "\\bsfp\\d*\\b",
+      "\\bwg-cloudguest\\b",
+      "\\bhsprof\\d+\\b",
+      "\\bbridge\\d*\\b",
+      "\\b\\d{2}:\\d{2}:\\d{2}\\b", // durations, e.g. 00:05:00
+      "\\bhttp-pap\\b",
+      "\\bcloudguest-[\\w-]+\\b",
+      "\\b[a-z0-9-]+\\.wyfyguest\\.com\\b",
+      "RESULT:\\s*[A-Z][A-Z ]*", // the router's own verdict lines
+      "\\b[a-z][a-z0-9-]*\\s*=\\s*[^\\s,;\"'`]+", // key=value (stops at a backtick: the value never contains one, and including it dragged trailing punctuation into the token)
+      "\\b(?:shared-users|login-by|idle-timeout|keepalive-timeout|last-handshake|status)\\s*:\\s*[\\w.]+",
+    ].join("|"),
+    "g",
+  );
   const hardTokens = (s) => (s.match(HARD_TOKENS) ?? []).sort();
+
+  // RouterOS route flags get their own comparison rather than an arm in
+  // HARD_TOKENS, for two reasons. They must be compared as bare flags --
+  // the words AROUND them legitimately change under translation
+  // ("route As ho jayega" -> "the route becomes As") -- and a bare
+  // /\b(As|Is)\b/ would fire on ordinary English at the start of a
+  // sentence. So: only look at strings that actually talk about routes,
+  // and then compare just the flags. `\brouter\b` deliberately does not
+  // arm it; `\broute\b` does.
+  // Proximity, not just presence. `Is` is also the Hinglish word for
+  // "this" ("Is router pe DHCP client hai hi nahi"), and `As`/`Is` both
+  // start English sentences -- so a whole-string context test fired on
+  // perfectly good prose. A RouterOS flag is always written right next to
+  // the thing it flags, so require an anchor within a short window.
+  const FLAG_WINDOW = 25;
+  const ANCHOR = /\b(?:flags?|route|gateway)\b/gi;
+  const routeFlags = (s) => {
+    const anchors = [...s.matchAll(ANCHOR)].map((m) => m.index);
+    if (anchors.length === 0) return [];
+    return [...s.matchAll(/\b(As|Is)\b/g)]
+      .filter((m) => anchors.some((a) => Math.abs(a - m.index) <= FLAG_WINDOW))
+      .map((m) => m[1])
+      .sort();
+  };
 
   const pairs = [];
   for (const [phaseId, po] of Object.entries(bundle.phases ?? {})) {
@@ -357,6 +417,10 @@ for (const lang of LANGS) {
       const c = phase.checks.find((x) => x.id === checkId);
       if (!c) continue;
       if (co.label) pairs.push([`${phaseId}.${checkId}.label`, c.label, co.label]);
+      if (co.commandLabel)
+        pairs.push([`${phaseId}.${checkId}.commandLabel`, c.command, co.commandLabel]);
+      if (co.expectLabel)
+        pairs.push([`${phaseId}.${checkId}.expectLabel`, c.expect, co.expectLabel]);
       for (const [i, fo] of Object.entries(co.failFix ?? {})) {
         const f = (c.failFix ?? [])[Number(i)];
         if (!f) continue;
@@ -395,11 +459,110 @@ for (const lang of LANGS) {
       `backticked literals changed.\n      source     : ${backticks(source).join(" | ") || "(none)"}\n      ${lang.padEnd(11)}: ${backticks(translated).join(" | ") || "(none)"}\n      These are matched character-for-character against RouterOS output.`,
     );
     check(
+      `content-route-flags:${lang}:${where}`,
+      routeFlags(translated).join(" | ") === routeFlags(source).join(" | "),
+      `RouterOS route flags changed.\n      source     : ${routeFlags(source).join(" | ") || "(none)"}\n      ${lang.padEnd(11)}: ${routeFlags(translated).join(" | ") || "(none)"}\n      \`As\` (active) and \`Is\` (inactive) are the exact two-character tokens the operator hunts for in \`/ip route print\`. Swapping them is a confident lie about what a healthy device shows.`,
+    );
+    check(
       `content-hard-tokens:${lang}:${where}`,
       hardTokens(translated).join(" | ") === hardTokens(source).join(" | "),
       `IP / interface / config literals changed.\n      source     : ${hardTokens(source).join(" | ") || "(none)"}\n      ${lang.padEnd(11)}: ${hardTokens(translated).join(" | ") || "(none)"}`,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// 6b. COVERAGE. Both registers are declared complete, so keep them that way.
+//
+//     Consistency is not the same as completeness: every check above would
+//     still pass on a bundle that translated three phases and skipped six.
+//     English and Devanagari were signed off as full coverage of the
+//     guided-setup content, so a field added later without a translation
+//     is a regression, not a to-do -- it would render one Hinglish
+//     paragraph in the middle of an otherwise English screen, which is
+//     exactly the "quietly flattened" outcome this content cannot afford.
+//
+//     If you are adding content and do not want to translate it in the
+//     same change, that is a conversation to have deliberately -- not a
+//     silent gap.
+// ---------------------------------------------------------------------------
+const isPasteable = (command) => /^\s*[/:]/.test(command);
+
+for (const lang of LANGS) {
+  if (lang === REFERENCE) continue; // the content files ARE this register
+  const bundle = readJson(`${LOCALE_DIR}/${lang}/guided-content.json`);
+  const missing = [];
+
+  for (const p of PHASES) {
+    const po = bundle.phases?.[p.id];
+    if (!po) {
+      missing.push(`phase "${p.id}" (entirely)`);
+      continue;
+    }
+    if (!po.title) missing.push(`${p.id}.title`);
+    if (p.why && !po.why) missing.push(`${p.id}.why`);
+    if (p.stopGate && !po.stopGate) missing.push(`${p.id}.stopGate`);
+    p.paste.forEach((_, i) => {
+      if (!po.paste?.[i]?.label) missing.push(`${p.id}.paste[${i}].label`);
+    });
+    for (const c of p.checks) {
+      const co = po.checks?.[c.id];
+      if (!co) {
+        missing.push(`${p.id}.${c.id} (entirely)`);
+        continue;
+      }
+      if (!co.label) missing.push(`${p.id}.${c.id}.label`);
+      // Observe-only checks carry their instruction in command/expect.
+      if (!isPasteable(c.command)) {
+        if (!co.commandLabel) missing.push(`${p.id}.${c.id}.commandLabel`);
+        if (!co.expectLabel) missing.push(`${p.id}.${c.id}.expectLabel`);
+      }
+      (c.failFix ?? []).forEach((_, i) => {
+        if (!co.failFix?.[i]?.whenLabel) missing.push(`${p.id}.${c.id}.failFix[${i}].whenLabel`);
+        if (!co.failFix?.[i]?.note) missing.push(`${p.id}.${c.id}.failFix[${i}].note`);
+      });
+    }
+  }
+
+  for (const s of SYMPTOMS) {
+    const so = bundle.symptoms?.[s.id];
+    if (!so) {
+      missing.push(`symptom "${s.id}" (entirely)`);
+      continue;
+    }
+    if (!so.seen) missing.push(`${s.id}.seen`);
+    s.causes.forEach((_, i) => {
+      const co = so.causes?.[i];
+      if (!co) {
+        missing.push(`${s.id}.causes[${i}] (entirely)`);
+        return;
+      }
+      for (const k of ["tell", "cause", "note"]) {
+        if (!co[k]) missing.push(`${s.id}.causes[${i}].${k}`);
+      }
+    });
+  }
+
+  for (const [id, a] of Object.entries(ASSERTIONS)) {
+    const ao = bundle.assertions?.[id];
+    if (!ao) {
+      missing.push(`assertion "${id}" (entirely)`);
+      continue;
+    }
+    if (!ao.fallback) missing.push(`${id}.fallback`);
+    a.rules.forEach((_, i) => {
+      if (!ao.rules?.[i]?.why) missing.push(`${id}.rules[${i}].why`);
+    });
+  }
+
+  check(
+    `content-coverage-complete:${lang}`,
+    missing.length === 0,
+    `${missing.length} translatable field(s) have no ${lang} translation. ` +
+      `Both registers are declared complete, so this leaves Hinglish showing mid-screen.\n` +
+      `      ${missing.slice(0, 12).join("\n      ")}` +
+      (missing.length > 12 ? `\n      ... and ${missing.length - 12} more` : ""),
+  );
 }
 
 // ---------------------------------------------------------------------------

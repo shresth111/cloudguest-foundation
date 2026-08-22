@@ -169,10 +169,18 @@ const snapshot = () =>
     if (parsed) delete parsed.updatedAt;
     return {
       progress: JSON.stringify(parsed),
-      // Every <pre>: paste-block scripts, each check's command, each
-      // check's `expect`. This is the never-translate surface, asserted
-      // in a real DOM rather than by inspection.
-      pres: [...document.querySelectorAll("pre")].map((n) => n.textContent).join("␞"),
+      // THE NEVER-TRANSLATE SURFACE, asserted in a real DOM rather than
+      // by inspection: paste-block scripts and, for pasteable checks, the
+      // `expect` the operator compares against his terminal. Both render
+      // monospaced. Scoped to `.font-mono` deliberately -- an OBSERVE-ONLY
+      // check has no device output to compare, so its `expect` is a
+      // sentence, renders `.font-sans`, and is SUPPOSED to translate.
+      // Lumping the two together would either forbid a legitimate
+      // translation or wave through a translated command.
+      pres: [...document.querySelectorAll("pre.font-mono")].map((n) => n.textContent).join("␞"),
+      prose_pres: [...document.querySelectorAll("pre.font-sans")]
+        .map((n) => n.textContent)
+        .join("␞"),
       textareas: [...document.querySelectorAll("textarea")].map((n) => n.value).join("␞"),
       inputs: [...document.querySelectorAll("input")].map((n) => n.value).join("␞"),
       boxes: [...document.querySelectorAll('[role="checkbox"]')]
@@ -336,6 +344,16 @@ for (const [autonym, tag] of [
     after.boxes,
     `the "I have a copy" acknowledgement was lost across a language switch`,
   );
+  // The other half of the same boundary: observe-only expectations are
+  // prose and must actually move, or `expectLabel` is not reaching the
+  // screen and the assertion above is passing for the wrong reason.
+  if (tag === "en" || tag === "hi") {
+    check(
+      `switch-${tag}-observe-only-expect-translated`,
+      after.prose_pres !== before.prose_pres && after.prose_pres.length > 0,
+      `no observe-only <pre> changed, so expectLabel is not reaching the DOM`,
+    );
+  }
   same(
     `switch-${tag}-commands-byte-identical`,
     before.pres,
