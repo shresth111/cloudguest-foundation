@@ -153,3 +153,107 @@ jobs:
             "a11y-invariants" 0 \
             "Portal accessibility invariants: all checks passed." \
             bun run test:a11y
+
+  # ---------------------------------------------------------------------------
+  # Publish the frontend image to GHCR, tagged with the full commit SHA.
+  #
+  # A JOB IN THIS WORKFLOW rather than a separate one, and it `needs` all
+  # three gates above: an image in the registry is a thing someone can
+  # deploy, so nothing that failed tsc, eslint or a portal regression suite
+  # should ever get one built for it.
+  #
+  # The tag is the FULL commit SHA and nothing else -- no `latest`, no
+  # `main`. A moving tag cannot be a rollback target, because "roll back to
+  # latest" does not name a build.
+  #
+  # Auth is the built-in GITHUB_TOKEN with `packages: write`. No PAT exists,
+  # so there is no long-lived registry credential to leak or rotate.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish frontend image to GHCR
+    needs: [static, build, tests]
+    # Publish from main (the real path), or from any ref via
+    # workflow_dispatch, so a deploy can be rehearsed against a branch build
+    # without merging first. Either way the tag is the commit SHA.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+          # Stamp the commit into the image itself. Two reasons beyond
+          # tidiness: `docker inspect` on a running container then tells you
+          # which commit it is even if ~/deploy/versions.env is lost or wrong,
+          # and it guarantees every commit produces a distinct image digest --
+          # so deploy-app.sh's "is the container actually running the image I
+          # asked for" check cannot pass by coincidence.
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+          # THIS IS THE ARTIFACT THAT SHIPS, so unlike the `build` job above
+          # the value here is not incidental. Vite inlines
+          # import.meta.env.VITE_* at BUILD time, so whatever is baked here
+          # is what every browser gets; it cannot be changed by a runtime
+          # `-e` on the app VM.
+          #
+          # `/api/v1` is a RELATIVE path, and deliberately so. It resolves
+          # against whichever host the page was loaded from, and every
+          # hostname this stack serves (app./portal./master.wyfyguest.com)
+          # already proxies /api/ to the same backend. An absolute hostname
+          # here breaks every real API call from every OTHER hostname -- see
+          # the long note in wyfy-infra/stack/docker-compose.prod.yml.
+          #
+          # It is a path, not a credential. Nothing secret is baked in here.
+          build-args: |
+            VITE_API_BASE_URL=/api/v1
+          # Pinned, not left to the runner. The app VM is x86_64; a future
+          # arm64 runner would otherwise publish an image that cannot start
+          # there, surfacing as a crash-looping container mid-deploy.
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      # `push: true` succeeding is not evidence that the tag resolves.
+      - name: Verify the published tag actually resolves
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker manifest inspect "$IMAGE" > /dev/null \
+            || { echo "::error::$IMAGE was pushed but does not resolve"; exit 1; }
+          echo "published: $IMAGE"
+          echo "digest:    $DIGEST"
+          {
+            echo "### frontend image published"
+            echo ""
+            echo '```'
+            echo "$IMAGE"
+            echo "$DIGEST"
+            echo '```'
+            echo ""
+            echo "Deploy with: \`./scripts/deploy-app.sh --api keep --frontend ${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
