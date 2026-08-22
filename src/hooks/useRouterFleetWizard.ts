@@ -19,11 +19,7 @@ export const fleetWizardKeys = {
 
 export function usePreviewBootstrapScript() {
   return useMutation({
-    mutationFn: (args: {
-      routerId: string;
-      mode: FleetBootstrapMode;
-      organizationId?: string;
-    }) =>
+    mutationFn: (args: { routerId: string; mode: FleetBootstrapMode; organizationId?: string }) =>
       routerFleetWizardService.previewBootstrap(args.routerId, args.mode, args.organizationId),
   });
 }
