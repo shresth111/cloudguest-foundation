@@ -1191,6 +1191,38 @@ export interface WireguardPeerInfo {
   serverPublicKey: string;
   routerTunnelIp: string;
   serverEndpointHost: string;
+  /** OPTIONAL raw-address fallback for `serverEndpointHost`, used only when
+   * that hostname fails to resolve ON THE DEVICE at peer-creation time.
+   *
+   * **This must come from the backend. Never type an address here.** The
+   * whole reason this field is optional -- rather than a constant next to
+   * `GUEST_PORTAL_PUBLIC_BASE` -- is `20.219.72.235`: that address lived as
+   * a literal in code, got baked into `endpoint-address=` on 64 field
+   * routers, and when the hub's subscription died those routers became
+   * unreachable and now need physical visits. The backend even carries a
+   * regression test asserting that literal never reappears in its own
+   * source (`tests/unit/test_network_config.py`). A literal here would be
+   * the same mistake one repo to the left.
+   *
+   * **As of 2026-08-23 the backend does not expose this.** Verified against
+   * `/Users/shresth/cloud-guest-repo/backend`: `wireguard_servers` has
+   * `endpoint_host` (String(255), "public hostname or IP address") and no
+   * companion address column; `WireGuardTunnelCreateResponse` -- what
+   * `POST /routers/{id}/wireguard-peer/allocate-external` returns -- has
+   * `hub_endpoint_host`/`hub_endpoint_port` and no address field; and there
+   * is no DNS helper or cached resolution anywhere in `app/`. On the
+   * `allocate-external` path the value is not even read from the DB: it is
+   * copied straight through from `SERVER_ENDPOINT_HOST = "hub.wyfyguest.com"`,
+   * a hardcoded constant in `ops/hub-agents/wg_agent.py`.
+   *
+   * So today this is always `undefined`, and the WireGuard chunk's DNS
+   * guard degrades to "refuse to build a peer that points at nothing, and
+   * say so" rather than "fall back". The moment the backend adds an address
+   * field, wire it up in `RouterSetupScriptAdvanced`'s
+   * `allocate-external` response type and the fallback lights up with no
+   * change to this generator. See that chunk's own comment for what the
+   * backend would need to expose. */
+  serverEndpointAddress?: string;
   serverEndpointPort: string;
   tunnelSubnet: string;
   /** The hub's own address *inside* the tunnel (e.g. "10.20.0.1") -- see
@@ -1678,6 +1710,59 @@ const WIREGUARD_LEGACY_INTERFACE_NAME = "wg-cloudguest";
 const WAN_DHCP_GW_POLL_ATTEMPTS = 6;
 const WAN_DHCP_GW_POLL_DELAY = "5s";
 
+/** The hEX (and every other RouterOS box this fleet uses) has NO
+ * battery-backed clock. A fresh unit, and any unit that has been
+ * power-cycled, boots with a wrong date -- typically the firmware build
+ * date, sometimes 1970. Two things break, both silently:
+ *
+ *  - **HTTPS certificate validation fails.** `/tool fetch` to
+ *    `https://master.wyfyguest.com/...` is rejected before the request is
+ *    ever sent, so THE HEARTBEAT NEVER REACHES THE PLATFORM and the router
+ *    shows offline in Master console forever -- while guests get perfectly
+ *    working WiFi and nobody suspects anything. Confirmed on this project.
+ *  - **Scheduler timing is captured against the bad clock.** Half-mitigated
+ *    already by `start-time=startup` on the heartbeat scheduler (see that
+ *    chunk), which stops RouterOS baking a garbage first-run time into the
+ *    entry. That fixes the scheduler; it does not fix the clock, and the
+ *    clock is what TLS reads.
+ *
+ * `Asia/Kolkata` and these two NTP servers are what the field runbook
+ * uses. They are deliberately PLAIN IPs, not `pool.ntp.org`: this chunk
+ * runs at a point in the script where DNS has been *checked* but a venue's
+ * DNS can still be broken (see the WireGuard chunk's own `:resolve`
+ * fallback for a confirmed-live "internet fine, DNS broken" router), and
+ * an NTP server that cannot be resolved is an NTP server that never syncs.
+ * 216.239.35.0 is Google's `time.google.com`; 162.159.200.1 is
+ * Cloudflare's `time.cloudflare.com`. */
+const CLOCK_TIME_ZONE = "Asia/Kolkata";
+const CLOCK_NTP_SERVERS = ["216.239.35.0", "162.159.200.1"];
+
+/** How long the clock chunk waits for the FIRST NTP sync before printing
+ * its verdict. Setting `/system ntp client set enabled=yes` does not
+ * synchronise anything by itself -- it needs working outbound UDP 123, and
+ * plenty of venue firewalls block exactly that. Same unrolled try/wait
+ * ladder as `WAN_DHCP_GW_POLL_ATTEMPTS` for the same reason: a `:for` loop
+ * cannot express "attempt, and only wait if it did not work" while keeping
+ * every `do={}` body to a single statement. */
+const CLOCK_NTP_POLL_ATTEMPTS = 5;
+const CLOCK_NTP_POLL_DELAY = "4s";
+
+/** The floor the clock chunk's date sanity check uses. This is a FLOOR,
+ * not an expiry: its only failure mode as it ages is becoming more
+ * lenient, never pointing at something wrong. It exists as a *second*
+ * signal behind `/system ntp client get status`, which is the real,
+ * never-stale answer to "did the clock actually sync"; the year check is
+ * what catches the case where `status` is unreadable (a RouterOS version
+ * that does not expose it) but the date is plainly garbage.
+ *
+ * Deliberately NOT derived from `Date.now()` at generation time: this
+ * generator is a pure function, every test in
+ * `scripts/test-setup-script-generator.mjs` builds its chunks more than
+ * once and compares them, and a clock reading inside it would make the
+ * scheduler's stored copy and the pasted copy differ by whatever ran
+ * first. */
+const CLOCK_SANITY_MIN_YEAR = 2025;
+
 /** Every WAN interface name this script references is taken literally,
  * exactly once, from whatever the "WAN N interface" field currently says
  * -- it never re-discovers or renames anything on the device. Confirmed
@@ -1755,6 +1840,224 @@ function wanExistenceCheckLines(wanIfNameExprs: string[]): string[] {
     );
   });
   return lines;
+}
+
+/** The clock chunk: set the timezone, turn the NTP client on, and then
+ * ACTUALLY CHECK that the clock ended up sane -- printing a PASS/FAIL the
+ * technician reads before pasting anything that speaks HTTPS.
+ *
+ * The check is the whole point. `/system ntp client set enabled=yes` is a
+ * configuration statement, not a synchronisation: it needs working
+ * outbound UDP 123, which at this point in the script is confirmed for
+ * ICMP and DNS (the "WAN Connectivity Check" chunk immediately above) but
+ * not for NTP -- plenty of venue firewalls pass ping and DNS and drop 123.
+ * A router that sails on from here with a 1970 clock fails TLS on every
+ * `/tool fetch`, so the heartbeat never lands, so Master console shows it
+ * offline forever -- while the guest WiFi works perfectly and nothing
+ * anywhere says why. That silent shape is exactly what this prints
+ * instead.
+ *
+ * TWO independent signals, deliberately:
+ *  1. `/system ntp client get status` = `"synchronized"`. This is the real
+ *     answer and it never goes stale. Read inside `:do {} on-error={}`
+ *     because not every RouterOS version exposes the property, and an
+ *     unreadable property must degrade to "unknown", never abort the line.
+ *  2. The year in `/system clock get date` is at least
+ *     `CLOCK_SANITY_MIN_YEAR`. This is the backstop for the case where (1)
+ *     is unreadable but the date is plainly garbage. Both RouterOS date
+ *     spellings are handled: v7's ISO `2026-08-23` (year at 0..4) and
+ *     v6/early-v7's `aug/23/2026` (year at 7..11). `(0 + [:tonum ...])` so
+ *     that a `:tonum` returning nothing raises -- and is caught -- rather
+ *     than leaving a nil that the following comparison would trip over.
+ *
+ * SHAPE RULES, same as every other chunk in this file. The NTP-configure
+ * statement sits on its OWN entered line rather than being `;`-joined into
+ * the verdict line: whether RouterOS treats an unknown parameter as a
+ * catchable runtime error or an uncatchable parse error was NOT verified
+ * on this hardware, and if it is the latter, joining them would take the
+ * verdict down with it -- leaving the exact silent proceed this chunk
+ * exists to end. Split like this, the worst case is "NTP was not
+ * configured" AND a loud FAIL, which is the correct outcome.
+ *
+ * Everything that reads `$clkStatus`, `$clkDate`, `$clkYear` or
+ * `$clkVerdict` sits on the same entered line as the `:local` that binds
+ * it -- the RouterOS console runs each entered line as its own program.
+ * Every `do={}` body holds exactly one statement. */
+function buildClockNtpChunk(): RouterSetupScriptChunk {
+  const serverList = CLOCK_NTP_SERVERS.join(",");
+  const notSynced = `$clkStatus != "synchronized"`;
+  const readStatus = `:do { :set clkStatus [:tostr [/system ntp client get status]] } on-error={ :set clkStatus "unreadable" }`;
+  const verdictStatements: string[] = [`:local clkStatus "unreadable"`, readStatus];
+  // Unrolled try/wait ladder, not a `:for` loop -- a loop cannot express
+  // "attempt, and only wait if it did not work" with one statement per
+  // `do={}` body. Identical idiom to the DHCP-gateway poll in the "WAN
+  // Routing" chunk; see WAN_DHCP_GW_POLL_ATTEMPTS' own docstring.
+  for (let retry = 1; retry < CLOCK_NTP_POLL_ATTEMPTS; retry++) {
+    verdictStatements.push(`:if (${notSynced}) do={ :delay ${CLOCK_NTP_POLL_DELAY} }`);
+    verdictStatements.push(`:if (${notSynced}) do={ ${readStatus} }`);
+  }
+  verdictStatements.push(
+    `:local clkDate [:tostr [/system clock get date]]`,
+    `:local clkYear 0`,
+    `:do { :set clkYear (0 + [:tonum [:pick $clkDate 0 4]]) } on-error={ :set clkYear 0 }`,
+    `:if ($clkYear < ${CLOCK_SANITY_MIN_YEAR}) do={ :do { :set clkYear (0 + [:tonum [:pick $clkDate 7 11]]) } on-error={ :set clkYear 0 } }`,
+    `:local clkVerdict "FAIL"`,
+    `:if ($clkStatus = "synchronized" && $clkYear >= ${CLOCK_SANITY_MIN_YEAR}) do={ :set clkVerdict "PASS" }`,
+    `:put ("  NTP client status:  " . $clkStatus)`,
+    `:put ("  Router clock reads: " . $clkDate)`,
+    `:if ($clkVerdict = "PASS") do={ :put "  RESULT: PASS -- clock is set and NTP is synchronised." }`,
+    `:if ($clkVerdict = "PASS") do={ :log info ("cloudguest-clock: NTP synchronised, clock reads " . $clkDate) }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  RESULT: FAIL -- THE CLOCK IS NOT SET. Do not paste Heartbeat yet." }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  This router has no battery-backed clock, so it boots with a" }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  wrong date every single time until NTP works. A wrong date" }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  fails HTTPS certificate validation, so /tool fetch to the" }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  platform is rejected before it is even sent -- the heartbeat" }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  never arrives and this router shows OFFLINE in Master console" }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  forever, while the guest WiFi works fine and nothing says why." }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  Check outbound UDP 123 is not blocked at this venue and that" }`,
+    `:if ($clkVerdict != "PASS") do={ :put "  ${serverList} are reachable, then re-paste THIS chunk." }`,
+    `:if ($clkVerdict != "PASS") do={ :log warning ("cloudguest-clock: NTP NOT synchronised (status=" . $clkStatus . ", clock reads " . $clkDate . ") -- HTTPS/TLS and therefore the heartbeat will fail until this is fixed") }`,
+  );
+  const lines = [
+    `:log info "cloudguest-clock: setting time-zone ${CLOCK_TIME_ZONE} and enabling NTP (${serverList})"`,
+    `/system clock set time-zone-autodetect=no time-zone-name=${CLOCK_TIME_ZONE}`,
+    // RouterOS 7 spells the server list `servers=`; RouterOS 6 has no such
+    // property and wants `primary-ntp=`/`secondary-ntp=` instead. Try v7,
+    // fall back to v6, and say so if neither was accepted rather than
+    // leaving the technician to infer it from a FAIL two lines later. One
+    // statement in each `do=`/`on-error=` body, nested -- the same shape
+    // the Heartbeat chunk already uses for its immediate-gw/gateway/ARP
+    // ladder.
+    `:do { /system ntp client set enabled=yes servers=${serverList} } on-error={ :do { /system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]} } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
+    `:put "===================================================="`,
+    `:put "  CLOCK / NTP CHECK"`,
+    verdictStatements.join("; "),
+    `:put "===================================================="`,
+  ];
+  return {
+    label: "Clock + NTP (confirm PASS before continuing)",
+    script: lines.join("\n"),
+  };
+}
+
+/** True for a plain dotted-quad. Used only to tell "the backend handed us
+ * a hostname" from "the backend handed us an address" -- `endpoint_host`
+ * is documented backend-side as "public hostname **or** IP address", one
+ * column, one string, either meaning. */
+function looksLikeIpv4(value: string): boolean {
+  const parts = value.trim().split(".");
+  return parts.length === 4 && parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) <= 255);
+}
+
+/** The WireGuard peer's `endpoint-address=`, and the DNS check that stops
+ * it silently pointing at nothing.
+ *
+ * THE FAILURE THIS EXISTS FOR. RouterOS resolves `endpoint-address` ONCE,
+ * at the moment the peer is created, and never again. If the venue's DNS
+ * is not working at that moment, the peer is created pointing at nothing
+ * and NOTHING REPORTS IT: the `add` succeeds, the console prints nothing,
+ * and the tunnel simply never handshakes. Confirmed live on the founder's
+ * own router (2026-08-22): `/tool fetch` returned `resolving error` while
+ * WAN, DHCP, gateway, the default route and `/ip dns` servers were all
+ * healthy. "Internet fine, DNS broken" is a real state on real hardware,
+ * not a hypothetical.
+ *
+ * `:resolve` is the check, and it THROWS on failure -- so it is wrapped in
+ * `:do {} on-error={}`, exactly as the "WAN Connectivity Check" chunk
+ * already does for the same primitive. An unwrapped `:resolve` would abort
+ * the rest of the line, which on a `;`-joined line means the peer is never
+ * added AND nothing is printed: a worse version of the bug.
+ *
+ * WHAT HAPPENS WHEN IT FAILS, and why it depends on
+ * `serverEndpointAddress`:
+ *
+ *  - **With a backend-supplied address** (`serverEndpointAddress` set): the
+ *    peer is built against the raw address so the tunnel comes up today,
+ *    and the terminal says loudly that it did, that the address can move,
+ *    and that the peer must be REMOVED and this chunk re-pasted once DNS
+ *    works. Removal matters because this chunk is add-if-missing: pasting
+ *    it again on top of an existing peer does nothing at all.
+ *  - **Without one** (today -- see `serverEndpointAddress`'s own docstring;
+ *    the backend exposes no address field): NO PEER IS CREATED. That is
+ *    deliberate and it is the better outcome. A peer created now would
+ *    point at nothing forever and could never be repaired by re-pasting,
+ *    because the add-if-missing guard would find it and skip. Creating
+ *    nothing leaves the guard's `find` empty, so simply re-pasting this
+ *    chunk after DNS is fixed does the right thing with no manual cleanup.
+ *    The terminal says exactly that.
+ *
+ * WHY THE PEER CARRIES A COMMENT. A technician running
+ * `/interface wireguard peers print detail` next week has no way to tell
+ * whether `endpoint-address` holds a name or an address that was
+ * substituted for one, or why. The comment says which, and says what to do
+ * about it. It is the only durable record on the device.
+ *
+ * SHAPE. One `;`-joined line: every `$wg*` is bound and read on the same
+ * entered line, because the RouterOS console runs each entered line as its
+ * own program. Every `do={}` body holds exactly one statement, which is
+ * why the failure banner is a flat list of separately-guarded `:put`s
+ * rather than one `:if` with a block -- the same discipline the "WAN
+ * Connectivity Check" chunk's verdict line already follows. */
+function buildWireguardPeerLines(
+  wireguard: WireguardPeerInfo,
+  noPeerYet: string,
+  peerArgs: string,
+): string[] {
+  const host = escapeForRouterOsString(wireguard.serverEndpointHost);
+  // Already an address: there is nothing to resolve, so there is nothing
+  // to check and no fallback to choose. Still comments the peer, because
+  // "why is this an address and not a name" is exactly the question the
+  // comment exists to answer.
+  if (looksLikeIpv4(wireguard.serverEndpointHost)) {
+    return [
+      `:if (${noPeerYet}) do={ /interface wireguard peers add ${peerArgs} endpoint-address="${host}" comment="cloudguest-wg-hub: RAW ADDRESS ${host} -- the platform issued no hostname for the hub. If the hub moves, this peer must be rebuilt by hand." }`,
+    ];
+  }
+  const fallback = wireguard.serverEndpointAddress?.trim();
+  const fallbackEsc = fallback ? escapeForRouterOsString(fallback) : "";
+  const stmts: string[] = [
+    `:local wgHost "${host}"`,
+    `:local wgEp $wgHost`,
+    `:local wgCmt "cloudguest-wg-hub: HOSTNAME ${host} -- it resolved on this device when this peer was created"`,
+    `:local wgDnsOk false`,
+    `:do { :set wgDnsOk ([:len [:resolve $wgHost]] > 0) } on-error={ :set wgDnsOk false }`,
+    `:local wgGo $wgDnsOk`,
+  ];
+  if (fallback) {
+    stmts.push(
+      `:if ($wgDnsOk = false) do={ :set wgEp "${fallbackEsc}" }`,
+      `:if ($wgDnsOk = false) do={ :set wgCmt "cloudguest-wg-hub: RAW ADDRESS ${fallbackEsc} -- ${host} did NOT resolve here at setup time. Remove this peer and re-paste the WireGuard chunk once venue DNS works." }`,
+      `:if ($wgDnsOk = false) do={ :set wgGo true }`,
+      `:if ($wgDnsOk = false) do={ :put "*** WIREGUARD: DNS FAILED -- TUNNEL BUILT AGAINST A RAW ADDRESS ***" }`,
+      `:if ($wgDnsOk = false) do={ :put ("  " . $wgHost . " did not resolve on this router, so the peer was") }`,
+      `:if ($wgDnsOk = false) do={ :put ("  created against " . $wgEp . " instead. The tunnel should come up") }`,
+      `:if ($wgDnsOk = false) do={ :put "  now, but that address can change without warning and this" }`,
+      `:if ($wgDnsOk = false) do={ :put "  router would then be unreachable with no way in but a site visit." }`,
+      `:if ($wgDnsOk = false) do={ :put "  FIX THIS VENUE'S DNS, then delete this peer in WinBox" }`,
+      `:if ($wgDnsOk = false) do={ :put "  (WireGuard > Peers) and RE-PASTE this chunk. Re-pasting alone" }`,
+      `:if ($wgDnsOk = false) do={ :put "  does nothing -- this chunk only adds a peer if none exists." }`,
+      `:if ($wgDnsOk = false) do={ :log warning ("cloudguest-wg: " . $wgHost . " did not resolve -- peer built against the raw address " . $wgEp . "; fix DNS, delete the peer and re-paste the WireGuard chunk") }`,
+    );
+  } else {
+    stmts.push(
+      `:if ($wgDnsOk = false) do={ :put "*** WIREGUARD: DNS FAILED -- NO TUNNEL WAS BUILT ***" }`,
+      `:if ($wgDnsOk = false) do={ :put ("  " . $wgHost . " did not resolve on this router.") }`,
+      `:if ($wgDnsOk = false) do={ :put "  RouterOS resolves a peer's endpoint-address ONCE, when the peer" }`,
+      `:if ($wgDnsOk = false) do={ :put "  is created. Creating one now would leave it pointing at nothing" }`,
+      `:if ($wgDnsOk = false) do={ :put "  forever, and this chunk only adds a peer if none exists -- so" }`,
+      `:if ($wgDnsOk = false) do={ :put "  re-pasting later would silently repair nothing. NO PEER WAS" }`,
+      `:if ($wgDnsOk = false) do={ :put "  CREATED, on purpose, so that re-pasting DOES work." }`,
+      `:if ($wgDnsOk = false) do={ :put "  Master console has no raw hub address to fall back to." }`,
+      `:if ($wgDnsOk = false) do={ :put "  Fix this venue's DNS (check /ip dns and the upstream resolver)," }`,
+      `:if ($wgDnsOk = false) do={ :put "  then re-paste THIS chunk. Nothing needs undoing first." }`,
+      `:if ($wgDnsOk = false) do={ :log warning ("cloudguest-wg: " . $wgHost . " did not resolve -- NO peer created (one built now could never be repaired by re-pasting); fix DNS and re-paste the WireGuard chunk") }`,
+    );
+  }
+  stmts.push(
+    `:if ($wgDnsOk = true) do={ :log info ("cloudguest-wg: " . $wgHost . " resolved on this device -- peer endpoint set by hostname") }`,
+    `:if ($wgGo = true && ${noPeerYet}) do={ /interface wireguard peers add ${peerArgs} endpoint-address=$wgEp comment=$wgCmt }`,
+  );
+  return [stmts.join("; ")];
 }
 
 export interface RouterSetupScriptChunk {
@@ -2255,19 +2558,37 @@ function buildHeartbeatStatements(opts: {
  *
  * Order, at a glance (default, `basicConfigOnly: false`): "WAN + Bridge" ->
  * "Stale Factory-Default DHCP Client Cleanup" -> "WAN Addressing" -> "WAN
- * Routing" -> **"WAN Connectivity Check"** -- a manual checkpoint a
- * technician reads and must see PASS on before continuing (added after a
- * confirmed-live field report of a router whose WAN never actually came
- * up, silently breaking every later internet-dependent chunk -- see that
- * chunk's own comment) -- then the LAN-side chunks (LAN Interfaces/Ports/
- * IP+DNS), Hotspot/portal/firewall chunks, "Basic Mangle Rules" (paired
- * with "WAN Routing", see that chunk's own comment), and finally the
- * internet-dependent ones this checkpoint exists for: RADIUS, WireGuard,
- * and Heartbeat.
+ * Routing" -> the LAN-side chunks (LAN Interfaces/Ports/IP+DNS) ->
+ * **"WAN Connectivity Check"** -- a manual checkpoint a technician reads
+ * and must see PASS on before continuing (added after a confirmed-live
+ * field report of a router whose WAN never actually came up, silently
+ * breaking every later internet-dependent chunk -- see that chunk's own
+ * comment) -- then **"Clock + NTP"**, a second manual checkpoint (the
+ * hardware has no battery-backed clock, so a fresh or power-cycled unit
+ * boots with a wrong date; a wrong date fails HTTPS certificate
+ * validation, so the heartbeat never reaches the platform and the router
+ * shows offline forever while guests get working WiFi -- see
+ * `buildClockNtpChunk`'s own comment) -- then the Hotspot/portal/firewall
+ * chunks, "Basic Mangle Rules" (paired with "WAN Routing", see that
+ * chunk's own comment), and finally the internet-dependent ones these two
+ * checkpoints exist for: RADIUS, WireGuard, and Heartbeat.
+ *
+ * THE TWO CHECKPOINTS SIT WHERE THEY DO FOR A REASON, and the reason is
+ * a chain, not a preference. "LAN IP + DNS" is the only chunk that runs
+ * `/ip dns set servers=`, and the WAN check's `:resolve` leg needs a
+ * resolver -- run the check any earlier and it prints FAIL on a perfectly
+ * healthy router (the WAN DHCP client this generator adds sets
+ * `use-peer-dns=no`, so there is no other source). "Clock + NTP" then has
+ * to follow the check, because NTP needs a working uplink and the check
+ * is what proves there is one; and it has to precede every `/tool fetch`,
+ * because a wrong clock fails TLS certificate validation. Heartbeat,
+ * RADIUS and WireGuard stay below both for the same reachability reason
+ * they always did.
  *
  * `basicConfigOnly: true` shortens this to: "WAN + Bridge" -> "Stale
- * Factory-Default DHCP Client Cleanup" -> **"WAN Connectivity Check"** ->
+ * Factory-Default DHCP Client Cleanup" ->
  * the same LAN-side chunks (now just "LAN IP", no DNS-server line) ->
+ * **"WAN Connectivity Check"** -> **"Clock + NTP"** ->
  * Hotspot/portal/firewall -> RADIUS/WireGuard/Heartbeat. "WAN Addressing",
  * "WAN Routing", and "Basic Mangle Rules" never appear at all -- the
  * technician has already brought each WAN's own connectivity (and the
@@ -3186,6 +3507,33 @@ export function buildRouterSetupScriptChunks(opts: {
     });
   }
 
+  // Immediately after the connectivity checkpoint, and before ANYTHING
+  // that speaks HTTPS. Both halves of that placement are load-bearing:
+  //
+  //  - it cannot come earlier, because NTP needs a working uplink and
+  //    there is none until "WAN Routing" (or, in `basicConfigOnly`, the
+  //    technician's own manual setup) has been confirmed by the check
+  //    above. Enabling NTP on a router with no route would just produce a
+  //    guaranteed FAIL that says nothing about the clock;
+  //  - it must come before the Heartbeat chunk, the only place in this
+  //    generator that does HTTPS (`/tool fetch` to `${apiBase}`), because
+  //    a wrong clock fails certificate validation and the check-in is then
+  //    rejected before it is ever sent.
+  //
+  // The check it follows now sits after "LAN IP + DNS" rather than after
+  // "WAN Routing" (see that chunk's own POSITION IS PART OF THE FIX
+  // comment -- its `:resolve` leg needs the resolver only "LAN IP + DNS"
+  // configures). This chunk moved down with it and its ordering argument
+  // is unchanged by that: "after the checkpoint, before any HTTPS" is
+  // stated relative to the checkpoint, not to a fixed slot in the list,
+  // and every `/tool fetch` in this generator is still below both.
+  //
+  // Runs in `basicConfigOnly` mode too, for the same reason the
+  // connectivity check does: it configures nothing about WAN or routing,
+  // and a technician who brought their own WAN up by hand has exactly the
+  // same dead clock on exactly the same battery-less hardware.
+  chunks.push(buildClockNtpChunk());
+
   {
     const hsUserEsc = escapeForRouterOsString(hsUser);
     const lines = [
@@ -3702,6 +4050,11 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   if (wireguard) {
+    const noPeerYet = `[:len [/interface wireguard peers find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0`;
+    const peerArgs =
+      `interface="${WIREGUARD_INTERFACE_NAME}" public-key="${wireguard.serverPublicKey}" ` +
+      `endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" ` +
+      `persistent-keepalive=25s`;
     const lines = [
       // A router provisioned before the wg-cloudguest -> wg-cloudguard fix
       // still carries the old interface. Renaming the constant alone would
@@ -3726,7 +4079,18 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($wgLegacy = 0) do={ :put "  No legacy ${WIREGUARD_LEGACY_INTERFACE_NAME} interface on this device (expected)." }`,
       ].join("; "),
       `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /interface wireguard add name="${WIREGUARD_INTERFACE_NAME}" private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
-      `:if ([:len [/interface wireguard peers find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /interface wireguard peers add interface="${WIREGUARD_INTERFACE_NAME}" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s }`,
+      // NOT a bare `:if (noPeerYet) do={ ...peers add endpoint-address=<host> }`.
+      // RouterOS resolves `endpoint-address` once, at creation, and never
+      // again, so a peer built while venue DNS is down points at nothing
+      // forever and nothing reports it. `buildWireguardPeerLines` does the
+      // `:resolve` check first and -- with no backend-supplied raw address
+      // to fall back to -- deliberately builds NO peer when it fails,
+      // precisely so that the add-if-missing guard above stays satisfiable
+      // and simply re-pasting this chunk after DNS is fixed repairs it. The
+      // final state check below then counts peer=0 and prints FAIL, so the
+      // "no peer" outcome is reported twice, never inferred. See that
+      // function's own docstring.
+      ...buildWireguardPeerLines(wireguard, noPeerYet, peerArgs),
       `:if ([:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /ip address add address="${wireguard.routerTunnelIp}/24" interface="${WIREGUARD_INTERFACE_NAME}" }`,
       // Never infer success from the absence of an error: all three lines
       // above are `:if ... do={ add }`, which do nothing at all -- silently,

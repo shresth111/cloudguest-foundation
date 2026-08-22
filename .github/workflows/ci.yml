@@ -16,7 +16,10 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 177 checks (added 2026-08-23)
+#   test:setup-script ... 415 checks (added 2026-08-23; was 169 before the
+#                         five silent failures (section 6) and the three
+#                         fresh-router sections (7-9) landed, floor 160 ->
+#                         395)
 
 on:
   push:
@@ -254,18 +257,49 @@ jobs:
       #   - a multi-statement `do={}` body, which threw a real syntax error
       #     on a live router at the boundary between the two statements.
       #
+      # It also gates the three defects that hit a FRESH router
+      # specifically (added 2026-08-23), none of which the two guards above
+      # could see, because each one is about something the script never
+      # said at all:
+      #   - the generator never set the clock. No battery-backed RTC means
+      #     a wrong date on every boot, a wrong date fails HTTPS cert
+      #     validation, the heartbeat is rejected before it is sent, and
+      #     the router shows offline forever while guests get working WiFi.
+      #     Gated on the chunk existing, on it landing BEFORE every
+      #     `/tool fetch url=`, on the NTP servers being raw IPs (a name
+      #     cannot be resolved by a router whose DNS is broken), and on it
+      #     VERIFYING the sync rather than assuming it.
+      #   - a peer whose `endpoint-address` was set from a hostname the
+      #     device could not resolve. RouterOS resolves it once, at
+      #     creation, and never again; the `add` succeeds and nothing
+      #     reports it. Gated on the `:resolve` check, on the add being
+      #     conditional on it, and on the dead hub literal 20.219.72.235
+      #     never appearing in any generated script.
+      #   - the Master-console panel's "what a re-Generate breaks" table,
+      #     asserted against what the chunks really emit. A warning nothing
+      #     checks is how it quietly becomes a lie.
+      #
       # Six mutations of the real generator and three of the guards
       # themselves were verified to fail this suite; see the script header
-      # for the table. Section 6 (the five silent failures: discovered
-      # portal-file paths, the removed local-hotspot-user bypass, a real
-      # idle-timeout, the WAN check ordered after DNS, and one tunnel
-      # interface name matching the backend) adds 53 checks and 15 more
-      # verified mutations. Floor raised 160 -> 210, observed green at 222
-      # on 2026-08-23.
+      # for the table.
+      #
+      # Section 6 (the five silent failures: discovered portal-file paths,
+      # the removed local-hotspot-user bypass, a real idle-timeout, the WAN
+      # check ordered after DNS, and one tunnel interface name matching the
+      # backend) adds 53 checks and 15 more verified mutations. Sections
+      # 7-9 (the three fresh-router traps described above) add sixteen more
+      # verified mutations of their own. 31 mutations in total across the
+      # three tables, all caught.
+      #
+      # The two floors those sections were developed against (210 and 340)
+      # were raised on separate branches and merged here; neither survives
+      # on its own, because the sections are disjoint and the suite now runs
+      # both. Floor raised 160 -> 395, observed green at
+      # 415 on 2026-08-23.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 210 \
+            "setup-script-generator" 395 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 

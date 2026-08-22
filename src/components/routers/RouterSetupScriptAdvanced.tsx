@@ -32,6 +32,8 @@ import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import { copyToClipboard } from "@/lib/utils";
+import { SECRET_REPAIR, rotatingSecrets } from "@/lib/setup-script-secrets";
+import type { RotatingSecret } from "@/lib/setup-script-secrets";
 
 export const inputCls =
   "w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary";
@@ -73,6 +75,119 @@ function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
         for {label} hardware yet. Switch the vendor back to MikroTik if this router is actually a
         MikroTik device, or check back once {label} support ships.
       </p>
+    </div>
+  );
+}
+
+/** The persistent, non-dismissable record of what the last Generate did
+ * to every copy of this script that already exists somewhere else.
+ *
+ * WHY THIS IS NOT A TOAST. The person who needs this information is not
+ * looking at the screen when it matters -- he is at a router, in WinBox,
+ * pasting a block he copied an hour ago, watching it fail with
+ * `ERROR parsing http: 401 should contain www-authenticate header` and no
+ * indication anywhere that the credential was rotated out from under him.
+ * That happened on 2026-08-22 and cost real time. A toast that disappears
+ * after four seconds is exactly as useful to him as nothing at all, so
+ * this stays on screen for as long as the panel is open, above the script
+ * itself, with a timestamp he can compare against when he took his copy.
+ *
+ * The sibling guard in `guided-setup/RegenerateGuard.tsx` covers the same
+ * hazard in the guided flow. This panel had nothing.
+ *
+ * Rendered from the FIRST generation onward, not just the second: after
+ * one Generate there is already a copied script in the world (the whole
+ * point of the button), so "the next click kills it" is information the
+ * operator needs before clicking, not after.
+ *
+ * `priorScriptLikely` covers the case in-session state cannot: a reload,
+ * a different browser, or a colleague. `router.hasApiCredentials` is only
+ * ever true because a previous Generate PUT an API password on the router
+ * row, so it is a durable "a script for this router exists somewhere"
+ * signal that survives everything this component's own state does not. */
+function RegeneratedNotice({
+  generationCount,
+  lastGeneration,
+  priorScriptLikely,
+}: {
+  generationCount: number;
+  lastGeneration: { at: Date; rotated: RotatingSecret[] } | null;
+  priorScriptLikely: boolean;
+}) {
+  if (!lastGeneration) {
+    if (!priorScriptLikely) return null;
+    return (
+      <div className="space-y-1.5 rounded-lg border-2 border-amber-500/50 bg-amber-500/5 p-2.5 text-[11px]">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />A script has been generated for this
+          router before. Generating again will kill it.
+        </p>
+        <p className="text-muted-foreground">
+          This router already has platform credentials on file, which only happens after a Generate.
+          Someone may still be holding that script — in a clipboard, a notes file, or half-pasted
+          into a WinBox terminal. Clicking Generate rotates the secrets server-side and that copy
+          stops working immediately, with nothing on the router to explain why. You will be asked to
+          confirm, and told exactly which secrets re-pasting cannot repair.
+        </p>
+      </div>
+    );
+  }
+  const unrepairable = lastGeneration.rotated.filter((s) => !SECRET_REPAIR[s].repairableByRepaste);
+  const stamp = lastGeneration.at.toLocaleTimeString();
+  const regenerated = generationCount > 1;
+  return (
+    <div
+      className={`space-y-2 rounded-lg border-2 p-2.5 text-[11px] ${
+        regenerated
+          ? "border-destructive/60 bg-destructive/5"
+          : "border-amber-500/50 bg-amber-500/5"
+      }`}
+    >
+      <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        {regenerated
+          ? `Secrets were rotated at ${stamp}. Every earlier copy of this script is now dead.`
+          : `This script is valid as of ${stamp}. Clicking Generate again will kill it.`}
+      </p>
+      <p className="text-muted-foreground">
+        Generate rotates secrets on the server, not just in this browser. The moment it runs, any
+        script already copied to a clipboard, pasted into a notes file, or half-pasted into a WinBox
+        terminal stops working — its agent credential 401s (
+        <code className="rounded bg-background px-1 py-0.5">
+          401 should contain www-authenticate header
+        </code>
+        ) and its RADIUS secret mismatches. Nothing on the router says why.
+      </p>
+      <p className="text-muted-foreground">
+        Rotated by the last Generate:{" "}
+        {lastGeneration.rotated.map((s) => SECRET_REPAIR[s].label).join(", ")}.
+      </p>
+      {unrepairable.length > 0 ? (
+        <div className="rounded-md border border-destructive/40 bg-background p-2">
+          <p className="font-semibold text-foreground">
+            Re-pasting the new script does NOT repair a router that already has the old secrets.
+          </p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">
+            {unrepairable.map((s) => (
+              <li key={s}>
+                <strong className="text-foreground">{SECRET_REPAIR[s].label}</strong> —{" "}
+                {SECRET_REPAIR[s].why}.
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-muted-foreground">
+            Those chunks are add-if-missing: on a device that already has the old values they run,
+            report success, and change nothing. Remove the offending entries on the device first, or
+            use Guided Setup’s recovery phase, which detects the mismatch and gives you the exact
+            remove commands.
+          </p>
+        </div>
+      ) : (
+        <p className="text-muted-foreground">
+          Everything rotated here does have a re-paste repair path, so re-pasting the whole new
+          script on the device is enough to bring it back into agreement.
+        </p>
+      )}
     </div>
   );
 }
@@ -165,6 +280,18 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null
   >(null);
   const [validation, setValidation] = useState<RouterSetupScriptValidationResult[] | null>(null);
+  // How many times Generate has completed in this session, and what the
+  // last one rotated. Together these are what make the invalidation
+  // VISIBLE: a count of 0 means the button is harmless, 1 means the next
+  // click kills the script on screen, and 2+ means a script someone is
+  // probably still holding has ALREADY been killed and they need to be
+  // told so somewhere that does not disappear. See the `RegeneratedNotice`
+  // banner and the `window.confirm` at the top of `onGenerate`.
+  const [generationCount, setGenerationCount] = useState(0);
+  const [lastGeneration, setLastGeneration] = useState<{
+    at: Date;
+    rotated: RotatingSecret[];
+  } | null>(null);
   // Soft step-lock: chunk N+1's Copy button stays disabled until chunk N's
   // has actually been clicked -- these have real ordering dependencies
   // (WAN+Bridge before anything that references the bridge, etc.) but were
@@ -332,6 +459,51 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         return;
       }
     }
+    // THE REGENERATE GUARD. Everything below this point talks to the
+    // server, and talking to the server is what rotates the secrets -- so
+    // the confirmation has to sit here, above the first call, not next to
+    // the button. Cancelling must leave the previously-generated script
+    // still valid, which it only does if nothing has been called yet.
+    //
+    // See `rotatingSecrets` and `SECRET_REPAIR` for why this is a blocking
+    // dialog rather than a toast: the person who needs this is holding a
+    // script they copied an hour ago, and a toast that disappears tells
+    // them nothing.
+    // `router.hasApiCredentials` as well as the in-session count: a
+    // reload, a different browser or a colleague all reset
+    // `generationCount` to 0 while the script that click will kill is
+    // still sitting in someone's clipboard. That flag is only ever true
+    // because a previous Generate PUT an API password on the router row,
+    // so it is the durable half of the same question.
+    if (generationCount > 0 || router.hasApiCredentials) {
+      const rotating = rotatingSecrets({
+        enableWireguard,
+        enableRadius,
+        mintApiSecret: !router.hasApiCredentials || rotateApiSecret,
+      });
+      const unrepairable = rotating.filter((s) => !SECRET_REPAIR[s].repairableByRepaste);
+      const proceed = window.confirm(
+        [
+          `Generating again ROTATES this router's secrets on the server, right now.`,
+          ``,
+          `Any script you have already copied or pasted STOPS WORKING the moment you click OK -- including the one on screen. Its agent credential will 401 ("should contain www-authenticate header") and its RADIUS secret will mismatch.`,
+          ``,
+          `Rotating: ${rotating.map((s) => SECRET_REPAIR[s].label).join(", ")}.`,
+          ``,
+          unrepairable.length > 0
+            ? `AND RE-PASTING THE NEW SCRIPT WILL NOT REPAIR A ROUTER THAT ALREADY HAS THE OLD ONES:\n${unrepairable
+                .map((s) => `  - ${SECRET_REPAIR[s].label}: ${SECRET_REPAIR[s].why}`)
+                .join("\n")}\n\nYou would have to remove those on the device first, by hand.`
+            : `Every secret rotating here does have a re-paste repair path, so re-pasting the whole new script on the device is enough.`,
+          ``,
+          `Generate a new script anyway?`,
+        ].join("\n"),
+      );
+      if (!proceed) {
+        toast.info("Nothing was rotated -- the script already on screen is still valid.");
+        return;
+      }
+    }
     setBusy(true);
     setChunks(null);
     setCopiedChunkIdx(new Set());
@@ -389,6 +561,42 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             hub_public_key: string;
             tunnel_ip_address: string;
             hub_endpoint_host: string;
+            /** OPTIONAL, and as of 2026-08-23 THE BACKEND DOES NOT SEND
+             * IT. Declared here anyway so the WireGuard chunk's DNS
+             * fallback lights up the moment it does, with no further
+             * frontend change.
+             *
+             * Verified against `/Users/shresth/cloud-guest-repo/backend`:
+             * `WireGuardTunnelCreateResponse`
+             * (`app/domains/wireguard/schemas.py`) carries
+             * `hub_endpoint_host`/`hub_endpoint_port` and no address
+             * field; the `wireguard_servers` table has `endpoint_host`
+             * (String(255), "public hostname or IP address") and no
+             * companion address column; and on this endpoint specifically
+             * the value is not read from the DB at all -- `router.py`
+             * copies it from the hub bridge, where it is the hardcoded
+             * constant `SERVER_ENDPOINT_HOST = "hub.wyfyguest.com"` in
+             * `ops/hub-agents/wg_agent.py`. There is no DNS helper and no
+             * cached resolution anywhere in `app/`.
+             *
+             * WHAT THE BACKEND WOULD NEED, in order of preference:
+             *  1. an `endpoint_address` column on `wireguard_servers`,
+             *     set operationally alongside `endpoint_host` and served
+             *     as `hub_endpoint_address` on this response and on
+             *     `WireGuardTunnelRotateResponse` /
+             *     `AgentWireGuardConfigResponse`; or
+             *  2. failing a stored value, resolve `endpoint_host`
+             *     server-side at allocate time and send the result --
+             *     the backend resolving it once is strictly better than
+             *     64 routers each resolving it never.
+             * Either way the value must be OWNED BY THE BACKEND. It must
+             * never become a literal in this repo: `20.219.72.235` was
+             * exactly that, it got baked into `endpoint-address=` on 64
+             * field routers, and when the hub's subscription died those
+             * routers became unreachable and now need physical visits.
+             * The backend already carries a regression test asserting
+             * that literal never reappears in its own source. */
+            hub_endpoint_address?: string;
             hub_endpoint_port: number;
             tunnel_network_cidr: string;
             hub_tunnel_ip_address: string;
@@ -398,6 +606,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             serverPublicKey: wg.data.hub_public_key,
             routerTunnelIp: wg.data.tunnel_ip_address,
             serverEndpointHost: wg.data.hub_endpoint_host,
+            serverEndpointAddress: wg.data.hub_endpoint_address,
             serverEndpointPort: String(wg.data.hub_endpoint_port),
             tunnelSubnet: wg.data.tunnel_network_cidr,
             hubTunnelIpAddress: wg.data.hub_tunnel_ip_address,
@@ -524,6 +733,16 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           ...form,
         }),
       );
+      // Recorded AFTER the build, so a generation that threw before
+      // reaching here does not claim to have rotated anything. `mintApiSecret`
+      // is the same value the mint block above decided on, not a
+      // re-derivation, so the banner cannot disagree with what actually
+      // happened.
+      setGenerationCount((n) => n + 1);
+      setLastGeneration({
+        at: new Date(),
+        rotated: rotatingSecrets({ enableWireguard, enableRadius, mintApiSecret }),
+      });
       // Each rotation has to be its own deliberate decision. Leaving the
       // box ticked would make the NEXT Generate rotate again silently --
       // which is the exact behaviour this whole change removes.
@@ -916,6 +1135,22 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           />
           Also create a WireGuard tunnel (for remote reachability from the platform)
         </label>
+        {enableWireguard && (
+          // Stated up front because the chunk can legitimately decide to
+          // build nothing, and a technician who does not expect that would
+          // read it as a failure. See buildWireguardPeerLines' own comment:
+          // RouterOS resolves endpoint-address once, at peer creation, and
+          // a peer created against a name that did not resolve points at
+          // nothing forever AND cannot be repaired by re-pasting.
+          <p className="-mt-1 pl-6 text-[11px] text-muted-foreground">
+            The tunnel chunk checks that the hub's hostname actually resolves <em>on the router</em>{" "}
+            before creating the peer — "internet fine, DNS broken" is a real state on this hardware,
+            and RouterOS resolves the endpoint only once, when the peer is created. If it doesn't
+            resolve, the chunk prints a loud banner and deliberately creates no peer, so that fixing
+            the venue's DNS and re-pasting that one chunk is enough. Nothing needs undoing on the
+            device.
+          </p>
+        )}
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input
             type="checkbox"
@@ -956,9 +1191,18 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         )}
       </div>
 
+      {/* Above the button, not below it: the decision this informs is
+          whether to click, and the person about to click has already
+          copied a script that the click will invalidate. */}
+      <RegeneratedNotice
+        generationCount={generationCount}
+        lastGeneration={lastGeneration}
+        priorScriptLikely={router.hasApiCredentials}
+      />
+
       <MButton variant="primary" onClick={onGenerate} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}
-        {busy ? "Generating..." : "Generate script"}
+        {busy ? "Generating..." : generationCount > 0 ? "Generate a new script" : "Generate script"}
       </MButton>
 
       {chunks && (
@@ -973,9 +1217,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               — it must print <strong>PASS</strong> on both lines (ping + DNS) before it's safe to
               paste anything below it (Hotspot, RADIUS, WireGuard, Heartbeat all assume the internet
               is actually up). If it prints FAIL, fix the WAN link/DNS and re-paste that same chunk
-              to re-check — don't continue past a FAIL. Or skip pasting entirely: download the{" "}
-              <strong>.rsc</strong> file below, upload it once via WebFig's <strong>Files</strong>{" "}
-              tab, then run{" "}
+              to re-check — don't continue past a FAIL. The next piece,{" "}
+              <strong>"Clock + NTP"</strong>, is a second checkpoint and works the same way: this
+              hardware has no battery-backed clock, so a fresh or power-cycled router boots with a
+              wrong date, and a wrong date fails HTTPS certificate validation — the heartbeat is
+              then rejected before it's even sent and this router shows{" "}
+              <strong>offline in Master console forever</strong>, while the guest WiFi works
+              perfectly and nothing says why. It must print <strong>PASS</strong> before you paste
+              Heartbeat. Or skip pasting entirely: download the <strong>.rsc</strong> file below,
+              upload it once via WebFig's <strong>Files</strong> tab, then run{" "}
               <code className="rounded bg-background px-1 py-0.5">
                 /import file=&lt;name&gt;.rsc
               </code>{" "}

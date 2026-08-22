@@ -102,6 +102,60 @@
  * still passed while telling the operator "no resolver at all" on a router
  * whose DNS was fine. The check now requires the `/ip dns get servers`
  * read itself. Same lesson as the `active=yes` miss recorded above.
+ *
+ * THE THREE FRESH-ROUTER TRAPS (sections 7-9, added 2026-08-23)
+ * ------------------------------------------------------------
+ * Three defects that hit a factory-fresh router specifically, and that
+ * every one of the guards above was blind to because none of them is about
+ * what a line MEANS -- they are about what the script never said at all.
+ *
+ * 7. THE GENERATOR NEVER SET THE CLOCK.
+ *    `grep -c "ntp client\|time-zone-name"` over the generator returned 0.
+ *    This hardware has no battery-backed clock, so a fresh or power-cycled
+ *    router boots with a wrong date; a wrong date fails HTTPS certificate
+ *    validation, so the heartbeat's `/tool fetch` is rejected before it is
+ *    sent, so the router shows offline in Master console forever -- while
+ *    guests get working WiFi and nobody suspects anything. Setting NTP is
+ *    not the fix on its own: enabling the client does not synchronise it,
+ *    so the chunk also CHECKS and prints a FAIL.
+ * 8. A BROKEN VENUE DNS PRODUCED A TUNNEL PEER POINTING AT NOTHING.
+ *    RouterOS resolves `endpoint-address` once, at peer creation, and
+ *    never again. Confirmed live 2026-08-22: `/tool fetch` returned
+ *    `resolving error` while WAN, DHCP, gateway, default route and
+ *    `/ip dns` servers were all healthy. The `add` succeeded, nothing was
+ *    printed, and the tunnel never handshook.
+ * 9. RE-CLICKING GENERATE SILENTLY INVALIDATED THE SCRIPT ON SCREEN.
+ *    Master console now says so in a blocking dialog and a banner that
+ *    does not disappear, and names which secrets re-pasting cannot repair.
+ *    Section 9 asserts that table against what the generator ACTUALLY
+ *    emits, because a warning nothing checks is how it becomes a lie.
+ *
+ * Sixteen mutations of the real source were injected and this suite
+ * re-run. All sixteen were caught:
+ *
+ *   clock chunk removed entirely ..................................... 121
+ *   clock chunk moved after the Heartbeat chunk ....................... 10
+ *   NTP servers given as hostnames instead of raw IPs ................. 20
+ *   NTP configured but never verified (verdict line dropped) .......... 60
+ *   the NTP status read left unguarded by `:do {} on-error={}` ........ 10
+ *   the date/year backstop dropped from the PASS verdict .............. 10
+ *   `time-zone-autodetect=no` dropped ................................. 10
+ *   peer add reverted to the unconditional hostname form .............. 16
+ *   the `:resolve` left unguarded (it throws on failure) ............... 2
+ *   peer built anyway on DNS failure with no fallback available ........ 1
+ *   today's hub IP typed into the generator as a default fallback ...... 3
+ *   the peer's `comment=` dropped ...................................... 2
+ *   the repair table flipped to claim RADIUS is repairable ............. 1
+ *   RADIUS `else={}` starts writing `secret=`, table not updated ....... 1
+ *   `rotatingSecrets` stops reporting the agent credential ............. 2
+ *   the WireGuard chunk grows an `else=`, table not updated ............ 1
+ *
+ *   (the year-backstop mutation initially slipped through -- the check
+ *    asserted the year appeared SOMEWHERE in the chunk rather than in the
+ *    PASS condition, so a chunk could parse the year carefully and then
+ *    ignore it. The check now asserts the verdict itself. That is a real
+ *    hole this mutation pass found, not a confirmation -- the same shape
+ *    as the `active=yes` hole section 3 found the same way.)
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
@@ -127,6 +181,11 @@ writeFileSync(
     `export { buildRouterSetupScriptChunks } from "@/components/routers/RouterDetailTabs";`,
     `export { chunksToSingleLineScript } from "@/components/routers/RouterDetailTabs";`,
     `export { validateSetupScriptChunks } from "@/components/routers/RouterDetailTabs";`,
+    // Sections 8 below assert the Master-console panel's "what a
+    // re-Generate breaks" table against what the generator ACTUALLY
+    // emits. That table lives in its own module precisely so it can be
+    // imported here without React/router/axios coming with it.
+    `export { SECRET_REPAIR, rotatingSecrets } from "@/lib/setup-script-secrets";`,
   ].join("\n"),
 );
 
@@ -162,8 +221,13 @@ await build({
   ],
 });
 
-const { buildRouterSetupScriptChunks, chunksToSingleLineScript, validateSetupScriptChunks } =
-  await import(pathToFileURL(join(work, "bundle.mjs")).href);
+const {
+  buildRouterSetupScriptChunks,
+  chunksToSingleLineScript,
+  validateSetupScriptChunks,
+  SECRET_REPAIR,
+  rotatingSecrets,
+} = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 // ---------------------------------------------------------------------
 // The option matrix
@@ -185,6 +249,18 @@ const BASE = {
   hsPass: "guestpass",
   enableFirewall: true,
 };
+
+/** Documentation-range addresses (RFC 5737), deliberately -- so that if
+ * one of these ever DOES leak into a shipped script it is obviously a test
+ * fixture and not somebody's live hub. */
+const WG_FALLBACK_ADDR = "198.51.100.7";
+const WG_LITERAL_HOST = "203.0.113.11";
+/** The address that got baked into 64 field routers' `endpoint-address=`
+ * because it lived as a literal in code. Those routers are now unreachable
+ * and need physical visits. The backend carries the same guard over its
+ * own source (`tests/unit/test_network_config.py`); this is the frontend
+ * half. */
+const BANNED_HUB_LITERAL = "20.219.72.235";
 
 const WG = {
   routerPrivateKey: "PRIVKEY",
@@ -275,6 +351,18 @@ const VARIANTS = [
       radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
       portalUrl: { ...PORTAL, frontendBase: "https://192.168.1.9" },
     },
+  ],
+  // The two WireGuard-endpoint shapes section 8 exists for, in the sweep
+  // so guards 1 and 2 see them too. `WG` above is the shape that ships
+  // today (a hostname, no fallback address -- see `serverEndpointAddress`'s
+  // own docstring for why the backend supplies none).
+  [
+    "wireguard with a backend-supplied fallback address",
+    { ...BASE, wans: [DHCP_WAN], wireguard: { ...WG, serverEndpointAddress: WG_FALLBACK_ADDR } },
+  ],
+  [
+    "wireguard whose endpoint host is already an address",
+    { ...BASE, wans: [DHCP_WAN], wireguard: { ...WG, serverEndpointHost: WG_LITERAL_HOST } },
   ],
 ];
 
@@ -1100,6 +1188,437 @@ for (const [variant, opts] of VARIANTS) {
     "three add-if-missing guards in a row can all no-op and still look clean",
   );
 }
+
+// =====================================================================
+// 7. THE CLOCK IS SET, EARLY, AND ITS FAILURE IS VISIBLE
+// =====================================================================
+// `grep -c "ntp client\|time-zone-name"` over the generator returned 0.
+// The hEX has no battery-backed clock, so every fresh or power-cycled
+// router boots with a wrong date, and a wrong date fails HTTPS certificate
+// validation -- so the heartbeat's `/tool fetch` is rejected before it is
+// sent, the router shows offline in Master console forever, and the guest
+// WiFi works perfectly the whole time. That is the silent shape this
+// project keeps producing, so the chunk does not merely CONFIGURE NTP: it
+// checks that the clock actually ended up sane and prints a FAIL if not.
+// Enabling NTP is not synchronising; plenty of venue firewalls pass ping
+// and DNS and drop outbound UDP 123.
+
+console.log("\n-- the clock is set, before anything speaks HTTPS --");
+
+const clockChunkOf = (chunks) => chunks.find((c) => c.label.startsWith("Clock + NTP"));
+
+for (const [variant, opts] of VARIANTS) {
+  const chunks = buildRouterSetupScriptChunks(opts);
+  const clock = clockChunkOf(chunks);
+  check(
+    `${variant}: emits a clock/NTP chunk at all`,
+    !!clock,
+    "the generator never sets the clock",
+  );
+  const s = clock?.script ?? "";
+
+  check(
+    `${variant}: sets the timezone explicitly, autodetect off`,
+    s.includes("time-zone-name=Asia/Kolkata") && s.includes("time-zone-autodetect=no"),
+    "a router left on autodetect resolves its zone over the network it may not have yet",
+  );
+  check(
+    `${variant}: enables the NTP client against both runbook servers`,
+    /\/system ntp client set enabled=yes/.test(s) &&
+      s.includes("216.239.35.0") &&
+      s.includes("162.159.200.1"),
+    "NTP is never turned on, so the clock stays whatever the firmware booted with",
+  );
+  // The servers must be plain IPs. A `pool.ntp.org` here would need DNS,
+  // and "internet fine, DNS broken" is a confirmed-live state on this
+  // hardware (see the WireGuard chunk's own `:resolve` guard) -- an NTP
+  // server that cannot be resolved is an NTP server that never syncs.
+  check(
+    `${variant}: every NTP server is a raw address, never a name needing DNS`,
+    (() => {
+      // Only real arguments -- the failure text names `servers=` and
+      // `primary-ntp=` in prose, and matching those would make this pass
+      // vacuously.
+      const args = [...s.matchAll(/(?:servers|primary-ntp|secondary-ntp)=([^\s}")]+)/g)].flatMap(
+        (m) => m[1].split(","),
+      );
+      return (
+        args.length > 0 &&
+        args.every((a) => /^\d{1,3}(\.\d{1,3}){3}$/.test(a) && a.split(".").every((o) => +o <= 255))
+      );
+    })(),
+    "an NTP server given by name cannot sync a router whose DNS is broken -- which is exactly " +
+      "the router this chunk exists for",
+  );
+
+  // ORDER. The whole point of "add it early". The clock has to be right
+  // BEFORE the only chunk in this generator that speaks HTTPS, or TLS
+  // rejects the check-in and nothing anywhere says why.
+  const clockIdx = chunks.findIndex((c) => c.label.startsWith("Clock + NTP"));
+  // `/tool fetch url=` -- an actual invocation. The clock chunk's own
+  // failure text NAMES `/tool fetch` in prose to explain the consequence,
+  // and matching that would make this check compare the chunk to itself.
+  const httpsIdxs = chunks
+    .map((c, i) => (/\/tool fetch url=/.test(c.script) ? i : -1))
+    .filter((i) => i >= 0);
+  check(
+    `${variant}: the clock chunk comes BEFORE every chunk that does HTTPS`,
+    clockIdx >= 0 && httpsIdxs.length > 0 && httpsIdxs.every((i) => i > clockIdx),
+    `clock at ${clockIdx}, /tool fetch at ${JSON.stringify(httpsIdxs)} -- a wrong clock fails ` +
+      "certificate validation, so a heartbeat pasted first is rejected before it is even sent",
+  );
+  const wanCheckIdx = chunks.findIndex((c) => c.label.startsWith("WAN Connectivity Check"));
+  check(
+    `${variant}: ...and AFTER the WAN connectivity checkpoint`,
+    wanCheckIdx >= 0 && clockIdx > wanCheckIdx,
+    "NTP needs a working uplink; run earlier and it can only ever report a failure that says " +
+      "nothing about the clock",
+  );
+
+  // VERIFICATION, not configuration. This is the half that makes the
+  // failure visible instead of silent.
+  check(
+    `${variant}: reads the NTP client's own status and tests it for "synchronized"`,
+    s.includes("/system ntp client get status") && s.includes('= "synchronized"'),
+    "setting NTP is not syncing NTP -- without this the chunk reports success on a router whose " +
+      "clock never moved",
+  );
+  check(
+    `${variant}: every NTP status read is wrapped in :do {} on-error={}`,
+    (() => {
+      const reads = [...s.matchAll(/\[\/system ntp client get status\]/g)];
+      return (
+        reads.length > 0 &&
+        reads.every((m) => {
+          const before = s.slice(Math.max(0, m.index - 60), m.index);
+          return /:do \{[^{}]*$/.test(before);
+        })
+      );
+    })(),
+    "not every RouterOS version exposes that property; an unguarded read aborts the rest of the " +
+      "line, which on a `;`-joined line means the verdict never prints at all",
+  );
+  // Asserted on the VERDICT, not merely on the chunk containing the
+  // words. An earlier version of this check only required
+  // `/system clock get date` and a `$clkYear <|>= NNNN` to appear
+  // somewhere, and a mutation that dropped the year from the PASS
+  // condition while leaving it in the date-parsing ladder above went
+  // undetected -- the chunk would then have parsed the year carefully and
+  // then ignored it. Same hole, same shape, as the one section 3's
+  // default-route check found by walking every occurrence instead of one.
+  check(
+    `${variant}: the PASS verdict requires BOTH the NTP status AND a sane date`,
+    s.includes("/system clock get date") &&
+      /:if \(\$clkStatus = "synchronized" && \$clkYear >= \d{4}\) do=\{ :set clkVerdict "PASS" \}/.test(
+        s,
+      ),
+    "the status property is the primary signal but is not readable on every RouterOS, and the " +
+      "date is the backstop -- a verdict computed from only one of them passes a router with an " +
+      "unreadable status and a 1970 clock",
+  );
+  check(
+    `${variant}: prints an explicit FAIL verdict, not just a status line`,
+    /RESULT: FAIL/.test(s) && /RESULT: PASS/.test(s),
+    "a chunk that prints the status and no verdict leaves the technician to decide whether " +
+      '"using-local-clock" is bad -- this is the same manual checkpoint shape as the WAN check',
+  );
+  check(
+    `${variant}: leaves a :log warning on the device when the clock is wrong`,
+    /:log warning \("cloudguest-clock: NTP NOT synchronised/.test(s),
+    "terminal output scrolls past; /log print is what remote support can read afterwards",
+  );
+  check(
+    `${variant}: says WHY it matters in the failure output, not just that it failed`,
+    /HTTPS certificate validation/.test(s) && /OFFLINE in Master console/.test(s),
+    'a bare "FAIL" trains people to continue anyway; naming the consequence is what stops them',
+  );
+}
+
+// The regression in its original form: the string the founder grepped for.
+{
+  const everyChunkEverywhere = VARIANTS.flatMap(([, opts]) =>
+    buildRouterSetupScriptChunks(opts).map((c) => c.script),
+  ).join("\n");
+  check(
+    "INJECTED: the original defect -- zero matches for `ntp client` / `time-zone-name` anywhere",
+    /ntp client/.test(everyChunkEverywhere) && /time-zone-name/.test(everyChunkEverywhere),
+    "this is the exact grep that returned 0 and started this work",
+  );
+}
+
+// =====================================================================
+// 8. A TUNNEL PEER IS NEVER BUILT AGAINST AN UNRESOLVED NAME
+// =====================================================================
+// RouterOS resolves `endpoint-address` ONCE, when the peer is created,
+// and never again. If venue DNS is not working at that moment the peer is
+// created pointing at nothing and NOTHING REPORTS IT -- the `add`
+// succeeds and the tunnel simply never handshakes. Confirmed live
+// (2026-08-22): `/tool fetch` returned `resolving error` while WAN, DHCP,
+// gateway, default route and `/ip dns` servers were all healthy.
+
+console.log("\n-- the wireguard peer's endpoint is verified, never assumed --");
+
+const wgChunkFor = (wireguard) =>
+  buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN], wireguard }).find(
+    (c) => c.label === "WireGuard Tunnel",
+  )?.script ?? "";
+
+const WG_CASES = [
+  ["hostname, no fallback address (what ships today)", WG, false],
+  [
+    "hostname with a backend-supplied fallback",
+    { ...WG, serverEndpointAddress: WG_FALLBACK_ADDR },
+    true,
+  ],
+];
+
+for (const [what, wireguard, hasFallback] of WG_CASES) {
+  const s = wgChunkFor(wireguard);
+  check(
+    `${what}: verifies the hostname resolves ON THE DEVICE with :resolve`,
+    s.includes(":resolve $wgHost"),
+    "without this the peer is created against whatever the name did or did not resolve to, " +
+      "with no signal either way",
+  );
+  check(
+    `${what}: the :resolve is guarded -- it throws on failure`,
+    /:do \{ :set wgDnsOk \(\[:len \[:resolve \$wgHost\]\] > 0\) \} on-error=\{ :set wgDnsOk false \}/.test(
+      s,
+    ),
+    "an unguarded :resolve aborts the rest of the line, so the peer is never added AND nothing " +
+      "is printed -- a worse version of the bug",
+  );
+  // The real guarantee: the `add` cannot run on an unresolved name.
+  check(
+    `${what}: every peer add is gated on the resolution result`,
+    (() => {
+      const adds = [...s.matchAll(/\/interface wireguard peers add/g)];
+      return (
+        adds.length > 0 &&
+        adds.every((m) =>
+          /:if \(\$wgGo = true && [^)]*\) do=\{ $/.test(s.slice(0, m.index).slice(-200)),
+        )
+      );
+    })(),
+    "an ungated add is the original bug: a peer pointing at nothing, created silently",
+  );
+  check(
+    `${what}: the peer's endpoint-address is the checked variable, not a literal`,
+    s.includes("endpoint-address=$wgEp") &&
+      !s.includes(`endpoint-address="${WG.serverEndpointHost}"`),
+    "a literal endpoint-address cannot express the fallback and cannot be checked first",
+  );
+  check(
+    `${what}: leaves a comment on the peer saying which it holds and why`,
+    s.includes("comment=$wgCmt") && s.includes("cloudguest-wg-hub:"),
+    "a technician reading /interface wireguard peers print detail next week has no other way to " +
+      "tell a name from a substituted address",
+  );
+  check(
+    `${what}: says so loudly in the pasted output when DNS fails`,
+    /\*\*\* WIREGUARD: DNS FAILED/.test(s) && /:log warning \("cloudguest-wg: /.test(s),
+    "the whole failure mode is that nothing reports it",
+  );
+}
+
+{
+  // No fallback available: the correct behaviour is to build NOTHING.
+  // A peer created now would point at nothing forever AND could never be
+  // repaired by re-pasting, because the add-if-missing guard would find
+  // it and skip. Creating nothing leaves that guard's `find` empty, so a
+  // plain re-paste after DNS is fixed does the right thing.
+  const s = wgChunkFor(WG);
+  check(
+    "no fallback address: the peer is REFUSED on DNS failure, not built against nothing",
+    !s.includes(":set wgGo true"),
+    "with no address to fall back to, creating the peer anyway produces an unrepairable router",
+  );
+  check(
+    "no fallback address: the output explains that nothing was created, and why",
+    /NO TUNNEL WAS BUILT/.test(s) && /NO PEER WAS/.test(s) && /re-paste THIS chunk/.test(s),
+    "refusing silently is the same defect wearing a different hat",
+  );
+  check(
+    "no fallback address: no address is invented in place of the missing one",
+    !/endpoint-address="?\d{1,3}(\.\d{1,3}){3}/.test(s),
+    "the generator must never type an address the backend did not give it",
+  );
+}
+{
+  const s = wgChunkFor({ ...WG, serverEndpointAddress: WG_FALLBACK_ADDR });
+  check(
+    "with a fallback address: it is used, and only on failure",
+    s.includes(`:if ($wgDnsOk = false) do={ :set wgEp "${WG_FALLBACK_ADDR}" }`) &&
+      s.includes(":set wgGo true"),
+    "the founder's decision was hostname FIRST, address as the fallback -- not the other way round",
+  );
+  check(
+    "with a fallback address: the peer comment records that it is a raw address, and what to do",
+    /:set wgCmt "cloudguest-wg-hub: RAW ADDRESS [\d.]+ .*did NOT resolve/.test(s) &&
+      /Remove this peer and re-paste/.test(s),
+    "an address left on a peer with no explanation is how the next engineer inherits a mystery",
+  );
+}
+{
+  // `endpoint_host` is documented backend-side as "hostname OR IP".
+  const s = wgChunkFor({ ...WG, serverEndpointHost: WG_LITERAL_HOST });
+  check(
+    "an endpoint host that is already an address skips the DNS dance entirely",
+    !s.includes(":resolve") && s.includes(`endpoint-address="${WG_LITERAL_HOST}"`),
+    "there is nothing to resolve and no fallback to choose; pretending otherwise is noise",
+  );
+  check(
+    "...but still comments the peer, because 'why is this an address' is the same question",
+    /comment="cloudguest-wg-hub: RAW ADDRESS/.test(s),
+    "missing",
+  );
+}
+
+// THE 64-ROUTER REGRESSION. `20.219.72.235` lived as a literal in code,
+// got baked into `endpoint-address=` on 64 field routers, and when the
+// hub's subscription died those routers became unreachable. They need
+// physical visits. The backend guards its own source against this literal
+// reappearing; this is the frontend half.
+{
+  const everything = [
+    ...VARIANTS.flatMap(([, opts]) => buildRouterSetupScriptChunks(opts).map((c) => c.script)),
+    wgChunkFor(WG),
+    wgChunkFor({ ...WG, serverEndpointAddress: WG_FALLBACK_ADDR }),
+  ].join("\n");
+  check(
+    `INJECTED: the dead hub address ${BANNED_HUB_LITERAL} appears in NO generated script`,
+    !everything.includes(BANNED_HUB_LITERAL),
+    "this exact literal is why 64 routers now need physical visits -- the hub's address must " +
+      "come from the backend, never from this repo",
+  );
+}
+
+// =====================================================================
+// 9. THE PANEL'S "WHAT A RE-GENERATE BREAKS" TABLE IS TRUE
+// =====================================================================
+// Clicking Generate a second time rotates secrets server-side. Master
+// console now says so, in a blocking dialog and a banner that does not
+// disappear -- and, critically, says WHICH of them re-pasting the new
+// script cannot repair. That claim is only worth making if it stays true,
+// so it is asserted here against what the generator actually emits rather
+// than against what someone believed when they wrote the sentence.
+
+console.log("\n-- the re-generate warning matches what the chunks really do --");
+
+// Named `REGEN_CHUNKS`, not `FULL`: section 6 already binds `FULL` at
+// module scope to the *options* object for the every-subsystem-on variant.
+// Two module-scope `const FULL`s is a SyntaxError, and the two are not
+// interchangeable anyway -- that one is opts, this one is chunks.
+const REGEN_CHUNKS = buildRouterSetupScriptChunks({
+  ...BASE,
+  wans: [DHCP_WAN],
+  wireguard: WG,
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  apiAccess: { username: "cloudguest-api", secret: "pw" },
+});
+const scriptOf = (pred) =>
+  REGEN_CHUNKS.filter(pred)
+    .map((c) => c.script)
+    .join("\n");
+/** Just the `else={ ... }` bodies -- the UPDATE branches. Deliberately
+ * not `doBodies`, which also returns every `do={}` (the ADD branches),
+ * where `secret=`/`password=` legitimately appear on a first run. */
+const elseBodies = (script) =>
+  [...script.matchAll(/else=\{((?:[^{}]|\{[^{}]*\})*)\}/g)].map((m) => m[1]);
+
+{
+  const wg = scriptOf((c) => c.label === "WireGuard Tunnel");
+  check(
+    "the WireGuard chunk really has NO update branch",
+    !/else=/.test(wg),
+    "if it grew one, SECRET_REPAIR.wireguard.repairableByRepaste must be flipped to true -- " +
+      "the dialog and banner would otherwise be telling the operator a lie",
+  );
+  check(
+    "...so the table says the WireGuard keypair is NOT repairable by re-pasting",
+    SECRET_REPAIR.wireguard.repairableByRepaste === false,
+    "the table disagrees with the chunk",
+  );
+  check(
+    "...and says what to remove on the device instead",
+    /wg-cloudguard/.test(SECRET_REPAIR.wireguard.why),
+    'a "cannot be repaired" with no next step just moves the dead end',
+  );
+}
+{
+  const radius = scriptOf((c) => c.label === "RADIUS");
+  check(
+    "the RADIUS chunk's else-branch exists but never writes secret=",
+    /else=\{/.test(radius) && elseBodies(radius).every((b) => !b.includes("secret=")),
+    "if the else branch started setting the secret, re-pasting WOULD repair RADIUS and " +
+      "SECRET_REPAIR.radius.repairableByRepaste must be flipped",
+  );
+  check(
+    "...so the table says the RADIUS secret is NOT repairable by re-pasting",
+    SECRET_REPAIR.radius.repairableByRepaste === false,
+    "the table disagrees with the chunk",
+  );
+}
+{
+  const api = scriptOf((c) => c.label.startsWith("API Access"));
+  check(
+    "the API Access chunk DOES have a real password-update branch",
+    /else=\{ \/user set \[find name="[^"]*"\] password=/.test(api),
+    "without it, the table's claim that the API password is repairable is false",
+  );
+  check(
+    "...so the table says the API password IS repairable by re-pasting",
+    SECRET_REPAIR.api.repairableByRepaste === true,
+    "the table disagrees with the chunk",
+  );
+}
+{
+  const hb = scriptOf((c) => c.label.startsWith("Heartbeat"));
+  check(
+    "the agent credential is carried inline by BOTH heartbeat chunks",
+    (hb.match(/X-Agent-Credential: cred-abc123/g) ?? []).length === 2,
+    "if only one copy carried it, re-pasting would leave the other stale and the table's " +
+      '"repairable" claim would be half true, which is worse than false',
+  );
+  check(
+    "the heartbeat scheduler is removed and re-added, so a re-paste overwrites it",
+    hb.includes("/system scheduler remove $existingHeartbeatSched"),
+    "an add-if-missing scheduler would keep the OLD credential forever",
+  );
+  check(
+    "...so the table says the agent credential IS repairable by re-pasting",
+    SECRET_REPAIR.agent.repairableByRepaste === true,
+    "the table disagrees with the chunk",
+  );
+  check(
+    "...and names the two chunks to re-paste",
+    /Heartbeat Scheduler/.test(SECRET_REPAIR.agent.why),
+    'a "just re-paste it" that does not say which piece is a guess dressed as advice',
+  );
+}
+check(
+  "the agent credential rotates on EVERY generate, whatever the toggles say",
+  [
+    { enableWireguard: false, enableRadius: false, mintApiSecret: false },
+    { enableWireguard: true, enableRadius: true, mintApiSecret: true },
+  ].every((o) => rotatingSecrets(o).includes("agent")),
+  "both branches of onGenerate's credential block mint a fresh plaintext -- if this were ever " +
+    "conditional the dialog would under-report what it is about to break",
+);
+check(
+  "an optional subsystem that is switched off is not claimed to rotate",
+  JSON.stringify(
+    rotatingSecrets({ enableWireguard: false, enableRadius: false, mintApiSecret: false }),
+  ) === JSON.stringify(["agent"]),
+  "over-reporting trains people to click through the dialog, which is how it stops working",
+);
+check(
+  "every secret the table calls unrepairable explains what to remove first",
+  Object.values(SECRET_REPAIR)
+    .filter((v) => !v.repairableByRepaste)
+    .every((v) => v.why.length > 40 && /remove|delete/i.test(v.why)),
+  "an unrepairable secret with no recovery instruction is a dead end, not a warning",
+);
 
 // =====================================================================
 
