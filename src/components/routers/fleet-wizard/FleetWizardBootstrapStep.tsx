@@ -91,8 +91,8 @@ function RemoteBriefing({ revertWindowMinutes }: { revertWindowMinutes: number }
         </li>
         <li>
           An automatic revert is armed for {revertWindowMinutes} minutes. If the new tunnel cannot
-          reach the hub, the router restores its previous configuration by itself — no console
-          visit needed.
+          reach the hub, the router restores its previous configuration by itself — no console visit
+          needed.
         </li>
       </ul>
     </div>
@@ -130,9 +130,9 @@ function RemoteCutoverStatus({
         <div>
           <p className="font-medium">No handshake inside the revert window — presumed reverted</p>
           <p className="text-muted-foreground">
-            The new tunnel never reached the hub within {revertWindowMinutes} minutes, so the
-            router should have restored its previous configuration automatically. The platform has
-            no direct signal for the revert itself — verify the router from the fleet list before
+            The new tunnel never reached the hub within {revertWindowMinutes} minutes, so the router
+            should have restored its previous configuration automatically. The platform has no
+            direct signal for the revert itself — verify the router from the fleet list before
             retrying, and regenerate the script for another attempt.
           </p>
         </div>
@@ -161,9 +161,8 @@ function RemoteCutoverStatus({
       <div>
         <p className="font-medium">Waiting for the router to check in</p>
         <p className="text-muted-foreground">
-          Run the script on the device (WinBox terminal or SSH). Nothing changes on the router
-          until it validates and stages the cutover — this panel updates as soon as the check-in
-          lands.
+          Run the script on the device (WinBox terminal or SSH). Nothing changes on the router until
+          it validates and stages the cutover — this panel updates as soon as the check-in lands.
         </p>
       </div>
     </div>

@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Workflow,
   WifiOff,
+  Compass,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -148,7 +149,11 @@ function ControlButton({
 
 function RouterFleetScreen() {
   const navigate = useNavigate();
-  const { open: openRouterId, setup: setupRouterId, advanced: advancedRouterId } = Route.useSearch();
+  const {
+    open: openRouterId,
+    setup: setupRouterId,
+    advanced: advancedRouterId,
+  } = Route.useSearch();
   const advancedId = advancedRouterId ?? setupRouterId;
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
@@ -253,9 +258,7 @@ function RouterFleetScreen() {
       <MPageShell>
         <MSectionHeader
           eyebrow="Infrastructure"
-          title={
-            advancedRouter ? `Advanced setup script — ${advancedRouter.name}` : "Router Fleet"
-          }
+          title={advancedRouter ? `Advanced setup script — ${advancedRouter.name}` : "Router Fleet"}
           actions={
             advancedRouter ? (
               <MButton variant="outline" onClick={backToFleet}>
@@ -361,11 +364,20 @@ function RouterFleetScreen() {
                       <MTd className="text-right">
                         <div className="flex justify-end gap-1">
                           <Link
+                            to="/master/routers/guided/$routerId"
+                            params={{ routerId: r.id }}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Guided Setup -- ek phase, copy, Haan/Nahi. Naye router ke liye yahi use karo."
+                            className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+                          >
+                            <Compass className="h-3 w-3" /> Guided
+                          </Link>
+                          <Link
                             to="/master/routers/setup/$routerId"
                             params={{ routerId: r.id }}
                             onClick={(e) => e.stopPropagation()}
-                            title="Open server-driven provisioning wizard"
-                            className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+                            title="Server-driven provisioning wizard (needs a live agent + tunnel)"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
                           >
                             <Workflow className="h-3 w-3" /> Wizard
                           </Link>
@@ -471,12 +483,21 @@ function RouterFleetScreen() {
                   {!demo && (
                     <div className="space-y-2">
                       <Link
-                        to="/master/routers/setup/$routerId"
+                        to="/master/routers/guided/$routerId"
                         params={{ routerId: sel.id }}
                         className="block"
                       >
                         <MButton variant="primary" className="w-full justify-center">
-                          <Workflow className="h-4 w-4" /> Open provisioning wizard
+                          <Compass className="h-4 w-4" /> Guided Setup (recommended)
+                        </MButton>
+                      </Link>
+                      <Link
+                        to="/master/routers/setup/$routerId"
+                        params={{ routerId: sel.id }}
+                        className="block"
+                      >
+                        <MButton variant="outline" className="w-full justify-center">
+                          <Workflow className="h-4 w-4" /> Provisioning wizard
                         </MButton>
                       </Link>
                       <MButton

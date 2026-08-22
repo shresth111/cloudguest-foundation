@@ -1241,7 +1241,7 @@ function buildPortalUrl(portalUrl: PortalOverrideConfig): string {
   return (
     `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
     `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
-    `&mac=$(mac)&dst=$(link-orig)&link-login-only=$(link-login-only)`
+    `&mac=$(mac)&ip=$(ip)&dst=$(link-orig)&link-login-only=$(link-login-only)`
   );
 }
 
@@ -2389,15 +2389,25 @@ export function buildRouterSetupScriptChunks(opts: {
           `:if ([:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0) do={ :do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :log warning "cloudguest: PPPoE WAN${n} gateway not resolved yet (still negotiating) -- re-paste this chunk once connected" } }`,
         );
       } else {
+        // Confirmed live on a factory-fresh hEX (2026-08-21): reading the
+        // lease immediately after adding the client returns nothing usable,
+        // because the lease does not exist yet. `/import` never pauses, so
+        // the route below landed with gateway `0.0.0.0`, flag `Is`
+        // (Inactive), and every ping said `no route to host` -- on a router
+        // whose WAN was perfectly healthy. Pasting chunk-by-chunk hides this
+        // entirely: human typing delay is what lets DHCP bind. Poll instead.
         lines.push(`:local wan${n}Gw ""`);
         lines.push(
-          `:if ([:len [/ip dhcp-client find where interface="${iface}"]] > 0) do={ :set wan${n}Gw [/ip dhcp-client get [find interface="${iface}"] gateway] }`,
+          `:for wan${n}Try from=1 to=30 do={ :if ([:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0") do={ :do { :set wan${n}Gw [:tostr [/ip dhcp-client get [find where interface="${iface}"] gateway]] } on-error={ :set wan${n}Gw "" }; :if ([:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0") do={ :delay 1s } } }`,
         );
       }
     });
     wans.forEach((_, idx) => {
       const n = idx + 1;
-      lines.push(`:if ($wan${n}Gw != "") do={`);
+      // `"0.0.0.0" != ""` is TRUE, so the previous guard passed a zero
+      // gateway into `/ip route add` -- RouterOS accepts it and silently
+      // flags the route Inactive. Reject it explicitly.
+      lines.push(`:if ($wan${n}Gw != "" && $wan${n}Gw != "0.0.0.0") do={`);
       // Adopt-don't-duplicate: checked by OUR OWN comment first (the normal,
       // healthy-re-run case), but if that's missing this also checks for
       // ANY other route already sitting at this exact dst-address+gateway
@@ -2864,15 +2874,40 @@ export function buildRouterSetupScriptChunks(opts: {
     // showed up in `print terse` output as expected. `http-pap` is kept
     // alongside `https` in `login-by` (not replaced) since it's what the
     // Hotspot chunk already sets and other flows may still rely on it.
+    // CORRECTION (2026-08-21, confirmed live on a factory-fresh hEX,
+    // RouterOS 7.23.3): the previous `/certificate sign cloudguest-ca
+    // ca=cloudguest-ca` FAILS with `input does not match any value of ca`.
+    // `ca=` names the *signing* authority -- a different, already-signed
+    // certificate carrying the AUTHORITY flag and a private key. A
+    // just-added cert is an unsigned template with no CA capability, so
+    // `ca=<itself>` resolves against nothing. Omitting `ca=` entirely is
+    // what produces a self-signed root.
+    //
+    // The "confirmed live, working, this session" note above was a false
+    // positive: on that test box `cloudguest-ca` already existed from an
+    // earlier manual experiment, so the `:if` guard skipped the whole
+    // block and "both sign calls completed with no error" was trivially
+    // true. It only runs for the first time on a genuinely fresh router.
+    //
+    // Also: one statement per `do={}`, with the guard captured into a
+    // `:local` BEFORE the add so both branches agree. Multi-statement
+    // `do={}` blocks do not survive `chunksToSingleLineScript` (see the
+    // live syntax error documented at ~:3295-3310, which contradicts that
+    // helper's own "`;` is interchangeable with a newline" docstring).
     const lines = [
-      `:if ([:len [/certificate find where name="cloudguest-ca"]] = 0) do={`,
-      `  /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server`,
-      `  /certificate sign cloudguest-ca ca=cloudguest-ca`,
-      `}`,
-      `:if ([:len [/certificate find where name="cloudguest-hotspot-cert"]] = 0) do={`,
-      `  /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server`,
-      `  /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca`,
-      `}`,
+      `:local needCguestCa ([:len [/certificate find where name="cloudguest-ca"]] = 0)`,
+      `:if ($needCguestCa) do={ /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server }`,
+      `:if ($needCguestCa) do={ /certificate sign cloudguest-ca }`,
+      `/certificate set [find name="cloudguest-ca"] trusted=yes`,
+      `:local needCguestLeaf ([:len [/certificate find where name="cloudguest-hotspot-cert"]] = 0)`,
+      // `/certificate sign` can return before signing actually completes,
+      // so the leaf's `ca=cloudguest-ca` may run against a CA that is not
+      // yet a usable authority -- which fails with the same "input does
+      // not match any value of ca" as the old bug and looks identical.
+      // Three seconds of insurance.
+      `:delay 3s`,
+      `:if ($needCguestLeaf) do={ /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server }`,
+      `:if ($needCguestLeaf) do={ /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca }`,
       `/certificate set [find name="cloudguest-hotspot-cert"] trusted=yes`,
       `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="${HOTSPOT_DNS_NAME}"`,
     ];
