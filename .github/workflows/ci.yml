@@ -1,0 +1,155 @@
+name: CI
+
+# The frontend has had no CI at all. The Dockerfile's builder stage runs
+# `bun run build` and nothing else -- no tsc, no eslint, no tests -- so
+# every gate below is currently enforced only by whoever remembers to run
+# it locally.
+#
+# Everything here is verified green on `feat/guided-setup-and-provisioning-fixes`
+# as of 2026-08-22, so this starts life passing and any red is a real
+# regression:
+#   tsc --noEmit ........ 0 errors across 751 files
+#   eslint . ............ 0 errors, 56 warnings
+#   test:portal-cna ..... 7 checks
+#   test:signin-fields .. 23 checks
+#   test:fw-order ....... 7 checks
+#   test:a11y ........... sentinel only
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Types and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"   # matches local dev; the Dockerfile floats `npm i -g bun`
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # 751 files, currently 0 errors. This is the cheapest gate here and
+      # the one most likely to catch a real break, so it runs first.
+      - name: tsc --noEmit
+        run: bunx tsc --noEmit
+
+      # eslint exits non-zero on errors by itself. --max-warnings pins the
+      # warning count as a RATCHET: the repo was just cleaned to 56
+      # warnings, and this stops it drifting back up without anyone
+      # deciding to let it. Lower the number as warnings get fixed; raising
+      # it should require saying why in the PR.
+      #
+      # `.claude` is ignored in eslint.config.js -- without that ignore
+      # eslint walked 45,184 files of stale agent worktrees. If this step
+      # ever starts taking minutes instead of seconds, that ignore has
+      # been lost.
+      - name: eslint
+        run: bunx eslint . --max-warnings 56
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"   # matches local dev; the Dockerfile floats `npm i -g bun`
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Build under the SAME nitro preset the Dockerfile pins. Without
+      # NITRO_PRESET the @lovable.dev config defaults to
+      # "cloudflare-module", which produces a Worker bundle that
+      # `node .output/server/index.mjs` cannot run -- so a CI build without
+      # this would be green while the image is broken.
+      - name: vite build
+        env:
+          NODE_ENV: production
+          NITRO_PRESET: node-server
+          # Deliberately the relative fallback, not a real hostname. This
+          # job proves the bundle COMPILES; it is not the artifact that
+          # ships. The image is built separately with the real
+          # VITE_API_BASE_URL baked in, because vite inlines it.
+          VITE_API_BASE_URL: /api/v1
+        run: bun run build
+
+      - name: Assert the server bundle exists
+        run: |
+          test -f .output/server/index.mjs \
+            || { echo "no .output/server/index.mjs -- wrong nitro preset?"; exit 1; }
+          echo "server bundle: $(du -h .output/server/index.mjs | cut -f1)"
+
+  tests:
+    name: Portal regression suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"   # matches local dev; the Dockerfile floats `npm i -g bun`
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # test-portal-signin-fields.mjs drives a real Chromium through
+      # playwright. Without this step it fails at chromium.launch().
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      # Each suite runs through ci-gated-test.sh, which requires exit 0
+      # AND the suite's own success sentinel AND a floor on the number of
+      # checks that actually ran. See that script's header for why the
+      # exit code alone is not enough.
+      #
+      # The floors are the counts observed green on 2026-08-22. Raise them
+      # when you add checks.
+
+      # THE ONE THAT ALREADY BROKE. This is the regression test for the
+      # confirmed-live "OTP verifies but no real internet" incident, and it
+      # was silently erroring out on origin/main because portal.success.tsx
+      # gained an import its esbuild stub did not export. Nothing ran it,
+      # so nobody found out.
+      - name: portal CNA storage safety
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-cna-storage-safety" 7 "all checks passed" \
+            bun run test:portal-cna
+
+      - name: portal sign-in fields
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-signin-fields" 23 \
+            "Sign-in field regression test: all checks passed." \
+            bun run test:signin-fields
+
+      - name: firewall rule ordering
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "fw-rule-order" 7 "fw-rule-order: all checks passed" \
+            bun run test:fw-order
+
+      # This one prints only a verdict line, no per-check output, so its
+      # floor is 0 and the sentinel is doing all the work.
+      - name: portal a11y invariants
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "a11y-invariants" 0 \
+            "Portal accessibility invariants: all checks passed." \
+            bun run test:a11y
