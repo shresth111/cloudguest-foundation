@@ -1375,9 +1375,16 @@
  * shimmer`, already built for the customer console) rather than a new
  * mechanism. This is what replaces a route hand-rolling its own
  * spinner block (see master.channel-partners.tsx's pre-v3 loading
- * branch) once `MTable`'s own `loading` prop is used. */
+ * branch) once `MTable`'s own `loading` prop is used.
+ *
+ * The bar's height is the LINE BOX of the `text-sm` content these tables
+ * actually hold (1.25rem), not an arbitrary bar height. At the previous
+ * 0.875rem each skeleton row was ~6px shorter than the row that replaced it,
+ * so a 5-row skeleton table grew by ~30px the moment real data landed -- a
+ * loading state that reserves the wrong amount of space converts a blank into
+ * a jump, which is the thing it was added to prevent. */
 .m-table-skel-bar {
-  height: 0.875rem;
+  height: 1.25rem;
   width: 100%;
   max-width: 22rem;
   border-radius: var(--radius);

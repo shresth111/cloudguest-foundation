@@ -19,6 +19,18 @@ export function useBillingSnapshot() {
   });
 }
 
+/** The 3-request billing slice the Platform Overview's charts and MRR tile
+ * need, so they don't sit behind getSnapshot's `5 + 4N`-request per-org
+ * fan-out. Separate cache key on purpose: both can be in flight at once and
+ * each card renders off whichever has landed. See billingService.getOverview. */
+export function useBillingOverview() {
+  return useQuery({
+    queryKey: ["billing", "overview"],
+    queryFn: () => billingService.getOverview(),
+    staleTime: 30_000,
+  });
+}
+
 export function useOrganizationsList() {
   return useQuery({
     queryKey: ["billing", "orgs"],
