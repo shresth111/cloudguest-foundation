@@ -59,6 +59,35 @@ export interface FleetDiscoverResult {
   compatibility: FleetCompatibilityReport;
 }
 
+/** Ternary on purpose. `unknown` means the platform could not establish
+ * this precondition without making the very connection that Discovery is
+ * about to attempt -- it is NOT a quiet `pass`, and the UI must show it
+ * rather than implying a clean bill of health. */
+export type DiscoveryPreconditionStatus = "pass" | "fail" | "unknown";
+
+/** One Discovery precondition. `nextStep` is the sentence that tells an
+ * operator what to actually do -- "Paste the WireGuard chunk from the
+ * router setup script on the device, then wait for it to check in and
+ * retry" rather than an IP address and the word "timed out". */
+export interface DiscoveryPrecondition {
+  key: string;
+  label: string;
+  status: DiscoveryPreconditionStatus;
+  detail: string;
+  nextStep: string | null;
+}
+
+export interface DiscoveryPreflight {
+  routerId: string;
+  /** False when at least one precondition is *known* to be unmet. The
+   * wizard disables its Discover button and shows `summary`. */
+  canAttempt: boolean;
+  summary: string | null;
+  checks: DiscoveryPrecondition[];
+  blockingCount: number;
+  unverifiedCount: number;
+}
+
 /** Which Step 1 bootstrap rendering to request -- mirrors the backend's
  * `BootstrapMode` (`app/domains/network_config/constants.py`). `onsite` is
  * the cleanup-first fresh-enrollment paste (the default); `remote` is the

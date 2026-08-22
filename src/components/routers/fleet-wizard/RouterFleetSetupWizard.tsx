@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  HelpCircle,
   Loader2,
   Network,
   Radar,
@@ -16,6 +17,7 @@ import {
   FileCheck,
   Rocket,
   TerminalSquare,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -52,6 +54,7 @@ import {
   useApproveConfigurationPlan,
   useBuildConfigurationPlan,
   useDiscoverRouter,
+  useDiscoveryPreflight,
   useFleetProvisionJob,
   useGuestInterfaceAvailability,
   usePrepareConfigurationPlan,
@@ -64,9 +67,12 @@ import {
 } from "@/hooks/useRouterFleetWizard";
 import { routerFleetWizardService } from "@/services/router-fleet-wizard.service";
 import { routerService } from "@/services/router.service";
+import { isDiscoveryBlocked } from "@/lib/discovery-preflight";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type {
+  DiscoveryPrecondition,
+  DiscoveryPreflight,
   FleetBootstrapMode,
   FleetBootstrapScriptPreview,
   FleetRemoteCutoverPhase,
@@ -257,6 +263,15 @@ export function RouterFleetSetupWizard({
   );
 
   const discover = useDiscoverRouter();
+  // Polled only while the operator is actually on the Discover step: the
+  // unblocking event (the device's first WireGuard handshake after the
+  // chunk is pasted) arrives out-of-band, so the button has to be able to
+  // go live without a reload.
+  const discoveryPreflight = useDiscoveryPreflight(
+    router.id,
+    router.organizationId,
+    step === STEP.discover,
+  );
   const previewBootstrap = usePreviewBootstrapScript();
   // A remote script is "outstanding" from generation until the operator
   // moves on -- while it is, the peer is the only truth signal (the
@@ -431,6 +446,10 @@ export function RouterFleetSetupWizard({
     } catch (err) {
       toast.error((err as AppError).message || "Discovery failed");
       setBlockedAt(STEP.discover);
+      // Re-read the preconditions after a failure: the backend may now
+      // classify one of them as unmet (a tunnel that has gone stale, say),
+      // and the operator should see which rather than only a toast.
+      void discoveryPreflight.refetch();
     }
   }
 
@@ -774,6 +793,9 @@ export function RouterFleetSetupWizard({
                   snapshot={snapshot}
                   loading={discover.isPending}
                   onDiscover={runDiscover}
+                  preflight={discoveryPreflight.data ?? null}
+                  preflightLoading={discoveryPreflight.isFetching}
+                  preflightError={discoveryPreflight.isError}
                 />
               )}
               {step === STEP.compatibility && compatibility && (
@@ -861,7 +883,11 @@ export function RouterFleetSetupWizard({
                   Continue to discovery <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : step === STEP.discover ? (
-                <Button type="button" onClick={runDiscover} disabled={discover.isPending}>
+                <Button
+                  type="button"
+                  onClick={runDiscover}
+                  disabled={discover.isPending || isDiscoveryBlocked(discoveryPreflight.data)}
+                >
                   {discover.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
@@ -937,17 +963,58 @@ export function RouterFleetSetupWizard({
   );
 }
 
+/** One precondition row. `unknown` gets its own visual treatment on
+ * purpose -- it must not read like a pass. */
+function PreconditionRow({ check }: { check: DiscoveryPrecondition }) {
+  const icon =
+    check.status === "pass" ? (
+      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+    ) : check.status === "fail" ? (
+      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+    ) : (
+      <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+    );
+  return (
+    <li className="flex gap-2 text-sm">
+      {icon}
+      <div className="space-y-0.5">
+        <div className="font-medium text-foreground">
+          {check.label}
+          {check.status === "unknown" && (
+            <span className="ml-2 text-xs font-normal text-amber-600">not verifiable</span>
+          )}
+        </div>
+        <p className="text-muted-foreground">{check.detail}</p>
+        {check.nextStep && check.status !== "pass" && (
+          <p className="text-foreground">Next step: {check.nextStep}</p>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function DiscoverStep({
   router,
   snapshot,
   loading,
   onDiscover,
+  preflight,
+  preflightLoading,
+  preflightError,
 }: {
   router: RouterDevice;
   snapshot: FleetRouterSnapshot | null;
   loading: boolean;
   onDiscover: () => void;
+  preflight: DiscoveryPreflight | null;
+  preflightLoading: boolean;
+  preflightError: boolean;
 }) {
+  // Never let an unloaded or failed pre-flight read as "all clear" -- if we
+  // do not know the preconditions, we say so rather than implying they are
+  // met. The button stays available (refusing outright would strand an
+  // operator when the check itself is broken), but nothing claims readiness.
+  const blocked = isDiscoveryBlocked(preflight);
   return (
     <div className="space-y-4">
       <div>
@@ -957,11 +1024,43 @@ function DiscoverStep({
           {router.name} until you explicitly apply WAN configuration later.
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <MStat label="Management IP" value={router.managementIpAddress ?? "—"} />
-        <MStat label="API credentials" value={router.hasApiCredentials ? "Present" : "Missing"} />
-        <MStat label="WireGuard" value={router.status === "online" ? "Reachable" : "Pending"} />
+
+      <div className="rounded-xl border border-border p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="text-sm font-semibold">Preconditions</h4>
+          {preflightLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        </div>
+        {preflightError ? (
+          <p className="text-sm text-amber-600">
+            Could not check Discovery&apos;s preconditions, so it is unknown whether this router can
+            be reached. Running discovery may fail with a connection timeout.
+          </p>
+        ) : preflight ? (
+          <>
+            {blocked && preflight.summary && (
+              <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground">
+                {preflight.summary}
+              </div>
+            )}
+            <ul className="space-y-2">
+              {preflight.checks.map((c) => (
+                <PreconditionRow key={c.key} check={c} />
+              ))}
+            </ul>
+            {preflight.unverifiedCount > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                {preflight.unverifiedCount} precondition
+                {preflight.unverifiedCount === 1 ? "" : "s"} could not be checked without connecting
+                to the device. Discovery may still fail on {""}
+                {preflight.unverifiedCount === 1 ? "it" : "them"}.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Checking preconditions…</p>
+        )}
       </div>
+
       {snapshot ? (
         <div className="grid gap-3 sm:grid-cols-4">
           <MStat label="Snapshot" value={snapshot.status} />
@@ -974,10 +1073,18 @@ function DiscoverStep({
           No snapshot yet — run discovery to capture the current device state.
         </div>
       )}
-      <Button type="button" onClick={onDiscover} disabled={loading}>
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {snapshot ? "Re-run discovery" : "Run discovery"}
-      </Button>
+      <div className="space-y-2">
+        <Button type="button" onClick={onDiscover} disabled={loading || blocked}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {snapshot ? "Re-run discovery" : "Run discovery"}
+        </Button>
+        {blocked && (
+          <p className="text-xs text-muted-foreground">
+            Discovery is disabled because a precondition above is unmet — it would fail with a
+            connection timeout.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

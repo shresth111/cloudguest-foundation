@@ -19,6 +19,8 @@
     "test:guided-i18n-state": "node scripts/test-guided-i18n-state.mjs",
     "test:guided-i18n-switch": "node scripts/test-guided-i18n-switch.mjs",
     "test:plan-editor": "node scripts/test-plan-editor-feedback.mjs",
+    "test:setup-script": "node scripts/test-setup-script-generator.mjs",
+    "test:discovery-preflight": "node scripts/test-discovery-preflight.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },
