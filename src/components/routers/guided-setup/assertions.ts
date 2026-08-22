@@ -66,60 +66,109 @@ export const ASSERTIONS: Record<string, OutputAssertion> = {
   // -------------------------------------------------------------------
   // Phase 0 -- audit
   // -------------------------------------------------------------------
+  /**
+   * REWRITTEN 2026-08-23, after the block it scores was found to be
+   * incapable of telling the truth.
+   *
+   * The old block counted into a `:local dirty` spread across nine console
+   * lines. The RouterOS terminal runs each entered line as its own program,
+   * so `$dirty` was gone by the next line: every `:set` was a syntax error,
+   * not one of the seven checks ran, and `$dirty = 0` was false against an
+   * undefined variable -- so the block printed `RESULT: PURANA CONFIG MILA`
+   * unconditionally, on a clean router as readily as a dirty one. The old
+   * rules below keyed off exactly that verdict token and off the `purana X
+   * mila` prose lines, so both had to go.
+   *
+   * What is preserved, deliberately, is the SCEPTICISM. The old design's
+   * point was never the particular strings -- it was that a self-printed
+   * summary is a claim and gets checked against the evidence printed
+   * alongside it. There is no self-printed verdict any more (the block
+   * emits seven raw counts and the app decides), so the same suspicion is
+   * now applied between the counts and the file list:
+   *
+   *   `file-count=0` sitting above a `cloudguest-file:` line is the same
+   *   contradiction `RESULT: CLEAN` above `purani FILES mili` used to be,
+   *   and scores FAIL for the same reason -- two independent readings of
+   *   one fact disagree, so neither is trusted.
+   *
+   * `requires` names all seven counts: a truncated paste that happens to
+   * show three zeroes can never reach PASS, it lands on INCOMPLETE. And a
+   * count that does not parse as a number makes `intBetween` return null,
+   * which matches no rule and falls to the UNKNOWN fallback rather than to
+   * an optimistic reading.
+   */
   "audit-clean": {
     identify: { kind: "banner", banner: "ROUTER AUDIT" },
-    requires: [{ from: "result" }],
+    requires: [
+      { from: "kv", key: "hotspot-count" },
+      { from: "kv", key: "radius-count" },
+      { from: "kv", key: "wireguard-count" },
+      { from: "kv", key: "apiuser-count" },
+      { from: "kv", key: "cert-count" },
+      { from: "kv", key: "file-count" },
+      { from: "kv", key: "firewall-count" },
+    ],
     rules: [
-      // The block's own CLEAN verdict is accepted only when the evidence
-      // it printed above the verdict agrees with it. A self-printed
-      // verdict is a claim, not proof -- the whole reason this analyser
-      // exists is that the router's own summary was trusted before.
+      // PASS needs every one of the seven counts to be positively zero AND
+      // the file enumeration to have listed nothing. Both, not either.
       {
         when: {
           op: "all",
           of: [
-            { op: "textIs", ref: { from: "result" }, value: "CLEAN" },
-            {
-              op: "not",
-              of: {
-                op: "any",
-                of: [
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purana hotspot" },
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purana radius" },
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purana wireguard" },
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purana api user" },
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purana certificate" },
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purani files" },
-                  { op: "textIncludes", ref: { from: "raw" }, value: "purane firewall" },
-                ],
-              },
-            },
+            { op: "intBetween", ref: { from: "kv", key: "hotspot-count" }, max: 0 },
+            { op: "intBetween", ref: { from: "kv", key: "radius-count" }, max: 0 },
+            { op: "intBetween", ref: { from: "kv", key: "wireguard-count" }, max: 0 },
+            { op: "intBetween", ref: { from: "kv", key: "apiuser-count" }, max: 0 },
+            { op: "intBetween", ref: { from: "kv", key: "cert-count" }, max: 0 },
+            { op: "intBetween", ref: { from: "kv", key: "file-count" }, max: 0 },
+            { op: "intBetween", ref: { from: "kv", key: "firewall-count" }, max: 0 },
+            { op: "absent", ref: { from: "label", label: "cloudguest-file" } },
           ],
         },
         verdict: "PASS",
-        why: "Router factory-fresh hai -- koi purana Wyfy config nahi mila.",
+        why: "Saaton count 0 hain aur ek bhi purani file list nahi hui -- ye router factory-fresh hai.",
       },
       {
-        when: { op: "textIncludes", ref: { from: "raw" }, value: "purani files" },
+        when: { op: "intBetween", ref: { from: "kv", key: "file-count" }, min: 1 },
         verdict: "FAIL",
         why: "Purane provisioning ka folder abhi bhi router pe hai. Usme purane org/location IDs wale portal links hain.",
-        fix: "purani FILES/FOLDER mili, jaise flash/cloudguest-hotspot/",
+        fix: "file-count 0 se zyada hai, jaise flash/cloudguest-hotspot/",
+      },
+      // The corroboration rule, in its new clothes. The count says nothing
+      // is there; the enumeration on the very next line named a file. One
+      // of the two is wrong and there is no way to tell which, so this is
+      // never allowed to read as clean.
+      {
+        when: {
+          op: "all",
+          of: [
+            { op: "intBetween", ref: { from: "kv", key: "file-count" }, max: 0 },
+            { op: "present", ref: { from: "label", label: "cloudguest-file" } },
+          ],
+        },
+        verdict: "FAIL",
+        why: "file-count 0 bata raha hai, par neeche cloudguest-file wali line bhi print hui hai. Dono ek saath sach nahi ho sakte -- ise saaf mat maano.",
+        fix: "file-count 0 se zyada hai, jaise flash/cloudguest-hotspot/",
       },
       {
-        when: { op: "textIs", ref: { from: "result" }, value: "CLEAN" },
+        when: {
+          op: "any",
+          of: [
+            { op: "intBetween", ref: { from: "kv", key: "hotspot-count" }, min: 1 },
+            { op: "intBetween", ref: { from: "kv", key: "radius-count" }, min: 1 },
+            { op: "intBetween", ref: { from: "kv", key: "wireguard-count" }, min: 1 },
+            { op: "intBetween", ref: { from: "kv", key: "apiuser-count" }, min: 1 },
+            { op: "intBetween", ref: { from: "kv", key: "cert-count" }, min: 1 },
+            { op: "intBetween", ref: { from: "kv", key: "firewall-count" }, min: 1 },
+          ],
+        },
         verdict: "FAIL",
-        why: "Block ne CLEAN bola, par upar purana config wali line bhi print hui hai. Dono ek saath sach nahi ho sakte -- ise CLEAN mat maano.",
-        fix: "RESULT: PURANA CONFIG MILA aaya",
-      },
-      {
-        when: { op: "textIncludes", ref: { from: "result" }, value: "purana" },
-        verdict: "FAIL",
-        why: "Purana Wyfy config mila. Iske upar naya setup karoge to guests ko purana portal dikhta rahega.",
-        fix: "RESULT: PURANA CONFIG MILA aaya",
+        why: "Purana Wyfy config mila -- count me se koi 0 nahi hai. Iske upar naya setup karoge to guests ko purana portal dikhta rahega.",
+        fix: "koi bhi count 0 se zyada aaya",
       },
     ],
     fallback:
-      "Block chala to sahi par uska RESULT line samajh nahi aaya. Poora output -- `==== ROUTER AUDIT ====` se `RESULT:` line tak -- dobara copy karo.",
+      "Block chala to sahi par uske count wale numbers padhe nahi ja sake. Poora output -- `==== ROUTER AUDIT ====` se `====================` tak -- dobara copy karo.",
   },
 
   // -------------------------------------------------------------------

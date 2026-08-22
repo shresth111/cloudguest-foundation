@@ -4,7 +4,7 @@
     "audit": {
       "title": "Router साफ़ है या नहीं",
       "why": "पुराना provisioning बचा हो तो नई setting उसके ऊपर चढ़ जाती है और गलत org/location IDs चलते रहते हैं।",
-      "stopGate": "अगर CLEAN नहीं आया तो रुक जाओ और reset करो — पुराने config के ऊपर setup करोगे तो guests को पुराना portal दिखेगा और घंटों debug करना पड़ेगा।",
+      "stopGate": "सारे count 0 न आएं तो रुक जाओ और reset करो — पुराने config के ऊपर setup करोगे तो guests को पुराना portal दिखेगा और घंटों debug करना पड़ेगा।",
       "paste": {
         "0": {
           "label": "Router audit — पुराना config ढूंढो"
@@ -14,14 +14,14 @@
         "audit-clean": {
           "label": "Router पे कोई पुराना Wyfy config तो नहीं",
           "commandLabel": "(ऊपर वाला block चलाओ)",
-          "expectLabel": "RESULT: CLEAN -- ये router factory-fresh है, आगे बढ़ो",
+          "expectLabel": "सातों count 0: hotspot-count=0, radius-count=0, wireguard-count=0, apiuser-count=0, cert-count=0, file-count=0, firewall-count=0 -- और एक भी cloudguest-file वाली line नहीं",
           "failFix": {
             "0": {
-              "whenLabel": "RESULT: PURANA CONFIG MILA आया",
-              "note": "Router reboot होगा और connection टूट जाएगा — ये normal है। 2 मिनट रुको, फिर WinBox में MAC से दोबारा connect करो और ये audit दोबारा चलाओ। अब CLEAN आना चाहिए।"
+              "whenLabel": "कोई भी count 0 से ज़्यादा आया",
+              "note": "Router reboot होगा और connection टूट जाएगा — ये normal है। 2 मिनट रुको, फिर WinBox में MAC से दोबारा connect करो और ये audit दोबारा चलाओ। अब सारे count 0 आने चाहिए।"
             },
             "1": {
-              "whenLabel": "पुरानी FILES/FOLDER मिली, जैसे flash/cloudguest-hotspot/",
+              "whenLabel": "file-count 0 से ज़्यादा है, जैसे flash/cloudguest-hotspot/",
               "note": "July वाले provisioning का बचा हुआ folder है। इसमें पुराने org/location/router ID वाले portal links हैं जो आज भी guests को गलत जगह भेजेंगे। सिर्फ़ files delete करना काफ़ी नहीं — पूरा reset करो।"
             },
             "2": {
@@ -831,19 +831,19 @@
   },
   "assertions": {
     "audit-clean": {
-      "fallback": "Block चला तो सही पर उसकी RESULT line समझ नहीं आई। पूरा output -- `==== ROUTER AUDIT ====` से `RESULT:` line तक -- दोबारा copy करो।",
+      "fallback": "Block चला तो सही पर उसके count वाले numbers पढ़े नहीं जा सके। पूरा output -- `==== ROUTER AUDIT ====` से `====================` तक -- दोबारा copy करो।",
       "rules": {
         "0": {
-          "why": "Router factory-fresh है -- कोई पुराना Wyfy config नहीं मिला।"
+          "why": "सातों count 0 हैं और एक भी पुरानी file list नहीं हुई -- ये router factory-fresh है।"
         },
         "1": {
           "why": "पुराने provisioning का folder अभी भी router पे है। उसमें पुराने org/location IDs वाले portal links हैं।"
         },
         "2": {
-          "why": "Block ने CLEAN बोला, पर ऊपर पुराना config वाली line भी print हुई है। दोनों एक साथ सच नहीं हो सकते -- इसे CLEAN मत मानो।"
+          "why": "file-count 0 बता रहा है, पर नीचे cloudguest-file वाली line भी print हुई है। दोनों एक साथ सच नहीं हो सकते -- इसे साफ़ मत मानो।"
         },
         "3": {
-          "why": "पुराना Wyfy config मिला। इसके ऊपर नया setup करोगे तो guests को पुराना portal दिखता रहेगा।"
+          "why": "पुराना Wyfy config मिला -- count में से कोई 0 नहीं है। इसके ऊपर नया setup करोगे तो guests को पुराना portal दिखता रहेगा।"
         }
       }
     },

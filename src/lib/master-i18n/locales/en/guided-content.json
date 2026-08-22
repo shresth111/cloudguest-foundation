@@ -4,7 +4,7 @@
     "audit": {
       "title": "Is the router clean",
       "why": "If old provisioning is left behind, the new settings stack on top of it and the wrong org/location IDs keep running.",
-      "stopGate": "If you do not get CLEAN, stop and reset. Build on top of an old config and guests will land on the old portal, and you will lose hours debugging it.",
+      "stopGate": "If the counts are not all 0, stop and reset. Build on top of an old config and guests will land on the old portal, and you will lose hours debugging it.",
       "paste": {
         "0": {
           "label": "Router audit — find any old config"
@@ -14,14 +14,14 @@
         "audit-clean": {
           "label": "No old Wyfy config left on the router",
           "commandLabel": "(run the block above)",
-          "expectLabel": "RESULT: CLEAN -- this router is factory-fresh, move on",
+          "expectLabel": "all seven counts 0: hotspot-count=0, radius-count=0, wireguard-count=0, apiuser-count=0, cert-count=0, file-count=0, firewall-count=0 -- and not a single cloudguest-file line",
           "failFix": {
             "0": {
-              "whenLabel": "RESULT: PURANA CONFIG MILA came back",
-              "note": "The router will reboot and your connection will drop — that is normal. Wait 2 minutes, reconnect in WinBox by MAC, and run this audit again. It should say CLEAN now."
+              "whenLabel": "any count came back higher than 0",
+              "note": "The router will reboot and your connection will drop — that is normal. Wait 2 minutes, reconnect in WinBox by MAC, and run this audit again. All the counts should be 0 now."
             },
             "1": {
-              "whenLabel": "old FILES/FOLDER found, e.g. flash/cloudguest-hotspot/",
+              "whenLabel": "file-count is higher than 0, e.g. flash/cloudguest-hotspot/",
               "note": "That is a folder left over from the July provisioning. It holds portal links carrying the old org/location/router IDs, which will still send guests to the wrong place today. Deleting the files is not enough — do a full reset."
             },
             "2": {
@@ -831,19 +831,19 @@
   },
   "assertions": {
     "audit-clean": {
-      "fallback": "The block ran, but its RESULT line could not be read. Copy the whole output again -- from `==== ROUTER AUDIT ====` down to the `RESULT:` line.",
+      "fallback": "The block ran, but its count numbers could not be read. Copy the whole output again -- from `==== ROUTER AUDIT ====` down to `====================`.",
       "rules": {
         "0": {
-          "why": "The router is factory-fresh -- no old Wyfy config found."
+          "why": "All seven counts are 0 and not one old file was listed -- this router is factory-fresh."
         },
         "1": {
           "why": "A folder from an earlier provisioning is still on the router. It holds portal links carrying the old org/location IDs."
         },
         "2": {
-          "why": "The block said CLEAN, but a line about old config was printed above it. Both cannot be true at once -- do not treat this as CLEAN."
+          "why": "file-count says 0, but a cloudguest-file line was printed below it. Both cannot be true at once -- do not treat this as clean."
         },
         "3": {
-          "why": "Old Wyfy config found. Set up on top of this and guests will keep landing on the old portal."
+          "why": "Old Wyfy config found -- one of the counts is not 0. Set up on top of this and guests will keep landing on the old portal."
         }
       }
     },
