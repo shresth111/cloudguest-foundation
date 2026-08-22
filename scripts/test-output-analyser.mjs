@@ -439,7 +439,7 @@ const WG_IP_PRINT = `Flags: X - disabled, D - dynamic
 }
 
 {
-  const OTHER_BLOCK = `==== ROUTER AUDIT ====\nidentity     : MikroTik\n====================\nRESULT: CLEAN -- ye router factory-fresh hai, aage badho`;
+  const OTHER_BLOCK = `==== ROUTER AUDIT ====\nidentity     : MikroTik\nhotspot-count=0\nradius-count=0\n====================`;
   const r = score("gate-pass", OTHER_BLOCK);
   check("another block's output is WRONG_OUTPUT", r.verdict === "WRONG_OUTPUT", `got ${r.verdict}`);
   check(
@@ -781,21 +781,151 @@ check(
 // --- Corroboration: a self-printed verdict is a claim, not proof ------
 
 {
-  // The blocks print their own RESULT line. Where the evidence above it
-  // disagrees, the evidence wins -- trusting the router's own summary is
-  // what this module exists to stop.
-  const LYING = `==== ROUTER AUDIT ====\nidentity     : MikroTik\n  purana HOTSPOT mila\n====================\nRESULT: CLEAN -- ye router factory-fresh hai, aage badho`;
+  // The audit block no longer grades itself -- it prints seven counts and
+  // the app decides. But the scepticism is the same: two independent
+  // readings of one fact that disagree are never resolved in the
+  // optimistic direction.
+  const audit = (over = {}, extra = "") => {
+    const counts = {
+      "hotspot-count": 0,
+      "radius-count": 0,
+      "wireguard-count": 0,
+      "apiuser-count": 0,
+      "cert-count": 0,
+      "file-count": 0,
+      "firewall-count": 0,
+      ...over,
+    };
+    const body = Object.entries(counts)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n");
+    return `==== ROUTER AUDIT ====\nidentity     : MikroTik\n${body}\n${extra}====================`;
+  };
+
   check(
-    "RESULT: CLEAN is rejected when the evidence contradicts it",
+    "a genuinely clean audit is PASS",
+    verdict("audit-clean", audit()) === "PASS",
+    verdict("audit-clean", audit()),
+  );
+
+  // THE 2026-08-23 REGRESSION, in the only form it can still take. The old
+  // block printed `RESULT: PURANA CONFIG MILA` on every router alive
+  // because `$dirty` did not survive the line break. There is no
+  // self-printed verdict left to be unconditionally wrong -- a clean
+  // router now has to produce seven literal zeroes to pass, and nothing
+  // else can fake them.
+  for (const key of [
+    "hotspot-count",
+    "radius-count",
+    "wireguard-count",
+    "apiuser-count",
+    "cert-count",
+    "file-count",
+    "firewall-count",
+  ]) {
+    check(
+      `a non-zero ${key} is FAIL, never PASS`,
+      verdict("audit-clean", audit({ [key]: 1 })) === "FAIL",
+      verdict("audit-clean", audit({ [key]: 1 })),
+    );
+  }
+
+  const LYING = audit({}, "cloudguest-file: flash/cloudguest-hotspot/login.html\n");
+  check(
+    "file-count=0 above a listed cloudguest file is FAIL, not PASS",
     verdict("audit-clean", LYING) === "FAIL",
     verdict("audit-clean", LYING),
   );
-
-  const HONEST = `==== ROUTER AUDIT ====\nidentity     : MikroTik\n====================\nRESULT: CLEAN -- ye router factory-fresh hai, aage badho`;
   check(
-    "a genuinely clean audit is PASS",
-    verdict("audit-clean", HONEST) === "PASS",
-    verdict("audit-clean", HONEST),
+    "...and it selects the old-files repair, not the generic reset",
+    pickedFix("audit-clean", LYING) ===
+      "file-count 0 se zyada hai, jaise flash/cloudguest-hotspot/",
+    `picked: ${pickedFix("audit-clean", LYING)}`,
+  );
+
+  const FILES = audit(
+    { "file-count": 26 },
+    "cloudguest-file: flash/cloudguest-hotspot/login.html\n",
+  );
+  check(
+    "the real hEX case (26 leftover files) selects the old-files repair",
+    pickedFix("audit-clean", FILES) ===
+      "file-count 0 se zyada hai, jaise flash/cloudguest-hotspot/",
+    `picked: ${pickedFix("audit-clean", FILES)}`,
+  );
+  check(
+    "a leftover hotspot selects the full-reset repair",
+    pickedFix("audit-clean", audit({ "hotspot-count": 1 })) === "koi bhi count 0 se zyada aaya",
+    `picked: ${pickedFix("audit-clean", audit({ "hotspot-count": 1 }))}`,
+  );
+
+  // A paste that shows only some of the counts cannot reach a verdict.
+  const TRUNCATED = `==== ROUTER AUDIT ====\nidentity     : MikroTik\nhotspot-count=0\nradius-count=0\n====================`;
+  check(
+    "a partial count list is INCOMPLETE, never PASS",
+    verdict("audit-clean", TRUNCATED) === "INCOMPLETE",
+    verdict("audit-clean", TRUNCATED),
+  );
+
+  // An unparseable count makes `intBetween` null, which matches no rule.
+  const GARBLED = audit({ "cert-count": "?" });
+  check(
+    "a count that is not a number lands on UNKNOWN, not PASS",
+    verdict("audit-clean", GARBLED) === "UNKNOWN",
+    verdict("audit-clean", GARBLED),
+  );
+
+  // WHAT THE OPERATOR ACTUALLY PASTES. The 2026-08-23 transcript is a full
+  // console session: every line of the block echoed behind an
+  // `[admin@hEX] > ` prompt, with its output underneath. Those echoed
+  // command lines contain the literal text `hotspot-count="` -- so the
+  // parser sees each key TWICE, once from the command and once from the
+  // real output. `parseOutput` drops prompt lines before building `kv`,
+  // and `kv` is last-occurrence-wins besides, so the real value is the one
+  // that survives. This is not hypothetical plumbing: the old assertion
+  // read `{ from: "raw" }`, which is the WHOLE cleaned text INCLUDING the
+  // prompt lines, so its `textIncludes "purani files"` rule matched the
+  // echoed `:put "  purani FILES/FOLDER mili"` command itself and would
+  // have failed a spotless router on any full-session paste.
+  const SESSION = [
+    `[admin@hEX] > :put "==== ROUTER AUDIT ===="`,
+    `==== ROUTER AUDIT ====`,
+    `[admin@hEX] > :put ("identity     : " . [/system identity get name])`,
+    `identity     : hEX`,
+    ...[
+      "hotspot-count",
+      "radius-count",
+      "wireguard-count",
+      "apiuser-count",
+      "cert-count",
+      "file-count",
+      "firewall-count",
+    ].flatMap((k) => [
+      `[admin@hEX] > :put ("${k}=" . [:tostr [:len [/ip hotspot find]]])`,
+      `${k}=0`,
+    ]),
+    `[admin@hEX] > :foreach f in=[/file find where name~"cloudguest"] do={ :put ("cloudguest-file: " . [/file get $f name]) }`,
+    `[admin@hEX] > :put "===================="`,
+    `====================`,
+  ].join("\n");
+  check(
+    "a full echoed console session of a clean router is PASS",
+    verdict("audit-clean", SESSION) === "PASS",
+    verdict("audit-clean", SESSION),
+  );
+
+  // The same session with the commands but none of their output. This is a
+  // real mis-paste (the operator copies the block, not the terminal), and
+  // it must never become a verdict -- INCOMPLETE and UNKNOWN are the two
+  // states `CheckRow` lets a human override, and FAIL is not one of them.
+  const COMMANDS_ONLY = PHASES[0].paste[0].script
+    .split("\n")
+    .map((l) => `[admin@hEX] > ${l}`)
+    .join("\n");
+  check(
+    "the block pasted back without its output is INCOMPLETE, not FAIL",
+    ["INCOMPLETE", "UNKNOWN"].includes(verdict("audit-clean", COMMANDS_ONLY)),
+    verdict("audit-clean", COMMANDS_ONLY),
   );
 }
 
@@ -954,6 +1084,92 @@ check(
   PHASES.length === 9,
   `found ${PHASES.length} phases`,
 );
+
+// ---------------------------------------------------------------------
+// THE CONSOLE-SCOPE GUARD
+// ---------------------------------------------------------------------
+// The RouterOS terminal runs EACH ENTERED LINE as its own program. A
+// `:local` declared on one line does not exist on the next. On 2026-08-23
+// the Phase 0 audit block was pasted into a real hEX (RouterOS 7.23.3)
+// and every `:set dirty ...` line came back `syntax error` -- not one of
+// its seven checks ran, and because an undefined `$dirty` is not equal to
+// 0 the block printed `RESULT: PURANA CONFIG MILA` unconditionally. It
+// would have said that on a factory-fresh router too, forever.
+//
+// Every paste block and every fix command in the content had the same
+// shape. They are fixed; this is what stops the next one. The rule it
+// enforces is exactly the defect and nothing wider: a variable REFERENCED
+// on a line must have been BOUND on that same line -- by `:local`,
+// `:global`, `:set` is not a binder, or by a `:for` / `:foreach` loop
+// variable. A `:local` declared and consumed inside one line is fine, and
+// a single-line `;`-joined script (the shape the Master console's own
+// generator emits) is the intended way to keep carried state.
+{
+  /** Every pasteable script the operator is ever handed, with a label. */
+  const pasteables = [];
+  for (const p of PHASES) {
+    p.paste.forEach((b, i) =>
+      pasteables.push([`phase "${p.id}" paste[${i}] (${b.label})`, b.script]),
+    );
+    for (const c of p.checks) {
+      if (/^\s*[/:]/.test(c.command)) pasteables.push([`check "${c.id}" command`, c.command]);
+      (c.failFix ?? []).forEach((f, i) => {
+        if (f.command) pasteables.push([`check "${c.id}" failFix[${i}].command`, f.command]);
+      });
+    }
+  }
+
+  const RE_VAR_USE = /\$([A-Za-z_][A-Za-z0-9_]*)/g;
+  const RE_SET = /:set\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  const RE_BIND = /:(?:local|global)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  const RE_LOOP = /:(?:for|foreach)\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:from|in)\b/g;
+  const names = (line, re) => [...line.matchAll(re)].map((m) => m[1]);
+
+  const offenders = [];
+  for (const [label, script] of pasteables) {
+    script.split("\n").forEach((line, n) => {
+      const bound = new Set([...names(line, RE_BIND), ...names(line, RE_LOOP)]);
+      // `:set x` READS an existing binding, so it is a use, not a bind.
+      const used = new Set([...names(line, RE_VAR_USE), ...names(line, RE_SET)]);
+      for (const v of used) {
+        if (!bound.has(v)) offenders.push(`${label}, line ${n + 1}: $${v}`);
+      }
+    });
+  }
+
+  check(
+    "no paste block carries a variable across a line break",
+    offenders.length === 0,
+    `${offenders.length} unbound reference(s). The RouterOS console runs each line as its own ` +
+      `program, so these read a variable that no longer exists -- the line will either be a ` +
+      `syntax error or, worse, evaluate against nothing and print a confident wrong answer. ` +
+      `Join the statements onto ONE line with ";", or restructure the block to carry no state ` +
+      `at all.\n      ${offenders.slice(0, 12).join("\n      ")}` +
+      (offenders.length > 12 ? `\n      ... and ${offenders.length - 12} more` : ""),
+  );
+
+  // The guard is worthless if it cannot see the pattern it was written
+  // for, so it is pointed at the exact block that shipped broken.
+  const REGRESSION = `:local dirty 0\n:if ([:len [/ip hotspot find]] > 0) do={ :set dirty ($dirty + 1) }`;
+  const caught = REGRESSION.split("\n").some((line, n) => {
+    if (n === 0) return false;
+    const bound = new Set([...names(line, RE_BIND), ...names(line, RE_LOOP)]);
+    const used = new Set([...names(line, RE_VAR_USE), ...names(line, RE_SET)]);
+    return [...used].some((v) => !bound.has(v));
+  });
+  check("...and that guard demonstrably fires on the original bug", caught, "the guard is blind");
+
+  // Same shape, legally flattened onto one line: must NOT fire, or the
+  // guard would ban the very fix it is meant to enforce.
+  const FLATTENED = `:local dirty 0; :if ([:len [/ip hotspot find]] > 0) do={ :set dirty ($dirty + 1) }; :put $dirty`;
+  const bound = new Set([...names(FLATTENED, RE_BIND), ...names(FLATTENED, RE_LOOP)]);
+  const used = new Set([...names(FLATTENED, RE_VAR_USE), ...names(FLATTENED, RE_SET)]);
+  check(
+    "...and does NOT fire on a single-line script that keeps its own state",
+    [...used].every((v) => bound.has(v)),
+    "the guard bans the legal single-line shape",
+  );
+}
 
 {
   const ids = [...CHECKS.keys()];

@@ -8,13 +8,72 @@
  *  - Har check ka output literally match hona chahiye (`As`, `bound`,
  *    `00:05:00`, `40.80.86.193`). "Verify it works" kabhi nahi.
  *  - Jahan ho sake, block khud `RESULT: PASS` / `RESULT: FAIL` print kare,
- *    taaki table padh ke judge na karna pade.
+ *    taaki table padh ke judge na karna pade. (Phase 0 ka audit ab ISKA
+ *    apwaad hai -- wo sirf counts print karta hai, verdict app nikalti hai.
+ *    Wajah neeche.)
  *  - Yahan ke saare paste-blocks UNIVERSAL hain — inme koi per-router secret
  *    nahi hai, isliye kisi bhi router pe safe hain aur dobara chalane pe bhi
  *    kuch nahi tootta. Jin steps me per-router secret chahiye (WireGuard key,
  *    RADIUS secret, portal URL with org/location/router IDs) wahan Master
  *    console ke generated chunks use hote hain — un phases me `paste` khaali
  *    hai aur instruction `why` / `stopGate` me hai.
+ *
+ * =====================================================================
+ * EVERY LINE OF EVERY PASTE BLOCK MUST STAND ALONE
+ * =====================================================================
+ * The RouterOS terminal treats EACH ENTERED LINE as its own program. A
+ * `:local` declared on one line does not exist on the next one. This was
+ * not a theory: on 2026-08-23 the Phase 0 audit block was pasted into a
+ * real hEX (RouterOS 7.23.3) and every `:set dirty ...` line came back
+ * `syntax error`, because `$dirty` had already gone out of scope. Not one
+ * of the seven checks ran -- and because an undefined `$dirty` is never
+ * equal to 0, the block fell to its `else` branch and printed
+ * `RESULT: PURANA CONFIG MILA` unconditionally. It would have printed the
+ * same verdict on a factory-fresh router, forever, and sent an operator to
+ * reset a healthy box.
+ *
+ * That is the exact failure class this wizard exists to eliminate --
+ * something that looks like it is working while doing nothing -- and it
+ * was inside the wizard. THE ONE RULE that came out of it:
+ *
+ *   NO `:local` may be declared on one line and read on another. Not in a
+ *   `paste[].script`, not in a `failFix[].command`.
+ *
+ * A `:local` declared AND consumed inside a SINGLE line is fine -- that
+ * line is one program. Single-line, `;`-separated multi-statement scripts
+ * are proven on this hardware: the Master console's own generator flattens
+ * every chunk it emits with `chunksToSingleLineScript`, and those chunks
+ * (locals, `do={ ... }` bodies and all) run correctly on the same hEX at
+ * 7.23.3. What is NOT proven, and is therefore not used here, is whether a
+ * multi-line `{ ... }` group keeps console scope alive across the lines
+ * inside it. Do not "fix" a block that way.
+ *
+ * So each block takes one of two shapes:
+ *
+ *   1. NO STATE AT ALL -- every line stands alone, and where the block used
+ *      to accumulate a counter purely in order to grade itself, it now
+ *      `:put`s the raw COUNTS and lets `analyse.ts` / `assertions.ts`
+ *      derive the verdict. The router prints evidence; the app decides. A
+ *      `:local` counter is the router grading its own homework, which is
+ *      precisely how the Phase 0 bug got in. Phase 0's audit, Phase 5's
+ *      portal-files block and Phase 8's mismatch block are this shape.
+ *   2. FLATTENED TO ONE LINE -- for the blocks that genuinely need carried
+ *      state (Phase 2 polls for a DHCP lease for 40s and then feeds that
+ *      one gateway value into six decisions; re-deriving it six times just
+ *      invites the six answers to disagree). Banner and closer stay on
+ *      their own lines; the stateful body is one `;`-joined line. Output is
+ *      byte-identical to what these blocks printed before.
+ *
+ * `scripts/test-output-analyser.mjs` enforces the rule mechanically over
+ * every script and every fix command in this file. Do not defeat it.
+ *
+ * NOTE FOR ANYONE HOLDING THE 2026-08-23 STOPGAP: the hand-flattened
+ * single-line audit block that was sent to unblock the field keeps the OLD
+ * output format (`purana X mila` lines, `RESULT: CLEAN` /
+ * `RESULT: PURANA CONFIG MILA`). The block below prints counts instead.
+ * They are NOT interchangeable -- pasting the stopgap's output into this
+ * app scores INCOMPLETE, because the seven `*-count=` lines it requires
+ * are not there.
  */
 
 export type Check = {
@@ -56,18 +115,16 @@ export const PHASES: Phase[] = [
       {
         label: "Router audit — purana config dhoondo",
         script: `:put "==== ROUTER AUDIT ===="
-:local dirty 0
 :put ("identity     : " . [/system identity get name])
-:if ([:len [/ip hotspot find]] > 0) do={ :put "  purana HOTSPOT mila"; :set dirty ($dirty + 1) }
-:if ([:len [/radius find]] > 0) do={ :put "  purana RADIUS mila"; :set dirty ($dirty + 1) }
-:if ([:len [/interface wireguard find where name="wg-cloudguest"]] > 0) do={ :put "  purana WIREGUARD mila"; :set dirty ($dirty + 1) }
-:if ([:len [/user find where name="cloudguest-api"]] > 0) do={ :put "  purana API USER mila"; :set dirty ($dirty + 1) }
-:if ([:len [/certificate find where name~"cloudguest"]] > 0) do={ :put "  purana CERTIFICATE mila"; :set dirty ($dirty + 1) }
-:if ([:len [/file find where name~"cloudguest"]] > 0) do={ :put "  purani FILES/FOLDER mili"; :set dirty ($dirty + 1) }
-:if ([:len [/ip firewall filter find where comment~"cloudguest"]] > 0) do={ :put "  purane FIREWALL rules mile"; :set dirty ($dirty + 1) }
-:foreach f in=[/file find where name~"cloudguest"] do={ :put ("    -> " . [/file get $f name]) }
-:put "===================="
-:if ($dirty = 0) do={ :put "RESULT: CLEAN -- ye router factory-fresh hai, aage badho" } else={ :put "RESULT: PURANA CONFIG MILA -- pehle reset karo" }`,
+:put ("hotspot-count=" . [:tostr [:len [/ip hotspot find]]])
+:put ("radius-count=" . [:tostr [:len [/radius find]]])
+:put ("wireguard-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
+:put ("apiuser-count=" . [:tostr [:len [/user find where name="cloudguest-api"]]])
+:put ("cert-count=" . [:tostr [:len [/certificate find where name~"cloudguest"]]])
+:put ("file-count=" . [:tostr [:len [/file find where name~"cloudguest"]]])
+:put ("firewall-count=" . [:tostr [:len [/ip firewall filter find where comment~"cloudguest"]]])
+:foreach f in=[/file find where name~"cloudguest"] do={ :put ("cloudguest-file: " . [/file get $f name]) }
+:put "===================="`,
       },
     ],
     checks: [
@@ -75,15 +132,16 @@ export const PHASES: Phase[] = [
         id: "audit-clean",
         label: "Router pe koi purana Wyfy config to nahi",
         command: "(upar wala block chalao)",
-        expect: "RESULT: CLEAN -- ye router factory-fresh hai, aage badho",
+        expect:
+          "saaton count 0: hotspot-count=0, radius-count=0, wireguard-count=0, apiuser-count=0, cert-count=0, file-count=0, firewall-count=0 -- aur ek bhi cloudguest-file wali line nahi",
         failFix: [
           {
-            when: "RESULT: PURANA CONFIG MILA aaya",
+            when: "koi bhi count 0 se zyada aaya",
             command: "/system reset-configuration skip-backup=yes",
-            note: "Router reboot hoga aur connection tut jayega — ye normal hai. 2 minute wait karo, phir WinBox me MAC se dobara connect karo aur ye audit dobara chalao. Ab CLEAN aana chahiye.",
+            note: "Router reboot hoga aur connection tut jayega — ye normal hai. 2 minute wait karo, phir WinBox me MAC se dobara connect karo aur ye audit dobara chalao. Ab saare count 0 aane chahiye.",
           },
           {
-            when: "purani FILES/FOLDER mili, jaise flash/cloudguest-hotspot/",
+            when: "file-count 0 se zyada hai, jaise flash/cloudguest-hotspot/",
             command: "/system reset-configuration skip-backup=yes",
             note: "July wale provisioning ka bacha hua folder hai. Isme purane org/location/router ID wale portal links hain jo aaj bhi guests ko galat jagah bhejenge. Sirf files delete karna kaafi nahi — poora reset karo.",
           },
@@ -95,7 +153,7 @@ export const PHASES: Phase[] = [
       },
     ],
     stopGate:
-      "Agar CLEAN nahi aaya to ruk jao aur reset karo — purane config ke upar setup karoge to guests ko purana portal dikhega aur ghanto debug karna padega.",
+      "Saare count 0 na aaye to ruk jao aur reset karo — purane config ke upar setup karoge to guests ko purana portal dikhega aur ghanto debug karna padega.",
   },
 
   // ---------------------------------------------------------------------
@@ -116,14 +174,7 @@ export const PHASES: Phase[] = [
         label: "Internet aur ghadi check karo",
         script: `:put "==== INTERNET + CLOCK ===="
 :delay 6s
-:local pingOk false
-:if ([/ping 8.8.8.8 count=4] > 0) do={ :set pingOk true }
-:put ("ping 8.8.8.8 : " . [:tostr $pingOk])
-:put ("date         : " . [/system clock get date])
-:put ("time         : " . [/system clock get time])
-:do { :put ("ntp status   : " . [/system ntp client get status]) } on-error={ :put "ntp status   : (is RouterOS version pe available nahi)" }
-:put "===================="
-:if ($pingOk) do={ :put "RESULT: PASS -- internet chal raha hai" } else={ :put "RESULT: FAIL -- ether1 ka cable check karo" }`,
+:local pingOk false; :if ([/ping 8.8.8.8 count=4] > 0) do={ :set pingOk true }; :put ("ping 8.8.8.8 : " . [:tostr $pingOk]); :put ("date         : " . [/system clock get date]); :put ("time         : " . [/system clock get time]); :do { :put ("ntp status   : " . [/system ntp client get status]) } on-error={ :put "ntp status   : (is RouterOS version pe available nahi)" }; :put "===================="; :if ($pingOk) do={ :put "RESULT: PASS -- internet chal raha hai" } else={ :put "RESULT: FAIL -- ether1 ka cable check karo" }`,
       },
     ],
     checks: [
@@ -174,27 +225,7 @@ export const PHASES: Phase[] = [
       {
         label: "DHCP lease ka wait + route repair (script ke baad hamesha chalao)",
         script: `:put "==== WAN LEASE + ROUTE REPAIR ===="
-:local wanIf "ether1"
-:local gw ""
-:local st "no-client"
-:if ([:len [/ip dhcp-client find where interface=$wanIf]] = 0) do={ :put "DHCP client nahi hai (static WAN hoga) -- repair skip" }
-:if ([:len [/ip dhcp-client find where interface=$wanIf]] > 0) do={
-  :for i from=1 to=20 do={
-    :if ($gw = "") do={ :set gw [/ip dhcp-client get [find interface=$wanIf] gateway] }
-    :if ($gw = "") do={ :delay 2s }
-  }
-  :set st [/ip dhcp-client get [find interface=$wanIf] status]
-}
-:put ("dhcp status  : " . $st)
-:put ("dhcp gateway : " . $gw)
-:if ($gw != "") do={
-  :foreach r in=[/ip route find where comment="cloudguest-plain-wan1"] do={ /ip route set $r gateway=$gw }
-  :put "route repair : ho gaya"
-}
-:put "===================="
-:if ($gw != "") do={ :put "RESULT: PASS -- gateway mil gaya aur route theek hai" }
-:if (($gw = "") && ($st != "no-client")) do={ :put "RESULT: FAIL -- 40 second me DHCP lease nahi mila" }
-:if ($st = "no-client") do={ :put "RESULT: SKIP -- static WAN, gateway khud check karo" }`,
+:local wanIf "ether1"; :local gw ""; :local st "no-client"; :if ([:len [/ip dhcp-client find where interface=$wanIf]] = 0) do={ :put "DHCP client nahi hai (static WAN hoga) -- repair skip" }; :if ([:len [/ip dhcp-client find where interface=$wanIf]] > 0) do={ :for i from=1 to=20 do={ :if ($gw = "") do={ :set gw [/ip dhcp-client get [find interface=$wanIf] gateway] }; :if ($gw = "") do={ :delay 2s } }; :set st [/ip dhcp-client get [find interface=$wanIf] status] }; :put ("dhcp status  : " . $st); :put ("dhcp gateway : " . $gw); :if ($gw != "") do={ :foreach r in=[/ip route find where comment="cloudguest-plain-wan1"] do={ /ip route set $r gateway=$gw }; :put "route repair : ho gaya" }; :put "===================="; :if ($gw != "") do={ :put "RESULT: PASS -- gateway mil gaya aur route theek hai" }; :if (($gw = "") && ($st != "no-client")) do={ :put "RESULT: FAIL -- 40 second me DHCP lease nahi mila" }; :if ($st = "no-client") do={ :put "RESULT: SKIP -- static WAN, gateway khud check karo" }`,
       },
     ],
     checks: [
@@ -218,9 +249,7 @@ export const PHASES: Phase[] = [
         failFix: [
           {
             when: "flags Is dikha raha hai, ya GATEWAY column me 0.0.0.0 hai",
-            command: `:local gw [/ip dhcp-client get [find interface="ether1"] gateway]
-:foreach r in=[/ip route find where comment="cloudguest-plain-wan1"] do={ /ip route set $r gateway=$gw }
-:put ("gateway set: " . $gw)`,
+            command: `:local gw [/ip dhcp-client get [find interface="ether1"] gateway]; :foreach r in=[/ip route find where comment="cloudguest-plain-wan1"] do={ /ip route set $r gateway=$gw }; :put ("gateway set: " . $gw)`,
             note: "Yahi wo bug hai. Route ban gaya tha par gateway khaali tha. Ye chalane ke baad route As ho jayega aur ping chalne lagega.",
           },
           {
@@ -245,14 +274,7 @@ export const PHASES: Phase[] = [
       {
         label: "Internet + DNS dono ek saath test karo",
         script: `:put "==== INTERNET GATE ===="
-:local pingOk false
-:local dnsOk false
-:if ([/ping 8.8.8.8 count=4] > 0) do={ :set pingOk true }
-:do { :set dnsOk ([:len [:resolve "portal.wyfyguest.com"]] > 0) } on-error={ :set dnsOk false }
-:put ("ping 8.8.8.8            : " . [:tostr $pingOk])
-:put ("resolve portal.wyfy...  : " . [:tostr $dnsOk])
-:put "===================="
-:if (($pingOk) && ($dnsOk)) do={ :put "RESULT: PASS -- aage badho" } else={ :put "RESULT: FAIL -- niche wala fix chalao" }`,
+:local pingOk false; :local dnsOk false; :if ([/ping 8.8.8.8 count=4] > 0) do={ :set pingOk true }; :do { :set dnsOk ([:len [:resolve "portal.wyfyguest.com"]] > 0) } on-error={ :set dnsOk false }; :put ("ping 8.8.8.8            : " . [:tostr $pingOk]); :put ("resolve portal.wyfy...  : " . [:tostr $dnsOk]); :put "===================="; :if (($pingOk) && ($dnsOk)) do={ :put "RESULT: PASS -- aage badho" } else={ :put "RESULT: FAIL -- niche wala fix chalao" }`,
       },
     ],
     checks: [
@@ -380,25 +402,14 @@ export const PHASES: Phase[] = [
       {
         label: "Walled garden — dono list set karo (ye khud FAIL bolega)",
         script: `:put "==== WALLED GARDEN ===="
-:local host "portal.wyfyguest.com"
-:local pip ""
-:do { :set pip [:resolve $host] } on-error={ :put "resolve fail hua" }
-:put ("resolved     : " . $pip)
-:if ($pip != "") do={
-  :if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host=$host action=allow comment="cloudguest-portal" }
-  :local e [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]
-  :if ([:len $e] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" } else={ /ip hotspot walled-garden ip set $e dst-address=$pip }
-}
-:put "===================="
-:if ($pip != "") do={ :put "RESULT: PASS -- dono list set ho gayi" } else={ :put "RESULT: FAIL -- DNS ne portal ka IP nahi diya, kuch set nahi hua" }`,
+:local host "portal.wyfyguest.com"; :local pip ""; :do { :set pip [:resolve $host] } on-error={ :put "resolve fail hua" }; :put ("resolved     : " . $pip); :if ($pip != "") do={ :if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host=$host action=allow comment="cloudguest-portal" }; :local e [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :if ([:len $e] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" } else={ /ip hotspot walled-garden ip set $e dst-address=$pip } }; :put "===================="; :if ($pip != "") do={ :put "RESULT: PASS -- dono list set ho gayi" } else={ :put "RESULT: FAIL -- DNS ne portal ka IP nahi diya, kuch set nahi hua" }`,
       },
       {
         label: "Portal files kahan hain aur sahi hain?",
         script: `:put "==== PORTAL FILES ===="
-:local found 0
-:foreach f in=[/file find where name~"login.html"] do={ :put ("  " . [/file get $f name] . "   size=" . [:tostr [/file get $f size]]); :set found ($found + 1) }
+:foreach f in=[/file find where name~"login.html"] do={ :put ("  " . [/file get $f name] . "   size=" . [:tostr [/file get $f size]]) }
 :put "===================="
-:if ($found = 0) do={ :put "RESULT: FAIL -- login.html mila hi nahi" } else={ :put "RESULT: OK -- upar wala poora path note kar lo" }`,
+:if ([:len [/file find where name~"login.html"]] = 0) do={ :put "RESULT: FAIL -- login.html mila hi nahi" } else={ :put "RESULT: OK -- upar wala poora path note kar lo" }`,
       },
     ],
     checks: [
@@ -482,26 +493,14 @@ export const PHASES: Phase[] = [
       {
         label: "Firewall order + RADIUS src-address theek karo (WireGuard/RADIUS chunks ke baad)",
         script: `:put "==== TUNNEL FIXES ===="
-:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d; :put "firewall order: theek kar diya" }
-:local tip ""
-:foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }
-:if ($tip != "") do={ /radius set [find] src-address=$tip; :put ("radius src-address: " . $tip) }
-:if ($tip = "") do={ :put "wg-cloudguest pe koi address nahi -- WireGuard chunk paste hua?" }
+:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d; :put "firewall order: theek kar diya" }; :local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :if ($tip != "") do={ /radius set [find] src-address=$tip; :put ("radius src-address: " . $tip) }; :if ($tip = "") do={ :put "wg-cloudguest pe koi address nahi -- WireGuard chunk paste hua?" }
 :put "===================="`,
       },
       {
         label: "Tunnel aur RADIUS zinda hai?",
         script: `:put "==== TUNNEL + RADIUS ===="
 :foreach p in=[/interface wireguard peers find] do={ :put ("last-handshake : " . [:tostr [/interface wireguard peers get $p last-handshake]]) }
-:local h ""
-:foreach r in=[/radius find] do={ :set h [/radius get $r address] }
-:put ("radius server  : " . $h)
-:if ($h = "") do={ :put "RESULT: FAIL -- koi RADIUS entry nahi hai" }
-:if ($h != "") do={
-  :if ([/ping $h count=4] > 0) do={ :put "RESULT: PASS -- hub tak pahunch gaye" } else={ :put "RESULT: FAIL -- tunnel down hai" }
-}
+:local h ""; :foreach r in=[/radius find] do={ :set h [/radius get $r address] }; :put ("radius server  : " . $h); :if ($h = "") do={ :put "RESULT: FAIL -- koi RADIUS entry nahi hai" }; :if ($h != "") do={ :if ([/ping $h count=4] > 0) do={ :put "RESULT: PASS -- hub tak pahunch gaye" } else={ :put "RESULT: FAIL -- tunnel down hai" } }
 :put "===================="`,
       },
     ],
@@ -514,9 +513,7 @@ export const PHASES: Phase[] = [
         failFix: [
           {
             when: "last-handshake bahut purana hai ya blank hai",
-            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]
-:local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]
-:if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d }`,
+            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d }`,
             note: "Sabse common wajah: firewall ka allow rule drop rule ke NEECHE aa gaya, to tunnel ka jawab hi block ho jata hai. Ye command usse upar utha deti hai. 30 second baad handshake aa jana chahiye.",
           },
           {
@@ -660,11 +657,9 @@ export const PHASES: Phase[] = [
       {
         label: "Kya secret mismatch hai? (pehle ye check karo)",
         script: `:put "==== SECRET MISMATCH CHECK ===="
-:local bad 0
-:foreach l in=[/log find where message~"login failure for user cloudguest-api"] do={ :set bad ($bad + 1) }
-:put ("login failure entries : " . [:tostr $bad])
+:put ("login failure entries : " . [:tostr [:len [/log find where message~"login failure for user cloudguest-api"]]])
 :put "===================="
-:if ($bad > 0) do={ :put "RESULT: MISMATCH -- Generate dobara dabaya gaya tha, niche wala reset chalao" } else={ :put "RESULT: OK -- secret mismatch nahi hai" }`,
+:if ([:len [/log find where message~"login failure for user cloudguest-api"]] > 0) do={ :put "RESULT: MISMATCH -- Generate dobara dabaya gaya tha, niche wala reset chalao" } else={ :put "RESULT: OK -- secret mismatch nahi hai" }`,
       },
       {
         label: "Sirf secrets ka reset (router ka baaki config bacha rehta hai)",
