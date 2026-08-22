@@ -1318,34 +1318,63 @@ function buildPortalRedirectHtml(url: string, page: { title: string; body: strin
  *    html-directory. This script only ever overwrites the *contents* of
  *    files that already ship in RouterOS's stock "hotspot" folder (via
  *    `/file set`), never deletes one -- that "file not found" condition
- *    can never actually occur here. */
-const PORTAL_OVERRIDE_FILES: { path: string; title: string; body: string }[] = [
+ *    can never actually occur here.
+ *
+ * IDENTIFIED BY BASENAME, NOT BY PATH. These used to be written as
+ * `flash/hotspot/login.html`. That `flash/` prefix is a per-MODEL detail:
+ * it is the mount point on boards that expose their NAND as a separate
+ * `flash` directory, and on the boards that do not, the same file is just
+ * `hotspot/login.html`. Getting it wrong did not raise anything --
+ * RouterOS's `set [find ...]` against an EMPTY match succeeds, silently,
+ * with no error to catch -- so on those models every one of these five
+ * `set`s did nothing, the paste looked clean, and the guest got MikroTik's
+ * stock blue login page instead of the venue's portal. The path is now
+ * DISCOVERED at paste time (`/file find where name~"..."`) and a miss is
+ * reported loudly; see `buildPortalOverrideFileSetLines`. */
+const PORTAL_OVERRIDE_FILES: { file: string; title: string; body: string }[] = [
   {
-    path: "flash/hotspot/login.html",
+    file: "login.html",
     title: "Sign-in required",
     body: "You must sign in to access the internet on this network. Redirecting you to the sign-in page...",
   },
   {
-    path: "flash/hotspot/rlogin.html",
+    file: "rlogin.html",
     title: "Sign-in required",
     body: "You must sign in to access the internet on this network. Redirecting you to the sign-in page...",
   },
   {
-    path: "flash/hotspot/alogin.html",
+    file: "alogin.html",
     title: "You're connected",
     body: "Redirecting you to your connection status...",
   },
   {
-    path: "flash/hotspot/status.html",
+    file: "status.html",
     title: "You're connected",
     body: "Redirecting you to your connection status...",
   },
   {
-    path: "flash/hotspot/logout.html",
+    file: "logout.html",
     title: "Signed out",
     body: "Redirecting you back to sign-in...",
   },
 ];
+
+/** The `/file find where name~"..."` pattern that locates one stock hotspot
+ * page regardless of which directory prefix this board uses.
+ *
+ * THE LEADING SLASH IS LOAD-BEARING. RouterOS's `~` is a regex SUBSTRING
+ * match, and `login.html` is a substring of BOTH `rlogin.html` and
+ * `alogin.html` -- matching on the bare basename would make the login.html
+ * chunk overwrite all three pages with login.html's content, silently.
+ * Anchoring on the separator (`/login.html`) cannot collide: the character
+ * before the basename is `r` or `a` in those two, not `/`.
+ *
+ * Kept as a suffix match rather than an anchored full path precisely so it
+ * keeps working on a board whose prefix nobody here has seen yet -- which
+ * is the whole defect being fixed. */
+function portalFileMatchPattern(file: string): string {
+  return `/${file}`;
+}
 
 /** One `/file set ...` RouterOS command per `PORTAL_OVERRIDE_FILES` entry,
  * each pointed at the same real portal URL. Returned as `{ label, line }`
@@ -1357,10 +1386,34 @@ function buildPortalOverrideFileSetLines(
   portalUrl: PortalOverrideConfig,
 ): { label: string; line: string }[] {
   const url = buildPortalUrl(portalUrl);
-  return PORTAL_OVERRIDE_FILES.map((page) => ({
-    label: page.path.replace("flash/hotspot/", ""),
-    line: `/file set [find name="${page.path}"] contents="${escapeForRouterOsString(buildPortalRedirectHtml(url, page))}"`,
-  }));
+  return PORTAL_OVERRIDE_FILES.map((page) => {
+    const pattern = portalFileMatchPattern(page.file);
+    const contents = escapeForRouterOsString(buildPortalRedirectHtml(url, page));
+    // ONE entered line. `$pfHits` is bound and consumed inside it, because
+    // the RouterOS console runs each entered line as its own program, and
+    // every `do={}` body below holds exactly one statement.
+    //
+    // The count is taken FIRST and printed either way. The whole defect
+    // being fixed here is that `/file set [find ...]` against an empty
+    // match is indistinguishable from a successful write -- same silence,
+    // same zero status -- so the only honest report is the number of files
+    // the `find` actually matched. On a miss this says so and names the
+    // consequence, rather than letting a clean-looking paste imply the
+    // venue's portal is installed when the stock MikroTik page is still
+    // there.
+    const line = [
+      `:local pfHits [:len [/file find where name~"${pattern}"]]`,
+      `:if ($pfHits > 0) do={ /file set [find where name~"${pattern}"] contents="${contents}" }`,
+      `:if ($pfHits > 0) do={ :put ("  Portal page ${page.file}: OK, overwrote " . [:tostr $pfHits] . " file(s).") }`,
+      `:if ($pfHits = 0) do={ :put "  FAIL -- portal page ${page.file}: 0 files matched ${pattern} on this device." }`,
+      `:if ($pfHits = 0) do={ :put "  NOTHING WAS WRITTEN. Guests will see MikroTik stock page, not the venue portal." }`,
+      `:if ($pfHits = 0) do={ :put "  This board stores the hotspot pages under a different path. List them with:" }`,
+      `:if ($pfHits = 0) do={ :put "    /file print where name~hotspot" }`,
+      `:if ($pfHits = 0) do={ :put "  then re-run the hotspot setup so the stock pages exist, and re-paste this chunk." }`,
+      `:if ($pfHits = 0) do={ :log warning "cloudguest: portal page ${page.file} not found -- stock page left in place" }`,
+    ].join("; ");
+    return { label: page.file, line };
+  });
 }
 
 /** Lets an unauthenticated guest's browser actually reach the real portal
@@ -1529,6 +1582,29 @@ function buildWalledGardenIpLines(portalUrl: PortalOverrideConfig): string[] | n
  * real publicly-hosted destination. */
 const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
 
+/** How long a hotspot session may pass ZERO bytes in either direction
+ * before RouterOS closes it, set on the built-in `default` user profile.
+ *
+ * This is the ONLY thing that ends a session on this fleet. The same
+ * profile sets `keepalive-timeout=none` (a deliberate fix for a confirmed
+ * incident where phones locking their screens were hard-logged-out at the
+ * factory default of two minutes), and RouterOS's own default for
+ * `idle-timeout` is likewise `none` -- so before this constant existed,
+ * every session opened on this platform stayed open forever. Slots were
+ * held against `shared-users` by guests who had long since left, Master
+ * console's device counts only ever went up, and RADIUS never received an
+ * accounting Stop.
+ *
+ * Chosen as a deliberate distance from the two-minute keepalive that
+ * caused the original incident, because the two measure different things:
+ * keepalive fired on a missed poll, which an idle-but-connected phone
+ * misses routinely, whereas this fires only on genuinely zero traffic --
+ * something a pocketed phone with push notifications does not sustain.
+ * Wide enough not to recreate the false-logout bug under another name,
+ * short enough that a departed guest's slot returns within a venue's
+ * ordinary turnover. */
+const HOTSPOT_IDLE_TIMEOUT = "30m";
+
 /** The real, publicly-hosted guest portal's own domain -- a genuine GoDaddy
  * DNS A record pointing at this platform's cloud backend (confirmed live:
  * `dig portal.wyfyguest.com` resolves publicly, and the backend serves a
@@ -1548,6 +1624,45 @@ const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
  * future-generated script points at the correct destination regardless of
  * whatever URL Master console happens to be served from that day. */
 export const GUEST_PORTAL_PUBLIC_BASE = "https://portal.wyfyguest.com";
+
+/** The RouterOS interface name for this router's own WireGuard tunnel back
+ * to its hub. **The backend owns this name; this constant only mirrors
+ * it.**
+ *
+ * Verified 2026-08-23 against the backend checkout at
+ * `/Users/shresth/cloud-guest-repo/backend`:
+ * `app/domains/network_config/renderers.py:672` declares
+ * `WIREGUARD_INTERFACE_NAME = "wg-cloudguard"`, and every router-facing
+ * path there renders that literal -- `render_wireguard_peer`
+ * (`renderers.py:1098-1106`, the `/interface wireguard add`, the
+ * `/ip address add ... interface=`, and the hub peer row), the Step 1
+ * bootstrap script (`:1604-1638`), and the remote cutover/revert scheduler
+ * teardown (`:1659`). Fourteen assertions in
+ * `backend/tests/unit/test_network_config.py` pin it (`:707`, `:723`,
+ * `:790`, `:808`, `:818-820`, `:922`, `:1055-1059`, `:1075`, `:1113`).
+ *
+ * This generator previously emitted `wg-cloudguest` -- a name that exists
+ * NOWHERE in backend code. Its only occurrence in that repo is prose in
+ * `ops/letsencrypt-hotspot/README.md:241-242`, an incident write-up
+ * describing a rule someone had placed on one live router by hand. So the
+ * two spellings were never two conventions; one was simply wrong, and a
+ * router that got both the backend bootstrap and this generator's paste
+ * ended up with TWO WireGuard interfaces -- with
+ * `cloudguest-fw-allow-wg-mgmt` (a rule only THIS generator creates; the
+ * backend renders no rule by that comment) bound to the dead one, so the
+ * hub's handshake was dropped and the tunnel never came up.
+ *
+ * The hub's own Linux-side interface is a genuinely different name (`wg0`,
+ * `ops/hub-agents/wg_agent.py:27`) and is configured out-of-band -- that
+ * one is not a divergence and must not be "reconciled" with this. */
+const WIREGUARD_INTERFACE_NAME = "wg-cloudguard";
+
+/** The name this generator used to emit for the tunnel interface. Retained
+ * for one reason only: every router provisioned before this fix still has
+ * an interface by this name, and a blind rename would leave it sitting
+ * there as a second, dead tunnel. The WireGuard chunk counts it and says
+ * so out loud instead of silently adding a sibling next to it. */
+const WIREGUARD_LEGACY_INTERFACE_NAME = "wg-cloudguest";
 
 /** How many times the "WAN Routing" chunk asks a DHCP WAN for its gateway
  * before giving up, and how long it waits between attempts. Written out as
@@ -2176,8 +2291,20 @@ export function buildRouterSetupScriptChunks(opts: {
   lanIp: string;
   lanCidr: string;
   dnsServers: string;
+  /** Now only names the local hotspot account to REMOVE, not one to
+   * create -- see the Hotspot chunk. Still required (and still defaulted to
+   * "guest" by `RouterSetupScriptAdvanced`) because that default is exactly
+   * the account this generator used to create on every router, so it is the
+   * name that has to be cleaned up in the field. */
   hsUser: string;
-  hsPass: string;
+  /** @deprecated Read by nothing. The local hotspot user this password
+   * belonged to was a full RADIUS/OTP bypass and is no longer created; see
+   * the Hotspot chunk for what replaced it. Kept on the interface so the
+   * existing form in `RouterSetupScriptAdvanced` keeps type-checking --
+   * removing that field is a separate change in a file another engineer is
+   * editing concurrently. The form still collects this value and it now
+   * goes nowhere, which should be tidied up next. */
+  hsPass?: string;
   enableFirewall: boolean;
   wireguard?: WireguardPeerInfo;
   radius?: { serverAddress: string; sharedSecret: string };
@@ -2272,7 +2399,6 @@ export function buildRouterSetupScriptChunks(opts: {
     lanCidr,
     dnsServers,
     hsUser,
-    hsPass,
     enableFirewall,
     wireguard,
     radius,
@@ -2782,108 +2908,6 @@ export function buildRouterSetupScriptChunks(opts: {
     });
   }
 
-  // Confirmed live in production (2026-08-17, router "WYFY-GUEST"): a field
-  // technician pastes every chunk below top-to-bottom with nothing in
-  // between actually verifying WAN/internet/DNS came up first. The reported
-  // failure was the Heartbeat chunk's `/tool fetch` to master.wyfyguest.com
-  // dying with RouterOS's own "failure: timeout connecting" -- discovered
-  // only after the fact, by separately noticing the heartbeat scheduler's
-  // own run-count=0 and next-run stuck weeks in the past (see the
-  // Heartbeat chunk's own comment below for what this generator now does
-  // about that specific symptom). Heartbeat, RADIUS (a remote auth server),
-  // and WireGuard (a remote tunnel endpoint) all assume real internet
-  // reachability and were getting pasted and left running blind, with no
-  // way for the technician to know mid-provisioning whether WAN+DNS
-  // actually came up before committing to them.
-  //
-  // This is a manual checkpoint, not an automated gate: RouterOS has no
-  // mechanism for a later, independently-pasted chunk to refuse to run
-  // because an earlier one "failed" -- each chunk is its own paste by a
-  // human, not one connected script with shared state, so there's no way
-  // to make e.g. the Heartbeat chunk below actually block on this one. What
-  // this CAN do -- and does -- is print an unambiguous PASS/FAIL the
-  // technician reads before deciding whether to paste anything below it,
-  // exactly the manual gate this was asked for. Positioned after "WAN
-  // Routing" (needs the default route that chunk just added -- an address
-  // alone isn't enough to actually reach 8.8.8.8) and before every chunk
-  // that assumes real internet reachability; the LAN-side chunks above
-  // (LAN Ports, LAN IP + DNS, Hotspot) don't depend on WAN being up at all,
-  // so this doesn't need to come any earlier than it does.
-  {
-    let apiHost = "google.com";
-    try {
-      const parsedApiBase = new URL(apiBase);
-      if (parsedApiBase.hostname) apiHost = parsedApiBase.hostname;
-    } catch {
-      // `apiBase` isn't a valid absolute URL -- shouldn't happen in
-      // practice (see `getAbsoluteApiBase`'s own docstring, the only real
-      // caller today), but nothing at the type level guarantees it. Falls
-      // back to a well-known public host rather than emitting a DNS test
-      // that's doomed to fail regardless of the router's own DNS health.
-    }
-    const apiHostEsc = escapeForRouterOsString(apiHost);
-    // THE VERDICT LINE IS ONE LINE. Everything that reads `$pingOk`,
-    // `$dnsOk` or either label sits on the same entered line as the
-    // `:local` that binds it, because the RouterOS console runs each
-    // entered line as its own program and a `:local` does not survive to
-    // the next one. Pasted in its previous multi-line form, every line
-    // after `:local pingOk false` was a syntax error -- and this is a
-    // block whose entire job is to print a PASS/FAIL a technician then
-    // acts on, so it printed a confident verdict computed from variables
-    // that did not exist. That is the same shape as the guided-setup
-    // audit block that told a factory-fresh hEX it had a dirty config.
-    //
-    // The `:put` lines that carry no variable stay on their own lines
-    // (they are pure output and nothing depends on them), which keeps the
-    // one long line down to just the logic and the lines that quote a
-    // result. Each `do={}` body holds exactly one statement, so the old
-    // `:if (...) do={ 3 statements } else={ 5 statements }` is now one
-    // guarded statement per output line.
-    const verdictOk = `$pingOk = true && $dnsOk = true`;
-    const verdictBad = `!($pingOk = true && $dnsOk = true)`;
-    const lines = [
-      `:log info "cloudguest: WAN connectivity check starting (ping 8.8.8.8, resolve ${apiHostEsc})"`,
-      `:put "===================================================="`,
-      `:put "  WAN CONNECTIVITY CHECK"`,
-      [
-        // `/ping` used as an expression returns the number of replies
-        // actually received -- a real reachability test, no DNS involved at
-        // all (raw IP), so this alone already tells the technician whether
-        // the WAN link/routing/ISP path works before DNS is even in play.
-        `:local pingOk ([/ping 8.8.8.8 count=4] > 0)`,
-        // `:resolve` throws on failure (NXDOMAIN, no DNS reachable, etc.) --
-        // caught here instead of aborting the rest of the chunk. One `:set`
-        // statement per `do=`/`on-error=` block, same discipline as the
-        // Heartbeat chunk's own fetch line below: a `;`-chained pair of
-        // statements inside an inline `do={}` has thrown a real syntax error
-        // on a live router before (see that chunk's own comment) -- this
-        // stays a single statement in each branch instead.
-        `:local dnsOk false`,
-        `:do { :set dnsOk ([:len [:resolve "${apiHostEsc}"]] > 0) } on-error={ :set dnsOk false }`,
-        `:local pingLabel "FAIL"`,
-        `:if ($pingOk = true) do={ :set pingLabel "PASS" }`,
-        `:local dnsLabel "FAIL"`,
-        `:if ($dnsOk = true) do={ :set dnsLabel "PASS" }`,
-        `:put ("  Ping 8.8.8.8 (raw internet reachability): " . $pingLabel)`,
-        `:put ("  Resolve ${apiHostEsc} (DNS):                " . $dnsLabel)`,
-        `:if (${verdictOk}) do={ :put "  RESULT: PASS -- internet and DNS both work. Safe to paste" }`,
-        `:if (${verdictOk}) do={ :put "  the remaining chunks (Hotspot, RADIUS, WireGuard, Heartbeat)." }`,
-        `:if (${verdictOk}) do={ :log info "cloudguest: WAN connectivity check PASSED" }`,
-        `:if (${verdictBad}) do={ :put "  RESULT: FAIL -- DO NOT paste the remaining chunks yet." }`,
-        `:if (${verdictBad}) do={ :put "  Fix WAN cabling / ISP link / DNS servers, then re-paste THIS" }`,
-        `:if (${verdictBad}) do={ :put "  chunk to re-check. Heartbeat/RADIUS/WireGuard all depend on" }`,
-        `:if (${verdictBad}) do={ :put "  real internet reachability and will fail -- some silently --" }`,
-        `:if (${verdictBad}) do={ :put "  until this shows PASS on both lines above." }`,
-        `:if (${verdictBad}) do={ :log warning ("cloudguest: WAN connectivity check FAILED (ping=" . $pingLabel . " dns=" . $dnsLabel . ")") }`,
-      ].join("; "),
-      `:put "===================================================="`,
-    ];
-    chunks.push({
-      label: "WAN Connectivity Check (confirm PASS before continuing)",
-      script: lines.join("\n"),
-    });
-  }
-
   // Only rendered when the field engineer typed an explicit LAN port list
   // -- builds a real "LAN" interface list the sweep chunk below then
   // requires membership in, the identical existence-check-first discipline
@@ -3026,9 +3050,144 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: basicConfigOnly ? "LAN IP" : "LAN IP + DNS", script: lines.join("\n") });
   }
 
+  // Confirmed live in production (2026-08-17, router "WYFY-GUEST"): a field
+  // technician pastes every chunk below top-to-bottom with nothing in
+  // between actually verifying WAN/internet/DNS came up first. The reported
+  // failure was the Heartbeat chunk's `/tool fetch` to master.wyfyguest.com
+  // dying with RouterOS's own "failure: timeout connecting" -- discovered
+  // only after the fact, by separately noticing the heartbeat scheduler's
+  // own run-count=0 and next-run stuck weeks in the past (see the
+  // Heartbeat chunk's own comment below for what this generator now does
+  // about that specific symptom). Heartbeat, RADIUS (a remote auth server),
+  // and WireGuard (a remote tunnel endpoint) all assume real internet
+  // reachability and were getting pasted and left running blind, with no
+  // way for the technician to know mid-provisioning whether WAN+DNS
+  // actually came up before committing to them.
+  //
+  // This is a manual checkpoint, not an automated gate: RouterOS has no
+  // mechanism for a later, independently-pasted chunk to refuse to run
+  // because an earlier one "failed" -- each chunk is its own paste by a
+  // human, not one connected script with shared state, so there's no way
+  // to make e.g. the Heartbeat chunk below actually block on this one. What
+  // this CAN do -- and does -- is print an unambiguous PASS/FAIL the
+  // technician reads before deciding whether to paste anything below it,
+  // exactly the manual gate this was asked for.
+  //
+  // POSITION IS PART OF THE FIX. This chunk needs the default route "WAN
+  // Routing" adds (an address alone is not enough to reach 8.8.8.8), and it
+  // must precede every chunk that assumes real internet reachability
+  // (Heartbeat, RADIUS, WireGuard). It ALSO has to come after "LAN IP +
+  // DNS", and it previously did not -- that was a real defect, not a
+  // nuance. The comment that stood here claimed "the LAN-side chunks ABOVE
+  // (LAN Ports, LAN IP + DNS, Hotspot) don't depend on WAN being up", but
+  // those chunks were pushed BELOW this one, and the dependency runs the
+  // other way: this chunk's `:resolve` leg needs a resolver, and the only
+  // line that gives the router one is `/ip dns set servers=` inside "LAN IP
+  // + DNS".
+  //
+  // On a factory-fresh router the old order made the DNS leg fail
+  // DETERMINISTICALLY, not intermittently, because the WAN DHCP client this
+  // generator adds sets `use-peer-dns=no` (see the WAN chunk -- deliberate,
+  // so the ISP cannot quietly become the fleet's resolver). So the router
+  // had no DNS servers from any source at this point: ping PASS, DNS FAIL,
+  // "RESULT: FAIL -- DO NOT paste the remaining chunks yet" on a router
+  // with nothing wrong with it. A check that cries wolf on a healthy box is
+  // worse than no check, because the next technician learns to page past
+  // it -- and then misses the one time it is real.
+  {
+    let apiHost = "google.com";
+    try {
+      const parsedApiBase = new URL(apiBase);
+      if (parsedApiBase.hostname) apiHost = parsedApiBase.hostname;
+    } catch {
+      // `apiBase` isn't a valid absolute URL -- shouldn't happen in
+      // practice (see `getAbsoluteApiBase`'s own docstring, the only real
+      // caller today), but nothing at the type level guarantees it. Falls
+      // back to a well-known public host rather than emitting a DNS test
+      // that's doomed to fail regardless of the router's own DNS health.
+    }
+    const apiHostEsc = escapeForRouterOsString(apiHost);
+    // THE VERDICT LINE IS ONE LINE. Everything that reads `$pingOk`,
+    // `$dnsOk` or either label sits on the same entered line as the
+    // `:local` that binds it, because the RouterOS console runs each
+    // entered line as its own program and a `:local` does not survive to
+    // the next one. Pasted in its previous multi-line form, every line
+    // after `:local pingOk false` was a syntax error -- and this is a
+    // block whose entire job is to print a PASS/FAIL a technician then
+    // acts on, so it printed a confident verdict computed from variables
+    // that did not exist. That is the same shape as the guided-setup
+    // audit block that told a factory-fresh hEX it had a dirty config.
+    //
+    // The `:put` lines that carry no variable stay on their own lines
+    // (they are pure output and nothing depends on them), which keeps the
+    // one long line down to just the logic and the lines that quote a
+    // result. Each `do={}` body holds exactly one statement, so the old
+    // `:if (...) do={ 3 statements } else={ 5 statements }` is now one
+    // guarded statement per output line.
+    const verdictOk = `$pingOk = true && $dnsOk = true`;
+    const verdictBad = `!($pingOk = true && $dnsOk = true)`;
+    const lines = [
+      `:log info "cloudguest: WAN connectivity check starting (ping 8.8.8.8, resolve ${apiHostEsc})"`,
+      `:put "===================================================="`,
+      `:put "  WAN CONNECTIVITY CHECK"`,
+      [
+        // `/ping` used as an expression returns the number of replies
+        // actually received -- a real reachability test, no DNS involved at
+        // all (raw IP), so this alone already tells the technician whether
+        // the WAN link/routing/ISP path works before DNS is even in play.
+        `:local pingOk ([/ping 8.8.8.8 count=4] > 0)`,
+        // `:resolve` throws on failure (NXDOMAIN, no DNS reachable, etc.) --
+        // caught here instead of aborting the rest of the chunk. One `:set`
+        // statement per `do=`/`on-error=` block, same discipline as the
+        // Heartbeat chunk's own fetch line below: a `;`-chained pair of
+        // statements inside an inline `do={}` has thrown a real syntax error
+        // on a live router before (see that chunk's own comment) -- this
+        // stays a single statement in each branch instead.
+        `:local dnsOk false`,
+        `:do { :set dnsOk ([:len [:resolve "${apiHostEsc}"]] > 0) } on-error={ :set dnsOk false }`,
+        // How many resolvers this router actually has. `:resolve` failing
+        // says nothing about WHY, and the two reasons need opposite
+        // responses from the technician: a broken upstream is a fault to go
+        // and fix, whereas zero configured servers just means a chunk has
+        // not been pasted yet (or, in `basicConfigOnly`, that the operator
+        // was always going to set them by hand). Reported explicitly rather
+        // than left for someone to infer from a bare FAIL. Wrapped in
+        // `:do`/`on-error=` because the property is spelled differently
+        // across RouterOS versions and an unreadable one must degrade to
+        // "unknown", never abort the verdict line.
+        `:local dnsCount 0`,
+        `:do { :set dnsCount [:len [/ip dns get servers]] } on-error={ :set dnsCount 0 }`,
+        `:local pingLabel "FAIL"`,
+        `:if ($pingOk = true) do={ :set pingLabel "PASS" }`,
+        `:local dnsLabel "FAIL"`,
+        `:if ($dnsOk = true) do={ :set dnsLabel "PASS" }`,
+        `:put ("  Ping 8.8.8.8 (raw internet reachability): " . $pingLabel)`,
+        `:put ("  Resolve ${apiHostEsc} (DNS):                " . $dnsLabel)`,
+        `:if (${verdictOk}) do={ :put "  RESULT: PASS -- internet and DNS both work. Safe to paste" }`,
+        `:if (${verdictOk}) do={ :put "  the remaining chunks (Hotspot, RADIUS, WireGuard, Heartbeat)." }`,
+        `:if (${verdictOk}) do={ :log info "cloudguest: WAN connectivity check PASSED" }`,
+        `:if (${verdictBad}) do={ :put "  RESULT: FAIL -- DO NOT paste the remaining chunks yet." }`,
+        `:if (${verdictBad}) do={ :put "  Fix WAN cabling / ISP link / DNS servers, then re-paste THIS" }`,
+        `:if (${verdictBad}) do={ :put "  chunk to re-check. Heartbeat/RADIUS/WireGuard all depend on" }`,
+        `:if (${verdictBad}) do={ :put "  real internet reachability and will fail -- some silently --" }`,
+        `:if (${verdictBad}) do={ :put "  until this shows PASS on both lines above." }`,
+        `:if (${verdictBad} && $dnsCount = 0) do={ :put ("  Configured DNS servers: " . [:tostr $dnsCount] . " -- that alone explains the DNS FAIL.") }`,
+        `:if (${verdictBad} && $dnsCount = 0) do={ :put "  This router has no resolver at all, so nothing here can resolve a name." }`,
+        `:if (${verdictBad} && $dnsCount = 0) do={ :put "  Paste the LAN IP + DNS chunk first (or set /ip dns servers by hand in basic" }`,
+        `:if (${verdictBad} && $dnsCount = 0) do={ :put "  mode), then re-paste this chunk. The WAN itself may be perfectly fine." }`,
+        `:if (${verdictBad} && $dnsCount > 0) do={ :put ("  Configured DNS servers: " . [:tostr $dnsCount] . " -- so a resolver IS set and is not answering.") }`,
+        `:if (${verdictBad}) do={ :log warning ("cloudguest: WAN connectivity check FAILED (ping=" . $pingLabel . " dns=" . $dnsLabel . ")") }`,
+      ].join("; "),
+      `:put "===================================================="`,
+    ];
+    chunks.push({
+      label: "WAN Connectivity Check (confirm PASS before continuing)",
+      script: lines.join("\n"),
+    });
+  }
+
   {
     const hsUserEsc = escapeForRouterOsString(hsUser);
-    const hsPassEsc = escapeForRouterOsString(hsPass);
     const lines = [
       `:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={ /ip pool add name="hotspot-pool" ranges=${poolStart}-${poolEnd} }`,
       // Two separate one-statement `:if`s, each with its OWN existence
@@ -3071,7 +3230,46 @@ export function buildRouterSetupScriptChunks(opts: {
       `/ip hotspot profile set [find name="hsprof1"] dns-name="${HOTSPOT_DNS_NAME}"`,
       `:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={ /ip dns static add name="${HOTSPOT_DNS_NAME}" address=${lanIp} comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=${lanIp} }`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
-      `:if ([:len [/ip hotspot user find where name="${hsUserEsc}"]] = 0) do={ /ip hotspot user add name="${hsUserEsc}" password="${hsPassEsc}" server="hotspot1" }`,
+      // THE LOCAL HOTSPOT USER IS A COMPLETE PORTAL BYPASS, AND THIS
+      // GENERATOR USED TO CREATE IT. The line that stood here was
+      // `/ip hotspot user add name="guest" password="..."` ("guest" being
+      // the default `hsUser` in `RouterSetupScriptAdvanced`) -- so this was
+      // ours, not a RouterOS factory default left in place. Confirmed by
+      // reading the emitted chunk, not inferred.
+      //
+      // RouterOS resolves a hotspot login against its LOCAL user list
+      // BEFORE it ever asks RADIUS. Anyone who typed those credentials on
+      // the stock login page was online immediately with: no OTP, no
+      // `guest_sessions` row, no consent capture, no data cap, and no
+      // accounting -- and, because the user carried no profile of its own,
+      // on the `default` profile with whatever `shared-users` it has. Every
+      // guarantee this platform sells, absent, with nothing logged anywhere
+      // to show it had happened.
+      //
+      // So: create nothing, and actively remove the one we shipped. This is
+      // a REMOVAL, not a disable -- a disabled hotspot user is one checkbox
+      // away from being a bypass again, and unlike the WireGuard interface
+      // above there is no way for removing it to strand anybody (RADIUS is
+      // the only auth path this platform ever intends to use).
+      [
+        `:local hsLocal [:len [/ip hotspot user find where name="${hsUserEsc}"]]`,
+        `:if ($hsLocal > 0) do={ /ip hotspot user remove [find where name="${hsUserEsc}"] }`,
+        `:if ($hsLocal > 0) do={ :put ("  Removed " . [:tostr $hsLocal] . " local hotspot user(s) named ${hsUserEsc} -- that account bypassed OTP entirely.") }`,
+        `:if ($hsLocal = 0) do={ :put "  No local hotspot user named ${hsUserEsc} on this device (expected)." }`,
+      ].join("; "),
+      // Any OTHER local user is the same bypass, and this script has no
+      // business silently deleting an account somebody added deliberately.
+      // Report the count instead: a non-zero number here is the operator's
+      // to explain, and it is visible rather than buried.
+      [
+        `:local hsLeft [:len [/ip hotspot user find]]`,
+        `:if ($hsLeft = 0) do={ :put "  Local hotspot users remaining: 0 -- every guest login now goes to RADIUS/OTP." }`,
+        `:if ($hsLeft > 0) do={ :put ("  WARNING: " . [:tostr $hsLeft] . " local hotspot user(s) still exist on this router.") }`,
+        `:if ($hsLeft > 0) do={ :put "  RouterOS checks local users BEFORE RADIUS, so each one is a portal bypass:" }`,
+        `:if ($hsLeft > 0) do={ :put "  it signs in with no OTP, no session record, no consent and no data cap." }`,
+        `:if ($hsLeft > 0) do={ :put "  Review them with /ip hotspot user print and remove any you did not intend." }`,
+        `:if ($hsLeft > 0) do={ :log warning "cloudguest: local hotspot users present -- RADIUS/OTP can be bypassed" }`,
+      ].join("; "),
       // RouterOS's own factory default for `/ip hotspot user profile
       // name="default"` is `shared-users=1` -- ONE device logged in per
       // guest identity at a time. Confirmed live (WYFY-GUEST, this
@@ -3090,7 +3288,7 @@ export function buildRouterSetupScriptChunks(opts: {
       // this one has no confirmed unlimited value), so `0` would risk
       // silently rejecting or misbehaving on real hardware. `5` is the
       // exact value already confirmed live in production today.
-      `/ip hotspot user profile set [find name="default"] shared-users=5`,
+      `:if ([:len [/ip hotspot user profile find where name="default"]] > 0) do={ /ip hotspot user profile set [find where name="default"] shared-users=5 }`,
       // RouterOS's own factory default `keepalive-timeout` on this same
       // "default" user profile is 2 minutes -- confirmed live (WYFY-GUEST,
       // same incident as shared-users above): a real guest's phone
@@ -3099,12 +3297,56 @@ export function buildRouterSetupScriptChunks(opts: {
       // keepalive check and got a hard `logged out: keepalive timeout`,
       // even though real data had been flowing seconds earlier (a genuine
       // Acct-Session-Time in the hundreds of seconds, not a stuck/never-
-      // worked session). `none` disables this specific check entirely --
-      // `idle-timeout=5m` on the hotspot server itself (`/ip hotspot`,
-      // untouched by this script) is the actual "guest is truly gone"
-      // backstop: it only fires on zero real traffic for 5 minutes, not a
-      // missed ping while the guest's screen is simply off.
-      `/ip hotspot user profile set [find name="default"] keepalive-timeout=none`,
+      // worked session). `none` disables this specific check entirely.
+      //
+      // This comment used to end by claiming that "`idle-timeout=5m` on the
+      // hotspot server itself (`/ip hotspot`, untouched by this script)" was
+      // the real backstop. That was wrong on both halves and it is why
+      // nothing closed a session for so long: `/ip hotspot` has no
+      // `idle-timeout` property, and the object that does -- this very user
+      // profile -- defaults to `none`. The backstop is set explicitly on the
+      // next line; see `HOTSPOT_IDLE_TIMEOUT`.
+      `:if ([:len [/ip hotspot user profile find where name="default"]] > 0) do={ /ip hotspot user profile set [find where name="default"] keepalive-timeout=none }`,
+      // NOTHING WAS EVER CLOSING A SESSION. `keepalive-timeout=none` above
+      // switches off the only reaper this profile had, and `idle-timeout`
+      // was never set to replace it -- so a session, once opened, stayed
+      // open forever. The comment above used to justify that by pointing at
+      // "`idle-timeout=5m` on the hotspot server itself, untouched by this
+      // script"; that is the wrong object. `/ip hotspot` (the server) has
+      // no `idle-timeout` property at all -- idle timeout lives on the USER
+      // PROFILE, which is exactly the object this chunk is configuring and
+      // exactly the one that was left at RouterOS's own default of `none`.
+      // Result: guests who left hours ago still held their slots against
+      // `shared-users`, the device count Master console shows never came
+      // down, and RADIUS accounting never saw a Stop for them.
+      //
+      // Thirty minutes, not five, and deliberately not
+      // two: two minutes is the keepalive value whose false logouts caused
+      // the incident that turned keepalive off in the first place, and
+      // re-introducing a short timer here would recreate that bug wearing a
+      // different name. The two measure genuinely different things --
+      // keepalive fired on a MISSED POLL (a phone with its screen off is
+      // idle by that definition), idle-timeout fires only on ZERO BYTES in
+      // either direction, which a connected-but-pocketed phone does not
+      // produce for long thanks to push and background sync. A window this
+      // wide clears a departed guest well inside a venue's turnover while
+      // staying far outside the range where ordinary phone behaviour looks
+      // like an absence.
+      `:if ([:len [/ip hotspot user profile find where name="default"]] > 0) do={ /ip hotspot user profile set [find where name="default"] idle-timeout=${HOTSPOT_IDLE_TIMEOUT} }`,
+      // The four `set`s above are all `[find name="default"]`. RouterOS's
+      // `set` against an EMPTY match succeeds silently -- the same trap as
+      // the portal `/file set` -- so on a device without that built-in
+      // profile every one of them would do nothing and report nothing.
+      // Print the count, and read the value back rather than assuming the
+      // write landed.
+      [
+        `:local hsProf [:len [/ip hotspot user profile find where name="default"]]`,
+        `:if ($hsProf = 0) do={ :put "  FAIL -- no hotspot user profile named default exists on this router." }`,
+        `:if ($hsProf = 0) do={ :put "  shared-users, keepalive-timeout and idle-timeout were NOT applied." }`,
+        `:if ($hsProf = 0) do={ :put "  Sessions will never expire and device limits will not hold. Check /ip hotspot user profile print." }`,
+        `:if ($hsProf = 0) do={ :log warning "cloudguest: hotspot default user profile missing -- session limits not applied" }`,
+        `:if ($hsProf > 0) do={ :put ("  Hotspot default profile: idle-timeout=" . [:tostr [/ip hotspot user profile get [find where name="default"] idle-timeout]] . " shared-users=" . [:tostr [/ip hotspot user profile get [find where name="default"] shared-users]]) }`,
+      ].join("; "),
     ];
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
@@ -3461,9 +3703,44 @@ export function buildRouterSetupScriptChunks(opts: {
 
   if (wireguard) {
     const lines = [
-      `:if ([:len [/interface wireguard find where name="wg-cloudguest"]] = 0) do={ /interface wireguard add name="wg-cloudguest" private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
-      `:if ([:len [/interface wireguard peers find where interface="wg-cloudguest"]] = 0) do={ /interface wireguard peers add interface="wg-cloudguest" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s }`,
-      `:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={ /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest" }`,
+      // A router provisioned before the wg-cloudguest -> wg-cloudguard fix
+      // still carries the old interface. Renaming the constant alone would
+      // leave that one in place and quietly ADD a second tunnel beside it,
+      // which is the exact two-interface state this fix exists to end -- so
+      // the legacy name is counted and reported before anything is created.
+      //
+      // Deliberately REPORTED, NOT REMOVED. `/interface wireguard remove`
+      // on the old tunnel would drop any management session riding it --
+      // including, in the remote re-provision flow, the operator's own. An
+      // operator who can see the count can remove it in one command; a
+      // script that removes it can strand a router that is only reachable
+      // through it. Non-zero here means "finish this by hand", and says so.
+      [
+        `:local wgLegacy [:len [/interface wireguard find where name="${WIREGUARD_LEGACY_INTERFACE_NAME}"]]`,
+        `:if ($wgLegacy > 0) do={ :put ("  WARNING: " . [:tostr $wgLegacy] . " legacy tunnel interface(s) named ${WIREGUARD_LEGACY_INTERFACE_NAME} are still on this device.") }`,
+        `:if ($wgLegacy > 0) do={ :put "  That name is obsolete. Leaving it in place gives this router TWO tunnels," }`,
+        `:if ($wgLegacy > 0) do={ :put "  and the hub only ever talks to ${WIREGUARD_INTERFACE_NAME}. Once this chunk finishes and" }`,
+        `:if ($wgLegacy > 0) do={ :put "  the new tunnel shows a handshake, remove the old one by hand:" }`,
+        `:if ($wgLegacy > 0) do={ :put "    /interface wireguard remove [find where name=${WIREGUARD_LEGACY_INTERFACE_NAME}]" }`,
+        `:if ($wgLegacy > 0) do={ :log warning "cloudguest: legacy ${WIREGUARD_LEGACY_INTERFACE_NAME} interface still present alongside ${WIREGUARD_INTERFACE_NAME}" }`,
+        `:if ($wgLegacy = 0) do={ :put "  No legacy ${WIREGUARD_LEGACY_INTERFACE_NAME} interface on this device (expected)." }`,
+      ].join("; "),
+      `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /interface wireguard add name="${WIREGUARD_INTERFACE_NAME}" private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
+      `:if ([:len [/interface wireguard peers find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /interface wireguard peers add interface="${WIREGUARD_INTERFACE_NAME}" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s }`,
+      `:if ([:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /ip address add address="${wireguard.routerTunnelIp}/24" interface="${WIREGUARD_INTERFACE_NAME}" }`,
+      // Never infer success from the absence of an error: all three lines
+      // above are `:if ... do={ add }`, which do nothing at all -- silently,
+      // and with a zero exit -- if the `find` was non-empty for a reason
+      // other than the one intended. This prints what actually exists now.
+      [
+        `:local wgIf [:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]]`,
+        `:local wgPeer [:len [/interface wireguard peers find where interface="${WIREGUARD_INTERFACE_NAME}"]]`,
+        `:local wgAddr [:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}"]]`,
+        `:put ("  Tunnel ${WIREGUARD_INTERFACE_NAME}: interface=" . [:tostr $wgIf] . " peer=" . [:tostr $wgPeer] . " address=" . [:tostr $wgAddr])`,
+        `:if ($wgIf > 0 && $wgPeer > 0 && $wgAddr > 0) do={ :put "  RESULT: PASS -- tunnel is fully configured." }`,
+        `:if (!($wgIf > 0 && $wgPeer > 0 && $wgAddr > 0)) do={ :put "  RESULT: FAIL -- a count above is 0, so this router has NO working tunnel." }`,
+        `:if (!($wgIf > 0 && $wgPeer > 0 && $wgAddr > 0)) do={ :log warning "cloudguest: ${WIREGUARD_INTERFACE_NAME} incomplete after paste" }`,
+      ].join("; "),
       // Load-bearing, not optional: the tunnel is only ever reachable by
       // the platform's own WireGuard hub, so treating it as
       // management-trusted (like the LAN rule) is
@@ -3505,9 +3782,25 @@ export function buildRouterSetupScriptChunks(opts: {
             [
               `:local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
               `:local wgAllowRule [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
-              `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule }`,
-              `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] = 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" }`,
+              `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter add chain=input in-interface="${WIREGUARD_INTERFACE_NAME}" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule }`,
+              `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] = 0) do={ /ip firewall filter add chain=input in-interface="${WIREGUARD_INTERFACE_NAME}" action=accept comment="cloudguest-fw-allow-wg-mgmt" }`,
               `:if ([:len $wgAllowRule] > 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter move $wgAllowRule destination=$wanDropRule }`,
+              // Repoint, unconditionally, an accept rule that already
+              // exists. The two `add` guards above only fire when the rule
+              // is ABSENT, so on every router provisioned before the
+              // wg-cloudguest -> wg-cloudguard fix the rule survives
+              // untouched -- still bound to the old, now-dead interface,
+              // still passing every existence check, and still dropping the
+              // hub's handshake. That is the "firewall rule bound to the
+              // wrong tunnel" symptom exactly. A `set` costs nothing when
+              // the rule is already correct and is the only thing that
+              // heals the case where it is not.
+              `:if ([:len $wgAllowRule] > 0) do={ /ip firewall filter set $wgAllowRule in-interface="${WIREGUARD_INTERFACE_NAME}" }`,
+              `:local wgRuleNow [:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt" in-interface="${WIREGUARD_INTERFACE_NAME}"]]`,
+              `:if ($wgRuleNow > 0) do={ :put ("  Management accept rule bound to ${WIREGUARD_INTERFACE_NAME}: " . [:tostr $wgRuleNow] . " rule(s).") }`,
+              `:if ($wgRuleNow = 0) do={ :put "  FAIL: no input-chain accept rule is bound to ${WIREGUARD_INTERFACE_NAME}." }`,
+              `:if ($wgRuleNow = 0) do={ :put "  The hub handshake will be dropped. Check /ip firewall filter print." }`,
+              `:if ($wgRuleNow = 0) do={ :log warning "cloudguest: no wg mgmt accept rule bound to ${WIREGUARD_INTERFACE_NAME}" }`,
             ].join("; "),
           ]
         : []),

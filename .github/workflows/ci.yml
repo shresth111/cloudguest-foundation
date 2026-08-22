@@ -256,12 +256,16 @@ jobs:
       #
       # Six mutations of the real generator and three of the guards
       # themselves were verified to fail this suite; see the script header
-      # for the table. The floor is the count observed green on
-      # 2026-08-23.
+      # for the table. Section 6 (the five silent failures: discovered
+      # portal-file paths, the removed local-hotspot-user bypass, a real
+      # idle-timeout, the WAN check ordered after DNS, and one tunnel
+      # interface name matching the backend) adds 53 checks and 15 more
+      # verified mutations. Floor raised 160 -> 210, observed green at 222
+      # on 2026-08-23.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 160 \
+            "setup-script-generator" 210 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 

@@ -65,6 +65,43 @@
  *   scope guard stops treating `:for`/`:foreach` vars as bindings ...... 3
  *   do={} splitter stops skipping string contents ...................... 3
  *   do={} opener scan stops skipping string contents ................... 1
+ *
+ * SECTION 6 -- THE FIVE SILENT FAILURES
+ * -------------------------------------
+ * Five more defects of the same family: RouterOS reporting success for
+ * work it did not do. A hardcoded `flash/hotspot/` path whose `set [find
+ * ...]` no-ops silently on boards without that prefix; a local `guest`
+ * hotspot user that bypassed RADIUS entirely (RouterOS checks local users
+ * FIRST); `keepalive-timeout=none` with no `idle-timeout` to replace it,
+ * so nothing ever closed a session; a WAN connectivity check that ran
+ * before `/ip dns set servers=` and so printed FAIL on every healthy
+ * router; and a tunnel interface named `wg-cloudguest` where the backend
+ * (`network_config/renderers.py:672`) says `wg-cloudguard`.
+ *
+ * Fifteen mutations of the REAL generator, all caught:
+ *
+ *   portal pattern loses its leading slash (rlogin/alogin collide) ..... 10
+ *   the `/file set` stops being gated on a non-zero match count ......... 5
+ *   the not-found branch stops printing anything ........................ 5
+ *   the hardcoded `flash/` prefix comes back ........................... 11
+ *   the local `guest` hotspot user is created again ..................... 1
+ *   the remaining-local-users warning is dropped ........................ 1
+ *   the `idle-timeout` line is removed entirely ......................... 2
+ *   `idle-timeout` set to 2m, re-creating the false-logout incident ..... 1
+ *   one default-profile `set` goes back to being unguarded .............. 1
+ *   the WAN check moves back ahead of the DNS chunk ..................... 8
+ *   the configured-resolver count is no longer reported ................. 1
+ *   the tunnel interface reverts to `wg-cloudguest` ..................... 5
+ *   an existing accept rule is no longer repointed ...................... 1
+ *   the legacy-interface count and warning are dropped .................. 1
+ *   the tunnel's final PASS/FAIL state check is dropped ................. 1
+ *
+ * The resolver-count mutation initially slipped through, and that was a
+ * real hole rather than a confirmation: the check asserted the count was
+ * PRINTED but not that it was READ from the device, so pinning it at 0
+ * still passed while telling the operator "no resolver at all" on a router
+ * whose DNS was fine. The check now requires the `/ip dns get servers`
+ * read itself. Same lesson as the `active=yes` miss recorded above.
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
@@ -774,6 +811,294 @@ for (const [variant, opts] of VARIANTS) {
     r.issues.filter((i) => i.severity === "warning").map((i) => `${r.label}: ${i.message}`),
   );
   check(`${variant}: zero validator warnings`, warnings.length === 0, warnings.join(" | "));
+}
+
+// =====================================================================
+// 6. THE FIVE SILENT FAILURES
+// =====================================================================
+// Every defect below shipped, survived review, and produced NO error --
+// which is precisely why each one survived. They share one shape: RouterOS
+// reporting success for work it did not do. So each guard here asserts two
+// separate things: that the CONDITION is handled at all, and that the
+// operator is TOLD when it is not met. A fix that quietly does the right
+// thing is only half of what was asked for -- the paste output has to say
+// so, because the whole class of bug is "nothing said anything".
+
+console.log("\n-- the five silent failures --");
+
+/** The variant that turns on every optional subsystem, so portal, hotspot,
+ * WireGuard and firewall chunks all exist to be inspected. */
+const FULL = VARIANTS.find(([v]) => v === "every optional subsystem on")[1];
+const fullChunks = buildRouterSetupScriptChunks(FULL);
+const chunkByLabel = (chunks, needle) => chunks.filter((c) => c.label.includes(needle));
+const allText = (chunks) => chunks.map((c) => c.script).join("\n");
+const fullText = allText(fullChunks);
+
+// ---------------------------------------------------------------------
+// 1. The portal page path is DISCOVERED, and a miss is loud.
+// ---------------------------------------------------------------------
+// `flash/` is a per-model detail. `set [find ...]` against an empty match
+// succeeds silently, so on a board without that prefix all five writes did
+// nothing and the guest got MikroTik's stock blue login page.
+
+const portalChunks = chunkByLabel(fullChunks, "Portal Redirect Page");
+
+check(
+  "portal: all five stock hotspot pages still get an override chunk",
+  portalChunks.length === 5,
+  `got ${portalChunks.length} -- a page stopped being overridden`,
+);
+
+check(
+  "portal: no chunk hardcodes the flash/ path prefix anywhere",
+  !allText(fullChunks).includes("flash/hotspot/"),
+  "the model-specific prefix is back; on boards without it every /file set silently writes nothing",
+);
+
+for (const chunk of portalChunks) {
+  const base = chunk.label.match(/\(([^)]+)\)/)[1];
+  const s = chunk.script;
+  check(
+    `portal ${base}: the path is discovered with /file find, not assumed`,
+    s.includes(`[/file find where name~"/${base}"]`),
+    "no discovery -- the path is being assumed again",
+  );
+  check(
+    `portal ${base}: the write is gated on a non-zero match count`,
+    /:if \(\$pfHits > 0\) do=\{ \/file set \[find where name~"\/[a-z]+\.html"\] contents=/.test(s),
+    "the /file set is unguarded, so an empty match writes nothing and reports success",
+  );
+  check(
+    `portal ${base}: a miss prints a visible FAIL naming the consequence`,
+    /:if \(\$pfHits = 0\) do=\{ :put "  FAIL -- portal page [a-z]+\.html: 0 files matched/.test(
+      s,
+    ) && s.includes("NOTHING WAS WRITTEN"),
+    "a miss is silent -- the exact defect this replaces",
+  );
+  check(
+    `portal ${base}: a hit reports the count it actually wrote`,
+    s.includes(`:tostr $pfHits`) && s.includes("overwrote"),
+    "success is asserted rather than counted",
+  );
+}
+
+// The pattern's leading slash is the whole anti-collision argument, so it
+// is proven rather than asserted. RouterOS's `~` is a regex substring
+// match, modelled here exactly as such.
+{
+  const rosLike = (name, pattern) => new RegExp(pattern).test(name);
+  check(
+    "INJECTED: a bare-basename pattern WOULD swallow rlogin.html and alogin.html",
+    rosLike("flash/hotspot/rlogin.html", "login.html") &&
+      rosLike("flash/hotspot/alogin.html", "login.html"),
+    "the collision this pattern defends against is not real -- re-check the reasoning",
+  );
+  check(
+    "portal: the shipped /basename pattern does NOT collide with rlogin/alogin",
+    !rosLike("flash/hotspot/rlogin.html", "/login.html") &&
+      !rosLike("flash/hotspot/alogin.html", "/login.html"),
+    "login.html's chunk would overwrite all three pages with login.html's content",
+  );
+  check(
+    "portal: the pattern still matches BOTH directory layouts",
+    rosLike("flash/hotspot/login.html", "/login.html") &&
+      rosLike("hotspot/login.html", "/login.html"),
+    "the discovery does not actually discover -- one of the two real layouts misses",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 2. No local hotspot user (RouterOS checks local users BEFORE RADIUS).
+// ---------------------------------------------------------------------
+
+const hotspotChunk = chunkByLabel(fullChunks, "Hotspot")[0].script;
+
+check(
+  "hotspot: no chunk creates a local hotspot user, in any variant",
+  !VARIANTS.some(([, o]) =>
+    allText(buildRouterSetupScriptChunks(o)).includes("/ip hotspot user add"),
+  ),
+  "a local user is a complete portal bypass: no OTP, no session row, no consent, no data cap",
+);
+
+check(
+  "hotspot: the account this generator used to create is actively removed",
+  hotspotChunk.includes("/ip hotspot user remove [find where name="),
+  "every already-provisioned router keeps its bypass account forever",
+);
+
+check(
+  "hotspot: the removal reports how many accounts it removed",
+  hotspotChunk.includes(":tostr $hsLocal") && hotspotChunk.includes("bypassed OTP"),
+  "removal is silent, so nobody learns the router had a bypass",
+);
+
+check(
+  "hotspot: any REMAINING local user is counted and called a bypass out loud",
+  /:local hsLeft \[:len \[\/ip hotspot user find\]\]/.test(hotspotChunk) &&
+    hotspotChunk.includes("checks local users BEFORE RADIUS") &&
+    hotspotChunk.includes(":tostr $hsLeft"),
+  "a hand-added second bypass account stays invisible",
+);
+
+// ---------------------------------------------------------------------
+// 3. Something actually closes a session.
+// ---------------------------------------------------------------------
+// keepalive-timeout=none was set with no idle-timeout to replace it, so
+// nothing ever reaped a session: slots stayed held, device counts only
+// went up, RADIUS never saw an accounting Stop.
+
+check(
+  "hotspot: an idle-timeout is set on the default user profile",
+  /idle-timeout=\d+[smh]/.test(hotspotChunk),
+  "nothing closes a session -- a guest who left hours ago still holds a slot",
+);
+
+check(
+  "hotspot: the idle-timeout is far enough from the 2m keepalive that caused the false-logout incident",
+  (() => {
+    const m = hotspotChunk.match(/idle-timeout=(\d+)([smh])/);
+    if (!m) return false;
+    const mins = m[2] === "h" ? +m[1] * 60 : m[2] === "m" ? +m[1] : +m[1] / 60;
+    return mins >= 15 && mins <= 120;
+  })(),
+  "too short re-creates the false-logout bug under a new name; too long never frees the slot",
+);
+
+check(
+  "hotspot: keepalive-timeout=none is still set (the false-logout fix is not undone)",
+  hotspotChunk.includes("keepalive-timeout=none"),
+  "re-enabling keepalive brings back the confirmed screen-lock logout incident",
+);
+
+check(
+  "hotspot: every default-profile set is gated on the profile existing",
+  !/\/ip hotspot user profile set \[find name="default"\]/.test(hotspotChunk) &&
+    (
+      hotspotChunk.match(
+        /:if \(\[:len \[\/ip hotspot user profile find where name="default"\]\] > 0\) do=\{ \/ip hotspot user profile set/g,
+      ) ?? []
+    ).length === 3,
+  "an unguarded `set` against an empty match succeeds silently -- the same trap as the portal /file set",
+);
+
+check(
+  "hotspot: the applied profile values are read back and printed, not assumed",
+  hotspotChunk.includes(":local hsProf") &&
+    hotspotChunk.includes("/ip hotspot user profile get [find where name=") &&
+    hotspotChunk.includes("FAIL -- no hotspot user profile named default"),
+  "success is inferred from the absence of an error",
+);
+
+// ---------------------------------------------------------------------
+// 4. The WAN check runs AFTER the router has a resolver.
+// ---------------------------------------------------------------------
+// The WAN DHCP client is added with use-peer-dns=no, so before `/ip dns
+// set servers=` runs the router has no resolver from any source. Checking
+// DNS first made a healthy router report FAIL every single time.
+
+for (const [variant, opts] of VARIANTS) {
+  const cs = buildRouterSetupScriptChunks(opts);
+  const dnsIdx = cs.findIndex((c) => c.label === "LAN IP" || c.label === "LAN IP + DNS");
+  const wanIdx = cs.findIndex((c) => c.label.startsWith("WAN Connectivity Check"));
+  check(
+    `${variant}: the WAN connectivity check comes AFTER DNS is configured`,
+    dnsIdx !== -1 && wanIdx !== -1 && dnsIdx < wanIdx,
+    `LAN-IP/DNS chunk at ${dnsIdx}, WAN check at ${wanIdx} -- checking DNS before configuring it ` +
+      `makes a perfectly healthy router print FAIL, which trains people to ignore the check`,
+  );
+}
+
+{
+  const wanCheck = chunkByLabel(fullChunks, "WAN Connectivity Check")[0].script;
+  // Asserting only that the count is PRINTED is not enough, and this
+  // suite's own mutation pass proved it: pinning `dnsCount` at 0 while
+  // leaving every `:put` in place still passed, and would have told the
+  // operator "no resolver at all" on a router with working DNS servers --
+  // a confidently wrong verdict, which is the exact failure shape this
+  // whole section exists to end. So the value must be shown to come off
+  // the DEVICE, not merely to be displayed.
+  check(
+    "wan check: the resolver count is read from the device, not just printed",
+    wanCheck.includes(":local dnsCount") &&
+      wanCheck.includes(":tostr $dnsCount") &&
+      /:set dnsCount \[:len \[\/ip dns get servers\]\]/.test(wanCheck),
+    "a bare DNS FAIL cannot distinguish 'no resolver set yet' from 'resolver is broken' -- " +
+      "and a count that is never read from /ip dns reports 0 on a healthy router",
+  );
+  check(
+    "wan check: zero resolvers is explained as a not-yet-pasted chunk, not a WAN fault",
+    wanCheck.includes("$dnsCount = 0") && wanCheck.includes("The WAN itself may be perfectly fine"),
+    "the technician is sent to debug a WAN that was never broken",
+  );
+  check(
+    "wan check: a configured-but-unanswering resolver reads differently from none at all",
+    wanCheck.includes("$dnsCount > 0") && wanCheck.includes("is not answering"),
+    "the two opposite causes collapse into one message again",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 5. One tunnel interface name, and it is the backend's.
+// ---------------------------------------------------------------------
+// Backend `network_config/renderers.py:672` declares
+// WIREGUARD_INTERFACE_NAME = "wg-cloudguard" and ~14 tests pin it.
+// `wg-cloudguest` exists nowhere in backend code.
+
+{
+  const wg = chunkByLabel(fullChunks, "WireGuard Tunnel")[0].script;
+
+  check(
+    "wireguard: the interface created matches the backend's authoritative name",
+    wg.includes('/interface wireguard add name="wg-cloudguard"'),
+    "a second, divergent tunnel interface -- the hub only ever talks to wg-cloudguard",
+  );
+  check(
+    "wireguard: nothing is created or bound under the old wg-cloudguest name",
+    !/(?:add name|interface|in-interface)="wg-cloudguest"/.test(fullText),
+    "the two-interface state is back",
+  );
+  check(
+    "wireguard: the peer and the tunnel address both bind to the same interface",
+    wg.includes('/interface wireguard peers add interface="wg-cloudguard"') &&
+      wg.includes('/ip address add address="10.20.0.5/24" interface="wg-cloudguard"'),
+    "peer or address bound to a different interface than the one created",
+  );
+  check(
+    "wireguard: the management accept rule binds to the authoritative name",
+    wg.includes('in-interface="wg-cloudguard" action=accept comment="cloudguest-fw-allow-wg-mgmt"'),
+    "the firewall rule is bound to the wrong tunnel, so the hub handshake is dropped",
+  );
+  // The add-guards only fire when the rule is ABSENT, so an already
+  // provisioned router keeps a rule pointing at the dead interface.
+  check(
+    "wireguard: an EXISTING accept rule is repointed, not left on the dead interface",
+    wg.includes(
+      ':if ([:len $wgAllowRule] > 0) do={ /ip firewall filter set $wgAllowRule in-interface="wg-cloudguard" }',
+    ),
+    "every router provisioned before this fix keeps its rule bound to wg-cloudguest and never handshakes",
+  );
+  check(
+    "wireguard: a surviving legacy interface is counted and reported, not silently doubled up",
+    wg.includes(':local wgLegacy [:len [/interface wireguard find where name="wg-cloudguest"]]') &&
+      wg.includes(":tostr $wgLegacy") &&
+      wg.includes("TWO tunnels"),
+    "the old interface stays on the device with nothing pointing it out",
+  );
+  check(
+    "wireguard: the legacy interface is REPORTED rather than removed",
+    !wg.includes('/interface wireguard remove [find where name="wg-cloudguest"]}') &&
+      !/do=\{ \/interface wireguard remove/.test(wg),
+    "removing the old tunnel can drop the operator's own management session mid-provision",
+  );
+  check(
+    "wireguard: the final state is counted and given a PASS/FAIL, not assumed",
+    wg.includes(":local wgIf") &&
+      wg.includes(":local wgPeer") &&
+      wg.includes(":local wgAddr") &&
+      wg.includes("RESULT: FAIL -- a count above is 0"),
+    "three add-if-missing guards in a row can all no-op and still look clean",
+  );
 }
 
 // =====================================================================
