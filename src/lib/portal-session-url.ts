@@ -34,12 +34,21 @@ export function buildSessionUrl(
    * runtime in hand still compiles and still produces exactly the URL it
    * used to. */
   language?: string,
+  /** RouterOS's own `$(mac)`. The one identifier that survives this
+   * document boundary on a browser where Web Storage throws -- iOS's
+   * captive sheet being the case that matters. `/portal/session` lands as
+   * a brand-new document, so without this it has no way to re-discover a
+   * session it cannot read from storage, and shows a guest who just
+   * successfully signed in "your session has expired" while their
+   * internet works perfectly. */
+  deviceMac?: string,
 ): string {
   const url = new URL("/portal/session", window.location.origin);
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("locationId", locationId);
   url.searchParams.set("routerId", routerId);
   if (language) url.searchParams.set("lang", language);
+  if (deviceMac) url.searchParams.set("mac", deviceMac);
   return url.toString();
 }
 

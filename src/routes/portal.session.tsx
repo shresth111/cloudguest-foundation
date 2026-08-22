@@ -213,8 +213,44 @@ function UsageBar({ label, pct, className }: { label: string; pct: number; class
  * place for content that needs a guest's attention or interaction).
  */
 function SessionPage() {
-  const { t, config, session, setSession, organizationId, locationId, routerId, destinationUrl } =
-    usePortalRuntime();
+  const {
+    t,
+    config,
+    session,
+    setSession,
+    setGuestIdentifier,
+    organizationId,
+    locationId,
+    routerId,
+    destinationUrl,
+    deviceMac,
+  } = usePortalRuntime();
+
+  // The NAS redirects here as a BRAND-NEW document once it has authorised
+  // the guest. `session` comes from storage -- and inside iOS's captive
+  // sheet, Web Storage throws, so nothing was ever persisted. Without this
+  // lookup a guest who has just signed in successfully, and whose internet
+  // is working, gets told "your session has expired".
+  //
+  // This is the same live-session query portal.index.tsx already runs; it
+  // recovers IN PLACE rather than navigating, because bouncing would loop
+  // on exactly the browsers this exists for -- the recovered session
+  // cannot be persisted either.
+  const { data: liveSession, isFetched: liveChecked } = useQuery({
+    queryKey: ["portal-active-session", routerId, deviceMac],
+    queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
+    enabled: !session && !!deviceMac,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (!liveSession) return;
+    setSession(liveSession);
+    // Both, not just the session: portal.success.tsx's hotspot POST is
+    // gated on `guestIdentifier` too, and setting only one of them is the
+    // bug that once silently no-op'd for an entire class of guest.
+    setGuestIdentifier(liveSession.identifier);
+  }, [liveSession, setSession, setGuestIdentifier]);
   const navigate = useNavigate({ from: "/portal/session" });
   const portalSearch = { organizationId, locationId, routerId };
   const continueUrl = destinationUrl || config?.redirectUrl;
@@ -269,14 +305,17 @@ function SessionPage() {
   });
 
   useEffect(() => {
+    // Don't declare the session dead while the lookup above is still in
+    // flight -- that race is what produces the false "expired" screen.
     if (!session) {
+      if (deviceMac && !liveChecked) return;
       navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
       return;
     }
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [session, navigate]);
+  }, [session, navigate, deviceMac, liveChecked]);
 
   const timeoutMinutes = session?.sessionTimeoutMinutes ?? 0;
   const startedAtMs = session ? new Date(session.startedAt).getTime() : 0;

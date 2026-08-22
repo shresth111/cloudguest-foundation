@@ -138,6 +138,10 @@ function SuccessPage() {
     // full-document POST below -- see `buildSessionUrl`'s own note on why a
     // URL parameter is the only channel that works on iOS's CNA.
     language,
+    // Carried into `dst` for the same reason as `language`: it is the one
+    // identifier `/portal/session` can use to re-find this guest's session
+    // when it lands as a new document on a browser whose storage throws.
+    deviceMac,
     t,
   } = usePortalRuntime();
   // captive-portal-v7-design-spec.md §1.1 (L1). This route is NOT in the
@@ -203,7 +207,9 @@ function SuccessPage() {
       // carrying a new `link-login-only`, which comes back through
       // `portal.index.tsx` and re-enters this page with a real
       // `hotspotLoginUrl` to submit. Self-correcting either way.
-      window.location.assign(buildSessionUrl(organizationId, locationId, routerId, language));
+      window.location.assign(
+        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
+      );
       return;
     }
 
@@ -224,7 +230,7 @@ function SuccessPage() {
     submitHotspotLogin(
       hotspotLoginUrl,
       guestIdentifier,
-      buildSessionUrl(organizationId, locationId, routerId, language),
+      buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
     );
     persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
   }
