@@ -288,6 +288,7 @@ export function MStat({
   icon: Icon,
   accent,
   beam,
+  loading,
 }: {
   label: string;
   value: string | number;
@@ -300,6 +301,14 @@ export function MStat({
   /** Opt-in rotating "Border Beam" highlight ring -- reserve for a single
    * hero/priority KPI tile, not every tile on a page. */
   beam?: boolean;
+  /** Renders the tile's own frame, icon and label with a shimmer bar where the
+   * number goes, instead of `value`. Deliberately the SAME markup as the
+   * loaded tile rather than a separate placeholder box: a KPI grid whose
+   * skeleton is a different height than the real tiles just converts a blank
+   * gap into a jump when the data lands. `label`/`icon` are static strings the
+   * page already knows before any request resolves, so showing them early
+   * costs nothing and gives the operator the page's structure immediately. */
+  loading?: boolean;
 }) {
   const isNumeric = typeof value === "number";
   return (
@@ -352,7 +361,15 @@ export function MStat({
         )}
       </div>
       <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">
-        {isNumeric ? <AnimatedCounter value={value} /> : value}
+        {loading ? (
+          // Sized off the same line-box the real number occupies (text-3xl's
+          // 1lh), so the tile is pixel-identical loading and loaded.
+          <span aria-hidden className="shimmer block h-[1lh] w-24 rounded-md" />
+        ) : isNumeric ? (
+          <AnimatedCounter value={value} />
+        ) : (
+          value
+        )}
       </div>
       {delta && !trend && (
         <div className="mt-1 text-xs font-medium text-muted-foreground">{delta}</div>

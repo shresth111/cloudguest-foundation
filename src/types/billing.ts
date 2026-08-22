@@ -194,6 +194,22 @@ export interface ScheduledBillingReport {
   nextRunAt: string;
 }
 
+/**
+ * The cheap slice of BillingSnapshot the Platform Overview page needs for its
+ * two charts and its MRR tile -- everything derivable from the single
+ * `/billing/dashboard/super-admin` response plus the Plan catalog, with no
+ * per-organization fan-out. See billingService.getOverview for why this exists
+ * as a separate shape rather than a subset of BillingSnapshot.
+ */
+export interface BillingOverview {
+  mrr: number;
+  overduePayments: number;
+  trend: RevenuePoint[];
+  /** `revenue` is always 0 here -- per-tier MRR needs the per-org fan-out this
+   * shape exists to avoid. Only `count` is meaningful. */
+  planDistribution: PlanDistribution[];
+}
+
 export interface BillingSnapshot {
   kpis: BillingKpis;
   subscriptions: Subscription[];
