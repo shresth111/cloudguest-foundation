@@ -175,7 +175,9 @@ function PortalLoading() {
     // appeared -- a worse outcome than today for the genuinely-connected
     // case, and it still would not have opened any gate.
     if (hasSession && !hotspotLoginUrl) {
-      window.location.assign(buildSessionUrl(organizationId, locationId, routerId, language));
+      window.location.assign(
+        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
+      );
       return;
     }
 
