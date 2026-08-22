@@ -3,6 +3,27 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 export const TOKEN_STORAGE_KEY = "cloudguest_token";
 export const REFRESH_TOKEN_STORAGE_KEY = "cloudguest_refresh_token";
 export const USER_STORAGE_KEY = "cloudguest_user";
+// Defined here rather than in AuthContext (which is where they used to
+// live, and still re-exports them) so the request interceptor below can
+// read them without importing AuthContext -- AuthContext imports
+// auth.service.ts, which imports this module, so that would be a cycle.
+export const ROLES_STORAGE_KEY = "cloudguest_roles";
+export const ORGS_STORAGE_KEY = "cloudguest_organizations";
+/** Which organization a multi-org member is currently acting as. There is
+ * no org-picker UI yet -- this exists so that when one is built it has a
+ * single place to write to, and so the value survives a reload. Ignored
+ * unless it names an org the session is actually a member of. */
+export const ACTIVE_ORG_STORAGE_KEY = "cg.activeOrgId";
+
+/** Every tenant-scoped endpoint resolves its organization from this
+ * header. See `attachOrganizationHeader` below for why it is a default
+ * rather than something each call site remembers. */
+export const ORG_HEADER = "X-Organization-Id";
+
+/** The sentinel access token a demo session stores (see AuthContext's
+ * `login`). Demo sessions never talk to the backend, so they must not
+ * have a real org id attached to anything. */
+const DEMO_ACCESS_TOKEN = "demo-access-token";
 
 export interface AppError {
   status: number | null;
@@ -145,10 +166,106 @@ function safeLocalRemove(key: string): void {
   }
 }
 
+/** `JSON.parse` on a value that may be absent, truncated or from an older
+ * schema. Uses safeLocalGet's already-guarded read, so this never throws
+ * inside the request interceptor. */
+function safeLocalGetJson<T>(key: string): T | null {
+  const raw = safeLocalGet(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True for a master-console operator, using the same predicate the
+ * `/master` route guard, `authGuards.ts` and `roles.ts` already use:
+ * a role assignment held at GLOBAL scope.
+ *
+ * This is the reason the org header below is a *conditional* default and
+ * not an unconditional one. On the backend, the absence of
+ * `X-Organization-Id` does not mean "no scope" -- it means PLATFORM-WIDE
+ * scope, and a good deal of the master console depends on exactly that:
+ * `master.health.tsx`, `master.audit.tsx`, `master.operators.tsx`,
+ * `master.settings.tsx`, `queue.service.ts` and
+ * `router-provisioning.service.ts`'s enrollment queue all deliberately
+ * send no org header so they see every organization at once. Attaching one
+ * for those users would silently narrow the master console to a single
+ * tenant -- a worse bug than the one this fixes. Operators already hold
+ * their permissions at global scope, so they need nothing added.
+ */
+function hasGlobalScopeRole(): boolean {
+  const roles = safeLocalGetJson<{ scopeType?: string }[]>(ROLES_STORAGE_KEY);
+  return Array.isArray(roles) && roles.some((r) => r?.scopeType === "global");
+}
+
+/**
+ * The organization the current session should be scoped to, read from the
+ * membership list `AuthContext.persistSession` already stores at login --
+ * no extra round trip, and available synchronously, which a request
+ * interceptor needs.
+ *
+ * Multi-org members: prefer an explicitly chosen org, but only if the
+ * session is still a member of it (a stale id left over from a previous
+ * account would otherwise 403 every request). Otherwise fall back to the
+ * first membership, which is the same organization `WorkspaceProvider`
+ * already treats as active (`organizations[0]`), so the header agrees with
+ * what the workspace UI is showing rather than contradicting it.
+ */
+export function resolveActiveOrganizationId(): string | null {
+  const memberships = safeLocalGetJson<{ organizationId?: string }[]>(ORGS_STORAGE_KEY);
+  if (!Array.isArray(memberships)) return null;
+  const ids = memberships
+    .map((m) => m?.organizationId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  if (ids.length === 0) return null;
+  const chosen = safeLocalGet(ACTIVE_ORG_STORAGE_KEY);
+  return chosen && ids.includes(chosen) ? chosen : ids[0];
+}
+
+/** Records which organization a multi-org member is acting as. Nothing
+ * calls this yet -- it is the write half of `resolveActiveOrganizationId`,
+ * kept next to it so a future org picker does not re-invent the key. */
+export function setActiveOrganizationId(organizationId: string): void {
+  safeLocalSet(ACTIVE_ORG_STORAGE_KEY, organizationId);
+}
+
+/**
+ * Sends `X-Organization-Id` by default for organization-scoped sessions.
+ *
+ * Without it the backend resolves those callers at GLOBAL scope, where an
+ * org member holds nothing, so every tenant endpoint answers
+ * `Permission denied: '<perm>' is required at global scope` -- verified
+ * live against `/guests`, `/guest-sessions`, `/connected-devices`,
+ * `/voucher-batches`, `/campaigns`, `/audit/entries` and
+ * `/admin-logs/*`, each of which 403s bare and 200s with the header.
+ *
+ * Several services (customer, portal, vlan, port-forwarding, isp, ...)
+ * already thread this header by hand on some of their calls. That
+ * convention demonstrably does not hold: `/campaigns`, `/voucher-batches`
+ * and `/guest-analytics/summary` in customer.service.ts were each missing
+ * it and 403ing in production. A default closes the whole class instead of
+ * one call at a time. Explicit still wins -- a call site that sets the
+ * header (including the master console fanning out across organizations)
+ * keeps whatever it set.
+ */
+function attachOrganizationHeader(config: InternalAxiosRequestConfig, token: string): void {
+  if (token === DEMO_ACCESS_TOKEN) return;
+  // Case-insensitive on AxiosHeaders, so a call site using the
+  // `X-Organization-ID` spelling is still respected rather than doubled.
+  if (config.headers.get?.(ORG_HEADER)) return;
+  if (hasGlobalScopeRole()) return;
+  const organizationId = resolveActiveOrganizationId();
+  if (organizationId) config.headers.set?.(ORG_HEADER, organizationId);
+}
+
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = safeLocalGet(TOKEN_STORAGE_KEY);
   if (token) {
     config.headers.set?.("Authorization", `Bearer ${token}`);
+    attachOrganizationHeader(config, token);
   }
   return config;
 });

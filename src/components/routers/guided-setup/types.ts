@@ -10,14 +10,55 @@
  * content files are already being written against exactly these shapes.
  */
 
+import type { OutputAssertion } from "./analyse";
+
 /** One concrete repair for a failed check: when it applies, optionally a
- * command to run, and a plain-language note explaining what it does. */
-export type Fix = { when: string; command?: string; note: string };
+ * command to run, and a plain-language note explaining what it does.
+ *
+ * `when` is load-bearing beyond its display text: an assertion rule that
+ * selects this fix carries a `fix` string that must match it character for
+ * character, and `scripts/test-output-analyser.mjs` fails the build if one
+ * ever drifts from the other. */
+export type Fix = {
+  /** ALSO A JOIN KEY, not just display text. `analyse.ts`'s `fixIndexFor`
+   * selects which repair to highlight with `failFix.findIndex(f => f.when
+   * === rule.fix)`, an exact string comparison against the static
+   * Hinglish `fix` on the matching `VerdictRule`. So `when` must be
+   * byte-identical to that rule in every locale, and is a never-translate
+   * field: translating it would silently return `fixIndex: null` and drop
+   * the analyser back to "try whichever of these matches" in English and
+   * Hindi, with nothing anywhere reporting it. Translate `whenLabel`. */
+  when: string;
+  command?: string;
+  note: string;
+  /** Display-only override for `when`, supplied by the active locale (see
+   * `content-i18n.ts`). Never read by the analyser. Absent = render
+   * `when`, which is what the Hinglish register does. */
+  whenLabel?: string;
+};
 
 /** One thing the operator verifies on the device after pasting. `expect`
  * is what a healthy device prints back; `failFix` are the repairs offered
- * inline the moment he answers "Nahi". */
-export type Check = { id: string; label: string; command: string; expect: string; failFix?: Fix[] };
+ * inline the moment the pasted output scores FAIL.
+ *
+ * `assert` -- how the app reads the pasted terminal output and decides the
+ * verdict itself, instead of asking the operator whether it worked. See
+ * `analyse.ts`. Optional, and today no content file sets it: the shipping
+ * specs live in `assertions.ts`, keyed by `Check.id`, so that
+ * `phases.content.ts` did not have to be touched. A content author may
+ * inline one here at any time and it takes precedence -- `CheckRow`
+ * resolves `check.assert ?? ASSERTIONS[check.id]`.
+ *
+ * A check with no assertion from either source is human-confirmed only,
+ * and the UI says so rather than implying the app verified anything. */
+export type Check = {
+  id: string;
+  label: string;
+  command: string;
+  expect: string;
+  failFix?: Fix[];
+  assert?: OutputAssertion;
+};
 
 /** One screen of the guided flow. Exactly one phase is visible at a time.
  *

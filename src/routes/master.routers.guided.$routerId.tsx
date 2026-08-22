@@ -1,10 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { GuidedSetup } from "@/components/routers/guided-setup/GuidedSetup";
+import { GuidedDevanagariFont } from "@/components/routers/guided-setup/GuidedDevanagariFont";
 import { MasterShell } from "@/components/master/MasterShell";
 import { MButton, MPageShell } from "@/components/master/MasterKit";
+import masterI18n from "@/lib/master-i18n";
 import { useRouter } from "@/hooks/useRouters";
 import { isDemo } from "@/services/customer.service";
+import type { RouterDevice } from "@/types/router";
 
 /**
  * Guided Setup for one router -- the "no thinking required" provisioning
@@ -23,23 +28,58 @@ export const Route = createFileRoute("/master/routers/guided/$routerId")({
 
 function GuidedSetupRoute() {
   const { routerId } = Route.useParams();
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const navigate = useNavigate();
   const demo = isDemo();
   const { data: router, isLoading, isError } = useRouter(routerId);
 
   const backToFleet = () => navigate({ to: "/master/routers" });
 
+  // `GuidedDevanagariFont` is rendered once here, above every branch,
+  // rather than inside `GuidedSetup` -- the demo, loading and not-found
+  // screens are translated too, so they need the face as much as the
+  // wizard does. It emits only a <style> element, so its position in the
+  // tree is irrelevant to layout.
+  return (
+    <>
+      <GuidedDevanagariFont />
+      <GuidedSetupBody
+        demo={demo}
+        isLoading={isLoading}
+        isError={isError}
+        router={router}
+        backToFleet={backToFleet}
+        t={t}
+      />
+    </>
+  );
+}
+
+function GuidedSetupBody({
+  demo,
+  isLoading,
+  isError,
+  router,
+  backToFleet,
+  t,
+}: {
+  demo: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  router: RouterDevice | null | undefined;
+  backToFleet: () => void;
+  t: TFunction<"guided">;
+}) {
   if (demo) {
     return (
-      <MasterShell title="Guided Setup">
+      <MasterShell title={t("route.title")}>
         <MPageShell>
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            Guided Setup demo session me available nahi hai — yeh ek asli router ke against chalta
-            hai. Platform operator account se sign in karo.
+          <div className="guided-setup-surface rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+            {t("route.demo")}
           </div>
           <div className="mt-4 flex justify-center">
             <MButton variant="outline" onClick={backToFleet}>
-              Back to Router Fleet
+              {t("route.backToFleet")}
             </MButton>
           </div>
         </MPageShell>
@@ -49,9 +89,9 @@ function GuidedSetupRoute() {
 
   if (isLoading) {
     return (
-      <MasterShell title="Guided Setup">
-        <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Router load ho raha hai…
+      <MasterShell title={t("route.title")}>
+        <div className="guided-setup-surface flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("route.loading")}
         </div>
       </MasterShell>
     );
@@ -59,14 +99,14 @@ function GuidedSetupRoute() {
 
   if (isError || !router) {
     return (
-      <MasterShell title="Guided Setup">
+      <MasterShell title={t("route.title")}>
         <MPageShell>
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            Router nahi mila, ya tumhare paas iska access nahi hai.
+          <div className="guided-setup-surface rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+            {t("route.notFound")}
           </div>
           <div className="mt-4 flex justify-center">
             <MButton variant="outline" onClick={backToFleet}>
-              Back to Router Fleet
+              {t("route.backToFleet")}
             </MButton>
           </div>
         </MPageShell>

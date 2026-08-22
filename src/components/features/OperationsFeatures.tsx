@@ -3882,7 +3882,17 @@ interface MacAuthEntry {
 }
 
 export function MacAuthView({ locationId }: { locationId?: string }) {
-  const { data, isLoading } = useCustomerFeatureData("mac-auth", locationId ?? "");
+  // `isError`/`refetch` are read because customerService.getFeatureData no
+  // longer resolves with demo fixtures when the fetch fails (see its own
+  // docstring). Without an error branch below, a failed load would fall
+  // through to the "No MAC addresses authorized" empty state -- which
+  // asserts this location has no trusted devices, a claim we cannot make
+  // when we never got an answer. For an access-control list that is the
+  // one thing worth being careful about.
+  const { data, isLoading, isError, refetch } = useCustomerFeatureData(
+    "mac-auth",
+    locationId ?? "",
+  );
   const [entries, setEntries] = useState<MacAuthEntry[]>([]);
   const [synced, setSynced] = useState(false);
   useEffect(() => {
@@ -4023,6 +4033,13 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
             <div className="p-4">
               <LoadingSkeleton rows={4} />
             </div>
+          ) : isError && entries.length === 0 ? (
+            <EmptyState
+              icon={AlertTriangle}
+              title="Couldn't load trusted devices"
+              description="This list is not available right now, so we can't show which devices are authorized. Nothing has changed — try again in a moment."
+              action={{ label: "Try again", onClick: () => void refetch() }}
+            />
           ) : entries.length === 0 ? (
             <EmptyState
               icon={Shield}

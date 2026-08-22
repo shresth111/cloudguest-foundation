@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Check, ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { copyToClipboard } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import masterI18n from "@/lib/master-i18n";
 
 /**
  * One pasteable block: a label, the script itself, and a deliberately
@@ -26,16 +28,17 @@ export function CopyBlock({
   index: number;
   total: number;
 }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const [copied, setCopied] = useState(false);
 
   async function onCopy() {
     const ok = await copyToClipboard(script);
     if (!ok) {
-      toast.error("Copy nahi hua -- neeche se manually select karke copy karo.");
+      toast.error(t("copy.failed"));
       return;
     }
     setCopied(true);
-    toast.success("Copy ho gaya -- ab WinBox Terminal me paste karo");
+    toast.success(t("copy.done"));
     window.setTimeout(() => setCopied(false), 2500);
   }
 
@@ -61,7 +64,7 @@ export function CopyBlock({
           )}
         >
           {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-          {copied ? "Copy ho gaya" : "Copy karo"}
+          {copied ? t("copy.copied") : t("copy.copy")}
         </button>
       </div>
       <pre className="max-h-60 overflow-auto px-3 py-2.5 font-mono text-[11px] leading-relaxed text-foreground">

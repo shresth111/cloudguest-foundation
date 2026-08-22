@@ -1,5 +1,7 @@
 import { ExternalLink, KeyRound } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Checkbox } from "@/components/ui/checkbox";
+import masterI18n from "@/lib/master-i18n";
 import { RegenerateGuard } from "./RegenerateGuard";
 import { GENERATED_CHUNKS } from "./generated-chunks";
 
@@ -28,6 +30,7 @@ export function GeneratedChunkCallout({
   onSecretsAck: (v: boolean) => void;
   onGoToRecovery: () => void;
 }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const spec = GENERATED_CHUNKS[phaseId];
   if (!spec) return null;
 
@@ -40,14 +43,10 @@ export function GeneratedChunkCallout({
     <div className="space-y-3 rounded-xl border-2 border-primary/50 bg-primary/5 p-3">
       <div>
         <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <KeyRound className="h-4 w-4 text-primary" /> Pehle: Master console se yeh chunk paste
-          karo
+          <KeyRound className="h-4 w-4 text-primary" /> {t("generated.heading")}
         </p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Yeh hisse <strong>is router ke apne</strong> hain (IDs, keys, secrets) -- inhe yahan nahi
-          dikhaya ja sakta. Master console kholo, script generate karo, aur neeche wale naam ke
-          chunk copy karke router pe paste karo. <strong>Uske baad</strong> is page ke universal
-          blocks chalao.
+          <Trans i18n={masterI18n} t={t} i18nKey="generated.body" components={{ b: <strong /> }} />
         </p>
       </div>
 
@@ -68,18 +67,19 @@ export function GeneratedChunkCallout({
         rel="noreferrer"
         className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
       >
-        <ExternalLink className="h-4 w-4" /> Master console kholo (nayi tab me)
+        <ExternalLink className="h-4 w-4" /> {t("generated.openConsole")}
       </a>
 
       {spec.carriesSecrets ? (
         <div className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/5 p-2.5">
-          <p className="text-xs font-semibold text-foreground">
-            Yeh secrets sirf ek baar dikhte hain
-          </p>
+          <p className="text-xs font-semibold text-foreground">{t("generated.secretsOnce")}</p>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            WireGuard key, RADIUS secret aur API password dobara nahi mil sakte. Master console me{" "}
-            <strong className="text-foreground">"Download .rsc"</strong> hi tumhari asli copy hai --
-            usse pehle tab band mat karna.
+            <Trans
+              i18n={masterI18n}
+              t={t}
+              i18nKey="generated.secretsBody"
+              components={{ b: <strong className="text-foreground" /> }}
+            />
           </p>
           {/* Closes the recovery loop. The API password is now reused by
            * default (see RouterSetupScriptAdvanced's mint block), which is
@@ -89,11 +89,12 @@ export function GeneratedChunkCallout({
            * user would never come back. The one place he needs to know
            * that is here, at the moment he is sent to the generator. */}
           <p className="rounded-lg border border-border bg-background px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
-            Step 9 ki safai ke baad aa rahe ho? Master console me{" "}
-            <strong className="text-foreground">"Rotate the RouterOS API password"</strong> wala box
-            bhi tick karna -- warna "API Access" chunk script me aayega hi nahi aur router ka
-            <code> cloudguest-api</code> user wapas nahi banega. Normal setup me is box ko haath mat
-            lagana.
+            <Trans
+              i18n={masterI18n}
+              t={t}
+              i18nKey="generated.step9Note"
+              components={{ b: <strong className="text-foreground" />, c: <code /> }}
+            />
           </p>
           <label className="flex cursor-pointer items-start gap-2 pt-0.5">
             <Checkbox
@@ -102,16 +103,23 @@ export function GeneratedChunkCallout({
               className="mt-0.5"
             />
             <span className="text-xs text-foreground">
-              <strong>Mere paas copy hai</strong> -- .rsc download kar liya ya safe jagah save kar
-              liya.
+              <Trans
+                i18n={masterI18n}
+                t={t}
+                i18nKey="generated.ack"
+                components={{ b: <strong /> }}
+              />
             </span>
           </label>
         </div>
       ) : (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Master console me <strong className="text-foreground">"Download .rsc"</strong> dabakar
-          poori script ki ek copy rakh lo -- usme aage ke phases ke secrets bhi hain, jo dobara nahi
-          dikhenge.
+          <Trans
+            i18n={masterI18n}
+            t={t}
+            i18nKey="generated.nonSecretNote"
+            components={{ b: <strong className="text-foreground" /> }}
+          />
         </p>
       )}
 

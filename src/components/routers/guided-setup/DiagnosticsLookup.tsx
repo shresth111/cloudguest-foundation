@@ -1,19 +1,18 @@
 import { useMemo, useState } from "react";
 import { LifeBuoy, Search, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import masterI18n from "@/lib/master-i18n";
 import { cn } from "@/lib/utils";
 import { CopyBlock } from "./CopyBlock";
 import type { Symptom } from "./types";
 
-const SURFACES = [
-  { key: "all", label: "Sab" },
-  { key: "router", label: "Router" },
-  { key: "portal", label: "Portal" },
-  { key: "phone", label: "Phone" },
-  { key: "dashboard", label: "Dashboard" },
-] as const;
+/** Filter keys only. The visible labels come from the `diag.surface.*`
+ * keys, so this list stays a set of stable identifiers that a translation
+ * cannot accidentally rename out from under the filter logic. */
+const SURFACES = ["all", "router", "portal", "phone", "dashboard"] as const;
 
-type SurfaceKey = (typeof SURFACES)[number]["key"];
+type SurfaceKey = (typeof SURFACES)[number];
 
 /**
  * "Aisa dikh raha hai -- iska matlab kya hai" lookup.
@@ -38,6 +37,7 @@ export function DiagnosticsLookup({
   seed?: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const [q, setQ] = useState(seed ?? "");
   const [surface, setSurface] = useState<SurfaceKey>("all");
 
@@ -45,7 +45,11 @@ export function DiagnosticsLookup({
     const terms = q
       .toLowerCase()
       .split(/\s+/)
-      .map((t) => t.replace(/[^a-z0-9]/g, ""))
+      // Unicode letter/number classes, not `[a-z0-9]`: the same search box
+      // now receives Devanagari seeds (a failed check's own translated
+      // label) and Devanagari typing. Stripping to ASCII emptied every
+      // term, which silently turned ranking off instead of ranking badly.
+      .map((term) => term.replace(/[^\p{L}\p{N}]/gu, ""))
       .filter((t) => t.length > 2);
     return symptoms
       .filter((s) => surface === "all" || s.surface === surface)
@@ -66,14 +70,14 @@ export function DiagnosticsLookup({
     <div className="rounded-xl border border-primary/40 bg-card">
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
         <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <LifeBuoy className="h-4 w-4 text-primary" /> Kya dikh raha hai?
+          <LifeBuoy className="h-4 w-4 text-primary" /> {t("diag.title")}
         </p>
         <button
           type="button"
           onClick={onClose}
           className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
         >
-          <X className="h-3.5 w-3.5" /> Band karo
+          <X className="h-3.5 w-3.5" /> {t("diag.close")}
         </button>
       </div>
 
@@ -83,7 +87,7 @@ export function DiagnosticsLookup({
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Jo screen pe dikha, wahi likho -- jaise 'spinner atka' ya 'certificate warning'"
+            placeholder={t("diag.placeholder")}
             className="pl-8 text-xs"
           />
         </div>
@@ -91,28 +95,28 @@ export function DiagnosticsLookup({
         <div className="flex flex-wrap gap-1.5">
           {SURFACES.map((s) => (
             <button
-              key={s.key}
+              key={s}
               type="button"
-              onClick={() => setSurface(s.key)}
+              onClick={() => setSurface(s)}
               className={cn(
                 "min-h-8 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors",
-                surface === s.key
+                surface === s
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              {s.label}
+              {t(`diag.surface.${s}`)}
             </button>
           ))}
         </div>
 
         {symptoms.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            Diagnostics list abhi khaali hai.
+            {t("diag.empty")}
           </p>
         ) : results.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            Is filter me kuch nahi mila -- "Sab" pe click karke dobara dekho.
+            {t("diag.noMatch", { all: t("diag.surface.all") })}
           </p>
         ) : (
           <div className="space-y-2">
@@ -127,6 +131,7 @@ export function DiagnosticsLookup({
 }
 
 function SymptomCard({ symptom }: { symptom: Symptom }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -137,29 +142,29 @@ function SymptomCard({ symptom }: { symptom: Symptom }) {
       >
         <span className="text-xs font-medium text-foreground">{symptom.seen}</span>
         <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {symptom.surface}
+          {t(`diag.surface.${symptom.surface}`)}
         </span>
       </button>
       {open && (
         <div className="space-y-2.5 border-t border-border px-3 py-2.5">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Sabse pehle yeh dekho
+              {t("diag.probeFirst")}
             </p>
             <p className="mt-0.5 text-xs text-foreground">{symptom.probe}</p>
           </div>
           {symptom.causes.map((c, i) => (
             <div key={i} className="rounded-lg border border-border bg-muted/20 p-2.5">
               <p className="text-xs font-medium text-foreground">
-                <span className="text-primary">Agar:</span> {c.tell}
+                <span className="text-primary">{t("diag.if")}</span> {c.tell}
               </p>
               <p className="mt-1 text-xs text-foreground">
-                <span className="text-muted-foreground">Wajah:</span> {c.cause}
+                <span className="text-muted-foreground">{t("diag.because")}</span> {c.cause}
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{c.note}</p>
               {c.fix && (
                 <div className="mt-2">
-                  <CopyBlock label="Fix" script={c.fix} index={0} total={1} />
+                  <CopyBlock label={t("diag.fix")} script={c.fix} index={0} total={1} />
                 </div>
               )}
             </div>
