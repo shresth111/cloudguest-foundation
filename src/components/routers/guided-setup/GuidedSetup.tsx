@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, PartyPopper, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { MasterShell } from "@/components/master/MasterShell";
 import { MButton, MPageShell } from "@/components/master/MasterKit";
+import masterI18n from "@/lib/master-i18n";
 import { cn } from "@/lib/utils";
 import type { RouterDevice } from "@/types/router";
+import type { Phase } from "./types";
 import { PHASES } from "./phases.content";
 import { SYMPTOMS } from "./diagnostics.content";
+import { useGuidedContent } from "./content-i18n";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { PhaseView } from "./PhaseView";
 import { DiagnosticsLookup } from "./DiagnosticsLookup";
 import {
@@ -42,6 +47,7 @@ const SECRETS_PHASE_ID = "tunnel";
  * he is standing at the rack.
  */
 export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: () => void }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const [progress, setProgress] = useState<GuidedProgress>(() => emptyProgress());
   const [hydrated, setHydrated] = useState(false);
   const [diag, setDiag] = useState<{ open: boolean; seed: string }>({ open: false, seed: "" });
@@ -55,7 +61,12 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
     setHydrated(true);
   }, [router.id]);
 
-  const phases = PHASES;
+  // The ONLY thing a language switch changes. `useGuidedContent` layers
+  // the active locale's prose overrides onto the content files and leaves
+  // every command, `expect` and script byte-identical; `progress` is not
+  // read, written or invalidated by it, and no component below is keyed on
+  // the language, so nothing unmounts and nothing is lost.
+  const { phases, symptoms } = useGuidedContent(PHASES, SYMPTOMS);
   const currentIndex = useMemo(() => {
     const i = phases.findIndex((p) => p.id === progress.currentPhaseId);
     return i >= 0 ? i : 0;
@@ -102,17 +113,11 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
   }
 
   function onReset() {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Is router ka guided progress mit jayega (jo answers diye the woh sab). Router pe kuch nahi badlega. Reset karein?",
-      )
-    )
-      return;
+    if (typeof window !== "undefined" && !window.confirm(t("shell.resetConfirm"))) return;
     clearProgress(router.id);
     setProgress(emptyProgress());
     setFinished(false);
-    toast.success("Progress reset ho gaya");
+    toast.success(t("shell.resetDone"));
   }
 
   const secretsAck = progress.secretsSafePhaseIds.includes(SECRETS_PHASE_ID);
@@ -129,13 +134,22 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
     if (target) goToPhaseId(target.id);
   }
 
-  const title = `Guided Setup — ${router.name}`;
+  const title = t("shell.title", { router: router.name });
+  // The recovery phase is referred to BY NAME in two places on the
+  // finished card, and its name is content -- so it has to come from the
+  // localized phase, never from a second copy of the string in the chrome
+  // bundle. `shell.recoveryFallback` covers only the case where the
+  // content file has no `recovery` phase at all.
+  const recoveryTitle =
+    phases.find((p) => p.id === RECOVERY_PHASE_ID)?.title ?? t("shell.recoveryFallback");
 
   if (!hydrated) {
     return (
       <MasterShell title={title}>
         <MPageShell>
-          <div className="p-10 text-center text-sm text-muted-foreground">Khul raha hai…</div>
+          <div className="guided-setup-surface p-10 text-center text-sm text-muted-foreground">
+            {t("shell.opening")}
+          </div>
         </MPageShell>
       </MasterShell>
     );
@@ -145,12 +159,12 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
     return (
       <MasterShell title={title}>
         <MPageShell>
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            Abhi koi setup phase load nahi hua.
+          <div className="guided-setup-surface rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+            {t("shell.noPhases")}
           </div>
           <div className="mt-4 flex justify-center">
             <MButton variant="outline" onClick={onBack}>
-              <ArrowLeft className="h-4 w-4" /> Router Fleet
+              <ArrowLeft className="h-4 w-4" /> {t("shell.fleetLong")}
             </MButton>
           </div>
         </MPageShell>
@@ -161,7 +175,7 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
   return (
     <MasterShell title={title}>
       <MPageShell>
-        <div className="mx-auto w-full max-w-3xl space-y-4">
+        <div className="guided-setup-surface mx-auto w-full max-w-3xl space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-foreground">{router.name}</p>
@@ -169,12 +183,13 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
                 {router.model} · {router.locationName} · {router.status}
               </p>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <LanguageSwitch />
               <MButton variant="ghost" onClick={onReset}>
-                <RotateCcw className="h-4 w-4" /> Reset
+                <RotateCcw className="h-4 w-4" /> {t("shell.reset")}
               </MButton>
               <MButton variant="outline" onClick={onBack}>
-                <ArrowLeft className="h-4 w-4" /> Fleet
+                <ArrowLeft className="h-4 w-4" /> {t("shell.fleetShort")}
               </MButton>
             </div>
           </div>
@@ -188,6 +203,7 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
 
           {finished ? (
             <FinishedCard
+              recoveryTitle={recoveryTitle}
               onRestart={() => goToPhaseId(phases[0]!.id)}
               onRecovery={goToRecovery}
               onBack={onBack}
@@ -228,7 +244,7 @@ export function GuidedSetup({ router, onBack }: { router: RouterDevice; onBack: 
           {diag.open && (
             <div id="guided-diagnostics">
               <DiagnosticsLookup
-                symptoms={SYMPTOMS}
+                symptoms={symptoms}
                 seed={diag.seed}
                 onClose={() => setDiag({ open: false, seed: "" })}
               />
@@ -252,7 +268,7 @@ function PhaseRail({
   progress,
   onPick,
 }: {
-  phases: typeof PHASES;
+  phases: Phase[];
   currentId: string;
   progress: GuidedProgress;
   onPick: (id: string) => void;
@@ -301,31 +317,33 @@ function PhaseRail({
 }
 
 function FinishedCard({
+  recoveryTitle,
   onRestart,
   onRecovery,
   onBack,
 }: {
+  recoveryTitle: string;
   onRestart: () => void;
   onRecovery: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   return (
     <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-6 text-center">
       <PartyPopper className="mx-auto h-8 w-8 text-emerald-600" />
-      <p className="mt-2 text-lg font-semibold text-foreground">Router taiyar hai</p>
+      <p className="mt-2 text-lg font-semibold text-foreground">{t("shell.finishedTitle")}</p>
       <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
-        Saare phases ho gaye. Guest ab is router pe sign in karke internet chala sakte hain. Kuch
-        baad me toota to seedha "Kuch galat ho gaya" phase kholo.
+        {t("shell.finishedBody", { recovery: recoveryTitle })}
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <MButton variant="primary" onClick={onBack}>
-          Router Fleet
+          {t("shell.fleetLong")}
         </MButton>
         <MButton variant="outline" onClick={onRecovery}>
-          Kuch galat ho gaya
+          {recoveryTitle}
         </MButton>
         <MButton variant="ghost" onClick={onRestart}>
-          Shuru se dekho
+          {t("shell.finishedRestart")}
         </MButton>
       </div>
     </div>

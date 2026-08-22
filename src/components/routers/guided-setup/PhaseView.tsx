@@ -1,5 +1,7 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Download, LifeBuoy, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
+import masterI18n from "@/lib/master-i18n";
 import { cn } from "@/lib/utils";
 import { CopyBlock } from "./CopyBlock";
 import { CheckRow } from "./CheckRow";
@@ -63,6 +65,7 @@ export function PhaseView({
   isFirst: boolean;
   isLast: boolean;
 }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const allHaan = phaseAllHaan(phase, answers);
   const answered = phaseAnswered(phase, answers);
   const needsGenerated = phaseNeedsGeneratedChunk(phase.id);
@@ -73,7 +76,7 @@ export function PhaseView({
 
   function onDownload() {
     downloadRsc(rscFilename(routerName, phase), buildPhaseRsc(phase, routerName));
-    toast.success("Is phase ke commands ka .rsc download ho gaya");
+    toast.success(t("phase.rscDownloaded"));
   }
 
   return (
@@ -85,11 +88,11 @@ export function PhaseView({
           </span>
           <h2 className="text-lg font-semibold tracking-tight text-foreground">{phase.title}</h2>
           <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-            <Clock className="h-3 w-3" /> ~{phase.estMinutes} min
+            <Clock className="h-3 w-3" /> {t("phase.estMinutes", { n: phase.estMinutes })}
           </span>
           {phase.oncePerRouter && (
             <span className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-500">
-              Sirf ek baar
+              {t("phase.onceOnly")}
             </span>
           )}
         </div>
@@ -113,16 +116,21 @@ export function PhaseView({
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {needsGenerated ? "Phir yeh blocks chalao" : "Router pe paste karo"}
+              {needsGenerated ? t("phase.thenRunBlocks") : t("phase.pasteOnRouter")}
             </p>
             <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
-              har router pe same · dobara chala sakte ho
+              {t("phase.reRunnable")}
             </span>
           </div>
 
           {phase.paste.map((p, i) => (
             <CopyBlock
-              key={`${p.label}-${i}`}
+              // Keyed on phase id + position, NOT on the label: the label
+              // is translated, so keying on it would remount every copy
+              // block on a language switch. Position alone would be worse
+              // -- it would let block 1 of one phase reuse block 1 of the
+              // next and inherit its "copied" tick.
+              key={`${phase.id}-${i}`}
               label={p.label}
               script={p.script}
               index={i}
@@ -132,15 +140,19 @@ export function PhaseView({
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Copy ho gaya matlab router pe chal gaya <strong>nahi</strong> hota. Neeche wale checks
-              hi asli saboot hain.
+              <Trans
+                i18n={masterI18n}
+                t={t}
+                i18nKey="phase.copyProvesNothing"
+                components={{ b: <strong /> }}
+              />
             </p>
             <button
               type="button"
               onClick={onDownload}
               className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
             >
-              <Download className="h-3 w-3" /> In commands ka .rsc
+              <Download className="h-3 w-3" /> {t("phase.downloadRsc")}
             </button>
           </div>
         </div>
@@ -150,10 +162,10 @@ export function PhaseView({
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Ab check karo
+              {t("phase.nowCheck")}
             </p>
             <span className="text-[11px] text-muted-foreground">
-              {answered}/{phase.checks.length} answer diye
+              {t("phase.answeredCount", { answered, total: phase.checks.length })}
             </span>
           </div>
           {phase.checks.map((c) => (
@@ -181,12 +193,11 @@ export function PhaseView({
           <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
             {allHaan ? (
               <>
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Sab clear -- aage badh sakte
-                ho
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {t("phase.gateOpen")}
               </>
             ) : (
               <>
-                <Lock className="h-4 w-4 text-destructive" /> Yahan rukna zaroori hai
+                <Lock className="h-4 w-4 text-destructive" /> {t("phase.gateClosed")}
               </>
             )}
           </p>
@@ -199,7 +210,7 @@ export function PhaseView({
         onClick={() => onOpenDiagnostics("")}
         className="inline-flex min-h-9 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
       >
-        <LifeBuoy className="h-3.5 w-3.5" /> Kuch aur ajeeb dikh raha hai?
+        <LifeBuoy className="h-3.5 w-3.5" /> {t("phase.somethingElse")}
       </button>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
@@ -209,7 +220,7 @@ export function PhaseView({
           disabled={isFirst}
           className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border bg-background px-3.5 py-2.5 text-xs font-medium text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ArrowLeft className="h-4 w-4" /> Peeche
+          <ArrowLeft className="h-4 w-4" /> {t("phase.back")}
         </button>
         <button
           type="button"
@@ -217,15 +228,22 @@ export function PhaseView({
           disabled={!canAdvance}
           className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
         >
-          {isLast ? "Setup poora karo" : "Aage badho"} <ArrowRight className="h-4 w-4" />
+          {isLast ? t("phase.finish") : t("phase.next")} <ArrowRight className="h-4 w-4" />
         </button>
         {gateBlocked && (
           <span className="text-[11px] text-destructive">
-            Har check ka jawab "Haan" hona chahiye.
+            {/* The verdict names are interpolated from the chip labels
+                CheckRow renders, never written out again here -- otherwise
+                translating a chip would leave this sentence naming a
+                verdict that no longer appears on any check. */}
+            {t("phase.gateHint", {
+              pass: t("check.verdict.PASS"),
+              warning: t("check.verdict.WARNING"),
+            })}
           </span>
         )}
         {!gateBlocked && secretsBlocked && (
-          <span className="text-[11px] text-amber-600">Pehle "mere paas copy hai" tick karo.</span>
+          <span className="text-[11px] text-amber-600">{t("phase.secretsHint")}</span>
         )}
       </div>
     </div>

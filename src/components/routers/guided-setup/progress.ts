@@ -17,11 +17,33 @@
  * nuisance, throwing on the render path is a broken page.
  */
 import type { Phase } from "./types";
+import type { Verdict } from "./analyse";
 
-export type CheckAnswer = "haan" | "nahi";
+/**
+ * What a check resolved to. Was `"haan" | "nahi"` -- the operator's own
+ * yes/no. It is now the analyser's verdict over the terminal output he
+ * pasted, because self-reporting is what this product kept getting burned
+ * by.
+ *
+ * PASS / WARNING advance a `stopGate`. FAIL, UNKNOWN, INCOMPLETE and
+ * WRONG_OUTPUT do not -- notably UNKNOWN, which is never quietly promoted
+ * to PASS. When the app genuinely cannot decide (the phase-7 phone test,
+ * an output whose flags could not be resolved) the operator may still
+ * confirm by hand; that records PASS and the UI labels it as
+ * self-reported. He is never offered that escape on a FAIL or a
+ * WRONG_OUTPUT, since waving those through would rebuild the exact hole
+ * this change closes.
+ */
+export type CheckAnswer = Verdict;
 
 export interface GuidedProgress {
-  version: 1;
+  /** Bumped 1 -> 2 when `CheckAnswer` stopped being "haan"/"nahi". A
+   * stored v1 blob would deserialise into answers this code reads as
+   * "not one of my verdicts", i.e. neither passed nor failed, which is a
+   * defensible outcome but a confusing one. `loadProgress` discards any
+   * version it does not recognise -- re-answering a few checks is cheap,
+   * acting on a stale "already done" is not. */
+  version: 2;
   /** Phase currently on screen. Null = not started yet. */
   currentPhaseId: string | null;
   /** `${phaseId}:${checkId}` -> answer. Flat so a phase reorder in the
@@ -51,7 +73,7 @@ export const stepNumber = (phase: Phase): number => phase.n + 1;
 
 export function emptyProgress(): GuidedProgress {
   return {
-    version: 1,
+    version: 2,
     currentPhaseId: null,
     answers: {},
     donePhaseIds: [],
@@ -69,7 +91,7 @@ export function loadProgress(routerId: string): GuidedProgress {
     // A stored blob from an older shape is discarded rather than
     // half-trusted -- re-answering a few checks is cheap, acting on a
     // wrong "already done" is not.
-    if (parsed?.version !== 1) return emptyProgress();
+    if (parsed?.version !== 2) return emptyProgress();
     return {
       ...emptyProgress(),
       ...parsed,
@@ -104,17 +126,39 @@ export function clearProgress(routerId: string): void {
   }
 }
 
-/** Every check in this phase answered "Haan". A phase with no checks is
- * trivially satisfied -- a `stopGate` on a check-less phase would
- * otherwise be an unopenable door. */
+/** Verdicts that let a `stopGate` open.
+ *
+ * WARNING is included on purpose: it means the pass condition held and
+ * something worth recording is off anyway (a portal IP that is not the
+ * expected one, a shared-users that is not the fleet value). Blocking on
+ * those would train operators to route around the gate, which costs more
+ * than the warnings are worth. UNKNOWN is excluded on equal purpose -- it
+ * is the verdict for "the app could not tell", and promoting it to a pass
+ * is the single easiest way to rebuild the bug this module exists to
+ * prevent. */
+const SATISFYING: ReadonlySet<CheckAnswer> = new Set<CheckAnswer>(["PASS", "WARNING"]);
+
+/** Every check in this phase resolved to a satisfying verdict. A phase
+ * with no checks is trivially satisfied -- a `stopGate` on a check-less
+ * phase would otherwise be an unopenable door.
+ *
+ * Name kept as-is: `GuidedSetup.tsx` and `PhaseView.tsx` call it and are
+ * out of scope for this change. */
 export function phaseAllHaan(phase: Phase, answers: Record<string, CheckAnswer>): boolean {
-  return phase.checks.every((c) => answers[answerKey(phase.id, c.id)] === "haan");
+  return phase.checks.every((c) => {
+    const a = answers[answerKey(phase.id, c.id)];
+    return a !== undefined && SATISFYING.has(a);
+  });
 }
 
-/** Any check answered "Nahi" -- drives the "is kuch toota hua hai" tone
- * on the phase card without needing every check answered yet. */
+/** Any check that says the ROUTER is broken -- drives the "is kuch toota
+ * hua hai" tone on the phase rail.
+ *
+ * Deliberately only FAIL. WRONG_OUTPUT and INCOMPLETE mean the paste was
+ * wrong, not the router, and colouring the rail red for a mis-paste
+ * teaches operators to ignore red. */
 export function phaseHasNahi(phase: Phase, answers: Record<string, CheckAnswer>): boolean {
-  return phase.checks.some((c) => answers[answerKey(phase.id, c.id)] === "nahi");
+  return phase.checks.some((c) => answers[answerKey(phase.id, c.id)] === "FAIL");
 }
 
 export function phaseAnswered(phase: Phase, answers: Record<string, CheckAnswer>): number {

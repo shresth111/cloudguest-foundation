@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AlertOctagon, ChevronDown, ChevronRight, LifeBuoy } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import masterI18n from "@/lib/master-i18n";
 
 /**
  * The guard in front of pressing "Generate script" a second time.
@@ -41,6 +43,7 @@ export function RegenerateGuard({
   routerName: string;
   onGoToRecovery: () => void;
 }) {
+  const { t } = useTranslation("guided", { i18n: masterI18n });
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const nameMatches = typed.trim() === routerName.trim() && routerName.trim().length > 0;
@@ -53,7 +56,7 @@ export function RegenerateGuard({
         className="inline-flex min-h-9 w-full items-center gap-1.5 rounded-lg border border-dashed border-amber-500/50 bg-amber-500/5 px-3 py-2 text-left text-xs font-medium text-amber-700 hover:bg-amber-500/10 dark:text-amber-500"
       >
         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-        Master console me dobara "Generate" dabana pad raha hai? Pehle yeh padho.
+        {t("regen.trigger")}
       </button>
     );
   }
@@ -66,32 +69,26 @@ export function RegenerateGuard({
         className="inline-flex items-center gap-1.5 text-sm font-bold text-destructive"
       >
         <ChevronDown className="h-4 w-4 shrink-0" />
-        <AlertOctagon className="h-4 w-4 shrink-0" /> Ruko -- dobara Generate router ko chup-chaap
-        maar deta hai
+        <AlertOctagon className="h-4 w-4 shrink-0" /> {t("regen.heading")}
       </button>
 
       <div className="space-y-1.5 text-xs leading-relaxed text-foreground">
         <p>
-          Generate dabate hi server pe <strong>naya WireGuard key aur naya RADIUS secret</strong>{" "}
-          ban jata hai. Router ke paas purana hi rehta hai, kyunki script "agar pehle se hai to
-          haath mat lagao" style me likhi hai.
+          <Trans i18n={masterI18n} t={t} i18nKey="regen.p1" components={{ b: <strong /> }} />
         </p>
         <p>
-          Natija: <strong>tunnel aur guest login dono band</strong>, aur router pe ek bhi error nahi
-          dikhega. <strong>Saare chunks dobara paste karne se bhi theek nahi hoga.</strong> Pehle
-          router se purane secrets hatane padenge.
+          <Trans i18n={masterI18n} t={t} i18nKey="regen.p2" components={{ b: <strong /> }} />
         </p>
       </div>
 
       <div className="rounded-lg border border-border bg-background p-2.5">
         <p className="text-xs font-medium text-foreground">
-          Aage badhne ke liye router ka naam type karo:{" "}
-          <span className="font-mono text-destructive">{routerName}</span>
+          {t("regen.typeName")} <span className="font-mono text-destructive">{routerName}</span>
         </p>
         <Input
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
-          placeholder="Router ka naam bilkul waisa hi likho"
+          placeholder={t("regen.namePlaceholder")}
           autoComplete="off"
           spellCheck={false}
           className="mt-1.5 text-xs"
@@ -104,13 +101,9 @@ export function RegenerateGuard({
         onClick={onGoToRecovery}
         className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-destructive px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        <LifeBuoy className="h-4 w-4" /> Phase 9 (safai) pe le chalo
+        <LifeBuoy className="h-4 w-4" /> {t("regen.goToRecovery")}
       </button>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Phase 9 pehle check karta hai ki secret mismatch hai bhi ya nahi, phir sirf secrets ka reset
-        deta hai -- router ka baaki setup bacha rehta hai. Uske baad hi naya Generate karna, aur us
-        Generate me "Rotate the RouterOS API password" wala box tick karna.
-      </p>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{t("regen.tail")}</p>
     </div>
   );
 }

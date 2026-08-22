@@ -1,0 +1,6 @@
+{
+  "_comment": "Hindi (Devanagari) overrides for phases.content.ts / diagnostics.content.ts. EMPTY ON PURPOSE FOR NOW: the content translation is sequenced after the output-analyser work lands in those two files, so this file ships as the wired-up, verified mechanism and nothing else. Shape (see content-i18n.ts, which is the type-level source of truth): { \"phases\": { \"<phase.id>\": { \"title\", \"why\", \"stopGate\", \"paste\": { \"<index>\": { \"label\" } }, \"checks\": { \"<check.id>\": { \"label\", \"failFix\": { \"<index>\": { \"when\", \"note\" } } } } } }, \"symptoms\": { \"<symptom.id>\": { \"seen\", \"causes\": { \"<index>\": { \"tell\", \"cause\", \"note\" } } } }, \"assertions\": { \"<check.id>\": { \"fallback\", \"rules\": { \"<index>\": { \"why\" } } } } }. There is deliberately NO key for command, expect, assert, script, probe or fix -- those must stay byte-identical in every locale, and the absence of a key is what makes that true rather than a rule someone has to remember. scripts/check-guided-i18n.mjs enforces the rest.",
+  "phases": {},
+  "symptoms": {},
+  "assertions": {}
+}

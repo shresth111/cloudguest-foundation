@@ -11,8 +11,13 @@
     "lint": "eslint .",
     "test:a11y": "node scripts/check-a11y-invariants.mjs",
     "test:fw-order": "node scripts/test-fw-rule-order.mjs",
+    "test:output-analyser": "node scripts/test-output-analyser.mjs",
+    "test:manual-wizard": "node scripts/test-manual-wizard-engine.mjs",
     "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
+    "test:guided-i18n": "node scripts/check-guided-i18n.mjs",
+    "test:guided-i18n-state": "node scripts/test-guided-i18n-state.mjs",
+    "test:guided-i18n-switch": "node scripts/test-guided-i18n-switch.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },

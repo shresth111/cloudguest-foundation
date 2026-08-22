@@ -13,7 +13,9 @@ name: CI
 #   test:portal-cna ..... 7 checks
 #   test:signin-fields .. 23 checks
 #   test:fw-order ....... 7 checks
+#   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
+#   test:manual-wizard .. 113 checks
 
 on:
   push:
@@ -37,7 +39,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"   # matches local dev; the Dockerfile floats `npm i -g bun`
+          bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -68,7 +70,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"   # matches local dev; the Dockerfile floats `npm i -g bun`
+          bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -103,7 +105,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"   # matches local dev; the Dockerfile floats `npm i -g bun`
+          bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -144,6 +146,72 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "fw-rule-order" 7 "fw-rule-order: all checks passed" \
             bun run test:fw-order
+
+      # THE SAFETY-CRITICAL ONE. This suite decides whether a pasted
+      # router output means PASS or FAIL, so every wrong answer it can
+      # give ships a broken router or resets a healthy one. tsc cannot see
+      # any of it -- it is a text parser over device output, where every
+      # type is `string` and every bug is in what the strings mean.
+      #
+      # The floor is high on purpose. The fixtures are real RouterOS
+      # shapes (v6 and v7, `print` and `print detail`) for each way this
+      # fleet has actually broken, and losing them quietly is exactly the
+      # coverage-shrink failure ci-gated-test.sh exists to catch.
+      - name: guided-setup output analyser
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "output-analyser" 116 "output-analyser: all checks passed" \
+            bun run test:output-analyser
+
+      # --- Guided Setup i18n (Hinglish / English / Devanagari) -----------
+      #
+      # Floors here scale with CONTENT: the number of phases, checks and
+      # diagnostics symptoms in phases.content.ts / diagnostics.content.ts.
+      # A small drop when a content author legitimately removes a check is
+      # expected; a large one means assertions disappeared. Set a little
+      # below the observed count for that reason, rather than pinned exactly.
+      - name: guided setup i18n invariants
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guided-i18n" 520 "guided-i18n: all checks passed" \
+            bun run test:guided-i18n
+
+      - name: guided setup i18n state preservation
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guided-i18n-state" 200 "guided-i18n-state: all checks passed" \
+            bun run test:guided-i18n-state
+
+      # Uses the Chromium installed above for test:signin-fields, so it
+      # adds no new CI infrastructure. It is the only thing that can prove
+      # the requirement it exists for: switching language must not REMOUNT
+      # the module and throw away router output the operator has pasted.
+      # Verified to fail on purpose by keying <CheckRow> on a translated
+      # string; see the script header.
+      - name: guided setup language switch
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guided-i18n-switch" 26 \
+            "Guided Setup language switch: all checks passed." \
+            bun run test:guided-i18n-switch
+
+      # --- Manual wizard engine -----------------------------------------
+      #
+      # The engine that turns a pasted RouterOS output into a verdict. Its
+      # floor is high for the same reason the analyser's is: every section
+      # of the suite injects a real violation (`Is` for `As`, a paste cut
+      # mid-table, `/interface print` where a DHCP probe was asked for, one
+      # RADIUS counter reading, four zero counters, `gateway=0.0.0.0`) and
+      # asserts the guard fires. Each of those guards was verified to FAIL
+      # the suite when mutated -- 15 of 15 mutations caught, recorded in the
+      # script header. Losing them quietly is the exact coverage-shrink
+      # failure ci-gated-test.sh exists to catch.
+      - name: manual wizard engine
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "manual-wizard-engine" 100 \
+            "manual-wizard-engine: all checks passed" \
+            bun run test:manual-wizard
 
       # This one prints only a verdict line, no per-check output, so its
       # floor is 0 and the sentinel is doing all the work.
