@@ -15,6 +15,7 @@ import {
   Loader2,
   ShieldCheck,
   Workflow,
+  Compass,
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
 import {
@@ -95,7 +96,10 @@ function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
 
 /** RouterOS API login the platform itself uses for this router's control-plane
  * calls (Device Console, VLAN/DHCP pushes, diagnostics) -- distinct from the
- * heartbeat's `agentCredential`. Generated fresh per router, per script run. */
+ * heartbeat's `agentCredential`.
+ *
+ * Minted ONCE PER ROUTER, not once per script run. See `onGenerate`'s own
+ * note at the call site for the live incident that distinction comes from. */
 const API_ACCESS_USERNAME = "cloudguest-api";
 function generateApiSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(18));
@@ -181,6 +185,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const [enableFirewall, setEnableFirewall] = useState(true);
   const [enableWireguard, setEnableWireguard] = useState(false);
   const [enableRadius, setEnableRadius] = useState(false);
+  // Off by default and deliberately sticky-free: rotating the API password
+  // is only ever correct right after the `cloudguest-api` user has been
+  // removed from the device. See the mint block in `onGenerate`.
+  const [rotateApiSecret, setRotateApiSecret] = useState(false);
   // Only shown/meaningful with 2+ ISPs -- see buildRouterSetupScriptChunks's
   // own WanRoutingMode docstring for why failover-only is a real,
   // structurally simpler alternative, not a stripped-down load-balance.
@@ -431,23 +439,57 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         }
       }
 
-      // Also unlocks Device Console for this router (it stays permanently
+      // Unlocks Device Console for this router (it stays permanently
       // disabled -- "no credentials" -- until the platform has a RouterOS
-      // API login on file). Recorded on the router row now, and created on
-      // the device itself by the script below, so one script run + one
-      // paste is enough to make the router fully controllable end to end.
-      const apiSecret = generateApiSecret();
+      // API login on file). Recorded on the router row here, and created on
+      // the device itself by the "API Access" chunk below, so one script
+      // run + one paste makes the router controllable end to end.
+      //
+      // THE FOURTH ROTATING SECRET -- and the one that took down a live
+      // router on 2026-08-21: `login failure for user cloudguest-api from
+      // 10.20.0.4 via api`.
+      //
+      // This used to mint a fresh random secret and PUT it on EVERY
+      // Generate. The platform stored the new one immediately; the device
+      // only learned it if the "API Access" chunk happened to be re-pasted
+      // afterwards. Any Generate that was not followed by a full re-paste
+      // left the platform holding a password the router had never heard of,
+      // and every control-plane call failed with nothing on the device to
+      // explain why.
+      //
+      // "Reuse the existing one" cannot mean re-reading it: the plaintext
+      // is deliberately never returned by the API (the router row exposes
+      // only `has_api_credentials`). It means LEAVING IT ALONE -- no mint,
+      // no PUT, and no "API Access" chunk in the script, because the device
+      // already carries the matching user and the two halves already agree.
+      //
+      // Same shape the backend now uses for the other three secrets: the
+      // implicit path reuses, and rotation is an explicit opt-in. The one
+      // case that genuinely needs a new secret is a device whose
+      // `cloudguest-api` user has been deleted -- i.e. straight after the
+      // Guided Setup recovery phase -- which is exactly what the
+      // `rotateApiSecret` checkbox is for. Rotating then is safe because
+      // the chunk's `else={ /user set ... password=NEW }` branch really
+      // does repair an existing user.
+      const mintApiSecret = !router.hasApiCredentials || rotateApiSecret;
       let apiAccess: { username: string; secret: string } | undefined;
-      try {
-        await api.put(`/routers/${router.id}`, {
-          api_username: API_ACCESS_USERNAME,
-          api_secret: apiSecret,
-        });
-        apiAccess = { username: API_ACCESS_USERNAME, secret: apiSecret };
-      } catch (err) {
-        toast.error(
-          (err as AppError).message ||
-            "Could not record API credentials -- Device Console will stay locked for this router until they're set.",
+      if (mintApiSecret) {
+        const apiSecret = generateApiSecret();
+        try {
+          await api.put(`/routers/${router.id}`, {
+            api_username: API_ACCESS_USERNAME,
+            api_secret: apiSecret,
+          });
+          apiAccess = { username: API_ACCESS_USERNAME, secret: apiSecret };
+        } catch (err) {
+          toast.error(
+            (err as AppError).message ||
+              "Could not record API credentials -- Device Console will stay locked for this router until they're set.",
+          );
+        }
+      } else {
+        toast.info(
+          'API password unchanged -- this router already has one, so no "API Access" chunk is in this script. Device Console keeps working.',
         );
       }
 
@@ -482,6 +524,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           ...form,
         }),
       );
+      // Each rotation has to be its own deliberate decision. Leaving the
+      // box ticked would make the NEXT Generate rotate again silently --
+      // which is the exact behaviour this whole change removes.
+      setRotateApiSecret(false);
       toast.success("Script ready");
     } catch (err) {
       toast.error((err as AppError).message || "Failed to generate setup script");
@@ -883,6 +929,31 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           Also enable RADIUS (needs a WireGuard tunnel IP for a unique NAS identity — WireGuard will
           turn on automatically)
         </label>
+        {/* Only meaningful once this router already HAS an API password.
+         * On a first provision there is nothing to rotate -- one is minted
+         * automatically -- so showing an unticked "rotate" box there would
+         * read as "the API user is optional", which it is not. */}
+        {router.hasApiCredentials && (
+          <label className="flex items-start gap-2 text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={rotateApiSecret}
+              onChange={(e) => setRotateApiSecret(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-input"
+            />
+            <span>
+              Rotate the RouterOS API password
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                Leave this OFF. This router already has an API password and the device already has
+                the matching user — rotating it without re-pasting the “API Access” chunk is what
+                breaks Device Console (<code>login failure for user cloudguest-api</code>). Tick it
+                only if you have just removed the <code>cloudguest-api</code> user from the device,
+                i.e. straight after Guided Setup’s recovery phase — and then re-paste the “API
+                Access” chunk.
+              </span>
+            </span>
+          </label>
+        )}
       </div>
 
       <MButton variant="primary" onClick={onGenerate} disabled={busy}>
@@ -1183,18 +1254,39 @@ export function RouterSetupDrilldown({
 
       {!demo ? (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-          <p className="font-medium">Prefer the server-driven provisioning wizard</p>
+          <p className="font-medium">Provisioning a new router? Use Guided Setup.</p>
+          {/* This callout used to point at the Fleet Wizard and describe
+           * THIS page as "legacy". That was backwards in practice: the
+           * wizard's script is rendered server-side and every step past
+           * bootstrap pushes through the device gateway, so it cannot get
+           * a factory-fresh box onto the network -- there is no agent and
+           * no tunnel yet for it to talk through. Guided Setup walks the
+           * whole provision one phase at a time with a verification gate
+           * after each, and sends the operator back here for exactly the
+           * chunks that carry per-router values. This page stays the
+           * source of those chunks; it is just no longer the place to
+           * start. */}
           <p className="text-muted-foreground">
-            New deployments should use the platform wizard (discovery, WAN apply, guest plan). This
-            page is the legacy expert script generator for manual bootstrap only.
+            Guided Setup ek baar me ek hi step dikhata hai, har step ke baad check karta hai, aur
+            per-router chunks ke liye wapas isi page pe bhejta hai. Yeh page un chunks ka source hai
+            -- shuruaat yahan se mat karo.
           </p>
-          <Link
-            to="/master/routers/setup/$routerId"
-            params={{ routerId: router.id }}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
-          >
-            <Workflow className="h-3.5 w-3.5" /> Open provisioning wizard
-          </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to="/master/routers/guided/$routerId"
+              params={{ routerId: router.id }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Compass className="h-3.5 w-3.5" /> Open Guided Setup
+            </Link>
+            <Link
+              to="/master/routers/setup/$routerId"
+              params={{ routerId: router.id }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
+            >
+              <Workflow className="h-3.5 w-3.5" /> Provisioning wizard
+            </Link>
+          </div>
         </div>
       ) : null}
 
