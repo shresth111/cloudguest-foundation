@@ -1458,7 +1458,20 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
  * same rare case that function special-cases) skips `:resolve` entirely --
  * there's nothing to resolve, the literal IS the address -- and so skips its
  * `on-error` guard too, since a literal assignment can't fail the way a
- * live DNS lookup can. */
+ * live DNS lookup can.
+ *
+ * **Emitted as ONE `;`-joined line, not a block.** `$portalIp` is bound by
+ * the first statement and read by the last -- and the RouterOS console
+ * runs EACH ENTERED LINE as its own program, so the previous multi-line
+ * form declared `:local portalIp` on one line and then referenced a
+ * variable that no longer existed on the next two. Those lines were a
+ * syntax error on a real device; the `:resolve` never landed anywhere and
+ * the walled-garden entry was never added or updated, silently, which is
+ * the exact HTTPS-portal breakage this function exists to fix. Every
+ * `do={}` body below still holds exactly one statement (the separate,
+ * independently-confirmed rule -- see `wanExistenceCheckLines`), which is
+ * why the add and the update are two guarded statements rather than one
+ * `:if`/`else={}` pair with multi-statement bodies. */
 function buildWalledGardenIpLines(portalUrl: PortalOverrideConfig): string[] | null {
   const portalHost = (() => {
     try {
@@ -1470,23 +1483,18 @@ function buildWalledGardenIpLines(portalUrl: PortalOverrideConfig): string[] | n
   if (!portalHost) return null;
   const portalHostEsc = escapeForRouterOsString(portalHost);
   const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
-  const addOrUpdate = [
-    `:local existingPortalGardenIp [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]`,
-    `:if ([:len $existingPortalGardenIp] = 0) do={`,
-    `  /ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https"`,
-    `} else={`,
-    `  /ip hotspot walled-garden ip set $existingPortalGardenIp dst-address=$portalIp`,
-    `}`,
+  const resolved = isIpLiteral
+    ? `:local portalIp "${portalHostEsc}"`
+    : `:local portalIp ""; :do { :set portalIp [:resolve "${portalHostEsc}"] } on-error={ :log warning "cloudguest: could not resolve ${portalHostEsc} for HTTPS walled-garden -- guest portal may be unreachable over HTTPS for new devices until this resolves; re-paste this chunk once DNS is healthy" }`;
+  const existing = `[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]`;
+  return [
+    [
+      resolved,
+      `:local existingPortalGardenIp ${existing}`,
+      `:if ([:len $portalIp] > 0 && [:len $existingPortalGardenIp] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https" }`,
+      `:if ([:len $portalIp] > 0 && [:len $existingPortalGardenIp] > 0) do={ /ip hotspot walled-garden ip set $existingPortalGardenIp dst-address=$portalIp }`,
+    ].join("; "),
   ];
-  return isIpLiteral
-    ? [`:local portalIp "${portalHostEsc}"`, ...addOrUpdate]
-    : [
-        `:local portalIp ""`,
-        `:do { :set portalIp [:resolve "${portalHostEsc}"] } on-error={ :log warning "cloudguest: could not resolve ${portalHostEsc} for HTTPS walled-garden -- guest portal may be unreachable over HTTPS for new devices until this resolves; re-paste this chunk once DNS is healthy" }`,
-        `:if ([:len $portalIp] > 0) do={`,
-        ...addOrUpdate.map((l) => `  ${l}`),
-        `}`,
-      ];
 }
 
 /** The `dns-name` this script sets on `hsprof1` (RouterOS's own
@@ -1541,6 +1549,20 @@ const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
  * whatever URL Master console happens to be served from that day. */
 export const GUEST_PORTAL_PUBLIC_BASE = "https://portal.wyfyguest.com";
 
+/** How many times the "WAN Routing" chunk asks a DHCP WAN for its gateway
+ * before giving up, and how long it waits between attempts. Written out as
+ * an unrolled ladder rather than a `:for` loop because a loop cannot
+ * express "attempt, then wait only if that did not work" while keeping
+ * every `do={}` body to a single statement -- see that chunk's own
+ * comment. `${WAN_DHCP_GW_POLL_ATTEMPTS} x ${WAN_DHCP_GW_POLL_DELAY}` is
+ * the total patience; keep the product in the tens of seconds (a DHCP
+ * lease that has not bound in half a minute is a real fault worth
+ * reporting, not something to keep waiting on) and keep the attempt count
+ * small, because each retry adds two statements to an already long
+ * single-paste line. */
+const WAN_DHCP_GW_POLL_ATTEMPTS = 6;
+const WAN_DHCP_GW_POLL_DELAY = "5s";
+
 /** Every WAN interface name this script references is taken literally,
  * exactly once, from whatever the "WAN N interface" field currently says
  * -- it never re-discovers or renames anything on the device. Confirmed
@@ -1591,15 +1613,30 @@ const WAN_RENAME_WARNING_HEADER = [
  * creates however they like, and that name would never be found under
  * `/interface ethernet` -- this check would otherwise loudly (and
  * wrongly) abort a perfectly valid basic-config script on its very first
- * chunk. */
+ * chunk.
+ *
+ * Emitted as TWO separate one-statement `:if`s rather than one `:if` with
+ * a `:put`-then-`:error` body. Two independent reasons, both hard rules
+ * in this file now:
+ *  - a multi-statement `do={}` body threw a real syntax error on a live
+ *    router (see the Heartbeat chunk's own comment at the `;`-chaining
+ *    incident), so every `do={}` in this generator holds exactly one
+ *    statement;
+ *  - the RouterOS console runs each entered line as its own program, so a
+ *    block spread over several lines cannot be assumed to be one program
+ *    either -- whether console brace-grouping keeps a block together
+ *    across a paste was never verified on this hardware, and this file
+ *    does not ship unverified assumptions.
+ * The `find` runs twice instead of being cached in a `:local`; it is a
+ * read-only query and costs nothing, the same trade the Heartbeat chunk's
+ * own comment already made for its double address lookup. */
 function wanExistenceCheckLines(wanIfNameExprs: string[]): string[] {
   const lines: string[] = [];
   wanIfNameExprs.forEach((expr) => {
+    const missing = `[:len [/interface find where name=${expr}]] = 0`;
     lines.push(
-      `:if ([:len [/interface find where name=${expr}]] = 0) do={`,
-      `  :put ("*** ERROR: WAN interface \\"" . ${expr} . "\\" was not found on this device. Did you rename it? Re-check /interface print and re-generate this script with the CURRENT name -- do NOT rename the interface to match the script. Aborting before touching bridge/NAT config. ***")`,
-      `  :error ("cloudguest-setup: WAN interface " . ${expr} . " not found")`,
-      `}`,
+      `:if (${missing}) do={ :put ("*** ERROR: WAN interface \\"" . ${expr} . "\\" was not found on this device. Did you rename it? Re-check /interface print and re-generate this script with the CURRENT name -- do NOT rename the interface to match the script. Aborting before touching bridge/NAT config. ***") }`,
+      `:if (${missing}) do={ :error ("cloudguest-setup: WAN interface " . ${expr} . " not found") }`,
     );
   });
   return lines;
@@ -1665,12 +1702,21 @@ export function chunksToRouterOsScript(
 
 /** Flattens every chunk into a single RouterOS-legal line -- a third way to
  * get the script onto a device, alongside the multi-paste chunk flow and
- * the `.rsc` file upload: one paste, no Files-tab upload step. RouterOS
- * accepts `;` as a statement separator interchangeably with a newline (the
- * generator itself already relies on this -- see e.g. the heartbeat
- * chunk's own `wan1DynamicResolution.join("; ")`), so joining every real
- * statement line with `; ` reproduces exactly what the multi-line chunks
- * already mean, just on one line.
+ * the `.rsc` file upload: one paste, no Files-tab upload step.
+ *
+ * **`;` and a newline are interchangeable AT THE TOP LEVEL ONLY.** The
+ * generator relies on that heavily now -- most chunks are already single
+ * `;`-joined lines, because the RouterOS console runs each ENTERED LINE
+ * as its own program and a `:local` must therefore share a line with
+ * every statement that reads it. Inside a `do={ ... }` body the two are
+ * NOT interchangeable: a `;`-chained pair there threw a real syntax error
+ * on a live router (see the Heartbeat chunk's own comment). The
+ * docstring here used to claim the unqualified version, which is what
+ * that incident disproved. Nothing this function does can reintroduce the
+ * bad shape -- it only joins whole lines, and no chunk emits a
+ * multi-statement body for it to flatten -- and
+ * `scripts/test-setup-script-generator.mjs` asserts that of this
+ * function's own output, not just of the chunks.
  *
  * Two things can't simply be `;`-joined:
  * - `#` comment lines run to end-of-line, so joining one with `; ` would
@@ -1680,13 +1726,14 @@ export function chunksToRouterOsScript(
  * - A statement immediately after an opening `{` (or immediately before a
  *   standalone closing `}`) joins with a plain space instead of `; ` --
  *   matching the inline `do={ ... }` style already used everywhere else in
- *   this generator (e.g. `do={ /interface bridge port remove $wan1Port }`);
+ *   this generator (e.g. `do={ /interface bridge port remove $wanPort }`);
  *   a leading `;` right inside a fresh block is unnecessary and untested
  *   against real RouterOS, so this avoids introducing it. This is a
- *   line-level heuristic, not a real brace-depth parser -- safe for every
- *   chunk this generator emits today (each is either fully inline already,
- *   or one block opened and closed within a few lines, never nested), but
- *   worth re-checking if a future chunk introduces deeper nesting. */
+ *   line-level heuristic, not a real brace-depth parser. It is now
+ *   effectively dead code: every chunk this generator emits is fully
+ *   inline, so no line ends in `{` or begins with `}` for it to catch.
+ *   Kept as a backstop rather than deleted, and covered by the guard
+ *   above either way. */
 export function chunksToSingleLineScript(chunks: RouterSetupScriptChunk[]): string {
   const commandLines = chunks
     .flatMap((chunk) => chunk.script.split("\n"))
@@ -1903,6 +1950,176 @@ function buildWeightedPccPlan(
     indicesByWan.push(indices);
   });
   return { total, indicesByWan };
+}
+
+/** The whole heartbeat report, as ONE RouterOS-legal line: work out which
+ * interface is actually carrying this router's internet traffic, read its
+ * address, and POST it to master. Used twice per generated script -- once
+ * pasted directly, once (after a further `escapeForRouterOsString`) stored
+ * as the 5-minute scheduler's `on-event` body. Both copies are
+ * byte-identical before that extra escaping pass, which is deliberate:
+ * they are the same program, and having them drift was how the recurring
+ * copy ended up reporting nothing for years of DHCP renewals.
+ *
+ * WHY IT IS ONE LINE
+ * ------------------
+ * The RouterOS console runs EACH ENTERED LINE as its own program: a
+ * `:local` declared on one line does not exist on the next. The previous
+ * version was three lines sharing `$wan1Ip`, so lines two and three were
+ * a syntax error on paste -- while the `/system scheduler add` line above
+ * them, being self-contained, succeeded. The scheduler appeared, the
+ * router never checked in, and nothing anywhere said so. Every statement
+ * that reads a `:local` here is therefore `;`-joined onto the same line
+ * that binds it, and every `do={}` body holds exactly one statement (a
+ * `;`-chained pair inside an inline `do={}` threw a real syntax error on
+ * a live router -- see this chunk's own comment).
+ *
+ * WHY THE UPLINK IS DERIVED, NOT NAMED
+ * ------------------------------------
+ * This used to read the address off `wanEffectiveIfs[0]` -- whatever port
+ * happened to be typed into "WAN 1 interface", normally `ether1`. A venue
+ * with two or three ISPs whose live uplink is on `ether2` reported an
+ * EMPTY `public_ip_address` while looking perfectly healthy, and nothing
+ * anywhere said so. The port a link is plugged into is not evidence of
+ * anything; the interface the active default route goes out of is.
+ *
+ * So: take the lowest-distance ACTIVE `0.0.0.0/0` route and resolve its
+ * outgoing interface. Three resolution paths, tried in order, each
+ * guarded, because RouterOS exposes this differently by version and by
+ * link type:
+ *  1. `immediate-gw`, which RouterOS 7 documents as `address%interface`
+ *     -- split on the `%`. (Inferred from MikroTik's v7 documentation of
+ *     that property. NOT verified on this fleet's hardware by me.)
+ *  2. the route's plain `gateway`, when that names a real interface --
+ *     which is what a point-to-point link like PPPoE produces.
+ *  3. an `/ip arp` lookup of the gateway address, which is how a v6
+ *     device (or any device where `immediate-gw` is absent) still answers
+ *     the question, since the router is by definition ARPing its own live
+ *     next hop.
+ * Anything that survives all three must still name a real interface or it
+ * is discarded. Every failure path lands on "not resolved", which is
+ * reported as a fault, never as an address.
+ *
+ * MULTIPLE ACTIVE DEFAULT ROUTES
+ * ------------------------------
+ * A dual/triple-ISP venue routinely has more than one. This picks the
+ * LOWEST DISTANCE deliberately -- that is the route RouterOS itself
+ * prefers for the router's own traffic, which is the traffic this
+ * heartbeat is, so the address reported is the address master would
+ * actually see the request come from. Ties are broken by RouterOS's own
+ * ordering within that distance, first match wins, and the sweep is an
+ * explicit ascending `:for` over distances rather than "whatever the find
+ * returns first" so the choice cannot silently depend on route order. When
+ * there is more than one, the count and the winner are written to the log,
+ * so "we picked one of several" is visible rather than incidental.
+ *
+ * THE THREE FAULTS ARE NOT THE SAME FAULT
+ * ---------------------------------------
+ * An empty string collapses "no uplink at all", "found the uplink, it has
+ * no address" and "we never looked" into one indistinguishable value.
+ * This file has been burned by exactly that before (`gateway=0.0.0.0`
+ * passing a non-empty check). So:
+ *  - address read           -> `public_ip_address` is sent.
+ *  - no active default route
+ *  - route found, interface unresolved
+ *  - interface found, no address
+ *                           -> the KEY IS OMITTED ENTIRELY, and a
+ *                              `:log warning` naming which of the three it
+ *                              was is written on the device.
+ * Omission is not cosmetic. The backend's `RouterService.heartbeat` does
+ * `if public_ip_address is not None: update_data[...] = ...` (checked in
+ * `app/domains/router/service.py`, not assumed), so an absent key leaves
+ * the last known good address in place while an empty string OVERWRITES
+ * it with blank. Today's script sends the empty string. That is why a
+ * router whose uplink moved ports shows a blank Public IP in Master
+ * console rather than a stale one -- it is actively told the wrong thing.
+ * A new JSON field would not help: `AgentHeartbeatRequest` is a plain
+ * pydantic `BaseModel`, so unknown keys are silently dropped; the device
+ * log is the only place a reason can actually be recorded. */
+function buildHeartbeatStatements(opts: {
+  apiBase: string;
+  agentCredential: string;
+  wireguard?: WireguardPeerInfo;
+}): string {
+  const { apiBase, agentCredential, wireguard } = opts;
+  // JSON quotes are escaped one level here (`\"`), which is correct as-is
+  // for the directly-pasted copy; the scheduler's stored copy has a second
+  // level applied to this whole string by its own
+  // `escapeForRouterOsString` call.
+  const mgmtPair = wireguard
+    ? `\\"management_ip_address\\":\\"${escapeForRouterOsString(wireguard.routerTunnelIp)}\\"`
+    : "";
+  const mgmtThenComma = mgmtPair ? `${mgmtPair},` : "";
+  // `active=yes` AND `routing-mark=""`, and both halves are load-bearing.
+  //
+  // `active=yes`: RouterOS keeps an unreachable default route in the table
+  // and flags it Inactive rather than removing it. Counting
+  // `dst-address="0.0.0.0/0"` alone therefore says "1 route, looks
+  // healthy" on a router whose fetch returns `Network unreachable` -- the
+  // same class of mistake as `gateway=0.0.0.0` passing a non-empty check,
+  // which this file has already been burned by once.
+  //
+  // `routing-mark=""`: on a multi-WAN router THIS GENERATOR ITSELF creates
+  // several default routes -- one plain per WAN plus, in load-balance
+  // mode, a `routing-mark="to_wan<N>"` route per WAN and a `distance=2`
+  // crossover backup per WAN (see the "WAN Routing" chunk). Their marked
+  // copies live in their own routing tables and are active there
+  // simultaneously, so an unqualified find returns a handful of routes and
+  // "the first one" would be whichever WAN's mark happened to sort first,
+  // not the uplink carrying this traffic. The heartbeat is the ROUTER'S
+  // OWN outbound traffic: the PCC mangle rules only mark LAN-originated
+  // prerouting connections, never router-originated output, so this fetch
+  // is routed by the MAIN table. The main table's own active default route
+  // is therefore the exact, and only, correct answer -- and `routing-mark=""`
+  // is the same filter the "WAN Routing" chunk above already uses for the
+  // same "unmarked route only" reason. If it ever matches nothing, the
+  // "no active default route" warning below fires and no address is sent:
+  // a visible fault, never a wrong address.
+  const mainDefaults = `[/ip route find where dst-address="0.0.0.0/0" active=yes routing-mark=""]`;
+  const ifExists = `[:len [/interface find where name=$hbIf]] > 0`;
+  return [
+    // -- 1. which interface is carrying the default route ---------------
+    `:local hbIf ""`,
+    `:local hbDefCount [:len ${mainDefaults}]`,
+    `:for hbDist from=1 to=255 do={ :if ($hbIf = "") do={ :foreach hbR in=[/ip route find where dst-address="0.0.0.0/0" active=yes routing-mark="" distance=$hbDist] do={ :if ($hbIf = "") do={ :do { :set hbIf [:tostr [/ip route get $hbR immediate-gw]] } on-error={ :do { :set hbIf [:tostr [/ip route get $hbR gateway]] } on-error={ :set hbIf "" } } } } } }`,
+    `:if ([:typeof [:find $hbIf "%"]] != "nil") do={ :set hbIf [:pick $hbIf ([:find $hbIf "%"] + 1) [:len $hbIf]] }`,
+    `:if ($hbIf != "" && !(${ifExists})) do={ :do { :set hbIf [:tostr [/ip arp get [find where address=$hbIf] interface]] } on-error={ :set hbIf "" } }`,
+    `:if ($hbIf != "" && !(${ifExists})) do={ :set hbIf "" }`,
+    // -- 2. say what was chosen, and flag a WAN-list disagreement -------
+    `:if ($hbDefCount > 1 && $hbIf != "") do={ :log info ("cloudguest-hb: " . $hbDefCount . " active default routes, using lowest distance via " . $hbIf) }`,
+    // Reported anyway rather than suppressed: the route is what actually
+    // carries traffic, so its address is the true answer even when this
+    // script's own "WAN" interface list disagrees. The disagreement is
+    // itself worth a technician's attention -- it means the generated
+    // script names the wrong ports -- so it is logged, not swallowed.
+    `:if ($hbIf != "" && [:len [/interface list member find where interface=$hbIf list="WAN"]] = 0) do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " is not in the WAN interface list -- address reported anyway, re-generate this script with the right WAN ports") }`,
+    // -- 3. read the address off that interface -------------------------
+    // `:foreach` + first-wins rather than `/ip address get [find ...]`:
+    // `get` on a multi-element find errors, and an interface carrying two
+    // addresses is ordinary, not a fault. Erroring there would have been
+    // reported as "uplink has no address", which is a lie.
+    `:local hbIp ""`,
+    `:if ($hbIf != "") do={ :foreach hbA in=[/ip address find where interface=$hbIf] do={ :if ($hbIp = "") do={ :set hbIp [:pick [/ip address get $hbA address] 0 [:find [/ip address get $hbA address] "/"]] } } }`,
+    // -- 4. three distinguishable faults, each with its own trace -------
+    // Three DIFFERENT sentences, so `/log print` alone says which fault it
+    // was. Kept terse on purpose: every character here is paid for twice,
+    // once in the pasted copy and once (escaped) inside the scheduler's
+    // stored on-event string, and this chunk's lines are already the
+    // longest this generator emits.
+    `:if ($hbDefCount = 0) do={ :log warning "cloudguest-hb: no ACTIVE default route -- uplink unknown, public_ip_address not sent (master keeps its last known value). See /ip route print" }`,
+    `:if ($hbDefCount > 0 && $hbIf = "") do={ :log warning "cloudguest-hb: active default route found but its interface did not resolve (immediate-gw, gateway and ARP all failed) -- public_ip_address not sent" }`,
+    `:if ($hbIf != "" && $hbIp = "") do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " carries no IPv4 address -- public_ip_address not sent (a different fault from having no uplink)") }`,
+    // -- 5. build the body, omitting what was not read ------------------
+    `:local hbJson "{${mgmtPair}}"`,
+    `:if ($hbIp != "") do={ :set hbJson ("{${mgmtThenComma}\\"public_ip_address\\":\\"" . $hbIp . "\\"}") }`,
+    // A scheduler `on-event` that fails produces no toast, no popup and
+    // nothing waiting for anyone to look -- and the one-shot copy's
+    // failure scrolls past in the terminal with everything else. Both
+    // copies stay wrapped so a failure leaves a real, timestamped line in
+    // `/log print` that a technician (or this platform's remote support)
+    // can find later. One statement in each of `:do {}` and `on-error={}`.
+    `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=$hbJson output=none } on-error={ :log warning "cloudguest-hb: /tool fetch to master failed (timeout/DNS/WAN down) -- see the WAN Connectivity Check chunk" }`,
+  ].join("; ");
 }
 
 /** Split into small, independently-pasteable pieces instead of one giant
@@ -2123,8 +2340,19 @@ export function buildRouterSetupScriptChunks(opts: {
     lines.push(...wanExistenceCheckLines(wanIfs.map((wanIf) => `"${wanIf}"`)));
     wanIfs.forEach((wanIf, idx) => {
       const n = idx + 1;
-      lines.push(`:local wan${n}Port [/interface bridge port find where interface="${wanIf}"]`);
-      lines.push(`:if ([:len $wan${n}Port] > 0) do={ /interface bridge port remove $wan${n}Port }`);
+      // `:foreach` over the find-set instead of `:local wan<N>Port` +
+      // `:if ([:len $wan<N>Port] > 0) do={ remove $wan<N>Port }`. The
+      // console runs each entered line as its own program, so the old
+      // second line referenced a `:local` that no longer existed: it was a
+      // syntax error, the WAN port was never detached from a
+      // factory-default bridge, and the "add every non-WAN port to the
+      // bridge" chunk below then had a WAN sitting in the guest LAN -- the
+      // exact L2 hole `WAN_RENAME_WARNING_HEADER` documents, arrived at by
+      // a different route. `:foreach` carries no state across lines at
+      // all, is a no-op on an empty find, and its body is one statement.
+      lines.push(
+        `:foreach wanPort in=[/interface bridge port find where interface="${wanIf}"] do={ /interface bridge port remove $wanPort }`,
+      );
       // `!basicConfigOnly &&` on the pppoe check -- in `basicConfigOnly`
       // mode "WAN Addressing" never runs (see that flag's own docstring),
       // so there is no later chunk to defer to. Every WAN's NAT/list-
@@ -2176,9 +2404,13 @@ export function buildRouterSetupScriptChunks(opts: {
     // hotspot LAN uses its own separately-created bridge), so it's always
     // safe to remove this leftover client outright, independent of how
     // many WANs are configured. Safe to re-run: an empty find is a no-op.
+    // Single `:foreach`, not `:local` + `:if` on the next line -- see the
+    // "WAN + Bridge" chunk's own note. Pasted as two lines this never
+    // removed anything: the second line read a `:local` the console had
+    // already discarded, so the duplicate-address fault below survived
+    // every provisioning run that was supposed to clear it.
     const lines = [
-      `:local staleDefconfClient [/ip dhcp-client find where interface="bridgeLocal"]`,
-      `:if ([:len $staleDefconfClient] > 0) do={ /ip dhcp-client remove $staleDefconfClient }`,
+      `:foreach staleDefconfClient in=[/ip dhcp-client find where interface="bridgeLocal"] do={ /ip dhcp-client remove $staleDefconfClient }`,
     ];
     chunks.push({ label: "Stale Factory-Default DHCP Client Cleanup", script: lines.join("\n") });
   }
@@ -2218,12 +2450,8 @@ export function buildRouterSetupScriptChunks(opts: {
           `:foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`,
         );
         lines.push(
-          `:if ([:len [/ip address find where interface="${iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={`,
+          `:if ([:len [/ip address find where interface="${iface}" address="${wan.ip}/${wan.cidr}"]] = 0) do={ /ip address add address="${wan.ip}/${wan.cidr}" interface="${iface}" comment="cloudguest-addr-wan${n}" }`,
         );
-        lines.push(
-          `  /ip address add address="${wan.ip}/${wan.cidr}" interface="${iface}" comment="cloudguest-addr-wan${n}"`,
-        );
-        lines.push(`}`);
       } else if (wan.mode === "dhcp") {
         // Check for OUR OWN cloudguest-commented dhcp-client specifically
         // -- not just "does any dhcp-client already exist on this
@@ -2236,21 +2464,30 @@ export function buildRouterSetupScriptChunks(opts: {
         // remove whatever foreign client (and any dynamic address it left
         // behind) is on this interface first, then add the correct one --
         // self-healing on every re-run, not just a first-run check.
+        // Three independent lines, each re-asking the SAME read-only
+        // question ("is our own commented client missing?") instead of one
+        // `:local` + a four-statement `:if` body. Two rules force this and
+        // both are documented incidents, not style:
+        //  - the console runs each entered line as its own program, so the
+        //    old `:local wan<N>CloudguestClient` was gone by the time the
+        //    next line read it;
+        //  - a `do={}` body holds exactly one statement (the live
+        //    `;`-chain syntax error, see the Heartbeat chunk).
+        // The guard stays true across all three because nothing before the
+        // final `add` creates a client carrying our comment, so the
+        // sequence is identical to the old nested block -- and re-querying
+        // is this file's established answer for a value needed more than
+        // once (see the Heartbeat chunk's own double address lookup).
+        const wanNoCguestClient = `[:len [/ip dhcp-client find where interface="${iface}" comment="cloudguest-dhcp-wan${n}"]] = 0`;
         lines.push(
-          `:local wan${n}CloudguestClient [/ip dhcp-client find where interface="${iface}" comment="cloudguest-dhcp-wan${n}"]`,
-        );
-        lines.push(`:if ([:len $wan${n}CloudguestClient] = 0) do={`);
-        lines.push(`  :local wan${n}OtherClient [/ip dhcp-client find where interface="${iface}"]`);
-        lines.push(
-          `  :if ([:len $wan${n}OtherClient] > 0) do={ /ip dhcp-client remove $wan${n}OtherClient }`,
+          `:if (${wanNoCguestClient}) do={ :foreach otherClient in=[/ip dhcp-client find where interface="${iface}"] do={ /ip dhcp-client remove $otherClient } }`,
         );
         lines.push(
-          `  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`,
+          `:if (${wanNoCguestClient}) do={ :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr } }`,
         );
         lines.push(
-          `  /ip dhcp-client add interface="${iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}"`,
+          `:if (${wanNoCguestClient}) do={ /ip dhcp-client add interface="${iface}" disabled=no add-default-route=no use-peer-dns=no comment="cloudguest-dhcp-wan${n}" }`,
         );
-        lines.push(`}`);
       } else {
         // pppoe -- like the dhcp branch above, `add-default-route=no`
         // deliberately: the "WAN Routing" chunk below owns every default
@@ -2271,23 +2508,18 @@ export function buildRouterSetupScriptChunks(opts: {
         // port (a previous provisioning attempt, or a manual on-site
         // setup) is removed first if ours is missing, so this stays
         // self-healing on every re-run, not just a first-run check.
+        // Same three-independent-lines restructure, and for the same two
+        // reasons, as the dhcp branch immediately above.
+        const wanNoCguestPppoe = `[:len [/interface pppoe-client find where interface="${iface}" comment="cloudguest-pppoe-wan${n}"]] = 0`;
         lines.push(
-          `:local wan${n}CloudguestPppoeClient [/interface pppoe-client find where interface="${iface}" comment="cloudguest-pppoe-wan${n}"]`,
-        );
-        lines.push(`:if ([:len $wan${n}CloudguestPppoeClient] = 0) do={`);
-        lines.push(
-          `  :local wan${n}OtherPppoeClient [/interface pppoe-client find where interface="${iface}"]`,
-        );
-        lines.push(
-          `  :if ([:len $wan${n}OtherPppoeClient] > 0) do={ /interface pppoe-client remove $wan${n}OtherPppoeClient }`,
+          `:if (${wanNoCguestPppoe}) do={ :foreach otherPppoe in=[/interface pppoe-client find where interface="${iface}"] do={ /interface pppoe-client remove $otherPppoe } }`,
         );
         lines.push(
-          `  :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr }`,
+          `:if (${wanNoCguestPppoe}) do={ :foreach staleAddr in=[/ip address find where interface="${iface}" dynamic=yes] do={ /ip address remove $staleAddr } }`,
         );
         lines.push(
-          `  /interface pppoe-client add name="${pppoeIface}" interface="${iface}" user="${pppoeUser}" password="${pppoePass}" disabled=no add-default-route=no comment="cloudguest-pppoe-wan${n}"`,
+          `:if (${wanNoCguestPppoe}) do={ /interface pppoe-client add name="${pppoeIface}" interface="${iface}" user="${pppoeUser}" password="${pppoePass}" disabled=no add-default-route=no comment="cloudguest-pppoe-wan${n}" }`,
         );
-        lines.push(`}`);
         // WAN interface-list membership and the NAT masquerade rule for
         // this WAN are added HERE, not in "WAN + Bridge" above, precisely
         // because `${pppoeIface}` didn't exist as a real interface until
@@ -2377,15 +2609,36 @@ export function buildRouterSetupScriptChunks(opts: {
   // own single default route) by hand.
   if (!basicConfigOnly) {
     const lines: string[] = [];
+    // ONE LINE PER WAN, `;`-joined -- not a multi-line block, and not two
+    // passes (resolve every gateway, then build every route) the way this
+    // used to be written.
+    //
+    // The RouterOS console runs EACH ENTERED LINE as its own program. A
+    // `:local` declared on one line does not exist on the next. Every
+    // reference to `$wan<N>Gw` and `$plainRoute<N>` below therefore has to
+    // sit on the SAME line as its `:local`, or the route statements are a
+    // syntax error and this chunk silently builds no default route at all
+    // -- the router then has whatever RouterOS's own dhcp-client happened
+    // to add (or nothing), with no `check-gateway=ping`, which is exactly
+    // the "no gateway-health signal at all" state found live on WYFY-GUEST
+    // and described at the end of this chunk.
+    //
+    // Every `do={}` body here still holds exactly ONE statement, which is
+    // why the old `:if (gwOk) do={ ...six statements... }` block became a
+    // flat list of statements that each re-state the `gwOk` guard. That is
+    // the standing rule in this file after a `;`-chained pair inside an
+    // inline `do={}` threw a real syntax error on a live router (see the
+    // Heartbeat chunk's own comment).
     wans.forEach((wan, idx) => {
       const n = idx + 1;
       const iface = escapeForRouterOsString(wan.iface);
+      const stmts: string[] = [];
       if (wan.mode === "static") {
-        lines.push(`:local wan${n}Gw "${wan.gateway}"`);
+        stmts.push(`:local wan${n}Gw "${wan.gateway}"`);
       } else if (wan.mode === "pppoe") {
         const pppoeIface = wanEffectiveIfs[idx];
-        lines.push(`:local wan${n}Gw ""`);
-        lines.push(
+        stmts.push(`:local wan${n}Gw ""`);
+        stmts.push(
           `:if ([:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0) do={ :do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :log warning "cloudguest: PPPoE WAN${n} gateway not resolved yet (still negotiating) -- re-paste this chunk once connected" } }`,
         );
       } else {
@@ -2395,95 +2648,102 @@ export function buildRouterSetupScriptChunks(opts: {
         // the route below landed with gateway `0.0.0.0`, flag `Is`
         // (Inactive), and every ping said `no route to host` -- on a router
         // whose WAN was perfectly healthy. Pasting chunk-by-chunk hides this
-        // entirely: human typing delay is what lets DHCP bind. Poll instead.
-        lines.push(`:local wan${n}Gw ""`);
-        lines.push(
-          `:for wan${n}Try from=1 to=30 do={ :if ([:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0") do={ :do { :set wan${n}Gw [:tostr [/ip dhcp-client get [find where interface="${iface}"] gateway]] } on-error={ :set wan${n}Gw "" }; :if ([:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0") do={ :delay 1s } } }`,
-        );
+        // entirely: human typing delay is what lets DHCP bind. So this waits.
+        //
+        // Written as an UNROLLED try/wait ladder rather than the previous
+        // `:for ... do={ :if (...) do={ <attempt>; <delay> } }`. That loop
+        // packed two `;`-separated statements into one `do={}` body -- the
+        // precise shape that threw a live syntax error on a real router
+        // (Heartbeat chunk's comment), so it could never have run either.
+        // A loop cannot express "attempt, and only wait if it did not work"
+        // with one statement per body, so the retries are written out. Each
+        // statement is a shape already proven on this hardware, and the
+        // total wait (${WAN_DHCP_GW_POLL_ATTEMPTS} attempts,
+        // ${WAN_DHCP_GW_POLL_DELAY} apart) is the same order as the 30x1s
+        // the loop intended.
+        const attempt = `:do { :set wan${n}Gw [:tostr [/ip dhcp-client get [find where interface="${iface}"] gateway]] } on-error={ :set wan${n}Gw "" }`;
+        const unresolved = `[:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0"`;
+        stmts.push(`:local wan${n}Gw ""`);
+        stmts.push(attempt);
+        for (let retry = 1; retry < WAN_DHCP_GW_POLL_ATTEMPTS; retry++) {
+          stmts.push(`:if (${unresolved}) do={ :delay ${WAN_DHCP_GW_POLL_DELAY} }`);
+          stmts.push(`:if (${unresolved}) do={ ${attempt} }`);
+        }
       }
-    });
-    wans.forEach((_, idx) => {
-      const n = idx + 1;
       // `"0.0.0.0" != ""` is TRUE, so the previous guard passed a zero
       // gateway into `/ip route add` -- RouterOS accepts it and silently
       // flags the route Inactive. Reject it explicitly.
-      lines.push(`:if ($wan${n}Gw != "" && $wan${n}Gw != "0.0.0.0") do={`);
-      // Adopt-don't-duplicate: checked by OUR OWN comment first (the normal,
-      // healthy-re-run case), but if that's missing this also checks for
-      // ANY other route already sitting at this exact dst-address+gateway
-      // before adding a new one. Confirmed-plausible failure mode audited
-      // into this generator (2026-08-18): a DHCP WAN whose interface
-      // already carries a foreign dhcp-client -- e.g. a field engineer's
-      // own manually-added client, made before this platform's "WAN
-      // Addressing" chunk ever got pasted (or re-pasted) to replace it with
-      // this generator's own `add-default-route=no` one -- keeps RouterOS's
-      // *default* `add-default-route=yes` behavior, which auto-manages its
-      // own dynamic `dst-address=0.0.0.0/0 gateway=<same IP> distance=1`
-      // route with no `cloudguest-` comment. `/ip route add` on a
-      // byte-identical dst-address+gateway (RouterOS's real duplicate-route
-      // check, independent of comment) throws "failure: already have such
-      // route" -- a real, visible route-related error, not the usual silent
-      // skip this chunk otherwise relies on. Re-tagging that existing route
-      // as ours instead of blindly adding a second one fixes this for any
-      // WAN mode a foreign default route could show up under, DHCP being
-      // the realistic trigger since it's the only mode where RouterOS
-      // itself can independently create one.
+      const gwOk = `$wan${n}Gw != "" && $wan${n}Gw != "0.0.0.0"`;
+      // Nothing used to be said when a gateway failed to resolve: the whole
+      // `:if (gwOk) do={...}` block was simply skipped, leaving a WAN with
+      // no default route and no trace anywhere that it had been attempted.
+      // Same "a silent skip is not a report" posture as the Heartbeat
+      // chunk's fetch wrappers.
       lines.push(
-        `  :local plainRoute${n} [/ip route find where comment="cloudguest-plain-wan${n}"]`,
+        [
+          ...stmts,
+          `:if (!(${gwOk})) do={ :log warning "cloudguest: WAN${n} gateway did not resolve (still \\"" . $wan${n}Gw . "\\") -- no default route added for this WAN; re-paste this chunk once the link is up" }`,
+          // Adopt-don't-duplicate: checked by OUR OWN comment first (the
+          // normal, healthy-re-run case), but if that's missing this also
+          // checks for ANY other route already sitting at this exact
+          // dst-address+gateway before adding a new one. Confirmed-plausible
+          // failure mode audited into this generator (2026-08-18): a DHCP WAN
+          // whose interface already carries a foreign dhcp-client -- e.g. a
+          // field engineer's own manually-added client, made before this
+          // platform's "WAN Addressing" chunk ever got pasted (or re-pasted)
+          // to replace it with this generator's own `add-default-route=no`
+          // one -- keeps RouterOS's *default* `add-default-route=yes`
+          // behavior, which auto-manages its own dynamic
+          // `dst-address=0.0.0.0/0 gateway=<same IP> distance=1` route with
+          // no `cloudguest-` comment. `/ip route add` on a byte-identical
+          // dst-address+gateway (RouterOS's real duplicate-route check,
+          // independent of comment) throws "failure: already have such
+          // route" -- a real, visible route-related error, not the usual
+          // silent skip this chunk otherwise relies on. Re-tagging that
+          // existing route as ours instead of blindly adding a second one
+          // fixes this for any WAN mode a foreign default route could show
+          // up under, DHCP being the realistic trigger since it's the only
+          // mode where RouterOS itself can independently create one.
+          `:local plainRoute${n} [/ip route find where comment="cloudguest-plain-wan${n}"]`,
+          // `routing-mark=""` on the fallback find so this only ever adopts
+          // an unmarked (plain/foreign) route -- never one of this same
+          // WAN's own routing-mark'd load-balance/failover routes below,
+          // which share this exact dst-address+gateway by design and would
+          // otherwise get wrongly mistaken for the plain route on a re-run.
+          `:if (${gwOk} && [:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw routing-mark=""] }`,
+          `:if (${gwOk} && [:len $plainRoute${n}] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`,
+          `:if (${gwOk} && [:len $plainRoute${n}] > 0) do={ /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`,
+          // The routing-mark'd routes below are what the PCC mangle chunk
+          // marks LAN-originated connections into -- meaningless (and never
+          // generated) in failover-only mode, which relies purely on the
+          // plain distance-ordered route above and RouterOS's own
+          // lowest-active-distance selection for the entire failover
+          // mechanism, no routing-mark of any kind.
+          ...(wans.length > 1 && wanRoutingMode === "load_balance"
+            ? (() => {
+                // This WAN's own preferred (distance=1) routing-mark'd route
+                // -- what the PCC mangle rules below send this WAN's share of
+                // LAN-originated connections into. Crossover backup: the
+                // *next* WAN's mark also gets a distance=2 route via this
+                // WAN's gateway -- a ring (wan1 backs up wan2, wan2 backs up
+                // wan3, ..., last WAN backs up wan1), not every pair
+                // combination, so this stays one route per WAN regardless of
+                // how many WANs there are instead of growing
+                // combinatorially. Two WANs is the common case and
+                // degenerates to exactly mutual backup.
+                const nextN = ((idx + 1) % wans.length) + 1;
+                const own = `[:len [/ip route find where comment="cloudguest-route-wan${n}"]]`;
+                const backup = `[:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]]`;
+                return [
+                  `:if (${gwOk} && ${own} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}" }`,
+                  `:if (${gwOk} && ${own} > 0) do={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$wan${n}Gw }`,
+                  `:if (${gwOk} && ${backup} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}" }`,
+                  `:if (${gwOk} && ${backup} > 0) do={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$wan${n}Gw }`,
+                ];
+              })()
+            : []),
+        ].join("; "),
       );
-      // `routing-mark=""` on the fallback find so this only ever adopts an
-      // unmarked (plain/foreign) route -- never one of this same WAN's own
-      // routing-mark'd load-balance/failover routes below, which share this
-      // exact dst-address+gateway by design and would otherwise get
-      // wrongly mistaken for the plain route on a re-run.
-      lines.push(
-        `  :if ([:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw routing-mark=""] }`,
-      );
-      lines.push(`  :if ([:len $plainRoute${n}] = 0) do={`);
-      lines.push(
-        `    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`,
-      );
-      lines.push(
-        `  } else={ /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`,
-      );
-      // The routing-mark'd routes below are what the PCC mangle chunk
-      // marks LAN-originated connections into -- meaningless (and never
-      // generated) in failover-only mode, which relies purely on the
-      // plain distance-ordered route above and RouterOS's own
-      // lowest-active-distance selection for the entire failover
-      // mechanism, no routing-mark of any kind.
-      if (wans.length > 1 && wanRoutingMode === "load_balance") {
-        // This WAN's own preferred (distance=1) routing-mark'd route --
-        // what the PCC mangle rules below send this WAN's share of
-        // LAN-originated connections into.
-        lines.push(
-          `  :if ([:len [/ip route find where comment="cloudguest-route-wan${n}"]] = 0) do={`,
-        );
-        lines.push(
-          `    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}"`,
-        );
-        lines.push(
-          `  } else={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$wan${n}Gw }`,
-        );
-        // Crossover backup: the *next* WAN's mark also gets a distance=2
-        // route via this WAN's gateway -- a ring (wan1 backs up wan2, wan2
-        // backs up wan3, ..., last WAN backs up wan1), not every pair
-        // combination, so this stays one route per WAN regardless of how
-        // many WANs there are instead of growing combinatorially. Two WANs
-        // is the common case and degenerates to exactly mutual backup.
-        const nextIdx = (idx + 1) % wans.length;
-        const nextN = nextIdx + 1;
-        lines.push(
-          `  :if ([:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]] = 0) do={`,
-        );
-        lines.push(
-          `    /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}"`,
-        );
-        lines.push(
-          `  } else={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$wan${n}Gw }`,
-        );
-      }
-      lines.push(`}`);
     });
     if (wans.length > 1 && wanRoutingMode === "failover_only") {
       // Cleans up routing-mark'd routes a *previous* load-balance
@@ -2562,44 +2822,60 @@ export function buildRouterSetupScriptChunks(opts: {
       // that's doomed to fail regardless of the router's own DNS health.
     }
     const apiHostEsc = escapeForRouterOsString(apiHost);
+    // THE VERDICT LINE IS ONE LINE. Everything that reads `$pingOk`,
+    // `$dnsOk` or either label sits on the same entered line as the
+    // `:local` that binds it, because the RouterOS console runs each
+    // entered line as its own program and a `:local` does not survive to
+    // the next one. Pasted in its previous multi-line form, every line
+    // after `:local pingOk false` was a syntax error -- and this is a
+    // block whose entire job is to print a PASS/FAIL a technician then
+    // acts on, so it printed a confident verdict computed from variables
+    // that did not exist. That is the same shape as the guided-setup
+    // audit block that told a factory-fresh hEX it had a dirty config.
+    //
+    // The `:put` lines that carry no variable stay on their own lines
+    // (they are pure output and nothing depends on them), which keeps the
+    // one long line down to just the logic and the lines that quote a
+    // result. Each `do={}` body holds exactly one statement, so the old
+    // `:if (...) do={ 3 statements } else={ 5 statements }` is now one
+    // guarded statement per output line.
+    const verdictOk = `$pingOk = true && $dnsOk = true`;
+    const verdictBad = `!($pingOk = true && $dnsOk = true)`;
     const lines = [
       `:log info "cloudguest: WAN connectivity check starting (ping 8.8.8.8, resolve ${apiHostEsc})"`,
-      `:local pingOk false`,
-      `:local dnsOk false`,
-      // `/ping` used as an expression returns the number of replies
-      // actually received -- a real reachability test, no DNS involved at
-      // all (raw IP), so this alone already tells the technician whether
-      // the WAN link/routing/ISP path works before DNS is even in play.
-      `:local pingReceived [/ping 8.8.8.8 count=4]`,
-      `:if ($pingReceived > 0) do={ :set pingOk true }`,
-      // `:resolve` throws on failure (NXDOMAIN, no DNS reachable, etc.) --
-      // caught here instead of aborting the rest of the chunk. One `:set`
-      // statement per `do=`/`on-error=` block, same discipline as the
-      // Heartbeat chunk's own fetch line below: a `;`-chained pair of
-      // statements inside an inline `do={}` has thrown a real syntax error
-      // on a live router before (see that chunk's own comment) -- this
-      // stays a single statement in each branch instead.
-      `:do { :set dnsOk ([:len [:resolve "${apiHostEsc}"]] > 0) } on-error={ :set dnsOk false }`,
-      `:local pingLabel "FAIL"`,
-      `:if ($pingOk = true) do={ :set pingLabel "PASS" }`,
-      `:local dnsLabel "FAIL"`,
-      `:if ($dnsOk = true) do={ :set dnsLabel "PASS" }`,
       `:put "===================================================="`,
       `:put "  WAN CONNECTIVITY CHECK"`,
-      `:put ("  Ping 8.8.8.8 (raw internet reachability): " . $pingLabel)`,
-      `:put ("  Resolve ${apiHostEsc} (DNS):                " . $dnsLabel)`,
-      `:if ($pingOk = true && $dnsOk = true) do={`,
-      `  :put "  RESULT: PASS -- internet and DNS both work. Safe to paste"`,
-      `  :put "  the remaining chunks (Hotspot, RADIUS, WireGuard, Heartbeat)."`,
-      `  :log info "cloudguest: WAN connectivity check PASSED"`,
-      `} else={`,
-      `  :put "  RESULT: FAIL -- DO NOT paste the remaining chunks yet."`,
-      `  :put "  Fix WAN cabling / ISP link / DNS servers, then re-paste THIS"`,
-      `  :put "  chunk to re-check. Heartbeat/RADIUS/WireGuard all depend on"`,
-      `  :put "  real internet reachability and will fail -- some silently --"`,
-      `  :put "  until this shows PASS on both lines above."`,
-      `  :log warning "cloudguest: WAN connectivity check FAILED (ping=$pingLabel dns=$dnsLabel)"`,
-      `}`,
+      [
+        // `/ping` used as an expression returns the number of replies
+        // actually received -- a real reachability test, no DNS involved at
+        // all (raw IP), so this alone already tells the technician whether
+        // the WAN link/routing/ISP path works before DNS is even in play.
+        `:local pingOk ([/ping 8.8.8.8 count=4] > 0)`,
+        // `:resolve` throws on failure (NXDOMAIN, no DNS reachable, etc.) --
+        // caught here instead of aborting the rest of the chunk. One `:set`
+        // statement per `do=`/`on-error=` block, same discipline as the
+        // Heartbeat chunk's own fetch line below: a `;`-chained pair of
+        // statements inside an inline `do={}` has thrown a real syntax error
+        // on a live router before (see that chunk's own comment) -- this
+        // stays a single statement in each branch instead.
+        `:local dnsOk false`,
+        `:do { :set dnsOk ([:len [:resolve "${apiHostEsc}"]] > 0) } on-error={ :set dnsOk false }`,
+        `:local pingLabel "FAIL"`,
+        `:if ($pingOk = true) do={ :set pingLabel "PASS" }`,
+        `:local dnsLabel "FAIL"`,
+        `:if ($dnsOk = true) do={ :set dnsLabel "PASS" }`,
+        `:put ("  Ping 8.8.8.8 (raw internet reachability): " . $pingLabel)`,
+        `:put ("  Resolve ${apiHostEsc} (DNS):                " . $dnsLabel)`,
+        `:if (${verdictOk}) do={ :put "  RESULT: PASS -- internet and DNS both work. Safe to paste" }`,
+        `:if (${verdictOk}) do={ :put "  the remaining chunks (Hotspot, RADIUS, WireGuard, Heartbeat)." }`,
+        `:if (${verdictOk}) do={ :log info "cloudguest: WAN connectivity check PASSED" }`,
+        `:if (${verdictBad}) do={ :put "  RESULT: FAIL -- DO NOT paste the remaining chunks yet." }`,
+        `:if (${verdictBad}) do={ :put "  Fix WAN cabling / ISP link / DNS servers, then re-paste THIS" }`,
+        `:if (${verdictBad}) do={ :put "  chunk to re-check. Heartbeat/RADIUS/WireGuard all depend on" }`,
+        `:if (${verdictBad}) do={ :put "  real internet reachability and will fail -- some silently --" }`,
+        `:if (${verdictBad}) do={ :put "  until this shows PASS on both lines above." }`,
+        `:if (${verdictBad}) do={ :log warning ("cloudguest: WAN connectivity check FAILED (ping=" . $pingLabel . " dns=" . $dnsLabel . ")") }`,
+      ].join("; "),
       `:put "===================================================="`,
     ];
     chunks.push({
@@ -2656,25 +2932,49 @@ export function buildRouterSetupScriptChunks(opts: {
     // member of the "LAN" list the chunk above just populated -- any port
     // that is neither WAN nor explicitly LAN is left completely alone,
     // not claimed and not disabled, free for whatever else it's wired for.
+    // REWRITTEN AS TWO INDEPENDENT ONE-LINE PASSES. The previous form was
+    // a nine-line `:foreach` block with four `:local`s and two-statement
+    // bodies, and it could not work when pasted: the RouterOS console runs
+    // each entered line as its own program, so `$eth`, `$ethName`,
+    // `$isWan`, `$isLan` and `$existingPort` were all read on lines after
+    // the ones that bound them. Whether the console's brace-continuation
+    // keeps such a block together across a paste has never been verified
+    // on this hardware, and this generator does not ship on an unverified
+    // assumption -- especially not this one, whose failure mode is a port
+    // silently never joining the guest bridge (no DHCP for guests at all)
+    // or a WAN port silently joining it (the L2 hole
+    // `WAN_RENAME_WARNING_HEADER` exists for).
+    //
+    // Neither pass carries any state: both re-derive everything from
+    // RouterOS's own live state inside a single `:foreach ... do={ :if
+    // (...) do={ <one statement> } }`, so every `do={}` body holds exactly
+    // one statement and no variable ever crosses a line. The repeated
+    // `[/interface ethernet get $eth name]` lookups are read-only and cost
+    // nothing, the same trade the Heartbeat chunk's own comment already
+    // makes for its double address lookup.
+    //
+    // Pass 1 detaches an eligible LAN port from whatever OTHER bridge
+    // currently holds it (`bridge!=` ours) -- the "some units ship a second
+    // hardware-switch default bridge that pre-claims every port" case
+    // above. Pass 2 then attaches every eligible port that is in no bridge
+    // at all, which after pass 1 includes everything pass 1 just freed.
+    // Splitting remove-then-add into two passes is what removes the need
+    // for a two-statement body, and it is also strictly more re-runnable:
+    // a port already in our bridge is skipped by both passes.
+    //
+    // "Is this a WAN port" is still decided by querying the "WAN" interface
+    // list the previous chunk populated (RouterOS's own live state), not by
+    // a second hardcoded copy of the WAN names -- see the note above.
+    const ethName = `[/interface ethernet get $eth name]`;
+    const eligible = [
+      `[:len [/interface list member find where interface=${ethName} list="WAN"]] = 0`,
+      ...(hasExplicitLan
+        ? [`[:len [/interface list member find where interface=${ethName} list="LAN"]] > 0`]
+        : []),
+    ].join(" && ");
     const lines = [
-      `:foreach eth in=[/interface ethernet find] do={`,
-      `  :local ethName [/interface ethernet get $eth name]`,
-      `  :local isWan ([:len [/interface list member find where interface=$ethName list="WAN"]] > 0)`,
-      hasExplicitLan
-        ? `  :local isLan ([:len [/interface list member find where interface=$ethName list="LAN"]] > 0)`
-        : `  :local isLan true`,
-      `  :if (!$isWan && $isLan) do={`,
-      `    :local existingPort [/interface bridge port find where interface=$ethName]`,
-      `    :if ([:len $existingPort] > 0) do={`,
-      `      :if ([:len [/interface bridge port find where interface=$ethName bridge="${lanBridge}"]] = 0) do={`,
-      `        /interface bridge port remove $existingPort`,
-      `        /interface bridge port add bridge="${lanBridge}" interface=$ethName`,
-      `      }`,
-      `    } else={`,
-      `      /interface bridge port add bridge="${lanBridge}" interface=$ethName`,
-      `    }`,
-      `  }`,
-      `}`,
+      `:foreach eth in=[/interface ethernet find] do={ :if (${eligible} && [:len [/interface bridge port find where interface=${ethName} bridge!="${lanBridge}"]] > 0) do={ /interface bridge port remove [find where interface=${ethName} bridge!="${lanBridge}"] } }`,
+      `:foreach eth in=[/interface ethernet find] do={ :if (${eligible} && [:len [/interface bridge port find where interface=${ethName}]] = 0) do={ /interface bridge port add bridge="${lanBridge}" interface=${ethName} } }`,
     ];
     chunks.push({
       label: hasExplicitLan
@@ -2731,10 +3031,18 @@ export function buildRouterSetupScriptChunks(opts: {
     const hsPassEsc = escapeForRouterOsString(hsPass);
     const lines = [
       `:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={ /ip pool add name="hotspot-pool" ranges=${poolStart}-${poolEnd} }`,
-      `:if ([:len [/ip dhcp-server find where interface="${lanBridge}"]] = 0) do={`,
-      `  /ip dhcp-server add name="hotspot-dhcp" interface="${lanBridge}" address-pool="hotspot-pool" disabled=no`,
-      `  /ip dhcp-server network add address=${lanNetwork} gateway=${lanIp} dns-server=${lanIp}`,
-      `}`,
+      // Two separate one-statement `:if`s, each with its OWN existence
+      // check, rather than one `:if` whose body added both the server and
+      // its network. A multi-statement `do={}` body threw a live syntax
+      // error on a real router (see the Heartbeat chunk), and spreading it
+      // over lines is no safer -- the console runs each entered line as its
+      // own program. Giving the network its own `find` is also more
+      // correct than nesting it under the server's: a router that already
+      // had the dhcp-server but lost its network entry (or gained the
+      // server by hand) used to be skipped silently, leaving guests with
+      // leases but no gateway or DNS.
+      `:if ([:len [/ip dhcp-server find where interface="${lanBridge}"]] = 0) do={ /ip dhcp-server add name="hotspot-dhcp" interface="${lanBridge}" address-pool="hotspot-pool" disabled=no }`,
+      `:if ([:len [/ip dhcp-server network find where address="${lanNetwork}"]] = 0) do={ /ip dhcp-server network add address=${lanNetwork} gateway=${lanIp} dns-server=${lanIp} }`,
       // Uses RouterOS's own *stock* hotspot template ("hotspot", not a
       // custom-uploaded one) -- present with all its supporting CSS/error/
       // logout pages on every fresh device out of the box. A previous,
@@ -2891,23 +3199,40 @@ export function buildRouterSetupScriptChunks(opts: {
     //
     // Also: one statement per `do={}`, with the guard captured into a
     // `:local` BEFORE the add so both branches agree. Multi-statement
-    // `do={}` blocks do not survive `chunksToSingleLineScript` (see the
-    // live syntax error documented at ~:3295-3310, which contradicts that
-    // helper's own "`;` is interchangeable with a newline" docstring).
+    // `do={}` blocks threw a real syntax error on a live router (see the
+    // Heartbeat chunk's own comment), which contradicts
+    // `chunksToSingleLineScript`'s own "`;` is interchangeable with a
+    // newline" docstring.
+    //
+    // The `:local` guard and the two statements that read it are now ONE
+    // `;`-joined line each. They have to be: the RouterOS console runs
+    // each entered line as its own program, so `$needCguestCa` was gone by
+    // the time the next line asked for it. Both `:if`s were a syntax
+    // error, meaning the CA and the leaf were added but NEVER SIGNED -- an
+    // unsigned certificate cannot be bound to the hotspot profile, so this
+    // chunk's whole point silently did not happen on every fresh router.
+    // The `:local` cannot be re-queried away here (unlike elsewhere in
+    // this file): the check is "did this exist BEFORE we added it", and
+    // re-asking after the `add` gives the opposite answer.
     const lines = [
-      `:local needCguestCa ([:len [/certificate find where name="cloudguest-ca"]] = 0)`,
-      `:if ($needCguestCa) do={ /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server }`,
-      `:if ($needCguestCa) do={ /certificate sign cloudguest-ca }`,
+      [
+        `:local needCguestCa ([:len [/certificate find where name="cloudguest-ca"]] = 0)`,
+        `:if ($needCguestCa) do={ /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server }`,
+        `:if ($needCguestCa) do={ /certificate sign cloudguest-ca }`,
+      ].join("; "),
       `/certificate set [find name="cloudguest-ca"] trusted=yes`,
-      `:local needCguestLeaf ([:len [/certificate find where name="cloudguest-hotspot-cert"]] = 0)`,
       // `/certificate sign` can return before signing actually completes,
       // so the leaf's `ca=cloudguest-ca` may run against a CA that is not
       // yet a usable authority -- which fails with the same "input does
       // not match any value of ca" as the old bug and looks identical.
-      // Three seconds of insurance.
+      // Three seconds of insurance. Its own line: it binds nothing and
+      // reads nothing, and it must land after the CA is signed.
       `:delay 3s`,
-      `:if ($needCguestLeaf) do={ /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server }`,
-      `:if ($needCguestLeaf) do={ /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca }`,
+      [
+        `:local needCguestLeaf ([:len [/certificate find where name="cloudguest-hotspot-cert"]] = 0)`,
+        `:if ($needCguestLeaf) do={ /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server }`,
+        `:if ($needCguestLeaf) do={ /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca }`,
+      ].join("; "),
       `/certificate set [find name="cloudguest-hotspot-cert"] trusted=yes`,
       `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="${HOTSPOT_DNS_NAME}"`,
     ];
@@ -2993,15 +3318,18 @@ export function buildRouterSetupScriptChunks(opts: {
       "94.140.15.15", // AdGuard
     ];
     const lines: string[] = [];
-    lines.push(
-      `:if ([:len [/ip firewall address-list find where list="cloudguest-doh-ips"]] = 0) do={`,
-    );
+    // One guarded `add` PER ADDRESS instead of one `:if` wrapping ten of
+    // them. A ten-statement `do={}` body is exactly the shape that threw a
+    // live syntax error (see the Heartbeat chunk), and spreading it over
+    // lines is no safer -- the console runs each entered line as its own
+    // program. Per-address guards are also strictly more self-healing: the
+    // old "does the list exist at all" check meant a list that had been
+    // partially emptied by hand never got its missing entries back.
     dohIps.forEach((ip) => {
       lines.push(
-        `  /ip firewall address-list add list="cloudguest-doh-ips" address=${ip} comment="cloudguest-doh"`,
+        `:if ([:len [/ip firewall address-list find where list="cloudguest-doh-ips" address=${ip}]] = 0) do={ /ip firewall address-list add list="cloudguest-doh-ips" address=${ip} comment="cloudguest-doh" }`,
       );
     });
-    lines.push(`}`);
     lines.push(
       `:if ([:len [/ip firewall filter find where comment="cloudguest-block-dot-udp"]] = 0) do={ /ip firewall filter add chain=forward hotspot=!auth protocol=udp dst-port=853 action=drop comment="cloudguest-block-dot-udp" }`,
     );
@@ -3073,15 +3401,15 @@ export function buildRouterSetupScriptChunks(opts: {
       );
     }
 
+    // Every `:if ... do={ <one add> }` below is emitted on ONE line. The
+    // bodies were always single statements; splitting them over three
+    // lines only ever relied on the console keeping a brace-opened block
+    // together across a paste, which was never verified on this hardware.
     wanEffectiveIfs.forEach((wanIf, idx) => {
       const n = idx + 1;
       lines.push(
-        `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={`,
+        `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-input-wan${n}"]] = 0) do={ /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}" }`,
       );
-      lines.push(
-        `  /ip firewall mangle add chain=input in-interface="${wanIf}" action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-input-wan${n}"`,
-      );
-      lines.push(`}`);
       if (weightedPlan) {
         // One rule PER INDEX in this WAN's own share of the GCD-reduced
         // denominator, not one rule per WAN -- e.g. a 70:30 split
@@ -3091,29 +3419,17 @@ export function buildRouterSetupScriptChunks(opts: {
         // add-if-missing check never collide across a ratio change.
         weightedPlan.indicesByWan[idx].forEach((i) => {
           lines.push(
-            `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}-idx${i}"]] = 0) do={`,
+            `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}-idx${i}"]] = 0) do={ /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${weightedPlan.total}/${i} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}-idx${i}" }`,
           );
-          lines.push(
-            `  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${weightedPlan.total}/${i} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}-idx${i}"`,
-          );
-          lines.push(`}`);
         });
       } else {
         lines.push(
-          `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={`,
+          `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-pcc-wan${n}"]] = 0) do={ /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}" }`,
         );
-        lines.push(
-          `  /ip firewall mangle add chain=prerouting in-interface="${lanBridge}" dst-address-type=!local connection-mark=no-mark per-connection-classifier=both-addresses-and-ports:${wanIfs.length}/${idx} action=mark-connection new-connection-mark="wan${n}_conn" passthrough=yes comment="cloudguest-mangle-pcc-wan${n}"`,
-        );
-        lines.push(`}`);
       }
       lines.push(
-        `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-route-wan${n}"]] = 0) do={`,
+        `:if ([:len [/ip firewall mangle find where comment="cloudguest-mangle-route-wan${n}"]] = 0) do={ /ip firewall mangle add chain=prerouting connection-mark="wan${n}_conn" action=mark-routing new-routing-mark="to_wan${n}" passthrough=yes comment="cloudguest-mangle-route-wan${n}" }`,
       );
-      lines.push(
-        `  /ip firewall mangle add chain=prerouting connection-mark="wan${n}_conn" action=mark-routing new-routing-mark="to_wan${n}" passthrough=yes comment="cloudguest-mangle-route-wan${n}"`,
-      );
-      lines.push(`}`);
     });
     chunks.push({
       label: weightedPlan
@@ -3133,28 +3449,21 @@ export function buildRouterSetupScriptChunks(opts: {
   if (apiAccess) {
     const apiUser = escapeForRouterOsString(apiAccess.username);
     const apiSecret = escapeForRouterOsString(apiAccess.secret);
+    // Single line, single-statement branches -- the console runs each
+    // entered line as its own program, so an `:if`/`else={}` pair split
+    // across four lines cannot be relied on to be one program.
     const lines = [
       `/ip service set api disabled=no`,
-      `:if ([:len [/user find where name="${apiUser}"]] = 0) do={`,
-      `  /user add name="${apiUser}" password="${apiSecret}" group=full comment="cloudguest-api"`,
-      `} else={`,
-      `  /user set [find name="${apiUser}"] password="${apiSecret}"`,
-      `}`,
+      `:if ([:len [/user find where name="${apiUser}"]] = 0) do={ /user add name="${apiUser}" password="${apiSecret}" group=full comment="cloudguest-api" } else={ /user set [find name="${apiUser}"] password="${apiSecret}" }`,
     ];
     chunks.push({ label: "API Access (unlocks Device Console)", script: lines.join("\n") });
   }
 
   if (wireguard) {
     const lines = [
-      `:if ([:len [/interface wireguard find where name="wg-cloudguest"]] = 0) do={`,
-      `  /interface wireguard add name="wg-cloudguest" private-key="${wireguard.routerPrivateKey}" listen-port=13231`,
-      `}`,
-      `:if ([:len [/interface wireguard peers find where interface="wg-cloudguest"]] = 0) do={`,
-      `  /interface wireguard peers add interface="wg-cloudguest" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s`,
-      `}`,
-      `:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={`,
-      `  /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest"`,
-      `}`,
+      `:if ([:len [/interface wireguard find where name="wg-cloudguest"]] = 0) do={ /interface wireguard add name="wg-cloudguest" private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
+      `:if ([:len [/interface wireguard peers find where interface="wg-cloudguest"]] = 0) do={ /interface wireguard peers add interface="wg-cloudguest" public-key="${wireguard.serverPublicKey}" endpoint-address="${wireguard.serverEndpointHost}" endpoint-port=${wireguard.serverEndpointPort} allowed-address="${wireguard.tunnelSubnet}" persistent-keepalive=25s }`,
+      `:if ([:len [/ip address find where interface="wg-cloudguest"]] = 0) do={ /ip address add address="${wireguard.routerTunnelIp}/24" interface="wg-cloudguest" }`,
       // Load-bearing, not optional: the tunnel is only ever reachable by
       // the platform's own WireGuard hub, so treating it as
       // management-trusted (like the LAN rule) is
@@ -3179,22 +3488,27 @@ export function buildRouterSetupScriptChunks(opts: {
       // self-healing if this chunk is ever re-pasted after the bug's
       // effects are already on the device (see `cloudguest-fw-drop-wan-input`
       // below in the Firewall chunk for the paired half of this fix).
+      // ONE `;`-joined line. `$wanDropRule` and `$wgAllowRule` are read by
+      // statements that used to sit on later entered lines than their
+      // `:local`s -- and the RouterOS console runs each entered line as its
+      // own program, so those reads hit nothing. `place-before=$wanDropRule`
+      // in particular was a syntax error, meaning the accept rule (when it
+      // was added at all) landed at the END of the input chain, BELOW
+      // `cloudguest-fw-drop-wan-input` -- which is precisely the
+      // confirmed-live 2026-08-16 "gurugram" bug this `place-before` was
+      // added to fix. The tunnel could never handshake.
+      //
+      // The three-way `:if`/`else={}` nest is flattened into three mutually
+      // exclusive one-statement guards for the separate `do={}`-body rule.
       ...(enableFirewall
         ? [
-            `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]] = 0) do={`,
-            `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
-            `  :if ([:len $wanDropRule] > 0) do={`,
-            `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule`,
-            `  } else={`,
-            `    /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
-            `  }`,
-            `} else={`,
-            `  :local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
-            `  :local wgAllowRule [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
-            `  :if ([:len $wanDropRule] > 0 && [:len $wgAllowRule] > 0) do={`,
-            `    /ip firewall filter move $wgAllowRule destination=$wanDropRule`,
-            `  }`,
-            `}`,
+            [
+              `:local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]`,
+              `:local wgAllowRule [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
+              `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule }`,
+              `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] = 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" }`,
+              `:if ([:len $wgAllowRule] > 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter move $wgAllowRule destination=$wanDropRule }`,
+            ].join("; "),
           ]
         : []),
     ];
@@ -3214,21 +3528,21 @@ export function buildRouterSetupScriptChunks(opts: {
       // the `set` below always has something real to land on, regardless
       // of paste order.
       `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot dns-name="${HOTSPOT_DNS_NAME}" }`,
-      `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={`,
+      // One line, one statement per branch -- the console runs each entered
+      // line as its own program, so an `:if`/`else={}` split over five
+      // lines cannot be assumed to be one program.
       // RouterOS's own default RADIUS timeout is 300ms, confirmed live to be too
       // aggressive for any real (let alone WireGuard-tunneled) WAN path.
-      `  /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" timeout=3s`,
-      `} else={`,
-      // Not today's actual root cause (that was server-side, on the
-      // FreeRADIUS hub VM) -- flagged separately by an earlier pass over
-      // this file as a real, if unrelated, gap: an entry that already
-      // exists here could still be sitting `disabled=yes` (e.g. someone
-      // toggled it off in WinBox while debugging), and the `:if` above
-      // only ever handles "missing entirely", never "present but off".
-      // Cheap, harmless, self-heals the same idiom as everywhere else in
-      // this file -- re-enabling an already-enabled entry is a no-op.
-      `  /radius set [find where address="${radius.serverAddress}"] disabled=no`,
-      `}`,
+      // The `else={}` half is not today's actual root cause (that was
+      // server-side, on the FreeRADIUS hub VM) -- flagged separately by an
+      // earlier pass over this file as a real, if unrelated, gap: an entry
+      // that already exists here could still be sitting `disabled=yes`
+      // (e.g. someone toggled it off in WinBox while debugging), and the
+      // `:if` only ever handles "missing entirely", never "present but
+      // off". Cheap, harmless, self-heals the same idiom as everywhere
+      // else in this file -- re-enabling an already-enabled entry is a
+      // no-op.
+      `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={ /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" timeout=3s } else={ /radius set [find where address="${radius.serverAddress}"] disabled=no }`,
       `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
     ];
     chunks.push({ label: "RADIUS", script: lines.join("\n") });
@@ -3340,25 +3654,59 @@ export function buildRouterSetupScriptChunks(opts: {
     // healthy. Re-pasting this chunk is exactly the recommended fix if
     // `/system scheduler print` is ever seen showing a stuck run-count=0/
     // past next-run again.
-    const wan1DynamicResolution = [
-      `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wanEffectiveIfs[0]}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] 0 [:find [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] "/"]] }`,
-      `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${wireguard ? `\\"management_ip_address\\":\\"${wireguard.routerTunnelIp}\\",` : ""}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none } on-error={ :log warning "cloudguest-heartbeat: /tool fetch to master failed (timeout/DNS/WAN down) -- see WAN Connectivity Check chunk" }`,
-    ].join("; ");
-    const onEventBody = escapeForRouterOsString(wan1DynamicResolution);
+    // SPLIT INTO TWO CHUNKS, immediate first. Deriving the uplink instead
+    // of naming a port made this body substantially longer, and both
+    // copies of it used to sit in one paste -- roughly 5.5KB, by a wide
+    // margin the largest single paste this generator produces, in a file
+    // whose whole chunking discipline exists because WinBox's terminal was
+    // confirmed live to mangle long pastes. Two pastes halve that.
+    //
+    // The order is deliberate: the immediate check-in runs FIRST, so the
+    // technician sees the router flip to online (or sees the `:log
+    // warning`) before laying down a scheduler that repeats the same call
+    // every five minutes. The reported failure shape was precisely the
+    // other way round -- a scheduler that got created while the immediate
+    // heartbeat silently never fired -- and separate chunks make that
+    // state impossible to mistake for success, because each paste reports
+    // on its own.
+    chunks.push({
+      label: "Heartbeat (check in now, and report the live uplink's IP)",
+      // Byte-identical to the scheduler's stored copy below before that
+      // copy's extra `escapeForRouterOsString` pass -- same program, one
+      // builder, no chance of the two drifting.
+      script: buildHeartbeatStatements({ apiBase, agentCredential, wireguard }),
+    });
     const lines = [
-      `:local existingHeartbeatSched [/system scheduler find name="cloudguest-heartbeat-sched"]`,
-      `:if ([:len $existingHeartbeatSched] > 0) do={ /system scheduler remove $existingHeartbeatSched }`,
-      `/system scheduler add name="cloudguest-heartbeat-sched" interval=5m on-event="${onEventBody}"`,
-      // The one-shot line runs once right now, immediately, top-level --
-      // no extra nesting, so it keeps its existing single-level `\"`
-      // escaping (it was never the buggy one; only the scheduler's stored
-      // copy needed the extra nesting level above).
-      `:local wan1Ip ""`,
-      `:if ([:len [/ip address find where interface="${wanEffectiveIfs[0]}"]] > 0) do={ :set wan1Ip [:pick [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] 0 [:find [/ip address get [find interface="${wanEffectiveIfs[0]}"] address] "/"]] }`,
-      `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=("{${escapeForRouterOsString(wireguard ? `"management_ip_address":"${wireguard.routerTunnelIp}",` : "")}\\"public_ip_address\\":\\"" . $wan1Ip . "\\"}") output=none } on-error={ :log warning "cloudguest-heartbeat: initial /tool fetch to master failed (timeout/DNS/WAN down) -- re-check the WAN Connectivity Check chunk's output above and retry" }`,
+      // `:local` + its reader on ONE line. Split over two entered lines,
+      // the second was a syntax error, so the stale scheduler was never
+      // removed and the `add` below hit an already-existing name -- the
+      // self-heal this chunk's comment above promises never happened.
+      `:local existingHeartbeatSched [/system scheduler find name="cloudguest-heartbeat-sched"]; :if ([:len $existingHeartbeatSched] > 0) do={ /system scheduler remove $existingHeartbeatSched }`,
+      // `start-time=startup` is the targeted fix for the reported
+      // `run-count=0` / `next-run` weeks in the past. With neither
+      // `start-date` nor `start-time` given, RouterOS captures the CURRENT
+      // system clock at `add` time -- and on a device with no
+      // battery-backed RTC that has not reached NTP yet (routine this
+      // early in provisioning), that captured instant is whatever the
+      // pre-sync clock said. Once NTP corrects the clock, the stored
+      // absolute start sits in the past and `next-run` reads as stuck.
+      // `start-time=startup` stores NO absolute instant at all: the
+      // schedule is anchored to boot and repeats every `interval`, so
+      // there is nothing for a wrong clock to poison.
+      //
+      // Fixed by CONSTRUCTION, not by observation. This is inferred from
+      // MikroTik's documented `start-time` semantics plus the reported
+      // symptom; the stuck state was never reproducible here, so the
+      // mechanism is still not confirmed. It is safe to be wrong about:
+      // the immediate check-in on the last line is what makes a router
+      // appear online at provisioning time either way, and the unconditional
+      // remove-and-re-add above means a future visit re-lays this entry.
+      `/system scheduler add name="cloudguest-heartbeat-sched" interval=5m start-time=startup on-event="${escapeForRouterOsString(buildHeartbeatStatements({ apiBase, agentCredential, wireguard }))}"`,
     ];
-    chunks.push({ label: "Heartbeat (reports management + WAN1 IP)", script: lines.join("\n") });
+    chunks.push({
+      label: "Heartbeat Scheduler (re-checks the live uplink every 5 minutes)",
+      script: lines.join("\n"),
+    });
   }
 
   return chunks;
