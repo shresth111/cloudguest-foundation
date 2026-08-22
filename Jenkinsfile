@@ -132,6 +132,11 @@ pipeline {
             "a11y-invariants" 0 \
             "Portal accessibility invariants: all checks passed." \
             bun run test:a11y
+
+          ./scripts/ci-gated-test.sh \
+            "manual-wizard-engine" 100 \
+            "manual-wizard-engine: all checks passed" \
+            bun run test:manual-wizard
         '''
       }
     }
