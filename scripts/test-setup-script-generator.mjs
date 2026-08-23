@@ -156,6 +156,78 @@
  *    ignore it. The check now asserts the verdict itself. That is a real
  *    hole this mutation pass found, not a confirmation -- the same shape
  *    as the `active=yes` hole section 3 found the same way.)
+ *
+ * THE SECOND RESET STATE (section 10, added 2026-08-23)
+ * ----------------------------------------------------
+ * A MikroTik hardware reset produces one of TWO states depending on how
+ * long the button is held: WITH the default configuration (a bridge with
+ * ether2..5 in it, a DHCP client on ether1, defconf firewall rules, and
+ * `/interface list member add interface=ether1 list=WAN`), or WITH NO
+ * DEFAULTS AT ALL. Every chunk this generator emits had only ever been
+ * run against the first.
+ *
+ * Audited chunk by chunk. Most of it already worked: the bridge, the
+ * "WAN" list and every other object are create-if-missing; the sole
+ * `place-before` already has an explicit "target does not exist" branch;
+ * the portal-page writes, the hotspot default user profile, the tunnel and
+ * the two checkpoints already count what they found. ONE behavioural
+ * defect was found, and it is an L2 hole:
+ *
+ *   For a PPPoE WAN this generator puts only the VIRTUAL
+ *   `cloudguest-pppoe-wan<N>` interface into the "WAN" interface list --
+ *   "WAN + Bridge" cannot add a list member for an interface that does not
+ *   exist yet. The PHYSICAL port carrying the session therefore tests as
+ *   "not a WAN port" in the LAN sweep. With defaults, MikroTik's own
+ *   defconf `ether1 -> WAN` membership covered for that. Without defaults
+ *   nothing does, and the sweep bridges the live uplink into the guest
+ *   LAN -- WAN and LAN on one L2 segment, silently, because bridging a
+ *   port is a legal thing to do.
+ *
+ * The rest of section 10 is the reporting half: six chunks that create or
+ * mutate something defconf would have supplied now bind a count, print it,
+ * and take a named FAIL branch on zero -- because `set [find ...]` against
+ * an empty match SUCCEEDS on RouterOS and an empty `:foreach` exits clean,
+ * so "no error" was never evidence of anything.
+ *
+ * Twenty mutations of the real generator and four of the guards
+ * themselves were injected and this suite re-run. All twenty-four caught:
+ *
+ *   the pppoe-client exclusion removed from the LAN sweep .............. 2
+ *   the exclusion applied to the attach pass only ...................... 1
+ *   the exclusion hardcoded to ether1 instead of read live ............. 2
+ *   the LAN Ports count/verdict line dropped ........................... 2
+ *   LAN Ports counts but never prints the number ....................... 1
+ *   LAN Ports stops naming the ports it bridged ........................ 1
+ *   the stale-defconf cleanup reverts to a bare silent :foreach ........ 2
+ *   the stale-defconf cleanup loses every zero branch .................. 2
+ *   the stale-defconf zero branch stops naming the count ............... 1
+ *   the cleanup counts but no longer removes anything .................. 1
+ *   the WAN + Bridge base-object count dropped ......................... 2
+ *   the Hotspot five-object verification dropped ....................... 2
+ *   the certificate chunk's state check dropped ........................ 2
+ *   the RADIUS chunk stops reading hsprof1 back ........................ 2
+ *   a FAIL branch loses its :log warning ............................... 1
+ *   place-before points at a defconf rule directly ..................... 2
+ *   the WireGuard no-target (bare router) add branch dropped ........... 1
+ *   the LAN bridge add loses its existence test ........................ 1
+ *   a chunk starts matching on RouterOS's own `defconf` comment ........ 1
+ *   a second chunk starts depending on the `bridgeLocal` name .......... 1
+ *   zero-branch guard stops accepting the negated-verdict form ......... 4
+ *   the unguarded-add detector stops recognising an add ................ 2
+ *   the place-before guard stops requiring the length test ............. 1
+ *   the existence-test predicate stops recognising `] = 0` ............. 1
+ *
+ *   (three initially slipped through, and two were real holes in the
+ *    GUARDS rather than confirmations. The place-before and unguarded-add
+ *    checks each kept a PRIVATE COPY of the regex their self-check tested,
+ *    so mutating the copy the sweep actually used changed nothing the
+ *    self-check could see -- the exact "a guard that cannot be shown to
+ *    fail is not a guard" shape. Both predicates are now shared by the
+ *    sweep and its self-checks. The third, removing one of three zero
+ *    branches from the cleanup chunk, was a legitimate survivor: the
+ *    remaining two still reported the zero case. The mutation was
+ *    sharpened to remove all three, and a separate check now pins the
+ *    branch to naming the number rather than saying something vague.)
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
@@ -1619,6 +1691,408 @@ check(
     .every((v) => v.why.length > 40 && /remove|delete/i.test(v.why)),
   "an unrepairable secret with no recovery instruction is a dead end, not a warning",
 );
+
+// =====================================================================
+// 10. THE ROUTER THAT CAME UP WITH NO DEFAULT CONFIGURATION
+// =====================================================================
+// A MikroTik hardware reset produces one of TWO states depending on how
+// long the button is held. Every chunk this generator emits has only ever
+// been run against the first:
+//
+//   WITH defaults -- `bridgeLocal`/`bridge` exists with ether2..5 in it, a
+//     DHCP client sits on ether1, the defconf firewall rules are present,
+//     and -- the one that turned out to matter -- MikroTik's own defconf
+//     has already run `/interface list member add interface=ether1
+//     list=WAN`.
+//   WITHOUT defaults -- none of that. No bridge, no lists, no DHCP client,
+//     no firewall rules, every interface bare.
+//
+// The whole failure class here is the same one this suite exists for:
+// on RouterOS, `set [find ...]` against an EMPTY match SUCCEEDS -- no
+// output, no error, no trace -- and `:foreach` over an empty `find`
+// iterates zero times and exits clean. A chunk can therefore run
+// perfectly on a bare router and configure nothing, and the only honest
+// evidence of which happened is a number the chunk prints itself.
+//
+// Section 10 asserts two different things, and they are not the same
+// thing: that the ONE real defect found (10.1) stays fixed, and that
+// every chunk which creates or mutates a defconf-provided object now
+// COUNTS what it did (10.2 - 10.7).
+
+console.log("\n-- the router that came up with no default configuration --");
+
+/** Chunks for a PPPoE WAN with every LAN-side subsystem on -- the variant
+ * the bare-router L2 hole lives in. */
+const BARE_PPPOE = buildRouterSetupScriptChunks({
+  ...BASE,
+  wans: [PPPOE_WAN],
+  wireguard: WG,
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  portalUrl: PORTAL,
+});
+const bareChunk = (chunks, needle) => {
+  const hit = chunks.filter((c) => c.label.includes(needle));
+  return hit.map((c) => c.script).join("\n");
+};
+
+// ---------------------------------------------------------------------
+// 10.1 THE PPPoE PARENT PORT WAS SWEPT INTO THE GUEST BRIDGE.
+// ---------------------------------------------------------------------
+// The only behavioural defect in this section, and it is a WAN/LAN L2
+// hole, not a reporting gap.
+//
+// For a PPPoE WAN this generator deliberately puts only the VIRTUAL
+// `cloudguest-pppoe-wan<N>` interface into the "WAN" interface list --
+// "WAN + Bridge" cannot add a list member for an interface that does not
+// exist yet. So the PHYSICAL port carrying the session is not in the WAN
+// list, and the LAN sweep's "is this a WAN port" test says no.
+//
+// With defaults, defconf's own `ether1 -> WAN` membership covered for
+// that. Without defaults nothing does, and the sweep bridges the live
+// uplink port into the guest LAN. Silently: bridging a port is legal and
+// RouterOS has no opinion about it.
+
+{
+  const lanPorts = bareChunk(BARE_PPPOE, "LAN Ports");
+  const PPPOE_EXCLUSION = `[:len [/interface pppoe-client find where interface=[/interface ethernet get $eth name]]] = 0`;
+
+  check(
+    "bare router: the LAN sweep excludes any port carrying a pppoe-client",
+    lanPorts.includes(PPPOE_EXCLUSION),
+    "a PPPoE WAN's physical port is not in the 'WAN' interface list (only its virtual " +
+      "interface is), so without this live-state test the sweep bridges the uplink into the " +
+      "guest LAN on any router whose defconf 'ether1 -> WAN' membership is absent",
+  );
+
+  check(
+    "bare router: BOTH sweep passes apply the exclusion, not just one",
+    (lanPorts.match(/\/interface pppoe-client find where interface=/g) ?? []).length >= 2,
+    "the detach pass and the attach pass must agree on what is eligible -- if only the attach " +
+      "pass excludes the uplink, the detach pass still rips it out of whatever bridge holds it",
+  );
+
+  check(
+    "bare router: the exclusion is live state, not a second hardcoded copy of the WAN names",
+    !/pppoe-client find where interface="ether1"/.test(lanPorts),
+    "a hardcoded name drifts from the device the moment an interface is renamed -- the same " +
+      "duplication WAN_RENAME_WARNING_HEADER exists because of",
+  );
+
+  // MODELLED, NOT ASSERTED. The eligibility test is a boolean over device
+  // state, so the hole is reproduced here as that boolean rather than
+  // described in a comment. `wanList` is what each reset state actually
+  // leaves behind.
+  const eligibleUnderShippedRule = (port, wanList, pppoeParents) =>
+    !wanList.includes(port) && !pppoeParents.includes(port);
+  const eligibleUnderOldRule = (port, wanList) => !wanList.includes(port);
+
+  check(
+    "INJECTED: with defaults, defconf's own ether1->WAN membership hid the hole",
+    eligibleUnderOldRule("ether1", ["ether1", "cloudguest-pppoe-wan1"]) === false,
+    "if the old rule already rejected ether1 here, the defect story is wrong -- re-check it",
+  );
+  check(
+    "INJECTED: with NO defaults, the old rule swept the live PPPoE uplink into the guest bridge",
+    eligibleUnderOldRule("ether1", ["cloudguest-pppoe-wan1"]) === true,
+    "the bare-router hole this fix exists for is not reproducible -- re-check the reasoning " +
+      "before trusting the fix",
+  );
+  check(
+    "bare router: the shipped rule rejects the PPPoE parent port in BOTH reset states",
+    eligibleUnderShippedRule("ether1", ["ether1", "cloudguest-pppoe-wan1"], ["ether1"]) === false &&
+      eligibleUnderShippedRule("ether1", ["cloudguest-pppoe-wan1"], ["ether1"]) === false,
+    "the fix does not actually close the hole",
+  );
+  check(
+    "...and still admits an ordinary LAN port, so the fix is not just 'reject everything'",
+    eligibleUnderShippedRule("ether3", ["cloudguest-pppoe-wan1"], ["ether1"]) === true,
+    "an over-strict rule that bridges nothing is a worse bug than the one being fixed",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 10.2 - 10.7 NEVER INFER SUCCESS FROM THE ABSENCE OF AN ERROR.
+// ---------------------------------------------------------------------
+// Each chunk below creates or mutates something a default configuration
+// would have provided. On a bare router each is doing that work for the
+// first time, and every one of them used to be silent about the outcome.
+// Each now binds a count and prints it, with a FAIL branch that names the
+// consequence -- the same shape section 6 already requires of the portal
+// pages and section 8 of the tunnel.
+
+/** A chunk reports honestly when it (a) reads a count off the device,
+ * (b) prints that count, and (c) has a branch for the zero case that says
+ * something, rather than leaving zero indistinguishable from success.
+ *
+ * Two legal spellings of that zero branch, both already in this file: an
+ * explicit `:if ($n = 0) do={ ... }`, and -- where several counts share
+ * one verdict -- the negated all-positive form
+ * `:if (!($a > 0 && $n > 0)) do={ ... }` the WireGuard chunk established.
+ * Accepting only the first would ban the second, which is how a guard
+ * gets loosened by the next person instead of obeyed. */
+const reportsACount = (script, localName) => ({
+  binds: new RegExp(`:local ${localName} \\[:len \\[/`).test(script),
+  prints: script.includes(`[:tostr $${localName}]`),
+  hasZeroBranch:
+    new RegExp(`\\$${localName}[^;]*=\\s*0\\)\\s*do=\\{`).test(script) ||
+    new RegExp(`:if \\(!\\([^;]*\\$${localName} > 0[^;]*\\)\\)\\s*do=\\{`).test(script),
+});
+
+const COUNTED = [
+  [
+    "WAN + Bridge counts the interface list and the bridge it creates",
+    bareChunk(BARE_PPPOE, "WAN + Bridge"),
+    "lanBrN",
+    "every later chunk binds to this bridge by name; a find that matches nothing is silent",
+  ],
+  [
+    "the stale-defconf cleanup says whether it removed anything",
+    bareChunk(BARE_PPPOE, "Stale Factory-Default DHCP Client"),
+    "staleDefconfN",
+    "an empty :foreach is a clean no-op -- indistinguishable from having cleared the fault",
+  ],
+  [
+    "LAN Ports counts what actually ended up in the guest bridge",
+    bareChunk(BARE_PPPOE, "LAN Ports"),
+    "lanPortsN",
+    "a bridge with no port in it carries the LAN address, DHCP and hotspot and serves nobody",
+  ],
+  [
+    "the Hotspot chunk counts the five objects it creates",
+    bareChunk(BARE_PPPOE, "Hotspot"),
+    "hsProf1",
+    "the unconditional `set [find name=hsprof1]` lines succeed against an empty match",
+  ],
+  [
+    "the certificate chunk counts what its three set [find] lines target",
+    bareChunk(BARE_PPPOE, "Self-Signed HTTPS Certificate"),
+    "ctLeaf",
+    "three `set [find ...]` lines that cannot fail is the trap, not the reassurance",
+  ],
+  [
+    "the RADIUS chunk reads hsprof1 back after wiring use-radius into it",
+    bareChunk(BARE_PPPOE, "RADIUS"),
+    "rdProf",
+    "a /radius entry plus a hotspot that never asks it anything fails every guest login",
+  ],
+];
+
+for (const [what, script, localName, why] of COUNTED) {
+  const r = reportsACount(script, localName);
+  check(`bare router: ${what}`, r.binds, `no :local ${localName} read off the device -- ${why}`);
+  check(
+    `bare router: ...and $${localName} is PRINTED, not just read`,
+    r.prints,
+    `$${localName} is never rendered into the paste output, so the operator sees nothing`,
+  );
+  check(
+    `bare router: ...and a zero $${localName} takes a branch that says so`,
+    r.hasZeroBranch,
+    `zero is silently indistinguishable from success -- ${why}`,
+  );
+}
+
+// The zero branches have to say something USEFUL, not just exist. Same
+// requirement section 6 puts on the portal pages: a fix that quietly does
+// the right thing is half of what was asked for.
+for (const [what, script] of [
+  ["LAN Ports", bareChunk(BARE_PPPOE, "LAN Ports")],
+  ["Hotspot", bareChunk(BARE_PPPOE, "Hotspot")],
+  ["WAN + Bridge", bareChunk(BARE_PPPOE, "WAN + Bridge")],
+  ["Self-Signed HTTPS Certificate", bareChunk(BARE_PPPOE, "Self-Signed HTTPS Certificate")],
+  ["RADIUS", bareChunk(BARE_PPPOE, "RADIUS")],
+]) {
+  check(
+    `bare router: ${what}'s failure output names the consequence and logs it`,
+    /:put "  (RESULT: )?FAIL/.test(script) && /:log warning "cloudguest[^"]{30,}/.test(script),
+    "a FAIL with no consequence and no log line scrolls past in a terminal and is gone",
+  );
+}
+
+check(
+  "bare router: LAN Ports names the ports it bridged, not just how many",
+  bareChunk(BARE_PPPOE, "LAN Ports").includes(
+    `:foreach lanP in=[/interface bridge port find where bridge=`,
+  ),
+  "ether2..ether5 is an hEX detail, not a rule -- on an unfamiliar board a bare count would " +
+    "look identical whether the sweep picked the right ports or the wrong ones",
+);
+
+// The zero case in this chunk specifically is the EXPECTED case on a bare
+// router, so it has to read as an outcome ("0 found, nothing removed"),
+// not as an absence. A generic "has a zero branch" test passes on a chunk
+// whose zero branch says something vague; this pins the number.
+check(
+  "bare router: the stale-defconf cleanup's zero branch states the count, not just a sentence",
+  /:if \(\$staleDefconfN = 0\) do=\{ :put "[^"]*\b0\b[^"]*" \}/.test(
+    bareChunk(BARE_PPPOE, "Stale Factory-Default DHCP Client"),
+  ),
+  "on a bare router this is the normal outcome, and 'nothing was said' is exactly how the " +
+    "operator concludes the duplicate-address fault was cleared when it was never there",
+);
+
+check(
+  "bare router: the stale-defconf cleanup still actually removes the client it counts",
+  /:foreach staleDefconfClient in=\[\/ip dhcp-client find where interface="bridgeLocal"\] do=\{ \/ip dhcp-client remove \$staleDefconfClient \}/.test(
+    bareChunk(BARE_PPPOE, "Stale Factory-Default DHCP Client"),
+  ),
+  "counting is an addition to the removal, not a replacement for it -- the duplicate-address " +
+    "fault on bridgeLocal is a confirmed live incident",
+);
+
+// ---------------------------------------------------------------------
+// 10.8 NOTHING IS POSITIONED AGAINST A RULE ONLY DEFCONF PROVIDES.
+// ---------------------------------------------------------------------
+// `place-before=` against a rule that does not exist is the exact syntax
+// error that once put the WireGuard accept rule BELOW the WAN drop rule on
+// a real router. A bare router has no defconf firewall rules at all, so
+// any `place-before` whose target is assumed rather than counted is that
+// bug waiting for the second reset state.
+
+{
+  /** ONE predicate, used by the sweep AND by the self-checks below. It was
+   * duplicated at first, and a mutation of the sweep's copy then went
+   * uncaught because the self-check was still testing its own private
+   * copy -- exactly the "guard that cannot be shown to fail" this section
+   * is supposed to rule out. Shared, so mutating it breaks both. */
+  const placeBeforeOk = (line, target) =>
+    target.startsWith("$") &&
+    new RegExp(`:local ${target.slice(1)} \\[/`).test(line) &&
+    new RegExp(`\\[:len \\${target}\\]\\s*>\\s*0`).test(line);
+
+  const offenders = [];
+  for (const [label, script] of pasteables) {
+    script.split("\n").forEach((line, n) => {
+      for (const m of line.matchAll(/place-before=(\S+)/g)) {
+        if (!placeBeforeOk(line, m[1]))
+          offenders.push(`${label}, line ${n + 1}: place-before=${m[1]}`);
+      }
+    });
+  }
+  check(
+    "bare router: every place-before targets a variable bound on the same line AND guarded non-empty",
+    offenders.length === 0,
+    `${offenders.length} unguarded place-before target(s). On a router with no defconf firewall ` +
+      `the target find is empty, and place-before against an empty match is the syntax error ` +
+      `that landed the WireGuard accept rule below the drop rule on "gurugram".\n      ` +
+      offenders.join("\n      "),
+  );
+  check(
+    "INJECTED: the place-before guard rejects a literal defconf-rule target",
+    !placeBeforeOk(
+      `/ip firewall filter add action=accept place-before=[/ip firewall filter find where comment="defconf: drop all not coming from LAN"]`,
+      `[/ip`,
+    ),
+    "the guard accepts the exact shape it exists to ban",
+  );
+  check(
+    "INJECTED: ...and rejects a variable that is bound but never length-checked",
+    !placeBeforeOk(
+      `:local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; /ip firewall filter add action=accept place-before=$wanDropRule`,
+      `$wanDropRule`,
+    ),
+    "binding the target is not the same as knowing it matched something -- an empty match is " +
+      "precisely the case place-before cannot survive",
+  );
+  check(
+    "...and ACCEPTS the shipped shape, so the guard is not simply banning place-before",
+    placeBeforeOk(
+      `:local wanDropRule [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter add action=accept place-before=$wanDropRule }`,
+      `$wanDropRule`,
+    ),
+    "the guard bans the correct, shipped form -- which is how a guard gets deleted",
+  );
+}
+
+check(
+  "bare router: the WireGuard chunk still has a no-target branch that plain-adds the rule",
+  /:if \(\[:len \$wgAllowRule\] = 0 && \[:len \$wanDropRule\] = 0\) do=\{ \/ip firewall filter add [^}]*\}/.test(
+    bareChunk(BARE_PPPOE, "WireGuard Tunnel"),
+  ),
+  "without this branch a bare router (or one where the Firewall chunk was pasted second) gets " +
+    "NO management accept rule at all instead of one in the wrong place",
+);
+
+// ---------------------------------------------------------------------
+// 10.9 EVERY OBJECT A DEFAULT CONFIG WOULD HAVE PROVIDED IS CREATED, NOT
+//      ASSUMED.
+// ---------------------------------------------------------------------
+// An `add` with no existence test in front of it errors on the second
+// paste; an object that is only ever `set` and never `add`ed does nothing
+// at all on the first paste against a bare router. Every `add` this
+// generator emits must therefore carry an existence test on its own
+// entered line -- the console runs each line as its own program, so a
+// guard on a different line is not a guard.
+
+{
+  /** `/system scheduler add` is deliberately unconditional: the line above
+   * it removes the existing entry first, because existence alone does not
+   * mean the entry is healthy (see that chunk's own comment). */
+  const INTENTIONALLY_UNGUARDED = [/\/system scheduler add /];
+  /** Shared by the sweep and by both self-checks, for the same reason the
+   * place-before predicate above is: a self-check that keeps its own copy
+   * of the regex cannot see the sweep's copy being mutated, and a mutation
+   * of the sweep therefore passes. Verified: mutating either of these two
+   * now turns the self-checks red. */
+  const IS_ADD_LINE = (line) => /(?:^|[{;\s])\/[a-z][a-z0-9 /-]* add /.test(line);
+  const HAS_EXISTENCE_TEST = (line) => /\]\s*=\s*0/.test(line);
+
+  const offenders = [];
+  for (const [label, script] of pasteables) {
+    script.split("\n").forEach((line, n) => {
+      if (line.trimStart().startsWith("#")) return;
+      if (!IS_ADD_LINE(line)) return;
+      if (INTENTIONALLY_UNGUARDED.some((re) => re.test(line))) return;
+      if (HAS_EXISTENCE_TEST(line)) return;
+      offenders.push(`${label}, line ${n + 1}: ${line.slice(0, 110)}`);
+    });
+  }
+  check(
+    "bare router: every emitted `add` carries an existence test on its own entered line",
+    offenders.length === 0,
+    `${offenders.length} unguarded add(s). On a bare router the object does not exist and on a ` +
+      `re-paste it does, so an add with no [:len [find ...]] = 0 test is broken in one of the ` +
+      `two directions whichever way you look at it.\n      ` +
+      offenders.slice(0, 10).join("\n      "),
+  );
+  check(
+    "INJECTED: that guard actually recognises an unguarded add",
+    IS_ADD_LINE(`/interface bridge add name="bridge-guest"`) &&
+      !HAS_EXISTENCE_TEST(`/interface bridge add name="bridge-guest"`),
+    "the add-detection regex does not match a bare add, so the guard cannot fire at all",
+  );
+  check(
+    "INJECTED: ...and does NOT fire on the guarded form it exists to require",
+    IS_ADD_LINE(
+      `:if ([:len [/interface bridge find where name="bridge-guest"]] = 0) do={ /interface bridge add name="bridge-guest" }`,
+    ) &&
+      HAS_EXISTENCE_TEST(
+        `:if ([:len [/interface bridge find where name="bridge-guest"]] = 0) do={ /interface bridge add name="bridge-guest" }`,
+      ),
+    "the guard bans the very shape it is asking for, which is how a guard gets switched off",
+  );
+}
+
+// The `bridgeLocal` literal is a defconf artifact name. It is legitimate
+// in the cleanup chunk (that chunk's entire job is to look for it) and
+// nowhere else -- any other chunk matching on it would silently match
+// nothing on a bare router while looking like it worked.
+{
+  const elsewhere = BARE_PPPOE.filter(
+    (c) => c.script.includes("bridgeLocal") && !c.label.includes("Stale Factory-Default"),
+  ).map((c) => c.label);
+  check(
+    "bare router: no chunk except the cleanup one matches on the defconf `bridgeLocal` name",
+    elsewhere.length === 0,
+    `${elsewhere.join(", ")} depend(s) on a name a bare router never had`,
+  );
+  check(
+    "bare router: no chunk matches on RouterOS's own `defconf` comment either",
+    !BARE_PPPOE.some((c) => /comment[=~]"?defconf/.test(c.script)),
+    "defconf-commented rules do not exist on a router reset with no default configuration, so " +
+      "any find keyed on them is empty and every set against it succeeds while doing nothing",
+  );
+}
 
 // =====================================================================
 

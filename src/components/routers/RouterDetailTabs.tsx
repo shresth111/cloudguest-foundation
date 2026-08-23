@@ -2780,6 +2780,34 @@ export function buildRouterSetupScriptChunks(opts: {
       `:if ([:len [/interface bridge find where name="${lanBridge}"]] = 0) do={ /interface bridge add name="${lanBridge}" }`,
     );
     lines.push(`/interface bridge set [find name="${lanBridge}"] disabled=no`);
+    // COUNT BOTH, DO NOT INFER EITHER. A router reset with the hardware
+    // button held long enough comes up with NO default configuration at
+    // all: no bridge, no `WAN`/`LAN` interface lists, no defconf firewall,
+    // no DHCP client. Both lines above are `:if ([:len [find]] = 0) do={
+    // add }`, which is silent when it fires AND silent when it does not,
+    // and the `set ... disabled=no` on the line above is the exact
+    // `set [find ...]`-against-an-empty-match shape that succeeds with no
+    // error while touching nothing. Every chunk below this one binds to
+    // one or both of these two objects by name -- the bridge (LAN IP,
+    // DHCP server, hotspot, mangle `in-interface=`) and the "WAN" list
+    // (the firewall's `in-interface-list=WAN`, the LAN-port sweep's
+    // "is this a WAN port" test) -- so if either is missing here, a dozen
+    // later `find`s quietly match nothing and the whole paste reports
+    // success having built nothing. Printed as a number, on the chunk that
+    // is responsible for them, rather than left to be discovered three
+    // chunks later as an absence.
+    lines.push(
+      [
+        `:local wanListN [:len [/interface list find where name="WAN"]]`,
+        `:local lanBrN [:len [/interface bridge find where name="${lanBridge}"]]`,
+        `:put ("  WAN interface list: " . [:tostr $wanListN] . "   LAN bridge ${lanBridge}: " . [:tostr $lanBrN])`,
+        `:if ($wanListN > 0 && $lanBrN > 0) do={ :put "  RESULT: PASS -- both exist; the chunks below have something to bind to." }`,
+        `:if (!($wanListN > 0 && $lanBrN > 0)) do={ :put "  RESULT: FAIL -- a count above is 0, so this router has no usable base config." }`,
+        `:if (!($wanListN > 0 && $lanBrN > 0)) do={ :put "  Every later chunk matches on these two by name, and a find that matches" }`,
+        `:if (!($wanListN > 0 && $lanBrN > 0)) do={ :put "  nothing is SILENT on RouterOS -- do not paste further until this says PASS." }`,
+        `:if (!($wanListN > 0 && $lanBrN > 0)) do={ :log warning "cloudguest: WAN interface list or LAN bridge ${lanBridge} missing after the WAN + Bridge chunk" }`,
+      ].join("; "),
+    );
     // See WAN_RENAME_WARNING_HEADER / wanExistenceCheckLines' own
     // docstring: must run before any bridge-port-removal/NAT below, which
     // otherwise silently no-op (rather than error) on a name that no
@@ -2856,8 +2884,28 @@ export function buildRouterSetupScriptChunks(opts: {
     // removed anything: the second line read a `:local` the console had
     // already discarded, so the duplicate-address fault below survived
     // every provisioning run that was supposed to clear it.
+    //
+    // THE COUNT IS THE POINT, NOT THE REMOVAL. A router reset with no
+    // default configuration has no "bridgeLocal" at all, so this `find`
+    // matches nothing -- which is the correct outcome, and used to be
+    // completely indistinguishable from "matched and removed": an empty
+    // `:foreach` is a no-op that prints nothing, exits clean, and leaves
+    // the operator to assume from the silence that the duplicate-address
+    // fault described above was cleared. It may never have been there.
+    // Confirmed safe on both shapes: `:foreach` over an empty find neither
+    // errors nor iterates, so this chunk cannot fail on a bare router --
+    // it just had no way of saying which of the two things happened.
+    // Bound and read on ONE entered line, `:foreach` body one statement.
     const lines = [
-      `:foreach staleDefconfClient in=[/ip dhcp-client find where interface="bridgeLocal"] do={ /ip dhcp-client remove $staleDefconfClient }`,
+      [
+        `:local staleDefconfN [:len [/ip dhcp-client find where interface="bridgeLocal"]]`,
+        `:foreach staleDefconfClient in=[/ip dhcp-client find where interface="bridgeLocal"] do={ /ip dhcp-client remove $staleDefconfClient }`,
+        `:if ($staleDefconfN > 0) do={ :put ("  Removed " . [:tostr $staleDefconfN] . " stale factory-default DHCP client(s) bound to bridgeLocal.") }`,
+        `:if ($staleDefconfN > 0) do={ :log info ("cloudguest: removed " . [:tostr $staleDefconfN] . " defconf dhcp-client(s) on bridgeLocal") }`,
+        `:if ($staleDefconfN = 0) do={ :put "  DHCP clients on bridgeLocal: 0 found, nothing removed." }`,
+        `:if ($staleDefconfN = 0) do={ :put "  Expected, and not a fault: a router reset with NO default configuration" }`,
+        `:if ($staleDefconfN = 0) do={ :put "  never had a bridgeLocal for one to sit on. This chunk had nothing to do." }`,
+      ].join("; "),
     ];
     chunks.push({ label: "Stale Factory-Default DHCP Client Cleanup", script: lines.join("\n") });
   }
@@ -3310,9 +3358,39 @@ export function buildRouterSetupScriptChunks(opts: {
     // "Is this a WAN port" is still decided by querying the "WAN" interface
     // list the previous chunk populated (RouterOS's own live state), not by
     // a second hardcoded copy of the WAN names -- see the note above.
+    //
+    // THE PPPoE PARENT PORT IS NOT A LAN PORT, AND THE "WAN" LIST DOES NOT
+    // KNOW THAT ON A BARE ROUTER. For a PPPoE WAN this generator
+    // deliberately puts only the VIRTUAL `cloudguest-pppoe-wan<N>`
+    // interface into the "WAN" interface list -- the physical port
+    // underneath it is never added, because "WAN + Bridge" cannot add a
+    // list member for an interface that does not exist yet (see that
+    // chunk's own comment). So the physical port that actually carries the
+    // PPPoE session tests as "not a WAN port" here.
+    //
+    // On a router reset WITH the default configuration that never showed
+    // up, because MikroTik's own defconf already contains `/interface list
+    // member add interface=ether1 list=WAN` -- defconf, not this script,
+    // was what kept the PPPoE parent port out of the guest bridge. Reset
+    // the same router with NO default configuration and that membership
+    // does not exist, nothing else adds it, and this sweep bridges the
+    // live WAN port into the guest LAN: WAN and LAN on one L2 segment,
+    // the exact hole `WAN_RENAME_WARNING_HEADER` exists for, arrived at by
+    // a third route. It is silent, because bridging a port is a perfectly
+    // legal thing to do and RouterOS has no opinion about it.
+    //
+    // Excluded by LIVE STATE (`/interface pppoe-client find where
+    // interface=<port>`), not by a second hardcoded copy of the WAN names
+    // -- same reasoning as the "WAN" list test it sits beside, and it
+    // additionally covers `basicConfigOnly`, where the technician's own
+    // hand-made pppoe-client is the only thing that knows which port is
+    // the uplink. By the time this chunk is pasted the client exists: "WAN
+    // Addressing" creates it two chunks earlier, and in `basicConfigOnly`
+    // the technician made it before the script was ever generated.
     const ethName = `[/interface ethernet get $eth name]`;
     const eligible = [
       `[:len [/interface list member find where interface=${ethName} list="WAN"]] = 0`,
+      `[:len [/interface pppoe-client find where interface=${ethName}]] = 0`,
       ...(hasExplicitLan
         ? [`[:len [/interface list member find where interface=${ethName} list="LAN"]] > 0`]
         : []),
@@ -3320,6 +3398,37 @@ export function buildRouterSetupScriptChunks(opts: {
     const lines = [
       `:foreach eth in=[/interface ethernet find] do={ :if (${eligible} && [:len [/interface bridge port find where interface=${ethName} bridge!="${lanBridge}"]] > 0) do={ /interface bridge port remove [find where interface=${ethName} bridge!="${lanBridge}"] } }`,
       `:foreach eth in=[/interface ethernet find] do={ :if (${eligible} && [:len [/interface bridge port find where interface=${ethName}]] = 0) do={ /interface bridge port add bridge="${lanBridge}" interface=${ethName} } }`,
+      // COUNT THE RESULT. Both passes above are `:foreach` over a `find`:
+      // on an empty or fully-ineligible set they iterate zero times, add
+      // nothing, print nothing and exit clean -- identical output to a
+      // sweep that worked. The failure that hides in that silence is total,
+      // not partial: a guest bridge with no physical port in it carries the
+      // LAN address, the DHCP server and the hotspot and serves nobody,
+      // because nothing is wired to it. That is the same "no guest device
+      // could get an IP at all" symptom this loop was rewritten for once
+      // already, so it is now a number the operator reads, printed on the
+      // chunk that is responsible for it.
+      [
+        `:local lanPortsN [:len [/interface bridge port find where bridge="${lanBridge}"]]`,
+        `:put ("  Ports now in ${lanBridge}: " . [:tostr $lanPortsN])`,
+        `:if ($lanPortsN > 0) do={ :put "  RESULT: PASS -- the guest bridge has at least one physical port." }`,
+        `:if ($lanPortsN = 0) do={ :put "  RESULT: FAIL -- NOTHING is bridged into ${lanBridge}." }`,
+        `:if ($lanPortsN = 0) do={ :put "  The LAN address, DHCP server and hotspot below will all come up and" }`,
+        `:if ($lanPortsN = 0) do={ :put "  serve nobody, because no cable reaches them. No guest gets an IP." }`,
+        `:if ($lanPortsN = 0) do={ :put "  Every ethernet port on this board is either in the WAN list, carrying a" }`,
+        `:if ($lanPortsN = 0) do={ :put "  PPPoE session, or (with an explicit LAN allowlist) not on it. Check" }`,
+        `:if ($lanPortsN = 0) do={ :put "  /interface ethernet print and re-generate naming the real LAN ports." }`,
+        `:if ($lanPortsN = 0) do={ :log warning "cloudguest: no bridge port in ${lanBridge} after the LAN Ports chunk -- guests cannot get an address" }`,
+      ].join("; "),
+      // WHICH ports, by name, not just how many. Port naming varies by
+      // board (`ether2`..`ether5` on an hEX is not universal) and this
+      // generator never assumes it -- it sweeps whatever
+      // `/interface ethernet find` returns. Printing the resulting names is
+      // how an operator on a model nobody here has seen confirms the sweep
+      // picked the ports they meant, instead of trusting a count that would
+      // look identical if it had picked the wrong ones. One statement in
+      // the `:foreach` body; no state crosses a line.
+      `:foreach lanP in=[/interface bridge port find where bridge="${lanBridge}"] do={ :put ("    LAN port: " . [:tostr [/interface bridge port get $lanP interface]]) }`,
     ];
     chunks.push({
       label: hasExplicitLan
@@ -3578,6 +3687,35 @@ export function buildRouterSetupScriptChunks(opts: {
       `/ip hotspot profile set [find name="hsprof1"] dns-name="${HOTSPOT_DNS_NAME}"`,
       `:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={ /ip dns static add name="${HOTSPOT_DNS_NAME}" address=${lanIp} comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=${lanIp} }`,
       `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
+      // FIVE OBJECTS THIS CHUNK CREATES, FIVE COUNTS READ BACK. On a
+      // router reset with the default configuration, several of these
+      // already exist in some form and the `add`s are no-ops. On a router
+      // reset with NO default configuration every one of them is created
+      // here for the first time -- and every `add` above is wrapped in
+      // `:if ([:len [find]] = 0) do={ ... }`, which is silent whether it
+      // fired or not. The two unconditional `/ip hotspot profile set [find
+      // name="hsprof1"] ...` lines above are worse than silent: `set`
+      // against an empty match SUCCEEDS on RouterOS, so if the profile
+      // `add` never landed, `login-by=http-pap` and the dns-name both go
+      // nowhere and the hotspot rejects every single guest login with
+      // nothing anywhere saying why.
+      //
+      // Same shape as the WireGuard chunk's own final state check: print
+      // the five numbers, then a single PASS/FAIL derived from them. Bound
+      // and read on ONE entered line; every `do={}` body one statement.
+      [
+        `:local hsPool [:len [/ip pool find where name="hotspot-pool"]]`,
+        `:local hsDhcp [:len [/ip dhcp-server find where interface="${lanBridge}"]]`,
+        `:local hsNet [:len [/ip dhcp-server network find where address="${lanNetwork}"]]`,
+        `:local hsProf1 [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:local hsSrv [:len [/ip hotspot find where interface="${lanBridge}"]]`,
+        `:put ("  pool=" . [:tostr $hsPool] . " dhcp-server=" . [:tostr $hsDhcp] . " dhcp-network=" . [:tostr $hsNet] . " profile=" . [:tostr $hsProf1] . " hotspot=" . [:tostr $hsSrv])`,
+        `:if ($hsPool > 0 && $hsDhcp > 0 && $hsNet > 0 && $hsProf1 > 0 && $hsSrv > 0) do={ :put "  RESULT: PASS -- every object this chunk creates exists." }`,
+        `:if (!($hsPool > 0 && $hsDhcp > 0 && $hsNet > 0 && $hsProf1 > 0 && $hsSrv > 0)) do={ :put "  RESULT: FAIL -- a count above is 0, so guest WiFi will not work." }`,
+        `:if (!($hsPool > 0 && $hsDhcp > 0 && $hsNet > 0 && $hsProf1 > 0 && $hsSrv > 0)) do={ :put "  A zero profile= in particular is silent: the login-by and dns-name" }`,
+        `:if (!($hsPool > 0 && $hsDhcp > 0 && $hsNet > 0 && $hsProf1 > 0 && $hsSrv > 0)) do={ :put "  set commands above succeed against nothing and every guest login fails." }`,
+        `:if (!($hsPool > 0 && $hsDhcp > 0 && $hsNet > 0 && $hsProf1 > 0 && $hsSrv > 0)) do={ :log warning "cloudguest: hotspot chunk left one of pool/dhcp-server/network/hsprof1/hotspot missing" }`,
+      ].join("; "),
       // THE LOCAL HOTSPOT USER IS A COMPLETE PORTAL BYPASS, AND THIS
       // GENERATOR USED TO CREATE IT. The line that stood here was
       // `/ip hotspot user add name="guest" password="..."` ("guest" being
@@ -3825,6 +3963,25 @@ export function buildRouterSetupScriptChunks(opts: {
       ].join("; "),
       `/certificate set [find name="cloudguest-hotspot-cert"] trusted=yes`,
       `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="${HOTSPOT_DNS_NAME}"`,
+      // THREE `set [find ...]` LINES ABOVE, NONE OF WHICH CAN FAIL. That
+      // is not reassurance, it is the trap: `set` against an empty match
+      // succeeds on RouterOS with no output and no error. The two
+      // `/certificate set ... trusted=yes` lines and the profile binding
+      // all depend on an `add` further up having landed -- and on a router
+      // reset with no default configuration this chunk is the first thing
+      // that ever creates either certificate, which is precisely when the
+      // `ca=` self-sign bug recorded above was finally reproduced. Count
+      // the three objects the three `set`s target, and say so.
+      [
+        `:local ctCa [:len [/certificate find where name="cloudguest-ca"]]`,
+        `:local ctLeaf [:len [/certificate find where name="cloudguest-hotspot-cert"]]`,
+        `:local ctProf [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:put ("  ca=" . [:tostr $ctCa] . " leaf=" . [:tostr $ctLeaf] . " hsprof1=" . [:tostr $ctProf])`,
+        `:if ($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0) do={ :put "  RESULT: PASS -- both certificates exist and the profile they bind to does too." }`,
+        `:if (!($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0)) do={ :put "  RESULT: FAIL -- a count above is 0, so a set landed on nothing and said nothing." }`,
+        `:if (!($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0)) do={ :put "  Hotspot HTTPS will not come up. Check /certificate print and re-paste." }`,
+        `:if (!($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0)) do={ :log warning "cloudguest: self-signed hotspot certificate chain incomplete after paste" }`,
+      ].join("; "),
     ];
     chunks.push({
       label:
@@ -4201,6 +4358,24 @@ export function buildRouterSetupScriptChunks(opts: {
       // no-op.
       `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={ /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" timeout=3s } else={ /radius set [find where address="${radius.serverAddress}"] disabled=no }`,
       `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
+      // The self-heal `add` above is supposed to guarantee the `set` on the
+      // line before this one has something to land on. "Supposed to" is
+      // exactly the assumption this file keeps getting caught by: `set
+      // [find ...]` against an empty match succeeds with no error, so if
+      // that `add` did not take (a board where `/ip hotspot profile add`
+      // itself failed, an operator who removed the profile between chunks)
+      // the router ends up with a `/radius` entry configured and a hotspot
+      // that never asks it anything -- guests fail every login and the
+      // console printed nothing at all. Read the count back, both ways.
+      [
+        `:local rdProf [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:if ($rdProf > 0) do={ :put ("  RADIUS wired into hotspot profile hsprof1 (" . [:tostr $rdProf] . " profile matched).") }`,
+        `:if ($rdProf = 0) do={ :put "  FAIL -- no hotspot profile named hsprof1 exists on this router." }`,
+        `:if ($rdProf = 0) do={ :put "  use-radius/radius-accounting were NOT applied -- that set matched nothing" }`,
+        `:if ($rdProf = 0) do={ :put "  and RouterOS reported success anyway. No guest will ever authenticate." }`,
+        `:if ($rdProf = 0) do={ :put "  Paste the Hotspot chunk first, then re-paste this one." }`,
+        `:if ($rdProf = 0) do={ :log warning "cloudguest: hsprof1 missing -- use-radius was not applied to any hotspot profile" }`,
+      ].join("; "),
     ];
     chunks.push({ label: "RADIUS", script: lines.join("\n") });
   }
