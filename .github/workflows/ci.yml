@@ -291,15 +291,48 @@ jobs:
       # verified mutations of their own. 31 mutations in total across the
       # three tables, all caught.
       #
-      # The two floors those sections were developed against (210 and 340)
+      # Section 10 (added 2026-08-23) covers the OTHER state a MikroTik
+      # hardware reset can leave the device in: no default configuration at
+      # all. No bridge, no `WAN`/`LAN` interface lists, no defconf firewall
+      # rules, no DHCP client -- every chunk here had only ever been run
+      # against the state where all of that exists. Most of the generator
+      # already coped, and the section says so; what it found was one L2
+      # hole and six chunks that did their work silently.
+      #
+      # The hole: for a PPPoE WAN only the VIRTUAL
+      # `cloudguest-pppoe-wan<N>` interface goes into the "WAN" list, so
+      # the PHYSICAL port carrying the session tests as "not a WAN port" in
+      # the LAN sweep. MikroTik's own defconf `ether1 -> WAN` membership was
+      # what kept it out of the guest bridge; without defaults nothing does,
+      # and the live uplink gets bridged into the guest LAN. Gated on the
+      # live `/interface pppoe-client` exclusion being present in BOTH sweep
+      # passes and on it being read from the device rather than hardcoded.
+      #
+      # The six: WAN + Bridge, the stale-defconf cleanup, LAN Ports, the
+      # Hotspot chunk, the self-signed certificate chunk and RADIUS each
+      # now bind a count, print it, and take a named FAIL branch on zero --
+      # because `set [find ...]` against an empty match SUCCEEDS on
+      # RouterOS and an empty `:foreach` exits clean, so a chunk could run
+      # perfectly on a bare router and configure nothing. Also gated: no
+      # `place-before` may target anything but a variable bound and
+      # length-checked on its own line, every emitted `add` must carry an
+      # existence test, and no chunk may key on `defconf` or `bridgeLocal`
+      # outside the one cleanup chunk whose job that is.
+      #
+      # Twenty mutations of the generator and four of the guards themselves
+      # were verified to fail this suite; see the script header. Two of
+      # those four were real holes it found (a self-check testing its own
+      # private copy of the regex the sweep used), not confirmations.
+      #
+      # The two floors sections 6-9 were developed against (210 and 340)
       # were raised on separate branches and merged here; neither survives
       # on its own, because the sections are disjoint and the suite now runs
-      # both. Floor raised 160 -> 395, observed green at
-      # 415 on 2026-08-23.
+      # both. Floor raised 160 -> 395 -> 435, observed green at
+      # 458 on 2026-08-23.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 395 \
+            "setup-script-generator" 435 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
