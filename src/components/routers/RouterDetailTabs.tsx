@@ -4731,10 +4731,36 @@ export function buildRouterSetupScriptChunks(opts: {
     const lines = [
       `:foreach addr in=[/ip address find where interface="${lanBridge}" dynamic=yes] do={ /ip address remove $addr }`,
       `:if ([:len [/ip address find where interface="${lanBridge}" address="${lanIp}/${lanCidr}"]] = 0) do={ /ip address add address=${lanIp}/${lanCidr} interface="${lanBridge}" }`,
+      // ALWAYS, INCLUDING basicConfigOnly. This used to be part of the
+      // `servers=` line below and fell away with it in basic mode, and the
+      // two are not the same kind of setting at all:
+      //
+      //   servers=              WHICH upstream resolvers this router uses.
+      //                         A technician may legitimately want to set
+      //                         those by hand -- that is what basic mode is
+      //                         for.
+      //   allow-remote-requests WHETHER this router answers DNS for the
+      //                         devices behind it. Off, it answers nobody.
+      //
+      // The hotspot chunk further down sets `dns-name` and adds a static
+      // `wifi.wyfyguest.com -> lanIp` record, and both are worthless if the
+      // router refuses to answer. Worse, the guest's captive-portal probe
+      // needs a DNS answer to be intercepted at all -- with this off the
+      // probe fails outright, the phone concludes the network is fine, and
+      // NO SIGN-IN PAGE EVER POPS UP. Confirmed live 2026-08-23: profile,
+      // dns-name, walled-garden and RADIUS were all correct on the device
+      // and the portal only appeared if the guest typed the LAN IP by hand.
+      //
+      // So the resolver switch is emitted unconditionally, exactly like the
+      // two WAN-DNS-block firewall rules below and for the same reason: it
+      // is not a preference, it is a thing the rest of the script depends
+      // on. The WAN-side port 53 drops directly below keep this from
+      // meaning an open resolver on the internet.
+      `/ip dns set allow-remote-requests=yes`,
       ...(basicConfigOnly
         ? []
         : [
-            `/ip dns set servers="${escapeForRouterOsString(dnsServers)}" allow-remote-requests=yes`,
+            `/ip dns set servers="${escapeForRouterOsString(dnsServers)}"`,
             // `allow-remote-requests=yes` above is a device-wide switch --
             // it has to stay on so guests behind the hotspot (and anything
             // resolving via WireGuard-tunneled management traffic) can
