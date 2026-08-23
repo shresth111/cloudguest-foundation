@@ -153,10 +153,19 @@ export const FLEET_DEFAULTS = {
    * MUST discover which one exists before pasting any redirect-page chunk. */
   portalFilePathCandidates: ["flash/hotspot/login.html", "hotspot/login.html"] as Lit[],
 
-  /** Certificate names. Optional for the guest flow — the walled-garden
-   * path never touches the hotspot's certificate. */
-  caCertName: "cloudguest-ca" as Lit,
-  leafCertName: "cloudguest-hotspot-cert" as Lit,
+  // CERTIFICATE NAMES REMOVED. `caCertName` and `leafCertName` sat here
+  // with zero consumers anywhere in the tree, naming two certificates the
+  // generator stopped creating when the self-signed hotspot certificate
+  // was deleted -- a router-signed cert in front of a guest produced a
+  // full-screen security warning, and it decided the scheme of
+  // `$(link-login-only)` as well, so the OTP posted to an endpoint no
+  // browser trusted. Defaults that name objects nothing creates are how a
+  // wizard starts describing a router that no longer exists.
+  //
+  // The literals themselves stay in `PROTECTED_TOKENS` and `types.ts` on
+  // purpose: those registries exist so output pasted from an ALREADY
+  // provisioned router is parsed and never translated, and the field fleet
+  // still carries these certificates.
 
   /** Sentinel wrapper. Every probe this wizard emits is bracketed by these
    * so the parser can (a) prove the right command ran, (b) ignore terminal
