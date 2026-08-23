@@ -1714,6 +1714,25 @@ const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
  * is a one-line edit; adding a second writer anywhere fails the build. */
 const HOTSPOT_LOGIN_BY = "http-pap";
 
+/** The stable RouterOS certificate name that `/opt/wyfy/renew-hotspot-certs.sh`
+ * binds on a router after pushing the fleet's real Let's Encrypt certificate
+ * (SANs: `wifi.wyfyguest.com`, `portal.wyfyguest.com`, `*.portal.wyfyguest.com`).
+ *
+ * THIS GENERATOR NEVER CREATES IT, and that has not changed -- a
+ * router-signed certificate in front of a guest is exactly what was deleted
+ * from this file. This name exists here for one purpose: to RECOGNISE the
+ * real one when the renewal script has already put it there, so a re-paste
+ * stops undoing it.
+ *
+ * Why that mattered enough to add: `HOTSPOT_LOGIN_BY`'s own docstring
+ * accepted the downgrade -- "the renewal script's next rebind restores it"
+ * -- but that rebind only happens when a certificate actually RENEWS, which
+ * is a ~60-90 day window. Until then the guest sees Chrome's "the
+ * information you're about to submit is not secure" on the router's own
+ * login form. Reported live 2026-08-23, after a paste that was otherwise
+ * completely successful. */
+const HOTSPOT_FLEET_CERT_NAME = "wyfy-hotspot-fleet";
+
 /** A RouterOS regex (used with `~`) matching the hostnames every major OS
  * fetches to answer "am I really online?" -- Windows NCSI, Apple's Captive
  * Network Assistant, Android's connectivity check, Firefox's, and the two
@@ -5056,7 +5075,33 @@ export function buildRouterSetupScriptChunks(opts: {
       // one of two, and the other one won -- see `HOTSPOT_LOGIN_BY`'s own
       // docstring for the guest-facing certificate warning that produced,
       // and for why the value has no `https` in it.
-      `/ip hotspot profile set [find name="hsprof1"] login-by=${HOTSPOT_LOGIN_BY}`,
+      // STILL ONE `set` OF `login-by`, on one line, with the VALUE decided on
+      // the device. The single-writer rule is untouched -- that rule is what
+      // stopped two chunks fighting over this property, and it is not what
+      // this changes.
+      //
+      // The gate is NOT "does a certificate object exist". It is "is this
+      // profile ALREADY BOUND to the fleet certificate", which is a
+      // materially different question and the only safe one. A cert object
+      // sitting unbound on the device (imported but never bound, or left
+      // over from something else) would let `https` stand up a TLS server
+      // against whatever RouterOS picks -- the original bug, re-entered
+      // through a side door. Reading `ssl-certificate` off the profile
+      // instead means this can only ever PRESERVE a binding the renewal
+      // script made; it can never create one.
+      //
+      // `ssl-certificate` itself is still never written here. That
+      // invariant is the reason a re-paste can no longer rebind a router
+      // onto a self-signed certificate, and it stays.
+      [
+        `:local hsBound [:len [/ip hotspot profile find where name="hsprof1" and ssl-certificate~"${HOTSPOT_FLEET_CERT_NAME}"]]`,
+        `:local hsLoginBy "${HOTSPOT_LOGIN_BY}"`,
+        `:if ($hsBound > 0) do={ :set hsLoginBy "https,${HOTSPOT_LOGIN_BY}" }`,
+        `:if ([:len [/ip hotspot profile find where name="hsprof1"]] > 0) do={ /ip hotspot profile set [find name="hsprof1"] login-by=$hsLoginBy }`,
+        `:if ($hsBound > 0) do={ :put ("  login-by: https,${HOTSPOT_LOGIN_BY} -- this router already carries the trusted fleet certificate, leaving HTTPS on") }`,
+        `:if ($hsBound = 0) do={ :put ("  login-by: ${HOTSPOT_LOGIN_BY} -- no trusted certificate is bound here, so the login page stays plain HTTP") }`,
+        `:if ($hsBound = 0) do={ :put ("  That is correct, not a fault: a router-signed certificate would warn every guest before they ever saw the portal.") }`,
+      ].join("; "),
       // Same "set fixes an already-existing profile" logic as login-by
       // above, for the address-bar-friendly hostname this profile's own
       // redirect now uses -- see HOTSPOT_DNS_NAME's own docstring for why
